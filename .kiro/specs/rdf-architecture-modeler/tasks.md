@@ -1,0 +1,330 @@
+# Implementation Plan: RDF Architecture Modeler
+
+## Overview
+
+Incremental implementation of the RDF Architecture Modeler following the 6-layer architecture defined in the design. Each task builds on previous steps, starting with core RDF infrastructure, then metamodel management, model operations, UI components, platform abstraction, and import/export. TypeScript with Webpack 5, diagram-js, Oxigraph WASM, N3.js, rdf-validate-shacl, Lit, and Vitest + fast-check.
+
+## Tasks
+
+- [ ] 1. Set up project structure and core interfaces
+  - [ ] 1.1 Initialize project scaffolding with Webpack 5, TypeScript config, and Vitest
+    - Create `src/` directory structure mirroring the 6 architectural layers: `rdf-engine/`, `metamodel-manager/`, `model-manager/`, `ui/`, `platform/`, `import-export/`
+    - Configure `tsconfig.json` with strict mode, ES module output
+    - Configure Webpack 5 with TypeScript loader and WASM support (for Oxigraph)
+    - Set up Vitest config with fast-check integration
+    - _Requirements: 10.1, 10.2_
+  - [ ] 1.2 Define core TypeScript interfaces and RDF namespace constants
+    - Create `src/rdf-engine/interfaces.ts` with `TtlParser`, `TtlSerializer`, `RdfStore`, `ShaclValidator`, `ParseError`, `ParseResult`, `ValidationReport`, `ValidationResult` interfaces
+    - Create `src/metamodel-manager/interfaces.ts` with `MetamodelLoader`, `PaletteGenerator`, `ViewpointManager`, `MetamodelInfo`, `PaletteDefinition`, `ElementGroup`, `ElementTypeInfo`, `RelationshipTypeInfo`, `ViewpointInfo` interfaces
+    - Create `src/model-manager/interfaces.ts` with `ElementManager`, `RelationshipManager`, `ViewManager`, `Bounds`, `ViewInfo` interfaces
+    - Create `src/platform/interfaces.ts` with `PlatformService`, `FileFilter` interfaces
+    - Create `src/rdf-engine/namespaces.ts` with RDF namespace prefix constants (`arch:`, `arch-vis:`, `skos:`, `sh:`, `owl:`, `rdf:`, `rdfs:`, `dc:`)
+    - _Requirements: 3.1, 3.5, 4.5_
+
+- [ ] 2. Implement RDF Engine layer
+  - [ ] 2.1 Implement TTL Parser using N3.js
+    - Create `src/rdf-engine/ttl-parser.ts` implementing the `TtlParser` interface
+    - Use N3.js `Parser` to parse Turtle strings into RDF quads
+    - Return `ParseResult` with either parsed quads or `ParseError` with line number and message
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [ ]* 2.2 Write property test for TTL Parse Round Trip
+    - **Property 1: TTL Parse Round Trip**
+    - Create `src/rdf-engine/__tests__/rdf-engine.property.test.ts`
+    - Implement `arbitraryTtl()` generator for valid Turtle strings
+    - Verify parse → serialize → parse produces equivalent RDF quads
+    - **Validates: Requirements 1.1, 1.2, 3.4, 9.3, 9.4**
+  - [ ]* 2.3 Write property test for TTL Syntax Error Reporting
+    - **Property 2: TTL Syntax Error Reporting**
+    - Verify invalid Turtle strings produce `ParseError` with non-empty message and line > 0
+    - **Validates: Requirements 1.3**
+  - [ ] 2.4 Implement TTL Serializer using N3.js
+    - Create `src/rdf-engine/ttl-serializer.ts` implementing the `TtlSerializer` interface
+    - Use N3.js `Writer` with custom formatting: prefix declarations at top, grouped by subject, consistent indentation
+    - Use shortest matching prefix for IRIs
+    - _Requirements: 9.1, 9.2, 9.3_
+  - [ ]* 2.5 Write property test for TTL Serializer Formatting
+    - **Property 22: TTL Serializer Formatting**
+    - Verify `@prefix` declarations appear before triple statements and shortest prefix is used
+    - **Validates: Requirements 9.1, 9.2**
+  - [ ] 2.6 Implement RDF Store using Oxigraph WASM
+    - Create `src/rdf-engine/rdf-store.ts` implementing the `RdfStore` interface
+    - Initialize Oxigraph WASM store with SPARQL 1.1 support (SELECT, CONSTRUCT, ASK, DESCRIBE)
+    - Implement `addQuads`, `removeQuads`, `getQuads`, `query`, `update` methods
+    - _Requirements: 3.1, 3.3, 6.1_
+  - [ ] 2.7 Implement SHACL Validator using rdf-validate-shacl
+    - Create `src/rdf-engine/shacl-validator.ts` implementing the `ShaclValidator` interface
+    - Implement full validation and incremental validation (single resource)
+    - Return `ValidationReport` with `conforms`, `results` (focusNode, resultPath, sourceShape, message, severity)
+    - _Requirements: 8.1, 8.2, 8.4_
+  - [ ]* 2.8 Write property test for SHACL Violation Detection
+    - **Property 16: SHACL Violation Detection**
+    - Verify violations include non-null focus node, source shape, and non-empty message
+    - **Validates: Requirements 5.5, 8.1, 8.2**
+  - [ ]* 2.9 Write property test for SPARQL Error Reporting
+    - **Property 17: SPARQL Error Reporting**
+    - Verify invalid SPARQL queries return error with non-empty descriptive message
+    - **Validates: Requirements 6.5**
+
+- [ ] 3. Checkpoint - RDF Engine layer
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 4. Implement Metamodel Manager layer
+  - [ ] 4.1 Implement Metamodel Loader
+    - Create `src/metamodel-manager/metamodel-loader.ts` implementing the `MetamodelLoader` interface
+    - Parse TTL files and load triples into a dedicated named graph in the RDF store
+    - Extract metadata (`dc:title`, `owl:versionInfo`, `dc:description`) into `MetamodelInfo`
+    - Implement `loadShapes` for SHACL shape files
+    - Implement `resolveImports` for transitive `owl:imports` resolution
+    - _Requirements: 1.1, 1.2, 1.4, 1.5_
+  - [ ]* 4.2 Write property test for Metamodel Metadata Extraction
+    - **Property 3: Metamodel Metadata Extraction**
+    - Verify loaded metamodel `MetamodelInfo` fields match RDF literal values
+    - **Validates: Requirements 1.5**
+  - [ ]* 4.3 Write property test for owl:imports Transitive Resolution
+    - **Property 25: owl:imports Transitive Resolution**
+    - Verify loading root ontology with import chain of depth N loads all N imported ontologies
+    - **Validates: Requirements 1.4**
+  - [ ] 4.4 Implement Palette Generator with SPARQL queries
+    - Create `src/metamodel-manager/palette-generator.ts` implementing the `PaletteGenerator` interface
+    - Execute SPARQL to discover concrete `arch:Element` subclasses (excluding `arch:isAbstract true`)
+    - Execute SPARQL to discover `arch:Relationship` instances with domain/range info
+    - Group elements by `skos:broader` category
+    - Populate `skos:prefLabel` and `arch:prefVisNotation` for each entry
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.7_
+  - [ ]* 4.5 Write property test for Metamodel Type Discovery Completeness
+    - **Property 4: Metamodel Type Discovery Completeness**
+    - Verify palette returns exactly the concrete element subclasses and all relationship instances
+    - **Validates: Requirements 2.1, 2.2, 2.7**
+  - [ ]* 4.6 Write property test for Palette Entry Completeness
+    - **Property 5: Palette Entry Completeness**
+    - Verify each palette entry contains `skos:prefLabel` and `arch:prefVisNotation` when present
+    - **Validates: Requirements 2.4, 2.5**
+  - [ ]* 4.7 Write property test for Palette Grouping by Category
+    - **Property 6: Palette Grouping by Category**
+    - Verify elements with same `skos:broader` are grouped together, each element in exactly one group
+    - **Validates: Requirements 2.3**
+  - [ ] 4.8 Implement Viewpoint Manager
+    - Create `src/metamodel-manager/viewpoint-manager.ts` implementing the `ViewpointManager` interface
+    - Query `arch:Viewpoint` instances from metamodel
+    - Determine permitted element/relationship types per viewpoint
+    - Implement `filterByViewpoint` on `PaletteGenerator` to filter palette by viewpoint
+    - _Requirements: 2.6, 7.2_
+  - [ ]* 4.9 Write property test for Viewpoint Palette Filtering
+    - **Property 7: Viewpoint Palette Filtering**
+    - Verify filtering by viewpoint produces palette containing only permitted types
+    - **Validates: Requirements 2.6, 7.2**
+
+- [ ] 5. Checkpoint - Metamodel Manager layer
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 6. Implement Model Manager layer
+  - [ ] 6.1 Implement Element Manager
+    - Create `src/model-manager/element-manager.ts` implementing the `ElementManager` interface
+    - `createElement`: generate unique IRI in model namespace, add typed resource + `arch-vis` layout triples
+    - `updateProperty`: update targeted triple in RDF store, leaving others unchanged
+    - `deleteElement`: remove element resource and cascade-delete all associated relationship triples
+    - `updateLayout`: update `arch-vis:bounds-x/y/w/h` triples
+    - _Requirements: 4.1, 4.3, 4.4, 4.5, 4.6_
+  - [ ]* 6.2 Write property test for Element Creation in RDF Store
+    - **Property 10: Element Creation in RDF Store**
+    - Verify created element has correct type, layout properties, and unique IRI
+    - **Validates: Requirements 4.1, 4.5, 4.6**
+  - [ ]* 6.3 Write property test for Element Property Edit Propagation
+    - **Property 11: Element Property Edit Propagation**
+    - Verify property update changes exactly the targeted triple, leaving others unchanged
+    - **Validates: Requirements 4.3**
+  - [ ]* 6.4 Write property test for Element Deletion Cascade
+    - **Property 12: Element Deletion Cascade**
+    - Verify deleting element removes element resource and all relationship triples where it appears
+    - **Validates: Requirements 4.4**
+  - [ ] 6.5 Implement Relationship Manager
+    - Create `src/model-manager/relationship-manager.ts` implementing the `RelationshipManager` interface
+    - `getValidRelationships`: filter by `arch:domainIncludes` / `arch:rangeIncludes` constraints
+    - `createRelationship`: create direct triple or `arch:QualifiedRelationship` with `relSource`, `relTarget`, `relPredicate`
+    - `deleteRelationship`: remove triple or QualifiedRelationship resource, leaving source/target intact
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+  - [ ]* 6.6 Write property test for Relationship Domain/Range Filtering
+    - **Property 13: Relationship Domain/Range Filtering**
+    - Verify valid relationship types match domain/range constraints exactly
+    - **Validates: Requirements 5.1**
+  - [ ]* 6.7 Write property test for Relationship Creation Correctness
+    - **Property 14: Relationship Creation Correctness**
+    - Verify created relationship produces correct direct triple or QualifiedRelationship
+    - **Validates: Requirements 5.2, 5.3**
+  - [ ]* 6.8 Write property test for Relationship Deletion Completeness
+    - **Property 15: Relationship Deletion Completeness**
+    - Verify deleting relationship removes all associated triples, source/target remain
+    - **Validates: Requirements 5.4**
+  - [ ] 6.9 Implement View Manager
+    - Create `src/model-manager/view-manager.ts` implementing the `ViewManager` interface
+    - `createView`: create `arch:View` resource typed as `arch:Diagram`, `arch:Catalog`, or `arch:Matrix`
+    - `addElementToView` / `removeElementFromView`: manage element-view associations
+    - Ensure single underlying RDF resource per element across multiple views
+    - _Requirements: 7.1, 7.3, 7.4, 7.5, 7.6, 7.7_
+  - [ ]* 6.10 Write property test for View Creation Correctness
+    - **Property 19: View Creation Correctness**
+    - Verify created view has correct `arch:View` subclass type in RDF store
+    - **Validates: Requirements 7.1, 7.3, 7.4, 7.5**
+  - [ ]* 6.11 Write property test for Single Element Resource Across Views
+    - **Property 18: Single Element Resource Across Views**
+    - Verify element in multiple views has exactly one RDF resource, property changes visible from all views
+    - **Validates: Requirements 7.6, 7.7**
+  - [ ] 6.12 Implement Model Operations (new model creation, save, load)
+    - Create `src/model-manager/model-operations.ts`
+    - `createModel`: generate `arch:Model` resource with `arch:conformsToMetamodel` link to active metamodel
+    - `saveModel`: serialize all model triples via TTL Serializer, preserve namespace prefixes
+    - `loadModel`: parse TTL file via TTL Parser, load into RDF store
+    - _Requirements: 3.1, 3.2, 3.3, 3.5, 3.6_
+  - [ ]* 6.13 Write property test for Namespace Prefix Preservation
+    - **Property 8: Namespace Prefix Preservation**
+    - Verify save and reload preserves all original namespace prefix mappings
+    - **Validates: Requirements 3.5**
+  - [ ]* 6.14 Write property test for New Model Conformance Link
+    - **Property 9: New Model Conformance Link**
+    - Verify new model has `arch:Model` type and `arch:conformsToMetamodel` triple
+    - **Validates: Requirements 3.6**
+
+- [ ] 7. Checkpoint - Model Manager layer
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 8. Implement Platform Abstraction Layer
+  - [ ] 8.1 Implement PlatformService interface with Web and Electron implementations
+    - Create `src/platform/web-platform-service.ts` implementing `PlatformService` using File API, `<input type="file">`, and download links
+    - Create `src/platform/electron-platform-service.ts` implementing `PlatformService` using Electron `dialog` and Node.js `fs`
+    - Implement `readFile`, `writeFile`, `showOpenDialog`, `showSaveDialog`, `isDesktop` for both
+    - Create `src/platform/platform-factory.ts` to select implementation based on runtime environment
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
+
+- [ ] 9. Implement UI Layer
+  - [ ] 9.1 Implement App Shell and Layout Manager
+    - Create `src/ui/app-shell.ts` as a Lit web component providing the main application layout
+    - Define panel slots: palette (left), canvas (center), property panel (right), explorer (left), validation (bottom)
+    - Wire up model change event bus for reactive UI updates across panels
+    - _Requirements: 4.2, 7.7_
+  - [ ] 9.2 Implement Diagram Canvas with diagram-js
+    - Create `src/ui/canvas/diagram-canvas.ts` wrapping diagram-js initialization
+    - Implement `RdfPaletteProvider` module: driven by `PaletteGenerator`, drag-to-create elements
+    - Implement `RdfRenderer` module: render elements using `arch:prefVisNotation` icons
+    - Implement `RdfRuleProvider` module: enforce metamodel constraints on canvas operations
+    - Implement `RdfContextPadProvider` module: context-sensitive actions per element type
+    - Synchronize canvas state with RDF store via Model Manager events
+    - _Requirements: 4.1, 4.6, 5.1, 5.2_
+  - [ ] 9.3 Implement Palette Panel
+    - Create `src/ui/panels/palette-panel.ts` as a Lit component
+    - Display element types grouped by category with `skos:prefLabel` and icon
+    - Display relationship types with label and icon
+    - Filter by active viewpoint
+    - Support drag-to-canvas for element creation
+    - _Requirements: 2.3, 2.4, 2.5, 2.6_
+  - [ ] 9.4 Implement Property Panel
+    - Create `src/ui/panels/property-panel.ts` as a Lit component
+    - Display RDF properties of selected element/relationship (label, definition, custom properties)
+    - Generate form fields from SHACL shapes (data types, cardinality)
+    - Propagate edits through Model Manager to RDF store
+    - _Requirements: 4.2, 4.3_
+  - [ ] 9.5 Implement Model Explorer Panel
+    - Create `src/ui/panels/model-explorer.ts` as a Lit component
+    - Tree view of model contents organized by `arch:Folder` structure
+    - Selection synchronizes with Canvas highlighting
+    - Support filtering by type, name, or property values
+    - Reactive updates on model changes (element create/delete)
+    - _Requirements: 11.1, 11.2, 11.3, 11.4_
+  - [ ]* 9.6 Write property test for Model Explorer Tree Correctness
+    - **Property 20: Model Explorer Tree Correctness**
+    - Verify tree contains exactly the elements in the RDF store, organized by folder hierarchy
+    - **Validates: Requirements 11.1, 11.3**
+  - [ ]* 9.7 Write property test for Model Explorer Filtering
+    - **Property 21: Model Explorer Filtering**
+    - Verify filter returns exactly matching elements from the full set
+    - **Validates: Requirements 11.4**
+  - [ ] 9.8 Implement Catalog View
+    - Create `src/ui/views/catalog-view.ts` as a Lit component
+    - Tabular rendering of elements filtered by type
+    - Columns derived from SPARQL query against element properties
+    - Inline editing of element properties
+    - _Requirements: 7.4_
+  - [ ] 9.9 Implement Matrix View
+    - Create `src/ui/views/matrix-view.ts` as a Lit component
+    - Grid showing relationships between two sets of element types
+    - Row/column headers from SPARQL queries
+    - Cell values indicate relationship existence/type
+    - _Requirements: 7.5_
+  - [ ] 9.10 Implement SPARQL Query Editor
+    - Create `src/ui/panels/sparql-editor.ts` as a Lit component wrapping CodeMirror 6
+    - Syntax highlighting and auto-completion for prefixes and vocabulary terms
+    - Query execution with tabular result display
+    - Option to render CONSTRUCT results as new diagram views
+    - Error display for invalid SPARQL queries
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+  - [ ] 9.11 Implement Validation Panel
+    - Create `src/ui/panels/validation-panel.ts` as a Lit component
+    - Display SHACL validation results grouped by severity
+    - Click-to-navigate to focus node on Canvas
+    - Visual highlighting of elements/relationships with violations on Canvas
+    - Real-time incremental validation feedback
+    - _Requirements: 8.1, 8.2, 8.3, 8.4_
+
+- [ ] 10. Checkpoint - UI Layer
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 11. Implement Import/Export layer
+  - [ ] 11.1 Implement ArchiMate XML Importer
+    - Create `src/import-export/archimate-importer.ts`
+    - Parse ArchiMate Open Exchange Format XML
+    - Map XML elements to RDF triples using the ArchiMate metamodel ontology
+    - Report unrecognized types for user mapping or skip
+    - _Requirements: 12.1, 12.4_
+  - [ ]* 11.2 Write property test for ArchiMate Import Type Mapping
+    - **Property 23: ArchiMate Import Type Mapping**
+    - Implement `arbitraryArchiMateXml()` generator
+    - Verify every recognized element type maps to corresponding `arch:Element` subclass
+    - **Validates: Requirements 12.1**
+  - [ ]* 11.3 Write property test for Import Unrecognized Type Reporting
+    - **Property 24: Import Unrecognized Type Reporting**
+    - Verify unrecognized types are reported with their names
+    - **Validates: Requirements 12.4**
+  - [ ] 11.4 Implement SVG/PNG Exporter
+    - Create `src/import-export/svg-png-exporter.ts`
+    - Capture diagram canvas as SVG using diagram-js built-in export
+    - Convert SVG to PNG via canvas rasterization
+    - _Requirements: 12.3_
+  - [ ] 11.5 Implement TTL File I/O (save/load wiring)
+    - Create `src/import-export/ttl-file-io.ts`
+    - Wire TTL Serializer output through PlatformService for file save
+    - Wire PlatformService file read through TTL Parser for file load
+    - Implement TTL export producing valid Turtle with all model triples
+    - _Requirements: 3.1, 3.2, 3.3, 12.2_
+
+- [ ] 12. Checkpoint - Import/Export layer
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 13. Integration and wiring
+  - [ ] 13.1 Wire all layers together in the App Shell
+    - Connect Platform Abstraction → RDF Engine → Metamodel Manager → Model Manager → UI Layer
+    - Wire model change event bus so UI panels react to RDF store mutations
+    - Wire palette drag-to-canvas → Element Manager → RDF Store → Canvas render
+    - Wire property panel edits → Model Manager → RDF Store → all views update
+    - Wire validation panel to SHACL Validator with incremental validation on edits
+    - _Requirements: 4.1, 4.3, 7.7, 8.4_
+  - [ ] 13.2 Configure Webpack builds for web and Electron targets
+    - Create Webpack config for web bundle (browser deployment)
+    - Create Webpack config for Electron main/renderer processes
+    - Configure WASM loading for Oxigraph in both targets
+    - Ensure identical core modeling functionality in both deployment modes
+    - _Requirements: 10.1, 10.2, 10.5_
+  - [ ]* 13.3 Write integration tests for end-to-end flows
+    - Test: load metamodel → generate palette → create element → save model → reload model
+    - Test: create relationship with domain/range validation → SHACL validation
+    - Test: multi-view element sharing (modify in one view, verify in another)
+    - _Requirements: 1.1, 2.1, 3.4, 4.1, 5.1, 7.6, 7.7, 8.1_
+
+- [ ] 14. Final checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation after each architectural layer
+- Property tests validate the 25 correctness properties from the design document
+- All code is TypeScript targeting both web browser and Electron desktop deployment

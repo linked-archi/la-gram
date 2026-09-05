@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RDF Architecture Modeler</title>
+  <style>
+    /* ── Base layout ───────────────────────────────────────────────────
+       app-shell sizes itself with height: 100%, which collapses to zero
+       unless every ancestor has a resolved height. */
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #202124;
+      background: #f1f3f4;
+      overflow: hidden;
+    }
+
+    #app {
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    app-shell {
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    /* ── Slotted panels ────────────────────────────────────────────────
+       These live in the light DOM (they are assigned into app-shell's
+       named slots), so document-level CSS applies to the host elements. */
+    palette-panel,
+    model-explorer,
+    property-panel,
+    validation-panel,
+    sparql-editor,
+    catalog-view,
+    matrix-view {
+      display: block;
+      background: #fff;
+      border: 1px solid #dadce0;
+      box-sizing: border-box;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    /* Center area: diagram host plus the alternative catalog/matrix views. */
+    .la-canvas-area {
+      display: block;
+      position: relative;
+      height: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      background: #fff;
+      border: 1px solid #dadce0;
+      overflow: auto;
+    }
+
+    .la-diagram-host {
+      height: 100%;
+      width: 100%;
+      min-height: 240px;
+      background:
+        linear-gradient(#eceff1 1px, transparent 1px) 0 0 / 20px 20px,
+        linear-gradient(90deg, #eceff1 1px, transparent 1px) 0 0 / 20px 20px,
+        #fff;
+    }
+
+    .la-canvas-area > catalog-view,
+    .la-canvas-area > matrix-view {
+      border: none;
+      height: 100%;
+    }
+
+    /* Bottom bar: validation results next to the SPARQL editor. */
+    .la-bottom-area {
+      display: flex;
+      align-items: stretch;
+      gap: 4px;
+      height: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .la-bottom-area > validation-panel {
+      flex: 1 1 40%;
+    }
+
+    .la-bottom-area > sparql-editor {
+      flex: 1 1 60%;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>

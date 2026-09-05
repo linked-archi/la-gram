@@ -1,0 +1,286 @@
+/**
+ * Validation Panel — Lit component displaying SHACL validation results.
+ *
+ * Shows validation results grouped by severity (Violation, Warning, Info),
+ * with click-to-navigate to focus node on Canvas and visual highlighting
+ * of elements/relationships with violations. Supports real-time incremental
+ * validation feedback via EventBus integration.
+ */
+
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import type {
+  ValidationResult,
+  ValidationReport,
+  ShaclValidator,
+} from '../../rdf-engine/interfaces.js';
+import type { Quad, NamedNode } from '@rdfjs/types';
+
+// ── Types ───────────────────────────────────────────────────────────────
+
+/** Detail emitted when the user clicks a validation result to navigate. */
+export interface ValidationNavigateDetail {
+  focusNodeIri: string;
+}
+
+/** Detail emitted to highlight violated elements on the canvas. */
+export interface ValidationHighlightDetail {
+  iris: string[];
+}
+
+/** Groups validation results by severity. */
+export interface GroupedResults {
+  violations: ValidationResult[];
+  warnings: ValidationResult[];
+  infos: ValidationResult[];
+}
+
+// ── Helper functions ────────────────────────────────────────────────────
+
+/** Extracts the local/fragment part of an IRI for display. */
+export function iriLabel(iri: string): string {
+  const hashIdx = iri.lastIndexOf('#');
+  if (hashIdx >= 0) return iri.slice(hashIdx + 1);
+  const slashIdx = iri.lastIndexOf('/');
+  if (slashIdx >= 0) return iri.slice(slashIdx + 1);
+  return iri;
+}
+
+/** Groups an array of ValidationResult by severity. */
+export function groupBySeverity(results: ValidationResult[]): GroupedResults {
+  const violations: ValidationResult[] = [];
+  const warnings: ValidationResult[] = [];
+  const infos: ValidationResult[] = [];
+  for (const r of results) {
+    switch (r.severity) {
+      case 'Violation': violations.push(r); break;
+      case 'Warning': warnings.push(r); break;
+      case 'Info': infos.push(r); break;
+    }
+  }
+  return { violations, warnings, infos };
+}
+
+/** Builds the summary header text from a ValidationReport. */
+export function buildSummary(conforms: boolean, results: ValidationResult[]): string {
+  if (conforms) return '✓ Model conforms';
+  const grouped = groupBySeverity(results);
+  const parts: string[] = [];
+  if (grouped.violations.length > 0) {
+    parts.push(`${grouped.violations.length} violation(s)`);
+  }
+  if (grouped.warnings.length > 0) {
+    parts.push(`${grouped.warnings.length} warning(s)`);
+  }
+  if (grouped.infos.length > 0) {
+    parts.push(`${grouped.infos.length} info(s)`);
+  }
+  return `✗ ${parts.join(', ')}`;
+}
+
+/** Extracts unique focus node IRIs from validation results. */
+export function extractViolatedIris(results: ValidationResult[]): string[] {
+  const set = new Set<string>();
+  for (const r of results) {
+    if (r.focusNode?.value) set.add(r.focusNode.value);
+  }
+  return [...set];
+}
+
+// ── Lit Component ───────────────────────────────────────────────────────
+
+@customElement('validation-panel')
+export class ValidationPanel extends LitElement {
+  static override styles = css`
+    :host {
+      display: block;
+      font-family: sans-serif;
+      font-size: 13px;
+    }
+
+    .panel-header {
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .summary {
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .summary.conforms {
+      color: #2e7d32;
+    }
+
+    .summary.non-conforms {
+      color: #c62828;
+    }
+
+    .severity-group {
+      margin: 4px 0;
+    }
+
+    .severity-header {
+      padding: 4px 12px;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .severity-header.violation { color: #c62828; }
+    .severity-header.warning { color: #e65100; }
+    .severity-header.info { color: #1565c0; }
+  `;
+
+  /** Validation results to display. */
+  @property({ attribute: false })
+  results: ValidationResult[] = [];
+
+  /** Whether the model conforms to all SHACL shapes. */
+  @property({ type: Boolean })
+  conforms = true;
+
+  /** Optional SHACL validator for running validation. */
+  @property({ attribute: false })
+  validator?: ShaclValidator;
+
+  /** Data graph quads for validation. */
+  @property({ attribute: false })
+  dataGraph?: Quad[];
+
+  /** Shapes graph quads for validation. */
+  @property({ attribute: false })
+  shapesGraph?: Quad[];
+
+  @state()
+  private _collapsedSeverities = new Set<string>();
+
+  /**
+   * Runs SHACL validation using the configured validator and graphs.
+   * Updates `results` and `conforms` properties and dispatches
+   * a `validation-highlight` event with violated IRIs.
+   */
+  runValidation(): ValidationReport | null {
+    if (!this.validator || !this.dataGraph || !this.shapesGraph) {
+      return null;
+    }
+    const report = this.validator.validate(this.dataGraph, this.shapesGraph);
+    this.conforms = report.conforms;
+    this.results = report.results;
+
+    this._emitHighlight();
+    return report;
+  }
+
+  /**
+   * Runs incremental validation for a single changed resource.
+   */
+  runIncrementalValidation(changedResource: NamedNode): ValidationReport | null {
+    if (!this.validator || !this.dataGraph || !this.shapesGraph) {
+      return null;
+    }
+    const report = this.validator.validateIncremental(
+      changedResource,
+      this.dataGraph,
+      this.shapesGraph,
+    );
+    this.conforms = report.conforms;
+    this.results = report.results;
+
+    this._emitHighlight();
+    return report;
+  }
+
+  private _emitHighlight(): void {
+    const iris = extractViolatedIris(this.results);
+    this.dispatchEvent(
+      new CustomEvent<ValidationHighlightDetail>('validation-highlight', {
+        detail: { iris },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _onResultClick(result: ValidationResult): void {
+    this.dispatchEvent(
+      new CustomEvent<ValidationNavigateDetail>('validation-navigate', {
+        detail: { focusNodeIri: result.focusNode.value },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _toggleSeverity(severity: string): void {
+    if (this._collapsedSeverities.has(severity)) {
+      this._collapsedSeverities.delete(severity);
+    } else {
+      this._collapsedSeverities.add(severity);
+    }
+    this.requestUpdate();
+  }
+
+  _renderResultItem(result: ValidationResult): unknown {
+    return html`
+      <div
+        class="result-item"
+        @click=${() => this._onResultClick(result)}
+      >
+        <div class="result-focus">${iriLabel(result.focusNode.value)}</div>
+        <div class="result-message">${result.message}</div>
+        <div class="result-details">
+          Path: ${iriLabel(result.resultPath.value)} ·
+          Shape: ${iriLabel(result.sourceShape.value)}
+        </div>
+      </div>
+    `;
+  }
+
+  _renderSeverityGroup(
+    label: string,
+    severity: string,
+    items: ValidationResult[],
+  ): unknown {
+    if (items.length === 0) return nothing;
+    const collapsed = this._collapsedSeverities.has(severity);
+    return html`
+      <div class="severity-group">
+        <div
+          class="severity-header ${severity.toLowerCase()}"
+          @click=${() => this._toggleSeverity(severity)}
+        >
+          ${collapsed ? '▸' : '▾'} ${label} (${items.length})
+        </div>
+        <div class="severity-items ${collapsed ? 'hidden' : ''}">
+          ${items.map((r) => this._renderResultItem(r))}
+        </div>
+      </div>
+    `;
+  }
+
+  override render() {
+    const grouped = groupBySeverity(this.results);
+    const summary = buildSummary(this.conforms, this.results);
+    return html`
+      <div class="panel-header">Validation</div>
+      <div class="summary ${this.conforms ? 'conforms' : 'non-conforms'}">
+        ${summary}
+      </div>
+      ${this._renderSeverityGroup('Violations', 'Violation', grouped.violations)}
+      ${this._renderSeverityGroup('Warnings', 'Warning', grouped.warnings)}
+      ${this._renderSeverityGroup('Info', 'Info', grouped.infos)}
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'validation-panel': ValidationPanel;
+  }
+}
