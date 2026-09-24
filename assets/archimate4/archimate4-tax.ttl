@@ -1,0 +1,304 @@
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms:  <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix bibo:     <http://purl.org/ontology/bibo/> .
+@prefix vann:     <http://purl.org/vocab/vann/> .
+@prefix cc:       <http://creativecommons.org/ns#> .
+
+@prefix am4:      <https://meta.linked.archi/archimate4/onto#> .
+@prefix :         <https://meta.linked.archi/archimate4/tax#> .
+
+#################################################################
+# Concept Scheme
+#################################################################
+
+<https://meta.linked.archi/archimate4/tax#>
+    a                skos:ConceptScheme ;
+    skos:prefLabel   "ArchiMate 4.0 Concept Scheme"@en ;
+    dcterms:description  "Classification of ArchiMate 4.0 elements by domain and by aspect."@en ;
+    skos:hasTopConcept :ElementByDomain, :ElementByAspect ;
+    cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/archimate4/tax#" ;
+    vann:preferredNamespacePrefix "am4tax" ;
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:title                      "Linked.Archi ArchiMate 4.0 Taxonomy"@en ;
+    skos:editorialNote            '''This taxonomy and the OWL abstract classes in archimate4-onto.ttl
+serve complementary purposes and are NOT duplicates:
+
+  SKOS concepts (this file)          OWL classes (onto file)
+  ─────────────────────────          ──────────────────────────
+  am4tax:ActiveStructureAspect       am4:ActiveStructureElement
+  am4tax:CommonDomain                am4:CommonDomainElement
+
+  Purpose: navigation, palette       Purpose: formal semantics,
+  generation, UI filtering,          SHACL constraint checking,
+  SKOS visualization tools           SPARQL reasoning
+
+  Example: a modeling tool reads     Example: a SHACL shape checks
+  skos:narrower to populate the      rdf:type/rdfs:subClassOf*
+  element palette grouped by         am4:BehaviorElement to enforce
+  domain and aspect.                 "triggering can only connect
+                                     behavior elements".
+
+The two are linked via rdfs:seeAlso on each SKOS concept pointing
+to its corresponding OWL class.'''@en ;
+    dcterms:created               "2026-04-19"^^xsd:date ;
+    dcterms:modified              "2026-04-29"^^xsd:date ;
+    dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
+    bibo:status                   "draft" ;
+    owl:versionInfo               "4.0"@en ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
+    prov:wasDerivedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/> .
+
+
+
+#################################################################
+# Elements by Domain
+#################################################################
+
+:ElementByDomain
+    a                 skos:Concept ;
+    skos:prefLabel    "Element by Domain"@en ;
+    skos:definition   "Classification of ArchiMate 4.0 elements by their architectural domain — the primary organizational grouping in the ArchiMate 4.0 framework (replacing layers from 3.x)."@en ;
+    skos:editorialNote "Each domain concept's skos:narrower list must match the concrete OWL classes in archimate4-onto.ttl that have the corresponding DomainElement as a superclass."@en ;
+    skos:topConceptOf <https://meta.linked.archi/archimate4/tax#> ;
+    skos:inScheme     <https://meta.linked.archi/archimate4/tax#> ;
+.
+
+:CommonDomain
+    a              skos:Concept ;
+    skos:prefLabel "Common Domain"@en ;
+    skos:definition "Generic, cross-domain elements shared across Business, Application, and Technology. New in ArchiMate 4.0, the Common Domain contains behavior elements (Process, Function, Event, Service) that were previously duplicated per layer, plus generic active structure elements (Role, Collaboration, Path) and composite elements (Grouping, Location)."@en ;
+    skos:scopeNote "The Common Domain is the major structural change in ArchiMate 4.0. Process, Function, Event, and Service are now single cross-domain elements — use domain-specific assignment to indicate which domain they belong to in a given context. Role and Collaboration are also generic. When migrating from 3.2, map BusinessProcess/ApplicationProcess/TechnologyProcess to Process, and similarly for Function, Event, and Service."@en ;
+    skos:changeNote "4.0: New domain. Merges per-layer behavior elements into cross-domain concepts: BusinessProcess/ApplicationProcess/TechnologyProcess → Process, BusinessFunction/ApplicationFunction/TechnologyFunction → Function, BusinessEvent/ApplicationEvent/TechnologyEvent/ImplementationEvent → Event, BusinessService/ApplicationService/TechnologyService → Service. Merges per-layer active structure: BusinessRole → Role, BusinessCollaboration/ApplicationCollaboration/TechnologyCollaboration → Collaboration. Path moved here from Technology Layer. Grouping and Location moved here from generic metamodel."@en ;
+    skos:editorialNote "This is the largest domain. When adding elements, verify they are genuinely cross-domain. Domain-specific elements belong in their respective domain concepts."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:CommonDomainElement ;
+    skos:narrower  am4:Role, am4:Collaboration, am4:Path,
+                   am4:Service, am4:Process, am4:Function, am4:Event,
+                   am4:Grouping, am4:Location ;
+.
+
+:BusinessDomain
+    a              skos:Concept ;
+    skos:prefLabel "Business Domain"@en ;
+    skos:definition "Elements specific to the business domain: actors, interfaces, objects, and products. In ArchiMate 4.0, behavior elements previously in the Business layer (BusinessProcess, BusinessFunction, etc.) have been merged into the Common Domain."@en ;
+    skos:scopeNote "In 4.0, the Business Domain retains only domain-specific active and passive structure: actors (who performs), interfaces (channels), objects (information), and products (offerings). Behavior is modeled using Common Domain elements (Process, Function, Service) assigned to business actors."@en ;
+    skos:changeNote "4.0: BusinessRole, BusinessCollaboration moved to Common Domain as generic Role and Collaboration. BusinessProcess, BusinessFunction, BusinessInteraction, BusinessEvent, BusinessService moved to Common Domain as generic elements. Contract removed (replace with specialization of BusinessObject). Representation removed (replace with specialization of DataObject, Artifact, or Material)."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:BusinessDomainElement ;
+    skos:narrower  am4:BusinessActor, am4:BusinessInterface,
+                   am4:BusinessObject, am4:Product ;
+.
+
+:ApplicationDomain
+    a              skos:Concept ;
+    skos:prefLabel "Application Domain"@en ;
+    skos:definition "Elements specific to the application domain: components, interfaces, and data objects. In ArchiMate 4.0, behavior elements previously in the Application layer have been merged into the Common Domain."@en ;
+    skos:scopeNote "Model the software landscape: components represent deployable software units, interfaces represent APIs and integration points, and data objects represent structured data. Behavior is modeled using Common Domain elements (Process, Function, Service) assigned to application components."@en ;
+    skos:changeNote "4.0: ApplicationCollaboration, ApplicationFunction, ApplicationInteraction, ApplicationProcess, ApplicationEvent, ApplicationService moved to Common Domain as generic elements."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:ApplicationDomainElement ;
+    skos:narrower  am4:ApplicationComponent, am4:ApplicationInterface,
+                   am4:DataObject ;
+.
+
+:TechnologyDomain
+    a              skos:Concept ;
+    skos:prefLabel "Technology Domain"@en ;
+    skos:definition "Elements specific to the technology and physical domain: nodes, devices, system software, networks, equipment, facilities, artifacts, and materials. In ArchiMate 4.0, the Technology and Physical layers from 3.x are merged into a single Technology Domain."@en ;
+    skos:scopeNote "Model infrastructure and physical assets in a single domain. Nodes represent compute resources, devices represent hardware, system software represents platforms, and equipment/facilities represent physical assets. The 3.x Physical layer elements are now part of this domain."@en ;
+    skos:changeNote "4.0: Technology and Physical layers merged into a single domain. TechnologyCollaboration, TechnologyFunction, TechnologyProcess, TechnologyInteraction, TechnologyEvent, TechnologyService moved to Common Domain as generic elements. Path moved to Common Domain. Aggregation from Path to technology internal active structure element replaced by realization from active structure element to Path. Relationships can now have multiplicity."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:TechnologyDomainElement ;
+    skos:narrower  am4:Node, am4:Device, am4:SystemSoftware,
+                   am4:TechnologyInterface, am4:CommunicationNetwork,
+                   am4:DistributionNetwork, am4:Equipment, am4:Facility,
+                   am4:Artifact, am4:Material ;
+.
+
+:StrategyDomain
+    a              skos:Concept ;
+    skos:prefLabel "Strategy Domain"@en ;
+    skos:definition "Elements representing strategic concepts: resources, capabilities, value streams, and courses of action."@en ;
+    skos:scopeNote "Use Strategy elements for capability-based planning and strategic alignment. Capabilities describe what the organization can do, value streams describe how value flows to stakeholders, and courses of action describe the plans to achieve goals. Strategy elements are realized by elements from other domains."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:StrategyElement ;
+    skos:narrower  am4:Resource, am4:Capability, am4:ValueStream, am4:CourseOfAction ;
+.
+
+:MotivationDomain
+    a              skos:Concept ;
+    skos:prefLabel "Motivation Domain"@en ;
+    skos:definition "Elements representing the context and reasons behind the architecture: stakeholders, drivers, goals, requirements, principles, and values."@en ;
+    skos:scopeNote "Capture the 'why' behind architecture decisions. Stakeholders have concerns, drivers motivate change, assessments analyze the current state, goals define desired outcomes, and requirements constrain the solution. Influence relationships connect motivation elements to each other and to elements in other domains."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:MotivationElement ;
+    skos:narrower  am4:Stakeholder, am4:Driver, am4:Assessment, am4:Goal,
+                   am4:Outcome, am4:Principle, am4:Requirement,
+                   am4:Meaning, am4:Value ;
+.
+
+:ImplementationAndMigrationDomain
+    a              skos:Concept ;
+    skos:prefLabel "Implementation and Migration Domain"@en ;
+    skos:definition "Elements supporting planning and execution of architecture changes: work packages, deliverables, and plateaus."@en ;
+    skos:scopeNote "Use for roadmapping and transition planning. Plateaus represent stable architecture states (baseline, target), and work packages represent the projects that transition between them. Note: Gap and ImplementationEvent from 3.x have been removed in 4.0."@en ;
+    skos:changeNote "4.0: Gap removed (replace with specialization of Assessment or Deliverable). ImplementationEvent removed (replaced by generic Event in Common Domain). Constraint removed (replace with specialization of Requirement)."@en ;
+    skos:broader   :ElementByDomain ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:ImplementationAndMigrationDomainElement ;
+    skos:narrower  am4:WorkPackage, am4:Deliverable, am4:Plateau ;
+.
+
+
+#################################################################
+# Elements by Aspect
+#################################################################
+
+:ElementByAspect
+    a                 skos:Concept ;
+    skos:prefLabel    "Element by Aspect"@en ;
+    skos:definition   "Classification of ArchiMate 4.0 elements by their structural aspect — behaviour, structure, motivation, and composite."@en ;
+    skos:editorialNote "Aspect concepts group elements from multiple OWL superclasses. When the abstract class hierarchy in archimate4-onto.ttl changes, update the narrower lists here accordingly."@en ;
+    skos:topConceptOf <https://meta.linked.archi/archimate4/tax#> ;
+    skos:inScheme     <https://meta.linked.archi/archimate4/tax#> ;
+.
+
+:StructureAspect
+    a              skos:Concept ;
+    skos:prefLabel "Structure"@en ;
+    skos:definition "Structural elements — entities that exist (active or passive). Divides into Active Structure (performers) and Passive Structure (objects acted upon)."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    skos:narrower  am4:Resource ;
+.
+
+:ActiveStructureAspect
+    a              skos:Concept ;
+    skos:prefLabel "Active Structure"@en ;
+    skos:definition "Elements that can perform behavior — the subjects of activity. Includes actors, components, nodes, roles, collaborations, and their interfaces."@en ;
+    skos:scopeNote "Active structure elements are the 'who' or 'what' that performs behavior. Internal active structure (actors, components, nodes, roles, collaborations) can be assigned to behavior. External active structure (interfaces) exposes services to the environment. In 4.0, Role and Collaboration are generic Common Domain elements usable across all domains."@en ;
+    skos:editorialNote "Direct narrower list contains only elements that are ActiveStructureElement but not InternalActiveStructureElement or ExternalActiveStructureElement (i.e., Path, CommunicationNetwork, DistributionNetwork). Internal and external sub-concepts carry the rest."@en ;
+    skos:broader   :StructureAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:ActiveStructureElement ;
+    skos:narrower  am4:Path, am4:CommunicationNetwork, am4:DistributionNetwork ;
+.
+
+:InternalActiveStructure
+    a              skos:Concept ;
+    skos:prefLabel "Internal Active Structure"@en ;
+    skos:definition "Internal active structure elements — entities capable of performing behavior: actors, roles, collaborations, components, nodes, devices, system software, equipment, and facilities."@en ;
+    skos:scopeNote "The performers — connected to behavior via assignment. In 4.0, Role and Collaboration are generic Common Domain elements. Can be composed of or aggregated with other internal active structure elements."@en ;
+    skos:broader   :ActiveStructureAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:InternalActiveStructureElement ;
+    skos:narrower  am4:Role, am4:Collaboration,
+                   am4:BusinessActor,
+                   am4:ApplicationComponent,
+                   am4:Node, am4:Device, am4:SystemSoftware,
+                   am4:Equipment, am4:Facility ;
+.
+
+:ExternalActiveStructure
+    a              skos:Concept ;
+    skos:prefLabel "External Active Structure"@en ;
+    skos:definition "External active structure elements (interfaces) — points of access where services are exposed to the environment."@en ;
+    skos:scopeNote "Interfaces expose services and hide internal complexity. Typically composed by the internal active structure element they belong to. Assigned to the services they expose."@en ;
+    skos:broader   :ActiveStructureAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:ExternalActiveStructureElement ;
+    skos:narrower  am4:BusinessInterface, am4:ApplicationInterface,
+                   am4:TechnologyInterface ;
+.
+
+:BehaviorAspect
+    a              skos:Concept ;
+    skos:prefLabel "Behavior"@en ;
+    skos:definition "Elements representing dynamic behavior — processes, functions, events, services, capabilities, value streams, courses of action, and work packages."@en ;
+    skos:scopeNote "Behavior elements describe the 'how'. In 4.0, Process, Function, Event, and Service are cross-domain — they belong to the Common Domain and are assigned to domain-specific active structure elements. Use serving relationships to connect services to their consumers."@en ;
+    skos:editorialNote "Direct narrower list contains only elements that are BehaviorElement but not in the InternalBehavior, ExternalBehavior, or Event sub-concepts (i.e., Capability, ValueStream, CourseOfAction, WorkPackage). Sub-concepts carry the rest."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:BehaviorElement ;
+    skos:narrower  am4:Capability, am4:ValueStream, am4:CourseOfAction,
+                   am4:WorkPackage ;
+.
+
+:InternalBehavior
+    a              skos:Concept ;
+    skos:prefLabel "Internal Behavior"@en ;
+    skos:definition "Internal behavior elements — units of activity: processes and functions."@en ;
+    skos:scopeNote "Internal behavior is what active structure elements actually do. Processes are sequences of steps with a defined outcome. Functions are collections of behavior grouped by criteria. In 4.0, these are cross-domain Common Domain elements assigned to domain-specific active structure. Internal behavior realizes external behavior (services)."@en ;
+    skos:broader   :BehaviorAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    skos:narrower  am4:Process, am4:Function ;
+.
+
+:ExternalBehavior
+    a              skos:Concept ;
+    skos:prefLabel "External Behavior"@en ;
+    skos:definition "External behavior elements (services) — explicitly defined exposed behavior."@en ;
+    skos:scopeNote "Services are the externally visible behavior offered to consumers. Realized by internal behavior and exposed through interfaces. In 4.0, Service is a single cross-domain element in the Common Domain. Use serving relationships to connect services to their consumers."@en ;
+    skos:broader   :BehaviorAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    skos:narrower  am4:Service ;
+.
+
+:EventAspect
+    a              skos:Concept ;
+    skos:prefLabel "Event"@en ;
+    skos:definition "Event elements — state changes that trigger or are triggered by other behavior."@en ;
+    skos:scopeNote "Events represent something that happens at a point in time. Use triggering relationships to connect events to the behavior they initiate or that produces them. In 4.0, Event is a single cross-domain element in the Common Domain."@en ;
+    skos:broader   :BehaviorAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    skos:narrower  am4:Event ;
+.
+
+:PassiveStructureAspect
+    a              skos:Concept ;
+    skos:prefLabel "Passive Structure"@en ;
+    skos:definition "Elements on which behavior is performed — objects, artifacts, materials, deliverables, and resources."@en ;
+    skos:scopeNote "Passive structure elements are the 'what' that behavior acts upon — business objects, data objects, artifacts, materials, deliverables, and resources. They are connected to behavior via access relationships (read, write, read-write)."@en ;
+    skos:editorialNote "Includes Resource (Strategy) and Deliverable (Implementation and Migration) which have dual classification by aspect and by domain."@en ;
+    skos:broader   :StructureAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:PassiveStructureElement ;
+    skos:narrower  am4:BusinessObject, am4:DataObject,
+                   am4:Artifact, am4:Material,
+                   am4:Deliverable ;
+.
+
+:CompositeAspect
+    a              skos:Concept ;
+    skos:prefLabel "Composite"@en ;
+    skos:definition "Composite elements that may combine multiple aspects or domains — products, groupings, locations, and plateaus."@en ;
+    skos:scopeNote "Composite elements cross aspect boundaries. Products bundle services and passive structure into a customer-facing offering. Groupings are generic containers for organizing any set of elements. Locations represent physical or logical places where elements reside or behavior occurs. Plateaus represent stable architecture states used in transition planning."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:CompositeElement ;
+    skos:narrower  am4:Product, am4:Grouping, am4:Location, am4:Plateau ;
+.
+
+:MotivationAspect
+    a              skos:Concept ;
+    skos:prefLabel "Motivation"@en ;
+    skos:definition "Motivation elements — the context and reasons behind the architecture: stakeholders, drivers, goals, requirements, principles, and values."@en ;
+    skos:scopeNote "Use Motivation elements to capture the 'why' behind architecture decisions. Stakeholders have concerns, drivers motivate change, assessments analyze the current state, goals define desired outcomes, and requirements constrain the solution. Influence relationships connect motivation elements to each other and to elements in other domains."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   am4:MotivationElement ;
+    skos:narrower  am4:Stakeholder, am4:Driver, am4:Assessment, am4:Goal,
+                   am4:Outcome, am4:Principle, am4:Requirement,
+                   am4:Meaning, am4:Value ;
+.

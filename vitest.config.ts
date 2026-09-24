@@ -15,6 +15,8 @@ export default defineConfig({
   test: {
     globals: true,
     include: ['src/**/*.test.ts', 'src/**/*.property.test.ts'],
+    // Fills DOM gaps jsdom leaves that diagram-js depends on. See the file.
+    setupFiles: ['tests/setup/jsdom-shims.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

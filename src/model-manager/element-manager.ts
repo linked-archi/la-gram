@@ -19,8 +19,46 @@ const ARCH_VIS_BOUNDS_X = namedNode(NAMESPACES['arch-vis'] + 'bounds-x');
 const ARCH_VIS_BOUNDS_Y = namedNode(NAMESPACES['arch-vis'] + 'bounds-y');
 const ARCH_VIS_BOUNDS_W = namedNode(NAMESPACES['arch-vis'] + 'bounds-w');
 const ARCH_VIS_BOUNDS_H = namedNode(NAMESPACES['arch-vis'] + 'bounds-h');
-const ARCH_REL_SOURCE = namedNode(NAMESPACES.arch + 'relSource');
-const ARCH_REL_TARGET = namedNode(NAMESPACES.arch + 'relTarget');
+/**
+ * The endpoint properties the core ontology actually declares on an
+ * `arch:QualifiedRelationship`: `arch:source` and `arch:target`, both with
+ * `rdfs:domain arch:QualifiedRelationship`. This is what
+ * `OxigraphRelationshipManager.createRelationship` writes.
+ */
+const ARCH_SOURCE = namedNode(NAMESPACES.arch + 'source');
+const ARCH_TARGET = namedNode(NAMESPACES.arch + 'target');
+
+/**
+ * Compatibility shim — pre-migration endpoint properties.
+ *
+ * `arch:relSource` / `arch:relTarget` / `arch:relPredicate` were sub-properties
+ * of `rdf:subject` / `rdf:object` / `rdf:predicate` under an `rdf:Statement`
+ * reification pattern that has been removed from the core ontology (see the
+ * `skos:historyNote` on `arch:QualifiedRelationship`).
+ *
+ * They are still matched here because they are not merely historical: the
+ * ArchiMate importer (`import-export/archimate-importer.ts`) still *emits*
+ * them, and `ui/views/matrix-view.ts` still reads them. Until those two are
+ * migrated to `arch:source` / `arch:target`, dropping this branch would leave
+ * every imported model's relationships orphaned on element deletion.
+ *
+ * Remove this shim — and the legacy cases in the accompanying tests — once the
+ * importer no longer writes the old vocabulary and any stored models have been
+ * migrated.
+ */
+const ARCH_REL_SOURCE_LEGACY = namedNode(NAMESPACES.arch + 'relSource');
+const ARCH_REL_TARGET_LEGACY = namedNode(NAMESPACES.arch + 'relTarget');
+
+/**
+ * Every predicate that can point from a qualified relationship resource at one
+ * of its endpoint elements, current vocabulary first.
+ */
+const QR_ENDPOINT_PREDICATES = [
+  ARCH_SOURCE,
+  ARCH_TARGET,
+  ARCH_REL_SOURCE_LEGACY,
+  ARCH_REL_TARGET_LEGACY,
+] as const;
 
 const LAYOUT_PREDICATES = [
   ARCH_VIS_BOUNDS_X,
@@ -139,19 +177,25 @@ export class OxigraphElementManager implements ElementManager {
   }
 
   /**
-   * Find and remove all QualifiedRelationship resources that reference
-   * the given element via `arch:relSource` or `arch:relTarget`.
+   * Find and remove every QualifiedRelationship resource that names the given
+   * element as an endpoint.
+   *
+   * Matching spans both the current `arch:source` / `arch:target` and the
+   * legacy `arch:relSource` / `arch:relTarget` — see
+   * {@link QR_ENDPOINT_PREDICATES}. Without the cascade the resource would
+   * survive step 3 of `deleteElement`, which only strips the triple *pointing
+   * at* the element, leaving a typed relationship resource with a dangling or
+   * missing endpoint.
    */
   private cascadeDeleteQualifiedRelationships(elementNode: NamedNode): void {
-    // Find QualifiedRelationships where this element is the source
-    const sourceRefs = this.store.getQuads(null, ARCH_REL_SOURCE as unknown as NamedNode, elementNode);
-    // Find QualifiedRelationships where this element is the target
-    const targetRefs = this.store.getQuads(null, ARCH_REL_TARGET as unknown as NamedNode, elementNode);
-
-    // Collect unique QualifiedRelationship IRIs
+    // Collect unique QualifiedRelationship IRIs referencing this element from
+    // either end, under either vocabulary.
     const qrIris = new Set<string>();
-    for (const q of [...sourceRefs, ...targetRefs]) {
-      qrIris.add(q.subject.value);
+    for (const pred of QR_ENDPOINT_PREDICATES) {
+      const refs = this.store.getQuads(null, pred as unknown as NamedNode, elementNode);
+      for (const q of refs) {
+        qrIris.add(q.subject.value);
+      }
     }
 
     // Remove all triples for each QualifiedRelationship resource

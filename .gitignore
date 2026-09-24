@@ -10,6 +10,13 @@ coverage/
 .vitest/
 .vite/
 
+# Browser smoke suite artefacts (screenshots land in test-results/browser/)
+# and Playwright's own output directories.
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
 # TypeScript incremental build info
 *.tsbuildinfo
 

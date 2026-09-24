@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RDF Architecture Modeler</title>
+  <!-- diagram-js's own stylesheet, emitted next to the bundle by
+       CopyWebpackPlugin. Without it the canvas draws but selection outlines,
+       the palette and the context pad are unstyled and effectively invisible. -->
+  <link rel="stylesheet" href="diagram-js.css" />
   <style>
     /* ── Base layout ───────────────────────────────────────────────────
        app-shell sizes itself with height: 100%, which collapses to zero
@@ -56,22 +60,28 @@
       overflow: auto;
     }
 
-    /* Center area: diagram host plus the alternative catalog/matrix views. */
+    /* Center area: the tool strip, the diagram host, and the alternative
+       catalog/matrix views. A column flexbox rather than a block, so the
+       toolbar takes its own height and the diagram host takes the rest —
+       `height: 100%` on the host would otherwise overflow by the strip. */
     .la-canvas-area {
-      display: block;
+      display: flex;
+      flex-direction: column;
       position: relative;
       height: 100%;
       width: 100%;
       box-sizing: border-box;
       background: #fff;
       border: 1px solid #dadce0;
-      overflow: auto;
+      overflow: hidden;
     }
 
     .la-diagram-host {
-      height: 100%;
+      /* `min-height: 0` is what lets a flex item shrink below its content;
+         without it the host refuses to fit and the strip is pushed away. */
+      flex: 1 1 auto;
+      min-height: 0;
       width: 100%;
-      min-height: 240px;
       background:
         linear-gradient(#eceff1 1px, transparent 1px) 0 0 / 20px 20px,
         linear-gradient(90deg, #eceff1 1px, transparent 1px) 0 0 / 20px 20px,
@@ -81,7 +91,131 @@
     .la-canvas-area > catalog-view,
     .la-canvas-area > matrix-view {
       border: none;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    /* ── diagram-js inside .la-diagram-host ────────────────────────────
+       diagram-js.css styles its own furniture; these rules cover what it
+       leaves to the host application: making its container fill the host,
+       keeping the grid background visible behind the SVG, and giving the
+       notation elements sensible cursors and hover/selection feedback. */
+    .la-diagram-host .djs-container {
       height: 100%;
+      width: 100%;
+      background: transparent;
+    }
+
+    .la-diagram-host .djs-container svg {
+      background: transparent;
+    }
+
+    /* Selection and hover. diagram-js toggles .selected / .hover on
+       .djs-element and paints .djs-outline; the defaults are tuned for
+       bpmn-js's palette, so restate them in this app's accent colour. */
+    .la-diagram-host .djs-element.selected .djs-outline {
+      stroke: #1a73e8;
+      stroke-width: 1.5px;
+      stroke-dasharray: 3 3;
+      visibility: visible;
+    }
+
+    .la-diagram-host .djs-element.hover .djs-outline {
+      stroke: #7baaf7;
+      stroke-width: 1px;
+      visibility: visible;
+    }
+
+    .la-diagram-host .la-shape-body {
+      cursor: move;
+    }
+
+    .la-diagram-host .la-shape-label {
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Badge glyphs must not swallow clicks meant for the shape. */
+    .la-diagram-host .la-shape-badge {
+      pointer-events: none;
+    }
+
+    /* The context pad and the popup menus are absolutely positioned inside
+       .djs-container, so the host must establish a containing block. */
+    .la-diagram-host {
+      position: relative;
+    }
+
+    .la-diagram-host .djs-context-pad .entry {
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 11px;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .la-diagram-host .djs-context-pad .entry:hover {
+      background: #e8f0fe;
+      border-color: #1a73e8;
+    }
+
+    /* The providers name their entries by class; give the two built-in ones a
+       readable glyph so the pad is usable without an icon font. */
+    .la-diagram-host .context-pad-delete::before {
+      content: "\00d7";
+    }
+
+    .la-diagram-host .context-pad-connect::before {
+      content: "\2192";
+    }
+
+    /* Append: opens a popup menu of the element types the metamodel permits a
+       relationship to. Present only when there is at least one. */
+    .la-diagram-host .context-pad-append::before {
+      content: "\002b";
+    }
+
+    /* On a connection, the pad names the relationship type and opens the
+       replace popup menu. Present only when the metamodel offers a choice. */
+    .la-diagram-host .context-pad-replace::before {
+      content: "\270e";
+    }
+
+    /* ── Relationship-type popup menu ──────────────────────────────────
+       diagram-js.css styles the menu completely (.djs-popup and friends,
+       including the search box and the dimmer description line), and the
+       --popup-* variables it reads are declared on .djs-parent, which is the
+       container the menu is appended to. Two things are left to the host app:
+       the font, since diagram-js asks for IBM Plex Sans and nothing ships it,
+       and a mark for the type currently in force — diagram-js's `active` flag
+       only applies to header entries, so the provider signals it with a class. */
+    .la-diagram-host .djs-popup {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label {
+      font-weight: 600;
+    }
+
+    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label::after {
+      content: " \2713";
+      color: #1a73e8;
+    }
+
+    /* Append-target entries share that menu's styling. They are draggable —
+       `PopupMenuItem` renders every entry `draggable` and the provider registers
+       a `dragstart` action — so say so with the cursor. */
+    .la-diagram-host .djs-popup .la-append-target {
+      cursor: grab;
+    }
+
+    .la-diagram-host .djs-popup .la-append-target:active {
+      cursor: grabbing;
     }
 
     /* Bottom bar: validation results next to the SPARQL editor. */

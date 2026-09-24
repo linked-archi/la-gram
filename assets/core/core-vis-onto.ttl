@@ -1,0 +1,771 @@
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix adms:     <http://www.w3.org/ns/adms#> .
+@prefix dcterms:  <http://purl.org/dc/terms/> .
+@prefix cc:       <http://creativecommons.org/ns#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann:     <http://purl.org/vocab/vann/> .
+@prefix arch:     <https://meta.linked.archi/core#> .
+@prefix arch-vis: <https://meta.linked.archi/core-vis#> .
+@prefix schema:   <http://schema.org/> .
+@prefix :         <https://meta.linked.archi/core-vis#> .
+
+<https://meta.linked.archi/core-vis#>
+    rdf:type        owl:Ontology ;
+    cc:license      <http://creativecommons.org/licenses/by-sa/3.0/> ;
+    cc:license      "This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License."@en ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/core-vis#" ;
+    vann:preferredNamespacePrefix "arch-vis" ;
+    dcterms:creator      "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:description  '''Core Linked.Archi Ontology for Diagrams and Visual Notation.
+Provides vocabulary for diagram interchange (nodes, links, bounds) and visual styling
+(colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
+at the type level (default notation for model concepts via NotationSet).'''@en ;
+    dcterms:issued       "2019-03-17"^^xsd:date ;
+    dcterms:modified     "2026-08-13"^^xsd:date ;
+    dcterms:publisher    <https://linked.archi> ;
+    dcterms:publisher    "Linked.Archi"@en ;
+    dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
+    owl:versionInfo "0.3"@en ;
+    rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
+    skos:historyNote '''0.3: Widened arch-vis:label from rdfs:domain arch-vis:Node to
+arch-vis:DiagElement — an edge's label is the ordinary case (BPMN BPMNEdge-label, a named
+sequence flow) and the narrow domain entailed that every labelled edge was also a Node.
+Declared Node, Link and Point mutually disjoint (arch-vis:NodeLinkPointDisjoint), which is
+what makes a wrong domain detectable rather than silently type-adding. Corrected
+arch-vis:label's rdfs:label and rdfs:comment, which were copy-pasted from arch-vis:points
+and made the property unfindable in the generated documentation; same correction on
+arch-vis:view, whose rdfs:label read "target". Filled in the empty rdfs:comments on
+DiagElement, Node, Link and Point. Companion SHACL shapes now published as
+core-vis-shapes; the diagram layer was previously unvalidated.
+
+0.2: Extended Style with structural properties (shapeType, iconSymbol,
+iconPlacement, defaultWidth, defaultHeight). Added ShapeType, IconPlacement, LineStyle,
+and Decoration individuals. Added NotationSet and VisualNotation classes for type-level
+visual notation management. Added relationship line properties (lineStyle, sourceDecor,
+targetDecor) on QualifiedRelationship.'''@en ;
+.
+# Common classes and properties for visual modeling and diagrams
+
+arch-vis:DiagElement
+    a            owl:Class ;
+    rdfs:label   "DiagElement"@en ;
+    rdfs:comment '''Anything that appears on a diagram — a shape, an edge or a routing point.
+The common superclass of Node, Link and Point, and the domain of the properties that
+apply to all three (arch-vis:view, arch-vis:label, styling).'''@en ;
+.
+
+arch-vis:Node
+    a               owl:Class ;
+    rdfs:subClassOf arch-vis:DiagElement ;
+    rdfs:label      "Node"@en ;
+    rdfs:comment    "A shape on a diagram: it has bounds and may contain other nodes."@en ;
+.
+
+arch-vis:ContainerNode
+    a               owl:Class ;
+    rdfs:subClassOf arch-vis:Node ;
+    rdfs:label      "Container"@en ;
+    rdfs:comment    ""@en ;
+.
+
+arch-vis:LabelNode
+    a               owl:Class ;
+    rdfs:subClassOf arch-vis:Node ;
+    rdfs:label      "LabelNode"@en ;
+    rdfs:comment    ""@en ;
+.
+
+arch-vis:ArchNode
+    a               owl:Class ;
+    rdfs:subClassOf arch-vis:Node ;
+    rdfs:label      "ArchNode"@en ;
+    rdfs:comment    ""@en ;
+.
+
+arch-vis:Link
+    a               owl:Class ;
+    rdfs:subClassOf arch-vis:DiagElement ;
+    rdfs:label      "Link"@en ;
+    rdfs:comment    '''An edge on a diagram: it joins a source Node to a target Node, may route
+through a PointList, and may carry a LabelNode.'''@en ;
+.
+
+arch-vis:Point
+    a               owl:Class ;
+    rdfs:subClassOf arch-vis:DiagElement ;
+    rdfs:label      "Point"@en ;
+    rdfs:comment    "A single x/y waypoint on a Link's route."@en ;
+.
+
+#################################################################
+# Disjointness
+#
+# Node, Link and Point partition DiagElement. Without these axioms
+# nothing says a Node is not a Link, so a too-narrow rdfs:domain on a
+# property asserted about an edge silently adds a type instead of being
+# reported. The axiom is what makes arch-vis:label's DiagElement domain
+# a real constraint rather than a comment.
+#
+# Declared as a single owl:AllDisjointClasses rather than pairwise
+# owl:disjointWith so the partition is one resource to read and to extend.
+#################################################################
+
+arch-vis:NodeLinkPointDisjoint
+    a                 owl:AllDisjointClasses ;
+    rdfs:label        "Node / Link / Point are mutually disjoint"@en ;
+    owl:members       ( arch-vis:Node arch-vis:Link arch-vis:Point ) ;
+.
+
+arch-vis:PointList
+    a               owl:Class ;
+    rdfs:comment    "List of points"@en ;
+    rdfs:label      "List of points"@en ;
+    rdfs:subClassOf [ a                  owl:Class ;
+                      owl:intersectionOf ( rdf:List [ a                 owl:Restriction ;
+                                                      owl:allValuesFrom arch-vis:Point ;
+                                                      owl:onProperty    rdf:first ] [ a              owl:Restriction ;
+                                                                                      owl:allValuesFrom
+                                                                                                     arch-vis:PointList ;
+                                                                                      owl:onProperty rdf:rest ] ) ] .
+
+arch-vis:bounds-x
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   ""@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Node ;
+    rdfs:range   xsd:double ;
+.
+
+
+arch-vis:bounds-y
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   ""@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Node ;
+    rdfs:range   xsd:double ;
+.
+
+arch-vis:bounds-w
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   ""@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Node ;
+    rdfs:range   xsd:double ;
+.
+
+
+arch-vis:bounds-h
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   ""@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Node ;
+    rdfs:range   xsd:double ;
+.
+
+arch-vis:point-x
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   ""@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Point ;
+    rdfs:range   xsd:double ;
+.
+
+arch-vis:point-y
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   ""@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Point ;
+    rdfs:range   xsd:double ;
+.
+
+arch-vis:points
+    a            owl:ObjectProperty ;
+    rdfs:label   "points"@en ;
+    rdfs:comment "The ordered list of points"@en ;
+    rdfs:domain  arch-vis:Link ;
+    rdfs:range   arch-vis:PointList ;
+.
+
+arch-vis:label
+    a            owl:ObjectProperty ;
+    rdfs:label   "label"@en ;
+    rdfs:comment '''The LabelNode carrying this diagram element's rendered text.
+Domain is DiagElement, not Node: both shapes and edges are labellable. BPMN declares
+BPMNShape-label and BPMNEdge-label as separate composite properties, and a named
+sequence flow — an edge with a label — is the ordinary case, not an edge case. Narrowing
+the domain to Node would entail, through the domain axiom, that every labelled edge is
+also a Node, which arch-vis:NodeLinkPointDisjoint now reports as an inconsistency.'''@en ;
+    rdfs:domain  arch-vis:DiagElement ;
+    rdfs:range   arch-vis:LabelNode
+.
+
+arch-vis:archElement
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "archElement"@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:ArchNode ;
+    rdfs:range   arch:Element ;
+.
+
+
+arch-vis:archRelationship
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "archRelationship"@en ;
+    rdfs:comment "Links a diagram Link to the qualified relationship resource it represents."@en ;
+    rdfs:domain  arch-vis:Link ;
+    rdfs:range   arch:QualifiedRelationship ;
+.
+
+arch-vis:source
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "source"@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Link ;
+    rdfs:range   arch-vis:Node ;
+.
+
+arch-vis:target
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "target"@en ;
+    rdfs:comment ""@en ;
+    rdfs:domain  arch-vis:Link ;
+    rdfs:range   arch-vis:Node ;
+.
+
+#TODO link all elements to arch:View ... or use quads ?
+
+arch-vis:view
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "view"@en ;
+    rdfs:comment "The arch:View this diagram element belongs to. Every DiagElement has exactly one."@en ;
+    rdfs:domain  arch-vis:DiagElement ;
+    rdfs:range   arch:View ;
+.
+
+# Style
+
+arch-vis:Style
+    a            owl:Class ;
+    rdfs:label   "Style"@en ;
+    rdfs:comment "Visual style applied to a diagram element (fill, line, font)."@en ;
+.
+
+arch-vis:style
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "style"@en ;
+    rdfs:domain  arch-vis:DiagElement ;
+    rdfs:range   arch-vis:Style ;
+.
+
+arch-vis:fillColor
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fillColor"@en ;
+    rdfs:comment "CSS rgba() string, e.g. rgba(255,255,181,100)"@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:lineColor
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "lineColor"@en ;
+    rdfs:comment "CSS rgba() string"@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:fontName
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fontName"@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:fontSize
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fontSize"@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:integer ;
+.
+
+arch-vis:fontColor
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fontColor"@en ;
+    rdfs:comment "CSS rgba() string"@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+
+#################################################################
+# Extended Style Properties (structural)
+#################################################################
+
+arch-vis:shapeType
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "shapeType"@en ;
+    rdfs:comment "The geometric shape used to render the element (e.g., rounded rectangle, hexagon, circle)."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:ShapeType ;
+.
+
+arch-vis:iconSymbol
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "iconSymbol"@en ;
+    rdfs:comment "URI of the small glyph/icon displayed within the element shape (typically top-right corner)."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:anyURI ;
+.
+
+arch-vis:iconPlacement
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "iconPlacement"@en ;
+    rdfs:comment "Where the icon symbol is placed within the element shape."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:IconPlacement ;
+.
+
+arch-vis:defaultWidth
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "defaultWidth"@en ;
+    rdfs:comment "Default width in logical units for palette rendering."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:double ;
+.
+
+arch-vis:defaultHeight
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "defaultHeight"@en ;
+    rdfs:comment "Default height in logical units for palette rendering."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:double ;
+.
+
+arch-vis:renderingMode
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "renderingMode"@en ;
+    rdfs:comment '''How the element is visually composed from its shape and icon.
+Determines the rendering algorithm a tool should use:
+- ShapeWithBadge: colored shape with a small icon badge (ArchiMate standard)
+- IconCentric: the icon IS the element, label rendered below (AWS/Azure/GCP style)
+- ShapeOnly: colored shape with label, no icon (simplified notation)'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:RenderingMode ;
+.
+
+
+#################################################################
+# ShapeType Individuals
+#################################################################
+
+arch-vis:ShapeType
+    a            owl:Class ;
+    rdfs:label   "ShapeType"@en ;
+    rdfs:comment "Enumeration of geometric shapes used for element rendering."@en ;
+.
+
+arch-vis:RoundedRectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Rounded Rectangle"@en ;
+    rdfs:comment "Rectangle with rounded corners — the default ArchiMate element shape."@en ;
+.
+
+arch-vis:Rectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Rectangle"@en ;
+    rdfs:comment "Sharp-cornered rectangle."@en ;
+.
+
+arch-vis:Octagon
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Octagon"@en ;
+    rdfs:comment "Eight-sided polygon — used for motivation elements in some notations."@en ;
+.
+
+arch-vis:Ellipse
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Ellipse"@en ;
+    rdfs:comment "Oval/ellipse shape — used for values, junctions."@en ;
+.
+
+arch-vis:Circle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Circle"@en ;
+    rdfs:comment "Perfect circle — used for junctions and connectors."@en ;
+.
+
+arch-vis:Hexagon
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Hexagon"@en ;
+    rdfs:comment "Six-sided polygon — used for events in some notations."@en ;
+.
+
+arch-vis:Diamond
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Diamond"@en ;
+    rdfs:comment "Rotated square — used for decision points."@en ;
+.
+
+arch-vis:Parallelogram
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Parallelogram"@en ;
+    rdfs:comment "Slanted rectangle — used for interfaces in some notations."@en ;
+.
+
+
+#################################################################
+# IconPlacement Individuals
+#################################################################
+
+arch-vis:IconPlacement
+    a            owl:Class ;
+    rdfs:label   "IconPlacement"@en ;
+    rdfs:comment "Enumeration of positions where an icon can be placed within a shape."@en ;
+.
+
+arch-vis:TopRight
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Top Right"@en ;
+    rdfs:comment "Icon placed in the top-right corner of the shape (ArchiMate default)."@en ;
+.
+
+arch-vis:TopLeft
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Top Left"@en ;
+    rdfs:comment "Icon placed in the top-left corner of the shape."@en ;
+.
+
+arch-vis:TopCenter
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Top Center"@en ;
+    rdfs:comment "Icon placed at the top center of the shape."@en ;
+.
+
+arch-vis:Center
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Center"@en ;
+    rdfs:comment "Icon placed at the center of the shape."@en ;
+.
+
+arch-vis:BottomCenter
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Bottom Center"@en ;
+    rdfs:comment "Icon placed at the bottom center of the shape."@en ;
+.
+
+
+#################################################################
+# RenderingMode Individuals
+#################################################################
+
+arch-vis:RenderingMode
+    a            owl:Class ;
+    rdfs:label   "RenderingMode"@en ;
+    skos:prefLabel "Rendering Mode"@en ;
+    skos:definition '''Determines how a tool visually composes an element from its shape and icon. Each mode specifies a different rendering algorithm.'''@en ;
+    skos:scopeNote '''A tool implementing element rendering MUST select the algorithm based on the renderingMode value on the Style.
+
+## Algorithm by Mode
+
+### ShapeWithBadge (default)
+1. Draw shape (shapeType) at defaultWidth × defaultHeight
+2. Fill with fillColor, stroke with lineColor
+3. Center the label (skos:prefLabel) in the shape
+4. If iconSymbol present: render as small badge (16-24px) at iconPlacement position
+5. If iconSymbol absent: render as ShapeOnly (graceful degradation)
+
+### IconCentric
+1. Render iconSymbol at full size (defaultWidth × defaultHeight), centered
+2. Draw minimal container/border (optional, for selection state) using lineColor
+3. Render label BELOW the icon, not inside a shape
+4. fillColor applies to container background only (often transparent)
+5. Requires iconSymbol — if absent, fall back to ShapeOnly with warning
+
+### ShapeOnly
+1. Draw shape (shapeType) at defaultWidth × defaultHeight
+2. Fill with fillColor, stroke with lineColor
+3. Center the label in the shape
+4. Ignore iconSymbol and iconPlacement entirely
+
+## Fallback Behavior
+- renderingMode absent → default to ShapeWithBadge
+- ShapeWithBadge without iconSymbol → render as ShapeOnly
+- IconCentric without iconSymbol → log warning, fall back to ShapeOnly
+- iconPlacement absent but iconSymbol present → default to TopRight'''@en ;
+    rdfs:comment "How the element is visually composed from its shape and icon. See skos:scopeNote for the rendering algorithm."@en ;
+.
+
+arch-vis:ShapeWithBadge
+    a            arch-vis:RenderingMode ;
+    rdfs:label   "Shape with Badge"@en ;
+    skos:prefLabel "Shape with Badge"@en ;
+    skos:definition '''Colored geometric shape with a small icon badge in one corner and the element label centered. The shape and fill color carry the primary visual identity; the icon is a secondary classifier.'''@en ;
+    skos:scopeNote '''Algorithm:
+1. Draw shape (shapeType) at defaultWidth × defaultHeight
+2. Fill with fillColor, stroke with lineColor
+3. Center the label (skos:prefLabel) in the shape
+4. Render iconSymbol as a small badge (16-24px) at iconPlacement position
+5. If no iconSymbol → render as ShapeOnly (no badge)
+
+Visual layout:
+┌──────────────────────┐
+│                  [⚙] │  ← iconSymbol at iconPlacement (e.g., TopRight)
+│                      │
+│    Element Label     │  ← skos:prefLabel, centered
+│                      │
+└──────────────────────┘
+     filled with fillColor
+
+Used by: ArchiMate, BPMN, UML standard notations.'''@en ;
+.
+
+arch-vis:IconCentric
+    a            arch-vis:RenderingMode ;
+    rdfs:label   "Icon-Centric"@en ;
+    skos:prefLabel "Icon-Centric"@en ;
+    skos:definition '''The icon IS the element — rendered at full size with the label below. Used for vendor icon sets (AWS, Azure, GCP, Kubernetes) where the icon itself is the primary visual identity.'''@en ;
+    skos:scopeNote '''Algorithm:
+1. Render iconSymbol at full size (defaultWidth × defaultHeight) centered in bounds
+2. Draw minimal container/border (optional, for selection/hover state) using lineColor
+3. Render label (skos:prefLabel) BELOW the icon, not inside a shape
+4. fillColor applies to container background only (often transparent/white)
+5. iconPlacement MUST be Center for this mode
+
+Visual layout:
+      ┌────────┐
+      │  [☁️]  │  ← iconSymbol rendered at full size
+      └────────┘
+    Element Label     ← label below, not inside shape
+
+Requires: iconSymbol MUST be present. If absent, fall back to ShapeOnly with warning.
+Used by: AWS Architecture Icons, Azure service icons, GCP icons, Kubernetes.'''@en ;
+.
+
+arch-vis:ShapeOnly
+    a            arch-vis:RenderingMode ;
+    rdfs:label   "Shape Only"@en ;
+    skos:prefLabel "Shape Only"@en ;
+    skos:definition '''Colored shape with the element label centered, no icon. Used for executive-level views, monochrome printing, or when visual simplicity is preferred.'''@en ;
+    skos:scopeNote '''Algorithm:
+1. Draw shape (shapeType) at defaultWidth × defaultHeight
+2. Fill with fillColor, stroke with lineColor
+3. Center the label (skos:prefLabel) in the shape
+4. Do NOT render any icon — ignore iconSymbol and iconPlacement entirely
+5. Optionally reduce dimensions for a more compact appearance
+
+Visual layout:
+┌──────────────────────┐
+│                      │
+│    Element Label     │  ← label only, no icon
+│                      │
+└──────────────────────┘
+     filled with fillColor
+
+Used by: Executive dashboards, printed reports, accessibility-focused views.'''@en ;
+.
+
+
+#################################################################
+# Line Style and Decoration (for relationships)
+#################################################################
+
+arch-vis:LineStyle
+    a            owl:Class ;
+    rdfs:label   "LineStyle"@en ;
+    rdfs:comment "Enumeration of line rendering styles for relationship connectors."@en ;
+.
+
+arch-vis:SolidLine
+    a            arch-vis:LineStyle ;
+    rdfs:label   "Solid Line"@en ;
+.
+
+arch-vis:DashedLine
+    a            arch-vis:LineStyle ;
+    rdfs:label   "Dashed Line"@en ;
+.
+
+arch-vis:DottedLine
+    a            arch-vis:LineStyle ;
+    rdfs:label   "Dotted Line"@en ;
+.
+
+arch-vis:Decoration
+    a            owl:Class ;
+    rdfs:label   "Decoration"@en ;
+    rdfs:comment "Enumeration of endpoint decorations for relationship connectors."@en ;
+.
+
+arch-vis:decorSymbol
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "decorSymbol"@en ;
+    rdfs:comment "URI of the SVG marker symbol for this decoration (typically a small arrow or diamond shape)."@en ;
+    rdfs:domain  arch-vis:Decoration ;
+    rdfs:range   xsd:anyURI ;
+.
+
+arch-vis:NoDecoration
+    a            arch-vis:Decoration ;
+    rdfs:label   "No Decoration"@en ;
+.
+
+arch-vis:OpenArrowhead
+    a            arch-vis:Decoration ;
+    rdfs:label   "Open Arrowhead"@en ;
+    rdfs:comment "Open (unfilled) arrowhead pointing at the endpoint."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/open-arrowhead.svg"^^xsd:anyURI ;
+.
+
+arch-vis:ClosedArrowhead
+    a            arch-vis:Decoration ;
+    rdfs:label   "Closed Arrowhead"@en ;
+    rdfs:comment "Filled (closed) arrowhead pointing at the endpoint."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/closed-arrowhead.svg"^^xsd:anyURI ;
+.
+
+arch-vis:HollowArrowhead
+    a            arch-vis:Decoration ;
+    rdfs:label   "Hollow Arrowhead"@en ;
+    rdfs:comment "Hollow (white-filled) arrowhead — used for realization."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/hollow-arrowhead.svg"^^xsd:anyURI ;
+.
+
+arch-vis:HollowDiamond
+    a            arch-vis:Decoration ;
+    rdfs:label   "Hollow Diamond"@en ;
+    rdfs:comment "Hollow diamond — used for aggregation."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/hollow-diamond.svg"^^xsd:anyURI ;
+.
+
+arch-vis:FilledDiamond
+    a            arch-vis:Decoration ;
+    rdfs:label   "Filled Diamond"@en ;
+    rdfs:comment "Filled diamond — used for composition."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/filled-diamond.svg"^^xsd:anyURI ;
+.
+
+arch-vis:HalfArrowhead
+    a            arch-vis:Decoration ;
+    rdfs:label   "Half Arrowhead"@en ;
+    rdfs:comment "Half (one-sided) arrowhead — used for flow."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/half-arrowhead.svg"^^xsd:anyURI ;
+.
+
+arch-vis:CircleDot
+    a            arch-vis:Decoration ;
+    rdfs:label   "Circle with Dot"@en ;
+    rdfs:comment "Small circle with a dot — used for access."@en ;
+    arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/circle-dot.svg"^^xsd:anyURI ;
+.
+
+
+#################################################################
+# NotationSet and VisualNotation Classes
+#################################################################
+
+arch-vis:NotationSet
+    a            owl:Class ;
+    rdfs:label   "NotationSet"@en ;
+    rdfs:comment '''A named collection of visual notation descriptors for a modeling language.
+Multiple notation sets allow alternative visual representations (standard, simplified,
+monochrome, etc.) for the same metamodel.
+
+A Metamodel links to its available notation sets via arch:notationSet (the default set).
+PresentationContext concepts link to their preferred notation set via arch:usesNotationSet,
+enabling context-aware palette generation:
+
+  Metamodel ──arch:notationSet──► NotationSet (default)
+  PresentationContext ──arch:usesNotationSet──► NotationSet (context-specific)
+
+A palette generator determines the active PresentationContext, follows usesNotationSet
+to get the appropriate NotationSet, then queries VisualNotation instances within it.'''@en ;
+.
+
+arch-vis:VisualNotation
+    a            owl:Class ;
+    rdfs:label   "VisualNotation"@en ;
+    rdfs:comment '''A structured visual notation descriptor for a single ModelConcept.
+Bundles a default Style (shape, color, icon) with the rendered composite image
+(arch:prefVisNotation). Used by palette generators and diagram editors to construct
+element renderings from primitives.'''@en ;
+.
+
+arch-vis:notationFor
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "notationFor"@en ;
+    rdfs:comment "Links a VisualNotation descriptor to the ModelConcept it describes."@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch:ModelConcept ;
+.
+
+arch-vis:inNotationSet
+    a            owl:ObjectProperty ;
+    rdfs:label   "inNotationSet"@en ;
+    rdfs:comment "Links a VisualNotation to the NotationSet it belongs to."@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch-vis:NotationSet ;
+.
+
+arch-vis:defaultStyle
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "defaultStyle"@en ;
+    rdfs:comment '''Links a VisualNotation to its default Style — the construction recipe
+for rendering this concept. Contains shape type, colors, icon, and dimensions.'''@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch-vis:Style ;
+.
+
+arch-vis:lineStyle
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "lineStyle"@en ;
+    rdfs:comment "The line rendering style for a relationship connector (solid, dashed, dotted)."@en ;
+    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:range   arch-vis:LineStyle ;
+.
+
+arch-vis:sourceDecor
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "sourceDecor"@en ;
+    rdfs:comment "The decoration at the source end of a relationship connector."@en ;
+    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:range   arch-vis:Decoration ;
+.
+
+arch-vis:targetDecor
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "targetDecor"@en ;
+    rdfs:comment "The decoration at the target end of a relationship connector."@en ;
+    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:range   arch-vis:Decoration ;
+.

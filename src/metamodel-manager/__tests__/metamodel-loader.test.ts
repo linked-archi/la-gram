@@ -3,6 +3,7 @@ import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { N3MetamodelLoader } from '../metamodel-loader.js';
+import { BUNDLED_ASSETS } from '../bundled-assets.js';
 import { DataFactory } from 'n3';
 
 const { namedNode } = DataFactory;
@@ -241,5 +242,121 @@ describe('N3MetamodelLoader', () => {
       // Should not throw — just a no-op since there are no quads
       await loader.resolveImports('https://example.org/metamodel/nonexistent');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Manifest-driven loading
+// ---------------------------------------------------------------------------
+
+/**
+ * Manifest shaped like the published ones: the `arch:Metamodel` subject is an
+ * individual inside the manifest document, and its properties point at a mix of
+ * document IRIs and of individuals living in other documents.
+ */
+const MANIFEST = `
+  @prefix owl:  <${NAMESPACES.owl}> .
+  @prefix rdf:  <${NAMESPACES.rdf}> .
+  @prefix skos: <${NAMESPACES.skos}> .
+  @prefix arch: <${NAMESPACES.arch}> .
+  @prefix ex:   <https://example.org/mm/metamodel#> .
+
+  <https://example.org/mm/metamodel#>
+    rdf:type owl:Ontology ;
+    owl:imports <https://meta.linked.archi/core#> .
+
+  ex:TestLanguage
+    rdf:type arch:Metamodel ;
+    skos:prefLabel "Test Language" ;
+    owl:versionInfo "9.9" ;
+    arch:modelConcepts <https://example.org/mm/onto#> ;
+    arch:notationSet <https://example.org/mm/notation#SomeNotationSet> .
+`;
+
+describe('N3MetamodelLoader — manifest loading', () => {
+  let loader: N3MetamodelLoader;
+  let store: OxigraphRdfStore;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    loader = new N3MetamodelLoader(new N3TtlParser(), store);
+  });
+
+  it('finds the arch:Metamodel subject and loads the manifest into its own graph', async () => {
+    const loaded = await loader.loadMetamodelFromManifest(MANIFEST);
+
+    expect(loaded.metamodelIri).toBe('https://example.org/mm/metamodel#TestLanguage');
+    expect(loaded.manifestGraphIri).toBe('https://example.org/mm/metamodel#');
+    expect(loaded.info.name).toBe('Test Language');
+    expect(loaded.info.version).toBe('9.9');
+
+    const manifestQuads = store.getQuads(null, null, null, namedNode('https://example.org/mm/metamodel#'));
+    expect(manifestQuads.length).toBeGreaterThan(0);
+  });
+
+  it('records references it cannot resolve to a bundled asset', async () => {
+    const loaded = await loader.loadMetamodelFromManifest(MANIFEST);
+
+    const concepts = loaded.assets.find((a) => a.via === 'arch:modelConcepts');
+    expect(concepts?.outcome).toBe('not-bundled');
+    expect(concepts?.documentIri).toBe('https://example.org/mm/onto#');
+  });
+
+  it('normalises an individual IRI to the document that would define it', async () => {
+    const loaded = await loader.loadMetamodelFromManifest(MANIFEST);
+
+    const notation = loaded.assets.find((a) => a.via === 'arch:notationSet');
+    expect(notation?.referencedIri).toBe('https://example.org/mm/notation#SomeNotationSet');
+    expect(notation?.documentIri).toBe('https://example.org/mm/notation#');
+    expect(loaded.notationSetIri).toBe('https://example.org/mm/notation#SomeNotationSet');
+  });
+
+  it('follows owl:imports into the bundled core ontology', async () => {
+    const loaded = await loader.loadMetamodelFromManifest(MANIFEST);
+
+    const core = loaded.assets.find((a) => a.documentIri === 'https://meta.linked.archi/core#');
+    expect(core?.outcome).toBe('loaded');
+    expect(core?.role).toBe('coreOntology');
+    expect(core?.via).toContain('owl:imports');
+    expect(loaded.graphsByRole.coreOntology).toEqual(['https://meta.linked.archi/core#']);
+  });
+
+  it('throws when the document declares no arch:Metamodel', async () => {
+    await expect(loader.loadMetamodelFromManifest(MINIMAL_METAMODEL)).rejects.toThrow(
+      /No arch:Metamodel subject/,
+    );
+  });
+});
+
+describe('N3MetamodelLoader — bundled ArchiMate 4.0', () => {
+  it('loads every bundled asset into its own named graph', async () => {
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+
+    const loaded = await loader.loadBundledMetamodel();
+
+    expect(loaded.metamodelIri).toBe('https://meta.linked.archi/archimate4/metamodel#ArchiMate4');
+    expect(loaded.notationSetIri).toBe(
+      'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
+    );
+
+    // Every bundled asset is reachable from the manifest plus owl:imports.
+    const loadedGraphs = loaded.assets
+      .filter((a) => a.outcome === 'loaded')
+      .map((a) => a.documentIri)
+      .sort();
+    expect(loadedGraphs).toEqual(BUNDLED_ASSETS.map((a) => a.ontologyIri).sort());
+
+    // Each graph really holds its own quads.
+    for (const asset of BUNDLED_ASSETS) {
+      const quads = store.getQuads(null, null, null, namedNode(asset.ontologyIri));
+      expect(quads.length, asset.path).toBeGreaterThan(0);
+    }
+  });
+
+  it('never reports an error outcome for the bundled assets', async () => {
+    const loader = new N3MetamodelLoader(new N3TtlParser(), new OxigraphRdfStore());
+    const loaded = await loader.loadBundledMetamodel();
+    expect(loaded.assets.filter((a) => a.outcome === 'error')).toEqual([]);
   });
 });

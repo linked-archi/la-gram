@@ -13,6 +13,11 @@ async function bootstrap(): Promise<void> {
   const root = document.getElementById('app') ?? document.body;
   const ui = mountUi(app, root);
 
+  // The metamodel is already in the store; announcing it now — after the panels
+  // have subscribed — is what fills the palette. Nothing happens if the bundled
+  // assets failed to load, and the app stays usable with an empty palette.
+  app.announceLoadedMetamodel();
+
   // Expose the app instance for debugging in development
   if (typeof window !== 'undefined') {
     const w = window as unknown as Record<string, unknown>;

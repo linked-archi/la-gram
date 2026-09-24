@@ -23,6 +23,7 @@ import type { ModelEventHandler } from './event-bus.js';
 // Side-effect imports: register the custom elements.
 import './app-shell.js';
 import './panels/palette-panel.js';
+import './panels/canvas-toolbar.js';
 import './panels/property-panel.js';
 import './panels/model-explorer.js';
 import './panels/validation-panel.js';
@@ -31,7 +32,12 @@ import './views/catalog-view.js';
 import './views/matrix-view.js';
 
 import type { AppShell } from './app-shell.js';
-import type { PalettePanel, PaletteDragDetail } from './panels/palette-panel.js';
+import type {
+  PalettePanel,
+  PaletteDragDetail,
+  PaletteAxisChangeDetail,
+} from './panels/palette-panel.js';
+import type { CanvasToolbar, ToolbarToolDetail } from './panels/canvas-toolbar.js';
 import type { PropertyPanel, PropertyEditDetail } from './panels/property-panel.js';
 import type { ModelExplorer, ExplorerSelectDetail } from './panels/model-explorer.js';
 import type { ValidationPanel, ValidationNavigateDetail } from './panels/validation-panel.js';
@@ -42,6 +48,7 @@ import type { MatrixView } from './views/matrix-view.js';
 // The diagram canvas is a plain class, not a custom element: it takes a host
 // DOM node in its constructor and manages that subtree itself.
 import { DiagramCanvas } from './canvas/diagram-canvas.js';
+import { buildClassClosure, type ClassClosure } from './canvas/relationship-resolution.js';
 
 const { namedNode } = DataFactory;
 
@@ -50,9 +57,6 @@ const SHAPES_GRAPH_IRI = 'urn:la-gram:shapes';
 
 /** Model IRI used for elements dropped onto the canvas before a model is loaded. */
 export const DEFAULT_MODEL_IRI = 'urn:la-gram:model-1';
-
-/** Default bounds for an element created by dropping a palette entry. */
-const DROPPED_ELEMENT_SIZE = { width: 130, height: 60 };
 
 /** Empty palette used until a metamodel is loaded. */
 function emptyPalette(): PaletteDefinition {
@@ -66,6 +70,8 @@ export type CanvasViewKind = 'diagram' | 'catalog' | 'matrix';
 export interface MountedUi {
   shell: AppShell;
   palettePanel: PalettePanel;
+  /** The global-tool strip above the diagram. */
+  canvasToolbar: CanvasToolbar;
   modelExplorer: ModelExplorer;
   propertyPanel: PropertyPanel;
   validationPanel: ValidationPanel;
@@ -79,6 +85,12 @@ export interface MountedUi {
   setActiveCanvasView(kind: CanvasViewKind): void;
   /** Currently visible centre view. */
   activeCanvasView(): CanvasViewKind;
+  /**
+   * Regroup the palette along another classification axis (e.g. "Element by
+   * Aspect" instead of "Element by Domain"). Ignored when the metamodel does
+   * not publish the axis.
+   */
+  setPaletteAxis(axisIri: string | undefined): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
 }
@@ -133,6 +145,11 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   canvasArea.slot = 'canvas';
   canvasArea.className = 'la-canvas-area';
 
+  // The global tools (connect / lasso / hand) used to be entries in diagram-js's
+  // own in-canvas palette, which also listed all 42 element types the sidebar
+  // lists. That palette is no longer registered; the tools live here instead.
+  const canvasToolbar = document.createElement('canvas-toolbar');
+
   const canvasHost = document.createElement('div');
   canvasHost.className = 'la-diagram-host';
 
@@ -145,16 +162,35 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   matrixView.rdfStore = store;
   matrixView.hidden = true;
 
-  canvasArea.append(canvasHost, catalogView, matrixView);
+  canvasArea.append(canvasToolbar, canvasHost, catalogView, matrixView);
+
+  // The palette drives the closure-aware domain/range matching on the context
+  // pad, so it has to be readable as it changes.
+  let currentPalette: PaletteDefinition = emptyPalette();
+
+  // Rebuilt after each metamodel load: the subClassOf hierarchy only exists once
+  // the ontologies are in the store.
+  let classClosure: ClassClosure = buildClassClosure(store);
+  const closureLookup: ClassClosure = (typeIri) => classClosure(typeIri);
 
   const diagramCanvas = new DiagramCanvas({
     container: canvasHost,
     eventBus,
     elementManager,
     relationshipManager,
-    paletteDefinition: emptyPalette(),
+    paletteDefinition: currentPalette,
     modelIri: DEFAULT_MODEL_IRI,
+    classClosure: closureLookup,
+    rdfStore: store,
+    onToolChanged: (tool) => {
+      canvasToolbar.activeTool = tool ?? undefined;
+    },
   });
+
+  // Changing a connection's relationship type is diagram-js's own business now:
+  // the context pad's `replace` entry opens `popupMenu` on the
+  // `la-relationship-replace` provider the canvas registered, and the pick goes
+  // straight onto the command stack. Nothing to wire from here.
 
   // ── Bottom: validation results + SPARQL editor ───────────────────────
   const bottomArea = document.createElement('div');
@@ -209,37 +245,55 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   };
   propertyPanel.addEventListener('property-edit', onPropertyEdit);
 
-  // ── Palette drag → drop on the canvas creates an element ─────────────
-  const onDragOver = (e: DragEvent): void => {
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
-  };
+  // ── Palette → diagram-js `create` ────────────────────────────────────
+  //
+  // One palette now, and it can use diagram-js's `create` service like
+  // bpmn-js's does, even though it lives outside the canvas.
+  //
+  // What made that impossible before was the gesture, not the location: the
+  // sidebar dragged with the HTML5 drag-and-drop API, and during a native drag
+  // the browser fires `dragover`/`drop` and **no** `mousemove`/`mouseup` — the
+  // events diagram-js's `Dragging` listens on. So the drop had to be caught here
+  // and its client coordinates translated through the viewbox by hand, with no
+  // preview and no snapping, and no browser test could drive it.
+  //
+  // `palette-panel` now starts the gesture from `mousedown` (and `click`, for
+  // click-to-place) and hands the raw event over. `Dragging.init` binds
+  // `mousemove`/`mouseup` on `document`, so a press that begins in the sidebar is
+  // tracked all the way onto the canvas; diagram-js computes the drop position,
+  // shows the preview, applies snapping, and mints the RDF element inside the
+  // resulting `shape.create` command. A release that lands outside the canvas
+  // finds no hover target and cancels, which is the right answer.
+  const onPaletteDragStart = (e: Event): void => {
+    const detail = (e as CustomEvent<PaletteDragDetail>).detail;
+    if (!detail?.iri) return;
 
-  const onDrop = (e: DragEvent): void => {
-    e.preventDefault();
-    const raw = e.dataTransfer?.getData('application/json');
-    if (!raw) return;
-
-    let detail: PaletteDragDetail;
-    try {
-      detail = JSON.parse(raw) as PaletteDragDetail;
-    } catch {
+    if (detail.kind === 'relationship') {
+      // A relationship type is not a shape, so there is nothing to drag onto the
+      // canvas. Picking one arms the connect tool with that type preselected, so
+      // the next source→target pair gets the type the user asked for rather than
+      // the metamodel's top-ranked guess. See
+      // `DiagramCanvas.setPreferredRelationshipType`.
+      diagramCanvas.setPreferredRelationshipType(detail.iri);
+      diagramCanvas.activateTool('connect', detail.sourceEvent);
       return;
     }
-    if (detail.kind !== 'element' || !detail.iri) return;
 
-    const rect = canvasHost.getBoundingClientRect();
-    eventBus.emit('palette-drag', {
-      typeIri: detail.iri,
-      modelIri: DEFAULT_MODEL_IRI,
-      x: Math.max(0, Math.round(e.clientX - rect.left)),
-      y: Math.max(0, Math.round(e.clientY - rect.top)),
-      ...DROPPED_ELEMENT_SIZE,
-    });
+    diagramCanvas.startCreate(detail.iri, detail.sourceEvent);
   };
+  palettePanel.addEventListener('palette-drag-start', onPaletteDragStart);
 
-  canvasHost.addEventListener('dragover', onDragOver);
-  canvasHost.addEventListener('drop', onDrop);
+  // ── Toolbar → diagram-js tool services ───────────────────────────────
+  // Picking a tool by hand clears any preselected relationship type: the user is
+  // asking for the metamodel's own ranking again, not for the type they last
+  // clicked in the sidebar.
+  const onToolbarTool = (e: Event): void => {
+    const detail = (e as CustomEvent<ToolbarToolDetail>).detail;
+    if (!detail?.tool) return;
+    diagramCanvas.setPreferredRelationshipType(undefined);
+    diagramCanvas.activateTool(detail.tool, detail.sourceEvent);
+  };
+  canvasToolbar.addEventListener('toolbar-tool', onToolbarTool);
 
   // ── EventBus → panel state ───────────────────────────────────────────
   const refreshGraphs = (): void => {
@@ -257,15 +311,42 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
     validationPanel.results = detail?.results ?? [];
   };
 
+  // ── Palette generation ───────────────────────────────────────────────
+  // The metamodel IRI and the chosen grouping axis are kept so the palette can
+  // be regenerated when the user switches axis without reloading anything.
+  let currentMetamodelIri: string | undefined;
+  let currentAxisIri: string | undefined;
+
+  const regeneratePalette = (): void => {
+    const palette = paletteGenerator.generatePalette(currentMetamodelIri, {
+      axisIri: currentAxisIri,
+    });
+    // The active axis may differ from the requested one when the metamodel does
+    // not publish it; follow what the generator actually used.
+    currentAxisIri = palette.activeAxisIri;
+    currentPalette = palette;
+    palettePanel.palette = palette;
+    diagramCanvas.updatePaletteDefinition(palette);
+  };
+
   const onMetamodelLoaded: ModelEventHandler = (event) => {
+    // The class hierarchy has just arrived, so the closure index is stale.
+    classClosure = buildClassClosure(store);
     const metamodelIri = event.detail?.metamodelIri as string | undefined;
     if (metamodelIri) {
-      const palette = paletteGenerator.generatePalette(metamodelIri);
-      palettePanel.palette = palette;
-      diagramCanvas.updatePaletteDefinition(palette);
+      currentMetamodelIri = metamodelIri;
+      regeneratePalette();
     }
     refreshGraphs();
   };
+
+  // The palette panel's "Group by" selector asks for a different axis.
+  const onAxisChange = (e: Event): void => {
+    const detail = (e as CustomEvent<PaletteAxisChangeDetail>).detail;
+    currentAxisIri = detail.axisIri;
+    regeneratePalette();
+  };
+  palettePanel.addEventListener('palette-axis-change', onAxisChange);
 
   const onModelChanged: ModelEventHandler = () => {
     refreshGraphs();
@@ -288,12 +369,13 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
     eventBus.off('validation-updated', onValidationUpdated);
     eventBus.off('metamodel-loaded', onMetamodelLoaded);
     eventBus.off('model-loaded', onModelChanged);
+    palettePanel.removeEventListener('palette-axis-change', onAxisChange);
+    palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
+    canvasToolbar.removeEventListener('toolbar-tool', onToolbarTool);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     catalogView.removeEventListener('catalog-select', onCatalogSelect);
     validationPanel.removeEventListener('validation-navigate', onValidationNavigate);
     propertyPanel.removeEventListener('property-edit', onPropertyEdit);
-    canvasHost.removeEventListener('dragover', onDragOver);
-    canvasHost.removeEventListener('drop', onDrop);
     diagramCanvas.destroy();
     shell.remove();
   };
@@ -301,6 +383,7 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   return {
     shell,
     palettePanel,
+    canvasToolbar,
     modelExplorer,
     propertyPanel,
     validationPanel,
@@ -311,6 +394,10 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
     diagramCanvas,
     setActiveCanvasView,
     activeCanvasView: () => active,
+    setPaletteAxis: (axisIri) => {
+      currentAxisIri = axisIri;
+      regeneratePalette();
+    },
     dispose,
   };
 }

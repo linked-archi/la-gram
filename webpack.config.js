@@ -1,6 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +33,40 @@ const sharedModuleRules = [
 
 const sharedExperiments = { asyncWebAssembly: true };
 
+/**
+ * Emit the bundled metamodel assets (TTL + SVG icons) into the output
+ * directory, preserving the `assets/` layout.
+ *
+ * The layout is load-bearing rather than incidental: `src/metamodel-manager/
+ * bundled-assets.ts` addresses these files by the same asset-root-relative
+ * paths in Node and in the browser, and mirrors the published
+ * `https://meta.linked.archi/` tree so icon URIs in the notation data resolve
+ * by prefix rewrite alone. Copying verbatim — rather than `asset/resource`
+ * imports, which would hash the filenames and need per-file import statements
+ * that Vitest cannot resolve — is what keeps both of those true.
+ */
+const bundledAssetsPlugin = () =>
+  new CopyWebpackPlugin({
+    patterns: [
+      {
+        from: path.resolve(__dirname, 'assets'),
+        to: 'assets',
+        // Skip dotfiles; everything else under assets/ is shipped as-is.
+        globOptions: { ignore: ['**/.*'] },
+      },
+      // diagram-js ships its own stylesheet — selection outlines, the palette,
+      // the context pad and the drag cursors are all invisible or unusable
+      // without it. It is copied out and linked from index.html rather than
+      // imported from TypeScript, because a CSS `import` would need
+      // style-loader/css-loader in the build *and* a stub in Vitest, where the
+      // same modules are loaded under Node. Copying keeps one code path.
+      {
+        from: path.resolve(__dirname, 'node_modules/diagram-js/assets/diagram-js.css'),
+        to: 'diagram-js.css',
+      },
+    ],
+  });
+
 export default (_env, argv) => {
   const devtool = argv.mode === 'development' ? 'eval-source-map' : 'source-map';
 
@@ -62,6 +97,7 @@ export default (_env, argv) => {
         template: './src/index.html',
         title: 'RDF Architecture Modeler',
       }),
+      bundledAssetsPlugin(),
     ],
     devtool,
   };
@@ -100,6 +136,7 @@ export default (_env, argv) => {
         template: './src/index.html',
         title: 'RDF Architecture Modeler',
       }),
+      bundledAssetsPlugin(),
     ],
     devtool,
   };

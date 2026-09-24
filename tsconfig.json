@@ -13,7 +13,11 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    // Project root, not `./src`, so `tests/` is inside it and one
+    // `tsc --noEmit` type-checks the browser suite alongside the app. Nothing
+    // emits through `tsc` — webpack owns the build and decides output paths —
+    // so widening `rootDir` changes no artefact.
+    "rootDir": ".",
     "baseUrl": ".",
     "paths": {
       "@rdf-engine/*": ["src/rdf-engine/*"],
@@ -26,6 +30,6 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": false
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

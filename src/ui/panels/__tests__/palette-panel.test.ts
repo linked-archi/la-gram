@@ -1,198 +1,402 @@
-import { describe, it, expect, vi } from 'vitest';
+// @vitest-environment jsdom
+/**
+ * `palette-panel` — the app's only palette, tested as a mounted custom element.
+ *
+ * The previous version of this file called the render method off the prototype
+ * against a hand-built `this` and flattened the returned template literal to a
+ * string. That could assert on markup, but not on behaviour: nothing was mounted,
+ * so no listener ever ran, and the drag path — the panel's whole reason for
+ * existing now that it owns the element types — was checked by invoking a private
+ * method with a fake event.
+ *
+ * These tests mount the real element in jsdom and drive it through its shadow DOM
+ * and real `MouseEvent`s, so the assertions are about what a user's press
+ * produces.
+ */
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { PaletteDefinition, ViewpointInfo } from '../../../metamodel-manager/interfaces.js';
 import { PalettePanel, type PaletteDragDetail } from '../palette-panel.js';
 
 function testPalette(): PaletteDefinition {
   return {
     elementGroups: [
-      { category: 'Business', elements: [
-        { iri: 'arch:BP', label: 'Business Process', iconUrl: 'bp.svg', isAbstract: false },
-        { iri: 'arch:BA', label: 'Business Actor', isAbstract: false },
-        { iri: 'arch:AB', label: 'Abstract Business', isAbstract: true },
-      ]},
-      { category: 'Application', elements: [
-        { iri: 'arch:AC', label: 'Application Component', iconUrl: 'ac.svg', isAbstract: false },
-      ]},
+      {
+        category: 'Business',
+        elements: [
+          { iri: 'arch:BP', label: 'Business Process', iconUrl: 'bp.svg', isAbstract: false },
+          { iri: 'arch:BA', label: 'Business Actor', isAbstract: false },
+          { iri: 'arch:AB', label: 'Abstract Business', isAbstract: true },
+        ],
+      },
+      {
+        category: 'Application',
+        elements: [
+          {
+            iri: 'arch:AC',
+            label: 'Application Component',
+            iconUrl: 'ac.svg',
+            isAbstract: false,
+          },
+        ],
+      },
     ],
     relationshipTypes: [
-      { iri: 'arch:serves', label: 'Serves', iconUrl: 'serves.svg', domainTypes: ['arch:AC'], rangeTypes: ['arch:BP'] },
+      {
+        iri: 'arch:serves',
+        label: 'Serves',
+        iconUrl: 'serves.svg',
+        domainTypes: ['arch:AC'],
+        rangeTypes: ['arch:BP'],
+      },
       { iri: 'arch:accesses', label: 'Accesses', domainTypes: [], rangeTypes: [] },
     ],
   };
 }
 
-function makeCtx(
-  palette: PaletteDefinition,
-  collapsed = new Set<string>(),
+let panel: PalettePanel;
+
+/** Mount the element and let Lit render once. */
+async function mount(
+  palette: PaletteDefinition = testPalette(),
   activeViewpoint?: ViewpointInfo,
-) {
-  const p = PalettePanel.prototype as any;
-  const c: any = { palette, _collapsedGroups: collapsed, activeViewpoint, dispatchEvent: vi.fn() };
-  // Bind the _effectivePalette getter from the prototype
-  Object.defineProperty(c, '_effectivePalette', Object.getOwnPropertyDescriptor(PalettePanel.prototype as any, '_effectivePalette')!);
-  for (const m of ['_renderGroup','_renderElementItem','_renderRelationship','_toggleGroup','_onDragStart']) {
-    c[m] = p[m].bind(c);
-  }
-  return c;
+): Promise<PalettePanel> {
+  panel = document.createElement('palette-panel');
+  panel.palette = palette;
+  if (activeViewpoint) panel.activeViewpoint = activeViewpoint;
+  document.body.appendChild(panel);
+  await panel.updateComplete;
+  return panel;
 }
 
-function flat(t: any): string {
-  if (!t) return '';
-  if (typeof t === 'string') return t;
-  if (t.strings) {
-    let o = '';
-    for (let i = 0; i < t.strings.length; i++) {
-      o += t.strings[i];
-      if (i < t.values?.length) o += flat(t.values[i]);
-    }
-    return o;
-  }
-  if (Array.isArray(t)) return t.map(flat).join('');
-  return String(t ?? '');
+/** The shadow root, which is where everything the panel renders lives. */
+function root(): ShadowRoot {
+  const shadow = panel.shadowRoot;
+  if (!shadow) throw new Error('palette-panel has no shadow root');
+  return shadow;
 }
 
-function rs(
-  palette: PaletteDefinition,
-  collapsed = new Set<string>(),
-  activeViewpoint?: ViewpointInfo,
-): string {
-  return flat((PalettePanel.prototype as any).render.call(makeCtx(palette, collapsed, activeViewpoint)));
+const text = (): string => root().textContent ?? '';
+const items = (): HTMLElement[] => Array.from(root().querySelectorAll('.palette-item'));
+const labels = (): string[] =>
+  items().map((item) => item.querySelector('.palette-label')?.textContent?.trim() ?? '');
+const groupHeaders = (): HTMLElement[] => Array.from(root().querySelectorAll('.group-header'));
+
+/** Collect every `palette-drag-start` the panel emits while `run` executes. */
+async function captureDrags(run: () => void): Promise<PaletteDragDetail[]> {
+  const seen: PaletteDragDetail[] = [];
+  const listener = (e: Event): void => {
+    seen.push((e as CustomEvent<PaletteDragDetail>).detail);
+  };
+  panel.addEventListener('palette-drag-start', listener);
+  run();
+  await panel.updateComplete;
+  panel.removeEventListener('palette-drag-start', listener);
+  return seen;
 }
+
+/** Find the entry for a label, element or relationship alike. */
+function entry(label: string): HTMLElement {
+  const found = items().find(
+    (item) => item.querySelector('.palette-label')?.textContent?.trim() === label,
+  );
+  if (!found) throw new Error(`no palette entry labelled "${label}" (have: ${labels().join(', ')})`);
+  return found;
+}
+
+async function type(query: string): Promise<void> {
+  const input = root().querySelector('input[type="search"]') as HTMLInputElement;
+  input.value = query;
+  input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  await panel.updateComplete;
+}
+
+beforeEach(() => {
+  document.body.innerHTML = '';
+});
+
+afterEach(() => {
+  panel?.remove();
+});
 
 describe('PalettePanel', () => {
-  it('exports the class', () => {
-    expect(PalettePanel).toBeDefined();
+  it('is registered as a custom element', () => {
+    expect(customElements.get('palette-panel')).toBe(PalettePanel);
   });
 
-  it('has static styles', () => {
-    expect((PalettePanel as any).styles).toBeDefined();
-  });
-
-  it('has render on prototype', () => {
-    expect(typeof PalettePanel.prototype.render).toBe('function');
-  });
-
-  describe('render template', () => {
-    it('renders group headers', () => {
-      const o = rs(testPalette());
-      expect(o).toContain('Business');
-      expect(o).toContain('Application');
+  describe('what it offers', () => {
+    it('groups the element types under their category headers', async () => {
+      await mount();
+      expect(groupHeaders().map((h) => h.textContent?.replace(/[▾\s]+/g, ' ').trim())).toEqual([
+        'Business 2',
+        'Application 1',
+      ]);
     });
 
-    it('renders concrete labels', () => {
-      const o = rs(testPalette());
-      expect(o).toContain('Business Process');
-      expect(o).toContain('Business Actor');
-      expect(o).toContain('Application Component');
+    it('lists every concrete type and no abstract one', async () => {
+      await mount();
+      expect(labels()).toEqual([
+        'Business Process',
+        'Business Actor',
+        'Application Component',
+        'Serves',
+        'Accesses',
+      ]);
+      expect(text()).not.toContain('Abstract Business');
     });
 
-    it('excludes abstract elements (5 palette-items)', () => {
-      expect((rs(testPalette()).match(/palette-item/g) ?? []).length).toBe(5);
+    it('renders the relationships in their own section', async () => {
+      await mount();
+      expect(root().querySelector('.section-divider')?.textContent?.trim()).toBe('Relationships');
+      expect(entry('Serves').dataset.kind).toBe('relationship');
+      expect(entry('Business Actor').dataset.kind).toBe('element');
     });
 
-    it('renders relationships section', () => {
-      const o = rs(testPalette());
-      expect(o).toContain('Relationships');
-      expect(o).toContain('Serves');
-      expect(o).toContain('Accesses');
-    });
-
-    it('renders icons', () => {
-      const o = rs(testPalette());
-      expect(o).toContain('bp.svg');
-      expect(o).toContain('ac.svg');
-      expect(o).toContain('serves.svg');
-    });
-
-    it('omits rels section when empty', () => {
-      expect(rs({ elementGroups: testPalette().elementGroups, relationshipTypes: [] })).not.toContain('Relationships');
-    });
-
-    it('empty palette shows header only', () => {
-      const o = rs({ elementGroups: [], relationshipTypes: [] });
-      expect(o).toContain('Palette');
-      expect(o).not.toContain('palette-item');
-    });
-
-    it('skips all-abstract groups', () => {
-      const p: PaletteDefinition = {
-        elementGroups: [{ category: 'OnlyAbstract', elements: [{ iri: 'a:1', label: 'A1', isAbstract: true }] }],
+    it('shows the published glyph, and a notation swatch when there is none', async () => {
+      await mount({
+        elementGroups: [
+          {
+            category: 'Business',
+            elements: [
+              { iri: 'arch:BP', label: 'With Icon', iconUrl: 'bp.svg', isAbstract: false },
+              {
+                iri: 'arch:BA',
+                label: 'No Icon',
+                isAbstract: false,
+                style: { shapeType: 'Ellipse', fillColor: '#FFFFB5' },
+              },
+            ],
+          },
+        ],
         relationshipTypes: [],
-      };
-      expect(rs(p)).not.toContain('OnlyAbstract');
+      });
+
+      expect(entry('With Icon').querySelector('img')?.getAttribute('src')).toContain('bp.svg');
+      const swatch = entry('No Icon').querySelector('.palette-swatch');
+      expect(swatch).not.toBeNull();
+      expect(swatch!.classList.contains('ellipse')).toBe(true);
+    });
+
+    it('omits the relationships section when the metamodel publishes none', async () => {
+      await mount({ elementGroups: testPalette().elementGroups, relationshipTypes: [] });
+      expect(root().querySelector('.section-divider')).toBeNull();
+    });
+
+    it('says so when no metamodel is loaded', async () => {
+      await mount({ elementGroups: [], relationshipTypes: [] });
+      expect(items()).toHaveLength(0);
+      expect(root().querySelector('.palette-empty')?.textContent).toContain('No metamodel loaded');
+    });
+
+    it('drops a group whose every type is abstract', async () => {
+      await mount({
+        elementGroups: [
+          {
+            category: 'OnlyAbstract',
+            elements: [{ iri: 'a:1', label: 'A1', isAbstract: true }],
+          },
+        ],
+        relationshipTypes: [],
+      });
+      expect(text()).not.toContain('OnlyAbstract');
     });
   });
 
-  describe('collapsing', () => {
-    it('collapsed group has hidden class', () => {
-      const o = rs(testPalette(), new Set(['Business']));
-      expect(o).toContain('hidden');
-      expect(o).toContain('collapsed');
-    });
+  describe('collapsing a group', () => {
+    it('hides its items on click and shows them again on the next', async () => {
+      await mount();
+      const header = groupHeaders()[0];
 
-    it('non-collapsed has no hidden', () => {
-      expect(rs(testPalette())).not.toContain('hidden');
-    });
+      header.click();
+      await panel.updateComplete;
+      const list = root().querySelector('.group-items') as HTMLElement;
+      expect(list.classList.contains('hidden')).toBe(true);
+      expect(root().querySelector('.group-toggle')!.classList.contains('collapsed')).toBe(true);
 
-    it('toggle adds category', () => {
-      const c: any = { _collapsedGroups: new Set<string>() };
-      (PalettePanel.prototype as any)._toggleGroup.call(c, 'Biz');
-      expect(c._collapsedGroups.has('Biz')).toBe(true);
-    });
-
-    it('toggle removes on second call', () => {
-      const c: any = { _collapsedGroups: new Set(['Biz']) };
-      (PalettePanel.prototype as any)._toggleGroup.call(c, 'Biz');
-      expect(c._collapsedGroups.has('Biz')).toBe(false);
+      header.click();
+      await panel.updateComplete;
+      expect(
+        (root().querySelector('.group-items') as HTMLElement).classList.contains('hidden'),
+      ).toBe(false);
     });
   });
 
-  describe('drag events', () => {
-    it('dispatches palette-drag-start', () => {
-      const spy = vi.fn();
-      const setData = vi.fn();
-      const detail: PaletteDragDetail = { iri: 'x', label: 'X', kind: 'element' };
-      (PalettePanel.prototype as any)._onDragStart.call(
-        { dispatchEvent: spy },
-        { dataTransfer: { setData } },
-        detail,
+  describe('search', () => {
+    it('filters element and relationship types by label', async () => {
+      await mount();
+      await type('actor');
+      expect(labels()).toEqual(['Business Actor']);
+
+      await type('serv');
+      expect(labels()).toEqual(['Serves']);
+    });
+
+    it('is case-insensitive and matches on a substring', async () => {
+      await mount();
+      await type('PROCESS');
+      expect(labels()).toEqual(['Business Process']);
+    });
+
+    it('leaves what was typed alone, capitals and surrounding space included', async () => {
+      // The query is normalised where the comparison happens, not in state: a
+      // lower-cased state would rewrite the user's capitals back at them on every
+      // keystroke.
+      await mount();
+      await type('  Business Actor  ');
+
+      const input = root().querySelector('input[type="search"]') as HTMLInputElement;
+      expect(input.value).toBe('  Business Actor  ');
+      expect(labels()).toEqual(['Business Actor']);
+    });
+
+    it('quotes the query as typed when nothing matches', async () => {
+      await mount();
+      await type('No Such Type');
+      expect(root().querySelector('.palette-empty')?.textContent).toContain('No Such Type');
+    });
+
+    it('reports a miss rather than rendering an empty panel', async () => {
+      await mount();
+      await type('nothing matches this');
+      expect(items()).toHaveLength(0);
+      expect(root().querySelector('.palette-empty')?.textContent).toContain('No type matches');
+    });
+
+    it('overrides a collapsed group, so a hit is never hidden', async () => {
+      // A match buried in a group the user collapsed earlier would otherwise read
+      // as "no results".
+      await mount();
+      groupHeaders()[0].click();
+      await panel.updateComplete;
+      expect((root().querySelector('.group-items') as HTMLElement).classList.contains('hidden')).toBe(
+        true,
       );
-      expect(setData).toHaveBeenCalledWith('application/json', JSON.stringify(detail));
-      const evt = spy.mock.calls[0][0] as CustomEvent;
-      expect(evt.type).toBe('palette-drag-start');
-      expect(evt.detail).toEqual(detail);
-      expect(evt.bubbles).toBe(true);
-      expect(evt.composed).toBe(true);
+
+      await type('actor');
+      expect(labels()).toEqual(['Business Actor']);
+      expect(
+        (root().querySelector('.group-items') as HTMLElement).classList.contains('hidden'),
+      ).toBe(false);
     });
 
-    it('handles null dataTransfer', () => {
-      expect(() =>
-        (PalettePanel.prototype as any)._onDragStart.call(
-          { dispatchEvent: vi.fn() },
-          { dataTransfer: null },
-          { iri: 'x', label: 'x', kind: 'element' },
+    it('clears back to the full list', async () => {
+      await mount();
+      await type('actor');
+      const clear = root().querySelector('.palette-search button') as HTMLButtonElement;
+      expect(clear).not.toBeNull();
+
+      clear.click();
+      await panel.updateComplete;
+      expect(labels()).toHaveLength(5);
+      expect(root().querySelector('.palette-search button')).toBeNull();
+    });
+
+    it('narrows the group counts to what it shows', async () => {
+      await mount();
+      await type('business');
+      expect(groupHeaders().map((h) => h.querySelector('.group-count')?.textContent)).toEqual(['2']);
+    });
+  });
+
+  describe('starting a create gesture', () => {
+    it('reports the type and forwards the raw mousedown', async () => {
+      // The raw event is what `create.start` needs: `Dragging.init` takes the start
+      // point, the touch flag and its `stopPropagation` from it.
+      await mount();
+      const press = new MouseEvent('mousedown', {
+        bubbles: true,
+        composed: true,
+        clientX: 12,
+        clientY: 34,
+        button: 0,
+      });
+
+      const drags = await captureDrags(() => entry('Business Actor').dispatchEvent(press));
+
+      expect(drags).toHaveLength(1);
+      expect(drags[0]).toMatchObject({ iri: 'arch:BA', label: 'Business Actor', kind: 'element' });
+      expect(drags[0].sourceEvent).toBe(press);
+    });
+
+    it('reports a click too, which is the click-to-place gesture', async () => {
+      // `Create.start` arms `Dragging` with `autoActivate`. On a click the button is
+      // already up, so the drag follows the pointer until the *next* click.
+      await mount();
+      const drags = await captureDrags(() =>
+        entry('Business Actor').dispatchEvent(
+          new MouseEvent('click', { bubbles: true, composed: true, button: 0 }),
         ),
-      ).not.toThrow();
+      );
+      expect(drags).toHaveLength(1);
     });
 
-    it('element kind', () => {
-      const spy = vi.fn();
-      (PalettePanel.prototype as any)._onDragStart.call(
-        { dispatchEvent: spy },
-        { dataTransfer: { setData: vi.fn() } },
-        { iri: 'a', label: 'a', kind: 'element' },
+    it('ignores a non-primary button, so a right-click can reach a context menu', async () => {
+      await mount();
+      const drags = await captureDrags(() =>
+        entry('Business Actor').dispatchEvent(
+          new MouseEvent('mousedown', { bubbles: true, composed: true, button: 2 }),
+        ),
       );
-      expect((spy.mock.calls[0][0] as CustomEvent).detail.kind).toBe('element');
+      expect(drags).toEqual([]);
     });
 
-    it('relationship kind', () => {
-      const spy = vi.fn();
-      (PalettePanel.prototype as any)._onDragStart.call(
-        { dispatchEvent: spy },
-        { dataTransfer: { setData: vi.fn() } },
-        { iri: 'r', label: 'r', kind: 'relationship' },
+    it('marks a relationship pick as such, since there is no shape to drag', async () => {
+      await mount();
+      const drags = await captureDrags(() =>
+        entry('Serves').dispatchEvent(
+          new MouseEvent('mousedown', { bubbles: true, composed: true, button: 0 }),
+        ),
       );
-      expect((spy.mock.calls[0][0] as CustomEvent).detail.kind).toBe('relationship');
+      expect(drags[0]).toMatchObject({ iri: 'arch:serves', kind: 'relationship' });
+    });
+
+    it('crosses the shadow boundary, so a listener on the host hears it', async () => {
+      await mount();
+      const seen: string[] = [];
+      document.body.addEventListener('palette-drag-start', (e) => {
+        seen.push((e as CustomEvent<PaletteDragDetail>).detail.iri);
+      });
+
+      entry('Business Actor').dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, composed: true, button: 0 }),
+      );
+
+      expect(seen).toEqual(['arch:BA']);
+    });
+  });
+
+  describe('the "Group by" axis selector', () => {
+    const axes = [
+      { iri: 'ax:domain', label: 'Element by Domain' },
+      { iri: 'ax:aspect', label: 'Element by Aspect' },
+    ];
+
+    it('is hidden unless the metamodel publishes more than one axis', async () => {
+      await mount();
+      expect(root().querySelector('#palette-axis')).toBeNull();
+
+      await mount({ ...testPalette(), axes: [axes[0]], activeAxisIri: 'ax:domain' });
+      expect(root().querySelector('#palette-axis')).toBeNull();
+    });
+
+    it('reports the chosen axis without regrouping anything itself', async () => {
+      // Regrouping belongs to whoever owns the PaletteGenerator; the panel only
+      // says which axis was asked for.
+      await mount({ ...testPalette(), axes, activeAxisIri: 'ax:domain' });
+      const select = root().querySelector('#palette-axis') as HTMLSelectElement;
+      expect(Array.from(select.options).map((o) => o.value)).toEqual(['ax:domain', 'ax:aspect']);
+
+      let chosen: string | undefined;
+      panel.addEventListener('palette-axis-change', (e) => {
+        chosen = (e as CustomEvent<{ axisIri: string }>).detail.axisIri;
+      });
+
+      select.value = 'ax:aspect';
+      select.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+
+      expect(chosen).toBe('ax:aspect');
+      // Still grouped as before: nothing was regenerated locally.
+      expect(groupHeaders()).toHaveLength(2);
     });
   });
 
@@ -204,53 +408,43 @@ describe('PalettePanel', () => {
       permittedRelationships: ['arch:serves'],
     };
 
-    it('shows only permitted elements when viewpoint is active', () => {
-      const o = rs(testPalette(), new Set(), viewpoint);
-      expect(o).toContain('Business Process');
-      expect(o).toContain('Business Actor');
-      expect(o).not.toContain('Application Component');
+    it('shows only the permitted types, and drops emptied groups', async () => {
+      await mount(testPalette(), viewpoint);
+      expect(labels()).toEqual(['Business Process', 'Business Actor', 'Serves']);
+      expect(text()).not.toContain('Application');
     });
 
-    it('shows only permitted relationships when viewpoint is active', () => {
-      const o = rs(testPalette(), new Set(), viewpoint);
-      expect(o).toContain('Serves');
-      expect(o).not.toContain('Accesses');
+    it('shows everything when no viewpoint is active', async () => {
+      await mount(testPalette());
+      expect(labels()).toHaveLength(5);
     });
 
-    it('hides entire group when no elements are permitted', () => {
-      const o = rs(testPalette(), new Set(), viewpoint);
-      expect(o).not.toContain('Application');
-    });
-
-    it('shows all types when no viewpoint is active', () => {
-      const o = rs(testPalette(), new Set(), undefined);
-      expect(o).toContain('Business Process');
-      expect(o).toContain('Application Component');
-      expect(o).toContain('Serves');
-      expect(o).toContain('Accesses');
-    });
-
-    it('hides relationships section when none are permitted', () => {
-      const vpNoRels: ViewpointInfo = {
+    it('hides the relationships section when the viewpoint permits none', async () => {
+      await mount(testPalette(), {
         iri: 'vp:norels',
         label: 'No Rels',
         permittedElements: ['arch:BP'],
         permittedRelationships: [],
-      };
-      const o = rs(testPalette(), new Set(), vpNoRels);
-      expect(o).not.toContain('Relationships');
+      });
+      expect(root().querySelector('.section-divider')).toBeNull();
+      expect(labels()).toEqual(['Business Process']);
     });
 
-    it('empty result when viewpoint permits nothing', () => {
-      const vpEmpty: ViewpointInfo = {
+    it('leaves an empty palette when the viewpoint permits nothing', async () => {
+      await mount(testPalette(), {
         iri: 'vp:empty',
         label: 'Empty',
         permittedElements: [],
         permittedRelationships: [],
-      };
-      const o = rs(testPalette(), new Set(), vpEmpty);
-      expect(o).toContain('Palette');
-      expect(o).not.toContain('palette-item');
+      });
+      expect(items()).toHaveLength(0);
+      expect(text()).toContain('Palette');
+    });
+
+    it('composes with the search box', async () => {
+      await mount(testPalette(), viewpoint);
+      await type('business');
+      expect(labels()).toEqual(['Business Process', 'Business Actor']);
     });
   });
 });

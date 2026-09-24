@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import type { RdfStore, SparqlResult, TtlParser, TtlSerializer, ShaclValidator, PrefixMap, ValidationReport } from '../rdf-engine/interfaces.js';
-import type { MetamodelLoader, PaletteGenerator, ViewpointManager, MetamodelInfo, PaletteDefinition } from '../metamodel-manager/interfaces.js';
+import type { LoadedMetamodel, MetamodelLoader, PaletteGenerator, ViewpointManager, MetamodelInfo, PaletteDefinition } from '../metamodel-manager/interfaces.js';
 import type { ElementManager, RelationshipManager, ViewManager, Bounds, ViewInfo } from '../model-manager/interfaces.js';
 import type { RelationshipTypeInfo } from '../metamodel-manager/interfaces.js';
 import { ModelOperations } from '../model-manager/model-operations.js';
@@ -106,11 +106,26 @@ function stubViewManager(): ViewManager {
   };
 }
 
+const STUB_METAMODEL_INFO: MetamodelInfo = {
+  iri: 'urn:test:mm', name: 'Test', version: '1.0', description: '',
+};
+
+function stubLoadedMetamodel(): LoadedMetamodel {
+  return {
+    metamodelIri: 'urn:test:mm#Language',
+    manifestGraphIri: 'urn:test:mm#',
+    info: STUB_METAMODEL_INFO,
+    graphsByRole: { manifest: ['urn:test:mm#'] },
+    notationSetIri: 'urn:test:mm#Notation',
+    assets: [],
+  };
+}
+
 function stubMetamodelLoader(): MetamodelLoader {
   return {
-    loadMetamodel: vi.fn(async (): Promise<MetamodelInfo> => ({
-      iri: 'urn:test:mm', name: 'Test', version: '1.0', description: '',
-    })),
+    loadMetamodel: vi.fn(async (): Promise<MetamodelInfo> => STUB_METAMODEL_INFO),
+    loadMetamodelFromManifest: vi.fn(async (): Promise<LoadedMetamodel> => stubLoadedMetamodel()),
+    loadBundledMetamodel: vi.fn(async (): Promise<LoadedMetamodel> => stubLoadedMetamodel()),
     loadShapes: vi.fn(async () => {}),
     resolveImports: vi.fn(async () => {}),
   };
@@ -255,6 +270,38 @@ describe('App', () => {
       eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:test:mm' });
 
       expect(paletteGenerator.generatePalette).toHaveBeenCalledWith('urn:test:mm');
+    });
+  });
+
+  describe('announceLoadedMetamodel', () => {
+    it('emits metamodel-loaded for the metamodel loaded at startup', () => {
+      const eventBus = new EventBus();
+      const loaded = stubLoadedMetamodel();
+      const app = new App(buildComponents({ eventBus }), loaded);
+
+      const seen: Record<string, unknown>[] = [];
+      eventBus.on('metamodel-loaded', (e) => {
+        if (e.detail) seen.push(e.detail);
+      });
+
+      expect(app.announceLoadedMetamodel()).toBe(true);
+      expect(seen).toHaveLength(1);
+      expect(seen[0].metamodelIri).toBe('urn:test:mm#Language');
+      expect(seen[0].notationSetIri).toBe('urn:test:mm#Notation');
+    });
+
+    it('emits nothing when the metamodel failed to load', () => {
+      const eventBus = new EventBus();
+      const app = new App(buildComponents({ eventBus }), null);
+
+      let emitted = 0;
+      eventBus.on('metamodel-loaded', () => {
+        emitted += 1;
+      });
+
+      expect(app.announceLoadedMetamodel()).toBe(false);
+      expect(emitted).toBe(0);
+      expect(app.loadedMetamodel).toBeNull();
     });
   });
 });

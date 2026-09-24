@@ -18,7 +18,12 @@ import { N3TtlSerializer } from './rdf-engine/ttl-serializer.js';
 import { RdfShaclValidator } from './rdf-engine/shacl-validator.js';
 
 // Metamodel Manager
-import type { MetamodelLoader, PaletteGenerator, ViewpointManager } from './metamodel-manager/interfaces.js';
+import type {
+  LoadedMetamodel,
+  MetamodelLoader,
+  PaletteGenerator,
+  ViewpointManager,
+} from './metamodel-manager/interfaces.js';
 import { N3MetamodelLoader } from './metamodel-manager/metamodel-loader.js';
 import { SparqlPaletteGenerator } from './metamodel-manager/palette-generator.js';
 import { SparqlViewpointManager } from './metamodel-manager/viewpoint-manager.js';
@@ -66,9 +71,41 @@ export interface AppComponents {
 export class App {
   readonly components: AppComponents;
 
-  constructor(components: AppComponents) {
+  /**
+   * The metamodel loaded at startup, or `null` when asset loading failed.
+   *
+   * `null` is a supported state: the app runs with an empty palette rather than
+   * refusing to start.
+   */
+  readonly loadedMetamodel: LoadedMetamodel | null;
+
+  constructor(components: AppComponents, loadedMetamodel: LoadedMetamodel | null = null) {
     this.components = components;
+    this.loadedMetamodel = loadedMetamodel;
     this.wireEvents();
+  }
+
+  /**
+   * Emit `metamodel-loaded` for the metamodel loaded at startup.
+   *
+   * Deliberately not done in {@link createApp}: the UI subscribes during
+   * `mountUi`, which runs after the app is built, and the EventBus does not
+   * replay. The entry point calls this once the UI is mounted, and the handler
+   * already wired in `mount-ui.ts` regenerates the palette from it.
+   *
+   * @returns Whether an event was emitted (false when nothing loaded).
+   */
+  announceLoadedMetamodel(): boolean {
+    if (!this.loadedMetamodel) return false;
+    const { metamodelIri, info, notationSetIri, manifestGraphIri } = this.loadedMetamodel;
+    this.components.eventBus.emit('metamodel-loaded', {
+      metamodelIri,
+      name: info.name,
+      version: info.version,
+      notationSetIri,
+      manifestGraphIri,
+    });
+    return true;
   }
 
   /**
@@ -215,6 +252,12 @@ export async function createApp(): Promise<App> {
   const paletteGenerator = new SparqlPaletteGenerator(store);
   const viewpointManager = new SparqlViewpointManager(store);
 
+  // 3a. Load the bundled ArchiMate 4.0 metamodel so the palette has content.
+  //     A failure here (missing assets, unreadable bundle) must not stop the app
+  //     from starting: without a metamodel the palette is simply empty, which is
+  //     recoverable, whereas a rejected createApp() leaves a blank screen.
+  const loadedMetamodel = await loadBundledMetamodel(metamodelLoader);
+
   // 4. Model Manager
   const elementManager = new OxigraphElementManager(store);
   const relationshipManager = new OxigraphRelationshipManager(store);
@@ -227,10 +270,55 @@ export async function createApp(): Promise<App> {
   // 6. Event Bus
   const eventBus = new EventBus();
 
-  return new App({
-    platform, parser, serializer, store, validator,
-    metamodelLoader, paletteGenerator, viewpointManager,
-    elementManager, relationshipManager, viewManager,
-    modelOperations, ttlFileIO, eventBus,
-  });
+  return new App(
+    {
+      platform, parser, serializer, store, validator,
+      metamodelLoader, paletteGenerator, viewpointManager,
+      elementManager, relationshipManager, viewManager,
+      modelOperations, ttlFileIO, eventBus,
+    },
+    loadedMetamodel,
+  );
+}
+
+/**
+ * Load the bundled metamodel, reporting rather than throwing on failure.
+ *
+ * Partial loads are normal and expected: the ArchiMate 4.0 manifest references
+ * the relationship shapes and derivation rules, which are deliberately not in
+ * this bundle. Those are logged individually so a missing layer is visible
+ * instead of silent.
+ */
+async function loadBundledMetamodel(loader: MetamodelLoader): Promise<LoadedMetamodel | null> {
+  try {
+    const loaded = await loader.loadBundledMetamodel();
+
+    const graphCount = loaded.assets.filter((asset) => asset.outcome === 'loaded').length;
+    console.info(
+      `[app] Loaded metamodel ${loaded.info.name || loaded.metamodelIri} ` +
+        `(${graphCount} graphs, notation set ${loaded.notationSetIri ?? 'none'}).`,
+    );
+
+    // Expected gaps get one aggregated line; a genuine failure gets its own.
+    const notBundled = loaded.assets.filter((asset) => asset.outcome === 'not-bundled');
+    if (notBundled.length > 0) {
+      console.info(
+        `[app] ${notBundled.length} referenced graphs are not in this bundle: ` +
+          notBundled.map((asset) => asset.documentIri).join(', '),
+      );
+    }
+    for (const asset of loaded.assets.filter((a) => a.outcome === 'error')) {
+      console.warn(
+        `[app] Metamodel asset failed to load: <${asset.documentIri}> via ${asset.via} — ${asset.message}`,
+      );
+    }
+
+    return loaded;
+  } catch (err: unknown) {
+    console.error(
+      '[app] Failed to load the bundled metamodel — starting with an empty palette.',
+      err,
+    );
+    return null;
+  }
 }

@@ -1,0 +1,920 @@
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms:  <http://purl.org/dc/terms/> .
+@prefix prov:     <http://www.w3.org/ns/prov#> .
+@prefix bibo:     <http://purl.org/ontology/bibo/> .
+@prefix vann:     <http://purl.org/vocab/vann/> .
+@prefix cc:       <http://creativecommons.org/ns#> .
+
+@prefix arch:     <https://meta.linked.archi/core#> .
+@prefix arch-vis: <https://meta.linked.archi/core-vis#> .
+@prefix am4:     <https://meta.linked.archi/archimate4/onto#> .
+@prefix :         <https://meta.linked.archi/archimate4/notation#> .
+
+<https://meta.linked.archi/archimate4/notation#>
+    rdf:type                      owl:Ontology ;
+    owl:imports                   <https://meta.linked.archi/core#>,
+                                  <https://meta.linked.archi/core-vis#> ;
+    cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/archimate4/notation#" ;
+    vann:preferredNamespacePrefix "archimate4not" ;
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:title                      "Linked.Archi ArchiMate 4.0 Visual Notation Set"@en ;
+    dcterms:description                '''Visual notation descriptors for ArchiMate 4.0 elements
+and relationships. Defines the standard visual appearance (shape, color, icon,
+line style) for each model concept, enabling palette generation and diagram
+rendering from structured metadata.'''@en ;
+    dcterms:created               "2026-05-16"^^xsd:date ;
+    dcterms:modified              "2026-05-16"^^xsd:date ;
+    dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
+    bibo:status                   "draft" ;
+    owl:versionIRI                <https://meta.linked.archi/archimate4/notation/4.0#> ;
+    owl:versionInfo               "4.0"@en ;
+.
+
+
+#################################################################
+# Notation Set
+#################################################################
+
+:ArchiMate40StandardNotation
+    a               arch-vis:NotationSet ;
+    skos:prefLabel  "ArchiMate 4.0 Standard Notation"@en ;
+    skos:definition "The standard visual notation defined by the ArchiMate 4.0 specification."@en ;
+.
+
+## ─────────────────────────────────────────────────────────────────
+## NOTE: Icon URIs (arch:prefVisNotation, arch-vis:iconSymbol) reference
+## the published site at https://meta.linked.archi/archimate4/icons/...
+## The source SVG files live in modelingLanguages/archimate/4.0/icons/
+## and are deployed to those URLs by the CI pipeline (pages job).
+## For local/offline use, resolve https://meta.linked.archi/ to the repo root.
+## ─────────────────────────────────────────────────────────────────
+
+
+#################################################################
+# Element Visual Notations
+#################################################################
+
+:RoleNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Role ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/role.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/role.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:CollaborationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Collaboration ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/collaboration.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/collaboration.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:PathNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Path ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/path.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/path.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ServiceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Service ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/service.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/service.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ProcessNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Process ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/process.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/process.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:FunctionNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Function ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/function.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/function.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:EventNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Event ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/event.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/event.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:GroupingNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Grouping ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/grouping.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/grouping.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:LocationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Location ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/location.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/location.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:BusinessActorNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:BusinessActor ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/business-actor.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#FFFFB5" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/actor.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:BusinessInterfaceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:BusinessInterface ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/business-interface.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#FFFFB5" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/interface.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:BusinessObjectNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:BusinessObject ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/business-object.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#FFFFB5" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/object.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ProductNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Product ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/product.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#FFFFB5" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/product.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ApplicationComponentNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:ApplicationComponent ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/application-component.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/application-component.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ApplicationInterfaceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:ApplicationInterface ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/application-interface.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/interface.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:DataObjectNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:DataObject ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/data-object.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/data-object.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:NodeNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Node ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/node.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/node.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:DeviceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Device ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/device.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/device.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:SystemSoftwareNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:SystemSoftware ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/system-software.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/system-software.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:TechnologyInterfaceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:TechnologyInterface ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/technology-interface.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/interface.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:CommunicationNetworkNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:CommunicationNetwork ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/communication-network.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/communication-network.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:DistributionNetworkNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:DistributionNetwork ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/distribution-network.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/distribution-network.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:EquipmentNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Equipment ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/equipment.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/equipment.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:FacilityNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Facility ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/facility.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/facility.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ArtifactNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Artifact ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/artifact.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/artifact.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:MaterialNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Material ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/material.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:fillColor     "#AFFFAF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/material.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ResourceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Resource ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/resource.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#F5DEAA" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/resource.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:CapabilityNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Capability ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/capability.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#F5DEAA" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/capability.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ValueStreamNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:ValueStream ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/value-stream.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#F5DEAA" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/value-stream.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:CourseOfActionNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:CourseOfAction ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/course-of-action.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#F5DEAA" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/course-of-action.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:StakeholderNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Stakeholder ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/stakeholder.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/stakeholder.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:DriverNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Driver ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/driver.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/driver.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:AssessmentNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Assessment ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/assessment.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/assessment.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:GoalNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Goal ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/goal.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/goal.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:OutcomeNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Outcome ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/outcome.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/outcome.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:PrincipleNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Principle ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/principle.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/principle.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:RequirementNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Requirement ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/requirement.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/requirement.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:MeaningNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Meaning ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/meaning.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/meaning.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:ValueNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Value ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/value.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Ellipse ;
+        arch-vis:fillColor     "#CBCBFF" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/value.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:WorkPackageNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:WorkPackage ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/work-package.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#FFE0E0" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/work-package.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:DeliverableNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Deliverable ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/deliverable.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#FFE0E0" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/deliverable.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+:PlateauNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Plateau ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/plateau.svg> ;
+    arch-vis:defaultStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:fillColor     "#FFE0E0" ;
+        arch-vis:lineColor     "#000000" ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+        arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/plateau.svg"^^xsd:anyURI ;
+        arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:defaultWidth  120.0 ;
+        arch-vis:defaultHeight 55.0 ;
+    ] ;
+.
+
+
+#################################################################
+# Relationship Visual Notations
+#################################################################
+
+:CompositionNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Composition ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:FilledDiamond ;
+    arch-vis:targetDecor  arch-vis:NoDecoration ;
+.
+
+:AggregationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Aggregation ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:HollowDiamond ;
+    arch-vis:targetDecor  arch-vis:NoDecoration ;
+.
+
+:AssignmentNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Assignment ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:CircleDot ;
+    arch-vis:targetDecor  arch-vis:ClosedArrowhead ;
+.
+
+:RealizationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Realization ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DashedLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:HollowArrowhead ;
+.
+
+:ServingNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Serving ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+.
+
+:AccessNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Access ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DashedLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:CircleDot ;
+.
+
+:InfluenceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Influence ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DashedLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+.
+
+:TriggeringNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Triggering ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:ClosedArrowhead ;
+.
+
+:FlowNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Flow ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DashedLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:HalfArrowhead ;
+.
+
+:SpecializationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Specialization ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:HollowArrowhead ;
+.
+
+:AssociationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Association ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:NoDecoration ;
+.

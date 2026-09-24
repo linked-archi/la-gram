@@ -20,6 +20,7 @@ import type {
   ValidationResult,
 } from '../../rdf-engine/interfaces.js';
 import type {
+  LoadedMetamodel,
   MetamodelLoader,
   MetamodelInfo,
   PaletteDefinition,
@@ -39,6 +40,12 @@ import { TtlFileIO } from '../../import-export/ttl-file-io.js';
 import { EventBus } from '../event-bus.js';
 import { App, type AppComponents } from '../../app.js';
 import { mountUi, DEFAULT_MODEL_IRI, type MountedUi } from '../mount-ui.js';
+import { RELATIONSHIP_REPLACE_MENU_ID } from '../canvas/rdf-replace-menu-provider.js';
+import { installJsdomSvgSupport } from './jsdom-svg-support.js';
+
+// mountUi constructs a real diagram-js Diagram for the canvas slot, which needs
+// the SVG layout APIs jsdom does not implement.
+installJsdomSvgSupport();
 
 const { namedNode, quad } = DataFactory;
 
@@ -91,10 +98,18 @@ function buildComponents(overrides: Partial<AppComponents> = {}): AppComponents 
     validate: vi.fn((): ValidationReport => ({ conforms: true, results: [] })),
     validateIncremental: vi.fn((): ValidationReport => ({ conforms: true, results: [] })),
   };
+  const metamodelInfo: MetamodelInfo = { iri: 'urn:mm', name: '', version: '', description: '' };
+  const loadedMetamodel: LoadedMetamodel = {
+    metamodelIri: 'urn:mm',
+    manifestGraphIri: 'urn:mm',
+    info: metamodelInfo,
+    graphsByRole: {},
+    assets: [],
+  };
   const metamodelLoader: MetamodelLoader = {
-    loadMetamodel: vi.fn(
-      async (): Promise<MetamodelInfo> => ({ iri: 'urn:mm', name: '', version: '', description: '' }),
-    ),
+    loadMetamodel: vi.fn(async (): Promise<MetamodelInfo> => metamodelInfo),
+    loadMetamodelFromManifest: vi.fn(async (): Promise<LoadedMetamodel> => loadedMetamodel),
+    loadBundledMetamodel: vi.fn(async (): Promise<LoadedMetamodel> => loadedMetamodel),
     loadShapes: vi.fn(async () => {}),
     resolveImports: vi.fn(async () => {}),
   };
@@ -272,8 +287,36 @@ describe('mountUi', () => {
 
       app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
 
-      expect(app.components.paletteGenerator.generatePalette).toHaveBeenCalledWith('urn:mm');
+      expect(app.components.paletteGenerator.generatePalette).toHaveBeenCalledWith('urn:mm', {
+        axisIri: undefined,
+      });
       expect(ui.palettePanel.palette).toEqual(SAMPLE_PALETTE);
+    });
+
+    it('regroups the palette when the panel asks for another axis', () => {
+      app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+
+      ui.palettePanel.dispatchEvent(
+        new CustomEvent('palette-axis-change', {
+          detail: { axisIri: 'urn:axis:aspect' },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+
+      expect(app.components.paletteGenerator.generatePalette).toHaveBeenLastCalledWith('urn:mm', {
+        axisIri: 'urn:axis:aspect',
+      });
+    });
+
+    it('regroups the palette through setPaletteAxis', () => {
+      app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+
+      ui.setPaletteAxis('urn:axis:domain');
+
+      expect(app.components.paletteGenerator.generatePalette).toHaveBeenLastCalledWith('urn:mm', {
+        axisIri: 'urn:axis:domain',
+      });
     });
 
     it('routes an explorer selection to the property panel', () => {
@@ -304,33 +347,114 @@ describe('mountUi', () => {
       );
     });
 
-    it('creates an element when a palette entry is dropped on the canvas', () => {
-      const data = new Map<string, string>([
-        ['application/json', JSON.stringify({ iri: 'urn:t:Actor', label: 'Actor', kind: 'element' })],
-      ]);
-      const drop = new Event('drop', { bubbles: true }) as DragEvent;
-      Object.defineProperty(drop, 'dataTransfer', {
-        value: { getData: (t: string) => data.get(t) ?? '' },
-      });
-      Object.defineProperty(drop, 'clientX', { value: 40 });
-      Object.defineProperty(drop, 'clientY', { value: 55 });
+    /**
+     * Pressing on a sidebar entry hands the gesture to diagram-js's `create`
+     * rather than writing triples, which is the whole point of dropping the HTML5
+     * drag-and-drop path: the drag gets a preview, snapping and a drop position
+     * from diagram-js, and the element is minted inside the `shape.create`
+     * command. `dragging` is put in manual mode so the armed drag can be
+     * inspected without a real pointer.
+     */
+    const armedDrag = (): { prefix?: string } | null => {
+      const diagram = ui.diagramCanvas.getDiagram()!;
+      return (
+        diagram as unknown as { get(n: string): { context(): { prefix?: string } | null } }
+      )
+        .get('dragging')
+        .context();
+    };
 
-      ui.canvasHost.dispatchEvent(drop);
+    const manualDragging = (): void => {
+      const diagram = ui.diagramCanvas.getDiagram()!;
+      (diagram as unknown as { get(n: string): { setOptions(o: unknown): void } })
+        .get('dragging')
+        .setOptions({ manual: true });
+    };
 
-      expect(app.components.elementManager.createElement).toHaveBeenCalledWith(
-        'urn:t:Actor',
-        DEFAULT_MODEL_IRI,
-        expect.objectContaining({ width: 130, height: 60 }),
+    it('starts a diagram-js create drag when a sidebar entry is pressed', () => {
+      manualDragging();
+
+      ui.palettePanel.dispatchEvent(
+        new CustomEvent('palette-drag-start', {
+          detail: {
+            iri: 'urn:t:Actor',
+            label: 'Actor',
+            kind: 'element',
+            sourceEvent: new MouseEvent('mousedown', { clientX: 40, clientY: 55, button: 0 }),
+          },
+        }),
       );
+
+      expect(armedDrag()?.prefix).toBe('create');
+      // Nothing is written until the drop.
+      expect(app.components.elementManager.createElement).not.toHaveBeenCalled();
     });
 
-    it('ignores a drop that carries no palette payload', () => {
-      const drop = new Event('drop', { bubbles: true }) as DragEvent;
-      Object.defineProperty(drop, 'dataTransfer', { value: { getData: () => '' } });
+    it('arms the connect tool with the type when a relationship entry is picked', () => {
+      manualDragging();
 
-      ui.canvasHost.dispatchEvent(drop);
+      ui.palettePanel.dispatchEvent(
+        new CustomEvent('palette-drag-start', {
+          detail: {
+            iri: 'urn:t:Serving',
+            label: 'Serving',
+            kind: 'relationship',
+            sourceEvent: new MouseEvent('click', { clientX: 5, clientY: 5, button: 0 }),
+          },
+        }),
+      );
 
+      // A relationship is not a shape, so there is nothing to create — the type
+      // is remembered and the connect tool takes over.
+      expect(ui.diagramCanvas.preferredRelationshipType()).toBe('urn:t:Serving');
+      expect(armedDrag()?.prefix).toBe('global-connect');
+    });
+
+    it('ignores an entry that names no type', () => {
+      manualDragging();
+
+      ui.palettePanel.dispatchEvent(
+        new CustomEvent('palette-drag-start', {
+          detail: { iri: '', label: '', kind: 'element', sourceEvent: new MouseEvent('mousedown') },
+        }),
+      );
+
+      // `Dragging.context()` reports `undefined` when nothing is armed.
+      expect(armedDrag()).toBeFalsy();
       expect(app.components.elementManager.createElement).not.toHaveBeenCalled();
+    });
+
+    it('activates a tool from the toolbar, and clears any preselected type', () => {
+      manualDragging();
+      ui.diagramCanvas.setPreferredRelationshipType('urn:t:Serving');
+
+      ui.canvasToolbar.dispatchEvent(
+        new CustomEvent('toolbar-tool', {
+          detail: { tool: 'hand', sourceEvent: new MouseEvent('click', { button: 0 }) },
+        }),
+      );
+
+      expect(armedDrag()?.prefix).toBe('hand');
+      // Picking a tool by hand means "use the metamodel's own ranking again".
+      expect(ui.diagramCanvas.preferredRelationshipType()).toBeUndefined();
+    });
+
+    it('shows the armed tool on the toolbar, and stops showing it when dropped', () => {
+      manualDragging();
+      const diagram = ui.diagramCanvas.getDiagram()!;
+      const dragging = (
+        diagram as unknown as { get(n: string): { cancel(): void } }
+      ).get('dragging');
+
+      ui.canvasToolbar.dispatchEvent(
+        new CustomEvent('toolbar-tool', {
+          detail: { tool: 'lasso', sourceEvent: new MouseEvent('click', { button: 0 }) },
+        }),
+      );
+      expect(ui.canvasToolbar.activeTool).toBe('lasso');
+
+      dragging.cancel();
+      expect(ui.canvasToolbar.activeTool).toBeUndefined();
     });
   });
 
@@ -349,6 +473,67 @@ describe('mountUi', () => {
       expect(ui.canvasHost.hidden).toBe(true);
       expect(ui.catalogView.hidden).toBe(kind !== 'catalog');
       expect(ui.matrixView.hidden).toBe(kind !== 'matrix');
+    });
+  });
+
+  describe('relationship drawing', () => {
+    it('registers the relationship-replace popup menu on the canvas diagram', () => {
+      // Retyping is diagram-js's own affair now: the provider lives on the
+      // `popupMenu` service, so `mountUi` has nothing left to wire for it.
+      const diagram = ui.diagramCanvas.getDiagram()!;
+      const popupMenu = (
+        diagram as unknown as {
+          get(name: string): { isEmpty(target: unknown, providerId: string): boolean };
+        }
+      ).get('popupMenu');
+
+      expect(ui.diagramCanvas.replaceMenuProvider).toBeDefined();
+      // No relationship types in the empty starting palette, so nothing to offer
+      // — but the provider is registered, which is what `isEmpty` returning
+      // without throwing "provider not found" shows.
+      expect(popupMenu.isEmpty({ id: 'nothing' }, RELATIONSHIP_REPLACE_MENU_ID)).toBe(true);
+    });
+
+    it('binds diagram-js keyboard handling, so undo has a key', () => {
+      const diagram = ui.diagramCanvas.getDiagram()!;
+      const keyboard = (
+        diagram as unknown as { get(name: string): { getBinding(): EventTarget | null } }
+      ).get('keyboard');
+      const editorActions = (
+        diagram as unknown as { get(name: string): { getActions(): string[] } }
+      ).get('editorActions');
+
+      expect(keyboard.getBinding()).toBe(document);
+      expect(editorActions.getActions()).toEqual(expect.arrayContaining(['undo', 'redo']));
+    });
+
+    it('gives the canvas a relationship manager that falls back to the palette', () => {
+      // The App's manager reports nothing (it queries the default graph, while
+      // the metamodel is loaded into named graphs), so without the fallback the
+      // rule provider would refuse every connection.
+      expect(app.components.relationshipManager.getValidRelationships('a', 'b')).toEqual([]);
+
+      app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+      ui.palettePanel.palette = SAMPLE_PALETTE;
+
+      // SAMPLE_PALETTE declares no relationship types, so there is still nothing
+      // to offer — but the canvas asked the wrapper, not the bare manager.
+      expect(ui.diagramCanvas.relationshipCandidates('urn:t:Actor', 'urn:t:Actor')).toEqual([]);
+    });
+
+    it('puts the global tools in a toolbar above the diagram, not in the canvas', () => {
+      // diagram-js's own palette is not registered at all — its entries would be
+      // the element types the sidebar already lists.
+      const diagram = ui.diagramCanvas.getDiagram()!;
+      expect(() =>
+        (diagram as unknown as { get(n: string): unknown }).get('palette'),
+      ).toThrow();
+
+      expect(ui.canvasToolbar).toBeDefined();
+      // Mounted ahead of the diagram host, inside the canvas slot.
+      const area = ui.canvasHost.parentElement!;
+      expect(Array.from(area.children).indexOf(ui.canvasToolbar)).toBe(0);
+      expect(Array.from(area.children).indexOf(ui.canvasHost)).toBe(1);
     });
   });
 

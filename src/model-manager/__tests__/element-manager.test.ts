@@ -3,6 +3,7 @@ import { DataFactory } from 'n3';
 import type { Quad, NamedNode } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { OxigraphElementManager, resetElementCounter } from '../element-manager.js';
+import { OxigraphRelationshipManager, resetQrCounter } from '../relationship-manager.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const { namedNode, literal, quad } = DataFactory;
@@ -150,25 +151,129 @@ describe('OxigraphElementManager', () => {
       expect(relQuads).toHaveLength(0);
     });
 
-    it('cascade-deletes QualifiedRelationship resources referencing the element', () => {
+    it('removes direct relationship triples where element is the subject', () => {
       const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
       const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
 
-      // Create a QualifiedRelationship: qr --relSource--> elem1, qr --relTarget--> elem2
-      const qrIri = `${modelIri}/qr-1`;
-      const qrNode = namedNode(qrIri);
-      const relPredIri = 'https://example.org/archimate#serves';
+      const relPred = 'https://example.org/archimate#serves';
       store.addQuads([
-        quad(qrNode as any, namedNode(RDF_TYPE) as any, namedNode(ARCH + 'QualifiedRelationship') as any) as unknown as Quad,
-        quad(qrNode as any, namedNode(ARCH + 'relSource') as any, elem1 as any) as unknown as Quad,
-        quad(qrNode as any, namedNode(ARCH + 'relTarget') as any, elem2 as any) as unknown as Quad,
-        quad(qrNode as any, namedNode(ARCH + 'relPredicate') as any, namedNode(relPredIri) as any) as unknown as Quad,
+        quad(elem1 as any, namedNode(relPred) as any, elem2 as any) as unknown as Quad,
       ]);
 
-      // Delete elem1 — should cascade-delete the QualifiedRelationship
+      // Delete elem1 — the outgoing relationship triple goes with it
       manager.deleteElement(elem1.value);
-      const qrQuads = store.getQuads(nn(qrIri));
-      expect(qrQuads).toHaveLength(0);
+      expect(store.getQuads(elem1, nn(relPred))).toHaveLength(0);
+      expect(store.getQuads(null, nn(relPred), elem2)).toHaveLength(0);
+    });
+
+    it('leaves direct relationships between two other elements intact', () => {
+      const victim = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+      const other1 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+      const other2 = manager.createElement(typeIri, modelIri, { x: 400, y: 0, width: 100, height: 50 });
+
+      const relPred = 'https://example.org/archimate#serves';
+      store.addQuads([
+        quad(other1 as any, namedNode(relPred) as any, other2 as any) as unknown as Quad,
+      ]);
+
+      manager.deleteElement(victim.value);
+
+      const survivors = store.getQuads(other1, nn(relPred));
+      expect(survivors).toHaveLength(1);
+      expect(survivors[0].object.value).toBe(other2.value);
+    });
+
+    // ── Qualified relationships ──────────────────────────────────────
+    //
+    // These go through the real OxigraphRelationshipManager rather than
+    // hand-written quads, so the cascade is exercised against whatever
+    // predicates the writer genuinely emits (`arch:source` / `arch:target`)
+    // instead of whatever the test author assumed.
+
+    describe('cascade over qualified relationships', () => {
+      let relManager: OxigraphRelationshipManager;
+      const relPredIri = 'https://example.org/archimate#serves';
+
+      beforeEach(() => {
+        relManager = new OxigraphRelationshipManager(store);
+        resetQrCounter();
+      });
+
+      it('cascade-deletes a qualified relationship whose arch:source is the deleted element', () => {
+        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+
+        const qr = relManager.createRelationship(relPredIri, elem1.value, elem2.value, true);
+        expect(qr).not.toBeNull();
+        expect(store.getQuads(qr!).length).toBeGreaterThan(0);
+
+        manager.deleteElement(elem1.value);
+
+        expect(store.getQuads(qr!)).toHaveLength(0);
+      });
+
+      it('cascade-deletes a qualified relationship whose arch:target is the deleted element', () => {
+        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+
+        const qr = relManager.createRelationship(relPredIri, elem1.value, elem2.value, true);
+        expect(qr).not.toBeNull();
+
+        manager.deleteElement(elem2.value);
+
+        expect(store.getQuads(qr!)).toHaveLength(0);
+      });
+
+      it('leaves a qualified relationship between two other elements intact', () => {
+        const victim = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+        const other1 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+        const other2 = manager.createElement(typeIri, modelIri, { x: 400, y: 0, width: 100, height: 50 });
+
+        const qr = relManager.createRelationship(relPredIri, other1.value, other2.value, true);
+        expect(qr).not.toBeNull();
+        const before = store.getQuads(qr!).length;
+
+        manager.deleteElement(victim.value);
+
+        expect(store.getQuads(qr!)).toHaveLength(before);
+      });
+
+      it('cascade-deletes a legacy arch:relSource / arch:relTarget resource', () => {
+        // Compatibility shim coverage: the ArchiMate importer still emits the
+        // pre-migration vocabulary, so the cascade has to recognise it too.
+        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+
+        const qrIri = `${modelIri}/legacy-qr-1`;
+        const qrNode = namedNode(qrIri);
+        store.addQuads([
+          quad(qrNode as any, namedNode(RDF_TYPE) as any, namedNode(ARCH + 'QualifiedRelationship') as any) as unknown as Quad,
+          quad(qrNode as any, namedNode(ARCH + 'relSource') as any, elem1 as any) as unknown as Quad,
+          quad(qrNode as any, namedNode(ARCH + 'relTarget') as any, elem2 as any) as unknown as Quad,
+          quad(qrNode as any, namedNode(ARCH + 'relPredicate') as any, namedNode(relPredIri) as any) as unknown as Quad,
+        ]);
+
+        manager.deleteElement(elem1.value);
+
+        expect(store.getQuads(nn(qrIri))).toHaveLength(0);
+      });
+
+      it('cascade-deletes a legacy resource when the deleted element is its arch:relTarget', () => {
+        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+
+        const qrIri = `${modelIri}/legacy-qr-2`;
+        const qrNode = namedNode(qrIri);
+        store.addQuads([
+          quad(qrNode as any, namedNode(RDF_TYPE) as any, namedNode(ARCH + 'QualifiedRelationship') as any) as unknown as Quad,
+          quad(qrNode as any, namedNode(ARCH + 'relSource') as any, elem1 as any) as unknown as Quad,
+          quad(qrNode as any, namedNode(ARCH + 'relTarget') as any, elem2 as any) as unknown as Quad,
+        ]);
+
+        manager.deleteElement(elem2.value);
+
+        expect(store.getQuads(nn(qrIri))).toHaveLength(0);
+      });
     });
 
     it('does not affect other elements when deleting one', () => {

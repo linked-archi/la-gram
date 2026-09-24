@@ -14,10 +14,21 @@ export {
 } from './event-bus.js';
 export {
   DiagramCanvas,
-  RdfPaletteProvider,
   RdfRenderer,
   RdfRuleProvider,
   RdfContextPadProvider,
+  NotationStyleRegistry,
+  shapeGeometry,
+  badgeBox,
+  markerDefinition,
+  strokeDashArray,
+  iconHref,
+  NOTATION_DEFAULTS,
+  SHAPE_TYPES,
+  ICON_PLACEMENTS,
+  DECORATIONS,
+  type ShapeGeometry,
+  type BadgeBox,
 } from './canvas/index.js';
 export { PalettePanel, type PaletteDragDetail } from './panels/index.js';
 export {

@@ -79,6 +79,12 @@ export interface ValidationResult {
   sourceShape: NamedNode;
   message: string;
   severity: ValidationSeverity;
+  /**
+   * The SHACL constraint component IRI that produced this result
+   * (e.g. sh:MinCountConstraintComponent). Optional: not every producer
+   * of a ValidationResult knows it.
+   */
+  sourceConstraintComponent?: NamedNode;
 }
 
 /** Full SHACL validation report. */

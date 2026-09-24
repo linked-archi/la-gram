@@ -20,45 +20,50 @@ describe('RdfRuleProvider', () => {
     ruleProvider = new RdfRuleProvider(relationshipManager);
   });
 
-  it('allows connection when valid relationships exist', () => {
+  it('returns the connection attributes, type included, for a valid pair', () => {
     const validRels: RelationshipTypeInfo[] = [
       {
-        iri: 'arch:serves',
+        iri: 'arch:Serving',
         label: 'Serves',
         domainTypes: ['arch:AppComponent'],
         rangeTypes: ['arch:AppService'],
+        unqualifiedPredicateIri: 'arch:serves',
       },
     ];
     vi.mocked(relationshipManager.getValidRelationships).mockReturnValue(validRels);
 
     const result = ruleProvider.canConnect('arch:AppComponent', 'arch:AppService');
 
-    expect(result.allowed).toBe(true);
-    expect(result.validRelationshipTypes).toEqual(['arch:serves']);
+    expect(result).toMatchObject({
+      typeIri: 'arch:Serving',
+      unqualifiedPredicateIri: 'arch:serves',
+      typeLabel: 'Serves',
+    });
+    // `label` on a diagram-js element is a reference into its `labels`
+    // collection, and `connection-preview` hands a rule result straight to
+    // `elementFactory.createConnection` — so the key must not be `label`.
+    expect(result).not.toHaveProperty('label');
   });
 
-  it('disallows connection when no valid relationships exist', () => {
+  it('returns false when no valid relationships exist', () => {
     vi.mocked(relationshipManager.getValidRelationships).mockReturnValue([]);
 
-    const result = ruleProvider.canConnect('arch:AppComponent', 'arch:BusinessProcess');
-
-    expect(result.allowed).toBe(false);
-    expect(result.validRelationshipTypes).toEqual([]);
+    expect(ruleProvider.canConnect('arch:AppComponent', 'arch:BusinessProcess')).toBe(false);
   });
 
-  it('returns multiple valid relationship types', () => {
+  it('picks the ranked winner and carries the rest as candidates', () => {
     const validRels: RelationshipTypeInfo[] = [
-      { iri: 'arch:serves', label: 'Serves', domainTypes: ['arch:A'], rangeTypes: ['arch:B'] },
-      { iri: 'arch:accesses', label: 'Accesses', domainTypes: ['arch:A'], rangeTypes: ['arch:B'] },
+      { iri: 'arch:Serving', label: 'Serves', domainTypes: ['arch:A'], rangeTypes: ['arch:B'] },
+      { iri: 'arch:Access', label: 'Accesses', domainTypes: ['arch:A'], rangeTypes: ['arch:B'] },
     ];
     vi.mocked(relationshipManager.getValidRelationships).mockReturnValue(validRels);
 
     const result = ruleProvider.canConnect('arch:A', 'arch:B');
 
-    expect(result.allowed).toBe(true);
-    expect(result.validRelationshipTypes).toHaveLength(2);
-    expect(result.validRelationshipTypes).toContain('arch:serves');
-    expect(result.validRelationshipTypes).toContain('arch:accesses');
+    // The manager ranks; the rule provider does not reorder.
+    expect(result).not.toBe(false);
+    expect((result as Exclude<typeof result, false>).typeIri).toBe('arch:Serving');
+    expect((result as Exclude<typeof result, false>).candidates).toEqual(validRels);
   });
 
   it('passes correct type IRIs to relationship manager', () => {

@@ -75,7 +75,7 @@ describe('RdfContextPadProvider', () => {
     const element: ContextPadElement = { iri: 'ex:elem-1', typeIri: 'arch:AppService' };
     const entries = provider.getContextPadEntries(element);
 
-    entries['delete'].action({});
+    (entries['delete'].action as (event: unknown) => void)({});
 
     expect(elementManager.deleteElement).toHaveBeenCalledWith('ex:elem-1');
   });
@@ -98,13 +98,28 @@ describe('RdfContextPadProvider', () => {
     expect(entries['connect']).toBeUndefined();
   });
 
-  it('connect action calls onStartConnect callback', () => {
+  it('connect action is registered for both click and dragstart', () => {
     const element: ContextPadElement = { iri: 'ex:comp-1', typeIri: 'arch:AppComponent' };
     const entries = provider.getContextPadEntries(element);
+    const action = entries['connect'].action as Record<string, unknown>;
 
-    entries['connect'].action({});
+    // diagram-js only turns a pad button into a connect drag when the entry
+    // exposes `dragstart`; a bare callback is click-only.
+    expect(typeof action['click']).toBe('function');
+    expect(typeof action['dragstart']).toBe('function');
+  });
 
-    expect(onStartConnect).toHaveBeenCalledWith(element);
+  it('connect action calls onStartConnect with the triggering event', () => {
+    const element: ContextPadElement = { iri: 'ex:comp-1', typeIri: 'arch:AppComponent' };
+    const entries = provider.getContextPadEntries(element);
+    const action = entries['connect'].action as {
+      dragstart(event: unknown, target?: unknown, autoActivate?: boolean): void;
+    };
+
+    const event = { type: 'dragstart' };
+    action.dragstart(event, undefined, false);
+
+    expect(onStartConnect).toHaveBeenCalledWith(element, event, false);
   });
 
   it('updatePaletteDefinition changes connect availability', () => {
@@ -131,6 +146,84 @@ describe('RdfContextPadProvider', () => {
     expect(entries['connect']).toBeDefined();
   });
 
+  describe('the replace entry on a connection', () => {
+    const connection: ContextPadElement = {
+      iri: 'ex:rel-1',
+      typeIri: 'arch:serves',
+      kind: 'relationship',
+      diagramElement: { id: 'connection-1' },
+    };
+
+    function withReplaceSupport(available: boolean): {
+      provider: RdfContextPadProvider;
+      opened: unknown[];
+    } {
+      const opened: unknown[] = [];
+      return {
+        provider: new RdfContextPadProvider(
+          elementManager,
+          relationshipManager,
+          palette,
+          onStartConnect,
+          undefined,
+          undefined,
+          {
+            isAvailable: () => available,
+            open: (element, event) => opened.push({ element, event }),
+          },
+        ),
+        opened,
+      };
+    }
+
+    it('appears, named after the current type, when the menu has entries', () => {
+      const { provider: withMenu } = withReplaceSupport(true);
+
+      const entries = withMenu.getContextPadEntries(connection);
+
+      expect(entries['replace'].title).toBe('Change relationship type: Serves');
+      expect(entries['replace'].className).toBe('context-pad-replace');
+      // A connection is never the source of a connection.
+      expect(entries['connect']).toBeUndefined();
+    });
+
+    it('is absent when the menu is empty — bpmn-js\u2019s !popupMenu.isEmpty gate', () => {
+      const { provider: withMenu } = withReplaceSupport(false);
+
+      const entries = withMenu.getContextPadEntries(connection);
+
+      expect(entries['replace']).toBeUndefined();
+      expect(entries['delete']).toBeDefined();
+    });
+
+    it('triggering it opens the menu with the triggering event', () => {
+      const { provider: withMenu, opened } = withReplaceSupport(true);
+      const event = { x: 12, y: 34 };
+
+      (withMenu.getContextPadEntries(connection)['replace'].action as (e: unknown) => void)(event);
+
+      expect(opened).toEqual([{ element: expect.objectContaining({ iri: 'ex:rel-1' }), event }]);
+    });
+
+    it('falls back to the type IRI fragment when the palette does not declare it', () => {
+      const { provider: withMenu } = withReplaceSupport(true);
+
+      const entries = withMenu.getContextPadEntries({
+        ...connection,
+        typeIri: 'https://example.org/mm#Association',
+      });
+
+      expect(entries['replace'].title).toBe('Change relationship type: Association');
+    });
+
+    it('is absent altogether when no replace support is wired', () => {
+      const entries = provider.getContextPadEntries(connection);
+
+      expect(entries['replace']).toBeUndefined();
+      expect(entries['delete']).toBeDefined();
+    });
+  });
+
   it('works without onStartConnect callback', () => {
     const providerNoCallback = new RdfContextPadProvider(
       elementManager,
@@ -141,6 +234,7 @@ describe('RdfContextPadProvider', () => {
     const entries = providerNoCallback.getContextPadEntries(element);
 
     // Should not throw when connect action is invoked without callback
-    expect(() => entries['connect'].action({})).not.toThrow();
+    const action = entries['connect'].action as { click(event: unknown): void };
+    expect(() => action.click({})).not.toThrow();
   });
 });

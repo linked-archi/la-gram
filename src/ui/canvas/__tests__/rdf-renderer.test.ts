@@ -1,95 +1,436 @@
-import { describe, it, expect } from 'vitest';
-import { RdfRenderer, RENDER_DEFAULTS, type RenderableElement } from '../rdf-renderer.js';
+// @vitest-environment jsdom
 
-function createTestElement(overrides?: Partial<RenderableElement>): RenderableElement {
+/**
+ * The RDF renderer, exercised through a real diagram-js instance.
+ *
+ * jsdom implements no SVG layout, so these assert on the DOM structure and the
+ * attribute values the renderer emits — never on computed geometry.
+ */
+
+import { describe, it, expect, afterEach } from 'vitest';
+import type {
+  Decoration,
+  IconPlacement,
+  LineStyle,
+  ShapeType,
+  VisualStyle,
+} from '../../../metamodel-manager/notation.js';
+import type { ElementTypeInfo } from '../../../metamodel-manager/interfaces.js';
+import { effectiveRenderingMode } from '../../../metamodel-manager/notation.js';
+import {
+  DECORATIONS,
+  ICON_PLACEMENTS,
+  NOTATION_DEFAULTS,
+  SHAPE_TYPES,
+} from '../notation-shapes.js';
+import { RENDER_CLASSES } from '../rdf-renderer.js';
+import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
+
+const TYPE_IRI = 'https://example.org/mm#TestType';
+const BUNDLED_GLYPH = 'archimate4/icons/glyphs/actor.svg';
+
+let harness: RenderHarness | undefined;
+
+afterEach(() => {
+  harness?.destroy();
+  harness = undefined;
+});
+
+/** An element type carrying the given style, with the guide's mode applied. */
+function elementType(style: VisualStyle | undefined, label = 'Test Element'): ElementTypeInfo {
   return {
-    id: 'elem-1',
-    iri: 'https://example.org/model/elem-1',
-    typeIri: 'arch:BusinessProcess',
-    label: 'My Process',
-    x: 100,
-    y: 200,
-    width: 130,
-    height: 60,
-    ...overrides,
+    iri: TYPE_IRI,
+    label,
+    isAbstract: false,
+    style,
+    renderingMode: style ? effectiveRenderingMode(style) : undefined,
   };
 }
 
-describe('RdfRenderer', () => {
-  const renderer = new RdfRenderer();
+/** Boot a harness for one styled element type and draw a shape with it. */
+function drawWithStyle(
+  style: VisualStyle | undefined,
+  options: { label?: string; width?: number; height?: number } = {},
+): SVGElement {
+  harness = createRenderHarness(paletteWith([elementType(style, options.label)]));
+  return harness.drawShape(
+    { iri: 'https://example.org/model/e1', typeIri: TYPE_IRI, kind: 'element' },
+    { width: options.width ?? 120, height: options.height ?? 55 },
+  );
+}
 
-  it('renders an element as SVG with correct transform', () => {
-    const element = createTestElement();
-    const svg = renderer.renderElement(element);
+const badgeStyle: VisualStyle = {
+  shapeType: 'Rectangle',
+  fillColor: '#FFFFB5',
+  lineColor: '#000000',
+  renderingMode: 'ShapeWithBadge',
+  iconSymbol: BUNDLED_GLYPH,
+  iconPlacement: 'TopRight',
+  defaultWidth: 120,
+  defaultHeight: 55,
+};
 
-    expect(svg).toContain('translate(100, 200)');
+// ── The diagram is really there ────────────────────────────────────────
+
+describe('renderer inside a real diagram-js instance', () => {
+  it('creates a diagram-js canvas in the host container', () => {
+    harness = createRenderHarness(paletteWith([elementType(badgeStyle)]));
+    expect(harness.container.querySelector('.djs-container')).not.toBeNull();
+    expect(harness.container.querySelector('svg')).not.toBeNull();
   });
 
-  it('renders a rectangle with correct dimensions', () => {
-    const element = createTestElement();
-    const svg = renderer.renderElement(element);
+  it('a registered shape reaches the DOM inside diagram-js element wrappers', () => {
+    harness = createRenderHarness(paletteWith([elementType(badgeStyle)]));
+    const shape = harness.drawShape({
+      iri: 'https://example.org/model/e1',
+      typeIri: TYPE_IRI,
+      kind: 'element',
+    });
 
-    expect(svg).toContain('width="130"');
-    expect(svg).toContain('height="60"');
+    // diagram-js owns .djs-element > .djs-visual; the renderer draws inside it.
+    expect(shape.closest('.djs-visual')).not.toBeNull();
+    expect(shape.closest('.djs-element')).not.toBeNull();
+    expect(shape.getAttribute('data-element-iri')).toBe('https://example.org/model/e1');
+  });
+});
+
+// ── Rendering modes ────────────────────────────────────────────────────
+
+describe('ShapeWithBadge', () => {
+  it('draws the shape body, a badge and a label', () => {
+    const shape = drawWithStyle(badgeStyle);
+
+    expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(shape.querySelector(`.${RENDER_CLASSES.body}`)).not.toBeNull();
+    expect(shape.querySelector(`.${RENDER_CLASSES.badge}`)).not.toBeNull();
+    expect(shape.querySelector(`.${RENDER_CLASSES.label}`)).not.toBeNull();
   });
 
-  it('renders the label text', () => {
-    const element = createTestElement({ label: 'Customer Portal' });
-    const svg = renderer.renderElement(element);
-
-    expect(svg).toContain('Customer Portal');
-    expect(svg).toContain('text-anchor="middle"');
+  it('sizes the badge within the 16–24px range the guide asks for', () => {
+    const shape = drawWithStyle(badgeStyle);
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    const size = Number(badge.getAttribute('width'));
+    expect(size).toBeGreaterThanOrEqual(16);
+    expect(size).toBeLessThanOrEqual(24);
+    expect(badge.getAttribute('height')).toBe(badge.getAttribute('width'));
   });
 
-  it('renders icon when iconUrl is provided', () => {
-    const element = createTestElement({ iconUrl: 'https://example.org/icon.svg' });
-    const svg = renderer.renderElement(element);
-
-    expect(svg).toContain('<image');
-    expect(svg).toContain('href="https://example.org/icon.svg"');
+  it('points the badge at the bundled glyph', () => {
+    const shape = drawWithStyle(badgeStyle);
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    expect(badge.getAttribute('href')).toContain(`assets/${BUNDLED_GLYPH}`);
   });
 
-  it('does not render icon when iconUrl is absent', () => {
-    const element = createTestElement({ iconUrl: undefined });
-    const svg = renderer.renderElement(element);
+  it('applies fillColor and lineColor from the style, not hardcoded values', () => {
+    const shape = drawWithStyle({ ...badgeStyle, fillColor: '#C9E7B7', lineColor: '#336699' });
+    const body = shape.querySelector(`.${RENDER_CLASSES.body}`)!;
 
-    expect(svg).not.toContain('<image');
+    expect(body.getAttribute('fill')).toBe('#C9E7B7');
+    expect(body.getAttribute('stroke')).toBe('#336699');
+    // The pre-notation renderer's hardcoded values must be gone.
+    expect(body.getAttribute('fill')).not.toBe('#ffffff');
+    expect(body.getAttribute('stroke')).not.toBe('#333333');
   });
 
-  it('includes data-element-iri attribute', () => {
-    const element = createTestElement();
-    const svg = renderer.renderElement(element);
+  it('colours the label with the line colour', () => {
+    const shape = drawWithStyle({ ...badgeStyle, lineColor: '#336699' });
+    expect(shape.querySelector(`.${RENDER_CLASSES.label}`)!.getAttribute('fill')).toBe('#336699');
+  });
+});
 
-    expect(svg).toContain(`data-element-iri="${element.iri}"`);
+describe('IconCentric', () => {
+  const iconCentricStyle: VisualStyle = {
+    renderingMode: 'IconCentric',
+    iconSymbol: BUNDLED_GLYPH,
+    lineColor: '#000000',
+  };
+
+  it('draws the icon at full width with no shape body', () => {
+    const shape = drawWithStyle(iconCentricStyle, { width: 80, height: 80 });
+
+    expect(shape.getAttribute('data-rendering-mode')).toBe('IconCentric');
+    expect(shape.querySelector(`.${RENDER_CLASSES.body}`)).toBeNull();
+    expect(shape.querySelector(`.${RENDER_CLASSES.badge}`)).toBeNull();
+
+    const icon = shape.querySelector(`.${RENDER_CLASSES.icon}`)!;
+    expect(icon).not.toBeNull();
+    expect(Number(icon.getAttribute('width'))).toBe(80);
+    expect(Number(icon.getAttribute('height'))).toBeGreaterThan(40);
   });
 
-  it('escapes XML special characters in label', () => {
-    const element = createTestElement({ label: 'A & B <C>' });
-    const svg = renderer.renderElement(element);
+  it('puts the label below the icon', () => {
+    const shape = drawWithStyle(iconCentricStyle, { width: 80, height: 80 });
+    const icon = shape.querySelector(`.${RENDER_CLASSES.icon}`)!;
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
 
-    expect(svg).toContain('A &amp; B &lt;C&gt;');
-    expect(svg).not.toContain('A & B <C>');
+    const iconBottom = Number(icon.getAttribute('y')) + Number(icon.getAttribute('height'));
+    expect(Number(label.getAttribute('y'))).toBeGreaterThan(iconBottom);
   });
 
-  it('getElementStyle returns correct style info', () => {
-    const withIcon = createTestElement({ iconUrl: 'icon.svg' });
-    const withoutIcon = createTestElement({ iconUrl: undefined });
+  it('keeps a minimal transparent container for selection and hover', () => {
+    const shape = drawWithStyle(iconCentricStyle, { width: 80, height: 80 });
+    const container = shape.querySelector(`.${RENDER_CLASSES.hitContainer}`)!;
 
-    const styleWithIcon = renderer.getElementStyle(withIcon);
-    const styleWithoutIcon = renderer.getElementStyle(withoutIcon);
+    expect(container).not.toBeNull();
+    expect(container.getAttribute('fill')).toBe('none');
+    expect(container.getAttribute('pointer-events')).toBe('all');
+    expect(Number(container.getAttribute('width'))).toBe(80);
+    expect(Number(container.getAttribute('height'))).toBe(80);
+  });
+});
 
-    expect(styleWithIcon.hasIcon).toBe(true);
-    expect(styleWithoutIcon.hasIcon).toBe(false);
-    expect(styleWithIcon.fillColor).toBe(RENDER_DEFAULTS.fillColor);
-    expect(styleWithIcon.strokeColor).toBe(RENDER_DEFAULTS.strokeColor);
+describe('ShapeOnly', () => {
+  it('draws no icon element at all, even when one is declared', () => {
+    const shape = drawWithStyle({
+      shapeType: 'Ellipse',
+      fillColor: '#FFFFB5',
+      lineColor: '#000000',
+      renderingMode: 'ShapeOnly',
+      iconSymbol: BUNDLED_GLYPH,
+      iconPlacement: 'Center',
+    });
+
+    expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
+    expect(shape.querySelectorAll('image')).toHaveLength(0);
+    expect(shape.querySelector(`.${RENDER_CLASSES.badge}`)).toBeNull();
+    expect(shape.querySelector(`.${RENDER_CLASSES.icon}`)).toBeNull();
   });
 
-  it('uses render defaults for styling', () => {
-    const element = createTestElement();
-    const svg = renderer.renderElement(element);
+  it('still draws the shape body and a centred label', () => {
+    const shape = drawWithStyle({
+      shapeType: 'Ellipse',
+      fillColor: '#FFFFB5',
+      lineColor: '#000000',
+      renderingMode: 'ShapeOnly',
+    });
 
-    expect(svg).toContain(`fill="${RENDER_DEFAULTS.fillColor}"`);
-    expect(svg).toContain(`stroke="${RENDER_DEFAULTS.strokeColor}"`);
-    expect(svg).toContain(`rx="${RENDER_DEFAULTS.cornerRadius}"`);
+    expect(shape.querySelector(`.${RENDER_CLASSES.body}`)!.tagName).toBe('ellipse');
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.getAttribute('text-anchor')).toBe('middle');
+    expect(label.textContent).toContain('Test');
+  });
+});
+
+describe('degradation when the icon cannot be drawn', () => {
+  it('falls back to ShapeOnly for a ShapeWithBadge style with no iconSymbol', () => {
+    const shape = drawWithStyle({
+      shapeType: 'Rectangle',
+      fillColor: '#FFFFB5',
+      lineColor: '#000000',
+      renderingMode: 'ShapeWithBadge',
+    });
+
+    expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
+    expect(shape.querySelectorAll('image')).toHaveLength(0);
+  });
+
+  it('falls back to ShapeOnly for an unresolvable icon URI, without throwing', () => {
+    let shape: SVGElement | undefined;
+    expect(() => {
+      shape = drawWithStyle({
+        shapeType: 'Rectangle',
+        fillColor: '#FFFFB5',
+        lineColor: '#000000',
+        renderingMode: 'ShapeWithBadge',
+        iconSymbol: 'urn:missing:glyph',
+      });
+    }).not.toThrow();
+
+    expect(shape!.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
+    expect(shape!.querySelectorAll('image')).toHaveLength(0);
+    // The shape itself is still drawn, so the element remains usable.
+    expect(shape!.querySelector(`.${RENDER_CLASSES.body}`)).not.toBeNull();
+  });
+
+  it('falls back to ShapeOnly for an IconCentric style with no icon', () => {
+    const shape = drawWithStyle({ renderingMode: 'IconCentric', lineColor: '#000000' });
+    expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
+    expect(shape.querySelector(`.${RENDER_CLASSES.icon}`)).toBeNull();
+  });
+
+  it('draws an unstyled element type with the notation defaults', () => {
+    const shape = drawWithStyle(undefined);
+    const body = shape.querySelector(`.${RENDER_CLASSES.body}`)!;
+
+    expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
+    expect(body.tagName).toBe('rect');
+    expect(body.getAttribute('fill')).toBe(NOTATION_DEFAULTS.fillColor);
+    expect(body.getAttribute('stroke')).toBe(NOTATION_DEFAULTS.lineColor);
+  });
+});
+
+// ── Shapes and placements through the renderer ─────────────────────────
+
+describe('shape types through the renderer', () => {
+  const expectedTag: Record<ShapeType, string> = {
+    Rectangle: 'rect',
+    RoundedRectangle: 'rect',
+    Octagon: 'polygon',
+    Ellipse: 'ellipse',
+    Circle: 'circle',
+    Hexagon: 'polygon',
+    Diamond: 'polygon',
+    Parallelogram: 'polygon',
+  };
+
+  it.each(SHAPE_TYPES)('%s draws the expected SVG element', (shapeType: ShapeType) => {
+    const shape = drawWithStyle({
+      shapeType,
+      fillColor: '#FFFFB5',
+      lineColor: '#000000',
+      renderingMode: 'ShapeOnly',
+    });
+    const body = shape.querySelector(`.${RENDER_CLASSES.body}`)!;
+    expect(body.tagName).toBe(expectedTag[shapeType]);
+  });
+
+  it('distinguishes RoundedRectangle from Rectangle by its corner radius', () => {
+    const plain = drawWithStyle({ shapeType: 'Rectangle', renderingMode: 'ShapeOnly' });
+    const plainRx = plain.querySelector(`.${RENDER_CLASSES.body}`)!.getAttribute('rx');
+    harness?.destroy();
+    harness = undefined;
+
+    const rounded = drawWithStyle({ shapeType: 'RoundedRectangle', renderingMode: 'ShapeOnly' });
+    const roundedRx = rounded.querySelector(`.${RENDER_CLASSES.body}`)!.getAttribute('rx');
+
+    expect(plainRx).toBeNull();
+    expect(Number(roundedRx)).toBeGreaterThan(0);
+  });
+});
+
+describe('icon placements through the renderer', () => {
+  function badgePosition(placement: IconPlacement): string {
+    harness?.destroy();
+    const shape = drawWithStyle({ ...badgeStyle, iconPlacement: placement });
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    expect(badge.getAttribute('data-icon-placement')).toBe(placement);
+    return `${badge.getAttribute('x')},${badge.getAttribute('y')}`;
+  }
+
+  it('positions all five placements differently', () => {
+    const positions = ICON_PLACEMENTS.map(badgePosition);
+    expect(new Set(positions).size).toBe(ICON_PLACEMENTS.length);
+  });
+
+  it('defaults an undeclared placement to TopRight', () => {
+    const shape = drawWithStyle({ ...badgeStyle, iconPlacement: undefined });
+    expect(
+      shape.querySelector(`.${RENDER_CLASSES.badge}`)!.getAttribute('data-icon-placement'),
+    ).toBe('TopRight');
+  });
+});
+
+// ── Connections ────────────────────────────────────────────────────────
+
+describe('connection rendering', () => {
+  const RELATION_IRI = 'https://example.org/mm#TestRelation';
+
+  function drawRelationship(
+    lineStyle: LineStyle | undefined,
+    sourceDecor: Decoration,
+    targetDecor: Decoration,
+    lineColor = '#000000',
+  ): SVGElement {
+    harness?.destroy();
+    harness = createRenderHarness(
+      paletteWith(
+        [],
+        [
+          {
+            iri: RELATION_IRI,
+            label: 'Test Relation',
+            domainTypes: [],
+            rangeTypes: [],
+            relationshipStyle: { lineStyle, sourceDecor, targetDecor, lineColor },
+          },
+        ],
+      ),
+    );
+    return harness.drawConnection({
+      iri: 'https://example.org/model/r1',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+    });
+  }
+
+  it('draws a polyline through the waypoints', () => {
+    const line = drawRelationship('SolidLine', 'NoDecoration', 'NoDecoration');
+    expect(line.tagName).toBe('polyline');
+    expect(line.getAttribute('points')).toBe('0,0 200,0');
+    expect(line.getAttribute('fill')).toBe('none');
+  });
+
+  it('renders the three line styles distinguishably', () => {
+    const dashArrays = (['SolidLine', 'DashedLine', 'DottedLine'] as LineStyle[]).map(
+      (lineStyle) =>
+        drawRelationship(lineStyle, 'NoDecoration', 'NoDecoration').getAttribute(
+          'stroke-dasharray',
+        ) ?? 'solid',
+    );
+    expect(new Set(dashArrays).size).toBe(3);
+    expect(dashArrays[0]).toBe('solid');
+  });
+
+  it('applies the relationship line colour', () => {
+    const line = drawRelationship('SolidLine', 'NoDecoration', 'NoDecoration', '#336699');
+    expect(line.getAttribute('stroke')).toBe('#336699');
+  });
+
+  it('adds no marker reference for NoDecoration', () => {
+    const line = drawRelationship('SolidLine', 'NoDecoration', 'NoDecoration');
+    expect(line.getAttribute('marker-start')).toBeNull();
+    expect(line.getAttribute('marker-end')).toBeNull();
+  });
+
+  it.each(DECORATIONS.filter((d) => d !== 'NoDecoration'))(
+    '%s renders as a marker referenced from the line',
+    (decoration: Decoration) => {
+      const line = drawRelationship('SolidLine', 'NoDecoration', decoration);
+      const markerEnd = line.getAttribute('marker-end');
+      expect(markerEnd).toMatch(/^url\(#la-marker-/);
+      expect(line.getAttribute('data-target-decor')).toBe(decoration);
+
+      const id = markerEnd!.slice('url(#'.length, -1);
+      const defs = harness!.markerDefs();
+      expect(defs).not.toBeNull();
+      expect(defs!.querySelector(`[id="${id}"]`)).not.toBeNull();
+    },
+  );
+
+  it('gives all eight decorations distinguishable markup', () => {
+    const signatures = DECORATIONS.map((decoration) => {
+      const line = drawRelationship('SolidLine', 'NoDecoration', decoration);
+      const markerEnd = line.getAttribute('marker-end');
+      if (!markerEnd) return 'none';
+      const id = markerEnd.slice('url(#'.length, -1);
+      const marker = harness!.markerDefs()!.querySelector(`[id="${id}"]`)!;
+      const glyph = marker.firstElementChild!;
+      return `${glyph.tagName}|${glyph.getAttribute('d') ?? ''}|${glyph.getAttribute('fill')}`;
+    });
+    expect(new Set(signatures).size).toBe(DECORATIONS.length);
+  });
+
+  it('renders a source decoration as marker-start', () => {
+    const line = drawRelationship('SolidLine', 'FilledDiamond', 'NoDecoration');
+    expect(line.getAttribute('marker-start')).toMatch(/^url\(#la-marker-FilledDiamond-source-/);
+    expect(line.getAttribute('marker-end')).toBeNull();
+  });
+
+  it('renders both ends when the notation decorates both', () => {
+    const line = drawRelationship('SolidLine', 'CircleDot', 'ClosedArrowhead');
+    expect(line.getAttribute('marker-start')).toContain('CircleDot');
+    expect(line.getAttribute('marker-end')).toContain('ClosedArrowhead');
+  });
+
+  it('draws an unstyled relationship type as a plain solid line', () => {
+    harness = createRenderHarness(paletteWith([]));
+    const line = harness.drawConnection({
+      iri: 'https://example.org/model/r1',
+      typeIri: 'https://example.org/mm#Unknown',
+      kind: 'relationship',
+    });
+    expect(line.getAttribute('stroke-dasharray')).toBeNull();
+    expect(line.getAttribute('data-line-style')).toBe('SolidLine');
+    expect(line.getAttribute('marker-end')).toBeNull();
   });
 });
