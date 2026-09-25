@@ -8,10 +8,15 @@
  * (DD-15 in the Linked.Archi design decisions) when the format can carry graphs:
  *
  * ```
- * {model}/graph/model      the arch:Model resource and its conformance
- * {model}/graph/semantic   elements, relationships, views, membership
- * {model}/graph/views      arch-vis geometry only — droppable on its own
+ * {ns}graph/model      the arch:Model resource and its conformance
+ * {ns}graph/semantic   elements, relationships, views, membership
+ * {ns}graph/views      arch-vis geometry only — droppable on its own
  * ```
+ *
+ * `{ns}` is the model's namespace, `{base}{notation}/{modelId}/`, so the graph
+ * IRIs are exactly DD-15's. The same namespace is written as the `m:` prefix
+ * (or whatever prefix the model declares), and every IRI minted in it is a
+ * flat local name, so the Turtle reads `m:element-…` rather than full IRIs.
  *
  * TriG, N-Quads and JSON-LD get that partition. Turtle, N-Triples and RDF/XML
  * cannot name graphs, so they get the union; `arch:inModel` on every concept is
@@ -38,6 +43,8 @@ import type { PrefixMap, RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES, PREFIXES } from '../rdf-engine/namespaces.js';
 import { detectFormat, parseRdf, type AssetFormat } from '../metamodel-manager/asset-sources.js';
 import { modelQuads } from '../model-manager/model-queries.js';
+import { readModelNamespace } from '../model-manager/model-namespace.js';
+import { ensureNamespace } from '../rdf-engine/iri.js';
 import { IRI, nn } from '../model-manager/vocabulary.js';
 
 /** File formats a model can be saved in. */
@@ -86,10 +93,10 @@ export interface ModelPartition {
   views: Quad[];
 }
 
-/** Graph IRIs of the partition for a model. */
-export function partitionGraphs(modelIri: string): { model: string; semantic: string; views: string } {
-  const base = modelIri.replace(/[/#]+$/, '');
-  return { model: `${base}/graph/model`, semantic: `${base}/graph/semantic`, views: `${base}/graph/views` };
+/** Graph IRIs of the partition, in a model's namespace. */
+export function partitionGraphs(namespace: string): { model: string; semantic: string; views: string } {
+  const ns = ensureNamespace(namespace);
+  return { model: `${ns}graph/model`, semantic: `${ns}graph/semantic`, views: `${ns}graph/views` };
 }
 
 /**
@@ -148,23 +155,30 @@ export class ModelIO {
   /**
    * Prefixes for writing: the standard ones, every `vann:preferredNamespace…`
    * pair a loaded vocabulary declares (so `am4:`, `bpmn:`, `c4:` appear without
-   * a hard-coded table), and `m:` for the model's own namespace.
+   * a hard-coded table), and `m:` (or the prefix the model declares) for the
+   * model's own namespace — which wins over any other binding of that prefix.
    */
   collectPrefixes(modelIri?: string, extra?: PrefixMap): PrefixMap {
     const prefixes: PrefixMap = { ...PREFIXES };
     const prefixOf = new Map<string, string>();
     const uriOf = new Map<string, string>();
+    // Vocabularies only (named graphs): the model's own pair is handled below.
     for (const q of this.store.getQuads(null, nn(NAMESPACES.vann + 'preferredNamespacePrefix'))) {
-      prefixOf.set(q.subject.value, q.object.value);
+      if (q.graph.termType !== 'DefaultGraph') prefixOf.set(q.subject.value, q.object.value);
     }
     for (const q of this.store.getQuads(null, nn(NAMESPACES.vann + 'preferredNamespaceUri'))) {
-      uriOf.set(q.subject.value, q.object.value);
+      if (q.graph.termType !== 'DefaultGraph') uriOf.set(q.subject.value, q.object.value);
     }
     for (const [subject, prefix] of prefixOf) {
       const uri = uriOf.get(subject);
       if (uri && /^[A-Za-z][\w-]*$/.test(prefix) && !(prefix in prefixes)) prefixes[prefix] = uri;
     }
-    if (modelIri) prefixes.m = `${modelIri.replace(/[/#]+$/, '')}/`;
+    if (modelIri) {
+      const own = readModelNamespace(this.store, modelIri);
+      // One prefix per namespace: drop another name bound to the same IRI.
+      for (const [name, uri] of Object.entries(prefixes)) if (uri === own.namespace) delete prefixes[name];
+      prefixes[own.prefix] = own.namespace;
+    }
     return { ...prefixes, ...extra };
   }
 
@@ -177,7 +191,7 @@ export class ModelIO {
     if (!format.graphs || !modelIri) {
       return this.write([...partition.model, ...partition.semantic, ...partition.views], format, modelIri, options.prefixes);
     }
-    const graphs = partitionGraphs(modelIri);
+    const graphs = partitionGraphs(readModelNamespace(this.store, modelIri).namespace);
     const regraph = (quads: Quad[], graph: string) =>
       quads.map((q) => DataFactory.quad(q.subject as never, q.predicate as never, q.object as never, DataFactory.namedNode(graph)) as unknown as Quad);
     return this.write(
@@ -270,11 +284,13 @@ function usedPrefixes(prefixes: PrefixMap, quads: Quad[]): PrefixMap {
   return used;
 }
 
-/** Graph, then subject, then predicate, then object — deterministic output (Req 9.12). */
+/** Graph, then subject, then `rdf:type` before other predicates, then object — deterministic output (Req 9.12). */
 function compareQuads(a: Quad, b: Quad): number {
   return (
     cmp(a.graph.value, b.graph.value) ||
     cmp(a.subject.value, b.subject.value) ||
+    // `a …` leads each subject's statements, as Turtle is written by hand.
+    Number(b.predicate.value === IRI.rdfType) - Number(a.predicate.value === IRI.rdfType) ||
     cmp(a.predicate.value, b.predicate.value) ||
     cmp(a.object.value, b.object.value)
   );

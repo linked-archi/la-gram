@@ -30,10 +30,11 @@ describe('OxigraphElementManager', () => {
   });
 
   describe('createElement', () => {
-    it('mints a UUID IRI under the model', () => {
+    it('mints a flat UUID IRI in the model namespace', () => {
       const node = manager.createElement(typeIri, modelIri);
       expect(node.termType).toBe('NamedNode');
-      expect(node.value).toMatch(new RegExp(`^${modelIri}/element/[0-9a-f-]{36}$`));
+      // `https://example.org/model` declares no namespace: `{ns}model` → `{ns}`.
+      expect(node.value).toMatch(/^https:\/\/example\.org\/element-[0-9a-f-]{36}$/);
     });
 
     it('never reuses an IRI, even across managers (a loaded model must not collide)', () => {

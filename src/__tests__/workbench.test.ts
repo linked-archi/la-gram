@@ -12,7 +12,7 @@ import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
 import { mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
-import type { Dialogs } from '../ui/dialogs.js';
+import type { Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
 import { modelQuads, readModelContents } from '../model-manager/model-queries.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
@@ -23,12 +23,25 @@ const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 const AM3 = 'https://meta.linked.archi/archimate3/onto#';
 const nn = (v: string) => DataFactory.namedNode(v) as unknown as NamedNode;
 
-/** Dialogs answering from a script: prompts pop answers, confirms say yes. */
+/**
+ * Dialogs answering from a script: prompts pop answers, confirms say yes, and
+ * forms pop an answer merged over the fields' initial values (`null` cancels;
+ * an empty script accepts the defaults).
+ */
 function scriptedDialogs() {
   const answers: Array<string | null> = [];
+  const forms: Array<FormValues | null> = [];
   const confirms: string[] = [];
   const dialogs: Dialogs = {
     prompt: vi.fn(async () => (answers.length > 0 ? answers.shift()! : null)),
+    form: vi.fn(async (_title: string, fields: FormField[], options?: FormOptions) => {
+      const answer = forms.length > 0 ? forms.shift()! : {};
+      if (answer === null) return null;
+      const values: FormValues = { ...Object.fromEntries(fields.map((f) => [f.name, f.value ?? ''])), ...answer };
+      const problem = options?.validate?.(values);
+      if (problem) throw new Error(`form rejected: ${problem}`);
+      return values;
+    }),
     confirm: vi.fn(async (title: string) => {
       confirms.push(title);
       return true;
@@ -37,7 +50,7 @@ function scriptedDialogs() {
     info: vi.fn(async () => undefined),
     toast: vi.fn(),
   };
-  return { dialogs, answers, confirms };
+  return { dialogs, answers, forms, confirms };
 }
 
 let app: App;
@@ -81,6 +94,47 @@ describe('the workbench', () => {
     expect(suggested.length).toBeGreaterThan(9);
   });
 
+  it('keeps the RDF panel hidden until toggled, then shows the live model as Turtle', async () => {
+    expect(ui.isRdfPanelOpen()).toBe(false);
+    expect(ui.shell.rdfOpen).toBe(false);
+    expect(ui.rdfPanel.text).toBe(''); // nothing serialized while hidden
+
+    await ui.runCommand({ command: 'toggle-rdf' });
+    expect(ui.isRdfPanelOpen()).toBe(true);
+    expect(ui.appToolbar.rdfOpen).toBe(true);
+    expect(ui.rdfPanel.text).toMatch(/^m:model a arch:Model;/m);
+    expect(ui.rdfPanel.text).toContain(`@prefix m: <${app.session.namespace()!.namespace}>.`);
+    expect(ui.rdfPanel.text).not.toContain('owl:Ontology');
+
+    // A new element appears after the (debounced) refresh, and selecting it
+    // marks its statements.
+    const el = app.components.elementManager.createElement(`${AM4}BusinessActor`, app.session.modelIri!, {
+      label: 'Visible in Turtle',
+    }).value;
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.rdfPanel.refresh();
+    expect(ui.rdfPanel.text).toContain('Visible in Turtle');
+    ui.selectConcept(el);
+    await ui.rdfPanel.updateComplete;
+    expect(ui.rdfPanel.shadowRoot!.querySelector(`.rdf-block.selected`)?.getAttribute('data-subject')).toBe(el);
+
+    app.components.elementManager.deleteElement(el);
+    await ui.runCommand({ command: 'toggle-rdf' });
+    expect(ui.isRdfPanelOpen()).toBe(false);
+  });
+
+  it('shows the property panel by default; its × and the toolbar toggle hide and show it', async () => {
+    expect(ui.isPropertyPanelOpen()).toBe(true);
+    expect(ui.appToolbar.propertyOpen).toBe(true);
+    ui.propertyPanel.dispatchEvent(new CustomEvent('property-close', { bubbles: true, composed: true }));
+    expect(ui.isPropertyPanelOpen()).toBe(false);
+    expect(ui.shell.propertyOpen).toBe(false);
+    expect(ui.appToolbar.propertyOpen).toBe(false);
+    await ui.runCommand({ command: 'toggle-properties' });
+    expect(ui.isPropertyPanelOpen()).toBe(true);
+    expect(ui.appToolbar.propertyOpen).toBe(true);
+  });
+
   it('creates, names and opens a new view from the toolbar', async () => {
     script.answers.push('Application landscape');
     await ui.runCommand({ command: 'new-view', value: 'Diagram' });
@@ -114,11 +168,16 @@ describe('the workbench', () => {
   it('opens a saved model again: same elements, views and geometry', async () => {
     const turtle = saved.at(-1)!.content as string;
     const before = modelQuads(app.components.store).length;
+    const modelBefore = app.session.modelIri;
+    script.forms.push(null);
     await ui.runCommand({ command: 'new-model' });
-    // new-model asks for a name; the script has none, so nothing happened yet.
-    script.answers.push('Scratch');
+    // Cancelled: nothing happened.
+    expect(app.session.modelIri).toBe(modelBefore);
+    script.forms.push({ label: 'Scratch' });
     await ui.runCommand({ command: 'new-model' });
     expect(app.session.modelLabel()).toBe('Scratch');
+    // The suggested namespace: a fresh one under example.org.
+    expect(app.session.namespace()?.namespace).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/$/);
 
     files.push({ name: 'shop.ttl', text: turtle });
     await ui.runCommand({ command: 'open-model' });
@@ -167,6 +226,29 @@ describe('the workbench', () => {
     expect(web.typeIri).toBe(`${AM3}ApplicationComponent`);
     expect(ui.diagramCanvas.getElement(web.iri)?.bounds).toMatchObject({ x: 10, y: 10 });
     expect(ui.diagramCanvas.getRelationships().size).toBe(1);
+  });
+
+  it('moves the model into a team namespace from Model settings, keeping the open view', async () => {
+    script.forms.push({ namespace: 'https://acme.com/ea/shop/', prefix: 'shop' });
+    await ui.runCommand({ command: 'model-settings' });
+
+    expect(app.session.modelIri).toBe('https://acme.com/ea/shop/model');
+    expect(app.session.activeViewIri).toBe('https://acme.com/ea/shop/view-v');
+    expect(ui.appToolbar.activeViewIri).toBe('https://acme.com/ea/shop/view-v');
+    const web = contents().elements.find((e) => e.label === 'Web')!;
+    expect(web.iri).toBe('https://acme.com/ea/shop/element-a');
+    expect(ui.diagramCanvas.getElement(web.iri)?.bounds).toMatchObject({ x: 10, y: 10 });
+    expect(ui.diagramCanvas.getRelationships().size).toBe(1);
+
+    const ttl = app.saveModel('turtle').text;
+    expect(ttl).toContain('@prefix shop: <https://acme.com/ea/shop/>.');
+    expect(ttl).toMatch(/^shop:element-a a am:ApplicationComponent;/m);
+    expect(ttl.split('<https://acme.com/ea/shop/')).toHaveLength(2);
+    expect(app.isDirty()).toBe(true);
+
+    // A prefix another vocabulary already stands for is refused.
+    expect(app.namespaceProblem('https://acme.com/ea/shop/', 'skos')).toMatch(/already stands for/);
+    expect(app.namespaceProblem('not a namespace', 'shop')).not.toBeNull();
   });
 
   it('switches metamodel: the palette follows, the model stays', async () => {

@@ -30,10 +30,11 @@ import type { PaletteDefinition, ViewpointInfo } from '../metamodel-manager/inte
 import type { ValidationResult } from '../rdf-engine/interfaces.js';
 import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
 import { METAMODEL_CATALOGUE } from '../metamodel-manager/catalogue.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
-import { labelOf, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
-import { MODEL_FORMATS, type ModelFormat } from '../import-export/model-io.js';
+import { labelOf, modelQuads, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { domDialogs, type Dialogs } from './dialogs.js';
@@ -49,6 +50,7 @@ import './panels/validation-panel.js';
 import './panels/sparql-editor.js';
 import './views/catalog-view.js';
 import './views/matrix-view.js';
+import './panels/rdf-panel.js';
 
 import type { AppShell } from './app-shell.js';
 import type { AppToolbar, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
@@ -74,6 +76,7 @@ import type { ValidationPanel, ValidationNavigateDetail } from './panels/validat
 import type { SparqlEditor } from './panels/sparql-editor.js';
 import type { CatalogView, CatalogSelectDetail } from './views/catalog-view.js';
 import type { MatrixView } from './views/matrix-view.js';
+import type { RdfPanel, RdfDownloadDetail, RdfSelectDetail } from './panels/rdf-panel.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
 // DOM node in its constructor and manages that subtree itself.
@@ -83,7 +86,7 @@ import { buildClassClosure, type ClassClosure } from './canvas/relationship-reso
 const { namedNode } = DataFactory;
 
 /** Model IRI used for elements dropped onto the canvas before a model is loaded. */
-export const DEFAULT_MODEL_IRI = 'urn:la-gram:model-1';
+export const DEFAULT_MODEL_IRI = modelIriIn(DEFAULT_MODEL_BASE);
 
 /** CSS marker on shapes with SHACL violations. */
 export const VIOLATION_MARKER = 'la-violation';
@@ -110,6 +113,16 @@ export interface MountedUi {
   sparqlEditor: SparqlEditor;
   catalogView: CatalogView;
   matrixView: MatrixView;
+  /** Show or hide the property panel (shown by default). */
+  setPropertyPanelOpen(open: boolean): void;
+  /** Whether the property panel is shown. */
+  isPropertyPanelOpen(): boolean;
+  /** The model as RDF (Turtle, …), far right; hidden until opened. */
+  rdfPanel: RdfPanel;
+  /** Show or hide the RDF panel. */
+  setRdfPanelOpen(open: boolean): void;
+  /** Whether the RDF panel is shown. */
+  isRdfPanelOpen(): boolean;
   /** Host element handed to diagram-js / the DiagramCanvas renderer. */
   canvasHost: HTMLElement;
   diagramCanvas: DiagramCanvas;
@@ -141,6 +154,8 @@ export interface MountOptions {
   pickFile?: (accept: string) => Promise<{ name: string; text: string } | null>;
   /** Hand a file to the user; a download by default. */
   saveFile?: (content: string | Blob, fileName: string, mediaType: string) => Promise<void> | void;
+  /** Start with the RDF panel open (`?rdf=1`). Hidden by default. */
+  rdfOpen?: boolean;
 }
 
 /** Let the user pick a file with a hidden input. */
@@ -308,8 +323,25 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   bottomArea.append(validationPanel, sparqlEditor);
 
+  // ── Far right: the model as RDF ──────────────────────────────────────
+  // Hidden by default; the toolbar's "RDF" toggles it. It serializes through
+  // the same path as Save, so it shows exactly what a file would contain, and
+  // it does no work at all while hidden.
+  const rdfPanel = document.createElement('rdf-panel');
+  rdfPanel.slot = 'rdf';
+  rdfPanel.source = (format, profile) => app.saveModel(format, profile).text;
+  rdfPanel.statsProvider = () => {
+    const contents = readModelContents(store, viewManager.getViews(), closure);
+    return {
+      elements: contents.elements.length + contents.unclassified.length,
+      relationships: contents.relationships.length,
+      views: contents.views.length,
+      triples: modelQuads(store).length,
+    };
+  };
+
   // ── Attach to the document ───────────────────────────────────────────
-  shell.append(appToolbar, palettePanel, modelExplorer, propertyPanel, canvasArea, bottomArea);
+  shell.append(appToolbar, palettePanel, modelExplorer, propertyPanel, canvasArea, bottomArea, rdfPanel);
   root.appendChild(shell);
 
   // ── Model tree data ──────────────────────────────────────────────────
@@ -386,6 +418,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       if (iri) modelExplorer.revealIri(iri);
       else modelExplorer.selectedIri = '';
       catalogView.selectedIri = iri ?? '';
+      rdfPanel.selectedIri = iri ?? '';
       if (iri && !options.fromCanvas) diagramCanvas.reveal(iri);
       if (!options.fromCanvas) eventBus.emit('selection-changed', { iri });
     } finally {
@@ -504,7 +537,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onExplorerActivate = (e: Event): void => {
     const { iri, kind } = (e as CustomEvent<ExplorerSelectDetail>).detail;
     if (kind === 'view') session.openView(iri);
-    else if (kind === 'model') void runCommand({ command: 'rename-model' });
+    else if (kind === 'model') void runCommand({ command: 'model-settings' });
     else void revealAnywhere(iri);
   };
   const onExplorerAction = (e: Event): void => {
@@ -525,6 +558,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     switch (action) {
       case 'rename-model':
         return runCommand({ command: 'rename-model' });
+      case 'model-settings':
+        return runCommand({ command: 'model-settings' });
       case 'new-diagram':
         return runCommand({ command: 'new-view', value: 'Diagram' });
       case 'new-catalog':
@@ -714,6 +749,41 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       .slice(0, 500);
   };
 
+  // Showing, hiding or resizing a side panel resizes the canvas; diagram-js
+  // caches the viewbox size (zoom-to-fit, scrolling) until told.
+  const canvasResize =
+    typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => (diagramCanvas.getDiagram()?.get('canvas') as { resized(): void } | undefined)?.resized())
+      : undefined;
+  canvasResize?.observe(canvasHost);
+
+  // ── Property panel: shown by default, hideable and resizable ──────────
+  const setPropertyPanelOpen = (open: boolean): void => {
+    shell.propertyOpen = open;
+    appToolbar.propertyOpen = open;
+  };
+  const onPropertyClose = (): void => setPropertyPanelOpen(false);
+  propertyPanel.addEventListener('property-close', onPropertyClose);
+
+  // ── RDF panel ────────────────────────────────────────────────────────
+  const setRdfPanelOpen = (open: boolean): void => {
+    shell.rdfOpen = open;
+    appToolbar.rdfOpen = open;
+    rdfPanel.selectedIri = propertyPanel.selectedIri;
+    rdfPanel.active = open;
+  };
+  const onRdfDownload = (e: Event): void => {
+    const { format, profile } = (e as CustomEvent<RdfDownloadDetail>).detail;
+    save(format, profile);
+  };
+  const onRdfSelect = (e: Event): void => {
+    void revealAnywhere((e as CustomEvent<RdfSelectDetail>).detail.iri);
+  };
+  const onRdfClose = (): void => setRdfPanelOpen(false);
+  rdfPanel.addEventListener('rdf-download', onRdfDownload);
+  rdfPanel.addEventListener('rdf-select', onRdfSelect);
+  rdfPanel.addEventListener('rdf-close', onRdfClose);
+
   // ── Toolbar state ────────────────────────────────────────────────────
   const presentationContexts = (): LabelledIri[] => {
     const out: LabelledIri[] = [];
@@ -777,7 +847,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       current ?? '',
     );
 
-  const save = (format: ModelFormat, profile: 'full' | 'no-geometry' = 'full'): void => {
+  const save = (format: ModelFormat, profile: SerializationProfile = 'full'): void => {
     const saved = app.saveModel(format, profile);
     void Promise.resolve(saveFile(saved.text, saved.fileName, saved.mediaType)).then(() => {
       eventBus.emit('model-saved', { fileName: saved.fileName });
@@ -790,15 +860,85 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.emit('notify', { level, message });
   };
 
+  /** Name, namespace and prefix of the model, in one dialog. */
+  const editModelSettings = async (): Promise<void> => {
+    const current = session.namespace();
+    if (!current) return;
+    const values = await dialogs.form(
+      'Model settings',
+      [
+        { name: 'label', label: 'Name', value: session.modelLabel() },
+        {
+          name: 'namespace',
+          label: 'Namespace',
+          value: current.namespace,
+          hint: 'Where the model\'s IRIs are minted, e.g. https://acme.com/ea/payments/',
+        },
+        { name: 'prefix', label: 'Prefix', value: current.prefix, hint: 'Stands for the namespace in Turtle: m:element-…' },
+        {
+          name: 'rename',
+          type: 'checkbox',
+          label: 'Move the model\'s existing IRIs into the new namespace',
+          value: true,
+          hint: 'Otherwise only IRIs minted from now on use it.',
+        },
+      ],
+      {
+        confirmLabel: 'Apply',
+        validate: (v) =>
+          String(v['label']) ? app.namespaceProblem(String(v['namespace']), String(v['prefix'])) : 'The model needs a name.',
+      },
+    );
+    if (!values) return;
+    const label = String(values['label']);
+    const namespace = ensureNamespace(String(values['namespace']));
+    const prefix = String(values['prefix']);
+    const rename = values['rename'] === true;
+    if (label !== session.modelLabel()) session.renameModel(label);
+    if (namespace !== current.namespace || prefix !== current.prefix || !current.declared) {
+      if (
+        rename &&
+        namespace !== current.namespace &&
+        app.collaborationRoom &&
+        !(await dialogs.confirm(
+          'Shared model',
+          `This model is shared in room "${app.collaborationRoom}". Moving it to ${namespace} renames its IRIs for everyone in the room.`,
+          { confirmLabel: 'Move' },
+        ))
+      ) {
+        refreshToolbar();
+        return;
+      }
+      const moved = app.setModelNamespace(namespace, { prefix, rename });
+      report(moved > 0 ? `Moved ${moved} IRIs to ${namespace}.` : `Namespace set to ${namespace}.`);
+    }
+    refreshToolbar();
+  };
+
   const runCommand = async (detail: ToolbarCommandDetail): Promise<void> => {
     const { command, value } = detail;
     try {
       switch (command) {
         case 'new-model': {
           if (!(await guardUnsaved('Start a new model'))) return;
-          const name = await dialogs.prompt('New model', 'Model name', 'Untitled model');
-          if (name === null) return;
-          app.newModel(name);
+          const values = await dialogs.form(
+            'New model',
+            [
+              { name: 'label', label: 'Name', value: 'Untitled model' },
+              {
+                name: 'namespace',
+                label: 'Namespace',
+                value: app.suggestNamespace(),
+                hint: 'Every IRI of the model is minted here. example.org is a placeholder; use your own domain to publish.',
+              },
+            ],
+            {
+              confirmLabel: 'Create',
+              validate: (v) => app.namespaceProblem(String(v['namespace']), 'm'),
+            },
+          );
+          if (!values) return;
+          app.newModel(String(values['label'] || 'Untitled model'), { namespace: String(values['namespace']) });
           return;
         }
         case 'open-model': {
@@ -857,6 +997,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           refreshToolbar();
           return;
         }
+        case 'model-settings':
+          await editModelSettings();
+          return;
         case 'open-view':
           if (value) session.openView(value);
           return;
@@ -921,6 +1064,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           return;
         case 'share':
           eventBus.emit('collab-status', { request: 'share' });
+          return;
+        case 'toggle-properties':
+          setPropertyPanelOpen(!shell.propertyOpen);
+          return;
+        case 'toggle-rdf':
+          setRdfPanelOpen(!shell.rdfOpen);
           return;
         case 'undo':
         case 'redo': {
@@ -1011,6 +1160,22 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const onSaved: ModelEventHandler = () => refreshToolbar();
 
+  // Anything that changes the model changes the RDF text. The panel ignores
+  // this while hidden and debounces it while shown.
+  const onAnyModelChange: ModelEventHandler = () => rdfPanel.scheduleRefresh();
+  const RDF_REFRESH_EVENTS = [
+    'model-changed',
+    'model-loaded',
+    'views-changed',
+    'metamodel-loaded',
+    'element-created',
+    'element-deleted',
+    'element-updated',
+    'relationship-created',
+    'relationship-deleted',
+  ] as const;
+  for (const type of RDF_REFRESH_EVENTS) eventBus.on(type, onAnyModelChange);
+
   eventBus.on('validation-updated', onValidationUpdated);
   eventBus.on('metamodel-loaded', onMetamodelLoaded);
   eventBus.on('model-loaded', onModelLoaded);
@@ -1026,6 +1191,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // The model the App started with.
   if (session.activeViewIri) showActiveView();
   else refreshToolbar();
+  if (options.rdfOpen) setRdfPanelOpen(true);
 
   const refresh = (): void => {
     refreshGraphs();
@@ -1035,6 +1201,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const dispose = (): void => {
+    canvasResize?.disconnect();
     eventBus.off('validation-updated', onValidationUpdated);
     eventBus.off('metamodel-loaded', onMetamodelLoaded);
     eventBus.off('model-loaded', onModelLoaded);
@@ -1046,6 +1213,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.off('relationship-deleted', onElementDeleted);
     eventBus.off('presentation-context-changed', onContextChanged);
     eventBus.off('model-saved', onSaved);
+    for (const type of RDF_REFRESH_EVENTS) eventBus.off(type, onAnyModelChange);
+    rdfPanel.removeEventListener('rdf-download', onRdfDownload);
+    rdfPanel.removeEventListener('rdf-select', onRdfSelect);
+    rdfPanel.removeEventListener('rdf-close', onRdfClose);
+    propertyPanel.removeEventListener('property-close', onPropertyClose);
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
@@ -1079,6 +1251,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     matrixView,
     canvasHost,
     diagramCanvas,
+    rdfPanel,
+    setRdfPanelOpen,
+    isRdfPanelOpen: () => shell.rdfOpen,
+    setPropertyPanelOpen,
+    isPropertyPanelOpen: () => shell.propertyOpen,
     setActiveCanvasView,
     activeCanvasView: () => active,
     setPaletteAxis: (axisIri) => {

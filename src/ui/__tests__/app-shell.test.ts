@@ -42,7 +42,35 @@ describe('AppShell', () => {
       const proto = AppShell.prototype;
       const result = proto.render.call({}) as any;
       const joined = result.strings?.join('') ?? '';
-      expect(joined).toContain('class="shell"');
+      expect(joined).toContain('class="shell ');
+    });
+
+    it('has an RDF slot on the far right, collapsed unless rdfOpen', () => {
+      const proto = AppShell.prototype;
+      const closed = proto.render.call({ rdfOpen: false, rdfWidth: 440 }) as any;
+      expect(closed.strings.join('')).toContain('name="rdf"');
+      expect(closed.strings.join('')).toContain('panel-rdf');
+      // The column width and the open class are the template's values.
+      expect(closed.values).toContain('0px');
+      expect(closed.values).not.toContain('rdf-open');
+      const open = proto.render.call({ rdfOpen: true, rdfWidth: 440 }) as any;
+      expect(open.values).toContain('440px');
+      expect(open.values).toContain('rdf-open');
+    });
+
+    it('shows the property panel by default, at its width, and collapses its column when hidden', () => {
+      const proto = AppShell.prototype;
+      const shown = proto.render.call({ propertyOpen: true, propertyWidth: 360, rdfOpen: false, rdfWidth: 440 }) as any;
+      expect(shown.values).toContain('property-open');
+      expect(shown.values).toContain('360px');
+      // Both side panels carry a resize handle on their left edge.
+      const handles = shown.values.filter((v: any) => v?.strings?.join('').includes('class="resizer"'));
+      expect(handles.map((h: any) => h.values[0])).toEqual(['property', 'rdf']);
+      const hidden = proto.render.call({ propertyOpen: false, propertyWidth: 360, rdfOpen: false, rdfWidth: 440 }) as any;
+      expect(hidden.values).not.toContain('property-open');
+      expect(hidden.values).not.toContain('360px');
+      // A bare render (no state yet) shows it at the default width.
+      expect((proto.render.call({}) as any).values).toContain('300px');
     });
 
     it('contains all panel CSS classes', () => {

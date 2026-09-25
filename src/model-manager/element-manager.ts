@@ -8,8 +8,8 @@
  * RDF resource.
  *
  * ```turtle
- * <model>/element/3f2c…  a am4:ApplicationComponent ;
- *     arch:inModel <model> ;
+ * m:element-3f2c…  a am4:ApplicationComponent ;
+ *     arch:inModel m:model ;
  *     skos:prefLabel "Order Service"@en .
  * ```
  *
@@ -24,6 +24,7 @@ import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { mintIri } from '../rdf-engine/iri.js';
 import { collectElementQuads } from './cascade.js';
+import { modelNamespace } from './model-namespace.js';
 import type { CreateElementOptions, ElementManager } from './interfaces.js';
 import { T, langLiteral, nn, triple } from './vocabulary.js';
 
@@ -40,7 +41,7 @@ export class OxigraphElementManager implements ElementManager {
   constructor(private readonly store: RdfStore) {}
 
   createElement(typeIri: string, modelIri: string, options: CreateElementOptions = {}): NamedNode {
-    const element = nn(options.iri ?? mintIri(modelIri, 'element'));
+    const element = nn(options.iri ?? mintIri(modelNamespace(this.store, modelIri || undefined), 'element'));
     const quads: Quad[] = [triple(element, T.rdfType, nn(typeIri))];
     if (modelIri) quads.push(triple(element, T.inModel, nn(modelIri)));
     const label = options.label?.trim();

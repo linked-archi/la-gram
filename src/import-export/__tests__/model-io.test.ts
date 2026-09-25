@@ -8,6 +8,7 @@ import { OxigraphRelationshipManager } from '../../model-manager/relationship-ma
 import { OxigraphViewManager } from '../../model-manager/view-manager.js';
 import { ModelSession } from '../../model-manager/model-session.js';
 import { modelQuads } from '../../model-manager/model-queries.js';
+import { readModelNamespace } from '../../model-manager/model-namespace.js';
 import { ModelIO, MODEL_FORMATS, partitionGraphs, partitionModel } from '../model-io.js';
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
@@ -41,7 +42,7 @@ function buildModel() {
   views.addElementToView(viewIri, a, { x: 0, y: 0, width: 120, height: 55 });
   views.addElementToView(viewIri, b, { x: 200, y: 0, width: 120, height: 55 });
   views.addRelationshipToView(viewIri, rel.iri, [{ x: 200, y: 27 }, { x: 120, y: 27 }]);
-  return { store, modelIri, viewIri, io: new ModelIO(store), views };
+  return { store, modelIri, viewIri, session, io: new ModelIO(store), views, namespace: readModelNamespace(store, modelIri).namespace };
 }
 
 describe('ModelIO', () => {
@@ -64,17 +65,36 @@ describe('ModelIO', () => {
     expect(ttl).not.toContain('@prefix sh:');
   });
 
+  it('writes the model IRIs as m: prefixed names, and names the namespace on the model', () => {
+    const ttl = ctx.io.serialize(ctx.modelIri, { format: 'turtle' });
+    expect(ttl).toContain(`@prefix m: <${ctx.namespace}>.`);
+    expect(ttl).toMatch(/^m:model a arch:Model;/m);
+    expect(ttl).toMatch(/^m:element-[0-9a-f-]{36} a am4:ApplicationComponent;/m);
+    expect(ttl).toMatch(/^m:link-[0-9a-f-]{36}-points-0 rdf:first m:link-[0-9a-f-]{36}-p0;/m);
+    expect(ttl).toContain(`vann:preferredNamespaceUri "${ctx.namespace}"`);
+    // Nothing of the model is left as a full IRI: the namespace is written once, in @prefix.
+    expect(ttl.split(`<${ctx.namespace}`)).toHaveLength(2);
+  });
+
+  it('uses the prefix the model declares', () => {
+    ctx.session.setNamespace(ctx.namespace, { prefix: 'shop' });
+    const ttl = ctx.io.serialize(ctx.modelIri, { format: 'turtle' });
+    expect(ttl).toContain(`@prefix shop: <${ctx.namespace}>.`);
+    expect(ttl).toMatch(/^shop:model a arch:Model;/m);
+    expect(ttl).not.toContain('@prefix m:');
+  });
+
   it('partitions TriG into the DD-15 model / semantic / views graphs', () => {
     const trig = ctx.io.serialize(ctx.modelIri, { format: 'trig' });
     const quads = new N3Parser({ format: 'application/trig' }).parse(trig);
-    const graphs = partitionGraphs(ctx.modelIri);
+    // DD-15: `{base}{notation}/{modelId}/graph/…`, the namespace being `{base}{notation}/{modelId}/`.
+    const graphs = partitionGraphs(ctx.namespace);
+    expect(graphs.views).toBe(`${ctx.namespace}graph/views`);
     const byGraph = (g: string) => quads.filter((q) => q.graph.value === g);
     expect(byGraph(graphs.model).every((q) => q.subject.value === ctx.modelIri)).toBe(true);
     expect(byGraph(graphs.views).length).toBeGreaterThan(0);
     expect(
-      byGraph(graphs.views).every(
-        (q) => q.subject.value.startsWith(ctx.viewIri + '/'),
-      ),
+      byGraph(graphs.views).every((q) => /^(node|link)-/.test(q.subject.value.slice(ctx.namespace.length))),
     ).toBe(true);
     // The arch:View resource is a model concept: semantic, not views.
     expect(byGraph(graphs.semantic).some((q) => q.subject.value === ctx.viewIri)).toBe(true);

@@ -42,7 +42,7 @@ describe('OxigraphViewManager', () => {
         modelIri,
         label: 'Layered',
       });
-      expect(view.value).toMatch(new RegExp(`^${modelIri}/view/[0-9a-f-]{36}$`));
+      expect(view.value).toMatch(/^https:\/\/example\.org\/view-[0-9a-f-]{36}$/);
       expect(objects(store, view.value, RDF_TYPE).sort()).toEqual([ARCH + 'Diagram', ARCH + 'View'].sort());
       expect(objects(store, view.value, ARCH + 'inModel')).toEqual([modelIri]);
       expect(objects(store, view.value, ARCH + 'viewConformsToViewpoint')).toEqual([
@@ -111,7 +111,7 @@ describe('OxigraphViewManager', () => {
       const v = views.createView('Diagram', undefined, { modelIri }).value;
       const nodeIri = views.addElementToView(v, a.value, { x: 10, y: 20, width: 130, height: 60 });
 
-      expect(nodeIri).toMatch(new RegExp(`^${v}/node/`));
+      expect(nodeIri).toMatch(/^https:\/\/example\.org\/node-[0-9a-f-]{36}$/);
       expect(objects(store, nodeIri, RDF_TYPE)).toEqual([VIS + 'ArchNode']);
       expect(objects(store, nodeIri, VIS + 'view')).toEqual([v]);
       expect(objects(store, nodeIri, VIS + 'archElement')).toEqual([a.value]);

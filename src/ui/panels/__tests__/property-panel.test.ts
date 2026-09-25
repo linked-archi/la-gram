@@ -137,11 +137,14 @@ describe('buildPropertyEntries', () => {
     expect(labelEntry?.readonly).toBe(false);
   });
 
-  it('sorts rdf:type first, then prefLabel, then definition', () => {
+  it('sorts rdf:type first, then prefLabel, then the rest by label', () => {
     const entries = buildPropertyEntries(sampleQuads(iri), []);
-    expect(entries[0].predicate).toBe(RDF_TYPE);
-    expect(entries[1].predicate).toBe(SKOS_PREF_LABEL);
-    expect(entries[2].predicate).toBe(SKOS_DEFINITION);
+    expect(entries.map((e) => e.predicate)).toEqual([
+      RDF_TYPE,
+      SKOS_PREF_LABEL,
+      'https://example.org/custom',
+      SKOS_DEFINITION,
+    ]);
   });
 
   it('uses SHACL shape name as label when available', () => {
@@ -163,6 +166,36 @@ describe('buildPropertyEntries', () => {
 
   it('returns empty for empty quads', () => {
     expect(buildPropertyEntries([], [])).toEqual([]);
+  });
+
+  it('lists type, inModel, prefLabel, then every other property by label; leaves out inView', () => {
+    const ARCH = NAMESPACES.arch;
+    const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+    const quads = [
+      makeQuad(iri, 'https://example.org/props#owner', 'Team A'),
+      makeQuad(iri, ARCH + 'inView', 'https://example.org/m/view-1'),
+      makeQuad(iri, 'https://example.org/props#cost', '100'),
+      makeQuad(iri, AM4 + 'serves', 'https://example.org/m/element-2'),
+      makeQuad(iri, SKOS_PREF_LABEL, 'Order Service'),
+      makeQuad(iri, ARCH + 'inModel', 'https://example.org/m/model'),
+      makeQuad(iri, RDF_TYPE, AM4 + 'ApplicationComponent'),
+    ];
+    const entries = buildPropertyEntries(quads, []);
+    expect(entries.map((e) => e.label)).toEqual(['type', 'inModel', 'prefLabel', 'cost', 'owner', 'serves']);
+    expect(entries.filter((e) => e.custom).map((e) => e.label)).toEqual(['cost', 'owner', 'serves']);
+  });
+
+  it('orders a relationship the same way: its source and target are among the rest', () => {
+    const ARCH = NAMESPACES.arch;
+    const quads = [
+      makeQuad(iri, ARCH + 'inView', 'https://example.org/m/view-1'),
+      makeQuad(iri, ARCH + 'target', 'https://example.org/m/element-2'),
+      makeQuad(iri, 'https://example.org/props#weight', '3'),
+      makeQuad(iri, ARCH + 'inModel', 'https://example.org/m/model'),
+      makeQuad(iri, ARCH + 'source', 'https://example.org/m/element-1'),
+      makeQuad(iri, RDF_TYPE, 'https://meta.linked.archi/archimate4/onto#Serving'),
+    ];
+    expect(buildPropertyEntries(quads, []).map((e) => e.label)).toEqual(['type', 'inModel', 'source', 'target', 'weight']);
   });
 });
 
@@ -249,6 +282,21 @@ describe('PropertyPanel', () => {
       expect(o).toContain('type');
       expect(o).toContain('prefLabel');
       expect(o).not.toContain('No element selected');
+    });
+
+    it('starts with the ID, and sets the added properties off with a divider above the first', () => {
+      const entries: PropertyEntry[] = [
+        { predicate: RDF_TYPE, label: 'type', value: 'https://example.org/BP', readonly: true },
+        { predicate: SKOS_PREF_LABEL, label: 'prefLabel', value: 'Web', readonly: false },
+        { predicate: 'https://example.org/cost', label: 'cost', value: '1', readonly: false, custom: true },
+        { predicate: 'https://example.org/owner', label: 'owner', value: 'A', readonly: false, custom: true },
+      ];
+      const o = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries });
+      expect(o.indexOf('>ID<')).toBeGreaterThan(-1);
+      expect(o.indexOf('>ID<')).toBeLessThan(o.indexOf('type'));
+      expect(o.match(/property-row first-added/g)).toHaveLength(1);
+      expect(o.indexOf('first-added')).toBeGreaterThan(o.indexOf('prefLabel'));
+      expect(o.indexOf('first-added')).toBeLessThan(o.indexOf('cost'));
     });
 
     it('renders textarea for definition fields', () => {

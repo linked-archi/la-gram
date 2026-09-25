@@ -40,6 +40,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] UUID IRIs; `rdf:type`, `skos:prefLabel`@en, `arch:inModel`; node in the open view — *element-manager.test*
 - [x] Undo/redo restores the same IRI — *view-canvas.test*
 - [x] Property panel: kind, type, IRI, SHACL-derived fields, add/remove values with ontology suggestions
+- [x] Field order: ID, type, `inModel`, `prefLabel`, then the rest (added properties) behind a divider; no `inView` rows — *property-panel.test, workbench.spec*
 - [x] Delete from view (default) vs. delete from model (confirmation lists views) — *view-canvas.test, workbench.spec*
 - [x] Delete from model cascades to relationships and every view, undoable in one step — *view-canvas.test*
 - [ ] Inline label editing on the canvas (double-click)
@@ -62,6 +63,9 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] DD-15 partition (`graph/model`, `graph/semantic`, `graph/views`) for graph formats
 - [x] "Without diagram geometry" profile
 - [x] SVG / PNG of the open view (Req 14)
+- [x] RDF panel (Req 5.7): hidden by default, toolbar toggle / `?rdf=1`, six formats, geometry toggle, counts, copy, download, highlighting, selection ⇄ statements, no work while hidden, resizable — *rdf-panel.test, workbench.test, workbench.spec*
+- [x] HTTP URIs in a per-model namespace (Req 9.7a): `{base}{notation}/{uuid}/`, base `https://example.org/` or `?base=`; flat local names so Turtle writes `m:…` throughout; namespace + prefix stated with `vann:` on the model; DD-15 graphs under the namespace — *model-namespace.test, model-io.test*
+- [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (legacy `…/element/…` flattened) or only new ones; prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
 
 ### Task 6: Validation (Req 6)
 - [x] Shapes: every loaded metamodel's `shapes` graphs + core + core-vis shapes (previously the app validated against an empty graph)
@@ -87,8 +91,10 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 ### Task 8: UI layout (Req 11)
 - [x] Toolbar, palette, model tree, canvas with tool strip, property panel, validation + SPARQL
 - [x] Dialogs (prompt / confirm / choose / info) and toasts
-- [ ] Hideable panels
-- [ ] Resizable panels with persisted sizes
+- [x] RDF panel hideable (hidden by default) and resizable, width remembered
+- [x] Property panel hideable (shown by default; × and "ⓘ Properties" toggle) and resizable, width remembered — *app-shell.test, workbench.test, workbench.spec*
+- [ ] Hideable panels (left sidebar, bottom row)
+- [ ] Resizable panels with persisted sizes (left sidebar, bottom row)
 - [ ] Right-click canvas menu (the context pad covers the same actions today)
 
 ---

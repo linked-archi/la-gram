@@ -8,24 +8,27 @@
  * concept. The RDF follows the published vocabulary exactly:
  *
  * ```turtle
- * <view>  a arch:View, arch:Diagram ;
- *         arch:inModel <model> ;
+ * m:view-…  a arch:View, arch:Diagram ;
+ *         arch:inModel m:model ;
  *         skos:prefLabel "Application Cooperation"@en ;
  *         arch:viewConformsToViewpoint am4vp:ApplicationCooperation .
  *
- * <elem>  arch:inView <view> .                        # membership, survives geometry loss
+ * m:element-…  arch:inView m:view-… .                 # membership, survives geometry loss
  *
- * <view>/node/…  a arch-vis:ArchNode ;                # geometry
- *         arch-vis:view <view> ;
- *         arch-vis:archElement <elem> ;
+ * m:node-…  a arch-vis:ArchNode ;                     # geometry
+ *         arch-vis:view m:view-… ;
+ *         arch-vis:archElement m:element-… ;
  *         arch-vis:bounds-x 40.0 ; … bounds-y, bounds-w, bounds-h .
  *
- * <view>/link/…  a arch-vis:Link ;
- *         arch-vis:view <view> ;
- *         arch-vis:archRelationship <rel> ;
- *         arch-vis:source <view>/node/… ; arch-vis:target <view>/node/… ;
- *         arch-vis:points ( <…/p/0> <…/p/1> ) .      # optional route
+ * m:link-…  a arch-vis:Link ;
+ *         arch-vis:view m:view-… ;
+ *         arch-vis:archRelationship m:relationship-… ;
+ *         arch-vis:source m:node-… ; arch-vis:target m:node-… ;
+ *         arch-vis:points m:link-…-points-0 .         # optional route: m:link-…-p0, -p1 …
  * ```
+ *
+ * Nodes and links are minted in the view's model's namespace, like everything
+ * else in the model (`rdf-engine/iri.ts`).
  *
  * `arch:inView` is written with the node and removed with the last node of that
  * concept in the view, so the coarse membership fact and the geometry never
@@ -49,6 +52,7 @@
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { mintIri } from '../rdf-engine/iri.js';
+import { modelNamespace, viewNamespace } from './model-namespace.js';
 import type {
   Bounds,
   LinkInfo,
@@ -91,7 +95,7 @@ export class OxigraphViewManager implements ViewManager {
     viewpointIri?: string,
     options: { label?: string; modelIri?: string; iri?: string } = {},
   ): NamedNode {
-    const viewIri = options.iri ?? mintIri(options.modelIri ?? 'urn:la-gram:model', 'view');
+    const viewIri = options.iri ?? mintIri(modelNamespace(this.store, options.modelIri), 'view');
     const view = nn(viewIri);
     const quads: Quad[] = [
       triple(view, T.rdfType, T.View),
@@ -187,7 +191,7 @@ export class OxigraphViewManager implements ViewManager {
 
     const view = nn(viewIri);
     const element = nn(elementIri);
-    const nodeIri = mintIri(viewIri, 'node');
+    const nodeIri = mintIri(viewNamespace(this.store, viewIri), 'node');
     const node = nn(nodeIri);
     this.store.addQuads([
       triple(node, T.rdfType, T.ArchNode),
@@ -268,7 +272,7 @@ export class OxigraphViewManager implements ViewManager {
     if (!sourceNode || !targetNode) return undefined;
 
     const view = nn(viewIri);
-    const linkIri = mintIri(viewIri, 'link');
+    const linkIri = mintIri(viewNamespace(this.store, viewIri), 'link');
     const link = nn(linkIri);
     this.store.addQuads([
       triple(link, T.rdfType, T.Link),
@@ -424,8 +428,9 @@ export class OxigraphViewManager implements ViewManager {
   /** Write `waypoints` as an IRI-celled `rdf:List` of `arch-vis:Point`s. */
   private writePoints(link: NamedNode, waypoints: Point[]): void {
     const quads: Quad[] = [];
-    const cell = (i: number) => nn(`${link.value}/points/${i}`);
-    const point = (i: number) => nn(`${link.value}/p/${i}`);
+    // Named after the link, flat like every minted IRI: `m:link-…-points-0`, `m:link-…-p0`.
+    const cell = (i: number) => nn(`${link.value}-points-${i}`);
+    const point = (i: number) => nn(`${link.value}-p${i}`);
     quads.push(triple(link, T.points, cell(0)));
     waypoints.forEach((wp, i) => {
       quads.push(

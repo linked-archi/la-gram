@@ -34,13 +34,14 @@ const PORT = Number(process.env.PORT ?? process.env.HOCUSPOCUS_PORT ?? 1234);
 const DATA_DIR = path.resolve(process.env.DATA_DIR ?? path.join(here, '..', 'data', 'rooms'));
 const TRIPLES_MAP = 'triples';
 
-/** Prefixes for the Turtle snapshot. The `m:` prefix is added per model. */
+/** Prefixes for the Turtle snapshot. The model's own (`m:`) is added per model. */
 const PREFIXES = {
   rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
   rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
   xsd: 'http://www.w3.org/2001/XMLSchema#',
   skos: 'http://www.w3.org/2004/02/skos/core#',
   dcterms: 'http://purl.org/dc/terms/',
+  vann: 'http://purl.org/vocab/vann/',
   arch: 'https://meta.linked.archi/core#',
   'arch-vis': 'https://meta.linked.archi/core-vis#',
   am4: 'https://meta.linked.archi/archimate4/onto#',
@@ -65,13 +66,35 @@ function linesOf(document) {
   return [...document.getMap(TRIPLES_MAP).keys()].sort();
 }
 
+/**
+ * The model's namespace and prefix, as the editor reads them
+ * (`src/model-manager/model-namespace.ts`): the model's VANN statements, else
+ * derived from the model IRI.
+ */
+function modelNamespace(quads, model) {
+  const value = (local) =>
+    quads.find((q) => q.subject.value === model && q.predicate.value === PREFIXES.vann + local)?.object.value.trim();
+  const uri = value('preferredNamespaceUri');
+  const prefix = value('preferredNamespacePrefix');
+  let namespace;
+  if (uri) namespace = /[/#:]$/.test(uri) ? uri : `${uri}/`;
+  else if (/[/#]$/.test(model)) namespace = model;
+  else if (/[/#]model$/.test(model)) namespace = model.slice(0, -'model'.length);
+  else namespace = `${model}/`;
+  return { namespace, prefix: prefix && /^[A-Za-z]([\w.-]*[\w-])?$/.test(prefix) ? prefix : 'm' };
+}
+
 /** Turtle for a set of N-Triples lines. */
 function toTurtle(lines) {
   const quads = new Parser({ format: 'N-Triples', blankNodePrefix: '' }).parse(lines.map((l) => `${l} .`).join('\n'));
   const model = quads.find(
     (q) => q.predicate.value === PREFIXES.rdf + 'type' && q.object.value === PREFIXES.arch + 'Model',
   )?.subject.value;
-  const prefixes = { ...PREFIXES, ...(model ? { m: `${model.replace(/[/#]+$/, '')}/` } : {}) };
+  const prefixes = { ...PREFIXES };
+  if (model) {
+    const own = modelNamespace(quads, model);
+    prefixes[own.prefix] = own.namespace;
+  }
   return new Promise((resolve, reject) => {
     const writer = new Writer({ prefixes });
     for (const q of quads) writer.addQuad(q);

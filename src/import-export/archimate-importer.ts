@@ -42,6 +42,8 @@ import { DataFactory } from 'n3';
 import type { Term } from '@rdfjs/types';
 import type { ElementManager, Point, RelationshipManager, ViewManager } from '../model-manager/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { ensureNamespace } from '../rdf-engine/iri.js';
+import { derivedNamespace } from '../model-manager/model-namespace.js';
 
 /** The ArchiMate 3.2 ontology namespace exchange types map into. */
 export const ARCHIMATE_NS = 'https://meta.linked.archi/archimate3/onto#';
@@ -287,7 +289,13 @@ export interface ApplyExchangeDeps {
   knownClass?: (iri: string) => boolean;
   /** Resolve an exchange viewpoint name (`Layered`) to a viewpoint IRI. */
   viewpointFor?: (name: string) => string | undefined;
+  /** Namespace of the ArchiMate vocabulary the exchange types map into. */
   namespace?: string;
+  /**
+   * The model's namespace, where the imported concepts are named
+   * (`m:element-{exchange id}`); derived from `modelIri` when omitted.
+   */
+  modelNamespace?: string;
 }
 
 /** What {@link applyExchangeModel} did. */
@@ -350,7 +358,8 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
   };
   const unrecognized = new Set<string>();
   const iriOf = new Map<string, string>();
-  const base = deps.modelIri.replace(/[/#]+$/, '');
+  // Exchange identifiers are kept — a re-import names the same concepts alike.
+  const base = ensureNamespace(deps.modelNamespace ?? derivedNamespace(deps.modelIri));
   const literal = (value: string, lang?: string) =>
     DataFactory.literal(value, lang ?? model.lang ?? 'en') as unknown as Term;
 
@@ -359,7 +368,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       deps.elements.updateProperty(iri, NAMESPACES.skos + 'definition', literal(concept.documentation, concept.lang));
     }
     for (const prop of concept.properties) {
-      deps.elements.updateProperty(iri, `${base}/property/${slug(prop.name)}`, DataFactory.literal(prop.value) as unknown as Term);
+      deps.elements.updateProperty(iri, `${base}property-${slug(prop.name)}`, DataFactory.literal(prop.value) as unknown as Term);
     }
   };
 
@@ -370,7 +379,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       continue;
     }
     const iri = deps.elements.createElement(typeIri, deps.modelIri, {
-      iri: `${base}/element/${safeId(el.id)}`,
+      iri: `${base}element-${safeId(el.id)}`,
       label: el.name ?? el.type,
       ...(el.lang ?? model.lang ? { language: el.lang ?? model.lang } : {}),
     }).value;
@@ -398,7 +407,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
         i += 1;
         continue;
       }
-      const iri = `${base}/relationship/${safeId(rel.id)}`;
+      const iri = `${base}relationship-${safeId(rel.id)}`;
       if (deps.relationships.createQualifiedRelationship) {
         deps.relationships.createQualifiedRelationship({
           typeIri,
@@ -419,7 +428,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
 
   for (const view of model.views) {
     const viewIri = deps.views.createView('Diagram', view.viewpoint ? deps.viewpointFor?.(view.viewpoint) : undefined, {
-      iri: `${base}/view/${safeId(view.id)}`,
+      iri: `${base}view-${safeId(view.id)}`,
       label: view.name ?? 'View',
       modelIri: deps.modelIri,
     }).value;

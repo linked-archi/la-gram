@@ -10,8 +10,9 @@ import { DataFactory } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
 import type { TtlParser, TtlSerializer, RdfStore, PrefixMap } from '../rdf-engine/interfaces.js';
 import { NAMESPACES, PREFIXES } from '../rdf-engine/namespaces.js';
-import { mintModelIri, notationSlug } from '../rdf-engine/iri.js';
+import { mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
 import { modelQuads } from './model-queries.js';
+import { namespaceQuads } from './model-namespace.js';
 
 const { namedNode, literal, quad } = DataFactory;
 
@@ -57,12 +58,14 @@ export class ModelOperations {
   createModel(metamodelIri: string, label?: string): NamedNode {
     modelCounter += 1;
     // Random, not counted: a counter restarts with the process.
-    const modelIri = mintModelIri(undefined, notationSlug(metamodelIri));
+    const namespace = mintModelNamespace(undefined, notationSlug(metamodelIri));
+    const modelIri = modelIriIn(namespace);
     const subject = namedNode(modelIri) as unknown as NamedNode;
 
     const quads: Quad[] = [
       quad(subject as any, RDF_TYPE as any, ARCH_MODEL as any) as unknown as Quad,
       quad(subject as any, ARCH_CONFORMS as any, namedNode(metamodelIri) as any) as unknown as Quad,
+      ...namespaceQuads(modelIri, namespace),
     ];
 
     if (label !== undefined) {

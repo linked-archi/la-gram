@@ -94,7 +94,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 3. The label is editable in the property panel; the canvas and the tree follow
 4. Selecting an element (canvas or tree) shows it in the property panel: kind, type, IRI, properties, relationships, the views it appears in
 5. Properties are persisted with the element and included in every export
-6. Properties can be added as predicate IRI + value, with suggestions from the loaded ontologies; values can be removed (not the type, not the name)
+6. Properties can be added as predicate IRI + value, with suggestions from the loaded ontologies; values can be removed (not the type, not the name). The panel lists, in order: ID (the IRI), type, `inModel`, `prefLabel`, then every other property by label, set off by a divider — so an added property appears under the name. `arch:inView` is not listed: the views are in the toolbar and under "Appears in views"
 7. Deleting: **Delete from View** (the canvas default — Delete key, pad ×) removes the placement only; **Delete from Model** (pad ✖, tree menu) removes the element everywhere after a confirmation listing the views it appears in
 8. Delete from Model removes every relationship connected to the element, in every view
 9. Edit latency ≤ 16 ms per command
@@ -130,15 +130,15 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 #### Acceptance Criteria
 
 1. Export uses prefixed names where possible
-2. Prefixes derive from the loaded vocabularies' own `vann:preferredNamespacePrefix`/`Uri` declarations plus the standard ones and `m:` for the model; only prefixes used are written
+2. Prefixes derive from the loaded vocabularies' own `vann:preferredNamespacePrefix`/`Uri` declarations plus the standard ones and `m:` (or the prefix the model declares) for the model's namespace; only prefixes used are written. Every IRI la-gram mints is a flat name in the model's namespace, so the model is written as prefixed names (`m:model`, `m:element-…`, `m:view-…`, `m:node-…`, `m:link-…`)
 3. Labels are exported as language-tagged `skos:prefLabel`
 4. Properties are exported as written (`skos:definition` for descriptions)
 5. Relationships are exported in both forms (qualified resource and unqualified triple)
 6. View geometry is exported as `arch-vis:ArchNode`/`arch-vis:Link` with bounds and routes
-7. ~~Live preview panel~~ — *la-gram:* the SPARQL editor queries the live store instead; files are the export
+7. An **RDF panel** on the right shows the live model as it would be saved — hidden by default, toggled from the toolbar ("{ } RDF") or opened with `?rdf=1`; format selector (Turtle default), a "geometry" toggle (the no-geometry profile), counts (elements, relationships, views, triples), Copy and Download; syntax-highlighted; the selected concept's statements are highlighted and clicking a subject's statements selects it; it does no work while hidden and refreshes debounced while shown; resizable by its left edge (width remembered per browser)
 8. Save produces a download (browser) or a file (desktop)
 9. Formats: Turtle (default), TriG, JSON-LD, N-Quads, N-Triples, RDF/XML
-10. *la-gram:* formats that carry graphs use the Linked.Archi layout (DD-15): `{model}/graph/model`, `/graph/semantic`, `/graph/views`
+10. *la-gram:* formats that carry graphs use the Linked.Archi layout (DD-15): `{ns}graph/model`, `{ns}graph/semantic`, `{ns}graph/views`, `{ns}` being the model's namespace `{base}{notation}/{modelId}/`
 11. *la-gram:* a "without diagram geometry" profile drops the views graph but keeps views and `arch:inView` membership
 12. Only the model is exported — never the metamodel
 
@@ -209,7 +209,9 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 4. A relationship likewise
 5. A view presents a subset (`arch:inView`) with geometry (`arch-vis:*`); it conforms to a viewpoint (`arch:viewConformsToViewpoint`)
 6. The canvas shows one diagram view; changes project back to the model and the view
-7. Every resource has a stable IRI
+7. Every resource has a stable IRI, an HTTP(S) URI in the model's namespace
+7a. *la-gram:* each model has a namespace, stated on the model as `vann:preferredNamespaceUri` with its prefix as `vann:preferredNamespacePrefix` (`m` by default). New models get `{base}{notation}/{uuid}/` with base `https://example.org/` unless configured (`?base=`), shown and editable when the model is created
+7b. *la-gram:* **Model settings** edits the name, namespace and prefix; changing the namespace moves the model's existing IRIs into it (default) or applies only to IRIs minted from then on; namespaces must be absolute IRIs and prefixes must not stand for another namespace; collaborators follow the move
 8. Files: Turtle, TriG, JSON-LD, RDF/XML, N-Quads, N-Triples
 9. Collaborative rooms persist continuously on the server (debounced) as N-Triples plus a Turtle snapshot, and are readable over HTTP (`/rooms/<room>.ttl`)
 10. Committing a version is an explicit action — *not yet (Phase 2)*
@@ -252,10 +254,11 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 1. Left: palette (top) and model tree (bottom)
 2. Centre: the canvas with its tool strip (connect, lasso, hand), or a catalog/matrix view
 3. Top: the app toolbar — model name (rename; unsaved-changes dot), File, Metamodels, undo/redo, view selector + new view, viewpoint, presentation context, collaboration
-4. Right: the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views)
+4. Right: the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) — shown by default; hidden from its × or the toolbar's "ⓘ Properties" toggle
 5. Bottom: validation results and the SPARQL editor
-6. Panels hideable — *not yet*
-7. Panels resizable with persisted sizes — *not yet*
+5a. Far right, full height: the RDF panel (Req 5.7) — hidden by default
+6. Panels hideable — the right-hand side panels (property, RDF) are; the left sidebar and the bottom row *not yet*
+7. Panels resizable with persisted sizes — the side panels are, by dragging their left edge (width remembered per browser; the canvas keeps at least 240 px); the others *not yet*
 8. Selecting on the canvas updates the property panel and the tree
 9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, change type)
 10. Keyboard: Delete, Ctrl/Cmd+Z/Y, zoom; keys typed in panel fields never reach the canvas

@@ -31,6 +31,7 @@ export type ToolbarCommand =
   | 'export-svg'
   | 'export-png'
   | 'rename-model'
+  | 'model-settings'
   | 'open-view'
   | 'new-view'
   | 'set-viewpoint'
@@ -43,7 +44,9 @@ export type ToolbarCommand =
   | 'set-context'
   | 'share'
   | 'undo'
-  | 'redo';
+  | 'redo'
+  | 'toggle-properties'
+  | 'toggle-rdf';
 
 /** Detail of `toolbar-command`. */
 export interface ToolbarCommandDetail {
@@ -198,6 +201,25 @@ export class AppToolbar extends LitElement {
     .spacer {
       flex: 1 1 auto;
     }
+    button.toggle {
+      border: 1px solid #dadce0;
+      background: #fff;
+      font: inherit;
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #3c4043;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    button.toggle:hover {
+      background: #f1f3f4;
+    }
+    button.toggle[aria-pressed='true'] {
+      background: #e8f0fe;
+      border-color: #1a73e8;
+      color: #1a73e8;
+    }
     .collab {
       display: flex;
       align-items: center;
@@ -251,6 +273,10 @@ export class AppToolbar extends LitElement {
   @property({ attribute: false }) presentationContexts: LabelledIri[] = [];
   @property({ type: String }) activeContextIri = '';
   @property({ attribute: false }) collab: CollabIndicator = { status: 'off', peers: [] };
+  /** Whether the RDF panel is shown (the toggle's pressed state). */
+  @property({ type: Boolean }) rdfOpen = false;
+  /** Whether the property panel is shown (the "Properties" toggle is pressed). */
+  @property({ type: Boolean }) propertyOpen = true;
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | null = null;
 
@@ -308,6 +334,9 @@ export class AppToolbar extends LitElement {
       </button>
       <button data-command="import-archimate" @click=${() => this._cmd('import-archimate')}>
         Import ArchiMate exchange… <span class="hint">.xml</span>
+      </button>
+      <button data-command="model-settings" @click=${() => this._cmd('model-settings')}>
+        Model settings… <span class="hint">name, namespace</span>
       </button>
       <hr />
       <button data-command="save" @click=${() => this._cmd('save')}>Save <span class="hint">Turtle</span></button>
@@ -408,7 +437,7 @@ export class AppToolbar extends LitElement {
     return html`
       <span class="brand">la-gram</span>
       <span class="sep"></span>
-      <button class="model-name" title="Rename model" @click=${() => this._cmd('rename-model')}>
+      <button class="model-name" title="Model settings: name, namespace" @click=${() => this._cmd('model-settings')}>
         ${this.modelLabel}${this.dirty ? html`<span class="dirty" title="Unsaved changes">●</span>` : nothing}
       </button>
       <div class="menu-wrap">
@@ -474,6 +503,24 @@ export class AppToolbar extends LitElement {
           </label>`
         : nothing}
       <span class="spacer"></span>
+      <button
+        class="toggle"
+        data-command="toggle-properties"
+        aria-pressed=${this.propertyOpen ? 'true' : 'false'}
+        title=${this.propertyOpen ? 'Hide the property panel' : 'Show the selected element or view on the right'}
+        @click=${() => this._cmd('toggle-properties')}
+      >
+        ⓘ Properties
+      </button>
+      <button
+        class="toggle"
+        data-command="toggle-rdf"
+        aria-pressed=${this.rdfOpen ? 'true' : 'false'}
+        title=${this.rdfOpen ? 'Hide the RDF panel' : 'Show the model as RDF (Turtle) on the right'}
+        @click=${() => this._cmd('toggle-rdf')}
+      >
+        { } RDF
+      </button>
       ${this._collab()}
     `;
   }

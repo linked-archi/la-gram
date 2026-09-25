@@ -163,7 +163,8 @@ describe('the canvas in view mode', () => {
     const f = mount();
     const iri = f.createOnCanvas(COMPONENT, 'Order Service', { x: 200, y: 100 });
 
-    expect(iri).toMatch(new RegExp(`^${f.modelIri}/element/`));
+    // Minted in the model's namespace, `{ns}model` → `{ns}element-…`.
+    expect(iri).toMatch(new RegExp(`^${f.modelIri.replace(/model$/, '')}element-`));
     expect(labelOf(f.store, iri)).toBe('Order Service');
     // The node agrees with the drawn shape (centred on the drop point).
     expect(f.views.getNode(f.viewIri, iri)?.bounds).toEqual(f.canvas.getElement(iri)?.bounds);
@@ -328,7 +329,7 @@ describe('the canvas in view mode', () => {
     ).connect(registry.get(a), registry.get(b));
 
     const relIri = connection.businessObject.iri;
-    expect(relIri).toMatch(new RegExp(`^${f.modelIri}/relationship/`));
+    expect(relIri).toMatch(new RegExp(`^${f.modelIri.replace(/model$/, '')}relationship-`));
     expect(f.store.getQuads(nn(relIri), nn(NAMESPACES.arch + 'source')).map((q) => q.object.value)).toEqual([a]);
     const [link] = f.views.getLinks(f.viewIri);
     expect(link.relationshipIri).toBe(relIri);

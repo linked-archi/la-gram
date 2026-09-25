@@ -37,7 +37,7 @@ describe('ModelOperations', () => {
     it('returns a NamedNode with a unique model IRI', () => {
       const model = ops.createModel(metamodelIri);
       expect(model.termType).toBe('NamedNode');
-      expect(model.value).toMatch(/^urn:la-gram:archimate\/[0-9a-f-]{36}$/);
+      expect(model.value).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/model$/);
     });
 
     it('adds rdf:type arch:Model triple', () => {
@@ -67,12 +67,12 @@ describe('ModelOperations', () => {
       expect(labelQuads).toHaveLength(0);
     });
 
-    it('creates exactly 2 triples without label, 3 with label', () => {
+    it('creates exactly 4 triples without label (type, conformance, namespace, prefix), 5 with label', () => {
       const noLabel = ops.createModel(metamodelIri);
-      expect(store.getQuads(noLabel)).toHaveLength(2);
+      expect(store.getQuads(noLabel)).toHaveLength(4);
 
       const withLabel = ops.createModel(metamodelIri, 'Test');
-      expect(store.getQuads(withLabel)).toHaveLength(3);
+      expect(store.getQuads(withLabel)).toHaveLength(5);
     });
 
     it('generates unique IRIs for successive models', () => {
@@ -159,8 +159,8 @@ describe('ModelOperations', () => {
       const ops2 = new ModelOperations(parser, serializer, store2);
       const result = ops2.loadModel(ttl);
 
-      expect(result.modelIri).toMatch(/^urn:la-gram:archimate\//);
-      expect(result.quadCount).toBe(3); // type + conformsTo + label
+      expect(result.modelIri).toMatch(/^https:\/\/example\.org\/archimate\//);
+      expect(result.quadCount).toBe(5); // type + conformsTo + label + namespace + prefix
 
       // Verify the triples are present
       const modelNode = nn(result.modelIri!);

@@ -14,6 +14,9 @@ rules, the notation and the validation all come from data.
 - **Files** — Turtle, TriG (per-layer graphs), JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG export.
 - **Collaboration** — real-time rooms (Yjs over Hocuspocus) that share the model's triples; presence and soft locks.
 - **Undo everywhere** — every canvas change, including placements and model-level deletes.
+- **See the RDF** — the "{ } RDF" toggle opens a panel on the right with the live model as Turtle (or any other format), exactly as it would be saved.
+- **Room for the canvas** — the property panel and the RDF panel hide (their × or the toolbar toggles) and resize by dragging their left edge; widths are remembered.
+- **Your namespace** — every IRI is an HTTP URI in the model's namespace, written as `m:element-…`, `m:view-…`. New models start under the placeholder `https://example.org/`; **Model settings** (click the model name) sets your own namespace and prefix and moves the model into it.
 
 ## Run
 
@@ -33,6 +36,8 @@ Then open http://localhost:8080. Useful URL parameters:
 | `assets` | `?assets=remote-first` | `bundled-first` (default), `remote-first`, `offline` |
 | `model` | `?model=https://example.org/shop.ttl` | open a model file by URL |
 | `room` / `ws` / `user` | `?room=shop&user=Ana` | join a collaboration room |
+| `rdf` | `?rdf=1` | start with the RDF panel open |
+| `base` | `?base=https://acme.com/ea/` | base for new models' namespaces (`{base}{notation}/{uuid}/`), `https://example.org/` by default |
 
 Desktop: `npm run build:electron && npm run electron`.
 

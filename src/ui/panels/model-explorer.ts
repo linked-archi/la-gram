@@ -67,6 +67,7 @@ export type ExplorerActivateDetail = ExplorerSelectDetail;
 /** Context-menu actions, by row kind. */
 export type ExplorerAction =
   | 'rename-model'
+  | 'model-settings'
   | 'new-diagram'
   | 'new-catalog'
   | 'new-matrix'
@@ -224,6 +225,7 @@ export function actionsFor(node: TreeNode): Array<{ action: ExplorerAction; labe
     case 'model':
       return [
         { action: 'rename-model', label: 'Rename model…' },
+        { action: 'model-settings', label: 'Model settings…' },
         { action: 'new-diagram', label: 'New diagram view' },
         { action: 'new-catalog', label: 'New catalog view' },
         { action: 'new-matrix', label: 'New matrix view' },

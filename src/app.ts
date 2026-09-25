@@ -56,6 +56,8 @@ import { OxigraphViewManager } from './model-manager/view-manager.js';
 import { ModelOperations } from './model-manager/model-operations.js';
 import { ModelSession, type AdoptResult } from './model-manager/model-session.js';
 import { labelOf, modelQuads } from './model-manager/model-queries.js';
+import { isValidPrefix } from './model-manager/model-namespace.js';
+import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from './rdf-engine/iri.js';
 
 // Platform
 import type { PlatformService } from './platform/interfaces.js';
@@ -120,6 +122,8 @@ export interface AppExtras {
   validationDelayMs?: number;
   /** Metamodels loaded at startup after the primary one. */
   additionalMetamodels?: LoadedMetamodel[];
+  /** Base new models' namespaces are minted under; `https://example.org/` by default. */
+  base?: string;
 }
 
 /** A model file ready to hand to the platform's save dialog. */
@@ -179,7 +183,7 @@ export class App {
       components.elementManager,
       components.viewManager,
       components.eventBus,
-      { relationships: components.relationshipManager },
+      { relationships: components.relationshipManager, base: extras.base ?? DEFAULT_MODEL_BASE },
     );
     this.modelIO = new ModelIO(components.store);
     this.wireEvents();
@@ -302,14 +306,55 @@ export class App {
 
   // ── Model ──────────────────────────────────────────────────────────────
 
-  /** Start a fresh model conforming to the loaded metamodels. */
-  newModel(label?: string): { modelIri: string; viewIri: string } {
+  /**
+   * Start a fresh model conforming to the loaded metamodels.
+   *
+   * @param options.namespace The model's namespace; a fresh one under the
+   *   configured base ({@link suggestNamespace}) when omitted.
+   */
+  newModel(label?: string, options: { namespace?: string; prefix?: string } = {}): { modelIri: string; viewIri: string } {
     const result = this.session.newModel({
       ...(label ? { label } : {}),
+      ...(options.namespace ? { namespace: options.namespace } : {}),
+      ...(options.prefix ? { prefix: options.prefix } : {}),
       metamodelIris: this.metamodels.map((m) => m.metamodelIri),
     });
     this.scheduleValidation();
     return result;
+  }
+
+  /** A fresh namespace for a new model: `{base}{notation}/{uuid}/`. */
+  suggestNamespace(): string {
+    return mintModelNamespace(this.session.base, notationSlug(this.metamodels[0]?.metamodelIri));
+  }
+
+  /**
+   * What is wrong with a namespace and prefix for the model, or `null`.
+   * The prefix must be a Turtle prefix name and not already stand for another
+   * namespace in the output (`am4:`, `skos:`, …).
+   */
+  namespaceProblem(namespace: string, prefix: string): string | null {
+    const problem = namespaceProblem(namespace);
+    if (problem) return problem;
+    if (!isValidPrefix(prefix.trim())) return 'The prefix must start with a letter and use only letters, digits, - and _.';
+    const ns = ensureNamespace(namespace);
+    const bound = this.modelIO.collectPrefixes()[prefix.trim()];
+    if (bound && bound !== ns) return `The prefix "${prefix.trim()}" already stands for ${bound}.`;
+    return null;
+  }
+
+  /**
+   * Change the model's namespace (and prefix). With `rename` (the default) the
+   * model's IRIs move into the new namespace; see `ModelSession.setNamespace`.
+   *
+   * @returns How many IRIs changed.
+   */
+  setModelNamespace(namespace: string, options: { prefix?: string; rename?: boolean } = {}): number {
+    const problem = this.namespaceProblem(namespace, options.prefix ?? this.session.namespace()?.prefix ?? 'm');
+    if (problem) throw new Error(problem);
+    const changed = this.session.setNamespace(namespace, options);
+    this.scheduleValidation();
+    return changed.size;
   }
 
   /**
@@ -376,6 +421,7 @@ export class App {
       relationships: this.components.relationshipManager,
       views: this.components.viewManager,
       modelIri,
+      ...(this.session.namespace() ? { modelNamespace: this.session.namespace()!.namespace } : {}),
       knownClass: (iri) => store.getQuads(namedNode(iri) as unknown as NamedNode, RDF_TYPE, OWL_CLASS).length > 0,
       viewpointFor: (name) => this.findViewpointByName(name),
     });
@@ -601,6 +647,12 @@ export interface CreateAppOptions {
   validationDelayMs?: number;
   /** Start a new, empty model (default true). */
   newModel?: boolean;
+  /**
+   * Base new models' namespaces are minted under (`{base}{notation}/{uuid}/`);
+   * `https://example.org/` by default. Each model records its own namespace,
+   * which can be changed afterwards.
+   */
+  base?: string;
 }
 
 /**
@@ -676,6 +728,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
       uploaded,
       validationDelayMs: options.validationDelayMs ?? 0,
       additionalMetamodels: loaded.slice(1),
+      ...(options.base && !namespaceProblem(options.base) ? { base: ensureNamespace(options.base) } : {}),
     },
   );
   if (options.newModel !== false) app.newModel();

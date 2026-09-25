@@ -15,6 +15,8 @@
  * | `room`       | Collaboration room to join (see `collab/`)                     |
  * | `ws`         | Collaboration server, `ws://localhost:1234` by default         |
  * | `user`       | Display name shown to collaborators                            |
+ * | `rdf`        | `1` to start with the RDF panel open (hidden by default)       |
+ * | `base`       | Base new models' namespaces are minted under, `https://example.org/` by default |
  */
 import { createApp } from './app.js';
 import { mountUi } from './ui/mount-ui.js';
@@ -35,10 +37,11 @@ async function bootstrap(): Promise<void> {
   const app = await createApp({
     ...(metamodels.length > 0 ? { metamodels } : {}),
     ...(assetMode ? { assetMode } : {}),
+    ...(params.get('base') ? { base: params.get('base') as string } : {}),
     validationDelayMs: 300,
   });
   const root = document.getElementById('app') ?? document.body;
-  const ui = mountUi(app, root);
+  const ui = mountUi(app, root, { rdfOpen: params.get('rdf') === '1' });
 
   // The metamodels are already in the store; announcing them now — after the
   // panels have subscribed — is what fills the palette. Nothing happens if the

@@ -27,6 +27,7 @@ graph TB
             Props["property-panel"]
             Bottom["validation-panel · sparql-editor"]
             Alt["catalog-view · matrix-view"]
+            Rdf["rdf-panel (hidden by default)<br/>live Turtle / TriG / JSON-LD …"]
         end
         Mount["mount-ui — wiring, commands, dialogs"]
         subgraph Core["App — src/app.ts"]
@@ -81,16 +82,47 @@ One placement per element per view (the canvas keys shapes by element IRI).
 
 ### IRIs
 
-UUID-based, minted at creation, never changed (`rdf-engine/iri.ts`):
+UUID-based, minted at creation, never changed by editing (`rdf-engine/iri.ts`).
+A model owns a **namespace**, `{base}{notation}/{modelId}/` (DD-15/DD-29), and
+everything minted for it is a flat local name in it — flat because a Turtle
+prefixed name cannot contain `/`, so the whole model is written with `m:`:
 
 ```
-{base}{notation}/{uuid}            model        (base: urn:la-gram: unless configured)
-{model}/element/{uuid}             element
-{model}/relationship/{uuid}        relationship
-{model}/view/{uuid}                view
-{view}/node/{uuid}                 ArchNode
-{view}/link/{uuid}                 Link          {link}/points/{i}, {link}/p/{i}
+{base}{notation}/{uuid}/           namespace     (base: https://example.org/ unless configured)
+{ns}model                          model         m:model
+{ns}element-{uuid}                 element       m:element-…
+{ns}relationship-{uuid}            relationship  m:relationship-…
+{ns}view-{uuid}                    view          m:view-…
+{ns}node-{uuid}                    ArchNode      m:node-…
+{ns}link-{uuid}                    Link          m:link-…   route: {link}-points-{i} (cells), {link}-p{i} (points)
 ```
+
+The namespace is stated on the model with the VANN properties the Linked.Archi
+ontologies use for their own (`model-manager/model-namespace.ts`):
+
+```turtle
+m:model a arch:Model ;
+    vann:preferredNamespacePrefix "m" ;
+    vann:preferredNamespaceUri "https://example.org/archimate/3f2c…/" .
+```
+
+A model that states none (an older file, another tool's) gets a derived one:
+`{ns}` for `{ns}model`, else the model IRI plus `/` — where earlier versions of
+la-gram minted (`urn:la-gram:archimate/{uuid}/element/{uuid}`).
+
+**Configuring it.** The base for new models is `https://example.org/` (a
+placeholder domain) unless `createApp({ base })` / `?base=` says otherwise; New
+model shows the namespace it will use and lets it be edited. **Model settings**
+(the model name in the toolbar, File menu, tree menu) edits name, namespace and
+prefix. Changing the namespace **moves** the model's IRIs into it by default:
+every IRI in the model data under the old namespace is rewritten under the new
+one, keeping its local name with any `/` turned into `-` (so legacy IRIs become
+prefixable), and `arch:Model` becomes `{ns}model`. Terms a loaded vocabulary
+defines are never renamed. The move is one store change — one Yjs update —
+and a collaborator's session follows it to the same view under its new IRI
+(`ModelSession.resync`). Unticking "move" keeps existing IRIs and mints only new
+ones in the new namespace. The canvas re-opens the view, which starts a fresh
+undo history, so the move itself is not undoable.
 
 No blank nodes are minted: geometry is synchronised triple by triple, and a blank
 node has no identity outside its store.
@@ -103,10 +135,14 @@ swapped without touching the model and lets files contain only the model. At
 rest, formats that carry graphs use DD-15:
 
 ```
-{model}/graph/model       the arch:Model resource
-{model}/graph/semantic    elements, relationships, views, membership
-{model}/graph/views       arch-vis geometry only
+{ns}graph/model       the arch:Model resource
+{ns}graph/semantic    elements, relationships, views, membership
+{ns}graph/views       arch-vis geometry only
 ```
+
+With `{ns}` = `{base}{notation}/{modelId}/`, these are exactly DD-15's graph
+IRIs. (The model resource itself is `{ns}model` rather than DD-15's
+`{base}{notation}/{modelId}`, so that it too is a prefixed name, `m:model`.)
 
 Loading flattens every quad into the default graph.
 
@@ -165,6 +201,29 @@ property panel, opening a file — reach the canvas as `model-changed` events, a
 (add / remove / move / relabel / re-route) **without** the command stack, so they
 never appear in the undo history. Markers (viewpoint, validation, remote
 selection, lock) are kept per concept and re-applied to shapes drawn later.
+
+### Side panels
+
+The shell's two right-hand columns — the property panel and the RDF panel — are
+*side panels* (`app-shell.ts`): each column's width is a CSS variable that is
+0 while the panel is hidden, and each has a drag handle on its left edge. Widths
+are clamped (property ≥ 220 px, RDF ≥ 280 px, and the canvas keeps ≥ 240 px) and
+remembered per browser in `localStorage`. The property panel is shown by default
+and hidden from its × or the toolbar's "ⓘ Properties" toggle; the RDF panel is
+hidden by default. A `ResizeObserver` on the canvas host tells diagram-js
+(`canvas.resized()`) whenever a side panel changes the canvas's size.
+
+### RDF panel
+
+`rdf-panel` shows the model exactly as Save would write it: its text comes from
+`App.saveModel` (so from `ModelIO`), in any of the six formats, with or without
+geometry. It is hidden by default (the shell's fourth column is 0 wide) and does
+no work while hidden; while shown it re-serializes on model events, debounced
+250 ms. Highlighting is a line tokenizer producing one HTML string, assigned
+once per change — cheaper than an editor component for a read-only view of a
+possibly large file — and it wraps each subject's statements in a block keyed by
+the subject IRI, which is what lets the panel highlight the selected concept and
+turn a click on statements into a selection.
 
 ### Validation
 

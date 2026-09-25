@@ -105,7 +105,8 @@ describe('ModelSession', () => {
       label: 'Order Platform',
       metamodelIris: ['https://meta.linked.archi/archimate4/metamodel#ArchiMate4'],
     });
-    expect(modelIri).toMatch(/^urn:la-gram:archimate\/[0-9a-f-]{36}$/);
+    expect(modelIri).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/model$/);
+    expect(session.namespace()).toEqual({ namespace: modelIri.replace(/model$/, ''), prefix: 'm', declared: true });
     expect(session.modelLabel()).toBe('Order Platform');
     expect(session.metamodelIris()).toEqual(['https://meta.linked.archi/archimate4/metamodel#ArchiMate4']);
     expect(session.activeViewIri).toBe(viewIri);

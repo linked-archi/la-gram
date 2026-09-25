@@ -63,7 +63,8 @@ import type {
 } from './interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scope.js';
-import { mintIri, uuid } from '../rdf-engine/iri.js';
+import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
+import { modelNamespace } from './model-namespace.js';
 import {
   collectRelationshipQuads,
   relationshipClassOf,
@@ -394,7 +395,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     // Qualified relationship resource. Random, not counted: a counter restarts
     // with the process and would reuse an IRI already in a loaded model.
     qrCounter += 1;
-    const qrIri = `${sourceIri}/qr-${uuid()}`;
+    const qrIri = mintIri(namespaceOfIri(sourceIri), 'relationship');
     const qrNode = namedNode(qrIri) as unknown as NamedNode;
 
     const quads: Quad[] = [
@@ -478,7 +479,9 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     }
     if (predicateIri === classIri && !this.isProperty(predicateIri)) predicateIri = undefined;
 
-    const iri = request.iri ?? mintIri(request.modelIri ?? sourceIri, 'relationship');
+    const iri =
+      request.iri ??
+      mintIri(request.modelIri ? modelNamespace(this.store, request.modelIri) : namespaceOfIri(sourceIri), 'relationship');
     const rel = nn(iri);
     const quads: Quad[] = [
       triple(rel, T.rdfType, nn(classIri)),

@@ -9,19 +9,33 @@
  * here touches the canvas directly.
  *
  * ```turtle
- * <model> a arch:Model ;
+ * m:model a arch:Model ;
  *     skos:prefLabel "Order Platform"@en ;
+ *     vann:preferredNamespacePrefix "m" ;
+ *     vann:preferredNamespaceUri "https://example.org/archimate/3f2c…/" ;
  *     arch:modelConformsToMetamodel am4mm:ArchiMate4 ;
  *     dcterms:created "2026-09-25T…"^^xsd:dateTime .
  * ```
+ *
+ * The namespace is where every IRI of the model is minted (see
+ * `model-namespace.ts`); a new model gets one under the configured base,
+ * `https://example.org/` by default.
  */
 
 import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
-import { DEFAULT_MODEL_BASE, mintModelIri, notationSlug } from '../rdf-engine/iri.js';
+import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
 import type { ElementManager, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
 import { migrateLegacyModel, type MigrationReport } from './legacy-migration.js';
 import { classify, findModelIri, labelOf, modelQuads, typeClosure } from './model-queries.js';
+import {
+  DEFAULT_MODEL_PREFIX,
+  declaredNamespaceQuads,
+  namespaceQuads,
+  planNamespaceChange,
+  readModelNamespace,
+  type ModelNamespace,
+} from './model-namespace.js';
 import { IRI, T, dateTimeLiteral, langLiteral, nn, triple } from './vocabulary.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
@@ -47,6 +61,8 @@ export interface AdoptResult {
 export class ModelSession {
   private currentModel: string | undefined;
   private currentView: string | undefined;
+  /** The model's namespace when it was last looked at — kept to follow a remote rename. */
+  private currentNamespace: string | undefined;
 
   constructor(
     private readonly store: RdfStore,
@@ -55,6 +71,11 @@ export class ModelSession {
     private readonly events?: SessionEvents,
     private readonly options: { base?: string; relationships?: RelationshipManager } = {},
   ) {}
+
+  /** Base new models are minted under; `https://example.org/` unless configured. */
+  get base(): string {
+    return this.options.base ?? DEFAULT_MODEL_BASE;
+  }
 
   /** IRI of the `arch:Model` being edited. */
   get modelIri(): string | undefined {
@@ -71,6 +92,11 @@ export class ModelSession {
     return this.currentModel ? labelOf(this.store, this.currentModel) : 'Untitled model';
   }
 
+  /** The model's namespace and prefix (what `m:` stands for). */
+  namespace(): ModelNamespace | undefined {
+    return this.currentModel ? readModelNamespace(this.store, this.currentModel) : undefined;
+  }
+
   /** The metamodels the model declares conformance to. */
   metamodelIris(): string[] {
     if (!this.currentModel) return [];
@@ -85,30 +111,40 @@ export class ModelSession {
     if (quads.length > 0) this.store.removeQuads(quads);
     this.currentModel = undefined;
     this.currentView = undefined;
+    this.currentNamespace = undefined;
   }
 
   /**
    * Start a fresh model with one empty diagram view.
    *
    * @param options.metamodelIris Conformance statements to write.
-   * @param options.base IRI base; `urn:la-gram:` unless configured.
+   * @param options.namespace The model's namespace; minted under `base` when omitted.
+   * @param options.base Base to mint the namespace under; the session's otherwise.
+   * @param options.prefix Prefix for the namespace, `m` by default.
    */
-  newModel(options: { label?: string; metamodelIris?: string[]; base?: string } = {}): {
+  newModel(
+    options: { label?: string; metamodelIris?: string[]; base?: string; namespace?: string; prefix?: string } = {},
+  ): {
     modelIri: string;
     viewIri: string;
   } {
     this.clearModelData();
     const metamodels = options.metamodelIris ?? [];
-    const modelIri = mintModelIri(options.base ?? this.options.base ?? DEFAULT_MODEL_BASE, notationSlug(metamodels[0]));
+    const namespace = options.namespace?.trim()
+      ? ensureNamespace(options.namespace)
+      : mintModelNamespace(options.base ?? this.base, notationSlug(metamodels[0]));
+    const modelIri = modelIriIn(namespace);
     const model = nn(modelIri);
     const quads: Quad[] = [
       triple(model, T.rdfType, T.Model),
       triple(model, T.prefLabel, langLiteral(options.label?.trim() || 'Untitled model')),
+      ...namespaceQuads(modelIri, namespace, options.prefix?.trim() || DEFAULT_MODEL_PREFIX),
       triple(model, nn(IRI.dctermsCreated), dateTimeLiteral()),
       ...metamodels.map((mm) => triple(model, T.modelConformsToMetamodel, nn(mm))),
     ];
     this.store.addQuads(quads);
     this.currentModel = modelIri;
+    this.currentNamespace = namespace;
     const viewIri = this.views.createView('Diagram', undefined, { label: DEFAULT_VIEW_LABEL, modelIri }).value;
     this.currentView = viewIri;
     this.events?.emit('model-loaded', { modelIri, viewIri, fresh: true });
@@ -141,15 +177,18 @@ export class ModelSession {
     };
 
     if (!modelIri) {
-      modelIri = mintModelIri(this.options.base ?? DEFAULT_MODEL_BASE, notationSlug(options.metamodelIris?.[0]));
+      const namespace = mintModelNamespace(this.base, notationSlug(options.metamodelIris?.[0]));
+      modelIri = modelIriIn(namespace);
       const model = nn(modelIri);
       this.store.addQuads([
         triple(model, T.rdfType, T.Model),
         triple(model, T.prefLabel, langLiteral(options.fallbackLabel?.trim() || 'Imported model')),
+        ...namespaceQuads(modelIri, namespace),
         ...(options.metamodelIris ?? []).map((mm) => triple(model, T.modelConformsToMetamodel, nn(mm))),
       ]);
     }
     this.currentModel = modelIri;
+    this.currentNamespace = readModelNamespace(this.store, modelIri).namespace;
 
     const migration = migrateLegacyModel(this.store, { viewManager: this.views, defaultView: ensureDefaultView });
     this.ensureMembership(modelIri);
@@ -175,6 +214,83 @@ export class ModelSession {
     this.store.addQuads([triple(model, T.prefLabel, langLiteral(label.trim()))]);
     this.touch();
     this.events?.emit('model-changed', { renamed: true });
+  }
+
+  /**
+   * Set the model's namespace (and prefix).
+   *
+   * With `rename` (the default) the model's existing IRIs move into the new
+   * namespace — see {@link planNamespaceChange} — and the canvas re-opens the
+   * same view under its new IRI. Without it only IRIs minted from now on use
+   * the new namespace. Either way it is one store change, so collaborators
+   * receive it as one update and follow it ({@link resync}).
+   *
+   * @returns The IRIs that changed, old → new.
+   */
+  setNamespace(namespace: string, options: { prefix?: string; rename?: boolean } = {}): Map<string, string> {
+    const modelIri = this.currentModel;
+    if (!modelIri) return new Map();
+    const current = readModelNamespace(this.store, modelIri);
+    const target = ensureNamespace(namespace);
+    const prefix = options.prefix?.trim() || current.prefix;
+    const plan =
+      options.rename === false
+        ? { mapping: new Map<string, string>(), remove: [], add: [] }
+        : planNamespaceChange(this.store, modelIri, current.namespace, target);
+    const nextModel = plan.mapping.get(modelIri) ?? modelIri;
+    const stale = declaredNamespaceQuads(this.store, modelIri);
+    const unchanged = plan.mapping.size === 0 && current.declared && current.namespace === target && current.prefix === prefix;
+    if (unchanged) return plan.mapping;
+
+    this.batch(() => {
+      const removed = [...stale, ...plan.remove];
+      if (removed.length > 0) this.store.removeQuads(removed);
+      this.store.addQuads([...plan.add, ...namespaceQuads(nextModel, target, prefix)]);
+      this.currentModel = nextModel;
+      this.touch();
+    });
+    this.currentNamespace = target;
+    const nextView = this.currentView ? plan.mapping.get(this.currentView) : undefined;
+    if (nextView) this.currentView = nextView;
+
+    if (plan.mapping.size > 0) {
+      // Every IRI on the canvas may have changed: re-open the view.
+      this.events?.emit('model-loaded', { modelIri: nextModel, viewIri: this.currentView, renamed: true });
+    }
+    this.events?.emit('model-changed', { namespace: target });
+    return plan.mapping;
+  }
+
+  /**
+   * Follow a change made elsewhere (a collaborator) that replaced the model
+   * resource — a namespace change, or a new model. Re-points the session at the
+   * model now in the store and at the same view under its new IRI when there is
+   * one, then emits `model-loaded`.
+   *
+   * @returns Whether anything was re-pointed.
+   */
+  resync(): boolean {
+    const modelIri = this.currentModel;
+    if (!modelIri) return false;
+    const stillThere = this.store
+      .getQuads(nn(modelIri), T.rdfType, T.Model)
+      .some((q) => q.graph.termType === 'DefaultGraph');
+    if (stillThere) return false;
+    const next = findModelIri(this.store);
+    if (!next) return false;
+
+    const namespace = readModelNamespace(this.store, next).namespace;
+    const previous = this.currentNamespace;
+    let view: string | undefined;
+    if (this.currentView && previous && this.currentView.startsWith(previous)) {
+      const local = this.currentView.slice(previous.length);
+      view = [`${namespace}${local.replace(/\//g, '-')}`, `${namespace}${local}`].find((iri) => this.views.getView(iri));
+    }
+    this.currentModel = next;
+    this.currentNamespace = namespace;
+    this.currentView = view ?? this.views.getViews().find((v) => v.type === 'Diagram')?.iri ?? this.views.getViews()[0]?.iri;
+    this.events?.emit('model-loaded', { modelIri: next, viewIri: this.currentView, remote: true });
+    return true;
   }
 
   /** Replace the model's metamodel conformance statements. */
@@ -248,6 +364,13 @@ export class ModelSession {
   // ── Internals ──────────────────────────────────────────────────────────
 
   /** Stamp `dcterms:modified`. */
+  /** One change notification for `fn`'s edits, when the store can batch. */
+  private batch(fn: () => void): void {
+    const batching = this.store as RdfStore & { batch?: <R>(f: () => R) => R };
+    if (typeof batching.batch === 'function') batching.batch(fn);
+    else fn();
+  }
+
   private touch(): void {
     if (!this.currentModel) return;
     const model = nn(this.currentModel);

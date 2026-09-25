@@ -49,6 +49,8 @@ export interface PropertyEntry {
   language?: string;
   /** The value is an IRI (a link to another resource), not a literal. */
   isIri?: boolean;
+  /** Listed after the leading fields (type, inModel, prefLabel): a property the modeller added. */
+  custom?: boolean;
 }
 
 /** Detail emitted when a property value is edited. */
@@ -102,6 +104,18 @@ const TEXT_PREDICATES = new Set([
   NAMESPACES.dcterms + 'title',
   NAMESPACES.dcterms + 'description',
 ]);
+
+/**
+ * The fields listed first, in this order, under the ID row: what the concept
+ * is, which model it belongs to, and its name. Everything else follows.
+ */
+const LEADING_FIELDS = [RDF_TYPE, NAMESPACES.arch + 'inModel', SKOS_PREF_LABEL];
+
+/**
+ * Not listed: the views a concept is in are in the toolbar and under
+ * "Appears in views", so an `arch:inView` row per view repeats them.
+ */
+const HIDDEN_FIELDS = new Set([NAMESPACES.arch + 'inView']);
 
 /** SHACL property constraint extracted from a shapes graph. */
 export interface ShaclPropertyShape {
@@ -177,11 +191,13 @@ function iriLabel(iri: string): string {
 /**
  * Builds the list of PropertyEntry objects for a given element IRI
  * by querying the RDF store and optionally enriching with SHACL shape info.
+ *
+ * Order: type, inModel, prefLabel ({@link LEADING_FIELDS}), then every other
+ * property by label — so a property the modeller adds appears under the name.
+ * `arch:inView` is left out ({@link HIDDEN_FIELDS}). The panel shows the ID
+ * (the IRI) above them all.
  */
-export function buildPropertyEntries(
-  quads: Quad[],
-  shaclShapes: ShaclPropertyShape[],
-): PropertyEntry[] {
+export function buildPropertyEntries(quads: Quad[], shaclShapes: ShaclPropertyShape[]): PropertyEntry[] {
   const shapeMap = new Map<string, ShaclPropertyShape>();
   for (const s of shaclShapes) shapeMap.set(s.path, s);
 
@@ -189,12 +205,14 @@ export function buildPropertyEntries(
 
   for (const q of quads) {
     const predicate = q.predicate.value;
+    if (HIDDEN_FIELDS.has(predicate)) continue;
     const value = q.object.value;
     const isType = predicate === RDF_TYPE;
     const shape = shapeMap.get(predicate);
 
     const isIri = q.object.termType === 'NamedNode';
     const language = (q.object as { language?: string }).language || undefined;
+    const custom = !LEADING_FIELDS.includes(predicate);
     entries.push({
       predicate,
       label: shape?.name ?? iriLabel(predicate),
@@ -207,21 +225,20 @@ export function buildPropertyEntries(
       maxCount: shape?.maxCount,
       ...(language ? { language } : {}),
       ...(isIri ? { isIri } : {}),
+      ...(custom ? { custom } : {}),
     });
   }
 
-  // Sort: rdf:type first, then skos:prefLabel, skos:definition, then alphabetical
-  const order = [RDF_TYPE, SKOS_PREF_LABEL, SKOS_DEFINITION];
-  entries.sort((a, b) => {
-    const ai = order.indexOf(a.predicate);
-    const bi = order.indexOf(b.predicate);
-    const aw = ai >= 0 ? ai : order.length;
-    const bw = bi >= 0 ? bi : order.length;
-    if (aw !== bw) return aw - bw;
-    return a.label.localeCompare(b.label);
-  });
+  const rank = (entry: PropertyEntry): number =>
+    entry.custom ? LEADING_FIELDS.length : LEADING_FIELDS.indexOf(entry.predicate);
+  entries.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label) || a.value.localeCompare(b.value));
 
   return entries;
+}
+
+/** The header's ×: asks the host to hide the panel (`property-close`). */
+function closeButton(onClose: () => void) {
+  return html`<button class="close" title="Hide the property panel" @click=${onClose}>×</button>`;
 }
 
 @customElement('property-panel')
@@ -257,6 +274,11 @@ export class PropertyPanel extends LitElement {
       flex-direction: column;
       padding: 6px 12px;
       border-bottom: 1px solid #f0f0f0;
+    }
+
+    /* Sets the properties a modeller added off from the fields above. */
+    .property-row.first-added {
+      border-top: 1px solid #dadce0;
     }
 
     .property-label {
@@ -303,6 +325,23 @@ export class PropertyPanel extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
+    }
+
+    button.close {
+      margin-left: auto;
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 2px;
+      color: #5f6368;
+      cursor: pointer;
+    }
+
+    button.close:hover {
+      color: #202124;
     }
 
     .type-chip {
@@ -314,14 +353,9 @@ export class PropertyPanel extends LitElement {
       padding: 1px 8px;
     }
 
-    .iri {
+    .property-value.iri {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 10px;
-      color: #80868b;
-      padding: 4px 12px 6px;
-      word-break: break-all;
-      user-select: all;
-      border-bottom: 1px solid #f0f0f0;
+      font-size: 11px;
     }
 
     .property-label {
@@ -573,8 +607,8 @@ export class PropertyPanel extends LitElement {
       <div class="panel-header">
         <span>${h?.kind ?? 'Properties'}</span>
         ${h?.typeLabel ? html`<span class="type-chip" title=${h.typeIri ?? ''}>${h.typeLabel}</span>` : nothing}
+        ${closeButton(() => this._emit('property-close', {}))}
       </div>
-      <div class="iri" title="IRI — stable for life">${this.selectedIri}</div>
     `;
   }
 
@@ -644,12 +678,14 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
-  private _renderEntry(entry: PropertyEntry) {
+  /** @param firstAdded The first of the added properties: a divider sets them off. */
+  private _renderEntry(entry: PropertyEntry, firstAdded = false) {
     const isRequired = entry.minCount !== undefined && entry.minCount > 0;
+    const rowClass = `property-row${firstAdded ? ' first-added' : ''}`;
 
     if (this._isTextArea(entry)) {
       return html`
-        <li class="property-row">
+        <li class=${rowClass}>
           <label class="property-label">
             ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
             ${this._renderRemove(entry)}
@@ -666,7 +702,7 @@ export class PropertyPanel extends LitElement {
     }
 
     return html`
-      <li class="property-row">
+      <li class=${rowClass}>
         <label class="property-label">
           ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
           ${entry.language ? html`<span class="lang">@${entry.language}</span>` : nothing}
@@ -687,7 +723,7 @@ export class PropertyPanel extends LitElement {
   override render() {
     if (!this.selectedIri) {
       return html`
-        <div class="panel-header">Properties</div>
+        <div class="panel-header"><span>Properties</span>${closeButton(() => this._emit('property-close', {}))}</div>
         <div class="no-selection">No element selected</div>
       `;
     }
@@ -695,7 +731,13 @@ export class PropertyPanel extends LitElement {
     return html`
       ${this._renderHeading()}
       <ul class="property-list">
-        ${this._entries.map((entry) => this._renderEntry(entry))}
+        <li class="property-row id-row">
+          <label class="property-label">ID</label>
+          <input class="property-value iri" readonly title=${this.selectedIri} .value=${this.selectedIri} />
+        </li>
+        ${this._entries.map((entry, i) =>
+          this._renderEntry(entry, Boolean(entry.custom && (i === 0 || !this._entries[i - 1].custom))),
+        )}
       </ul>
       ${this._renderAdd()}
       ${this._renderAnalysis()}

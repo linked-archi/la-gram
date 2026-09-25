@@ -190,6 +190,180 @@ describe('views: one model, many views', () => {
   });
 });
 
+describe('the RDF panel', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  it('is hidden by default, and the toolbar toggle shows the model as Turtle', async () => {
+    const panel = page.locator('rdf-panel');
+    expect(await panel.isVisible()).toBe(false);
+    const toggle = page.locator('app-toolbar button[data-command="toggle-rdf"]');
+    expect(await toggle.getAttribute('aria-pressed')).toBe('false');
+
+    await dropActor(page, 300, 200);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    await toggle.click();
+    await panel.waitFor({ state: 'visible' });
+    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+    const code = panel.locator('.code');
+    await until(async () => (await code.innerText()).includes('arch-vis:ArchNode'), 'the Turtle text');
+    expect(await code.innerText()).toContain('@prefix am4:');
+    const box = await panel.boundingBox();
+    expect(box!.width).toBeGreaterThan(250); // a real column, not a sliver
+
+    // Renaming on the canvas side shows up in the Turtle.
+    const [actor] = (await model(page)).actors;
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_APP__.components.eventBus.emit('property-edited', {
+        elementIri: iri,
+        property: 'http://www.w3.org/2004/02/skos/core#prefLabel',
+        value: 'Renamed in the model',
+      });
+    }, actor);
+    await until(async () => (await code.innerText()).includes('Renamed in the model'), 'the refreshed Turtle');
+
+    // Clicking the element's statements selects it on the canvas.
+    await panel.locator(`.rdf-block[data-subject="${actor}"]`).first().click();
+    await until(
+      () =>
+        page.evaluate(
+          (iri) =>
+            ((window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('selection').get() as any[]).some(
+              (e) => e.id === iri,
+            ),
+          actor,
+        ),
+      'the canvas selection',
+    );
+    expect(await panel.locator('.rdf-block.selected').count()).toBeGreaterThan(0);
+    await session.screenshot('workbench-rdf-panel');
+
+    await panel.locator('button.close').click();
+    await panel.waitFor({ state: 'hidden' });
+    findings.push('RDF panel: hidden by default, toggle, live refresh, block → selection: ok');
+  });
+
+  it('writes the model as m: prefixed names; Model settings moves it into another namespace', async () => {
+    const panel = page.locator('rdf-panel');
+    await page.locator('app-toolbar button[data-command="toggle-rdf"]').click();
+    await panel.waitFor({ state: 'visible' });
+    const code = panel.locator('.code');
+    await until(async () => /^m:model a arch:Model;/m.test(await code.innerText()), 'm:model in the Turtle');
+    expect(await code.innerText()).toMatch(/@prefix m: <https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/>\./);
+    expect(await code.innerText()).toMatch(/^m:element-[0-9a-f-]{36} a am4:BusinessActor;/m);
+
+    // The model name opens Model settings: name, namespace, prefix, and whether to move.
+    await page.locator('app-toolbar button.model-name').click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor();
+    expect(await dialog.locator('#la-form-rename').isChecked()).toBe(true);
+    await dialog.locator('#la-form-prefix').fill('skos');
+    await dialog.locator('button.primary').click();
+    // A prefix that already stands for another namespace is refused in place.
+    await until(async () => (await dialog.locator('.la-dialog-error').innerText()).includes('already stands for'), 'the error');
+    await session.screenshot('workbench-model-settings');
+    await dialog.locator('#la-form-namespace').fill('https://acme.com/ea/crm/');
+    await dialog.locator('#la-form-prefix').fill('crm');
+    await dialog.locator('button.primary').click();
+    await dialog.waitFor({ state: 'detached' });
+
+    await until(async () => (await code.innerText()).includes('@prefix crm: <https://acme.com/ea/crm/>.'), 'the new prefix');
+    const text = await code.innerText();
+    expect(text).toMatch(/^crm:model a arch:Model;/m);
+    expect(text).toMatch(/^crm:element-[0-9a-f-]{36} a am4:BusinessActor;/m);
+    expect(text).not.toContain('example.org');
+    // The same view is open, under its new IRI, with its shape.
+    const state = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      return { view: app.session.activeViewIri as string, nodes: app.components.viewManager.getNodes(app.session.activeViewIri).length };
+    });
+    expect(state.view).toMatch(/^https:\/\/acme\.com\/ea\/crm\/view-/);
+    expect(state.nodes).toBe(1);
+    expect((await model(page)).actors).toHaveLength(1);
+    await session.screenshot('workbench-model-namespace');
+    findings.push('Model settings: namespace + prefix, IRIs moved, CURIEs in Turtle: ok');
+  });
+});
+
+describe('the property panel', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  const widthOf = async (selector: string) => (await page.locator(selector).boundingBox())?.width ?? 0;
+
+  it('is shown by default; hides from its × and the toolbar, and resizes by its left edge', async () => {
+    const panel = page.locator('property-panel');
+    const toggle = page.locator('app-toolbar button[data-command="toggle-properties"]');
+    await panel.waitFor({ state: 'visible' });
+    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+    const canvasShown = await widthOf('.la-diagram-host');
+
+    // Hidden from its own ×: the canvas takes the room.
+    await panel.locator('button.close').click();
+    await panel.waitFor({ state: 'hidden' });
+    expect(await toggle.getAttribute('aria-pressed')).toBe('false');
+    await until(async () => (await widthOf('.la-diagram-host')) > canvasShown + 250, 'the wider canvas');
+
+    // Back from the toolbar.
+    await toggle.click();
+    await panel.waitFor({ state: 'visible' });
+    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+    const before = await widthOf('app-shell .panel-property');
+    expect(Math.round(before)).toBe(300);
+
+    // Dragging the left edge left widens it; the width is remembered.
+    const handle = (await page.locator('app-shell .panel-property .resizer').boundingBox())!;
+    const y = handle.y + 200;
+    await page.mouse.move(handle.x + 3, y);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - 150, y, { steps: 6 });
+    await page.mouse.up();
+    const after = await widthOf('app-shell .panel-property');
+    expect(after).toBeGreaterThan(before + 120);
+    const stored = await page.evaluate(() => Number(localStorage.getItem('la-gram:property-panel-width')));
+    expect(Math.abs(stored - after)).toBeLessThanOrEqual(2);
+    await session.screenshot('workbench-property-panel-resized');
+
+    // Leave the default width for whatever runs next in this browser.
+    await page.evaluate(() => localStorage.removeItem('la-gram:property-panel-width'));
+    findings.push(`property panel: × / toolbar toggle, resized ${Math.round(before)} → ${Math.round(after)}px, remembered: ok`);
+  });
+
+  it('lists ID, type, inModel, prefLabel, then the added properties (no inView rows)', async () => {
+    await dropActor(page, 300, 200);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const [actor] = (await model(page)).actors;
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.selectConcept(iri), actor);
+    const panel = page.locator('property-panel');
+    const labels = async () =>
+      (await panel.locator('li.property-row .property-label').allInnerTexts()).map((t) => t.trim().split(/\s/)[0]);
+    await until(async () => (await labels()).includes('prefLabel'), 'the element’s fields');
+
+    for (const [predicate, value] of [
+      ['https://example.org/props#owner', 'Team A'],
+      ['https://example.org/props#cost', '100'],
+    ]) {
+      await panel.locator('.add-row input').nth(0).fill(predicate);
+      await panel.locator('.add-row input').nth(1).fill(value);
+      await panel.locator('.add-row button.add').click();
+    }
+    await until(async () => (await labels()).includes('cost'), 'the added properties');
+    expect(await labels()).toEqual(['ID', 'type', 'inModel', 'prefLabel', 'cost', 'owner']);
+    expect(await panel.locator('li.id-row input').inputValue()).toBe(actor);
+    expect(await panel.locator('li.property-row.first-added .property-label').innerText()).toMatch(/^cost/);
+    await session.screenshot('workbench-property-panel-added');
+    findings.push('property panel: ID, type, inModel, prefLabel, then added properties: ok');
+  });
+});
+
 describe('metamodels from the network', () => {
   it('loads a published metamodel that is not bundled (C4) and offers its types', async () => {
     const online = await fetch('https://meta.linked.archi/c4/metamodel', { headers: { Accept: 'text/turtle' } })

@@ -107,7 +107,8 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     const elements = new OxigraphElementManager(store);
     const relationships = new OxigraphRelationshipManager(store);
     const views = new OxigraphViewManager(store);
-    const modelIri = 'urn:la-gram:archimate/test';
+    const ns = 'https://example.org/archimate/test/';
+    const modelIri = `${ns}model`;
     const knownClass = (iri: string) =>
       store.getQuads(nn(iri), nn(NAMESPACES.rdf + 'type'), nn(NAMESPACES.owl + 'Class')).length > 0;
 
@@ -129,23 +130,23 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       skippedNodes: 2, // the container, and the second placement of id-api
     });
 
-    const web = `${modelIri}/element/id-web`;
+    const web = `${ns}element-id-web`;
     const q = (s: string, p: string) => store.getQuads(nn(s), nn(p)).map((x) => x.object.value);
     expect(q(web, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'ApplicationComponent']);
     expect(q(web, NAMESPACES.skos + 'prefLabel')).toEqual(['Web Shop']);
     expect(q(web, NAMESPACES.skos + 'definition')).toEqual(['Customer-facing web front end.']);
-    expect(q(web, `${modelIri}/property/owner`)).toEqual(['Team A']);
-    expect(q(`${modelIri}/element/id-j`, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Junction_And']);
+    expect(q(web, `${ns}property-owner`)).toEqual(['Team A']);
+    expect(q(`${ns}element-id-j`, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Junction_And']);
 
     // Qualified relationship + unqualified triple.
-    const r1 = `${modelIri}/relationship/id-r1`;
+    const r1 = `${ns}relationship-id-r1`;
     expect(q(r1, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Serving']);
-    expect(store.getQuads(nn(`${modelIri}/element/id-api`), nn(AM3 + 'serves'), nn(web))).toHaveLength(1);
+    expect(store.getQuads(nn(`${ns}element-id-api`), nn(AM3 + 'serves'), nn(web))).toHaveLength(1);
     // A relationship to a relationship resolves too.
-    expect(q(`${modelIri}/relationship/id-r3`, NAMESPACES.arch + 'target')).toEqual([`${modelIri}/relationship/id-r2`]);
+    expect(q(`${ns}relationship-id-r3`, NAMESPACES.arch + 'target')).toEqual([`${ns}relationship-id-r2`]);
 
     // Geometry: absolute bounds, and a route docked on the shapes' edges.
-    const viewIri = `${modelIri}/view/id-v1`;
+    const viewIri = `${ns}view-id-v1`;
     expect(views.getNode(viewIri, web)?.bounds).toEqual({ x: 40, y: 40, width: 120, height: 55 });
     const [link] = views.getLinks(viewIri);
     expect(link.relationshipIri).toBe(r1);

@@ -300,7 +300,7 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     // with the class, naming both ends, in the model — the IRI the connection
     // carries.
     const relIri = relationships[0].relationshipIri!;
-    expect(relIri).toMatch(/^https:\/\/example\.org\/model\/test\/relationship\//);
+    expect(relIri).toMatch(/^https:\/\/example\.org\/model\/test\/relationship-/);
     expect(qualifiedFacts(f, relIri)).toEqual(
       [
         `rdf:type|${chosen.iri}`,
@@ -453,7 +453,7 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     expect(appended).toBeDefined();
     const iri = appended.businessObject!.iri;
     // A real IRI minted by the real element manager, and the type triple with it.
-    expect(iri).toMatch(/^https:\/\/example\.org\/model\/test\/element\/[0-9a-f-]{36}$/);
+    expect(iri).toMatch(/^https:\/\/example\.org\/model\/test\/element-[0-9a-f-]{36}$/);
     expect(f.modelTriples()).toContain(
       `${iri}|http://www.w3.org/1999/02/22-rdf-syntax-ns#type|${target.type.iri}`,
     );

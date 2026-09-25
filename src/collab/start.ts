@@ -125,7 +125,12 @@ export function startCollaboration(app: App, ui: MountedUi, options: Collaborati
     doc = new Y.Doc();
     const color = PEER_COLORS[doc.clientID % PEER_COLORS.length];
     binding = new RdfYjsBinding(store, doc, {
-      onRemoteChange: () => eventBus.emit('model-changed', { origin: 'remote' }),
+      onRemoteChange: () => {
+        // A collaborator moved the model to another namespace (or replaced it):
+        // follow it to its new IRIs before redrawing.
+        app.session.resync();
+        eventBus.emit('model-changed', { origin: 'remote' });
+      },
     });
     provider = new HocuspocusProvider({
       url: serverUrl,

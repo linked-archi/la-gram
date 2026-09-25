@@ -1,5 +1,5 @@
 /**
- * Minimal modal dialogs: prompt, confirm, choose, info, and a transient toast.
+ * Minimal modal dialogs: prompt, form, confirm, choose, info, and a transient toast.
  *
  * Plain DOM in the light tree (styled from `index.html`), promise-based, and
  * behind an interface so `mount-ui` can be handed scripted answers in tests.
@@ -19,10 +19,35 @@ export interface ChoiceOption {
   disabled?: boolean;
 }
 
+/** One field of {@link Dialogs.form}. */
+export interface FormField {
+  name: string;
+  label: string;
+  /** A line of text (default) or a checkbox. */
+  type?: 'text' | 'checkbox';
+  value?: string | boolean;
+  /** Help shown under the field. */
+  hint?: string;
+}
+
+/** What {@link Dialogs.form} resolves with: text fields trimmed, checkboxes as booleans. */
+export type FormValues = Record<string, string | boolean>;
+
+/** Options of {@link Dialogs.form}. */
+export interface FormOptions {
+  /** A paragraph above the fields. */
+  message?: string;
+  confirmLabel?: string;
+  /** The problem with the values, shown in the dialog, or `null` to accept them. */
+  validate?: (values: FormValues) => string | null;
+}
+
 /** The dialogs the UI needs. */
 export interface Dialogs {
   /** Ask for a line of text; `null` when cancelled. */
   prompt(title: string, label: string, initial?: string): Promise<string | null>;
+  /** Ask for several values at once; `null` when cancelled. */
+  form(title: string, fields: FormField[], options?: FormOptions): Promise<FormValues | null>;
   /** Ask yes/no. `danger` styles the confirm button as destructive. */
   confirm(title: string, message: string, options?: { confirmLabel?: string; danger?: boolean; details?: string[] }): Promise<boolean>;
   /** Pick one of several options; `null` when cancelled. */
@@ -52,7 +77,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
 function modal<T>(
   title: string,
   body: Node[],
-  buttons: Array<{ label: string; value: () => T; primary?: boolean; danger?: boolean }>,
+  buttons: Array<{ label: string; value: () => T; primary?: boolean; danger?: boolean; accept?: () => boolean }>,
   cancelValue: T,
   focus?: HTMLElement,
 ): Promise<T> {
@@ -78,7 +103,7 @@ function modal<T>(
         if (primary) {
           e.preventDefault();
           e.stopPropagation();
-          close(primary.value());
+          if (!primary.accept || primary.accept()) close(primary.value());
         }
       }
     };
@@ -88,7 +113,9 @@ function modal<T>(
         type: 'button',
         text: button.label,
       });
-      b.addEventListener('click', () => close(button.value()));
+      b.addEventListener('click', () => {
+        if (!button.accept || button.accept()) close(button.value());
+      });
       footer.append(b);
     }
     backdrop.addEventListener('mousedown', (e) => {
@@ -117,6 +144,62 @@ export const domDialogs: Dialogs = {
       ],
       null,
       input,
+    );
+  },
+
+  form(title, fields, options = {}) {
+    const body: Node[] = [];
+    if (options.message) body.push(el('p', { text: options.message }));
+    const inputs = new Map<string, HTMLInputElement>();
+    for (const field of fields) {
+      const id = `la-form-${field.name}`;
+      const input = el('input', { id, name: field.name, type: field.type === 'checkbox' ? 'checkbox' : 'text' });
+      const row = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}` });
+      if (field.type === 'checkbox') {
+        input.checked = field.value === true;
+        row.append(input, el('label', { for: id, text: field.label }));
+      } else {
+        input.className = 'la-input';
+        input.value = typeof field.value === 'string' ? field.value : '';
+        input.setAttribute('aria-label', field.label);
+        row.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), input);
+      }
+      if (field.hint) row.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+      inputs.set(field.name, input);
+      body.push(row);
+    }
+    const error = el('div', { class: 'la-dialog-error', role: 'alert' });
+    error.hidden = true;
+    body.push(error);
+    const values = (): FormValues => {
+      const out: FormValues = {};
+      for (const field of fields) {
+        const input = inputs.get(field.name)!;
+        out[field.name] = field.type === 'checkbox' ? input.checked : input.value.trim();
+      }
+      return out;
+    };
+    const first = [...inputs.values()].find((i) => i.type === 'text');
+    if (first) queueMicrotask(() => first.select());
+    return modal<FormValues | null>(
+      title,
+      body,
+      [
+        { label: 'Cancel', value: () => null },
+        {
+          label: options.confirmLabel ?? 'OK',
+          value: values,
+          primary: true,
+          accept: () => {
+            const problem = options.validate?.(values()) ?? null;
+            error.textContent = problem ?? '';
+            error.hidden = !problem;
+            return !problem;
+          },
+        },
+      ],
+      null,
+      first,
     );
   },
 
