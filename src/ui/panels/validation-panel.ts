@@ -157,6 +157,10 @@ export class ValidationPanel extends LitElement {
   @property({ attribute: false })
   shapesGraph?: Quad[];
 
+  /** Names concepts (their `skos:prefLabel`) instead of showing IRI tails. */
+  @property({ attribute: false })
+  labelFor?: (iri: string) => string;
+
   @state()
   private _collapsedSeverities = new Set<string>();
 
@@ -232,7 +236,9 @@ export class ValidationPanel extends LitElement {
         class="result-item"
         @click=${() => this._onResultClick(result)}
       >
-        <div class="result-focus">${iriLabel(result.focusNode.value)}</div>
+        <div class="result-focus" title=${result.focusNode.value}>
+          ${this.labelFor?.(result.focusNode.value) ?? iriLabel(result.focusNode.value)}
+        </div>
         <div class="result-message">${result.message}</div>
         <div class="result-details">
           Path: ${iriLabel(result.resultPath.value)} ·

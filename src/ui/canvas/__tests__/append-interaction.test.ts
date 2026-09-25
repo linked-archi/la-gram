@@ -177,16 +177,10 @@ function elementManagerOver(store: Store): ElementManager {
   const boundsPredicate = (suffix: string) =>
     namedNode(NAMESPACES['arch-vis'] + `bounds-${suffix}`);
   return {
-    createElement: vi.fn((typeIri: string, modelIri: string, bounds: Bounds) => {
+    createElement: vi.fn((typeIri: string, modelIri: string) => {
       const iri = `${modelIri}/elem-${++counter}`;
       const subject = namedNode(iri);
-      store.addQuads([
-        quad(subject, namedNode(NAMESPACES.rdf + 'type'), namedNode(typeIri)),
-        quad(subject, boundsPredicate('x'), literal(String(bounds.x))),
-        quad(subject, boundsPredicate('y'), literal(String(bounds.y))),
-        quad(subject, boundsPredicate('w'), literal(String(bounds.width))),
-        quad(subject, boundsPredicate('h'), literal(String(bounds.height))),
-      ]);
+      store.addQuads([quad(subject, namedNode(NAMESPACES.rdf + 'type'), namedNode(typeIri))]);
       return subject as unknown as NamedNode;
     }),
     updateProperty: vi.fn(),
@@ -195,7 +189,20 @@ function elementManagerOver(store: Store): ElementManager {
       store.removeQuads(store.getQuads(subject, null, null, null));
       store.removeQuads(store.getQuads(null, null, subject, null));
     }),
-    updateLayout: vi.fn(),
+    // The legacy element-level layout sink a canvas without a view manager
+    // writes to (this fixture has no views).
+    updateLayout: vi.fn((iri: string, bounds: Bounds) => {
+      const subject = namedNode(iri);
+      for (const suffix of ['x', 'y', 'w', 'h']) {
+        store.removeQuads(store.getQuads(subject, boundsPredicate(suffix), null, null));
+      }
+      store.addQuads([
+        quad(subject, boundsPredicate('x'), literal(String(bounds.x))),
+        quad(subject, boundsPredicate('y'), literal(String(bounds.y))),
+        quad(subject, boundsPredicate('w'), literal(String(bounds.width))),
+        quad(subject, boundsPredicate('h'), literal(String(bounds.height))),
+      ]);
+    }),
   };
 }
 

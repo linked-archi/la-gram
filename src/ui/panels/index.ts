@@ -11,9 +11,15 @@ export {
 export {
   ModelExplorer,
   type TreeNode,
+  type TreeNodeKind,
   type ExplorerSelectDetail,
-  buildTree,
+  type ExplorerActivateDetail,
+  type ExplorerAction,
+  type ExplorerActionDetail,
+  type ExplorerDragDetail,
+  buildModelTree,
   filterTree,
+  actionsFor,
   iriFragment,
 } from './model-explorer.js';
 export {

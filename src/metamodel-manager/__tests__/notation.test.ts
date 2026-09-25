@@ -316,12 +316,9 @@ describe('effectiveRenderingMode', () => {
 });
 
 describe('real published ArchiMate 4.0 notation file', () => {
-  /** Read-only published asset — never modified or copied into this project. */
+  /** The bundled copy of the published file (`assets/` mirrors meta.linked.archi). Read only. */
   const REAL_NOTATION = fileURLToPath(
-    new URL(
-      '../../../../linked-archi-meta/modelingLanguages/archimate/4.0/archimate4-notation.ttl',
-      import.meta.url,
-    ),
+    new URL('../../../assets/archimate4/archimate4-notation.ttl', import.meta.url),
   );
 
   it('yields a fully populated notation set', () => {

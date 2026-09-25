@@ -131,6 +131,7 @@ export class RdfContextPadProvider {
   private paletteDefinition: PaletteDefinition;
   private onStartConnect?: StartConnectRequest;
   private onDelete?: (element: ContextPadElement) => void;
+  private onDeleteFromModel?: (element: ContextPadElement) => void;
   private classClosure: ClassClosure;
   private replaceSupport?: PadMenuSupport;
   private appendSupport?: PadMenuSupport;
@@ -163,15 +164,26 @@ export class RdfContextPadProvider {
     const entries: Record<string, ContextPadEntry> = {};
 
     // Delete action — always available
+    // With a model-delete handler the canvas has views, and the plain delete
+    // removes from the *view* only; say so, and offer the model-wide delete
+    // next to it. Without one, delete is the only delete there is.
     entries['delete'] = {
       group: 'edit',
-      title: 'Delete',
+      title: this.onDeleteFromModel ? 'Delete from view' : 'Delete',
       className: 'context-pad-delete',
       action: () => {
         if (this.onDelete) this.onDelete(element);
         else this.elementManager.deleteElement(element.iri);
       },
     };
+    if (this.onDeleteFromModel) {
+      entries['delete-model'] = {
+        group: 'edit',
+        title: 'Delete from model (all views)',
+        className: 'context-pad-delete-model',
+        action: () => this.onDeleteFromModel?.(element),
+      };
+    }
 
     // A connection carries a relationship type. Naming it on the pad is how the
     // type becomes *visible*; clicking opens the popup menu, which is how it
@@ -244,6 +256,14 @@ export class RdfContextPadProvider {
   }
 
   /** Point delete at the canvas's own remove-and-untriple path. */
+  /**
+   * Offer "Delete from model" beside the plain delete. Set by a canvas that
+   * works in views, where the plain delete only removes the placement.
+   */
+  setDeleteFromModelHandler(onDeleteFromModel: ((element: ContextPadElement) => void) | undefined): void {
+    this.onDeleteFromModel = onDeleteFromModel;
+  }
+
   setDeleteHandler(onDelete: ((element: ContextPadElement) => void) | undefined): void {
     this.onDelete = onDelete;
   }

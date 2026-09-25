@@ -1,0 +1,155 @@
+# Tasks: la-gram
+
+Organised like the `la-modeller-excalidraw` task list, so the two can be read
+side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
+`requirements.md`. Tests named in *italics* cover the task.
+
+---
+
+## Phase 0: Foundation
+
+### Task 1: Metamodel loading (Req 1)
+- [x] Load the default metamodel (ArchiMate 4.0) at startup; `?metamodel=` for others
+- [x] Parse the manifest; follow `arch:*` asset properties and `owl:imports` — *metamodel-loader.test*
+- [x] Load a level of references in parallel, `Accept: text/turtle` only — *asset-sources.test*
+- [x] Asset source chain: uploaded → bundled → remote; `?assets=` modes — *asset-sources.test*
+- [x] Native bulk load into Oxigraph (13× faster on the relationship shapes)
+- [x] Per-document status (loaded / already-loaded / skipped / unavailable / error, origin, triples); "Show loaded assets"
+- [x] Skip documents the editor cannot use (derivation rules, templates, reference data)
+- [x] Built-in catalogue of the 25 published metamodels (no endpoint exists) — `catalogue.ts`
+- [x] Add a metamodel; switch to one (replace); unload one — *workbench.test*
+- [x] Load by IRI; upload a manifest or an individual asset (role inferred) — *asset-sources.test*
+- [x] Several metamodels at once; palette, rules and validation use the union
+- [x] Bundle ArchiMate 4.0 and 3.2 with core, core-vis and their shapes; icons for both offline
+- [x] Remote metamodel verified live in the browser (C4, 9 documents) — *workbench.spec*
+- [ ] Publish a machine-readable catalogue on meta.linked.archi and read it instead of the built-in list
+
+### Task 2: Palette (Req 2)
+- [x] Dual classification (SKOS for grouping, OWL for instantiation); abstract classes excluded
+- [x] Labels and definitions with fallbacks; several axes with a "Group by" selector
+- [x] Relationship types in the palette; picking one arms connect with that type
+- [x] Visual notation from `arch-vis:NotationSet`; three rendering modes; icons in the palette
+- [x] Filter by the open view's viewpoint — *workbench.test*
+- [x] Outside-viewpoint shapes greyed, not hidden — *view-canvas.test*
+- [x] Presentation-context selector; palette and canvas follow the context's notation set
+- [x] OWL-only fallback when there is no taxonomy
+- [ ] Show a notice when the OWL-only fallback is in use
+
+### Task 3: Elements (Req 3)
+- [x] Drag or click-to-place from the palette; element minted inside the create command
+- [x] UUID IRIs; `rdf:type`, `skos:prefLabel`@en, `arch:inModel`; node in the open view — *element-manager.test*
+- [x] Undo/redo restores the same IRI — *view-canvas.test*
+- [x] Property panel: kind, type, IRI, SHACL-derived fields, add/remove values with ontology suggestions
+- [x] Delete from view (default) vs. delete from model (confirmation lists views) — *view-canvas.test, workbench.spec*
+- [x] Delete from model cascades to relationships and every view, undoable in one step — *view-canvas.test*
+- [ ] Inline label editing on the canvas (double-click)
+
+### Task 4: Relationships (Req 4)
+- [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
+- [x] Append: element + relationship in one command
+- [x] Qualified resource + unqualified triple + link in the view — *connect-integration.test*
+- [x] Change type in place (same IRI, properties kept), undoable — *connect-integration.test*
+- [x] Reattaching an end moves the relationship in the model and in other views, undoable — *view-canvas.test*
+- [x] Relationship notation (line style, decorations) from the notation set
+- [x] Relationships as first-class: selectable, properties, tree, analysis
+- [x] Routes persisted as `arch-vis:points` (IRI-celled lists)
+- [ ] Suggestion popup when exactly two elements are selected
+
+### Task 5: RDF export (Req 5)
+- [x] Six formats: Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML — *model-io.test* (round-trip each)
+- [x] Model only, never the metamodel; deterministic ordering
+- [x] Prefixes from the vocabularies' `vann:` declarations; only used ones
+- [x] DD-15 partition (`graph/model`, `graph/semantic`, `graph/views`) for graph formats
+- [x] "Without diagram geometry" profile
+- [x] SVG / PNG of the open view (Req 14)
+
+### Task 6: Validation (Req 6)
+- [x] Shapes: every loaded metamodel's `shapes` graphs + core + core-vis shapes (previously the app validated against an empty graph)
+- [x] Data: model + `rdfs:subClassOf` + types of referenced resources
+- [x] Compiled engine cached until the metamodels change; debounced 300 ms
+- [x] `sh:sparql` stripped client-side
+- [x] Results named by label; click reveals the concept (opening a view that has it)
+- [x] Violations marked on the canvas — *workbench.test*
+
+### Task 7: Collaboration (Req 7)
+- [x] Store ⇄ Y.Doc binding: triple set keyed by canonical N-Triples; echo prevention — *rdf-yjs-binding.test*
+- [x] Deterministic convergence of single-valued properties — *rdf-yjs-binding.test* (concurrent offline moves)
+- [x] Room/server/user from the URL; "Share" picks a room — *workbench.spec*
+- [x] Join adopts the room's model; an empty room receives the local one
+- [x] Presence: avatars and status in the toolbar; remote selections highlighted
+- [x] Soft locks: others' selections cannot be moved/resized/deleted/re-routed — *workbench.spec*
+- [x] Replacing a shared model asks first
+- [x] Hocuspocus server: rooms persisted as `.nt` + `.ttl`; `GET /rooms`, `/rooms/<room>.ttl|.nt` — *workbench.spec*
+- [ ] Remote cursor positions
+- [ ] Offline persistence across reloads (y-indexeddb)
+- [ ] Authentication / room access control on the server
+
+### Task 8: UI layout (Req 11)
+- [x] Toolbar, palette, model tree, canvas with tool strip, property panel, validation + SPARQL
+- [x] Dialogs (prompt / confirm / choose / info) and toasts
+- [ ] Hideable panels
+- [ ] Resizable panels with persisted sizes
+- [ ] Right-click canvas menu (the context pad covers the same actions today)
+
+---
+
+## Phase 1: Visual notation & metamodel selection — done
+Rendering modes, notation-driven shapes and relationship decorations, presentation
+contexts, metamodel selection/switching/upload, several metamodels at once (Tasks 1, 2).
+
+## Phase 2: Model persistence & navigation
+
+### Task 13: Model/view RDF structure
+- [x] Patterns: `arch:Model`, `arch:inModel`, `arch:inView`, `arch:viewConformsToViewpoint`, `arch-vis:ArchNode`/`Link` — `design.md`
+- [x] Legacy migration on open (retired `arch:` terms, element-level bounds) — *model-session.test*
+- [x] Adopt foreign RDF: model resource, membership, a view, grid layout when there is no geometry — *model-session.test*
+
+### Task 14: Working-state persistence
+- [x] Collaboration server persists rooms continuously (debounced, atomic writes)
+- [x] Files: open/save in six formats; unsaved-changes indicator and guard
+
+### Task 15: Commit & version history
+- [ ] Explicit commit of the working state; history list; diff (added/removed triples); restore
+
+### Task 16: Model tree — done
+- [x] Model → Views / Elements by type / Relationships by type / Unclassified; placed markers — *model-explorer.test*
+- [x] Context menus per kind; filter; reveal on canvas selection; drag to place — *workbench.spec*
+
+### Task 17: View switching — done
+- [x] Toolbar selector and tree; canvas rebuilt from the store; undo history reset per view
+
+### Task 18: Element reuse across views — done
+- [x] One resource, many placements; drop from the tree; draws relationships to placed elements — *view-canvas.test*
+
+## Phase 3: Server-side validation
+- [ ] `POST /validate` with full SHACL incl. `sh:SPARQLConstraintComponent` (pyshacl or Jena)
+- [ ] Merge server results with client results, tagged by source
+
+## Phase 4: Collaboration enhancements
+- [x] Locking (soft, on selection)
+- [x] Awareness: identity, colour, open view, selection
+- [ ] Cursors; "follow" a collaborator
+- [ ] Offline queue across reloads
+
+## Phase 5: Polish & production readiness
+- [x] Viewpoint greying
+- [x] SPARQL console (existing component)
+- [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
+- [ ] Accessibility audit (keyboard navigation of palette and tree, WCAG AA contrast, focus management in dialogs)
+- [ ] Catalog/matrix views driven by the view's own membership (`arch:inView`) and settings
+- [ ] Render SPARQL CONSTRUCT results as a new view
+- [ ] Electron packaging and a smoke test of the desktop build (bundles build; not launched in CI)
+
+## Beyond the reference spec (tool spec phases 3–4)
+- [ ] Freehand sketch layer and progressive typing (tool spec §5.8–5.9)
+- [ ] AI assistance via MCP with SHACL-gated proposals (tool spec §5.12, §10)
+
+---
+
+## Known limitations
+
+1. **One placement per element per view.** ArchiMate allows an element to appear twice in a diagram; the canvas keys shapes by element IRI. Exchange imports skip the second placement and count it.
+2. **Container and label nodes** from exchange files are skipped (core-vis has `arch-vis:ContainerNode`; the editor does not draw it yet).
+3. **Store-led changes are not undoable** from the canvas (a collaborator's edit, an import, a model-level delete started from the tree for a concept not on the canvas).
+4. **SPARQL constraints** only on a server (Phase 3).
+5. ~~**Published shape issue:** `ViewMustDeclareViewpointShape` in the ArchiMate viewpoint shapes puts `sh:severity sh:Warning` on the node shape; SHACL does not propagate it to the property shape, so a view without a viewpoint reports a Violation rather than a Warning. Fix belongs in `linked-archi-meta`.~~ Fixed upstream — the property shapes of `ViewMustDeclareViewpointShape` and `ViewpointCompletenessShape` now declare their own `sh:severity`, and `assets/archimate3/archimate3.2-viewpoint-shapes.ttl` is re-synced from `linked-archi-meta`. A view without a viewpoint reports a Warning.

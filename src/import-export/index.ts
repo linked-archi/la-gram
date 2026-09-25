@@ -1,16 +1,21 @@
 // Import/Export layer — ArchiMate XML import, SVG/PNG export, TTL file I/O
 export {
-  importArchiMateXml,
-  mapTypeToIri,
-  elementToQuads,
-  relationshipToQuads,
+  parseArchiMateExchange,
+  applyExchangeModel,
+  exchangeTypeIri,
   getChildText,
   getXsiType,
   getChildElements,
   ARCHIMATE_NS,
-  KNOWN_ELEMENT_TYPES,
-  KNOWN_RELATIONSHIP_TYPES,
-  type ImportResult,
+  ARCHIMATE3_METAMODEL,
+  type ExchangeModel,
+  type ExchangeConcept,
+  type ExchangeRelationship,
+  type ExchangeView,
+  type ExchangeNode,
+  type ExchangeConnection,
+  type ImportReport,
+  type ApplyExchangeDeps,
 } from './archimate-importer.js';
 
 export {
@@ -26,3 +31,18 @@ export {
   type LoadResult,
   type ExportResult,
 } from './ttl-file-io.js';
+
+export {
+  ModelIO,
+  MODEL_FORMATS,
+  formatInfo,
+  partitionModel,
+  partitionGraphs,
+  parseModelText,
+  type ModelFormat,
+  type ModelFormatInfo,
+  type SerializationProfile,
+  type SerializeOptions,
+  type ModelPartition,
+  type ModelLoadResult,
+} from './model-io.js';

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RDF Architecture Modeler</title>
+  <title>la-gram — RDF Architecture Modeller</title>
   <!-- diagram-js's own stylesheet, emitted next to the bundle by
        CopyWebpackPlugin. Without it the canvas draws but selection outlines,
        the palette and the context pad are unstyled and effectively invisible. -->
@@ -170,6 +170,12 @@
       content: "\00d7";
     }
 
+    /* Delete from the model (every view): a heavier mark than the per-view ×. */
+    .la-diagram-host .context-pad-delete-model::before {
+      content: "\2716";
+      color: #c5221f;
+    }
+
     .la-diagram-host .context-pad-connect::before {
       content: "\2192";
     }
@@ -216,6 +222,179 @@
 
     .la-diagram-host .djs-popup .la-append-target:active {
       cursor: grabbing;
+    }
+
+    /* ── Canvas markers ────────────────────────────────────────────────
+       diagram-js markers are CSS classes on the element's .djs-element group. */
+
+    /* Outside the open view's viewpoint: still there, still editable, greyed. */
+    .la-diagram-host .djs-element.la-outside-viewpoint .djs-visual {
+      opacity: 0.35;
+    }
+
+    /* A SHACL violation on the concept. */
+    .la-diagram-host .djs-element.la-violation .djs-visual > :first-child {
+      stroke: #d93025 !important;
+      stroke-width: 2.5px !important;
+    }
+    .la-diagram-host .djs-connection.la-violation .djs-visual > path {
+      stroke: #d93025 !important;
+    }
+
+    /* Selected by another collaborator, and so locked here. */
+    .la-diagram-host .djs-element.la-remote-selected .djs-outline {
+      visibility: visible;
+      stroke: #e8710a;
+      stroke-width: 2px;
+      stroke-dasharray: none;
+    }
+    .la-diagram-host .djs-element.la-locked {
+      cursor: not-allowed;
+    }
+
+    app-toolbar {
+      display: flex;
+    }
+
+    /* ── Dialogs (ui/dialogs.ts) ───────────────────────────────────────── */
+    .la-dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(32, 33, 36, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .la-dialog {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      width: min(520px, calc(100vw - 32px));
+      max-height: calc(100vh - 64px);
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+    .la-dialog-title {
+      padding: 16px 20px 8px;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .la-dialog-body {
+      padding: 4px 20px 12px;
+      overflow: auto;
+    }
+    .la-dialog-body p {
+      margin: 0 0 8px;
+    }
+    .la-dialog-label {
+      display: block;
+      font-size: 12px;
+      color: #5f6368;
+      margin-bottom: 4px;
+    }
+    .la-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font: inherit;
+    }
+    .la-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+    .la-dialog-list {
+      margin: 0;
+      padding-left: 20px;
+      color: #3c4043;
+    }
+    .la-dialog-info {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .la-dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 20px 16px;
+    }
+    .la-button {
+      font: inherit;
+      padding: 6px 16px;
+      border-radius: 4px;
+      border: 1px solid #dadce0;
+      background: #fff;
+      cursor: pointer;
+    }
+    .la-button.primary {
+      background: #1a73e8;
+      border-color: #1a73e8;
+      color: #fff;
+    }
+    .la-button.primary.danger {
+      background: #d93025;
+      border-color: #d93025;
+    }
+    .la-choice-list {
+      max-height: 50vh;
+      overflow: auto;
+      border: 1px solid #eee;
+      border-radius: 4px;
+    }
+    .la-choice-group {
+      padding: 6px 10px 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+    }
+    .la-choice {
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .la-choice:hover {
+      background: #f1f3f4;
+    }
+    .la-choice.selected {
+      background: #e8f0fe;
+    }
+    .la-choice.disabled {
+      color: #9aa0a6;
+      cursor: default;
+    }
+    .la-choice-detail {
+      font-size: 12px;
+      color: #80868b;
+    }
+    .la-toasts {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2100;
+    }
+    .la-toast {
+      background: #323232;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      max-width: 420px;
+      font-size: 13px;
+    }
+    .la-toast.warning {
+      background: #b06000;
+    }
+    .la-toast.error {
+      background: #c5221f;
     }
 
     /* Bottom bar: validation results next to the SPARQL editor. */

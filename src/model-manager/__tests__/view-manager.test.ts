@@ -1,270 +1,250 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DataFactory } from 'n3';
-import type { Quad, NamedNode } from '@rdfjs/types';
+import type { NamedNode } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { OxigraphViewManager, resetViewCounter } from '../view-manager.js';
-import { OxigraphElementManager, resetElementCounter } from '../element-manager.js';
+import { OxigraphViewManager } from '../view-manager.js';
+import { OxigraphElementManager } from '../element-manager.js';
+import { OxigraphRelationshipManager } from '../relationship-manager.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
-const { namedNode, literal, quad } = DataFactory;
+const { namedNode } = DataFactory;
 
 const RDF_TYPE = NAMESPACES.rdf + 'type';
 const ARCH = NAMESPACES.arch;
-const ARCH_VIS = NAMESPACES['arch-vis'];
-const SKOS = NAMESPACES.skos;
+const VIS = NAMESPACES['arch-vis'];
 
 function nn(value: string): NamedNode {
   return namedNode(value) as unknown as NamedNode;
 }
 
+function objects(store: OxigraphRdfStore, s: string, p: string): string[] {
+  return store.getQuads(nn(s), nn(p)).map((q) => q.object.value);
+}
+
 describe('OxigraphViewManager', () => {
   let store: OxigraphRdfStore;
-  let viewManager: OxigraphViewManager;
-  let elementManager: OxigraphElementManager;
+  let views: OxigraphViewManager;
+  let elements: OxigraphElementManager;
+  let rels: OxigraphRelationshipManager;
   const modelIri = 'https://example.org/model';
-  const typeIri = 'https://example.org/archimate#ApplicationComponent';
+  const typeIri = 'https://example.org/lang#Component';
 
   beforeEach(() => {
     store = new OxigraphRdfStore();
-    viewManager = new OxigraphViewManager(store);
-    elementManager = new OxigraphElementManager(store);
-    resetViewCounter();
-    resetElementCounter();
+    views = new OxigraphViewManager(store);
+    elements = new OxigraphElementManager(store);
+    rels = new OxigraphRelationshipManager(store);
   });
 
-  describe('createView', () => {
-    it('returns a NamedNode with a unique IRI', () => {
-      const view = viewManager.createView('Diagram');
-      expect(view.termType).toBe('NamedNode');
-      expect(view.value).toMatch(/^urn:la-gram:view-\d+$/);
-    });
-
-    it('adds rdf:type arch:View triple', () => {
-      const view = viewManager.createView('Diagram');
-      const typeQuads = store.getQuads(view, nn(RDF_TYPE), nn(ARCH + 'View'));
-      expect(typeQuads).toHaveLength(1);
-    });
-
-    it('adds rdf:type arch:Diagram for Diagram views', () => {
-      const view = viewManager.createView('Diagram');
-      const typeQuads = store.getQuads(view, nn(RDF_TYPE), nn(ARCH + 'Diagram'));
-      expect(typeQuads).toHaveLength(1);
-    });
-
-    it('adds rdf:type arch:Catalog for Catalog views', () => {
-      const view = viewManager.createView('Catalog');
-      const typeQuads = store.getQuads(view, nn(RDF_TYPE), nn(ARCH + 'Catalog'));
-      expect(typeQuads).toHaveLength(1);
-    });
-
-    it('adds rdf:type arch:Matrix for Matrix views', () => {
-      const view = viewManager.createView('Matrix');
-      const typeQuads = store.getQuads(view, nn(RDF_TYPE), nn(ARCH + 'Matrix'));
-      expect(typeQuads).toHaveLength(1);
-    });
-
-    it('adds arch:viewpoint triple when viewpointIri is provided', () => {
-      const vpIri = 'https://example.org/viewpoint/application-cooperation';
-      const view = viewManager.createView('Diagram', vpIri);
-      const vpQuads = store.getQuads(view, nn(ARCH + 'viewpoint'));
-      expect(vpQuads).toHaveLength(1);
-      expect(vpQuads[0].object.value).toBe(vpIri);
-    });
-
-    it('does not add arch:viewpoint triple when viewpointIri is omitted', () => {
-      const view = viewManager.createView('Diagram');
-      const vpQuads = store.getQuads(view, nn(ARCH + 'viewpoint'));
-      expect(vpQuads).toHaveLength(0);
-    });
-
-    it('generates unique IRIs for successive views', () => {
-      const v1 = viewManager.createView('Diagram');
-      const v2 = viewManager.createView('Catalog');
-      expect(v1.value).not.toBe(v2.value);
-    });
-
-    it('creates exactly 2 triples without viewpoint, 3 with viewpoint', () => {
-      const v1 = viewManager.createView('Diagram');
-      expect(store.getQuads(v1)).toHaveLength(2);
-
-      const v2 = viewManager.createView('Catalog', 'https://example.org/vp');
-      expect(store.getQuads(v2)).toHaveLength(3);
-    });
-  });
-
-  describe('getViews', () => {
-    it('returns empty array when no views exist', () => {
-      expect(viewManager.getViews()).toHaveLength(0);
-    });
-
-    it('returns all created views', () => {
-      viewManager.createView('Diagram');
-      viewManager.createView('Catalog');
-      viewManager.createView('Matrix');
-
-      const views = viewManager.getViews();
-      expect(views).toHaveLength(3);
-    });
-
-    it('returns correct type for each view', () => {
-      viewManager.createView('Diagram');
-      viewManager.createView('Catalog');
-      viewManager.createView('Matrix');
-
-      const views = viewManager.getViews();
-      const types = views.map((v) => v.type).sort();
-      expect(types).toEqual(['Catalog', 'Diagram', 'Matrix']);
-    });
-
-    it('returns label from skos:prefLabel', () => {
-      const view = viewManager.createView('Diagram');
-      // Manually add a label
-      store.addQuads([
-        quad(
-          view as any,
-          nn(SKOS + 'prefLabel') as any,
-          literal('My Diagram') as any,
-        ) as unknown as Quad,
+  describe('views', () => {
+    it('creates an arch:View of the requested kind, in the model, with a label and viewpoint', () => {
+      const view = views.createView('Diagram', 'https://example.org/vp#Layered', {
+        modelIri,
+        label: 'Layered',
+      });
+      expect(view.value).toMatch(new RegExp(`^${modelIri}/view/[0-9a-f-]{36}$`));
+      expect(objects(store, view.value, RDF_TYPE).sort()).toEqual([ARCH + 'Diagram', ARCH + 'View'].sort());
+      expect(objects(store, view.value, ARCH + 'inModel')).toEqual([modelIri]);
+      expect(objects(store, view.value, ARCH + 'viewConformsToViewpoint')).toEqual([
+        'https://example.org/vp#Layered',
       ]);
-
-      const views = viewManager.getViews();
-      expect(views).toHaveLength(1);
-      expect(views[0].label).toBe('My Diagram');
+      expect(views.getView(view.value)).toEqual({
+        iri: view.value,
+        label: 'Layered',
+        type: 'Diagram',
+        viewpointIri: 'https://example.org/vp#Layered',
+        modelIri,
+      });
     });
 
-    it('returns viewpointIri when present', () => {
-      const vpIri = 'https://example.org/vp/app';
-      viewManager.createView('Diagram', vpIri);
-
-      const views = viewManager.getViews();
-      expect(views).toHaveLength(1);
-      expect(views[0].viewpointIri).toBe(vpIri);
+    it('lists every view, typed, sorted by label', () => {
+      views.createView('Matrix', undefined, { label: 'B', modelIri });
+      views.createView('Catalog', undefined, { label: 'A', modelIri });
+      expect(views.getViews().map((v) => [v.label, v.type])).toEqual([
+        ['A', 'Catalog'],
+        ['B', 'Matrix'],
+      ]);
     });
 
-    it('returns undefined viewpointIri when not present', () => {
-      viewManager.createView('Diagram');
-
-      const views = viewManager.getViews();
-      expect(views).toHaveLength(1);
-      expect(views[0].viewpointIri).toBeUndefined();
-    });
-  });
-
-  describe('addElementToView', () => {
-    it('creates an arch-vis:view triple linking element to view', () => {
-      const view = viewManager.createView('Diagram');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-
-      viewManager.addElementToView(view.value, elem.value);
-
-      const viewQuads = store.getQuads(elem, nn(ARCH_VIS + 'view'), view);
-      expect(viewQuads).toHaveLength(1);
+    it('renames and re-points a view', () => {
+      const v = views.createView('Diagram', undefined, { label: 'Old', modelIri }).value;
+      views.renameView(v, 'New');
+      views.setViewpoint(v, 'https://example.org/vp#X');
+      expect(views.getView(v)).toMatchObject({ label: 'New', viewpointIri: 'https://example.org/vp#X' });
+      views.setViewpoint(v, undefined);
+      expect(views.getView(v)?.viewpointIri).toBeUndefined();
     });
 
-    it('does not create a new element resource', () => {
-      const view = viewManager.createView('Diagram');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const quadsBefore = store.getQuads(elem).length;
-
-      viewManager.addElementToView(view.value, elem.value);
-
-      // Only 1 new triple (the arch-vis:view link)
-      const quadsAfter = store.getQuads(elem).length;
-      expect(quadsAfter).toBe(quadsBefore + 1);
+    it('deletes a view with its geometry, but never the concepts it showed', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      views.addElementToView(v, a.value);
+      views.deleteView(v);
+      expect(views.getView(v)).toBeUndefined();
+      expect(store.getQuads(null, nn(VIS + 'view'))).toHaveLength(0);
+      expect(store.getQuads(a, nn(ARCH + 'inView'))).toHaveLength(0);
+      expect(objects(store, a.value, RDF_TYPE)).toEqual([typeIri]);
     });
 
-    it('allows adding the same element to multiple views', () => {
-      const v1 = viewManager.createView('Diagram');
-      const v2 = viewManager.createView('Catalog');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+    it('duplicates a view with its placements and links', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const b = elements.createElement(typeIri, modelIri);
+      const v = views.createView('Diagram', undefined, { label: 'Main', modelIri }).value;
+      views.addElementToView(v, a.value, { x: 1, y: 2, width: 3, height: 4 });
+      views.addElementToView(v, b.value);
+      const rel = rels.createQualifiedRelationship({ typeIri: ARCH + 'rel', sourceIri: a.value, targetIri: b.value });
+      views.addRelationshipToView(v, rel.iri);
 
-      viewManager.addElementToView(v1.value, elem.value);
-      viewManager.addElementToView(v2.value, elem.value);
+      const copy = views.duplicateView(v).value;
 
-      const viewQuads = store.getQuads(elem, nn(ARCH_VIS + 'view'));
-      expect(viewQuads).toHaveLength(2);
+      expect(views.getView(copy)?.label).toBe('Main (copy)');
+      expect(views.getNode(copy, a.value)?.bounds).toEqual({ x: 1, y: 2, width: 3, height: 4 });
+      expect(views.getLinks(copy).map((l) => l.relationshipIri)).toEqual([rel.iri]);
+      // Still one element resource.
+      expect(objects(store, a.value, RDF_TYPE)).toEqual([typeIri]);
     });
   });
 
-  describe('removeElementFromView', () => {
-    it('removes the arch-vis:view triple', () => {
-      const view = viewManager.createView('Diagram');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+  describe('nodes', () => {
+    it('places an element as an arch-vis:ArchNode with bounds, and records arch:inView', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      const nodeIri = views.addElementToView(v, a.value, { x: 10, y: 20, width: 130, height: 60 });
 
-      viewManager.addElementToView(view.value, elem.value);
-      expect(store.getQuads(elem, nn(ARCH_VIS + 'view'), view)).toHaveLength(1);
-
-      viewManager.removeElementFromView(view.value, elem.value);
-      expect(store.getQuads(elem, nn(ARCH_VIS + 'view'), view)).toHaveLength(0);
+      expect(nodeIri).toMatch(new RegExp(`^${v}/node/`));
+      expect(objects(store, nodeIri, RDF_TYPE)).toEqual([VIS + 'ArchNode']);
+      expect(objects(store, nodeIri, VIS + 'view')).toEqual([v]);
+      expect(objects(store, nodeIri, VIS + 'archElement')).toEqual([a.value]);
+      expect(objects(store, a.value, ARCH + 'inView')).toEqual([v]);
+      expect(views.getNodes(v)).toEqual([
+        { nodeIri, elementIri: a.value, bounds: { x: 10, y: 20, width: 130, height: 60 } },
+      ]);
     });
 
-    it('does not remove the element resource itself', () => {
-      const view = viewManager.createView('Diagram');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-
-      viewManager.addElementToView(view.value, elem.value);
-      viewManager.removeElementFromView(view.value, elem.value);
-
-      // Element still has its original 5 triples (type + 4 layout)
-      expect(store.getQuads(elem)).toHaveLength(5);
+    it('keeps one node per element per view, and one element resource across views', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const v1 = views.createView('Diagram', undefined, { modelIri }).value;
+      const v2 = views.createView('Diagram', undefined, { modelIri }).value;
+      const n1 = views.addElementToView(v1, a.value);
+      expect(views.addElementToView(v1, a.value)).toBe(n1);
+      views.addElementToView(v2, a.value);
+      expect(views.getNodes(v1)).toHaveLength(1);
+      expect(views.viewsContaining(a.value)).toEqual([v1, v2].sort());
+      expect(objects(store, a.value, RDF_TYPE)).toEqual([typeIri]);
     });
 
-    it('only removes the link to the specified view, not other views', () => {
-      const v1 = viewManager.createView('Diagram');
-      const v2 = viewManager.createView('Catalog');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-
-      viewManager.addElementToView(v1.value, elem.value);
-      viewManager.addElementToView(v2.value, elem.value);
-
-      viewManager.removeElementFromView(v1.value, elem.value);
-
-      // Still linked to v2
-      expect(store.getQuads(elem, nn(ARCH_VIS + 'view'), v2)).toHaveLength(1);
-      // No longer linked to v1
-      expect(store.getQuads(elem, nn(ARCH_VIS + 'view'), v1)).toHaveLength(0);
+    it('moves a node: exactly one value per bounds property afterwards', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      const nodeIri = views.addElementToView(v, a.value);
+      views.updateNodeBounds(v, a.value, { x: 5, y: 6, width: 7, height: 8 });
+      expect(store.getQuads(nn(nodeIri), nn(VIS + 'bounds-x'))).toHaveLength(1);
+      expect(views.getNode(v, a.value)?.bounds).toEqual({ x: 5, y: 6, width: 7, height: 8 });
     });
 
-    it('is a no-op when the element is not in the view', () => {
-      const view = viewManager.createView('Diagram');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+    it('removes from a view only: node, its links, inView — the element stays in the model', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const b = elements.createElement(typeIri, modelIri);
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      const other = views.createView('Diagram', undefined, { modelIri }).value;
+      views.addElementToView(v, a.value);
+      views.addElementToView(v, b.value);
+      views.addElementToView(other, a.value);
+      const rel = rels.createQualifiedRelationship({ typeIri: ARCH + 'rel', sourceIri: a.value, targetIri: b.value });
+      views.addRelationshipToView(v, rel.iri);
 
-      // Should not throw
-      viewManager.removeElementFromView(view.value, elem.value);
-      expect(store.getQuads(elem)).toHaveLength(5);
+      views.removeElementFromView(v, a.value);
+
+      expect(views.getNode(v, a.value)).toBeUndefined();
+      expect(views.getLinks(v)).toEqual([]);
+      expect(objects(store, a.value, ARCH + 'inView')).toEqual([other]);
+      expect(objects(store, rel.iri, ARCH + 'inView')).toEqual([]);
+      // Model untouched: the element and the relationship are still there.
+      expect(objects(store, a.value, RDF_TYPE)).toEqual([typeIri]);
+      expect(objects(store, rel.iri, ARCH + 'source')).toEqual([a.value]);
+      expect(views.getNode(other, a.value)).toBeDefined();
+    });
+
+    it('collects exactly what a removal deletes, so the canvas can undo it', () => {
+      const a = elements.createElement(typeIri, modelIri);
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      views.addElementToView(v, a.value, { x: 1, y: 1, width: 10, height: 10 });
+      const before = store.getQuads().length;
+      const snapshot = views.collectNodeQuads(v, a.value);
+      views.removeElementFromView(v, a.value);
+      expect(store.getQuads().length).toBe(before - snapshot.length);
+      store.addQuads(snapshot);
+      expect(views.getNode(v, a.value)?.bounds).toEqual({ x: 1, y: 1, width: 10, height: 10 });
     });
   });
 
-  describe('single RDF resource across views', () => {
-    it('element in multiple views has exactly one RDF resource', () => {
-      const v1 = viewManager.createView('Diagram');
-      const v2 = viewManager.createView('Catalog');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 10, y: 20, width: 130, height: 60 });
+  describe('links', () => {
+    let a: string;
+    let b: string;
+    let v: string;
+    let relIri: string;
 
-      viewManager.addElementToView(v1.value, elem.value);
-      viewManager.addElementToView(v2.value, elem.value);
-
-      // Only one rdf:type triple for the element (not duplicated)
-      const typeQuads = store.getQuads(elem, nn(RDF_TYPE));
-      expect(typeQuads).toHaveLength(1);
-      expect(typeQuads[0].object.value).toBe(typeIri);
+    beforeEach(() => {
+      a = elements.createElement(typeIri, modelIri).value;
+      b = elements.createElement(typeIri, modelIri).value;
+      v = views.createView('Diagram', undefined, { modelIri }).value;
+      relIri = rels.createQualifiedRelationship({ typeIri: ARCH + 'rel', sourceIri: a, targetIri: b }).iri;
     });
 
-    it('property changes are visible from all view contexts', () => {
-      const v1 = viewManager.createView('Diagram');
-      const v2 = viewManager.createView('Catalog');
-      const elem = elementManager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
+    it('refuses to draw a relationship whose ends are not both placed', () => {
+      views.addElementToView(v, a);
+      expect(views.addRelationshipToView(v, relIri)).toBeUndefined();
+      expect(views.getLinks(v)).toEqual([]);
+    });
 
-      viewManager.addElementToView(v1.value, elem.value);
-      viewManager.addElementToView(v2.value, elem.value);
+    it('draws it as an arch-vis:Link between the two nodes, with a route', () => {
+      const na = views.addElementToView(v, a);
+      const nb = views.addElementToView(v, b);
+      const linkIri = views.addRelationshipToView(v, relIri, [
+        { x: 0, y: 0 },
+        { x: 50, y: 0 },
+        { x: 50, y: 50 },
+      ]) as string;
 
-      // Update a property
-      elementManager.updateProperty(elem.value, SKOS + 'prefLabel', literal('Updated Label') as any);
+      expect(objects(store, linkIri, RDF_TYPE)).toEqual([VIS + 'Link']);
+      expect(objects(store, linkIri, VIS + 'archRelationship')).toEqual([relIri]);
+      expect(objects(store, relIri, ARCH + 'inView')).toEqual([v]);
+      expect(views.getLinks(v)).toEqual([
+        {
+          linkIri,
+          relationshipIri: relIri,
+          sourceNodeIri: na,
+          targetNodeIri: nb,
+          sourceElementIri: a,
+          targetElementIri: b,
+          waypoints: [
+            { x: 0, y: 0 },
+            { x: 50, y: 0 },
+            { x: 50, y: 50 },
+          ],
+        },
+      ]);
+      // The route uses IRI-named cells, never blank nodes (they do not survive sync).
+      expect(store.getQuads().some((q) => q.subject.termType === 'BlankNode')).toBe(false);
+    });
 
-      // The label is on the single element resource — visible regardless of view
-      const labelQuads = store.getQuads(elem, nn(SKOS + 'prefLabel'));
-      expect(labelQuads).toHaveLength(1);
-      expect(labelQuads[0].object.value).toBe('Updated Label');
+    it('re-routes a link, replacing the whole point list', () => {
+      views.addElementToView(v, a);
+      views.addElementToView(v, b);
+      views.addRelationshipToView(v, relIri, [{ x: 0, y: 0 }, { x: 9, y: 9 }]);
+      views.updateLinkWaypoints(v, relIri, [{ x: 1, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 3 }]);
+      expect(views.getLinks(v)[0].waypoints).toEqual([{ x: 1, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 3 }]);
+      expect(store.getQuads(null, nn(VIS + 'point-x'))).toHaveLength(3);
+    });
+
+    it('removes a link from the view but keeps the relationship in the model', () => {
+      views.addElementToView(v, a);
+      views.addElementToView(v, b);
+      views.addRelationshipToView(v, relIri, [{ x: 0, y: 0 }, { x: 9, y: 9 }]);
+      views.removeRelationshipFromView(v, relIri);
+      expect(views.getLinks(v)).toEqual([]);
+      expect(store.getQuads(null, nn(VIS + 'point-x'))).toHaveLength(0);
+      expect(objects(store, relIri, ARCH + 'source')).toEqual([a]);
     });
   });
 });

@@ -56,9 +56,21 @@ import type { NamedNode, Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import type { RelationshipTypeInfo } from '../metamodel-manager/interfaces.js';
 import { matchesClass } from '../metamodel-manager/taxonomy.js';
-import type { RelationshipManager } from './interfaces.js';
+import type {
+  CreateRelationshipRequest,
+  RelationshipInfo,
+  RelationshipManager,
+} from './interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scope.js';
+import { mintIri, uuid } from '../rdf-engine/iri.js';
+import {
+  collectRelationshipQuads,
+  relationshipClassOf,
+  relationshipsTouching,
+  unqualifiedFormOf,
+} from './cascade.js';
+import { IRI, T, langLiteral, nn, triple } from './vocabulary.js';
 
 const { namedNode, quad } = DataFactory;
 
@@ -379,9 +391,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       return null;
     }
 
-    // Qualified relationship resource
+    // Qualified relationship resource. Random, not counted: a counter restarts
+    // with the process and would reuse an IRI already in a loaded model.
     qrCounter += 1;
-    const qrIri = `${sourceIri}/qr-${qrCounter}`;
+    const qrIri = `${sourceIri}/qr-${uuid()}`;
     const qrNode = namedNode(qrIri) as unknown as NamedNode;
 
     const quads: Quad[] = [
@@ -439,21 +452,176 @@ export class OxigraphRelationshipManager implements RelationshipManager {
   }
 
   /**
-   * Delete a QualifiedRelationship resource by its IRI.
+   * Create a relationship the Linked.Archi way: a qualified resource typed
+   * with its relationship class, carrying `arch:source` / `arch:target` and
+   * `arch:inModel`, *plus* the unqualified triple the class maps to through
+   * `arch:unqualifiedForm` (DD-10). The resource is what views draw, what
+   * properties hang off, and what has a stable IRI; the triple is what makes
+   * `?a am4:serves ?b` work in SPARQL.
    *
-   * Removes all triples where the QR IRI is the subject.
-   * Source and target elements remain intact.
+   * `typeIri` may name either the class (`am4:Serving`, what the palette
+   * offers) or the predicate (`am4:serves`); the other is resolved from the
+   * metamodel. When the metamodel names neither mapping the resource is typed
+   * with `typeIri` alone and no unqualified triple is written.
+   */
+  createQualifiedRelationship(request: CreateRelationshipRequest): RelationshipInfo {
+    const { sourceIri, targetIri } = request;
+    let classIri = request.typeIri;
+    let predicateIri = request.predicateIri;
+
+    if (this.isRelationshipClass(request.typeIri)) {
+      predicateIri ??= unqualifiedFormOf(this.store, request.typeIri);
+    } else {
+      // Given a predicate: find the class that maps to it.
+      predicateIri ??= request.typeIri;
+      classIri = this.findRelationshipClass(request.typeIri) ?? request.typeIri;
+    }
+    if (predicateIri === classIri && !this.isProperty(predicateIri)) predicateIri = undefined;
+
+    const iri = request.iri ?? mintIri(request.modelIri ?? sourceIri, 'relationship');
+    const rel = nn(iri);
+    const quads: Quad[] = [
+      triple(rel, T.rdfType, nn(classIri)),
+      triple(rel, T.source, nn(sourceIri)),
+      triple(rel, T.target, nn(targetIri)),
+    ];
+    if (request.modelIri) quads.push(triple(rel, T.inModel, nn(request.modelIri)));
+    if (request.label?.trim()) quads.push(triple(rel, T.prefLabel, langLiteral(request.label.trim())));
+    if (predicateIri) quads.push(triple(nn(sourceIri), nn(predicateIri), nn(targetIri)));
+    this.store.addQuads(quads);
+
+    return {
+      iri,
+      classIri,
+      ...(predicateIri ? { predicateIri } : {}),
+      sourceIri,
+      targetIri,
+      ...(request.label?.trim() ? { label: request.label.trim() } : {}),
+    };
+  }
+
+  /**
+   * Change a relationship's kind in place. The IRI, the endpoints, the label
+   * and every other property stay; the class type and the unqualified triple
+   * are swapped (the old triple only when no sibling still justifies it).
+   */
+  retypeRelationship(relationshipIri: string, typeIri: string): RelationshipInfo | undefined {
+    const current = this.getRelationship(relationshipIri);
+    if (!current) return undefined;
+    const rel = nn(relationshipIri);
+    const newClass = this.isRelationshipClass(typeIri) ? typeIri : (this.findRelationshipClass(typeIri) ?? typeIri);
+    if (newClass === current.classIri) return current;
+    const newPredicate = unqualifiedFormOf(this.store, newClass) ?? (newClass === typeIri ? undefined : typeIri);
+
+    const remove: Quad[] = [...this.store.getQuads(rel, T.rdfType, nn(current.classIri))];
+    if (current.predicateIri) {
+      const siblings = this.getRelationshipsOf(current.sourceIri).filter(
+        (r) => r.iri !== relationshipIri && r.targetIri === current.targetIri && r.classIri === current.classIri,
+      );
+      if (siblings.length === 0) {
+        remove.push(...this.store.getQuads(nn(current.sourceIri), nn(current.predicateIri), nn(current.targetIri)));
+      }
+    }
+    if (remove.length > 0) this.store.removeQuads(remove);
+    const add: Quad[] = [triple(rel, T.rdfType, nn(newClass))];
+    if (newPredicate) add.push(triple(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri)));
+    this.store.addQuads(add);
+    return this.getRelationship(relationshipIri);
+  }
+
+  /**
+   * Reattach a relationship to other elements. Its IRI, type and properties
+   * stay; the ends and the unqualified triple move.
+   */
+  reconnectRelationship(relationshipIri: string, sourceIri: string, targetIri: string): RelationshipInfo | undefined {
+    const current = this.getRelationship(relationshipIri);
+    if (!current) return undefined;
+    if (current.sourceIri === sourceIri && current.targetIri === targetIri) return current;
+    const rel = nn(relationshipIri);
+    const remove: Quad[] = [
+      ...this.store.getQuads(rel, T.source),
+      ...this.store.getQuads(rel, T.target),
+    ];
+    if (current.predicateIri) {
+      const siblings = this.getRelationshipsOf(current.sourceIri).filter(
+        (r) => r.iri !== relationshipIri && r.targetIri === current.targetIri && r.classIri === current.classIri,
+      );
+      if (siblings.length === 0) {
+        remove.push(...this.store.getQuads(nn(current.sourceIri), nn(current.predicateIri), nn(current.targetIri)));
+      }
+    }
+    this.store.removeQuads(remove);
+    const add: Quad[] = [triple(rel, T.source, nn(sourceIri)), triple(rel, T.target, nn(targetIri))];
+    if (current.predicateIri) add.push(triple(nn(sourceIri), nn(current.predicateIri), nn(targetIri)));
+    this.store.addQuads(add);
+    return this.getRelationship(relationshipIri);
+  }
+
+  /** Read one qualified relationship, current or legacy vocabulary. */
+  getRelationship(relationshipIri: string): RelationshipInfo | undefined {
+    const rel = nn(relationshipIri);
+    const first = (predicate: string) => this.store.getQuads(rel, nn(predicate))[0]?.object.value;
+    const sourceIri = first(IRI.source) ?? first(IRI.legacyRelSource);
+    const targetIri = first(IRI.target) ?? first(IRI.legacyRelTarget);
+    if (!sourceIri || !targetIri) return undefined;
+    const classIri = relationshipClassOf(this.store, relationshipIri) ?? IRI.QualifiedRelationship;
+    const predicateIri = unqualifiedFormOf(this.store, classIri) ?? first(IRI.legacyRelPredicate);
+    const label = first(IRI.prefLabel);
+    return {
+      iri: relationshipIri,
+      classIri,
+      ...(predicateIri ? { predicateIri } : {}),
+      sourceIri,
+      targetIri,
+      ...(label ? { label } : {}),
+    };
+  }
+
+  /** Every qualified relationship with the element at either end. */
+  getRelationshipsOf(elementIri: string): RelationshipInfo[] {
+    return relationshipsTouching(this.store, elementIri)
+      .map((iri) => this.getRelationship(iri))
+      .filter((info): info is RelationshipInfo => info !== undefined);
+  }
+
+  /** The quads {@link deleteRelationship} removes. */
+  collectRelationshipQuads(relationshipIri: string): Quad[] {
+    return collectRelationshipQuads(this.store, relationshipIri);
+  }
+
+  /** Whether an IRI is a relationship class (reaches `arch:QualifiedRelationship`). */
+  private isRelationshipClass(iri: string): boolean {
+    if (!isSafeIri(iri)) return false;
+    const rows = graphScope(this.store).select(
+      (from) => `
+      PREFIX rdfs: <${NAMESPACES.rdfs}>
+      PREFIX arch: <${NAMESPACES.arch}>
+      SELECT ?x ${from} WHERE { <${iri}> rdfs:subClassOf+ arch:QualifiedRelationship . BIND(1 AS ?x) } LIMIT 1
+    `,
+    );
+    return rows.length > 0;
+  }
+
+  /** Whether an IRI is declared as a property anywhere in the store. */
+  private isProperty(iri: string): boolean {
+    const types = this.store.getQuads(nn(iri), T.rdfType).map((q) => q.object.value);
+    return types.some((t) => t.endsWith('ObjectProperty') || t.endsWith('#Property'));
+  }
+
+  /**
+   * Delete a QualifiedRelationship from the model by its IRI.
    *
-   * Note: For direct triples, the caller should remove the triple directly
-   * via the RDF store, since direct triples have no dedicated IRI.
+   * Removes the resource, its unqualified triple when no sibling occurrence
+   * keeps that triple true, and every diagram link drawing it. Source and
+   * target elements remain intact.
+   *
+   * A relationship that exists *only* as a direct triple has no IRI; the
+   * caller retracts that triple directly via the RDF store.
    */
   deleteRelationship(relationshipIri: string): void {
-    const qrNode = namedNode(relationshipIri) as unknown as NamedNode;
-
-    // Remove all triples where the QR is the subject
-    const qrQuads = this.store.getQuads(qrNode);
-    if (qrQuads.length > 0) {
-      this.store.removeQuads(qrQuads);
-    }
+    // The resource, its unqualified triple (unless a sibling keeps it true),
+    // and every link drawing it — see `cascade.ts`.
+    const quads = this.collectRelationshipQuads(relationshipIri);
+    if (quads.length > 0) this.store.removeQuads(quads);
   }
 }

@@ -11,7 +11,7 @@ const { namedNode } = DataFactory;
 
 const RDF_TYPE = NAMESPACES.rdf + 'type';
 const ARCH_MODEL = NAMESPACES.arch + 'Model';
-const ARCH_CONFORMS = NAMESPACES.arch + 'conformsToMetamodel';
+const ARCH_CONFORMS = NAMESPACES.arch + 'modelConformsToMetamodel';
 const SKOS_PREF_LABEL = NAMESPACES.skos + 'prefLabel';
 
 function nn(value: string): NamedNode {
@@ -37,7 +37,7 @@ describe('ModelOperations', () => {
     it('returns a NamedNode with a unique model IRI', () => {
       const model = ops.createModel(metamodelIri);
       expect(model.termType).toBe('NamedNode');
-      expect(model.value).toMatch(/^urn:la-gram:model-\d+$/);
+      expect(model.value).toMatch(/^urn:la-gram:archimate\/[0-9a-f-]{36}$/);
     });
 
     it('adds rdf:type arch:Model triple', () => {
@@ -47,7 +47,7 @@ describe('ModelOperations', () => {
       expect(typeQuads[0].object.value).toBe(ARCH_MODEL);
     });
 
-    it('adds arch:conformsToMetamodel triple', () => {
+    it('adds arch:modelConformsToMetamodel triple', () => {
       const model = ops.createModel(metamodelIri);
       const conformsQuads = store.getQuads(model, nn(ARCH_CONFORMS));
       expect(conformsQuads).toHaveLength(1);
@@ -87,7 +87,7 @@ describe('ModelOperations', () => {
       ops.createModel(metamodelIri, 'Test Model');
       const ttl = ops.saveModel();
       expect(ttl).toContain('arch:Model');
-      expect(ttl).toContain('arch:conformsToMetamodel');
+      expect(ttl).toContain('arch:modelConformsToMetamodel');
     });
 
     it('preserves namespace prefixes in output', () => {
@@ -159,7 +159,7 @@ describe('ModelOperations', () => {
       const ops2 = new ModelOperations(parser, serializer, store2);
       const result = ops2.loadModel(ttl);
 
-      expect(result.modelIri).toMatch(/^urn:la-gram:model-/);
+      expect(result.modelIri).toMatch(/^urn:la-gram:archimate\//);
       expect(result.quadCount).toBe(3); // type + conformsTo + label
 
       // Verify the triples are present

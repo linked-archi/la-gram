@@ -273,4 +273,40 @@ export class OxigraphRdfStore implements RdfStore {
   update(sparqlUpdate: string): void {
     this.store.update(sparqlUpdate);
   }
+
+  /**
+   * Parse and insert a whole document natively.
+   *
+   * Measured on the ArchiMate 3.2 relationship shapes (72 740 quads): 110 ms
+   * here against 1.4 s through {@link addQuads}, whose cost is the per-quad term
+   * conversion across the WASM boundary rather than the parse.
+   */
+  load(data: string, options: { format: string; graph?: string; baseIri?: string }): number {
+    const before = this.store.size;
+    this.store.load(data, {
+      format: options.format,
+      ...(options.graph ? { to_graph_name: oxigraph.namedNode(options.graph) } : {}),
+      ...(options.baseIri ? { base_iri: options.baseIri } : {}),
+      no_transaction: true,
+    });
+    return this.store.size - before;
+  }
+
+  size(): number {
+    return this.store.size;
+  }
+
+  /** Whether the store holds exactly this quad (graph included). */
+  has(q: Quad): boolean {
+    return this.store.has(toOxQuad(q));
+  }
+
+  /**
+   * Release the WASM memory behind the store. Stores are otherwise freed only
+   * when the garbage collector finalises the wrapper, which in a test run that
+   * builds dozens of metamodel-sized stores is late enough to matter.
+   */
+  dispose(): void {
+    (this.store as unknown as { free?: () => void }).free?.();
+  }
 }

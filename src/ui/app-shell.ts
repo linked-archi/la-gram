@@ -5,6 +5,7 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
 /**
  * Main application shell providing the layout for the RDF Architecture Modeler.
  * Uses CSS Grid with named slots for each panel area:
+ * - toolbar (top bar: file, metamodels, views, collaboration)
  * - palette (left sidebar, top)
  * - explorer (left sidebar, bottom)
  * - canvas (center)
@@ -22,9 +23,10 @@ export class AppShell extends LitElement {
 
     .shell {
       display: grid;
-      grid-template-columns: 240px 1fr 280px;
-      grid-template-rows: 1fr 1fr 180px;
+      grid-template-columns: 250px 1fr 300px;
+      grid-template-rows: auto 1fr 1fr 190px;
       grid-template-areas:
+        "toolbar   toolbar toolbar"
         "palette   canvas  property"
         "explorer  canvas  property"
         "explorer  validation validation";
@@ -33,6 +35,7 @@ export class AppShell extends LitElement {
       overflow: hidden;
     }
 
+    .panel-toolbar   { grid-area: toolbar; }
     .panel-palette   { grid-area: palette; overflow: auto; }
     .panel-canvas    { grid-area: canvas; overflow: hidden; }
     .panel-property  { grid-area: property; overflow: auto; }
@@ -55,6 +58,8 @@ export class AppShell extends LitElement {
     'model-saved',
     'metamodel-loaded',
     'validation-updated',
+    'view-opened',
+    'views-changed',
   ];
 
   override connectedCallback(): void {
@@ -78,6 +83,9 @@ export class AppShell extends LitElement {
   override render() {
     return html`
       <div class="shell">
+        <div class="panel-toolbar">
+          <slot name="toolbar"></slot>
+        </div>
         <div class="panel-palette">
           <slot name="palette"></slot>
         </div>

@@ -15,7 +15,27 @@ export type ModelEventType =
   | 'metamodel-loaded'
   | 'palette-drag'
   | 'property-edited'
-  | 'validation-updated';
+  | 'validation-updated'
+  /** The canvas switched to another view (`{ viewIri }`). */
+  | 'view-opened'
+  /** A view was created, renamed, re-pointed or deleted (`{ viewIri? }`). */
+  | 'views-changed'
+  /**
+   * The model data changed in a way no finer event describes — a remote
+   * collaborator's edit, an import, a migration (`{ remote?: boolean }`).
+   * Listeners re-read what they show from the store.
+   */
+  | 'model-changed'
+  /** Loaded metamodels changed (`{ metamodelIris }`). */
+  | 'metamodels-changed'
+  /** The presentation context (and so the notation set) changed. */
+  | 'presentation-context-changed'
+  /** Collaboration connection state changed (`{ status, room }`). */
+  | 'collab-status'
+  /** The set of connected collaborators, or their selections, changed. */
+  | 'peers-changed'
+  /** A message for the user (`{ level: 'info'|'warning'|'error', message }`). */
+  | 'notify';
 
 export interface ModelEvent {
   type: ModelEventType;

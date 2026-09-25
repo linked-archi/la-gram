@@ -34,12 +34,18 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
     '''@en ;
     dcterms:created                                         "2019-03-17"^^xsd:date ;
     dcterms:issued                                          "2019-03-17"^^xsd:date ;
-    dcterms:modified                                        "2026-04-12"^^xsd:date ;
+    dcterms:modified                                        "2026-09-07"^^xsd:date ;
     dcterms:publisher                                            "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                                             "draft" ;
     owl:versionIRI                                          <https://meta.linked.archi/core#> ;
-    owl:versionInfo                                         "0.3.2"@en ;
-    owl:priorVersion                                        <https://meta.linked.archi/core/0.3.1#> ;
+    owl:versionInfo                                         "0.4.0"@en ;
+    owl:priorVersion                                        <https://meta.linked.archi/core/0.3.2#> ;
+    skos:historyNote                                        '''0.4.0 — membership properties reworked.
+arch:inView and arch:inModel replace arch:exposedInView and arch:partOfModel, and arch:contains is
+deprecated as an undeclared inverse of what was then partOfModel. All three old properties are
+retained and owl:deprecated; the two renamed ones are rdfs:subPropertyOf their replacements so
+existing data still entails the current vocabulary under RDFS, while arch:contains is not, because
+no sound generalisation exists for it. See DD-30.'''@en ;
 #        Vowl
     schema:logo                                             <https://meta.linked.archi/favicon.svg> ;
     schema:image                                            <https://meta.linked.archi/favicon.svg> ;
@@ -328,7 +334,12 @@ Example:
     * Business Departments...
 
     ''' ;
-    skos:scopeNote  '''Maps to ISO/IEC/IEEE 42010 "Architecture Description" — a work product used to express the architecture of some entity of interest. In Linked.Archi, Model is a more general term that encompasses architecture descriptions and other selective representations.'''@en ;
+    skos:scopeNote  '''Maps to ISO/IEC/IEEE 42010 "Architecture Description" — a work product used to express the architecture of some entity of interest. In Linked.Archi, Model is a more general term that encompasses architecture descriptions and other selective representations.
+
+Model carries both standards' aggregate role: it is the ISO 42010 Architecture Description,
+comprised of one or more Architecture Views, and the TOGAF deliverable — an Architecture
+Definition Document and the like — that aggregates catalogs, matrices and diagrams. Membership is
+stated by the member: a View names its Model with arch:inModel.'''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html>,
                     <https://eaonapage.com/> ;
 .
@@ -559,8 +570,8 @@ Each required viewpoint acts as a placeholder — the actual views are created w
 uses the template to produce a concrete deliverable.
 
 A concrete deliverable (arch:Model) is produced by instantiating a DeliverableTemplate:
-for each required viewpoint, a View conforming to that viewpoint is created and added
-to the Model via arch:contains.'''@en ;
+for each required viewpoint, a View conforming to that viewpoint is created and joined
+to the Model via arch:inModel.'''@en ;
     skos:scopeNote  '''Aligned with TOGAF Architecture Content Framework where deliverables
 (e.g., Architecture Definition Document, Architecture Requirements Specification) are
 defined as aggregations of specific catalogs, matrices, and diagrams. Also aligned with
@@ -578,12 +589,16 @@ Example:
       arch:templateHasFormat archdt:MarkdownFormat, archdt:PDFFormat ;
       arch:templateTargetsPurpose archvp:Designing .
 
-When instantiated:
+When instantiated, each View names the Model it belongs to — membership is stated by the
+member, not the container. See arch:inModel.
   ex:MyADD a arch:Model ;
-      arch:deliverableTemplateUsed archvp:ArchitectureDefinitionDocument ;
-      arch:contains ex:OrgView, ex:AppCoopView, ex:DeployView .
+      arch:deliverableTemplateUsed archvp:ArchitectureDefinitionDocument .
   ex:OrgView a arch:Diagram ;
+      arch:inModel ex:MyADD ;
       arch:viewConformsToViewpoint amvp:Organization .
+  ex:AppCoopView a arch:Diagram ;
+      arch:inModel ex:MyADD ;
+      arch:viewConformsToViewpoint amvp:ApplicationCooperation .
 '''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html>,
                     <https://pubs.opengroup.org/togaf-standard/architecture-content/chap03.html> ;
@@ -896,52 +911,136 @@ here, target points to the element at which the relationship arrives.''' ;
     rdfs:range      :Metamodel ;
 .
 
-:contains
+## ═══════════════════════════════════════════════════════════════════════════════
+## Membership — which Model a concept belongs to, which Views present it
+##
+## Both properties put the *member* in the subject position. That is the
+## direction the rest of this ontology already reads in — viewConformsToViewpoint,
+## modelConformsToMetamodel, basedOnFramework, modelRepresentsSystem all describe
+## the dependent thing rather than the container — so membership is no longer the
+## one exception. There is no container-first inverse of either; see the note on
+## the deprecated :contains below for why declaring one is unsound rather than
+## merely redundant.
+##
+## Two properties rather than one, because :View is itself a :ModelConcept and a
+## View may present other Views. A single container-first `contains` would render
+## "this Model holds this View" and "this View presents that View" as the same
+## triple pattern with a :View in object position either way, leaving no way to
+## tell them apart.
+##
+## Neither is a subproperty of :partOf, and neither is transitive. :partOf is
+## transitive composition between two ModelConcepts: presentation on a View is
+## not composition, and :Model is not a :ModelConcept at all, so :inModel could
+## not inherit that range even if the semantics fitted. See DD-30.
+## ═══════════════════════════════════════════════════════════════════════════════
+
+:inView
     a               owl:ObjectProperty ;
-    skos:prefLabel  "contains"@en ;
-    skos:definition '''Links a Model to the Views it contains. A Model (architecture description)
-is a deliverable that aggregates multiple Views, each conforming to a Viewpoint.'''@en ;
-    skos:scopeNote  '''In ISO/IEC/IEEE 42010, an Architecture Description is comprised of one or more
-Architecture Views. In TOGAF, a deliverable (e.g., Architecture Definition Document) contains
-multiple catalogs, matrices, and diagrams. In Linked.Archi, arch:Model serves as both the
-ISO 42010 Architecture Description and the TOGAF deliverable concept.
+    skos:prefLabel  "inView"@en ;
+    skos:definition '''Links a ModelConcept to a View that presents it. Applies to Elements,
+QualifiedRelationships and nested Views alike — anything that is a ModelConcept — and to every
+kind of View: a Diagram that draws the concept, a Catalog that lists it, a Matrix that indexes
+it.'''@en ;
+    skos:scopeNote  '''Many-valued. One concept may appear in any number of Views, and appearing
+in none is an ordinary state for a concept that exists in the model but has not been presented
+anywhere.
 
-A Model can be instantiated from a DeliverableTemplate, which specifies which viewpoints
-are required. Each required viewpoint becomes a placeholder for a View:
+A QualifiedRelationship carries this property directly, as any other ModelConcept does. No
+reification is involved: the relationship is already a resource with :source and :target, so
+`ex:rel1 arch:inView ex:View1` states plainly what an RDF-star annotation on an unqualified
+triple would have had to state indirectly.
 
-Example:
-  ex:ArchDefinitionDoc a arch:Model ;
-      arch:deliverableTemplateUsed archvp:ArchitectureOverviewDocument ;
-      arch:contains ex:OrgChart, ex:AppLandscape, ex:TechDeployment ;
-      arch:modelHasPurpose ex:CloudMigration .
-
-  ex:OrgChart a arch:Diagram ;
-      arch:viewConformsToViewpoint amvp:Organization .'''@en ;
-    rdfs:domain     :Model ;
+Independent of the visual layer, and deliberately not derived from it. Where diagram geometry
+exists, core-vis says something more precise — an arch-vis:ArchNode carrying arch-vis:view and
+arch-vis:archElement locates the concept on a canvas. arch:inView is the coarser fact that
+survives when geometry is absent, was dropped by a serialization profile, or never existed
+because the source notation had no coordinates. Both are emitted; neither substitutes for the
+other.'''@en ;
+    rdfs:domain     :ModelConcept ;
     rdfs:range      :View ;
 .
 
-:exposedInView
+:inModel
     a               owl:ObjectProperty ;
-    skos:prefLabel  "exposedInView"@en ;
-    skos:definition '''
-    Concepts property that specifies the individual Views that exposes that Concept such as Elements, Relationships
-    or other Views. In the case of a relationshipRDF* or statement can be used to link the triple with the View.
-        ''' ;
+    skos:prefLabel  "inModel"@en ;
+    skos:definition '''Links a ModelConcept to the Model it belongs to. Applies to Elements,
+QualifiedRelationships and Views alike, so a View's membership in its Model is stated with the
+same property as an Element's rather than needing a container-first term of its own.'''@en ;
+    skos:scopeNote  '''At most one Model per concept. That bound is asserted in core-shapes as
+archsh:InModelShape rather than by typing this property owl:FunctionalProperty, which would
+entail owl:sameAs between two Models instead of reporting the error. See DD-23.
+
+Redundant with the named graph in a quad store, and deliberately so. A consumer reading
+flattened Turtle or N-Triples, or a merged graph, has no other way to tell which Model a concept
+belongs to short of parsing its IRI.
+
+Named :inModel rather than partOfModel because that stem collided with :partOf, a transitive
+composition property with unrelated semantics that this one neither specialises nor could
+specialise.'''@en ;
     rdfs:domain     :ModelConcept ;
-    rdfs:range      :View ;
+    rdfs:range      :Model ;
+.
+
+
+## ── Superseded membership properties ──────────────────────────────────────────
+## Retained so that data written against the older vocabulary still resolves, and
+## declared rdfs:subPropertyOf their replacements so it still entails the current
+## properties for a consumer running RDFS. Nothing in this project emits them.
+## See DD-30.
+
+:exposedInView
+    a                  owl:ObjectProperty ;
+    owl:deprecated     true ;
+    skos:prefLabel     "exposedInView"@en ;
+    rdfs:subPropertyOf :inView ;
+    dcterms:isReplacedBy :inView ;
+    skos:definition    '''Superseded by arch:inView, which states the same relationship under a
+name that does not imply a picture.'''@en ;
+    skos:historyNote   '''Renamed to arch:inView in 0.4.0. "Exposed in" reads as drawing, but
+:View also covers :Catalog and :Matrix, which present concepts without depicting them. The
+original definition also offered RDF-star or rdf:Statement for the relationship case; that was a
+leftover from the reified design :source and :target replaced, and a QualifiedRelationship now
+carries membership directly.'''@en ;
+    rdfs:domain        :ModelConcept ;
+    rdfs:range         :View ;
 .
 
 :partOfModel
-    a               owl:ObjectProperty ;
-    skos:prefLabel  "partOfModel"@en ;
-    skos:definition '''
-    Concepts property that specifies the Model that contains that Concept such as Elements, Relationships
-    or other Views. In the case of a relationship RDF-star or statement can be used to link the triple with the View.
-    Note that Model propery of a concept can be expressed via quads.
-        ''' ;
-    rdfs:domain     :ModelConcept ;
-    rdfs:range      :Model ;
+    a                  owl:ObjectProperty ;
+    owl:deprecated     true ;
+    skos:prefLabel     "partOfModel"@en ;
+    rdfs:subPropertyOf :inModel ;
+    dcterms:isReplacedBy :inModel ;
+    skos:definition    '''Superseded by arch:inModel, which states the same relationship without
+borrowing the partOf stem.'''@en ;
+    skos:historyNote   '''Renamed to arch:inModel in 0.4.0. The shared stem invited the reading
+that model membership is a kind of :partOf composition. It is not, and could not be made one:
+:partOf is transitive with range :ModelConcept, while :Model is not a :ModelConcept.'''@en ;
+    rdfs:domain        :ModelConcept ;
+    rdfs:range         :Model ;
+.
+
+:contains
+    a                  owl:ObjectProperty ;
+    owl:deprecated     true ;
+    skos:prefLabel     "contains"@en ;
+    dcterms:isReplacedBy :inModel ;
+    skos:definition    '''Superseded by arch:inModel, read in the other direction: what was
+`ex:Doc arch:contains ex:OrgChart` is now `ex:OrgChart arch:inModel ex:Doc`.'''@en ;
+    skos:historyNote   '''Deprecated in 0.4.0 as an undeclared inverse of what was then
+:partOfModel — since :View is a :ModelConcept, both properties already stated the same fact
+about a View and its Model, in opposite directions, with nothing relating them.
+
+Carries no owl:inverseOf to :inModel, which would be unsound rather than untidy. :inModel admits
+any :ModelConcept as subject while this property declares rdfs:range :View, so the inverse of
+`ex:Element1 arch:inModel ex:Doc` would entail `ex:Doc arch:contains ex:Element1` and, through
+that range, `ex:Element1 a arch:View`.
+
+Carries no rdfs:subPropertyOf either, for the same reason: no container-first property here has
+:inModel's breadth, so there is nothing sound to generalise to. Legacy arch:contains triples
+therefore do not entail :inModel and have to be rewritten rather than reasoned over.'''@en ;
+    rdfs:domain        :Model ;
+    rdfs:range         :View ;
 .
 
 :modelRepresentsSystem

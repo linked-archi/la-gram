@@ -233,10 +233,9 @@ describe('App', () => {
         x: 10, y: 20, width: 100, height: 50,
       });
 
-      expect(elementManager.createElement).toHaveBeenCalledWith(
-        'urn:test:Type', 'urn:test:model',
-        { x: 10, y: 20, width: 100, height: 50 },
-      );
+      // An element is a model concept; its position belongs to a view, and
+      // there is no open view in this stubbed app.
+      expect(elementManager.createElement).toHaveBeenCalledWith('urn:test:Type', 'urn:test:model');
       expect(created).toContain('urn:test:elem-1');
     });
   });

@@ -30,9 +30,13 @@ export type MetamodelAssetOutcome =
   | 'loaded'
   /** Already present in the store from an earlier step (dedup by document IRI). */
   | 'already-loaded'
-  /** Referenced by the manifest but not shipped in this bundle. */
+  /** Referenced by the manifest but not shipped in this bundle (bundle-only source). */
   | 'not-bundled'
-  /** Bundled but the fetch or the parse failed. */
+  /** No configured source (upload, network, bundle) could provide it. */
+  | 'unavailable'
+  /** Deliberately not fetched: the editor has no use for it (derivation rules, templates). */
+  | 'skipped'
+  /** A source should have had it but the fetch or the parse failed. */
   | 'error';
 
 /**
@@ -53,8 +57,10 @@ export interface MetamodelAssetStatus {
   outcome: MetamodelAssetOutcome;
   /** Quads loaded into the graph. Present when `outcome === 'loaded'`. */
   quadCount?: number;
-  /** Failure detail when `outcome === 'error'`. */
+  /** Failure detail when `outcome === 'error'`, reason for `skipped`/`unavailable`. */
   message?: string;
+  /** Which source answered, when one did. */
+  origin?: 'bundled' | 'remote' | 'uploaded';
 }
 
 /**
@@ -75,6 +81,8 @@ export interface LoadedMetamodel {
   graphsByRole: Partial<Record<BundledAssetRole, string[]>>;
   /** Notation set the manifest names via `arch:notationSet`, when it does. */
   notationSetIri?: string;
+  /** Concept scheme the manifest names via `arch:presentationContextScheme`. */
+  presentationContextSchemeIri?: string;
   /** One entry per discovered asset, in discovery order. */
   assets: MetamodelAssetStatus[];
 }
@@ -91,8 +99,23 @@ export interface MetamodelLoader {
    * manifest's asset-pointing properties and `owl:imports` transitively.
    */
   loadMetamodelFromManifest(manifestTtl: string): Promise<LoadedMetamodel>;
-  /** Load the ArchiMate 4.0 metamodel that ships with the application. */
-  loadBundledMetamodel(): Promise<LoadedMetamodel>;
+  /** Load a bundled metamodel (ArchiMate 4.0 by default) with no network. */
+  loadBundledMetamodel(idOrIri?: string): Promise<LoadedMetamodel>;
+  /** Load a metamodel by its `arch:Metamodel` IRI or manifest document IRI. */
+  loadMetamodelByIri(iri: string): Promise<LoadedMetamodel>;
+  /** Load the core ontologies and core shapes every model is validated against. */
+  loadCoreAssets(): Promise<Partial<Record<BundledAssetRole, string[]>>>;
+  /** Drop a metamodel's graphs, keeping those shared with `keep`. */
+  unloadMetamodel(loaded: LoadedMetamodel, keep?: readonly LoadedMetamodel[]): string[];
+  /** Load one standalone document (extension ontology, shapes file). */
+  loadDocument(
+    text: string,
+    options?: {
+      format?: import('./asset-sources.js').AssetFormat;
+      role?: BundledAssetRole;
+      documentIri?: string;
+    },
+  ): Promise<MetamodelAssetStatus>;
   loadShapes(ttlContent: string): Promise<void>;
   resolveImports(ontologyIri: string): Promise<void>;
 }

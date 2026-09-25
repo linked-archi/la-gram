@@ -433,10 +433,10 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(loaded.graphsByRole.coreVisOntology).toEqual(['https://meta.linked.archi/core-vis#']);
   });
 
-  it('reports the assets it could not load instead of hiding them', () => {
-    const notBundled = loaded.assets.filter((a) => a.outcome === 'not-bundled');
-    expect(notBundled.length).toBeGreaterThan(0);
-    expect(notBundled.map((a) => a.documentIri)).toContain(
+  it('reports the assets it did not load instead of hiding them', () => {
+    const skipped = loaded.assets.filter((a) => a.outcome === 'skipped');
+    expect(skipped.length).toBeGreaterThan(0);
+    expect(skipped.map((a) => a.documentIri)).toContain(
       'https://meta.linked.archi/archimate4/derivation#',
     );
     expect(loaded.assets.some((a) => a.outcome === 'error')).toBe(false);

@@ -1,0 +1,760 @@
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix bibo:    <http://purl.org/ontology/bibo/> .
+@prefix vann:    <http://purl.org/vocab/vann/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix cc:      <http://creativecommons.org/ns#> .
+
+@prefix arch:    <https://meta.linked.archi/core#> .
+@prefix am:      <https://meta.linked.archi/archimate3/onto#> .
+@prefix :        <https://meta.linked.archi/archimate3/viewpoints#> .
+
+<https://meta.linked.archi/archimate3/viewpoints#>
+    a                             owl:Ontology ;
+    owl:imports                   <https://meta.linked.archi/core#> ;
+    cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/archimate3/viewpoints#" ;
+    vann:preferredNamespacePrefix "amvp" ;
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:title                      "Linked.Archi ArchiMate 3.2 Example Viewpoints"@en ;
+    dcterms:description                '''ArchiMate 3.2 example viewpoints as arch:Viewpoint individuals.
+Each viewpoint specifies allowed element types (arch:includesConcept), target
+stakeholders (arch:targetsStakeholder), and framed concerns (arch:viewpointFramesConcern).
+Organizations may define additional custom viewpoints.'''@en ;
+    dcterms:created               "2022-11-14"^^xsd:date ;
+    dcterms:modified              "2025-12-01"^^xsd:date ;
+    dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
+    bibo:status                   "draft" ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Example-Viewpoints.html> ;
+    prov:wasDerivedFrom <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Example-Viewpoints.html> ;
+    owl:versionIRI                <https://meta.linked.archi/archimate3/viewpoints/3.2#> ;
+    owl:versionInfo               "3.2"@en ;
+.
+
+
+#################################################################
+# Additional Viewpoint Properties
+#
+# These extend the core arch:Viewpoint with ArchiMate-specific
+# classification dimensions.
+#################################################################
+
+#################################################################
+# Viewpoint Catalog (SKOS Concept Scheme)
+#
+# Classifies the 23 ArchiMate example viewpoints by category,
+# following the ArchiMate spec's own grouping. Queryable for
+# palette generation, documentation, and navigation.
+#################################################################
+
+:ViewpointCatalog
+    a                skos:ConceptScheme ;
+    skos:prefLabel   "ArchiMate 3.2 Viewpoint Catalog"@en ;
+    dcterms:description  '''Classification of ArchiMate example viewpoints by category,
+following the ArchiMate specification's own grouping from Chapter 14 and Appendix C.
+The four top-level categories correspond to the ArchiMate framework dimensions.
+The sub-categories under Basic Viewpoints (Composition, Support, Cooperation,
+Realization) correspond to the ArchiMate viewpoint classification matrix.'''@en ;
+    skos:scopeNote   '''This grouping is ArchiMate-specific. Other frameworks use different
+organizations — e.g., TOGAF groups viewpoints by ADM phase (A through H).
+ISO/IEC/IEEE 42010 does not prescribe a specific grouping.'''@en ;
+    skos:hasTopConcept :BasicViewpoints, :MotivationViewpoints,
+                       :StrategyViewpoints, :ImplementationViewpoints ;
+.
+
+:BasicViewpoints
+    a                 skos:Concept ;
+    skos:prefLabel    "Basic Viewpoints"@en ;
+    skos:definition   "Viewpoints covering the three core layers (Business, Application, Technology)."@en ;
+    skos:topConceptOf :ViewpointCatalog ;
+    skos:inScheme     :ViewpointCatalog ;
+.
+
+:CompositionViewpoints
+    a              skos:Concept ;
+    skos:prefLabel "Composition Viewpoints"@en ;
+    skos:definition "Viewpoints showing internal structure and aggregation of elements."@en ;
+    skos:broader   :BasicViewpoints ;
+    skos:inScheme  :ViewpointCatalog ;
+    skos:narrower  :Organization, :InformationStructureVP, :TechnologyVP, :Layered, :PhysicalVP ;
+.
+
+:SupportViewpoints
+    a              skos:Concept ;
+    skos:prefLabel "Support Viewpoints"@en ;
+    skos:definition "Viewpoints showing how elements in one layer support elements in a higher layer."@en ;
+    skos:broader   :BasicViewpoints ;
+    skos:inScheme  :ViewpointCatalog ;
+    skos:narrower  :ProductVP, :ApplicationUsage, :TechnologyUsage ;
+.
+
+:CooperationViewpoints
+    a              skos:Concept ;
+    skos:prefLabel "Cooperation Viewpoints"@en ;
+    skos:definition "Viewpoints showing how peer elements cooperate across aspects."@en ;
+    skos:broader   :BasicViewpoints ;
+    skos:inScheme  :ViewpointCatalog ;
+    skos:narrower  :BusinessProcessCooperation, :ApplicationCooperation ;
+.
+
+:RealizationViewpoints
+    a              skos:Concept ;
+    skos:prefLabel "Realization Viewpoints"@en ;
+    skos:definition "Viewpoints showing how elements realize more abstract elements."@en ;
+    skos:broader   :BasicViewpoints ;
+    skos:inScheme  :ViewpointCatalog ;
+    skos:narrower  :ServiceRealizationVP, :ImplementationDeployment ;
+.
+
+:MotivationViewpoints
+    a                 skos:Concept ;
+    skos:prefLabel    "Motivation Viewpoints"@en ;
+    skos:definition   "Viewpoints for modeling motivational aspects — stakeholders, goals, requirements."@en ;
+    skos:topConceptOf :ViewpointCatalog ;
+    skos:inScheme     :ViewpointCatalog ;
+    skos:narrower     :StakeholderVP, :GoalRealization, :RequirementsRealization, :MotivationVP ;
+.
+
+:StrategyViewpoints
+    a                 skos:Concept ;
+    skos:prefLabel    "Strategy Viewpoints"@en ;
+    skos:definition   "Viewpoints for strategic direction — capabilities, resources, value streams."@en ;
+    skos:topConceptOf :ViewpointCatalog ;
+    skos:inScheme     :ViewpointCatalog ;
+    skos:narrower     :StrategyVP, :CapabilityMap, :OutcomeRealization, :ResourceMap ;
+.
+
+:ImplementationViewpoints
+    a                 skos:Concept ;
+    skos:prefLabel    "Implementation & Migration Viewpoints"@en ;
+    skos:definition   "Viewpoints for managing architecture change — projects, migration, plateaus."@en ;
+    skos:topConceptOf :ViewpointCatalog ;
+    skos:inScheme     :ViewpointCatalog ;
+    skos:narrower     :ProjectVP, :MigrationVP, :ImplementationAndMigrationVP ;
+.
+
+
+#################################################################
+# Purpose Individuals
+#
+# Architecture activity purposes — what kind of work the viewpoint
+# supports. These are instances of arch:Purpose.
+#################################################################
+
+:Deciding    a arch:Purpose ; skos:prefLabel "Deciding"@en ;
+    skos:definition "Evaluating options, portfolio rationalization, lifecycle planning, impact analysis."@en .
+:Designing   a arch:Purpose ; skos:prefLabel "Designing"@en ;
+    skos:definition "Creating or refining architecture — structure, integration, deployment topology."@en .
+:Informing   a arch:Purpose ; skos:prefLabel "Informing"@en ;
+    skos:definition "Communicating architecture to stakeholders — overviews, landscapes, roadmaps."@en .
+:Governing   a arch:Purpose ; skos:prefLabel "Governing"@en ;
+    skos:definition "Compliance checking, standards enforcement, migration tracking."@en .
+
+
+#################################################################
+# Aspect Individuals
+#
+# Architecture aspects — the vertical dimension of the ArchiMate
+# framework. These are instances of arch:Aspect.
+#################################################################
+
+:ActiveStructureAspect  a arch:Aspect ; skos:prefLabel "Active Structure"@en ;
+    skos:definition "Elements that perform behavior — actors, components, nodes, interfaces."@en .
+:BehaviorAspect         a arch:Aspect ; skos:prefLabel "Behavior"@en ;
+    skos:definition "Elements representing dynamic behavior — processes, functions, services, events."@en .
+:PassiveStructureAspect a arch:Aspect ; skos:prefLabel "Passive Structure"@en ;
+    skos:definition "Elements on which behavior is performed — objects, artifacts, materials."@en .
+:MotivationAspect       a arch:Aspect ; skos:prefLabel "Motivation"@en ;
+    skos:definition "Elements representing the why — goals, requirements, stakeholders, drivers."@en .
+:CompositeAspect        a arch:Aspect ; skos:prefLabel "Composite"@en ;
+    skos:definition "Elements combining multiple aspects — products, groupings, locations."@en .
+
+
+#################################################################
+# Perspective Individuals
+#
+# Architecture perspectives — the horizontal dimension. These are
+# instances of arch:Perspective.
+#################################################################
+
+:StrategicPerspective       a arch:Perspective ; skos:prefLabel "Strategic"@en ;
+    skos:definition "High-level direction, capabilities, and value streams."@en .
+:OperationalPerspective     a arch:Perspective ; skos:prefLabel "Operational"@en ;
+    skos:definition "Day-to-day business processes and organizational structure."@en .
+:ApplicationPerspective     a arch:Perspective ; skos:prefLabel "Application"@en ;
+    skos:definition "Software systems supporting business operations."@en .
+:InfrastructurePerspective  a arch:Perspective ; skos:prefLabel "Infrastructure"@en ;
+    skos:definition "Technology platforms, networks, and physical assets."@en .
+:GovernancePerspective      a arch:Perspective ; skos:prefLabel "Governance"@en ;
+    skos:definition "Change management, migration, and project delivery."@en .
+
+
+#################################################################
+# Stakeholder Individuals
+#
+# Common architecture stakeholder roles referenced by viewpoints.
+# These are instances of arch:Stakeholder (which is a subclass of
+# arch:Element), usable both as viewpoint metadata and as elements
+# in architecture models.
+#################################################################
+
+:EnterpriseArchitect     a arch:Stakeholder ; skos:prefLabel "Enterprise Architect"@en .
+:SolutionArchitect       a arch:Stakeholder ; skos:prefLabel "Solution Architect"@en .
+:BusinessArchitect       a arch:Stakeholder ; skos:prefLabel "Business Architect"@en .
+:ApplicationArchitect    a arch:Stakeholder ; skos:prefLabel "Application Architect"@en .
+:InfrastructureArchitect a arch:Stakeholder ; skos:prefLabel "Infrastructure Architect"@en .
+:SecurityArchitect       a arch:Stakeholder ; skos:prefLabel "Security Architect"@en .
+:BusinessManager         a arch:Stakeholder ; skos:prefLabel "Business Manager"@en .
+:ProductManager          a arch:Stakeholder ; skos:prefLabel "Product Manager"@en .
+:ProcessOwner            a arch:Stakeholder ; skos:prefLabel "Process Owner"@en .
+:SoftwareDeveloper       a arch:Stakeholder ; skos:prefLabel "Software Developer"@en .
+:OperationsManager       a arch:Stakeholder ; skos:prefLabel "Operations Manager"@en .
+:ProjectManager          a arch:Stakeholder ; skos:prefLabel "Project Manager"@en .
+:CIO                     a arch:Stakeholder ; skos:prefLabel "CIO"@en .
+:CEO                     a arch:Stakeholder ; skos:prefLabel "CEO"@en .
+:DataArchitect           a arch:Stakeholder ; skos:prefLabel "Data Architect"@en .
+
+
+#################################################################
+# Concern Individuals
+#
+# Organized by category. Concerns are "what" interests — the
+# specific topics a viewpoint addresses. These are distinct from:
+# - arch:Purpose — WHY the architecture work is done (deciding,
+#   designing, evaluating, communicating)
+# - arch:Aspect — WHICH dimension (data, behavior, structure)
+# - arch:Perspective — FROM WHERE (strategic, operational)
+#################################################################
+
+## Structural concerns — understanding what exists
+:OrganizationalStructure  a arch:Concern ; skos:prefLabel "Organizational structure and responsibilities"@en ;
+    skos:broader :StructuralConcerns .
+:InformationStructure     a arch:Concern ; skos:prefLabel "Information structure and data consistency"@en ;
+    skos:broader :StructuralConcerns .
+:InfrastructureStability  a arch:Concern ; skos:prefLabel "Infrastructure stability and security"@en ;
+    skos:broader :StructuralConcerns .
+:PhysicalEnvironment      a arch:Concern ; skos:prefLabel "Physical environment and IT infrastructure relationships"@en ;
+    skos:broader :StructuralConcerns .
+:DeploymentStructure      a arch:Concern ; skos:prefLabel "Deployment structure and artifact mapping"@en ;
+    skos:broader :StructuralConcerns .
+
+## Behavioral concerns — understanding how things work together
+:ProcessCooperation       a arch:Concern ; skos:prefLabel "Business process cooperation and information exchange"@en ;
+    skos:broader :BehavioralConcerns .
+:ApplicationIntegration   a arch:Concern ; skos:prefLabel "Application integration and data sharing"@en ;
+    skos:broader :BehavioralConcerns .
+:ServiceRealization       a arch:Concern ; skos:prefLabel "Service realization by processes and roles"@en ;
+    skos:broader :BehavioralConcerns .
+:ApplicationSupport       a arch:Concern ; skos:prefLabel "Application support for business processes"@en ;
+    skos:broader :BehavioralConcerns .
+:TechnologySupport        a arch:Concern ; skos:prefLabel "Technology support for applications"@en ;
+    skos:broader :BehavioralConcerns .
+
+## Motivation concerns — understanding why
+:StakeholderAlignment     a arch:Concern ; skos:prefLabel "Stakeholder alignment and goal setting"@en ;
+    skos:broader :MotivationConcerns .
+:GoalDecomposition        a arch:Concern ; skos:prefLabel "Goal decomposition and requirements traceability"@en ;
+    skos:broader :MotivationConcerns .
+:RequirementsTraceability a arch:Concern ; skos:prefLabel "Requirements traceability to architecture elements"@en ;
+    skos:broader :MotivationConcerns .
+:MotivationLandscape      a arch:Concern ; skos:prefLabel "Full motivation landscape and rationale"@en ;
+    skos:broader :MotivationConcerns .
+:ProductOffering          a arch:Concern ; skos:prefLabel "Product offering and value proposition"@en ;
+    skos:broader :MotivationConcerns .
+
+## Strategic concerns — understanding direction
+:StrategicDirection       a arch:Concern ; skos:prefLabel "Strategic direction and capability planning"@en ;
+    skos:broader :StrategicConcerns .
+:CapabilityLandscape      a arch:Concern ; skos:prefLabel "Capability landscape and composition"@en ;
+    skos:broader :StrategicConcerns .
+:OutcomeDelivery          a arch:Concern ; skos:prefLabel "Outcome delivery through capabilities"@en ;
+    skos:broader :StrategicConcerns .
+:ResourceAllocation       a arch:Concern ; skos:prefLabel "Resource allocation to capabilities"@en ;
+    skos:broader :StrategicConcerns .
+
+## Governance concerns — managing change
+:ProjectDelivery          a arch:Concern ; skos:prefLabel "Project delivery and architecture change"@en ;
+    skos:broader :GovernanceConcerns .
+:ArchitectureMigration    a arch:Concern ; skos:prefLabel "Architecture migration and transition planning"@en ;
+    skos:broader :GovernanceConcerns .
+:ChangeManagement         a arch:Concern ; skos:prefLabel "Change management across architecture layers"@en ;
+    skos:broader :GovernanceConcerns .
+:ImpactOfChange           a arch:Concern ; skos:prefLabel "Impact of change and flexibility"@en ;
+    skos:broader :GovernanceConcerns .
+:CostOptimization         a arch:Concern ; skos:prefLabel "Cost optimization and rationalization"@en ;
+    skos:broader :GovernanceConcerns .
+:ArchitectureOverview     a arch:Concern ; skos:prefLabel "Architecture overview and cross-layer consistency"@en ;
+    skos:broader :GovernanceConcerns .
+
+## Concern categories (grouping concepts, not arch:Concern instances)
+:StructuralConcerns   a skos:Concept ; skos:prefLabel "Structural Concerns"@en ;
+    skos:definition "Understanding what exists — the static structure of the enterprise."@en .
+:BehavioralConcerns   a skos:Concept ; skos:prefLabel "Behavioral Concerns"@en ;
+    skos:definition "Understanding how things work together — processes, services, and cooperation."@en .
+:MotivationConcerns   a skos:Concept ; skos:prefLabel "Motivation Concerns"@en ;
+    skos:definition "Understanding why — goals, requirements, stakeholder interests, and value."@en .
+:StrategicConcerns    a skos:Concept ; skos:prefLabel "Strategic Concerns"@en ;
+    skos:definition "Understanding direction — capabilities, resources, and strategic planning."@en .
+:GovernanceConcerns   a skos:Concept ; skos:prefLabel "Governance Concerns"@en ;
+    skos:definition "Managing change — migration, projects, impact analysis, and cost."@en .
+
+
+#################################################################
+# Basic Viewpoints — Composition
+#################################################################
+
+:Organization
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Organization Viewpoint"@en ;
+    skos:definition         '''Shows the structure of the enterprise in terms of its business actors,
+roles, collaborations, and their relationships.'''@en ;
+    arch:includesConcept    am:BusinessActor, am:BusinessRole, am:BusinessCollaboration,
+                            am:BusinessInterface, am:Location ;
+    arch:targetsStakeholder :BusinessManager, :BusinessArchitect, :EnterpriseArchitect ;
+    arch:viewpointFramesConcern :OrganizationalStructure ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect ;
+    arch:viewpointAddressesPerspective         :OperationalPerspective ;
+    arch:viewpointHasPurpose :Informing, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CompositionViewpoints ;
+    arch:viewType               arch:Diagram, arch:Catalog ;
+.
+
+:InformationStructureVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Information Structure Viewpoint"@en ;
+    skos:definition         '''Shows the structure of the information used in the enterprise,
+including business objects, data objects, and their relationships.'''@en ;
+    arch:includesConcept    am:BusinessObject, am:DataObject, am:Representation,
+                            am:Contract, am:Meaning ;
+    arch:targetsStakeholder :DataArchitect, :ApplicationArchitect, :BusinessArchitect ;
+    arch:viewpointFramesConcern :InformationStructure ;
+    arch:viewpointCoversAspect            :PassiveStructureAspect ;
+    arch:viewpointAddressesPerspective         :OperationalPerspective ;
+    arch:viewpointHasPurpose :Informing, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CompositionViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:TechnologyVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Technology Viewpoint"@en ;
+    skos:definition         '''Shows the infrastructure and platforms underlying the information
+systems, in terms of nodes, devices, system software, networks, and artifacts.'''@en ;
+    arch:includesConcept    am:Node, am:Device, am:SystemSoftware, am:Path,
+                            am:CommunicationNetwork, am:Artifact,
+                            am:TechnologyFunction, am:TechnologyProcess,
+                            am:TechnologyService, am:TechnologyInterface ;
+    arch:targetsStakeholder :InfrastructureArchitect, :OperationsManager, :SecurityArchitect ;
+    arch:viewpointFramesConcern :InfrastructureStability ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect, :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :InfrastructurePerspective ;
+    arch:viewpointHasPurpose :Informing, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CompositionViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:Layered
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Layered Viewpoint"@en ;
+    skos:definition         '''Provides an overview across multiple layers of the architecture,
+showing how elements from different layers relate through serving and realization.'''@en ;
+    arch:includesConcept    am:BusinessProcess, am:BusinessFunction, am:BusinessService,
+                            am:ApplicationComponent, am:ApplicationService,
+                            am:Node, am:Device, am:SystemSoftware,
+                            am:TechnologyService ;
+    arch:targetsStakeholder :EnterpriseArchitect, :CIO ;
+    arch:viewpointFramesConcern :ArchitectureOverview, :ImpactOfChange ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :OperationalPerspective, :ApplicationPerspective, :InfrastructurePerspective ;
+    arch:viewpointHasPurpose :Informing, :Deciding ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CompositionViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:PhysicalVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Physical Viewpoint"@en ;
+    skos:definition         '''Shows the physical environment and how it relates to IT
+infrastructure — equipment, facilities, distribution networks, and materials.'''@en ;
+    arch:includesConcept    am:Equipment, am:Facility, am:DistributionNetwork,
+                            am:Material, am:Node, am:Device, am:Path ;
+    arch:targetsStakeholder :InfrastructureArchitect, :OperationsManager ;
+    arch:viewpointFramesConcern :PhysicalEnvironment ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect ;
+    arch:viewpointAddressesPerspective         :InfrastructurePerspective ;
+    arch:viewpointHasPurpose :Informing, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CompositionViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+
+#################################################################
+# Basic Viewpoints — Support
+#################################################################
+
+:ProductVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Product Viewpoint"@en ;
+    skos:definition         '''Shows the products offered by the enterprise and the services,
+contracts, and business objects associated with them.'''@en ;
+    arch:includesConcept    am:Product, am:BusinessService, am:ApplicationService,
+                            am:TechnologyService, am:Contract, am:BusinessObject,
+                            am:BusinessProcess, am:BusinessInterface, am:Value ;
+    arch:targetsStakeholder :ProductManager, :BusinessManager, :BusinessArchitect ;
+    arch:viewpointFramesConcern :ProductOffering ;
+    arch:viewpointCoversAspect            :CompositeAspect ;
+    arch:viewpointAddressesPerspective         :OperationalPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Informing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :SupportViewpoints ;
+    arch:viewType               arch:Diagram, arch:Catalog ;
+.
+
+:ApplicationUsage
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Application Usage Viewpoint"@en ;
+    skos:definition         '''Shows how applications support business processes and access
+business objects.'''@en ;
+    arch:includesConcept    am:BusinessProcess, am:BusinessFunction, am:BusinessObject,
+                            am:ApplicationComponent, am:ApplicationService,
+                            am:DataObject ;
+    arch:targetsStakeholder :ApplicationArchitect, :ProcessOwner, :BusinessArchitect ;
+    arch:viewpointFramesConcern :ApplicationSupport ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :ApplicationPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :SupportViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:TechnologyUsage
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Technology Usage Viewpoint"@en ;
+    skos:definition         '''Shows how technology infrastructure supports application
+components through nodes, devices, and system software.'''@en ;
+    arch:includesConcept    am:ApplicationComponent, am:Node, am:Device,
+                            am:SystemSoftware, am:TechnologyService,
+                            am:Artifact, am:CommunicationNetwork ;
+    arch:targetsStakeholder :InfrastructureArchitect, :ApplicationArchitect, :OperationsManager ;
+    arch:viewpointFramesConcern :TechnologySupport ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect ;
+    arch:viewpointAddressesPerspective         :InfrastructurePerspective ;
+    arch:viewpointHasPurpose :Deciding, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :SupportViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+
+#################################################################
+# Basic Viewpoints — Cooperation
+#################################################################
+
+:BusinessProcessCooperation
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Business Process Cooperation Viewpoint"@en ;
+    skos:definition         '''Shows the relationships between business processes, including
+how they trigger each other, exchange information, and are supported
+by application services.'''@en ;
+    arch:includesConcept    am:BusinessProcess, am:BusinessFunction,
+                            am:BusinessInteraction, am:BusinessEvent,
+                            am:BusinessService, am:BusinessRole,
+                            am:BusinessCollaboration, am:BusinessObject,
+                            am:ApplicationService, am:Representation ;
+    arch:targetsStakeholder :ProcessOwner, :BusinessArchitect, :BusinessManager ;
+    arch:viewpointFramesConcern :ProcessCooperation ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :OperationalPerspective ;
+    arch:viewpointHasPurpose :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CooperationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:ApplicationCooperation
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Application Cooperation Viewpoint"@en ;
+    skos:definition         '''Shows the relationships between application components in terms
+of information flows, service dependencies, and shared data.'''@en ;
+    arch:includesConcept    am:ApplicationComponent, am:ApplicationCollaboration,
+                            am:ApplicationInterface, am:ApplicationFunction,
+                            am:ApplicationInteraction, am:ApplicationService,
+                            am:DataObject ;
+    arch:targetsStakeholder :ApplicationArchitect, :SolutionArchitect, :SoftwareDeveloper ;
+    arch:viewpointFramesConcern :ApplicationIntegration ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect, :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :ApplicationPerspective ;
+    arch:viewpointHasPurpose :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :CooperationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+
+#################################################################
+# Basic Viewpoints — Realization
+#################################################################
+
+:ServiceRealizationVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Service Realization Viewpoint"@en ;
+    skos:definition         '''Shows how business services are realized by business processes
+performed by business roles.'''@en ;
+    arch:includesConcept    am:BusinessService, am:BusinessProcess, am:BusinessFunction,
+                            am:BusinessInteraction, am:BusinessRole,
+                            am:BusinessCollaboration, am:BusinessObject,
+                            am:DataObject, am:ApplicationService,
+                            am:ApplicationComponent ;
+    arch:targetsStakeholder :BusinessArchitect, :ProcessOwner, :ApplicationArchitect ;
+    arch:viewpointFramesConcern :ServiceRealization ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :OperationalPerspective, :ApplicationPerspective ;
+    arch:viewpointHasPurpose :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :RealizationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:ImplementationDeployment
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Implementation and Deployment Viewpoint"@en ;
+    skos:definition         '''Shows how applications are realized by artifacts and how
+artifacts are deployed on technology infrastructure.'''@en ;
+    arch:includesConcept    am:ApplicationComponent, am:Artifact, am:Node,
+                            am:Device, am:SystemSoftware, am:Path,
+                            am:CommunicationNetwork ;
+    arch:targetsStakeholder :InfrastructureArchitect, :SoftwareDeveloper, :OperationsManager ;
+    arch:viewpointFramesConcern :DeploymentStructure ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect ;
+    arch:viewpointAddressesPerspective         :InfrastructurePerspective ;
+    arch:viewpointHasPurpose :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :RealizationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+
+#################################################################
+# Motivation Viewpoints
+#################################################################
+
+:StakeholderVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Stakeholder Viewpoint"@en ;
+    skos:definition         '''Shows the stakeholders, their concerns, and the goals that
+address those concerns.'''@en ;
+    arch:includesConcept    am:Stakeholder, am:Driver, am:Assessment,
+                            am:Goal, am:Outcome, am:Principle,
+                            am:Requirement, am:Constraint ;
+    arch:targetsStakeholder :EnterpriseArchitect, :BusinessManager, :CIO, :CEO ;
+    arch:viewpointFramesConcern :StakeholderAlignment ;
+    arch:viewpointCoversAspect            :MotivationAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Informing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :MotivationViewpoints ;
+    arch:viewType               arch:Diagram, arch:Matrix ;
+.
+
+:GoalRealization
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Goal Realization Viewpoint"@en ;
+    skos:definition         '''Shows how goals are refined into more concrete goals and how
+they are realized by requirements and constraints.'''@en ;
+    arch:includesConcept    am:Goal, am:Outcome, am:Principle,
+                            am:Requirement, am:Constraint ;
+    arch:targetsStakeholder :EnterpriseArchitect, :BusinessManager ;
+    arch:viewpointFramesConcern :GoalDecomposition ;
+    arch:viewpointCoversAspect            :MotivationAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Deciding ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :MotivationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:RequirementsRealization
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Requirements Realization Viewpoint"@en ;
+    skos:definition         '''Shows how requirements are realized by core elements such as
+business processes, application components, and services.'''@en ;
+    arch:includesConcept    am:Requirement, am:Constraint, am:Goal,
+                            am:BusinessProcess, am:BusinessFunction,
+                            am:BusinessService, am:ApplicationComponent,
+                            am:ApplicationService, am:DataObject ;
+    arch:targetsStakeholder :SolutionArchitect, :ApplicationArchitect, :BusinessArchitect ;
+    arch:viewpointFramesConcern :RequirementsTraceability ;
+    arch:viewpointCoversAspect            :MotivationAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective, :ApplicationPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Designing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :MotivationViewpoints ;
+    arch:viewType               arch:Diagram, arch:Matrix ;
+.
+
+:MotivationVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Motivation Viewpoint"@en ;
+    skos:definition         '''Shows the full motivation structure: stakeholders, drivers,
+assessments, goals, outcomes, principles, requirements, and constraints,
+and how they relate to each other.'''@en ;
+    arch:includesConcept    am:Stakeholder, am:Driver, am:Assessment,
+                            am:Goal, am:Outcome, am:Principle,
+                            am:Requirement, am:Constraint,
+                            am:Meaning, am:Value ;
+    arch:targetsStakeholder :EnterpriseArchitect, :CIO, :CEO, :BusinessManager ;
+    arch:viewpointFramesConcern :MotivationLandscape ;
+    arch:viewpointCoversAspect            :MotivationAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Informing, :Deciding ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :MotivationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+
+#################################################################
+# Strategy Viewpoints
+#################################################################
+
+:StrategyVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Strategy Viewpoint"@en ;
+    skos:definition         '''Shows the strategic direction of the enterprise in terms of
+resources, capabilities, value streams, and courses of action, and
+how they relate to motivation elements.'''@en ;
+    arch:includesConcept    am:Resource, am:Capability, am:ValueStream,
+                            am:CourseOfAction, am:Goal, am:Outcome,
+                            am:Principle, am:Requirement ;
+    arch:targetsStakeholder :CEO, :CIO, :EnterpriseArchitect, :BusinessManager ;
+    arch:viewpointFramesConcern :StrategicDirection ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Informing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :StrategyViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:CapabilityMap
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Capability Map Viewpoint"@en ;
+    skos:definition         '''Shows the capabilities of the enterprise and how they are
+composed and related, typically as a hierarchical map.'''@en ;
+    arch:includesConcept    am:Capability, am:Resource, am:ValueStream,
+                            am:CourseOfAction, am:Outcome ;
+    arch:targetsStakeholder :EnterpriseArchitect, :CIO, :BusinessManager ;
+    arch:viewpointFramesConcern :CapabilityLandscape ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Informing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :StrategyViewpoints ;
+    arch:viewType               arch:Diagram, arch:Catalog ;
+.
+
+:OutcomeRealization
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Outcome Realization Viewpoint"@en ;
+    skos:definition         '''Shows how outcomes are realized by capabilities and core
+elements, linking strategic intent to operational architecture.'''@en ;
+    arch:includesConcept    am:Outcome, am:Capability, am:ValueStream,
+                            am:BusinessProcess, am:BusinessFunction,
+                            am:ApplicationComponent, am:Value ;
+    arch:targetsStakeholder :EnterpriseArchitect, :BusinessManager, :CIO ;
+    arch:viewpointFramesConcern :OutcomeDelivery ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Deciding ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :StrategyViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:ResourceMap
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Resource Map Viewpoint"@en ;
+    skos:definition         '''Shows the resources of the enterprise and how they are
+assigned to capabilities and realized by core elements.'''@en ;
+    arch:includesConcept    am:Resource, am:Capability, am:BusinessActor,
+                            am:BusinessRole, am:ApplicationComponent,
+                            am:Node ;
+    arch:targetsStakeholder :EnterpriseArchitect, :BusinessManager, :OperationsManager ;
+    arch:viewpointFramesConcern :ResourceAllocation ;
+    arch:viewpointCoversAspect            :ActiveStructureAspect ;
+    arch:viewpointAddressesPerspective         :StrategicPerspective ;
+    arch:viewpointHasPurpose :Deciding, :Informing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :StrategyViewpoints ;
+    arch:viewType               arch:Diagram, arch:Catalog ;
+.
+
+
+#################################################################
+# Implementation and Migration Viewpoints
+#################################################################
+
+:ProjectVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Project Viewpoint"@en ;
+    skos:definition         '''Shows the work packages, deliverables, and their relationships
+to the architecture elements they change or create.'''@en ;
+    arch:includesConcept    am:WorkPackage, am:Deliverable,
+                            am:ImplementationEvent, am:BusinessProcess,
+                            am:ApplicationComponent, am:Node, am:Goal ;
+    arch:targetsStakeholder :ProjectManager, :EnterpriseArchitect, :SolutionArchitect ;
+    arch:viewpointFramesConcern :ProjectDelivery ;
+    arch:viewpointCoversAspect            :BehaviorAspect ;
+    arch:viewpointAddressesPerspective         :GovernancePerspective ;
+    arch:viewpointHasPurpose :Governing, :Deciding ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :ImplementationViewpoints ;
+    arch:viewType               arch:Diagram, arch:Catalog ;
+.
+
+:MigrationVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Migration Viewpoint"@en ;
+    skos:definition         '''Shows the transition from baseline to target architecture
+through plateaus and gaps, and the work packages that implement
+the transition.'''@en ;
+    arch:includesConcept    am:Plateau, am:Gap, am:WorkPackage,
+                            am:Deliverable, am:ImplementationEvent ;
+    arch:targetsStakeholder :EnterpriseArchitect, :ProjectManager, :CIO ;
+    arch:viewpointFramesConcern :ArchitectureMigration ;
+    arch:viewpointCoversAspect            :CompositeAspect ;
+    arch:viewpointAddressesPerspective         :GovernancePerspective ;
+    arch:viewpointHasPurpose :Governing ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :ImplementationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.
+
+:ImplementationAndMigrationVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Implementation and Migration Viewpoint"@en ;
+    skos:definition         '''Shows the full implementation and migration landscape including
+plateaus, gaps, work packages, deliverables, and their relationships
+to architecture elements across all layers.'''@en ;
+    arch:includesConcept    am:Plateau, am:Gap, am:WorkPackage,
+                            am:Deliverable, am:ImplementationEvent,
+                            am:BusinessProcess, am:ApplicationComponent,
+                            am:Node, am:Goal, am:Requirement ;
+    arch:targetsStakeholder :EnterpriseArchitect, :ProjectManager, :CIO, :OperationsManager ;
+    arch:viewpointFramesConcern :ChangeManagement, :ArchitectureMigration ;
+    arch:viewpointCoversAspect            :BehaviorAspect, :CompositeAspect ;
+    arch:viewpointAddressesPerspective         :GovernancePerspective ;
+    arch:viewpointHasPurpose :Governing, :Deciding ;
+    skos:inScheme          :ViewpointCatalog ;
+    skos:broader            :ImplementationViewpoints ;
+    arch:viewType               arch:Diagram ;
+.

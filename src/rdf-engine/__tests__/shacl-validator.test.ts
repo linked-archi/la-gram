@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { DataFactory, Store as N3Store } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import {
@@ -304,9 +305,14 @@ const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 const SKOS = 'http://www.w3.org/2004/02/skos/core#';
 const RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
 
-/** Real published ArchiMate 4.0 element shapes — read only, never copied in. */
-const REAL_ELEMENT_SHAPES =
-  '/home/sic/data/dev/linked.archi/linked-archi-meta/modelingLanguages/archimate/4.0/archimate4-element-shapes.ttl';
+/**
+ * Real published ArchiMate 4.0 element shapes — the bundled copy, which is
+ * byte-identical to the published file (`assets/` mirrors meta.linked.archi).
+ * Read only.
+ */
+const REAL_ELEMENT_SHAPES = fileURLToPath(
+  new URL('../../../assets/archimate4/archimate4-element-shapes.ttl', import.meta.url),
+);
 
 function parseTtl(ttl: string): Quad[] {
   const parser = new N3TtlParser();

@@ -188,10 +188,24 @@ describe('PropertyPanel', () => {
         shapesGraph: undefined,
         _entries: [],
         dispatchEvent: vi.fn(),
+        predicateSuggestions: [],
         ...overrides,
       };
       // Bind methods from prototype
-      for (const m of ['_renderEntry', '_isTextArea', '_inputType', '_onPropertyChange', '_loadProperties']) {
+      for (const m of [
+        '_renderEntry',
+        '_isTextArea',
+        '_inputType',
+        '_onPropertyChange',
+        '_loadProperties',
+        '_renderHeading',
+        '_renderAdd',
+        '_renderAnalysis',
+        '_renderRemove',
+        '_emit',
+        '_remove',
+        '_add',
+      ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
           ctx[m] = (PropertyPanel.prototype as any)[m].bind(ctx);
         }

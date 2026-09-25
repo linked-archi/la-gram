@@ -1,17 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DataFactory } from 'n3';
-import type { Quad, NamedNode } from '@rdfjs/types';
+import type { NamedNode, Literal } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { OxigraphElementManager, resetElementCounter } from '../element-manager.js';
-import { OxigraphRelationshipManager, resetQrCounter } from '../relationship-manager.js';
+import { OxigraphElementManager } from '../element-manager.js';
+import { OxigraphRelationshipManager } from '../relationship-manager.js';
+import { OxigraphViewManager } from '../view-manager.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const { namedNode, literal, quad } = DataFactory;
 
 const RDF_TYPE = NAMESPACES.rdf + 'type';
-const ARCH_VIS = NAMESPACES['arch-vis'];
 const ARCH = NAMESPACES.arch;
-const XSD_DOUBLE = NAMESPACES.xsd + 'double';
+const VIS = NAMESPACES['arch-vis'];
+const SKOS_PREF_LABEL = NAMESPACES.skos + 'prefLabel';
 
 function nn(value: string): NamedNode {
   return namedNode(value) as unknown as NamedNode;
@@ -26,304 +27,129 @@ describe('OxigraphElementManager', () => {
   beforeEach(() => {
     store = new OxigraphRdfStore();
     manager = new OxigraphElementManager(store);
-    resetElementCounter();
   });
 
   describe('createElement', () => {
-    it('returns a NamedNode with a unique IRI in the model namespace', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 10, y: 20, width: 130, height: 60 });
+    it('mints a UUID IRI under the model', () => {
+      const node = manager.createElement(typeIri, modelIri);
       expect(node.termType).toBe('NamedNode');
-      expect(node.value).toMatch(new RegExp(`^${modelIri}/elem-\\d+$`));
+      expect(node.value).toMatch(new RegExp(`^${modelIri}/element/[0-9a-f-]{36}$`));
     });
 
-    it('adds rdf:type triple for the element', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const typeQuads = store.getQuads(node, nn(RDF_TYPE));
-      expect(typeQuads).toHaveLength(1);
-      expect(typeQuads[0].object.value).toBe(typeIri);
+    it('never reuses an IRI, even across managers (a loaded model must not collide)', () => {
+      const other = new OxigraphElementManager(store);
+      const a = manager.createElement(typeIri, modelIri);
+      const b = other.createElement(typeIri, modelIri);
+      expect(a.value).not.toBe(b.value);
     });
 
-    it('adds arch-vis layout triples with xsd:double values', () => {
-      const bounds = { x: 100, y: 200, width: 130, height: 60 };
-      const node = manager.createElement(typeIri, modelIri, bounds);
-
-      const xQuads = store.getQuads(node, nn(ARCH_VIS + 'bounds-x'));
-      expect(xQuads).toHaveLength(1);
-      expect(xQuads[0].object.value).toBe('100');
-
-      const yQuads = store.getQuads(node, nn(ARCH_VIS + 'bounds-y'));
-      expect(yQuads).toHaveLength(1);
-      expect(yQuads[0].object.value).toBe('200');
-
-      const wQuads = store.getQuads(node, nn(ARCH_VIS + 'bounds-w'));
-      expect(wQuads).toHaveLength(1);
-      expect(wQuads[0].object.value).toBe('130');
-
-      const hQuads = store.getQuads(node, nn(ARCH_VIS + 'bounds-h'));
-      expect(hQuads).toHaveLength(1);
-      expect(hQuads[0].object.value).toBe('60');
+    it('writes rdf:type and arch:inModel, and nothing about geometry', () => {
+      const node = manager.createElement(typeIri, modelIri);
+      const quads = store.getQuads(node);
+      expect(quads.map((q) => [q.predicate.value, q.object.value]).sort()).toEqual(
+        [
+          [ARCH + 'inModel', modelIri],
+          [RDF_TYPE, typeIri],
+        ].sort(),
+      );
+      expect(store.getQuads(null, nn(VIS + 'bounds-x'))).toHaveLength(0);
     });
 
-    it('generates unique IRIs for successive elements', () => {
-      const node1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const node2 = manager.createElement(typeIri, modelIri, { x: 50, y: 50, width: 100, height: 50 });
-      expect(node1.value).not.toBe(node2.value);
+    it('writes the label language-tagged, as the element shapes require', () => {
+      const node = manager.createElement(typeIri, modelIri, { label: 'Order Service' });
+      const label = store.getQuads(node, nn(SKOS_PREF_LABEL))[0].object as Literal;
+      expect(label.value).toBe('Order Service');
+      expect(label.language).toBe('en');
     });
 
-    it('creates exactly 5 triples (1 type + 4 layout)', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const allQuads = store.getQuads(node);
-      expect(allQuads).toHaveLength(5);
+    it('honours a given IRI (redo, import, collaboration)', () => {
+      const node = manager.createElement(typeIri, modelIri, { iri: 'https://example.org/model/element/fixed' });
+      expect(node.value).toBe('https://example.org/model/element/fixed');
     });
   });
 
   describe('updateProperty', () => {
-    it('updates an existing property value', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const labelPred = NAMESPACES.skos + 'prefLabel';
-
-      // Set initial label
-      manager.updateProperty(node.value, labelPred, literal('Old Label') as any);
-      let labelQuads = store.getQuads(node, nn(labelPred));
-      expect(labelQuads).toHaveLength(1);
-      expect(labelQuads[0].object.value).toBe('Old Label');
-
-      // Update label
-      manager.updateProperty(node.value, labelPred, literal('New Label') as any);
-      labelQuads = store.getQuads(node, nn(labelPred));
-      expect(labelQuads).toHaveLength(1);
-      expect(labelQuads[0].object.value).toBe('New Label');
-    });
-
-    it('leaves other triples unchanged', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 10, y: 20, width: 130, height: 60 });
-      const labelPred = NAMESPACES.skos + 'prefLabel';
-      manager.updateProperty(node.value, labelPred, literal('My Label') as any);
-
-      // Total: 5 original + 1 label = 6
-      const allQuads = store.getQuads(node);
-      expect(allQuads).toHaveLength(6);
-
-      // Update label — should still be 6 total
-      manager.updateProperty(node.value, labelPred, literal('Updated') as any);
-      const afterUpdate = store.getQuads(node);
-      expect(afterUpdate).toHaveLength(6);
-
-      // Type triple still intact
-      const typeQuads = store.getQuads(node, nn(RDF_TYPE));
-      expect(typeQuads).toHaveLength(1);
-      expect(typeQuads[0].object.value).toBe(typeIri);
-    });
-
-    it('adds a new property when none exists', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const defPred = NAMESPACES.skos + 'definition';
-      manager.updateProperty(node.value, defPred, literal('A definition') as any);
-
-      const defQuads = store.getQuads(node, nn(defPred));
-      expect(defQuads).toHaveLength(1);
-      expect(defQuads[0].object.value).toBe('A definition');
+    it('replaces the value of a property, leaving other triples alone', () => {
+      const node = manager.createElement(typeIri, modelIri, { label: 'Old' });
+      manager.updateProperty(node.value, SKOS_PREF_LABEL, literal('New', 'en') as never);
+      const labels = store.getQuads(node, nn(SKOS_PREF_LABEL));
+      expect(labels.map((q) => q.object.value)).toEqual(['New']);
+      expect(store.getQuads(node, nn(RDF_TYPE))).toHaveLength(1);
     });
   });
 
-  describe('deleteElement', () => {
-    it('removes all triples where element is the subject', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      expect(store.getQuads(node)).toHaveLength(5);
+  describe('deleteElement (from the model)', () => {
+    let views: OxigraphViewManager;
+    let rels: OxigraphRelationshipManager;
 
+    beforeEach(() => {
+      views = new OxigraphViewManager(store);
+      rels = new OxigraphRelationshipManager(store);
+    });
+
+    it('removes every triple about the element', () => {
+      const node = manager.createElement(typeIri, modelIri, { label: 'X' });
       manager.deleteElement(node.value);
       expect(store.getQuads(node)).toHaveLength(0);
+      expect(store.getQuads(null, null, node)).toHaveLength(0);
     });
 
-    it('removes direct relationship triples where element is the object', () => {
-      const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
+    it('does not affect other elements', () => {
+      const a = manager.createElement(typeIri, modelIri);
+      const b = manager.createElement(typeIri, modelIri);
+      manager.deleteElement(a.value);
+      expect(store.getQuads(b).length).toBeGreaterThan(0);
+    });
 
-      // Add a direct relationship: elem1 --serves--> elem2
-      const relPred = 'https://example.org/archimate#serves';
+    it('removes its placements in every view, and the links ending at them', () => {
+      const a = manager.createElement(typeIri, modelIri);
+      const b = manager.createElement(typeIri, modelIri);
+      const v1 = views.createView('Diagram', undefined, { modelIri }).value;
+      const v2 = views.createView('Diagram', undefined, { modelIri }).value;
+      for (const v of [v1, v2]) {
+        views.addElementToView(v, a.value);
+        views.addElementToView(v, b.value);
+      }
+      const rel = rels.createQualifiedRelationship({ typeIri: ARCH + 'someRel', sourceIri: a.value, targetIri: b.value });
+      views.addRelationshipToView(v1, rel.iri, [{ x: 1, y: 2 }, { x: 3, y: 4 }]);
+
+      manager.deleteElement(a.value);
+
+      expect(views.getNodes(v1).map((n) => n.elementIri)).toEqual([b.value]);
+      expect(views.getNodes(v2).map((n) => n.elementIri)).toEqual([b.value]);
+      expect(views.getLinks(v1)).toEqual([]);
+      // The route's points and list cells went with the link.
+      expect(store.getQuads(null, nn(VIS + 'point-x'))).toHaveLength(0);
+      expect(store.getQuads(null, nn(NAMESPACES.rdf + 'first'))).toHaveLength(0);
+      // The relationship went too.
+      expect(store.getQuads(nn(rel.iri))).toHaveLength(0);
+      // The other element stays.
+      expect(store.getQuads(b).length).toBeGreaterThan(0);
+    });
+
+    it('exposes the exact quads it removes, so the removal can be undone', () => {
+      const a = manager.createElement(typeIri, modelIri, { label: 'A' });
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      views.addElementToView(v, a.value, { x: 10, y: 10, width: 100, height: 50 });
+      const before = store.getQuads().length;
+
+      const snapshot = manager.collectElementQuads(a.value);
+      manager.deleteElement(a.value);
+      store.addQuads(snapshot);
+
+      expect(store.getQuads().length).toBe(before);
+      expect(views.getNode(v, a.value)?.bounds).toEqual({ x: 10, y: 10, width: 100, height: 50 });
+    });
+
+    it('still cascades relationships written with the retired relSource/relTarget', () => {
+      const a = manager.createElement(typeIri, modelIri);
+      const qr = nn('https://example.org/model/legacy-qr');
       store.addQuads([
-        quad(elem1 as any, namedNode(relPred) as any, elem2 as any) as unknown as Quad,
+        quad(qr as never, namedNode(RDF_TYPE), namedNode(ARCH + 'QualifiedRelationship')) as never,
+        quad(qr as never, namedNode(ARCH + 'relSource'), a as never) as never,
       ]);
-
-      // Delete elem2 — should also remove the relationship triple
-      manager.deleteElement(elem2.value);
-      const relQuads = store.getQuads(elem1, nn(relPred));
-      expect(relQuads).toHaveLength(0);
-    });
-
-    it('removes direct relationship triples where element is the subject', () => {
-      const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-
-      const relPred = 'https://example.org/archimate#serves';
-      store.addQuads([
-        quad(elem1 as any, namedNode(relPred) as any, elem2 as any) as unknown as Quad,
-      ]);
-
-      // Delete elem1 — the outgoing relationship triple goes with it
-      manager.deleteElement(elem1.value);
-      expect(store.getQuads(elem1, nn(relPred))).toHaveLength(0);
-      expect(store.getQuads(null, nn(relPred), elem2)).toHaveLength(0);
-    });
-
-    it('leaves direct relationships between two other elements intact', () => {
-      const victim = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const other1 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-      const other2 = manager.createElement(typeIri, modelIri, { x: 400, y: 0, width: 100, height: 50 });
-
-      const relPred = 'https://example.org/archimate#serves';
-      store.addQuads([
-        quad(other1 as any, namedNode(relPred) as any, other2 as any) as unknown as Quad,
-      ]);
-
-      manager.deleteElement(victim.value);
-
-      const survivors = store.getQuads(other1, nn(relPred));
-      expect(survivors).toHaveLength(1);
-      expect(survivors[0].object.value).toBe(other2.value);
-    });
-
-    // ── Qualified relationships ──────────────────────────────────────
-    //
-    // These go through the real OxigraphRelationshipManager rather than
-    // hand-written quads, so the cascade is exercised against whatever
-    // predicates the writer genuinely emits (`arch:source` / `arch:target`)
-    // instead of whatever the test author assumed.
-
-    describe('cascade over qualified relationships', () => {
-      let relManager: OxigraphRelationshipManager;
-      const relPredIri = 'https://example.org/archimate#serves';
-
-      beforeEach(() => {
-        relManager = new OxigraphRelationshipManager(store);
-        resetQrCounter();
-      });
-
-      it('cascade-deletes a qualified relationship whose arch:source is the deleted element', () => {
-        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-
-        const qr = relManager.createRelationship(relPredIri, elem1.value, elem2.value, true);
-        expect(qr).not.toBeNull();
-        expect(store.getQuads(qr!).length).toBeGreaterThan(0);
-
-        manager.deleteElement(elem1.value);
-
-        expect(store.getQuads(qr!)).toHaveLength(0);
-      });
-
-      it('cascade-deletes a qualified relationship whose arch:target is the deleted element', () => {
-        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-
-        const qr = relManager.createRelationship(relPredIri, elem1.value, elem2.value, true);
-        expect(qr).not.toBeNull();
-
-        manager.deleteElement(elem2.value);
-
-        expect(store.getQuads(qr!)).toHaveLength(0);
-      });
-
-      it('leaves a qualified relationship between two other elements intact', () => {
-        const victim = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-        const other1 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-        const other2 = manager.createElement(typeIri, modelIri, { x: 400, y: 0, width: 100, height: 50 });
-
-        const qr = relManager.createRelationship(relPredIri, other1.value, other2.value, true);
-        expect(qr).not.toBeNull();
-        const before = store.getQuads(qr!).length;
-
-        manager.deleteElement(victim.value);
-
-        expect(store.getQuads(qr!)).toHaveLength(before);
-      });
-
-      it('cascade-deletes a legacy arch:relSource / arch:relTarget resource', () => {
-        // Compatibility shim coverage: the ArchiMate importer still emits the
-        // pre-migration vocabulary, so the cascade has to recognise it too.
-        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-
-        const qrIri = `${modelIri}/legacy-qr-1`;
-        const qrNode = namedNode(qrIri);
-        store.addQuads([
-          quad(qrNode as any, namedNode(RDF_TYPE) as any, namedNode(ARCH + 'QualifiedRelationship') as any) as unknown as Quad,
-          quad(qrNode as any, namedNode(ARCH + 'relSource') as any, elem1 as any) as unknown as Quad,
-          quad(qrNode as any, namedNode(ARCH + 'relTarget') as any, elem2 as any) as unknown as Quad,
-          quad(qrNode as any, namedNode(ARCH + 'relPredicate') as any, namedNode(relPredIri) as any) as unknown as Quad,
-        ]);
-
-        manager.deleteElement(elem1.value);
-
-        expect(store.getQuads(nn(qrIri))).toHaveLength(0);
-      });
-
-      it('cascade-deletes a legacy resource when the deleted element is its arch:relTarget', () => {
-        const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-        const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-
-        const qrIri = `${modelIri}/legacy-qr-2`;
-        const qrNode = namedNode(qrIri);
-        store.addQuads([
-          quad(qrNode as any, namedNode(RDF_TYPE) as any, namedNode(ARCH + 'QualifiedRelationship') as any) as unknown as Quad,
-          quad(qrNode as any, namedNode(ARCH + 'relSource') as any, elem1 as any) as unknown as Quad,
-          quad(qrNode as any, namedNode(ARCH + 'relTarget') as any, elem2 as any) as unknown as Quad,
-        ]);
-
-        manager.deleteElement(elem2.value);
-
-        expect(store.getQuads(nn(qrIri))).toHaveLength(0);
-      });
-    });
-
-    it('does not affect other elements when deleting one', () => {
-      const elem1 = manager.createElement(typeIri, modelIri, { x: 0, y: 0, width: 100, height: 50 });
-      const elem2 = manager.createElement(typeIri, modelIri, { x: 200, y: 0, width: 100, height: 50 });
-
-      manager.deleteElement(elem1.value);
-
-      // elem2 should still have all its triples
-      expect(store.getQuads(elem2)).toHaveLength(5);
-    });
-  });
-
-  describe('updateLayout', () => {
-    it('updates all four layout properties', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 10, y: 20, width: 130, height: 60 });
-
-      const newBounds = { x: 50, y: 100, width: 200, height: 80 };
-      manager.updateLayout(node.value, newBounds);
-
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-x'))[0].object.value).toBe('50');
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-y'))[0].object.value).toBe('100');
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-w'))[0].object.value).toBe('200');
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-h'))[0].object.value).toBe('80');
-    });
-
-    it('preserves non-layout triples', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 10, y: 20, width: 130, height: 60 });
-      manager.updateProperty(node.value, NAMESPACES.skos + 'prefLabel', literal('Test') as any);
-
-      manager.updateLayout(node.value, { x: 0, y: 0, width: 50, height: 50 });
-
-      // Type triple still present
-      const typeQuads = store.getQuads(node, nn(RDF_TYPE));
-      expect(typeQuads).toHaveLength(1);
-
-      // Label still present
-      const labelQuads = store.getQuads(node, nn(NAMESPACES.skos + 'prefLabel'));
-      expect(labelQuads).toHaveLength(1);
-      expect(labelQuads[0].object.value).toBe('Test');
-    });
-
-    it('keeps exactly one value per layout property after update', () => {
-      const node = manager.createElement(typeIri, modelIri, { x: 10, y: 20, width: 130, height: 60 });
-      manager.updateLayout(node.value, { x: 50, y: 100, width: 200, height: 80 });
-
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-x'))).toHaveLength(1);
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-y'))).toHaveLength(1);
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-w'))).toHaveLength(1);
-      expect(store.getQuads(node, nn(ARCH_VIS + 'bounds-h'))).toHaveLength(1);
+      manager.deleteElement(a.value);
+      expect(store.getQuads(qr)).toHaveLength(0);
     });
   });
 });

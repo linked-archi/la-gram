@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { DataFactory } from 'n3';
 import type { Quad, NamedNode } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
@@ -401,8 +402,9 @@ describe('OxigraphRelationshipManager', () => {
      * `arch:domainIncludes :ActiveStructureElement` on `:serves`, never
      * `:ApplicationComponent`, so exact-IRI matching returns nothing here.
      */
-    const ONTO_PATH =
-      '/home/sic/data/dev/linked.archi/linked-archi-meta/modelingLanguages/archimate/4.0/archimate4-onto.ttl';
+    const ONTO_PATH = fileURLToPath(
+      new URL('../../../assets/archimate4/archimate4-onto.ttl', import.meta.url),
+    );
     const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 
     let realStore: OxigraphRdfStore;

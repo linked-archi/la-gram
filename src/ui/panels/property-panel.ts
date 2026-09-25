@@ -8,7 +8,8 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { Quad, NamedNode } from '@rdfjs/types';
+import type { Quad, NamedNode, Term } from '@rdfjs/types';
+import { DataFactory } from 'n3';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
 import type { ElementManager } from '../../model-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
@@ -44,6 +45,10 @@ export interface PropertyEntry {
   minCount?: number;
   /** Maximum cardinality from SHACL shape. */
   maxCount?: number;
+  /** Language tag of the current value, when it is a tagged literal. */
+  language?: string;
+  /** The value is an IRI (a link to another resource), not a literal. */
+  isIri?: boolean;
 }
 
 /** Detail emitted when a property value is edited. */
@@ -51,7 +56,52 @@ export interface PropertyEditDetail {
   elementIri: string;
   predicate: string;
   value: string;
+  /** Language tag to keep on the new value. */
+  language?: string;
 }
+
+/** Detail of `property-add` and `property-remove`. */
+export interface PropertyChangeDetail {
+  elementIri: string;
+  predicate: string;
+  value: string;
+}
+
+/** What the analysis section lists about the selected concept. */
+export interface PropertyAnalysis {
+  /** Relationships with the concept at one end. */
+  relationships: Array<{
+    iri: string;
+    direction: 'out' | 'in';
+    typeLabel: string;
+    otherIri: string;
+    otherLabel: string;
+  }>;
+  /** Views presenting the concept. */
+  views: Array<{ iri: string; label: string }>;
+  /** For a relationship: its ends. */
+  ends?: { sourceIri: string; sourceLabel: string; targetIri: string; targetLabel: string };
+}
+
+/** What the header says about the selected concept. */
+export interface PropertyHeading {
+  /** "Element", "Relationship", "View", "Model". */
+  kind: string;
+  typeLabel?: string;
+  typeIri?: string;
+}
+
+/** Predicates whose values are human text: edited with a language tag. */
+const TEXT_PREDICATES = new Set([
+  SKOS_PREF_LABEL,
+  SKOS_DEFINITION,
+  NAMESPACES.skos + 'altLabel',
+  NAMESPACES.skos + 'note',
+  NAMESPACES.rdfs + 'label',
+  NAMESPACES.rdfs + 'comment',
+  NAMESPACES.dcterms + 'title',
+  NAMESPACES.dcterms + 'description',
+]);
 
 /** SHACL property constraint extracted from a shapes graph. */
 export interface ShaclPropertyShape {
@@ -143,14 +193,20 @@ export function buildPropertyEntries(
     const isType = predicate === RDF_TYPE;
     const shape = shapeMap.get(predicate);
 
+    const isIri = q.object.termType === 'NamedNode';
+    const language = (q.object as { language?: string }).language || undefined;
     entries.push({
       predicate,
       label: shape?.name ?? iriLabel(predicate),
       value,
-      readonly: isType,
+      // Types and links to other resources are shown, not typed over: editing
+      // an IRI as free text is how dangling references get made.
+      readonly: isType || isIri,
       datatype: shape?.datatype,
       minCount: shape?.minCount,
       maxCount: shape?.maxCount,
+      ...(language ? { language } : {}),
+      ...(isIri ? { isIri } : {}),
     });
   }
 
@@ -242,6 +298,115 @@ export class PropertyPanel extends LitElement {
       resize: vertical;
       min-height: 48px;
     }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .type-chip {
+      font-size: 11px;
+      font-weight: 500;
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-radius: 10px;
+      padding: 1px 8px;
+    }
+
+    .iri {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 10px;
+      color: #80868b;
+      padding: 4px 12px 6px;
+      word-break: break-all;
+      user-select: all;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .property-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .lang {
+      color: #80868b;
+      font-weight: 400;
+    }
+
+    .remove {
+      margin-left: auto;
+      border: 0;
+      background: none;
+      color: #80868b;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .remove:hover {
+      color: #c5221f;
+    }
+
+    .add-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 4px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .add {
+      border: 1px solid #dadce0;
+      background: #fff;
+      border-radius: 3px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .section-title {
+      padding: 8px 12px 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .analysis-list {
+      list-style: none;
+      margin: 0;
+      padding: 2px 12px 6px;
+    }
+
+    .analysis-list li,
+    .analysis-row {
+      display: flex;
+      gap: 6px;
+      padding: 2px 0;
+    }
+
+    .analysis-row {
+      padding: 2px 12px;
+    }
+
+    .analysis-list a,
+    .analysis-row a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    .dir {
+      color: #80868b;
+      width: 12px;
+    }
+
+    .muted {
+      padding: 2px 12px 6px;
+      color: #80868b;
+      font-style: italic;
+    }
   `;
 
   /** IRI of the currently selected element or relationship. */
@@ -260,6 +425,21 @@ export class PropertyPanel extends LitElement {
   @property({ attribute: false })
   shapesGraph?: Quad[];
 
+  /** Kind and type shown above the properties. */
+  @property({ attribute: false })
+  heading?: PropertyHeading;
+
+  /** Relationships and views of the selected concept. */
+  @property({ attribute: false })
+  analysis?: PropertyAnalysis;
+
+  /** Predicates offered when adding a property (from the loaded ontologies). */
+  @property({ attribute: false })
+  predicateSuggestions: Array<{ iri: string; label: string }> = [];
+
+  @state() private _newPredicate = '';
+  @state() private _newValue = '';
+
   /** Computed property entries for the selected element. */
   @state()
   private _entries: PropertyEntry[] = [];
@@ -272,6 +452,12 @@ export class PropertyPanel extends LitElement {
     ) {
       this._loadProperties();
     }
+  }
+
+  /** Re-read the selected concept after the model changed elsewhere. */
+  reload(): void {
+    this._loadProperties();
+    this.requestUpdate();
   }
 
   /** Query the RDF store for the selected element's properties. */
@@ -301,10 +487,19 @@ export class PropertyPanel extends LitElement {
   private _onPropertyChange(entry: PropertyEntry, newValue: string): void {
     if (entry.readonly || !this.selectedIri) return;
 
+    // Keep the value's language; text without one gets `en`, which is what the
+    // Linked.Archi shapes expect of labels and definitions.
+    const language = entry.language ?? (TEXT_PREDICATES.has(entry.predicate) ? 'en' : undefined);
+
     // Propagate through ElementManager if available
     if (this.elementManager) {
-      // Create a simple literal term for the value
-      const valueTerm = { value: newValue, termType: 'Literal' } as unknown as import('@rdfjs/types').Term;
+      const valueTerm = (
+        language
+          ? DataFactory.literal(newValue, language)
+          : entry.datatype
+            ? DataFactory.literal(newValue, DataFactory.namedNode(entry.datatype))
+            : DataFactory.literal(newValue)
+      ) as unknown as Term;
       this.elementManager.updateProperty(this.selectedIri, entry.predicate, valueTerm);
     }
 
@@ -315,6 +510,7 @@ export class PropertyPanel extends LitElement {
           elementIri: this.selectedIri,
           predicate: entry.predicate,
           value: newValue,
+          ...(language ? { language } : {}),
         },
         bubbles: true,
         composed: true,
@@ -343,6 +539,111 @@ export class PropertyPanel extends LitElement {
     return 'text';
   }
 
+  private _emit<T>(name: string, detail: T): void {
+    this.dispatchEvent(new CustomEvent<T>(name, { detail, bubbles: true, composed: true }));
+  }
+
+  private _remove(entry: PropertyEntry): void {
+    if (!this.selectedIri) return;
+    this._emit<PropertyChangeDetail>('property-remove', {
+      elementIri: this.selectedIri,
+      predicate: entry.predicate,
+      value: entry.value,
+    });
+  }
+
+  private _add(): void {
+    const predicate = this._newPredicate.trim();
+    const value = this._newValue;
+    if (!this.selectedIri || !/^[a-z][a-z0-9+.-]*:\S+$/i.test(predicate) || value === '') return;
+    this._emit<PropertyChangeDetail>('property-add', { elementIri: this.selectedIri, predicate, value });
+    this._newPredicate = '';
+    this._newValue = '';
+  }
+
+  private _renderRemove(entry: PropertyEntry) {
+    // The type and the name are what make the concept what it is; the rest can go.
+    if (entry.readonly || entry.predicate === SKOS_PREF_LABEL) return nothing;
+    return html`<button class="remove" title="Remove this value" @click=${() => this._remove(entry)}>×</button>`;
+  }
+
+  private _renderHeading() {
+    const h = this.heading;
+    return html`
+      <div class="panel-header">
+        <span>${h?.kind ?? 'Properties'}</span>
+        ${h?.typeLabel ? html`<span class="type-chip" title=${h.typeIri ?? ''}>${h.typeLabel}</span>` : nothing}
+      </div>
+      <div class="iri" title="IRI — stable for life">${this.selectedIri}</div>
+    `;
+  }
+
+  private _renderAdd() {
+    return html`
+      <div class="add-row">
+        <input
+          class="property-value"
+          list="la-predicates"
+          placeholder="Property IRI"
+          .value=${this._newPredicate}
+          @input=${(e: Event) => (this._newPredicate = (e.target as HTMLInputElement).value)}
+        />
+        <datalist id="la-predicates">
+          ${this.predicateSuggestions.map((p) => html`<option value=${p.iri}>${p.label}</option>`)}
+        </datalist>
+        <input
+          class="property-value"
+          placeholder="Value"
+          .value=${this._newValue}
+          @input=${(e: Event) => (this._newValue = (e.target as HTMLInputElement).value)}
+          @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this._add()}
+        />
+        <button class="add" @click=${() => this._add()}>Add</button>
+      </div>
+    `;
+  }
+
+  private _renderAnalysis() {
+    const a = this.analysis;
+    if (!a) return nothing;
+    const go = (iri: string) => this._emit('panel-navigate', { iri });
+    return html`
+      <div class="section-title">Analysis</div>
+      ${a.ends
+        ? html`<div class="analysis-row">
+            <a href="#" @click=${(e: Event) => { e.preventDefault(); go(a.ends!.sourceIri); }}>${a.ends.sourceLabel}</a>
+            →
+            <a href="#" @click=${(e: Event) => { e.preventDefault(); go(a.ends!.targetIri); }}>${a.ends.targetLabel}</a>
+          </div>`
+        : nothing}
+      ${a.relationships.length > 0
+        ? html`<ul class="analysis-list">
+            ${a.relationships.map(
+              (r) => html`<li>
+                <span class="dir">${r.direction === 'out' ? '→' : '←'}</span>
+                <a href="#" title=${r.iri} @click=${(e: Event) => { e.preventDefault(); go(r.iri); }}>${r.typeLabel}</a>
+                <a href="#" title=${r.otherIri} @click=${(e: Event) => { e.preventDefault(); go(r.otherIri); }}>${r.otherLabel}</a>
+              </li>`,
+            )}
+          </ul>`
+        : a.ends
+          ? nothing
+          : html`<div class="muted">No relationships.</div>`}
+      <div class="section-title">Appears in views</div>
+      ${a.views.length > 0
+        ? html`<ul class="analysis-list">
+            ${a.views.map(
+              (v) => html`<li>
+                <a href="#" @click=${(e: Event) => { e.preventDefault(); this._emit('panel-open-view', { viewIri: v.iri, iri: this.selectedIri }); }}
+                  >${v.label || v.iri}</a
+                >
+              </li>`,
+            )}
+          </ul>`
+        : html`<div class="muted">In no view.</div>`}
+    `;
+  }
+
   private _renderEntry(entry: PropertyEntry) {
     const isRequired = entry.minCount !== undefined && entry.minCount > 0;
 
@@ -351,6 +652,7 @@ export class PropertyPanel extends LitElement {
         <li class="property-row">
           <label class="property-label">
             ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
+            ${this._renderRemove(entry)}
           </label>
           <textarea
             class="property-value"
@@ -367,6 +669,8 @@ export class PropertyPanel extends LitElement {
       <li class="property-row">
         <label class="property-label">
           ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
+          ${entry.language ? html`<span class="lang">@${entry.language}</span>` : nothing}
+          ${this._renderRemove(entry)}
         </label>
         <input
           class="property-value"
@@ -389,10 +693,12 @@ export class PropertyPanel extends LitElement {
     }
 
     return html`
-      <div class="panel-header">Properties</div>
+      ${this._renderHeading()}
       <ul class="property-list">
         ${this._entries.map((entry) => this._renderEntry(entry))}
       </ul>
+      ${this._renderAdd()}
+      ${this._renderAnalysis()}
     `;
   }
 }

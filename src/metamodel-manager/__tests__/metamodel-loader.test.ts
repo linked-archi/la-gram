@@ -340,15 +340,25 @@ describe('N3MetamodelLoader — bundled ArchiMate 4.0', () => {
       'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
     );
 
-    // Every bundled asset is reachable from the manifest plus owl:imports.
+    // Every ArchiMate 4.0 asset, plus the core documents it imports, is
+    // reachable from the manifest plus owl:imports. `core-shapes` arrives by
+    // import from the ArchiMate shapes files; `core-vis-shapes` is imported by
+    // nothing, which is why the app loads it via `loadCoreAssets`.
+    const expected = BUNDLED_ASSETS.filter(
+      (a) =>
+        a.metamodel === 'archimate4' ||
+        a.role === 'coreOntology' ||
+        a.role === 'coreVisOntology' ||
+        a.ontologyIri === 'https://meta.linked.archi/core-shapes#',
+    );
     const loadedGraphs = loaded.assets
       .filter((a) => a.outcome === 'loaded')
       .map((a) => a.documentIri)
       .sort();
-    expect(loadedGraphs).toEqual(BUNDLED_ASSETS.map((a) => a.ontologyIri).sort());
+    expect(loadedGraphs).toEqual(expected.map((a) => a.ontologyIri).sort());
 
     // Each graph really holds its own quads.
-    for (const asset of BUNDLED_ASSETS) {
+    for (const asset of expected) {
       const quads = store.getQuads(null, null, null, namedNode(asset.ontologyIri));
       expect(quads.length, asset.path).toBeGreaterThan(0);
     }

@@ -132,6 +132,22 @@ function mount(): Fixture {
   };
 }
 
+/** The facts about a qualified relationship resource, with short predicate names. */
+function qualifiedFacts(f: Fixture, relIri: string): string[] {
+  const short = (p: string) =>
+    p
+      .replace('http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'rdf:')
+      .replace('https://meta.linked.archi/core#', 'arch:');
+  return f
+    .modelTriples()
+    .filter((t) => t.startsWith(`${relIri}|`))
+    .map((t) => {
+      const [, p, o] = t.split('|');
+      return `${short(p)}|${o}`;
+    })
+    .sort();
+}
+
 /** Triples of the relationship kind only — the predicate is a published direct form. */
 function relationshipTriples(f: Fixture): string[] {
   const directForms = new Set(
@@ -277,9 +293,22 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     // ArchiMate publishes a direct form for every relationship class, and that
     // is the predicate the triple must use.
     expect(chosen.unqualifiedPredicateIri).toBeTruthy();
-    expect(f.modelTriples()).toEqual([
+    expect(relationshipTriples(f)).toEqual([
       `${ACTOR_A}|${chosen.unqualifiedPredicateIri}|${ACTOR_B}`,
     ]);
+    // …and the qualified resource the Linked.Archi pattern pairs it with: typed
+    // with the class, naming both ends, in the model — the IRI the connection
+    // carries.
+    const relIri = relationships[0].relationshipIri!;
+    expect(relIri).toMatch(/^https:\/\/example\.org\/model\/test\/relationship\//);
+    expect(qualifiedFacts(f, relIri)).toEqual(
+      [
+        `rdf:type|${chosen.iri}`,
+        `arch:source|${ACTOR_A}`,
+        `arch:target|${ACTOR_B}`,
+        'arch:inModel|https://example.org/model/test',
+      ].sort(),
+    );
     expect(line!.getAttribute('data-type-iri')).toBe(chosen.iri);
   });
 
@@ -336,18 +365,22 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
       )!
       .click();
 
-    expect(f.modelTriples()).toEqual([
+    expect(relationshipTriples(f)).toEqual([
       `${ACTOR_A}|${alternative.unqualifiedPredicateIri ?? alternative.iri}|${ACTOR_B}`,
     ]);
+    // Retyped in place: the same resource, now of the other class.
+    const relIri = [...f.canvas.getRelationships().values()][0].relationshipIri!;
+    expect(qualifiedFacts(f, relIri)).toContain(`rdf:type|${alternative.iri}`);
     expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(alternative.iri);
     // One connection, relabelled rather than duplicated.
     expect(f.container.querySelectorAll(`.${RENDER_CLASSES.connection}`)).toHaveLength(1);
 
     service<{ undo(): void }>(f.canvas, 'commandStack').undo();
 
-    expect(f.modelTriples()).toEqual([
+    expect(relationshipTriples(f)).toEqual([
       `${ACTOR_A}|${before.predicateIri ?? before.typeIri}|${ACTOR_B}`,
     ]);
+    expect(qualifiedFacts(f, relIri)).toContain(`rdf:type|${before.typeIri}`);
     expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(before.typeIri);
     expect(f.container.querySelectorAll(`.${RENDER_CLASSES.connection}`)).toHaveLength(1);
   });
@@ -420,7 +453,7 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     expect(appended).toBeDefined();
     const iri = appended.businessObject!.iri;
     // A real IRI minted by the real element manager, and the type triple with it.
-    expect(iri.startsWith('https://example.org/model/test/elem-')).toBe(true);
+    expect(iri).toMatch(/^https:\/\/example\.org\/model\/test\/element\/[0-9a-f-]{36}$/);
     expect(f.modelTriples()).toContain(
       `${iri}|http://www.w3.org/1999/02/22-rdf-syntax-ns#type|${target.type.iri}`,
     );

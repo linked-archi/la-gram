@@ -17,6 +17,11 @@ import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const RDF_TYPE = NAMESPACES.rdf + 'type';
 const SKOS_PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+/** Endpoints of a qualified relationship (core 0.4). */
+const ARCH_SOURCE = NAMESPACES.arch + 'source';
+const ARCH_TARGET = NAMESPACES.arch + 'target';
+const ARCH_QUALIFIED_RELATIONSHIP = NAMESPACES.arch + 'QualifiedRelationship';
+/** Retired endpoint vocabulary, still read for models that predate it. */
 const ARCH_REL_SOURCE = NAMESPACES.arch + 'relSource';
 const ARCH_REL_TARGET = NAMESPACES.arch + 'relTarget';
 const ARCH_REL_PREDICATE = NAMESPACES.arch + 'relPredicate';
@@ -110,7 +115,9 @@ export function collectHeaders(quads: Quad[], typeIri: string): MatrixHeader[] {
  * Finds all elements of the row type and column type, then checks for
  * relationships between each pair. Relationships are detected via:
  * 1. Direct triples: rowElement → predicate → colElement
- * 2. Qualified relationships: a resource with arch:relSource, arch:relTarget, arch:relPredicate
+ * 2. Qualified relationships: a resource with arch:source / arch:target, whose
+ *    kind is its relationship-class type (the retired arch:relSource /
+ *    arch:relTarget / arch:relPredicate are read too)
  *
  * @param quads - All quads from the RDF store
  * @param rowTypeIri - The rdf:type IRI for row elements
@@ -177,11 +184,22 @@ export function buildMatrixData(
   const qrPredicates = new Map<string, string>();
 
   for (const q of quads) {
-    if (q.predicate.value === ARCH_REL_SOURCE) {
+    if (q.predicate.value === ARCH_SOURCE || q.predicate.value === ARCH_REL_SOURCE) {
       qrSources.set(q.subject.value, q.object.value);
-    } else if (q.predicate.value === ARCH_REL_TARGET) {
+    } else if (q.predicate.value === ARCH_TARGET || q.predicate.value === ARCH_REL_TARGET) {
       qrTargets.set(q.subject.value, q.object.value);
     } else if (q.predicate.value === ARCH_REL_PREDICATE) {
+      qrPredicates.set(q.subject.value, q.object.value);
+    }
+  }
+  // The kind of a current-vocabulary relationship is its class type.
+  for (const q of quads) {
+    if (
+      q.predicate.value === RDF_TYPE &&
+      qrSources.has(q.subject.value) &&
+      q.object.value !== ARCH_QUALIFIED_RELATIONSHIP &&
+      !qrPredicates.has(q.subject.value)
+    ) {
       qrPredicates.set(q.subject.value, q.object.value);
     }
   }

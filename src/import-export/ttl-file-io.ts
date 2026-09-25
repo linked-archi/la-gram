@@ -11,6 +11,7 @@ import type { Quad } from '@rdfjs/types';
 import type { TtlParser, TtlSerializer, RdfStore, PrefixMap, ParseError } from '../rdf-engine/interfaces.js';
 import type { PlatformService, FileFilter } from '../platform/interfaces.js';
 import { PREFIXES } from '../rdf-engine/namespaces.js';
+import { modelQuads } from '../model-manager/model-queries.js';
 
 /** TTL file dialog filter. */
 const TTL_FILTERS: FileFilter[] = [
@@ -70,7 +71,9 @@ export class TtlFileIO {
    * with the standard namespace prefixes plus any extras provided.
    */
   exportTtl(extraPrefixes?: PrefixMap): ExportResult {
-    const quads = this.store.getQuads();
+    // The model only — the default graph. The metamodel graphs are not the
+    // user's content and would bury it (40 000 quads for ArchiMate 4.0).
+    const quads = modelQuads(this.store);
     const prefixes: PrefixMap = { ...PREFIXES, ...extraPrefixes };
     const ttl = this.serializer.serialize(quads, prefixes);
     return { ttl, quadCount: quads.length };

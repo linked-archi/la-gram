@@ -11,12 +11,15 @@ import {
   getAssetsByRole,
   resolveIconUri,
   resolveIconUriOrPassThrough,
+  BUNDLED_METAMODELS,
+  getBundledMetamodel,
   type BundledAssetRole,
 } from '../bundled-assets.js';
 
 describe('bundled asset registry', () => {
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    expect(BUNDLED_ASSETS).toHaveLength(9);
+    // Four core files, plus ten per bundled language (ArchiMate 4.0 and 3.2).
+    expect(BUNDLED_ASSETS).toHaveLength(24);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);
@@ -24,21 +27,34 @@ describe('bundled asset registry', () => {
     }
   });
 
-  it('covers all nine logical roles exactly once', () => {
+  it('covers every single-valued role exactly once per bundled language', () => {
     const roles: BundledAssetRole[] = [
       'manifest',
       'ontology',
       'taxonomy',
       'notation',
-      'shapes',
       'presentationContexts',
       'viewpoints',
-      'coreOntology',
-      'coreVisOntology',
     ];
-    for (const role of roles) {
-      expect(getAssetsByRole(role)).toHaveLength(1);
+    for (const metamodel of BUNDLED_METAMODELS) {
+      for (const role of roles) {
+        expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
+      }
+      // arch:formalRules names four shapes graphs per language.
+      expect(getAssetsByRole('shapes', metamodel.id)).toHaveLength(4);
     }
+    expect(getAssetsByRole('coreOntology')).toHaveLength(1);
+    expect(getAssetsByRole('coreVisOntology')).toHaveLength(1);
+    expect(getAssetsByRole('coreShapes')).toHaveLength(2);
+  });
+
+  it('finds a bundled metamodel by subject IRI, manifest IRI or id', () => {
+    const am4 = BUNDLED_METAMODELS[0];
+    expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel#ArchiMate4')).toBe(am4);
+    expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel#')).toBe(am4);
+    expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel')).toBe(am4);
+    expect(getBundledMetamodel('archimate3')?.label).toBe('ArchiMate 3.2');
+    expect(getBundledMetamodel('https://example.org/other#')).toBeUndefined();
   });
 
   it('orders the core ontologies before the files that import them', () => {

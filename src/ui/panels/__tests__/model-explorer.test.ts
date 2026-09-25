@@ -1,435 +1,182 @@
-import { describe, it, expect, vi } from 'vitest';
-import type { Quad, NamedNode } from '@rdfjs/types';
-import type { RdfStore } from '../../../rdf-engine/interfaces.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { ModelContents } from '../../../model-manager/model-queries.js';
 import {
   ModelExplorer,
-  buildTree,
+  actionsFor,
+  buildModelTree,
   filterTree,
   iriFragment,
-  type TreeNode,
+  type ExplorerActionDetail,
+  type ExplorerDragDetail,
   type ExplorerSelectDetail,
+  type TreeNode,
 } from '../model-explorer.js';
 import { EventBus } from '../../event-bus.js';
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-const RDF_TYPE = NAMESPACES.rdf + 'type';
-const SKOS_PREF_LABEL = NAMESPACES.skos + 'prefLabel';
-const ARCH_FOLDER = NAMESPACES.arch + 'Folder';
-const ARCH_CONTAINS = NAMESPACES.arch + 'contains';
-const ARCH_ELEMENT = NAMESPACES.arch + 'Element';
-
-function nn(value: string): NamedNode {
-  return { value, termType: 'NamedNode' } as NamedNode;
-}
-
-function lit(value: string) {
-  return { value, termType: 'Literal' } as any;
-}
-
-function makeQuad(s: string, p: string, o: string): Quad {
-  return {
-    subject: nn(s),
-    predicate: nn(p),
-    object: p === SKOS_PREF_LABEL ? lit(o) : nn(o),
-    graph: { value: '', termType: 'DefaultGraph' },
-  } as Quad;
-}
-
-function mockRdfStore(quads: Quad[]): RdfStore {
-  return {
-    addQuads: vi.fn(),
-    removeQuads: vi.fn(),
-    getQuads: vi.fn(() => quads),
-    query: vi.fn(),
-    update: vi.fn(),
-  } as unknown as RdfStore;
-}
-
-// ── Sample data ─────────────────────────────────────────────────────────
-
-function sampleQuads(): Quad[] {
-  return [
-    // Folder
-    makeQuad('ex:folder1', RDF_TYPE, ARCH_FOLDER),
-    makeQuad('ex:folder1', SKOS_PREF_LABEL, 'Business Layer'),
-    // Elements in folder
-    makeQuad('ex:elem1', RDF_TYPE, NAMESPACES.arch + 'BusinessProcess'),
-    makeQuad('ex:elem1', SKOS_PREF_LABEL, 'Order Processing'),
-    makeQuad('ex:elem2', RDF_TYPE, NAMESPACES.arch + 'BusinessActor'),
-    makeQuad('ex:elem2', SKOS_PREF_LABEL, 'Customer'),
-    // Containment
-    makeQuad('ex:folder1', ARCH_CONTAINS, 'ex:elem1'),
-    makeQuad('ex:folder1', ARCH_CONTAINS, 'ex:elem2'),
-    // Root-level element (not in any folder)
-    makeQuad('ex:elem3', RDF_TYPE, NAMESPACES.arch + 'ApplicationComponent'),
-    makeQuad('ex:elem3', SKOS_PREF_LABEL, 'CRM System'),
-  ];
-}
-
-// ── iriFragment ─────────────────────────────────────────────────────────
-
-describe('iriFragment', () => {
-  it('extracts fragment after #', () => {
-    expect(iriFragment('https://example.org/ontology#Element')).toBe('Element');
-  });
-
-  it('extracts last path segment after /', () => {
-    expect(iriFragment('https://example.org/ontology/Element')).toBe('Element');
-  });
-
-  it('returns full string when no # or /', () => {
-    expect(iriFragment('Element')).toBe('Element');
-  });
-
-  it('prefers # over /', () => {
-    expect(iriFragment('https://example.org/path#Fragment')).toBe('Fragment');
-  });
+const M = 'urn:m';
+const contents = (): ModelContents => ({
+  model: { iri: M, label: 'Shop' },
+  views: [
+    { iri: `${M}/view/1`, label: 'Main', type: 'Diagram' },
+    { iri: `${M}/view/2`, label: 'Inventory', type: 'Catalog' },
+  ],
+  elements: [
+    { iri: `${M}/element/a`, typeIri: 'urn:t#AppComponent', typeLabel: 'Application Component', label: 'Web' },
+    { iri: `${M}/element/b`, typeIri: 'urn:t#AppComponent', typeLabel: 'Application Component', label: 'API' },
+    { iri: `${M}/element/c`, typeIri: 'urn:t#Actor', typeLabel: 'Business Actor', label: 'Customer' },
+  ],
+  relationships: [
+    { iri: `${M}/rel/1`, typeIri: 'urn:t#Serving', typeLabel: 'Serving', label: 'API → Web', sourceIri: `${M}/element/b`, targetIri: `${M}/element/a` },
+  ],
+  unclassified: [],
 });
 
-// ── buildTree ───────────────────────────────────────────────────────────
+function find(nodes: TreeNode[], pred: (n: TreeNode) => boolean): TreeNode | undefined {
+  for (const n of nodes) {
+    if (pred(n)) return n;
+    const inner = find(n.children, pred);
+    if (inner) return inner;
+  }
+  return undefined;
+}
 
-describe('buildTree', () => {
-  it('builds tree from quads with folder containment', () => {
-    const tree = buildTree(sampleQuads());
-    // Root should have folder + root-level element
-    expect(tree.length).toBe(2);
+describe('buildModelTree', () => {
+  it('roots the tree at the model, with Views, Elements and Relationships folders', () => {
+    const [root] = buildModelTree(contents(), `${M}/view/1`);
+    expect(root).toMatchObject({ kind: 'model', label: 'Shop', iri: M });
+    expect(root.children.map((c) => [c.label, c.detail])).toEqual([
+      ['Views', '2'],
+      ['Elements', '3'],
+      ['Relationships', '1'],
+    ]);
   });
 
-  it('places folder before non-folder at root', () => {
-    const tree = buildTree(sampleQuads());
-    expect(tree[0].isFolder).toBe(true);
-    expect(tree[0].label).toBe('Business Layer');
+  it('marks the open view and groups elements by type label', () => {
+    const tree = buildModelTree(contents(), `${M}/view/1`, new Set([`${M}/element/a`]));
+    expect(find(tree, (n) => n.iri === `${M}/view/1`)?.active).toBe(true);
+    const elements = tree[0].children[1];
+    expect(elements.children.map((g) => [g.label, g.detail])).toEqual([
+      ['Application Component', '2'],
+      ['Business Actor', '1'],
+    ]);
+    expect(find(tree, (n) => n.iri === `${M}/element/a`)?.placed).toBe(true);
+    expect(find(tree, (n) => n.iri === `${M}/element/b`)?.placed).toBe(false);
   });
 
-  it('nests contained elements under folder', () => {
-    const tree = buildTree(sampleQuads());
-    const folder = tree.find((n) => n.isFolder)!;
-    expect(folder.children.length).toBe(2);
-    const labels = folder.children.map((c) => c.label);
-    expect(labels).toContain('Order Processing');
-    expect(labels).toContain('Customer');
-  });
-
-  it('root-level element has no children', () => {
-    const tree = buildTree(sampleQuads());
-    const rootElem = tree.find((n) => !n.isFolder)!;
-    expect(rootElem.label).toBe('CRM System');
-    expect(rootElem.children.length).toBe(0);
-  });
-
-  it('sets typeName from type IRI fragment', () => {
-    const tree = buildTree(sampleQuads());
-    const rootElem = tree.find((n) => n.label === 'CRM System')!;
-    expect(rootElem.typeName).toBe('ApplicationComponent');
-  });
-
-  it('returns empty array for empty quads', () => {
-    expect(buildTree([])).toEqual([]);
-  });
-
-  it('uses IRI fragment as label when skos:prefLabel is missing', () => {
-    const quads = [makeQuad('https://example.org/model#noLabel', RDF_TYPE, ARCH_ELEMENT)];
-    const tree = buildTree(quads);
-    expect(tree[0].label).toBe('noLabel');
-  });
-
-  it('sorts children alphabetically within folders', () => {
-    const tree = buildTree(sampleQuads());
-    const folder = tree.find((n) => n.isFolder)!;
-    // Customer < Order Processing alphabetically
-    expect(folder.children[0].label).toBe('Customer');
-    expect(folder.children[1].label).toBe('Order Processing');
-  });
-
-  it('handles nested folders', () => {
-    const quads = [
-      makeQuad('ex:root', RDF_TYPE, ARCH_FOLDER),
-      makeQuad('ex:root', SKOS_PREF_LABEL, 'Root'),
-      makeQuad('ex:sub', RDF_TYPE, ARCH_FOLDER),
-      makeQuad('ex:sub', SKOS_PREF_LABEL, 'Sub'),
-      makeQuad('ex:root', ARCH_CONTAINS, 'ex:sub'),
-      makeQuad('ex:elem', RDF_TYPE, ARCH_ELEMENT),
-      makeQuad('ex:elem', SKOS_PREF_LABEL, 'Leaf'),
-      makeQuad('ex:sub', ARCH_CONTAINS, 'ex:elem'),
-    ];
-    const tree = buildTree(quads);
-    expect(tree.length).toBe(1);
-    expect(tree[0].label).toBe('Root');
-    expect(tree[0].children.length).toBe(1);
-    expect(tree[0].children[0].label).toBe('Sub');
-    expect(tree[0].children[0].children.length).toBe(1);
-    expect(tree[0].children[0].children[0].label).toBe('Leaf');
+  it('adds an Unclassified folder only when there is something in it', () => {
+    const c = contents();
+    expect(buildModelTree(c, undefined)[0].children).toHaveLength(3);
+    c.unclassified.push({ iri: 'urn:x', typeIri: 'urn:u#T', typeLabel: 'T', label: 'x' });
+    expect(buildModelTree(c, undefined)[0].children.map((f) => f.label)).toContain('Unclassified');
   });
 });
-
-// ── filterTree ──────────────────────────────────────────────────────────
 
 describe('filterTree', () => {
-  it('returns all nodes when query is empty', () => {
-    const tree = buildTree(sampleQuads());
-    const filtered = filterTree(tree, '', sampleQuads());
-    expect(filtered.length).toBe(tree.length);
+  it('keeps matches with their ancestors', () => {
+    const tree = filterTree(buildModelTree(contents(), undefined), 'cust');
+    expect(find(tree, (n) => n.label === 'Customer')).toBeDefined();
+    expect(find(tree, (n) => n.label === 'Web')).toBeUndefined();
   });
 
-  it('filters by label (case-insensitive)', () => {
-    const tree = buildTree(sampleQuads());
-    const filtered = filterTree(tree, 'customer', sampleQuads());
-    // Should include folder (because it contains Customer) and Customer
-    const folder = filtered.find((n) => n.isFolder);
-    expect(folder).toBeDefined();
-    expect(folder!.children.length).toBe(1);
-    expect(folder!.children[0].label).toBe('Customer');
+  it('keeps a whole folder whose label matches', () => {
+    const tree = filterTree(buildModelTree(contents(), undefined), 'application component');
+    const group = find(tree, (n) => n.label === 'Application Component');
+    expect(group?.children).toHaveLength(2);
   });
 
-  it('filters by type name', () => {
-    const tree = buildTree(sampleQuads());
-    const filtered = filterTree(tree, 'ApplicationComponent', sampleQuads());
-    expect(filtered.length).toBe(1);
-    expect(filtered[0].label).toBe('CRM System');
-  });
-
-  it('includes parent folder when child matches', () => {
-    const tree = buildTree(sampleQuads());
-    const filtered = filterTree(tree, 'Order', sampleQuads());
-    const folder = filtered.find((n) => n.isFolder);
-    expect(folder).toBeDefined();
-    expect(folder!.children.some((c) => c.label === 'Order Processing')).toBe(true);
-  });
-
-  it('returns empty when nothing matches', () => {
-    const tree = buildTree(sampleQuads());
-    const filtered = filterTree(tree, 'zzz_no_match', sampleQuads());
-    expect(filtered.length).toBe(0);
-  });
-
-  it('filters by property value in quads', () => {
-    const quads = [
-      ...sampleQuads(),
-      // Add a custom property to elem3
-      makeQuad('ex:elem3', NAMESPACES.skos + 'definition', 'Manages customer relationships'),
-    ];
-    const tree = buildTree(quads);
-    const filtered = filterTree(tree, 'relationships', quads);
-    expect(filtered.some((n) => n.label === 'CRM System')).toBe(true);
-  });
-
-  it('whitespace-only query returns all nodes', () => {
-    const tree = buildTree(sampleQuads());
-    const filtered = filterTree(tree, '   ', sampleQuads());
-    expect(filtered.length).toBe(tree.length);
+  it('returns everything for an empty query', () => {
+    const tree = buildModelTree(contents(), undefined);
+    expect(filterTree(tree, '  ')).toBe(tree);
   });
 });
 
-// ── ModelExplorer component ─────────────────────────────────────────────
-
-describe('ModelExplorer', () => {
-  it('exports the class', () => {
-    expect(ModelExplorer).toBeDefined();
+describe('actionsFor', () => {
+  it('offers add-to-view for an unplaced element and reveal for a placed one', () => {
+    const unplaced = actionsFor({ id: 'a', iri: 'a', kind: 'element', label: 'A', placed: false, children: [] });
+    const placed = actionsFor({ id: 'a', iri: 'a', kind: 'element', label: 'A', placed: true, children: [] });
+    expect(unplaced.map((a) => a.action)).toContain('add-to-view');
+    expect(placed.map((a) => a.action)).toContain('reveal');
+    expect(placed.find((a) => a.action === 'delete-from-model')?.danger).toBe(true);
   });
 
-  it('has static styles', () => {
-    expect((ModelExplorer as any).styles).toBeDefined();
+  it('offers view management on a view and view creation on the model', () => {
+    expect(actionsFor({ id: 'v', iri: 'v', kind: 'view', label: 'V', children: [] }).map((a) => a.action)).toEqual([
+      'open-view',
+      'rename-view',
+      'set-viewpoint',
+      'duplicate-view',
+      'delete-view',
+    ]);
+    expect(actionsFor({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] }).map((a) => a.action)).toContain(
+      'new-diagram',
+    );
+  });
+});
+
+describe('iriFragment', () => {
+  it('takes the part after # or the last /', () => {
+    expect(iriFragment('https://e.org/x#Y')).toBe('Y');
+    expect(iriFragment('https://e.org/x/y')).toBe('y');
+  });
+});
+
+describe('<model-explorer>', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
   });
 
-  it('has render on prototype', () => {
-    expect(typeof ModelExplorer.prototype.render).toBe('function');
+  async function mount(): Promise<ModelExplorer> {
+    const el = document.createElement('model-explorer');
+    el.contentsProvider = contents;
+    el.activeViewIri = `${M}/view/1`;
+    el.eventBus = new EventBus();
+    document.body.appendChild(el);
+    await el.updateComplete;
+    return el;
+  }
+
+  const row = (el: ModelExplorer, iri: string) =>
+    el.shadowRoot!.querySelector<HTMLElement>(`.row[data-iri="${iri}"]`)!;
+
+  it('renders the tree and selects on click', async () => {
+    const el = await mount();
+    const seen: ExplorerSelectDetail[] = [];
+    el.addEventListener('explorer-select', (e) => seen.push((e as CustomEvent<ExplorerSelectDetail>).detail));
+    row(el, `${M}/element/a`).click();
+    expect(seen).toEqual([{ iri: `${M}/element/a`, kind: 'element' }]);
   });
 
-  describe('render template', () => {
-    function makeCtx(overrides: Record<string, unknown> = {}) {
-      const p = ModelExplorer.prototype as any;
-      const quads = sampleQuads();
-      const c: any = {
-        rdfStore: mockRdfStore(quads),
-        selectedIri: '',
-        _tree: buildTree(quads),
-        _filterQuery: '',
-        _collapsedNodes: new Set<string>(),
-        _allQuads: quads,
-        dispatchEvent: vi.fn(),
-        ...overrides,
-      };
-      for (const m of ['_renderNode', '_toggleNode', '_selectNode', '_onFilterInput']) {
-        c[m] = p[m].bind(c);
-      }
-      return c;
-    }
-
-    function flat(t: any): string {
-      if (!t) return '';
-      if (typeof t === 'string') return t;
-      if (t.strings) {
-        let o = '';
-        for (let i = 0; i < t.strings.length; i++) {
-          o += t.strings[i];
-          if (i < t.values?.length) o += flat(t.values[i]);
-        }
-        return o;
-      }
-      if (Array.isArray(t)) return t.map(flat).join('');
-      return String(t ?? '');
-    }
-
-    function renderPanel(overrides: Record<string, unknown> = {}): string {
-      return flat((ModelExplorer.prototype as any).render.call(makeCtx(overrides)));
-    }
-
-    it('renders header', () => {
-      expect(renderPanel()).toContain('Model Explorer');
-    });
-
-    it('renders filter input', () => {
-      expect(renderPanel()).toContain('filter-input');
-    });
-
-    it('renders folder labels', () => {
-      expect(renderPanel()).toContain('Business Layer');
-    });
-
-    it('renders element labels', () => {
-      const o = renderPanel();
-      expect(o).toContain('Order Processing');
-      expect(o).toContain('Customer');
-      expect(o).toContain('CRM System');
-    });
-
-    it('renders type names', () => {
-      const o = renderPanel();
-      expect(o).toContain('Folder');
-      expect(o).toContain('BusinessProcess');
-      expect(o).toContain('ApplicationComponent');
-    });
-
-    it('renders folder icon', () => {
-      expect(renderPanel()).toContain('📁');
-    });
-
-    it('renders element icon', () => {
-      expect(renderPanel()).toContain('📄');
-    });
-
-    it('shows empty message when no elements', () => {
-      const o = renderPanel({ _tree: [], _allQuads: [] });
-      expect(o).toContain('No elements found');
-    });
-
-    it('applies selected class to selected node', () => {
-      const o = renderPanel({ selectedIri: 'ex:elem1' });
-      expect(o).toContain('selected');
-    });
-
-    it('applies hidden class to collapsed children', () => {
-      const o = renderPanel({ _collapsedNodes: new Set(['ex:folder1']) });
-      expect(o).toContain('hidden');
-    });
-
-    it('filters tree when filterQuery is set', () => {
-      const o = renderPanel({ _filterQuery: 'CRM' });
-      expect(o).toContain('CRM System');
-      expect(o).not.toContain('Order Processing');
-    });
+  it('opens a context menu and reports the picked action', async () => {
+    const el = await mount();
+    const actions: ExplorerActionDetail[] = [];
+    el.addEventListener('explorer-action', (e) => actions.push((e as CustomEvent<ExplorerActionDetail>).detail));
+    row(el, `${M}/view/2`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
+    await el.updateComplete;
+    el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="delete-view"]')!.click();
+    expect(actions).toEqual([{ action: 'delete-view', iri: `${M}/view/2`, kind: 'view' }]);
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('.menu')).toBeNull();
   });
 
-  describe('event handling', () => {
-    it('_selectNode dispatches explorer-select event', () => {
-      const spy = vi.fn();
-      const ctx = { selectedIri: '', dispatchEvent: spy };
-      (ModelExplorer.prototype as any)._selectNode.call(ctx, 'ex:elem1');
-      expect(ctx.selectedIri).toBe('ex:elem1');
-      const evt = spy.mock.calls[0][0] as CustomEvent<ExplorerSelectDetail>;
-      expect(evt.type).toBe('explorer-select');
-      expect(evt.detail.iri).toBe('ex:elem1');
-      expect(evt.bubbles).toBe(true);
-      expect(evt.composed).toBe(true);
-    });
-
-    it('_toggleNode adds IRI to collapsed set', () => {
-      const ctx: any = { _collapsedNodes: new Set<string>() };
-      (ModelExplorer.prototype as any)._toggleNode.call(ctx, 'ex:folder1');
-      expect(ctx._collapsedNodes.has('ex:folder1')).toBe(true);
-    });
-
-    it('_toggleNode removes IRI on second call', () => {
-      const ctx: any = { _collapsedNodes: new Set(['ex:folder1']) };
-      (ModelExplorer.prototype as any)._toggleNode.call(ctx, 'ex:folder1');
-      expect(ctx._collapsedNodes.has('ex:folder1')).toBe(false);
-    });
-
-    it('_onFilterInput updates filter query', () => {
-      const ctx: any = { _filterQuery: '' };
-      const event = { target: { value: 'test' } };
-      (ModelExplorer.prototype as any)._onFilterInput.call(ctx, event);
-      expect(ctx._filterQuery).toBe('test');
-    });
+  it('turns a press on an element into a drag only past the threshold', async () => {
+    const el = await mount();
+    const drags: ExplorerDragDetail[] = [];
+    el.addEventListener('explorer-drag-start', (e) => drags.push((e as CustomEvent<ExplorerDragDetail>).detail));
+    row(el, `${M}/element/c`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 10, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 12, clientY: 11 }));
+    expect(drags).toHaveLength(0);
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
+    expect(drags.map((d) => d.iri)).toEqual([`${M}/element/c`]);
   });
 
-  describe('EventBus integration', () => {
-    it('subscribes to events on connect', () => {
-      const bus = new EventBus();
-      const ctx: any = {
-        eventBus: bus,
-        rdfStore: undefined,
-        _tree: [],
-        _allQuads: [],
-        _eventHandler: () => {},
-      };
-      (ModelExplorer.prototype as any)._subscribeEvents.call(ctx);
-      expect(bus.listenerCount('element-created')).toBe(1);
-      expect(bus.listenerCount('element-deleted')).toBe(1);
-      expect(bus.listenerCount('model-loaded')).toBe(1);
-    });
-
-    it('unsubscribes from events on disconnect', () => {
-      const bus = new EventBus();
-      const handler = () => {};
-      const ctx: any = { eventBus: bus, _eventHandler: handler };
-      (ModelExplorer.prototype as any)._subscribeEvents.call(ctx);
-      (ModelExplorer.prototype as any)._unsubscribeEvents.call(ctx);
-      expect(bus.listenerCount('element-created')).toBe(0);
-      expect(bus.listenerCount('element-deleted')).toBe(0);
-      expect(bus.listenerCount('model-loaded')).toBe(0);
-    });
-
-    it('rebuilds tree when event fires', () => {
-      const bus = new EventBus();
-      const quads = sampleQuads();
-      const store = mockRdfStore(quads);
-      let treeRebuilt = false;
-      const ctx: any = {
-        eventBus: bus,
-        rdfStore: store,
-        _tree: [],
-        _allQuads: [],
-        _eventHandler: () => { treeRebuilt = true; },
-      };
-      (ModelExplorer.prototype as any)._subscribeEvents.call(ctx);
-      bus.emit('element-created');
-      expect(treeRebuilt).toBe(true);
-    });
-
-    it('does not throw when eventBus is undefined', () => {
-      const ctx: any = { eventBus: undefined, _eventHandler: () => {} };
-      expect(() => (ModelExplorer.prototype as any)._subscribeEvents.call(ctx)).not.toThrow();
-      expect(() => (ModelExplorer.prototype as any)._unsubscribeEvents.call(ctx)).not.toThrow();
-    });
-  });
-
-  describe('_rebuildTree', () => {
-    it('builds tree from rdfStore quads', () => {
-      const quads = sampleQuads();
-      const ctx: any = { rdfStore: mockRdfStore(quads), _tree: [], _allQuads: [] };
-      (ModelExplorer.prototype as any)._rebuildTree.call(ctx);
-      expect(ctx._tree.length).toBeGreaterThan(0);
-      expect(ctx._allQuads.length).toBe(quads.length);
-    });
-
-    it('clears tree when rdfStore is undefined', () => {
-      const ctx: any = { rdfStore: undefined, _tree: [{ iri: 'x' }], _allQuads: [{}] };
-      (ModelExplorer.prototype as any)._rebuildTree.call(ctx);
-      expect(ctx._tree).toEqual([]);
-      expect(ctx._allQuads).toEqual([]);
-    });
+  it('refreshes when the model changes', async () => {
+    const el = await mount();
+    const provider = vi.fn(contents);
+    el.contentsProvider = provider;
+    await el.updateComplete;
+    provider.mockClear();
+    el.eventBus!.emit('model-changed', {});
+    expect(provider).toHaveBeenCalled();
   });
 });

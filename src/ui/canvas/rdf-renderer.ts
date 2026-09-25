@@ -80,6 +80,12 @@ export interface RdfBusinessObject {
    * pin one to a single element; it is carried here and left to the caller.
    */
   iconUrl?: string;
+  /**
+   * Set on a shape being dropped from the model tree: the element already
+   * exists, so creating the shape places it in the view rather than minting a
+   * new element.
+   */
+  placeExisting?: boolean;
 }
 
 /** The subset of a diagram-js element this renderer reads. */

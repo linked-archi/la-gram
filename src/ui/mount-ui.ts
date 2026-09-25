@@ -1,27 +1,46 @@
 /**
- * UI mounting — instantiates every panel/view and assigns it to an app-shell slot.
+ * UI mounting — instantiates every panel/view and wires it to the App.
  *
- * `app-shell` only renders the layout grid plus five named slots
- * (`palette`, `canvas`, `property-panel`, `explorer`, `validation`).
- * Nothing fills those slots unless something creates the panel elements,
- * wires them to the App's components and appends them as light-DOM children
- * of the shell — that is this module's job.
+ * `app-shell` only renders the layout grid plus named slots (`toolbar`,
+ * `palette`, `canvas`, `property-panel`, `explorer`, `validation`). Nothing
+ * fills those slots unless something creates the panel elements, wires them to
+ * the App's components and appends them as light-DOM children of the shell —
+ * that is this module's job, together with executing what the toolbar, the
+ * model tree and the canvas ask for.
  *
  * Importing the panel modules here is also what registers their custom
  * elements: the `@customElement(...)` decorators only run as an import side
  * effect.
+ *
+ * ## Who changes the model
+ *
+ * Panels never write the store: they emit events. Canvas gestures write through
+ * the canvas's own undoable commands; everything else (the property panel, the
+ * model tree, the toolbar) is executed here or by the App. After a change that
+ * did not come from the canvas, the canvas reconciles itself with the store
+ * (`syncFromStore`), so there is one source of truth and no second copy to keep
+ * in step.
  */
 
 import { DataFactory } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
 
 import type { App } from '../app.js';
-import type { PaletteDefinition } from '../metamodel-manager/interfaces.js';
+import type { PaletteDefinition, ViewpointInfo } from '../metamodel-manager/interfaces.js';
 import type { ValidationResult } from '../rdf-engine/interfaces.js';
+import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
+import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { METAMODEL_CATALOGUE } from '../metamodel-manager/catalogue.js';
+import type { ViewKind } from '../model-manager/interfaces.js';
+import { labelOf, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { MODEL_FORMATS, type ModelFormat } from '../import-export/model-io.js';
+import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
+import { domDialogs, type Dialogs } from './dialogs.js';
 
 // Side-effect imports: register the custom elements.
 import './app-shell.js';
+import './panels/app-toolbar.js';
 import './panels/palette-panel.js';
 import './panels/canvas-toolbar.js';
 import './panels/property-panel.js';
@@ -32,14 +51,25 @@ import './views/catalog-view.js';
 import './views/matrix-view.js';
 
 import type { AppShell } from './app-shell.js';
+import type { AppToolbar, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
 import type {
   PalettePanel,
   PaletteDragDetail,
   PaletteAxisChangeDetail,
 } from './panels/palette-panel.js';
 import type { CanvasToolbar, ToolbarToolDetail } from './panels/canvas-toolbar.js';
-import type { PropertyPanel, PropertyEditDetail } from './panels/property-panel.js';
-import type { ModelExplorer, ExplorerSelectDetail } from './panels/model-explorer.js';
+import type {
+  PropertyPanel,
+  PropertyEditDetail,
+  PropertyChangeDetail,
+  PropertyAnalysis,
+} from './panels/property-panel.js';
+import type {
+  ModelExplorer,
+  ExplorerSelectDetail,
+  ExplorerActionDetail,
+  ExplorerDragDetail,
+} from './panels/model-explorer.js';
 import type { ValidationPanel, ValidationNavigateDetail } from './panels/validation-panel.js';
 import type { SparqlEditor } from './panels/sparql-editor.js';
 import type { CatalogView, CatalogSelectDetail } from './views/catalog-view.js';
@@ -47,16 +77,16 @@ import type { MatrixView } from './views/matrix-view.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
 // DOM node in its constructor and manages that subtree itself.
-import { DiagramCanvas } from './canvas/diagram-canvas.js';
+import { DiagramCanvas, type ConceptDescription, type DeleteFromModelRequest } from './canvas/diagram-canvas.js';
 import { buildClassClosure, type ClassClosure } from './canvas/relationship-resolution.js';
 
 const { namedNode } = DataFactory;
 
-/** Named graph holding SHACL shapes (mirrors N3MetamodelLoader). */
-const SHAPES_GRAPH_IRI = 'urn:la-gram:shapes';
-
 /** Model IRI used for elements dropped onto the canvas before a model is loaded. */
 export const DEFAULT_MODEL_IRI = 'urn:la-gram:model-1';
+
+/** CSS marker on shapes with SHACL violations. */
+export const VIOLATION_MARKER = 'la-violation';
 
 /** Empty palette used until a metamodel is loaded. */
 function emptyPalette(): PaletteDefinition {
@@ -69,6 +99,8 @@ export type CanvasViewKind = 'diagram' | 'catalog' | 'matrix';
 /** Handles to everything mounted into the shell. */
 export interface MountedUi {
   shell: AppShell;
+  /** The bar across the top: file, metamodels, views, collaboration. */
+  appToolbar: AppToolbar;
   palettePanel: PalettePanel;
   /** The global-tool strip above the diagram. */
   canvasToolbar: CanvasToolbar;
@@ -91,26 +123,85 @@ export interface MountedUi {
    * not publish the axis.
    */
   setPaletteAxis(axisIri: string | undefined): void;
+  /** Select a concept everywhere (tree, properties, canvas). */
+  selectConcept(iri: string | undefined): void;
+  /** Execute a toolbar command, as if picked. */
+  runCommand(detail: ToolbarCommandDetail): Promise<void>;
+  /** Refresh every panel from the store. */
+  refresh(): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
+}
+
+/** Options for {@link mountUi}. */
+export interface MountOptions {
+  /** Dialog implementation; the DOM one by default, scripted in tests. */
+  dialogs?: Dialogs;
+  /** Pick a file to open; an `<input type=file>` by default. */
+  pickFile?: (accept: string) => Promise<{ name: string; text: string } | null>;
+  /** Hand a file to the user; a download by default. */
+  saveFile?: (content: string | Blob, fileName: string, mediaType: string) => Promise<void> | void;
+}
+
+/** Let the user pick a file with a hidden input. */
+function defaultPickFile(accept: string): Promise<{ name: string; text: string } | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      input.remove();
+      resolve(file ? { name: file.name, text: await file.text() } : null);
+    });
+    input.addEventListener('cancel', () => {
+      input.remove();
+      resolve(null);
+    });
+    document.body.append(input);
+    input.click();
+  });
+}
+
+/** Download a file. */
+function defaultSaveFile(content: string | Blob, fileName: string, mediaType: string): void {
+  const blob = typeof content === 'string' ? new Blob([content], { type: `${mediaType};charset=utf-8` }) : content;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Most specific type of a resource: the one whose closure is largest. */
+function mainType(types: string[], closure: TypeClosure): string | undefined {
+  const specific = types.filter((t) => t !== NAMESPACES.arch + 'QualifiedRelationship');
+  return [...(specific.length > 0 ? specific : types)].sort((a, b) => closure(b).length - closure(a).length)[0];
 }
 
 /**
  * Create every panel, wire it to the App's components, and mount it into an
  * `<app-shell>` under `root`.
  */
-export function mountUi(app: App, root: HTMLElement): MountedUi {
+export function mountUi(app: App, root: HTMLElement, options: MountOptions = {}): MountedUi {
   const {
     eventBus,
     store,
     validator,
     elementManager,
     relationshipManager,
+    viewManager,
+    viewpointManager,
     paletteGenerator,
   } = app.components;
-
-  const shapesGraphNode = namedNode(SHAPES_GRAPH_IRI) as unknown as NamedNode;
-  const readShapesGraph = (): Quad[] => store.getQuads(null, null, null, shapesGraphNode);
+  const dialogs = options.dialogs ?? domDialogs;
+  const pickFile = options.pickFile ?? defaultPickFile;
+  const saveFile = options.saveFile ?? defaultSaveFile;
+  const session = app.session;
 
   // ── Shell ────────────────────────────────────────────────────────────
   // `eventBus` must be assigned before the shell connects, because
@@ -122,32 +213,47 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   shell.remove();
   shell.eventBus = eventBus;
 
+  // The class hierarchy changes with the loaded metamodels; both closures are
+  // rebuilt on `metamodel-loaded`.
+  let closure: TypeClosure = typeClosure(store);
+  let classClosure: ClassClosure = buildClassClosure(store);
+  const closureLookup: ClassClosure = (typeIri) => classClosure(typeIri);
+
+  const describe = (iri: string): ConceptDescription | undefined => {
+    const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
+    if (types.length === 0) return undefined;
+    return { typeIri: mainType(types, closure), label: labelOf(store, iri) };
+  };
+
+  // ── Top: app toolbar ─────────────────────────────────────────────────
+  const appToolbar = document.createElement('app-toolbar');
+  appToolbar.slot = 'toolbar';
+  appToolbar.catalogue = METAMODEL_CATALOGUE;
+
   // ── Left top: palette ────────────────────────────────────────────────
   const palettePanel = document.createElement('palette-panel');
   palettePanel.slot = 'palette';
   palettePanel.palette = emptyPalette();
 
-  // ── Left bottom: model explorer ──────────────────────────────────────
+  // ── Left bottom: model tree ──────────────────────────────────────────
   const modelExplorer = document.createElement('model-explorer');
   modelExplorer.slot = 'explorer';
-  modelExplorer.rdfStore = store;
-  modelExplorer.eventBus = eventBus;
 
   // ── Right: property panel ────────────────────────────────────────────
+  // No element manager: edits travel as events to the App, which tags text
+  // with its language — the one place that knows the shapes want it.
   const propertyPanel = document.createElement('property-panel');
   propertyPanel.slot = 'property-panel';
   propertyPanel.rdfStore = store;
-  propertyPanel.elementManager = elementManager;
-  propertyPanel.shapesGraph = readShapesGraph();
+  propertyPanel.shapesGraph = app.shapesGraph();
 
   // ── Centre: diagram host + alternative catalog/matrix views ──────────
   const canvasArea = document.createElement('div');
   canvasArea.slot = 'canvas';
   canvasArea.className = 'la-canvas-area';
 
-  // The global tools (connect / lasso / hand) used to be entries in diagram-js's
-  // own in-canvas palette, which also listed all 42 element types the sidebar
-  // lists. That palette is no longer registered; the tools live here instead.
+  // The global tools (connect / lasso / hand) live in this strip rather than
+  // in diagram-js's own in-canvas palette, which would duplicate the sidebar.
   const canvasToolbar = document.createElement('canvas-toolbar');
 
   const canvasHost = document.createElement('div');
@@ -168,29 +274,23 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   // pad, so it has to be readable as it changes.
   let currentPalette: PaletteDefinition = emptyPalette();
 
-  // Rebuilt after each metamodel load: the subClassOf hierarchy only exists once
-  // the ontologies are in the store.
-  let classClosure: ClassClosure = buildClassClosure(store);
-  const closureLookup: ClassClosure = (typeIri) => classClosure(typeIri);
-
   const diagramCanvas = new DiagramCanvas({
     container: canvasHost,
     eventBus,
     elementManager,
     relationshipManager,
     paletteDefinition: currentPalette,
-    modelIri: DEFAULT_MODEL_IRI,
+    modelIri: session.modelIri ?? DEFAULT_MODEL_IRI,
     classClosure: closureLookup,
     rdfStore: store,
+    viewManager,
+    ...(store instanceof ObservableRdfStore ? { changeStore: store } : {}),
+    describeElement: describe,
+    confirmDeleteFromModel: (request: DeleteFromModelRequest) => confirmModelDelete(request),
     onToolChanged: (tool) => {
       canvasToolbar.activeTool = tool ?? undefined;
     },
   });
-
-  // Changing a connection's relationship type is diagram-js's own business now:
-  // the context pad's `replace` entry opens `popupMenu` on the
-  // `la-relationship-replace` provider the canvas registered, and the pick goes
-  // straight onto the command stack. Nothing to wire from here.
 
   // ── Bottom: validation results + SPARQL editor ───────────────────────
   const bottomArea = document.createElement('div');
@@ -199,8 +299,9 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
 
   const validationPanel = document.createElement('validation-panel');
   validationPanel.validator = validator;
+  validationPanel.labelFor = (iri) => labelOf(store, iri);
   validationPanel.dataGraph = store.getQuads();
-  validationPanel.shapesGraph = readShapesGraph();
+  validationPanel.shapesGraph = app.shapesGraph();
 
   const sparqlEditor = document.createElement('sparql-editor');
   sparqlEditor.rdfStore = store;
@@ -208,32 +309,128 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   bottomArea.append(validationPanel, sparqlEditor);
 
   // ── Attach to the document ───────────────────────────────────────────
-  shell.append(palettePanel, modelExplorer, propertyPanel, canvasArea, bottomArea);
+  shell.append(appToolbar, palettePanel, modelExplorer, propertyPanel, canvasArea, bottomArea);
   root.appendChild(shell);
 
+  // ── Model tree data ──────────────────────────────────────────────────
+  const placedInView = (): ReadonlySet<string> => {
+    const viewIri = session.activeViewIri;
+    if (!viewIri || typeof viewManager.getNodes !== 'function') return new Set();
+    return new Set([
+      ...viewManager.getNodes(viewIri).map((n) => n.elementIri),
+      ...viewManager.getLinks(viewIri).map((l) => l.relationshipIri),
+    ]);
+  };
+  modelExplorer.contentsProvider = () => readModelContents(store, viewManager.getViews(), closure);
+  modelExplorer.placedProvider = placedInView;
+  modelExplorer.eventBus = eventBus;
+  modelExplorer.activeViewIri = session.activeViewIri;
+
   // ── Selection routing ────────────────────────────────────────────────
-  const selectElement = (iri: string): void => {
-    propertyPanel.selectedIri = iri;
-    modelExplorer.selectedIri = iri;
-    catalogView.selectedIri = iri;
-    eventBus.emit('selection-changed', { iri });
+  const analysisFor = (iri: string): PropertyAnalysis | undefined => {
+    const info = describe(iri);
+    if (!info) return undefined;
+    const views = (typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : []).map((v) => ({
+      iri: v,
+      label: viewManager.getView?.(v)?.label ?? v,
+    }));
+    const rel = relationshipManager.getRelationship?.(iri);
+    if (rel) {
+      return {
+        relationships: [],
+        views,
+        ends: {
+          sourceIri: rel.sourceIri,
+          sourceLabel: labelOf(store, rel.sourceIri),
+          targetIri: rel.targetIri,
+          targetLabel: labelOf(store, rel.targetIri),
+        },
+      };
+    }
+    const relationships = (relationshipManager.getRelationshipsOf?.(iri) ?? []).map((r) => {
+      const out = r.sourceIri === iri;
+      const other = out ? r.targetIri : r.sourceIri;
+      return {
+        iri: r.iri,
+        direction: out ? ('out' as const) : ('in' as const),
+        typeLabel: labelOf(store, r.classIri),
+        otherIri: other,
+        otherLabel: labelOf(store, other),
+      };
+    });
+    return { relationships, views };
+  };
+
+  const headingFor = (iri: string) => {
+    const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
+    const typeIri = mainType(types, closure);
+    const all = new Set(types.flatMap((t) => closure(t)));
+    const kind = types.includes(NAMESPACES.arch + 'Model')
+      ? 'Model'
+      : all.has(NAMESPACES.arch + 'View')
+        ? 'View'
+        : all.has(NAMESPACES.arch + 'QualifiedRelationship')
+          ? 'Relationship'
+          : 'Element';
+    return { kind, ...(typeIri ? { typeIri, typeLabel: labelOf(store, typeIri) } : {}) };
+  };
+
+  let selecting = false;
+  const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean } = {}): void => {
+    if (selecting) return;
+    selecting = true;
+    try {
+      propertyPanel.selectedIri = iri ?? '';
+      propertyPanel.heading = iri ? headingFor(iri) : undefined;
+      propertyPanel.analysis = iri ? analysisFor(iri) : undefined;
+      if (iri) modelExplorer.revealIri(iri);
+      else modelExplorer.selectedIri = '';
+      catalogView.selectedIri = iri ?? '';
+      if (iri && !options.fromCanvas) diagramCanvas.reveal(iri);
+      if (!options.fromCanvas) eventBus.emit('selection-changed', { iri });
+    } finally {
+      selecting = false;
+    }
   };
 
   const onExplorerSelect = (e: Event): void => {
-    selectElement((e as CustomEvent<ExplorerSelectDetail>).detail.iri);
+    selectConcept((e as CustomEvent<ExplorerSelectDetail>).detail.iri);
   };
   const onCatalogSelect = (e: Event): void => {
-    selectElement((e as CustomEvent<CatalogSelectDetail>).detail.iri);
+    selectConcept((e as CustomEvent<CatalogSelectDetail>).detail.iri);
   };
   const onValidationNavigate = (e: Event): void => {
-    selectElement((e as CustomEvent<ValidationNavigateDetail>).detail.focusNodeIri);
+    void revealAnywhere((e as CustomEvent<ValidationNavigateDetail>).detail.focusNodeIri);
+  };
+  const onCanvasSelection: ModelEventHandler = (event) => {
+    if (selecting) return;
+    const iri = event.detail?.iri as string | undefined;
+    selectConcept(iri, { fromCanvas: true });
   };
 
   modelExplorer.addEventListener('explorer-select', onExplorerSelect);
   catalogView.addEventListener('catalog-select', onCatalogSelect);
   validationPanel.addEventListener('validation-navigate', onValidationNavigate);
 
-  // ── Property edits → EventBus (App re-validates) ─────────────────────
+  /**
+   * Show a concept: select it on the canvas when the open view has it,
+   * otherwise open a view that does, otherwise just select it in the tree.
+   */
+  const revealAnywhere = async (iri: string): Promise<void> => {
+    if (diagramCanvas.reveal(iri)) {
+      selectConcept(iri, { fromCanvas: true });
+      return;
+    }
+    const views = typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : [];
+    const diagram = views.find((v) => viewManager.getView?.(v)?.type === 'Diagram');
+    if (diagram) {
+      session.openView(diagram);
+      diagramCanvas.reveal(iri);
+    }
+    selectConcept(iri, { fromCanvas: true });
+  };
+
+  // ── Property panel → model ───────────────────────────────────────────
   const onPropertyEdit = (e: Event): void => {
     const detail = (e as CustomEvent<PropertyEditDetail>).detail;
     eventBus.emit('property-edited', {
@@ -241,39 +438,54 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
       // App's handler uses `property`; the panel emits it as `predicate`.
       property: detail.predicate,
       value: detail.value,
+      ...(detail.language ? { language: detail.language } : {}),
     });
   };
+  const onPropertyAdd = (e: Event): void => {
+    const d = (e as CustomEvent<PropertyChangeDetail>).detail;
+    const value = /^(https?|urn):/.test(d.value)
+      ? DataFactory.namedNode(d.value)
+      : DataFactory.literal(d.value, d.predicate.startsWith(NAMESPACES.skos) || d.predicate.startsWith(NAMESPACES.dcterms) ? 'en' : undefined);
+    store.addQuads([DataFactory.quad(DataFactory.namedNode(d.elementIri), DataFactory.namedNode(d.predicate), value) as unknown as Quad]);
+    eventBus.emit('model-changed', { origin: 'properties', iri: d.elementIri });
+  };
+  const onPropertyRemove = (e: Event): void => {
+    const d = (e as CustomEvent<PropertyChangeDetail>).detail;
+    const stale = store
+      .getQuads(namedNode(d.elementIri) as unknown as NamedNode, namedNode(d.predicate) as unknown as NamedNode)
+      .filter((q) => q.object.value === d.value && q.graph.termType === 'DefaultGraph');
+    if (stale.length > 0) store.removeQuads(stale);
+    eventBus.emit('model-changed', { origin: 'properties', iri: d.elementIri });
+  };
+  const onPanelNavigate = (e: Event): void => {
+    void revealAnywhere((e as CustomEvent<{ iri: string }>).detail.iri);
+  };
+  const onPanelOpenView = (e: Event): void => {
+    const { viewIri, iri } = (e as CustomEvent<{ viewIri: string; iri?: string }>).detail;
+    session.openView(viewIri);
+    if (iri) diagramCanvas.reveal(iri);
+  };
   propertyPanel.addEventListener('property-edit', onPropertyEdit);
+  propertyPanel.addEventListener('property-add', onPropertyAdd);
+  propertyPanel.addEventListener('property-remove', onPropertyRemove);
+  propertyPanel.addEventListener('panel-navigate', onPanelNavigate);
+  propertyPanel.addEventListener('panel-open-view', onPanelOpenView);
 
   // ── Palette → diagram-js `create` ────────────────────────────────────
   //
-  // One palette now, and it can use diagram-js's `create` service like
-  // bpmn-js's does, even though it lives outside the canvas.
-  //
-  // What made that impossible before was the gesture, not the location: the
-  // sidebar dragged with the HTML5 drag-and-drop API, and during a native drag
-  // the browser fires `dragover`/`drop` and **no** `mousemove`/`mouseup` — the
-  // events diagram-js's `Dragging` listens on. So the drop had to be caught here
-  // and its client coordinates translated through the viewbox by hand, with no
-  // preview and no snapping, and no browser test could drive it.
-  //
-  // `palette-panel` now starts the gesture from `mousedown` (and `click`, for
+  // `palette-panel` starts the gesture from `mousedown` (and `click`, for
   // click-to-place) and hands the raw event over. `Dragging.init` binds
-  // `mousemove`/`mouseup` on `document`, so a press that begins in the sidebar is
-  // tracked all the way onto the canvas; diagram-js computes the drop position,
-  // shows the preview, applies snapping, and mints the RDF element inside the
-  // resulting `shape.create` command. A release that lands outside the canvas
-  // finds no hover target and cancels, which is the right answer.
+  // `mousemove`/`mouseup` on `document`, so a press that begins in the sidebar
+  // is tracked all the way onto the canvas; diagram-js computes the drop
+  // position, shows the preview, applies snapping, and mints the RDF element
+  // inside the resulting `shape.create` command.
   const onPaletteDragStart = (e: Event): void => {
     const detail = (e as CustomEvent<PaletteDragDetail>).detail;
     if (!detail?.iri) return;
 
     if (detail.kind === 'relationship') {
       // A relationship type is not a shape, so there is nothing to drag onto the
-      // canvas. Picking one arms the connect tool with that type preselected, so
-      // the next source→target pair gets the type the user asked for rather than
-      // the metamodel's top-ranked guess. See
-      // `DiagramCanvas.setPreferredRelationshipType`.
+      // canvas. Picking one arms the connect tool with that type preselected.
       diagramCanvas.setPreferredRelationshipType(detail.iri);
       diagramCanvas.activateTool('connect', detail.sourceEvent);
       return;
@@ -283,10 +495,124 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   };
   palettePanel.addEventListener('palette-drag-start', onPaletteDragStart);
 
-  // ── Toolbar → diagram-js tool services ───────────────────────────────
-  // Picking a tool by hand clears any preselected relationship type: the user is
-  // asking for the metamodel's own ranking again, not for the type they last
-  // clicked in the sidebar.
+  // ── Model tree → canvas and model ────────────────────────────────────
+  const onExplorerDrag = (e: Event): void => {
+    const { iri, sourceEvent } = (e as CustomEvent<ExplorerDragDetail>).detail;
+    if (activeKind !== 'diagram') return;
+    diagramCanvas.startPlaceExisting(iri, sourceEvent);
+  };
+  const onExplorerActivate = (e: Event): void => {
+    const { iri, kind } = (e as CustomEvent<ExplorerSelectDetail>).detail;
+    if (kind === 'view') session.openView(iri);
+    else if (kind === 'model') void runCommand({ command: 'rename-model' });
+    else void revealAnywhere(iri);
+  };
+  const onExplorerAction = (e: Event): void => {
+    void handleExplorerAction((e as CustomEvent<ExplorerActionDetail>).detail);
+  };
+  modelExplorer.addEventListener('explorer-drag-start', onExplorerDrag);
+  modelExplorer.addEventListener('explorer-activate', onExplorerActivate);
+  modelExplorer.addEventListener('explorer-action', onExplorerAction);
+
+  const renameConcept = async (iri: string): Promise<void> => {
+    const name = await dialogs.prompt('Rename', 'Name', labelOf(store, iri));
+    if (!name) return;
+    eventBus.emit('property-edited', { elementIri: iri, property: NAMESPACES.skos + 'prefLabel', value: name });
+  };
+
+  const handleExplorerAction = async (detail: ExplorerActionDetail): Promise<void> => {
+    const { action, iri } = detail;
+    switch (action) {
+      case 'rename-model':
+        return runCommand({ command: 'rename-model' });
+      case 'new-diagram':
+        return runCommand({ command: 'new-view', value: 'Diagram' });
+      case 'new-catalog':
+        return runCommand({ command: 'new-view', value: 'Catalog' });
+      case 'new-matrix':
+        return runCommand({ command: 'new-view', value: 'Matrix' });
+      case 'open-view':
+        session.openView(iri);
+        return;
+      case 'rename-view': {
+        const name = await dialogs.prompt('Rename view', 'Name', viewManager.getView?.(iri)?.label ?? '');
+        if (name) session.renameView(iri, name);
+        return;
+      }
+      case 'duplicate-view':
+        session.openView(session.duplicateView(iri));
+        return;
+      case 'delete-view': {
+        const view = viewManager.getView?.(iri);
+        const ok = await dialogs.confirm(
+          'Delete view',
+          `Delete the view "${view?.label ?? iri}"? The elements and relationships it shows stay in the model.`,
+          { confirmLabel: 'Delete view', danger: true },
+        );
+        if (ok) session.deleteView(iri);
+        return;
+      }
+      case 'set-viewpoint': {
+        const choice = await chooseViewpoint(viewManager.getView?.(iri)?.viewpointIri);
+        if (choice !== null) session.setViewpoint(iri, choice || undefined);
+        return;
+      }
+      case 'add-to-view':
+        if (activeKind !== 'diagram') {
+          dialogs.toast('Open a diagram view to place it in.', 'warning');
+        } else if (detail.kind === 'relationship') {
+          if (!diagramCanvas.drawExistingRelationship(iri)) {
+            dialogs.toast('Place both of its elements in this view first.', 'warning');
+          }
+        } else if (!diagramCanvas.placeExisting(iri)) {
+          dialogs.toast('This element cannot be placed here.', 'warning');
+        }
+        return;
+      case 'reveal':
+        void revealAnywhere(iri);
+        return;
+      case 'rename':
+        return renameConcept(iri);
+      case 'delete-from-model':
+        await deleteFromModel(iri);
+        return;
+      case 'show-source':
+      case 'show-target': {
+        const rel = relationshipManager.getRelationship?.(iri);
+        if (rel) void revealAnywhere(action === 'show-source' ? rel.sourceIri : rel.targetIri);
+        return;
+      }
+    }
+  };
+
+  /** Delete from the model — through the canvas when it is drawn, so it is undoable. */
+  const deleteFromModel = async (iri: string): Promise<void> => {
+    const result = await diagramCanvas.deleteFromModel(iri);
+    if (result) {
+      selectConcept(undefined);
+      eventBus.emit('model-changed', { origin: 'explorer' });
+    }
+  };
+
+  const confirmModelDelete = (request: DeleteFromModelRequest): Promise<boolean> => {
+    const viewLabels = request.views.map((v) => viewManager.getView?.(v)?.label || v);
+    return dialogs.confirm(
+      request.kind === 'element' ? 'Delete element from model' : 'Delete relationship from model',
+      request.views.length > 0
+        ? `"${request.label}" will be removed from the model and from every view it appears in:`
+        : `"${request.label}" will be removed from the model.`,
+      {
+        confirmLabel: 'Delete from model',
+        danger: true,
+        details: [
+          ...viewLabels,
+          ...(request.kind === 'element' ? ['— and every relationship connected to it'] : []),
+        ],
+      },
+    );
+  };
+
+  // ── Canvas toolbar → diagram-js tool services ────────────────────────
   const onToolbarTool = (e: Event): void => {
     const detail = (e as CustomEvent<ToolbarToolDetail>).detail;
     if (!detail?.tool) return;
@@ -295,31 +621,15 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   };
   canvasToolbar.addEventListener('toolbar-tool', onToolbarTool);
 
-  // ── EventBus → panel state ───────────────────────────────────────────
-  const refreshGraphs = (): void => {
-    const shapes = readShapesGraph();
-    propertyPanel.shapesGraph = shapes;
-    validationPanel.shapesGraph = shapes;
-    validationPanel.dataGraph = store.getQuads();
-  };
-
-  const onValidationUpdated: ModelEventHandler = (event) => {
-    const detail = event.detail as
-      | { conforms?: boolean; results?: ValidationResult[] }
-      | undefined;
-    validationPanel.conforms = detail?.conforms ?? true;
-    validationPanel.results = detail?.results ?? [];
-  };
-
   // ── Palette generation ───────────────────────────────────────────────
-  // The metamodel IRI and the chosen grouping axis are kept so the palette can
-  // be regenerated when the user switches axis without reloading anything.
   let currentMetamodelIri: string | undefined;
   let currentAxisIri: string | undefined;
 
   const regeneratePalette = (): void => {
+    const context = app.activePresentationContext();
     const palette = paletteGenerator.generatePalette(currentMetamodelIri, {
-      axisIri: currentAxisIri,
+      ...(currentAxisIri ? { axisIri: currentAxisIri } : {}),
+      ...(context ? { presentationContextIri: context } : {}),
     });
     // The active axis may differ from the requested one when the metamodel does
     // not publish it; follow what the generator actually used.
@@ -329,18 +639,6 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
     diagramCanvas.updatePaletteDefinition(palette);
   };
 
-  const onMetamodelLoaded: ModelEventHandler = (event) => {
-    // The class hierarchy has just arrived, so the closure index is stale.
-    classClosure = buildClassClosure(store);
-    const metamodelIri = event.detail?.metamodelIri as string | undefined;
-    if (metamodelIri) {
-      currentMetamodelIri = metamodelIri;
-      regeneratePalette();
-    }
-    refreshGraphs();
-  };
-
-  // The palette panel's "Group by" selector asks for a different axis.
   const onAxisChange = (e: Event): void => {
     const detail = (e as CustomEvent<PaletteAxisChangeDetail>).detail;
     currentAxisIri = detail.axisIri;
@@ -348,40 +646,429 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
   };
   palettePanel.addEventListener('palette-axis-change', onAxisChange);
 
-  const onModelChanged: ModelEventHandler = () => {
-    refreshGraphs();
-  };
-
-  eventBus.on('validation-updated', onValidationUpdated);
-  eventBus.on('metamodel-loaded', onMetamodelLoaded);
-  eventBus.on('model-loaded', onModelChanged);
-
-  // ── Centre view switching ────────────────────────────────────────────
+  // ── Views on the canvas ──────────────────────────────────────────────
   let active: CanvasViewKind = 'diagram';
   const setActiveCanvasView = (kind: CanvasViewKind): void => {
     active = kind;
+    activeKind = kind;
     canvasHost.hidden = kind !== 'diagram';
+    canvasToolbar.hidden = kind !== 'diagram';
     catalogView.hidden = kind !== 'catalog';
     matrixView.hidden = kind !== 'matrix';
+  };
+  let activeKind: CanvasViewKind = 'diagram';
+
+  const viewpointOf = (viewIri: string | undefined): ViewpointInfo | undefined => {
+    const vpIri = viewIri ? viewManager.getView?.(viewIri)?.viewpointIri : undefined;
+    if (!vpIri) return undefined;
+    return viewpointManager.getViewpoints().find((v) => v.iri === vpIri);
+  };
+
+  /** Put the session's open view on screen, with its viewpoint applied. */
+  const showActiveView = (): void => {
+    const viewIri = session.activeViewIri;
+    const info = viewIri ? viewManager.getView?.(viewIri) : undefined;
+    const kind: CanvasViewKind = info?.type === 'Catalog' ? 'catalog' : info?.type === 'Matrix' ? 'matrix' : 'diagram';
+    setActiveCanvasView(kind);
+    diagramCanvas.showView(kind === 'diagram' ? viewIri : undefined);
+
+    const viewpoint = viewpointOf(viewIri);
+    palettePanel.activeViewpoint = viewpoint && viewpoint.permittedElements.length > 0 ? viewpoint : undefined;
+    const permitted = viewpoint ? new Set(viewpoint.permittedElements) : undefined;
+    diagramCanvas.setViewpointFilter(permitted && permitted.size > 0 ? (typeIri) => permitted.has(typeIri) : undefined);
+
+    modelExplorer.activeViewIri = viewIri;
+    refreshToolbar();
+  };
+
+  // ── Property suggestions ─────────────────────────────────────────────
+  /**
+   * Predicates offered when adding a property: the datatype and annotation
+   * properties the loaded ontologies declare, plus common SKOS / Dublin Core /
+   * PROV terms. Object properties are left out on purpose: a relationship is
+   * drawn on the canvas, where it becomes a qualified resource as well as a
+   * triple, not typed in here as a bare triple.
+   */
+  const COMMON_PREDICATES = [
+    NAMESPACES.skos + 'definition',
+    NAMESPACES.skos + 'altLabel',
+    NAMESPACES.skos + 'note',
+    NAMESPACES.skos + 'scopeNote',
+    NAMESPACES.dcterms + 'description',
+    NAMESPACES.dcterms + 'source',
+    NAMESPACES.dcterms + 'creator',
+    NAMESPACES.dcterms + 'created',
+    NAMESPACES.prov + 'wasDerivedFrom',
+  ];
+  const predicateSuggestions = (): LabelledIri[] => {
+    const iris = new Set<string>(COMMON_PREDICATES);
+    const rdfType = namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode;
+    for (const kind of ['DatatypeProperty', 'AnnotationProperty']) {
+      for (const q of store.getQuads(null, rdfType, namedNode(NAMESPACES.owl + kind) as unknown as NamedNode)) {
+        if (q.subject.termType === 'NamedNode' && q.graph.termType !== 'DefaultGraph') iris.add(q.subject.value);
+      }
+    }
+    return [...iris]
+      .map((iri) => ({ iri, label: labelOf(store, iri) }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .slice(0, 500);
+  };
+
+  // ── Toolbar state ────────────────────────────────────────────────────
+  const presentationContexts = (): LabelledIri[] => {
+    const out: LabelledIri[] = [];
+    for (const m of app.loadedMetamodels()) {
+      const scheme = m.presentationContextSchemeIri;
+      if (!scheme) continue;
+      for (const q of store.getQuads(null, namedNode(NAMESPACES.skos + 'inScheme') as unknown as NamedNode, namedNode(scheme) as unknown as NamedNode)) {
+        out.push({ iri: q.subject.value, label: labelOf(store, q.subject.value) });
+      }
+    }
+    return out;
+  };
+
+  const refreshToolbar = (): void => {
+    appToolbar.modelLabel = session.modelLabel();
+    appToolbar.dirty = app.isDirty();
+    appToolbar.views = viewManager.getViews();
+    appToolbar.activeViewIri = session.activeViewIri ?? '';
+    appToolbar.viewpoints = viewpointManager.getViewpoints().map((v) => ({ iri: v.iri, label: v.label }));
+    appToolbar.activeViewpointIri = (session.activeViewIri && viewManager.getView?.(session.activeViewIri)?.viewpointIri) || '';
+    appToolbar.loadedMetamodels = app.loadedMetamodels().map((m) => ({
+      iri: m.metamodelIri,
+      label: m.info.name || labelOf(store, m.metamodelIri),
+    }));
+    appToolbar.presentationContexts = presentationContexts();
+    appToolbar.activeContextIri = app.activePresentationContext() ?? '';
+  };
+
+  // ── Toolbar commands ─────────────────────────────────────────────────
+  const onToolbarCommand = (e: Event): void => {
+    void runCommand((e as CustomEvent<ToolbarCommandDetail>).detail);
+  };
+  appToolbar.addEventListener('toolbar-command', onToolbarCommand);
+
+  const guardUnsaved = async (what: string): Promise<boolean> => {
+    if (app.collaborationRoom) {
+      return dialogs.confirm(
+        'Shared model',
+        `This model is shared in room "${app.collaborationRoom}". ${what} replaces it for everyone in the room.`,
+        { confirmLabel: what, danger: true },
+      );
+    }
+    if (!app.isDirty()) return true;
+    return dialogs.confirm('Unsaved changes', `The model has unsaved changes. ${what} anyway?`, {
+      confirmLabel: what,
+      danger: true,
+    });
+  };
+
+  const chooseViewpoint = async (current?: string): Promise<string | null> =>
+    dialogs.choose(
+      'Viewpoint',
+      [
+        { value: '', label: '— none —', detail: 'Every element type is offered' },
+        ...viewpointManager.getViewpoints().map((v) => ({
+          value: v.iri,
+          label: v.label,
+          detail: `${v.permittedElements.length} element types`,
+        })),
+      ],
+      current ?? '',
+    );
+
+  const save = (format: ModelFormat, profile: 'full' | 'no-geometry' = 'full'): void => {
+    const saved = app.saveModel(format, profile);
+    void Promise.resolve(saveFile(saved.text, saved.fileName, saved.mediaType)).then(() => {
+      eventBus.emit('model-saved', { fileName: saved.fileName });
+      refreshToolbar();
+    });
+  };
+
+  const report = (message: string, level: 'info' | 'warning' | 'error' = 'info') => {
+    dialogs.toast(message, level);
+    eventBus.emit('notify', { level, message });
+  };
+
+  const runCommand = async (detail: ToolbarCommandDetail): Promise<void> => {
+    const { command, value } = detail;
+    try {
+      switch (command) {
+        case 'new-model': {
+          if (!(await guardUnsaved('Start a new model'))) return;
+          const name = await dialogs.prompt('New model', 'Model name', 'Untitled model');
+          if (name === null) return;
+          app.newModel(name);
+          return;
+        }
+        case 'open-model': {
+          if (!(await guardUnsaved('Open another model'))) return;
+          const file = await pickFile(MODEL_FORMATS.map((f) => `.${f.extension}`).join(','));
+          if (!file) return;
+          const opened = await app.openModel(file.text, file.name);
+          report(
+            `Opened ${file.name}: ${opened.quadCount} triples` +
+              (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out` : '') +
+              (opened.migration.renamed + opened.migration.relationships + opened.migration.placements > 0
+                ? ', older vocabulary migrated'
+                : '') +
+              '.',
+          );
+          if (opened.missingMetamodels.length > 0) {
+            report(`Could not load: ${opened.missingMetamodels.join(', ')}`, 'warning');
+          }
+          return;
+        }
+        case 'import-archimate': {
+          if (!(await guardUnsaved('Import'))) return;
+          const file = await pickFile('.xml');
+          if (!file) return;
+          const result = await app.importArchiMate(file.text, file.name);
+          report(
+            `Imported ${result.elementCount} elements, ${result.relationshipCount} relationships, ${result.viewCount} views.`,
+          );
+          if (result.unrecognizedTypes.length > 0) {
+            report(`Skipped unknown types: ${result.unrecognizedTypes.join(', ')}`, 'warning');
+          }
+          return;
+        }
+        case 'save':
+          save('turtle');
+          return;
+        case 'save-as':
+          save((value as ModelFormat) ?? 'turtle');
+          return;
+        case 'save-no-geometry':
+          save('turtle', 'no-geometry');
+          return;
+        case 'export-svg': {
+          const svg = exportSvg(diagramCanvas.toSvg());
+          await saveFile(svg, `${(viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-')}.svg`, 'image/svg+xml');
+          return;
+        }
+        case 'export-png': {
+          const png = await exportPng(exportSvg(diagramCanvas.toSvg()));
+          await saveFile(png, `${(viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-')}.png`, 'image/png');
+          return;
+        }
+        case 'rename-model': {
+          const name = await dialogs.prompt('Rename model', 'Model name', session.modelLabel());
+          if (name) session.renameModel(name);
+          refreshToolbar();
+          return;
+        }
+        case 'open-view':
+          if (value) session.openView(value);
+          return;
+        case 'new-view': {
+          const kind = (value as ViewKind) ?? 'Diagram';
+          const name = await dialogs.prompt(`New ${kind.toLowerCase()}`, 'Name', `New ${kind.toLowerCase()}`);
+          if (name === null) return;
+          // The metamodels expect every view to declare its viewpoint; offer
+          // the choice up front (none is allowed, and settable later).
+          const viewpoint = viewpointManager.getViewpoints().length > 0 ? await chooseViewpoint() : '';
+          session.createView(kind, { label: name, ...(viewpoint ? { viewpointIri: viewpoint } : {}) });
+          return;
+        }
+        case 'set-viewpoint':
+          if (session.activeViewIri) session.setViewpoint(session.activeViewIri, value || undefined);
+          return;
+        case 'add-metamodel':
+        case 'switch-metamodel': {
+          if (!value) return;
+          const loaded = await app.loadMetamodel(value, { replace: command === 'switch-metamodel' });
+          const failed = loaded.assets.filter((a) => a.outcome === 'error' || a.outcome === 'unavailable');
+          report(
+            `Loaded ${loaded.info.name || value}` +
+              (failed.length > 0 ? ` — ${failed.length} part(s) unavailable (see Show loaded assets)` : ''),
+            failed.length > 0 ? 'warning' : 'info',
+          );
+          return;
+        }
+        case 'unload-metamodel':
+          if (value) app.unloadMetamodel(value);
+          return;
+        case 'load-metamodel-iri': {
+          const iri = await dialogs.prompt(
+            'Load metamodel',
+            'IRI of an arch:Metamodel (or its manifest)',
+            'https://meta.linked.archi/',
+          );
+          if (!iri) return;
+          return runCommand({ command: 'add-metamodel', value: iri });
+        }
+        case 'upload-asset': {
+          const file = await pickFile('.ttl,.trig,.jsonld,.json,.rdf,.owl,.nt,.nq');
+          if (!file) return;
+          const result = await app.loadAssetFile(file.text, file.name);
+          report(result.kind === 'metamodel' ? `Loaded metamodel ${result.iri}` : `Added ${result.iri}`);
+          return;
+        }
+        case 'show-assets': {
+          const lines: string[] = [];
+          for (const m of app.loadedMetamodels()) {
+            lines.push(`■ ${m.info.name || m.metamodelIri}`);
+            for (const a of m.assets) {
+              lines.push(`   ${a.outcome.padEnd(14)} ${a.role ?? ''} ${a.documentIri}${a.origin ? ` (${a.origin})` : ''}${a.quadCount ? ` · ${a.quadCount} triples` : ''}`);
+            }
+          }
+          if (app.uploaded.list().length > 0) lines.push('■ Uploaded', ...app.uploaded.list().map((d) => `   ${d}`));
+          await dialogs.info('Loaded semantic assets', lines.length > 0 ? lines : ['Nothing loaded.']);
+          return;
+        }
+        case 'set-context':
+          app.setPresentationContext(value || undefined);
+          return;
+        case 'share':
+          eventBus.emit('collab-status', { request: 'share' });
+          return;
+        case 'undo':
+        case 'redo': {
+          const stack = (diagramCanvas.getDiagram() as unknown as { get(n: string): { undo(): void; redo(): void } } | null)?.get('commandStack');
+          if (command === 'undo') stack?.undo();
+          else stack?.redo();
+          return;
+        }
+      }
+    } catch (err: unknown) {
+      report(err instanceof Error ? err.message : String(err), 'error');
+    }
+  };
+
+  // ── EventBus → panels ────────────────────────────────────────────────
+  const refreshGraphs = (): void => {
+    const shapes = app.shapesGraph();
+    propertyPanel.shapesGraph = shapes;
+    validationPanel.shapesGraph = shapes;
+    validationPanel.dataGraph = app.validationDataGraph();
+  };
+
+  const onValidationUpdated: ModelEventHandler = (event) => {
+    const detail = event.detail as { conforms?: boolean; results?: ValidationResult[] } | undefined;
+    const results = detail?.results ?? [];
+    validationPanel.conforms = detail?.conforms ?? true;
+    validationPanel.results = results;
+    diagramCanvas.setMarkers(
+      VIOLATION_MARKER,
+      new Set(results.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value)),
+    );
+  };
+
+  const onMetamodelLoaded: ModelEventHandler = (event) => {
+    // The class hierarchy has just changed, so the closure indexes are stale.
+    classClosure = buildClassClosure(store);
+    closure = typeClosure(store);
+    const metamodelIri = event.detail?.metamodelIri as string | undefined;
+    if (metamodelIri || event.detail?.empty) {
+      currentMetamodelIri = metamodelIri;
+      regeneratePalette();
+    }
+    refreshGraphs();
+    refreshToolbar();
+    propertyPanel.predicateSuggestions = predicateSuggestions();
+    diagramCanvas.syncFromStore();
+  };
+
+  const onModelLoaded: ModelEventHandler = () => {
+    diagramCanvas.setModelIri(session.modelIri ?? DEFAULT_MODEL_IRI);
+    selectConcept(undefined);
+    refreshGraphs();
+    showActiveView();
+  };
+
+  const onViewOpened: ModelEventHandler = () => {
+    showActiveView();
+  };
+
+  const onViewsChanged: ModelEventHandler = (event) => {
+    // A re-pointed viewpoint on the open view changes what is greyed out.
+    if (event.detail?.viewIri === session.activeViewIri) showActiveView();
+    else refreshToolbar();
+  };
+
+  const onModelChanged: ModelEventHandler = (event) => {
+    if (event.detail?.origin !== 'canvas') diagramCanvas.syncFromStore();
+    propertyPanel.reload();
+    if (propertyPanel.selectedIri) {
+      propertyPanel.heading = headingFor(propertyPanel.selectedIri);
+      propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
+    }
+    appToolbar.dirty = app.isDirty();
+    appToolbar.modelLabel = session.modelLabel();
+  };
+
+  const onElementDeleted: ModelEventHandler = (event) => {
+    const iri = event.detail?.iri as string | undefined;
+    if (iri && iri === propertyPanel.selectedIri && store.getQuads(namedNode(iri) as unknown as NamedNode).length === 0) {
+      selectConcept(undefined);
+    }
+  };
+
+  const onContextChanged: ModelEventHandler = () => {
+    regeneratePalette();
+    refreshToolbar();
+  };
+
+  const onSaved: ModelEventHandler = () => refreshToolbar();
+
+  eventBus.on('validation-updated', onValidationUpdated);
+  eventBus.on('metamodel-loaded', onMetamodelLoaded);
+  eventBus.on('model-loaded', onModelLoaded);
+  eventBus.on('view-opened', onViewOpened);
+  eventBus.on('views-changed', onViewsChanged);
+  eventBus.on('model-changed', onModelChanged);
+  eventBus.on('selection-changed', onCanvasSelection);
+  eventBus.on('element-deleted', onElementDeleted);
+  eventBus.on('relationship-deleted', onElementDeleted);
+  eventBus.on('presentation-context-changed', onContextChanged);
+  eventBus.on('model-saved', onSaved);
+
+  // The model the App started with.
+  if (session.activeViewIri) showActiveView();
+  else refreshToolbar();
+
+  const refresh = (): void => {
+    refreshGraphs();
+    modelExplorer.refresh();
+    diagramCanvas.syncFromStore();
+    refreshToolbar();
   };
 
   const dispose = (): void => {
     eventBus.off('validation-updated', onValidationUpdated);
     eventBus.off('metamodel-loaded', onMetamodelLoaded);
-    eventBus.off('model-loaded', onModelChanged);
+    eventBus.off('model-loaded', onModelLoaded);
+    eventBus.off('view-opened', onViewOpened);
+    eventBus.off('views-changed', onViewsChanged);
+    eventBus.off('model-changed', onModelChanged);
+    eventBus.off('selection-changed', onCanvasSelection);
+    eventBus.off('element-deleted', onElementDeleted);
+    eventBus.off('relationship-deleted', onElementDeleted);
+    eventBus.off('presentation-context-changed', onContextChanged);
+    eventBus.off('model-saved', onSaved);
+    appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
     canvasToolbar.removeEventListener('toolbar-tool', onToolbarTool);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
+    modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
+    modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);
+    modelExplorer.removeEventListener('explorer-action', onExplorerAction);
     catalogView.removeEventListener('catalog-select', onCatalogSelect);
     validationPanel.removeEventListener('validation-navigate', onValidationNavigate);
     propertyPanel.removeEventListener('property-edit', onPropertyEdit);
+    propertyPanel.removeEventListener('property-add', onPropertyAdd);
+    propertyPanel.removeEventListener('property-remove', onPropertyRemove);
+    propertyPanel.removeEventListener('panel-navigate', onPanelNavigate);
+    propertyPanel.removeEventListener('panel-open-view', onPanelOpenView);
+    modelExplorer.eventBus = undefined;
     diagramCanvas.destroy();
     shell.remove();
   };
 
   return {
     shell,
+    appToolbar,
     palettePanel,
     canvasToolbar,
     modelExplorer,
@@ -398,6 +1085,9 @@ export function mountUi(app: App, root: HTMLElement): MountedUi {
       currentAxisIri = axisIri;
       regeneratePalette();
     },
+    selectConcept: (iri) => selectConcept(iri),
+    runCommand,
+    refresh,
     dispose,
   };
 }

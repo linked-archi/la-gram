@@ -1,358 +1,161 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import {
-  importArchiMateXml,
-  mapTypeToIri,
-  elementToQuads,
-  relationshipToQuads,
-  getChildText,
-  getXsiType,
-  getChildElements,
-  ARCHIMATE_NS,
-  KNOWN_ELEMENT_TYPES,
-  KNOWN_RELATIONSHIP_TYPES,
-  type ImportResult,
-} from '../archimate-importer.js';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
+import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
+import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
+import { OxigraphElementManager } from '../../model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '../../model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '../../model-manager/view-manager.js';
+import { modelQuads } from '../../model-manager/model-queries.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import {
+  ARCHIMATE_NS,
+  applyExchangeModel,
+  exchangeTypeIri,
+  parseArchiMateExchange,
+} from '../archimate-importer.js';
+import { DataFactory } from 'n3';
+import type { NamedNode } from '@rdfjs/types';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const nn = (v: string) => DataFactory.namedNode(v) as unknown as NamedNode;
+const AM3 = ARCHIMATE_NS;
 
-const BASE = 'https://imported.archimate/model/';
-
-/** Minimal valid ArchiMate XML wrapper. */
-function wrapXml(body: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
+/** A small but complete exchange file: properties, nesting, bendpoints, a junction, an unknown type. */
+const EXCHANGE = `<?xml version="1.0" encoding="UTF-8"?>
 <model xmlns="http://www.opengroup.org/xsd/archimate/3.0/"
-       identifier="id-model"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <name>Test Model</name>
-  ${body}
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       identifier="id-model">
+  <name xml:lang="en">Shop</name>
+  <documentation xml:lang="en">A web shop.</documentation>
+  <elements>
+    <element identifier="id-web" xsi:type="ApplicationComponent">
+      <name xml:lang="en">Web Shop</name>
+      <documentation xml:lang="en">Customer-facing web front end.</documentation>
+      <properties><property propertyDefinitionRef="pd-owner"><value xml:lang="en">Team A</value></property></properties>
+    </element>
+    <element identifier="id-api" xsi:type="ApplicationComponent"><name xml:lang="en">Order API</name></element>
+    <element identifier="id-cust" xsi:type="BusinessActor"><name xml:lang="en">Customer</name></element>
+    <element identifier="id-j" xsi:type="AndJunction"/>
+    <element identifier="id-x" xsi:type="SomethingProprietary"><name>X</name></element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-r1" xsi:type="Serving" source="id-api" target="id-web"/>
+    <relationship identifier="id-r2" xsi:type="Serving" source="id-web" target="id-cust"><name xml:lang="en">serves</name></relationship>
+    <relationship identifier="id-r3" xsi:type="Association" source="id-cust" target="id-r2"/>
+  </relationships>
+  <propertyDefinitions>
+    <propertyDefinition identifier="pd-owner" type="string"><name xml:lang="en">Owner</name></propertyDefinition>
+  </propertyDefinitions>
+  <views>
+    <diagrams>
+      <view identifier="id-v1" xsi:type="Diagram" viewpoint="Application Cooperation">
+        <name xml:lang="en">Main</name>
+        <node identifier="n-group" xsi:type="Container" x="10" y="10" w="400" h="300">
+          <node identifier="n-web" elementRef="id-web" xsi:type="Element" x="40" y="40" w="120" h="55"/>
+        </node>
+        <node identifier="n-api" elementRef="id-api" xsi:type="Element" x="300" y="40" w="120" h="55"/>
+        <node identifier="n-api2" elementRef="id-api" xsi:type="Element" x="300" y="200" w="120" h="55"/>
+        <connection identifier="c1" relationshipRef="id-r1" xsi:type="Relationship" source="n-api" target="n-web">
+          <bendpoint x="230" y="150"/>
+        </connection>
+      </view>
+    </diagrams>
+  </views>
 </model>`;
-}
 
-function findQuad(
-  result: ImportResult,
-  subjectSuffix: string,
-  predicateIri: string,
-  objectValue?: string,
-) {
-  return result.quads.find(
-    (q) =>
-      q.subject.value.endsWith(subjectSuffix) &&
-      q.predicate.value === predicateIri &&
-      (objectValue === undefined || q.object.value === objectValue),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// mapTypeToIri
-// ---------------------------------------------------------------------------
-
-describe('mapTypeToIri', () => {
-  it('maps a known element type', () => {
-    expect(mapTypeToIri('BusinessProcess')).toBe(ARCHIMATE_NS + 'BusinessProcess');
+describe('parseArchiMateExchange', () => {
+  it('reads elements, relationships, properties and diagrams', () => {
+    const model = parseArchiMateExchange(EXCHANGE);
+    expect(model.name).toBe('Shop');
+    expect(model.lang).toBe('en');
+    expect(model.elements.map((e) => e.type)).toEqual([
+      'ApplicationComponent',
+      'ApplicationComponent',
+      'BusinessActor',
+      'AndJunction',
+      'SomethingProprietary',
+    ]);
+    expect(model.elements[0].properties).toEqual([{ name: 'Owner', value: 'Team A' }]);
+    expect(model.relationships[0]).toMatchObject({ id: 'id-r1', type: 'Serving', source: 'id-api', target: 'id-web' });
+    const view = model.views[0];
+    expect(view.viewpoint).toBe('Application Cooperation');
+    // Nested nodes are flattened, coordinates kept absolute.
+    expect(view.nodes.map((n) => n.id)).toEqual(['n-group', 'n-web', 'n-api', 'n-api2']);
+    expect(view.connections[0].bendpoints).toEqual([{ x: 230, y: 150 }]);
   });
 
-  it('maps a known relationship type', () => {
-    expect(mapTypeToIri('Serving')).toBe(ARCHIMATE_NS + 'Serving');
+  it('rejects text that is not an exchange model', () => {
+    expect(() => parseArchiMateExchange('<<not xml')).toThrow();
+    expect(() => parseArchiMateExchange('<other/>')).toThrow(/Not an ArchiMate exchange file/);
   });
 
-  it('returns null for an unknown type', () => {
-    expect(mapTypeToIri('UnknownWidget')).toBeNull();
+  it('maps junction names onto the ontology spelling', () => {
+    expect(exchangeTypeIri('AndJunction')).toBe(AM3 + 'Junction_And');
+    expect(exchangeTypeIri('Serving')).toBe(AM3 + 'Serving');
   });
+});
 
-  it('maps all known element types', () => {
-    for (const t of KNOWN_ELEMENT_TYPES) {
-      expect(mapTypeToIri(t)).toBe(ARCHIMATE_NS + t);
+describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () => {
+  let store: OxigraphRdfStore;
+  beforeAll(async () => {
+    store = new OxigraphRdfStore();
+    await new N3MetamodelLoader(new N3TtlParser(), store).loadBundledMetamodel('archimate3');
+  }, 30_000);
+  afterAll(() => store.dispose());
+
+  it('writes the model through the editor managers, in the current vocabulary', () => {
+    const elements = new OxigraphElementManager(store);
+    const relationships = new OxigraphRelationshipManager(store);
+    const views = new OxigraphViewManager(store);
+    const modelIri = 'urn:la-gram:archimate/test';
+    const knownClass = (iri: string) =>
+      store.getQuads(nn(iri), nn(NAMESPACES.rdf + 'type'), nn(NAMESPACES.owl + 'Class')).length > 0;
+
+    const report = applyExchangeModel(parseArchiMateExchange(EXCHANGE), {
+      elements,
+      relationships,
+      views,
+      modelIri,
+      knownClass,
+    });
+
+    expect(report).toMatchObject({
+      elementCount: 4,
+      relationshipCount: 3,
+      viewCount: 1,
+      nodeCount: 2,
+      connectionCount: 1,
+      unrecognizedTypes: ['SomethingProprietary'],
+      skippedNodes: 2, // the container, and the second placement of id-api
+    });
+
+    const web = `${modelIri}/element/id-web`;
+    const q = (s: string, p: string) => store.getQuads(nn(s), nn(p)).map((x) => x.object.value);
+    expect(q(web, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'ApplicationComponent']);
+    expect(q(web, NAMESPACES.skos + 'prefLabel')).toEqual(['Web Shop']);
+    expect(q(web, NAMESPACES.skos + 'definition')).toEqual(['Customer-facing web front end.']);
+    expect(q(web, `${modelIri}/property/owner`)).toEqual(['Team A']);
+    expect(q(`${modelIri}/element/id-j`, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Junction_And']);
+
+    // Qualified relationship + unqualified triple.
+    const r1 = `${modelIri}/relationship/id-r1`;
+    expect(q(r1, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Serving']);
+    expect(store.getQuads(nn(`${modelIri}/element/id-api`), nn(AM3 + 'serves'), nn(web))).toHaveLength(1);
+    // A relationship to a relationship resolves too.
+    expect(q(`${modelIri}/relationship/id-r3`, NAMESPACES.arch + 'target')).toEqual([`${modelIri}/relationship/id-r2`]);
+
+    // Geometry: absolute bounds, and a route docked on the shapes' edges.
+    const viewIri = `${modelIri}/view/id-v1`;
+    expect(views.getNode(viewIri, web)?.bounds).toEqual({ x: 40, y: 40, width: 120, height: 55 });
+    const [link] = views.getLinks(viewIri);
+    expect(link.relationshipIri).toBe(r1);
+    expect(link.waypoints).toHaveLength(3);
+    expect(link.waypoints[1]).toEqual({ x: 230, y: 150 });
+
+    // No retired vocabulary.
+    for (const old of ['relSource', 'relTarget', 'relPredicate']) {
+      expect(store.getQuads(null, nn(NAMESPACES.arch + old))).toHaveLength(0);
     }
-  });
-
-  it('maps all known relationship types', () => {
-    for (const t of KNOWN_RELATIONSHIP_TYPES) {
-      expect(mapTypeToIri(t)).toBe(ARCHIMATE_NS + t);
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// XML helper functions (via DOMParser in jsdom)
-// ---------------------------------------------------------------------------
-
-describe('XML helpers', () => {
-  function parseEl(xml: string): Element {
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    return doc.documentElement;
-  }
-
-  describe('getChildText', () => {
-    it('returns text of a child element', () => {
-      const el = parseEl('<root xmlns="http://www.opengroup.org/xsd/archimate/3.0/"><name>Hello</name></root>');
-      expect(getChildText(el, 'name')).toBe('Hello');
-    });
-
-    it('returns null when child is missing', () => {
-      const el = parseEl('<root xmlns="http://www.opengroup.org/xsd/archimate/3.0/"></root>');
-      expect(getChildText(el, 'name')).toBeNull();
-    });
-
-    it('trims whitespace', () => {
-      const el = parseEl('<root xmlns="http://www.opengroup.org/xsd/archimate/3.0/"><name>  Spaced  </name></root>');
-      expect(getChildText(el, 'name')).toBe('Spaced');
-    });
-  });
-
-  describe('getXsiType', () => {
-    it('reads xsi:type attribute', () => {
-      const el = parseEl('<element xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="BusinessProcess"/>');
-      expect(getXsiType(el)).toBe('BusinessProcess');
-    });
-
-    it('returns null when no type attribute', () => {
-      const el = parseEl('<element/>');
-      expect(getXsiType(el)).toBeNull();
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// elementToQuads
-// ---------------------------------------------------------------------------
-
-describe('elementToQuads', () => {
-  function parseElement(xml: string): Element {
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    return doc.documentElement;
-  }
-
-  it('creates rdf:type quad for a known element', () => {
-    const el = parseElement(
-      '<element xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-1" xsi:type="BusinessProcess"><name>My Process</name></element>',
-    );
-    const { quads, unrecognized } = elementToQuads(el, BASE);
-    expect(unrecognized).toBeNull();
-    expect(quads.length).toBeGreaterThanOrEqual(2);
-    expect(quads[0].subject.value).toBe(BASE + 'id-1');
-    expect(quads[0].predicate.value).toBe(NAMESPACES.rdf + 'type');
-    expect(quads[0].object.value).toBe(ARCHIMATE_NS + 'BusinessProcess');
-  });
-
-  it('creates skos:prefLabel quad', () => {
-    const el = parseElement(
-      '<element xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-1" xsi:type="BusinessProcess"><name>My Process</name></element>',
-    );
-    const { quads } = elementToQuads(el, BASE);
-    const label = quads.find((q) => q.predicate.value === NAMESPACES.skos + 'prefLabel');
-    expect(label).toBeDefined();
-    expect(label!.object.value).toBe('My Process');
-  });
-
-  it('creates skos:definition quad when documentation present', () => {
-    const el = parseElement(
-      '<element xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-2" xsi:type="ApplicationComponent"><name>App</name><documentation>A component</documentation></element>',
-    );
-    const { quads } = elementToQuads(el, BASE);
-    const def = quads.find((q) => q.predicate.value === NAMESPACES.skos + 'definition');
-    expect(def).toBeDefined();
-    expect(def!.object.value).toBe('A component');
-  });
-
-  it('omits skos:definition when no documentation', () => {
-    const el = parseElement(
-      '<element xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-3" xsi:type="Node"><name>Server</name></element>',
-    );
-    const { quads } = elementToQuads(el, BASE);
-    expect(quads.find((q) => q.predicate.value === NAMESPACES.skos + 'definition')).toBeUndefined();
-  });
-
-  it('reports unrecognized type', () => {
-    const el = parseElement(
-      '<element xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-4" xsi:type="FancyWidget"><name>W</name></element>',
-    );
-    const { quads, unrecognized } = elementToQuads(el, BASE);
-    expect(quads).toHaveLength(0);
-    expect(unrecognized).toBe('FancyWidget');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// relationshipToQuads
-// ---------------------------------------------------------------------------
-
-describe('relationshipToQuads', () => {
-  function parseRel(xml: string): Element {
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    return doc.documentElement;
-  }
-
-  it('creates QualifiedRelationship quads', () => {
-    const el = parseRel(
-      '<relationship xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-r1" xsi:type="Serving" source="id-1" target="id-2"><name>serves</name></relationship>',
-    );
-    const { quads, unrecognized } = relationshipToQuads(el, BASE);
-    expect(unrecognized).toBeNull();
-    // rdf:type, relSource, relTarget, relPredicate, prefLabel = 5
-    expect(quads).toHaveLength(5);
-
-    const typeQ = quads.find((q) => q.predicate.value === NAMESPACES.rdf + 'type');
-    expect(typeQ!.object.value).toBe(NAMESPACES.arch + 'QualifiedRelationship');
-
-    const src = quads.find((q) => q.predicate.value === NAMESPACES.arch + 'relSource');
-    expect(src!.object.value).toBe(BASE + 'id-1');
-
-    const tgt = quads.find((q) => q.predicate.value === NAMESPACES.arch + 'relTarget');
-    expect(tgt!.object.value).toBe(BASE + 'id-2');
-
-    const pred = quads.find((q) => q.predicate.value === NAMESPACES.arch + 'relPredicate');
-    expect(pred!.object.value).toBe(ARCHIMATE_NS + 'Serving');
-  });
-
-  it('omits label when name is absent', () => {
-    const el = parseRel(
-      '<relationship xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-r2" xsi:type="Flow" source="id-a" target="id-b"/>',
-    );
-    const { quads } = relationshipToQuads(el, BASE);
-    expect(quads).toHaveLength(4); // no prefLabel
-  });
-
-  it('reports unrecognized relationship type', () => {
-    const el = parseRel(
-      '<relationship xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-r3" xsi:type="MagicLink" source="id-a" target="id-b"/>',
-    );
-    const { quads, unrecognized } = relationshipToQuads(el, BASE);
-    expect(quads).toHaveLength(0);
-    expect(unrecognized).toBe('MagicLink');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// importArchiMateXml (integration)
-// ---------------------------------------------------------------------------
-
-describe('importArchiMateXml', () => {
-  it('imports elements and relationships from valid XML', () => {
-    const xml = wrapXml(`
-      <elements>
-        <element identifier="id-e1" xsi:type="BusinessProcess">
-          <name>Order Processing</name>
-          <documentation>Handles orders</documentation>
-        </element>
-        <element identifier="id-e2" xsi:type="ApplicationComponent">
-          <name>CRM</name>
-        </element>
-      </elements>
-      <relationships>
-        <relationship identifier="id-r1" xsi:type="Serving" source="id-e1" target="id-e2">
-          <name>serves</name>
-        </relationship>
-      </relationships>
-    `);
-
-    const result = importArchiMateXml(xml);
-    expect(result.elementCount).toBe(2);
-    expect(result.relationshipCount).toBe(1);
-    expect(result.unrecognizedTypes).toHaveLength(0);
-
-    // Element quads: e1 has type + label + definition = 3, e2 has type + label = 2
-    // Relationship quads: type + source + target + predicate + label = 5
-    expect(result.quads.length).toBe(10);
-
-    // Verify element type
-    expect(findQuad(result, 'id-e1', NAMESPACES.rdf + 'type', ARCHIMATE_NS + 'BusinessProcess')).toBeDefined();
-    // Verify label
-    expect(findQuad(result, 'id-e1', NAMESPACES.skos + 'prefLabel', 'Order Processing')).toBeDefined();
-    // Verify definition
-    expect(findQuad(result, 'id-e1', NAMESPACES.skos + 'definition', 'Handles orders')).toBeDefined();
-    // Verify relationship
-    expect(findQuad(result, 'id-r1', NAMESPACES.arch + 'relPredicate', ARCHIMATE_NS + 'Serving')).toBeDefined();
-  });
-
-  it('collects unrecognized types', () => {
-    const xml = wrapXml(`
-      <elements>
-        <element identifier="id-e1" xsi:type="BusinessProcess">
-          <name>Known</name>
-        </element>
-        <element identifier="id-e2" xsi:type="CustomWidget">
-          <name>Unknown</name>
-        </element>
-        <element identifier="id-e3" xsi:type="CustomWidget">
-          <name>Also Unknown</name>
-        </element>
-      </elements>
-      <relationships>
-        <relationship identifier="id-r1" xsi:type="MagicLink" source="id-e1" target="id-e2"/>
-      </relationships>
-    `);
-
-    const result = importArchiMateXml(xml);
-    expect(result.elementCount).toBe(1);
-    expect(result.relationshipCount).toBe(0);
-    // Deduplicated: CustomWidget + MagicLink
-    expect(result.unrecognizedTypes).toContain('CustomWidget');
-    expect(result.unrecognizedTypes).toContain('MagicLink');
-    expect(result.unrecognizedTypes).toHaveLength(2);
-  });
-
-  it('handles empty model', () => {
-    const xml = wrapXml('<elements/><relationships/>');
-    const result = importArchiMateXml(xml);
-    expect(result.elementCount).toBe(0);
-    expect(result.relationshipCount).toBe(0);
-    expect(result.quads).toHaveLength(0);
-    expect(result.unrecognizedTypes).toHaveLength(0);
-  });
-
-  it('handles malformed XML gracefully', () => {
-    const result = importArchiMateXml('<not valid xml>>>');
-    expect(result.elementCount).toBe(0);
-    expect(result.relationshipCount).toBe(0);
-    expect(result.quads).toHaveLength(0);
-  });
-
-  it('uses custom base namespace', () => {
-    const xml = wrapXml(`
-      <elements>
-        <element identifier="id-e1" xsi:type="Goal"><name>G</name></element>
-      </elements>
-    `);
-    const result = importArchiMateXml(xml, 'https://custom.ns/');
-    expect(result.quads[0].subject.value).toBe('https://custom.ns/id-e1');
-  });
-
-  it('imports all ArchiMate layers', () => {
-    const types = [
-      'BusinessActor', 'ApplicationComponent', 'Node',
-      'Stakeholder', 'Resource', 'WorkPackage',
-    ];
-    const elems = types
-      .map((t, i) => `<element identifier="id-${i}" xsi:type="${t}"><name>${t}</name></element>`)
-      .join('\n');
-    const xml = wrapXml(`<elements>${elems}</elements>`);
-    const result = importArchiMateXml(xml);
-    expect(result.elementCount).toBe(types.length);
-    expect(result.unrecognizedTypes).toHaveLength(0);
-  });
-
-  it('imports all relationship types', () => {
-    const types = [
-      'Composition', 'Aggregation', 'Assignment', 'Realization',
-      'Serving', 'Access', 'Influence', 'Triggering', 'Flow',
-      'Specialization', 'Association',
-    ];
-    const rels = types
-      .map((t, i) => `<relationship identifier="id-r${i}" xsi:type="${t}" source="id-s" target="id-t"/>`)
-      .join('\n');
-    const xml = wrapXml(`
-      <elements>
-        <element identifier="id-s" xsi:type="BusinessProcess"><name>S</name></element>
-        <element identifier="id-t" xsi:type="BusinessProcess"><name>T</name></element>
-      </elements>
-      <relationships>${rels}</relationships>
-    `);
-    const result = importArchiMateXml(xml);
-    expect(result.relationshipCount).toBe(types.length);
-    expect(result.unrecognizedTypes).toHaveLength(0);
+    expect(modelQuads(store).every((x) => x.subject.termType === 'NamedNode')).toBe(true);
   });
 });

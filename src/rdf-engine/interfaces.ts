@@ -63,6 +63,16 @@ export interface RdfStore {
   ): Quad[];
   query(sparql: string): SparqlResult;
   update(sparqlUpdate: string): void;
+  /**
+   * Bulk-load a serialized document straight into the store, bypassing the
+   * per-quad JavaScript→WASM round-trip. Optional: an implementation without a
+   * native parser leaves it out and callers fall back to parse + addQuads.
+   *
+   * @returns The number of quads the store grew by.
+   */
+  load?(data: string, options: { format: string; graph?: string; baseIri?: string }): number;
+  /** Number of quads in the store (all graphs). Optional, like {@link load}. */
+  size?(): number;
 }
 
 // ---------------------------------------------------------------------------

@@ -54,6 +54,13 @@
  * (`viewpoints`) and `arch:presentationContextScheme`
  * (`presentationContexts`), plus the manifest itself and the two core
  * ontologies every language file `owl:imports`.
+ *
+ * `coreShapes` covers `core-shapes` and `core-vis-shapes`. No manifest names
+ * them — they constrain the core and diagram vocabularies every model uses, so
+ * the application loads them unconditionally and validates every model against
+ * them (`arch:inModel` cardinality, `arch-vis:ArchNode` must name its element).
+ * `derivationRules` is the `arch:derivationRules` document: SHACL-AF rules the
+ * browser cannot execute, recorded so a remote load reports where it went.
  */
 export type BundledAssetRole =
   | 'manifest'
@@ -63,8 +70,10 @@ export type BundledAssetRole =
   | 'shapes'
   | 'presentationContexts'
   | 'viewpoints'
+  | 'derivationRules'
   | 'coreOntology'
-  | 'coreVisOntology';
+  | 'coreVisOntology'
+  | 'coreShapes';
 
 /** A single TTL file shipped with the application. */
 export interface BundledAsset {
@@ -78,6 +87,29 @@ export interface BundledAsset {
   readonly ontologyIri: string;
   /** Path relative to the asset root, always with `/` separators. */
   readonly path: string;
+  /**
+   * Id of the {@link BundledMetamodel} the file belongs to, or absent for the
+   * core files every metamodel shares.
+   */
+  readonly metamodel?: string;
+}
+
+/**
+ * A metamodel whose complete asset set ships with the application.
+ *
+ * Offline is a first-class mode: the app must start, and a model conforming to
+ * one of these must open, with no network. Anything else resolves remotely —
+ * see `asset-sources.ts`.
+ */
+export interface BundledMetamodel {
+  /** Short stable id, also the asset sub-directory (`archimate4`). */
+  readonly id: string;
+  /** IRI of the `arch:Metamodel` subject in the manifest. */
+  readonly metamodelIri: string;
+  /** IRI of the manifest document (its `owl:Ontology`). */
+  readonly manifestIri: string;
+  /** Human-readable name for selectors. */
+  readonly label: string;
 }
 
 /**
@@ -98,18 +130,73 @@ export const PUBLISHED_BASE_URI = 'https://meta.linked.archi/';
  * {@link resolveIconUri} reports them as unresolvable rather than handing back
  * a path that would 404.
  */
-export const BUNDLED_ICON_PREFIXES: readonly string[] = ['archimate4/icons/'];
+export const BUNDLED_ICON_PREFIXES: readonly string[] = ['archimate4/icons/', 'archimate3/icons/'];
+
+/**
+ * The metamodels shipped complete, default first.
+ *
+ * ArchiMate 4.0 is the default language. ArchiMate 3.2 ships too because the
+ * Open Group Exchange Format — the one interchange format every ArchiMate tool
+ * writes — is a 3.x format, so importing an exchange file needs the 3.2
+ * ontology whether or not the network is up.
+ */
+export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
+  {
+    id: 'archimate4',
+    metamodelIri: 'https://meta.linked.archi/archimate4/metamodel#ArchiMate4',
+    manifestIri: 'https://meta.linked.archi/archimate4/metamodel#',
+    label: 'ArchiMate 4.0',
+  },
+  {
+    id: 'archimate3',
+    metamodelIri: 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2',
+    manifestIri: 'https://meta.linked.archi/archimate3/metamodel#',
+    label: 'ArchiMate 3.2',
+  },
+];
+
+/** The metamodel loaded when nothing else is asked for. */
+export const DEFAULT_METAMODEL: BundledMetamodel = BUNDLED_METAMODELS[0];
+
+/**
+ * The per-language files, generated from one table so both bundled languages
+ * carry the same roles under the same names.
+ *
+ * `derivationRules` are not bundled: SHACL-AF rules need a server-side engine,
+ * and the browser would only carry them to ignore them.
+ */
+function languageAssets(
+  id: string,
+  published: string,
+  filePrefix: string,
+): BundledAsset[] {
+  const doc = (suffix: string) => `https://meta.linked.archi/${published}/${suffix}#`;
+  const path = (suffix: string) => `${id}/${filePrefix}-${suffix}.ttl`;
+  return [
+    { role: 'manifest', ontologyIri: doc('metamodel'), path: path('metamodel'), metamodel: id },
+    { role: 'ontology', ontologyIri: doc('onto'), path: path('onto'), metamodel: id },
+    { role: 'taxonomy', ontologyIri: doc('tax'), path: path('tax'), metamodel: id },
+    { role: 'notation', ontologyIri: doc('notation'), path: path('notation'), metamodel: id },
+    { role: 'shapes', ontologyIri: doc('element-shapes'), path: path('element-shapes'), metamodel: id },
+    { role: 'shapes', ontologyIri: doc('shapes'), path: path('relationship-shapes'), metamodel: id },
+    { role: 'shapes', ontologyIri: doc('principle-shapes'), path: path('principle-shapes'), metamodel: id },
+    { role: 'shapes', ontologyIri: doc('viewpoint-shapes'), path: path('viewpoint-shapes'), metamodel: id },
+    {
+      role: 'presentationContexts',
+      ontologyIri: doc('presentation-contexts'),
+      path: path('presentation-contexts'),
+      metamodel: id,
+    },
+    { role: 'viewpoints', ontologyIri: doc('viewpoints'), path: path('viewpoints'), metamodel: id },
+  ];
+}
 
 /**
  * Every TTL asset in the bundle, in dependency order.
  *
- * The two core ontologies come first because every ArchiMate 4.0 file
- * `owl:imports` `arch:`, and the notation file also imports `arch-vis:`.
- * Loading in array order therefore never leaves a dangling import.
- *
- * Deliberately absent this pass: `archimate4-relationship-shapes.ttl` (648 KB)
- * and `archimate4-derivation-rules.ttl` — too large to bundle here. Relationship
- * validation consequently has no bundled shapes graph yet.
+ * The core files come first because every language file `owl:imports` `arch:`,
+ * and the notation files also import `arch-vis:`. Loading in array order
+ * therefore never leaves a dangling import.
  */
 export const BUNDLED_ASSETS: readonly BundledAsset[] = [
   {
@@ -123,40 +210,17 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     path: 'core/core-vis-onto.ttl',
   },
   {
-    role: 'manifest',
-    ontologyIri: 'https://meta.linked.archi/archimate4/metamodel#',
-    path: 'archimate4/archimate4-metamodel.ttl',
+    role: 'coreShapes',
+    ontologyIri: 'https://meta.linked.archi/core-shapes#',
+    path: 'core/core-shapes.ttl',
   },
   {
-    role: 'ontology',
-    ontologyIri: 'https://meta.linked.archi/archimate4/onto#',
-    path: 'archimate4/archimate4-onto.ttl',
+    role: 'coreShapes',
+    ontologyIri: 'https://meta.linked.archi/core-vis-shapes#',
+    path: 'core/core-vis-shapes.ttl',
   },
-  {
-    role: 'taxonomy',
-    ontologyIri: 'https://meta.linked.archi/archimate4/tax#',
-    path: 'archimate4/archimate4-tax.ttl',
-  },
-  {
-    role: 'notation',
-    ontologyIri: 'https://meta.linked.archi/archimate4/notation#',
-    path: 'archimate4/archimate4-notation.ttl',
-  },
-  {
-    role: 'shapes',
-    ontologyIri: 'https://meta.linked.archi/archimate4/element-shapes#',
-    path: 'archimate4/archimate4-element-shapes.ttl',
-  },
-  {
-    role: 'presentationContexts',
-    ontologyIri: 'https://meta.linked.archi/archimate4/presentation-contexts#',
-    path: 'archimate4/archimate4-presentation-contexts.ttl',
-  },
-  {
-    role: 'viewpoints',
-    ontologyIri: 'https://meta.linked.archi/archimate4/viewpoints#',
-    path: 'archimate4/archimate4-viewpoints.ttl',
-  },
+  ...languageAssets('archimate4', 'archimate4', 'archimate4'),
+  ...languageAssets('archimate3', 'archimate3', 'archimate3.2'),
 ];
 
 // ── Registry lookups ───────────────────────────────────────────────────
@@ -164,17 +228,31 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
 /**
  * All bundled assets playing the given role, in bundle order.
  *
- * Returns an array rather than a single asset because `shapes` is inherently
- * multi-valued — `arch:formalRules` on the manifest names three shapes graphs,
- * of which only the element shapes are bundled this pass.
+ * Returns an array rather than a single asset because several roles are
+ * multi-valued — `arch:formalRules` on a manifest names four shapes graphs, and
+ * every bundled language has its own manifest. Pass `metamodel` to keep one
+ * language's files.
  */
-export function getAssetsByRole(role: BundledAssetRole): BundledAsset[] {
-  return BUNDLED_ASSETS.filter((asset) => asset.role === role);
+export function getAssetsByRole(role: BundledAssetRole, metamodel?: string): BundledAsset[] {
+  return BUNDLED_ASSETS.filter(
+    (asset) => asset.role === role && (metamodel === undefined || asset.metamodel === metamodel),
+  );
 }
 
 /** The bundled asset defining the given graph IRI, or `undefined`. */
 export function getAssetByIri(ontologyIri: string): BundledAsset | undefined {
   return BUNDLED_ASSETS.find((asset) => asset.ontologyIri === ontologyIri);
+}
+
+/**
+ * The bundled metamodel matching an IRI — its `arch:Metamodel` subject or its
+ * manifest document, with or without the trailing `#`.
+ */
+export function getBundledMetamodel(iri: string): BundledMetamodel | undefined {
+  const normalized = iri.endsWith('#') ? iri : iri.includes('#') ? iri : `${iri}#`;
+  return BUNDLED_METAMODELS.find(
+    (mm) => mm.metamodelIri === iri || mm.manifestIri === normalized || mm.id === iri,
+  );
 }
 
 // ── Icon URI resolution ────────────────────────────────────────────────

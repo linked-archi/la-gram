@@ -62,8 +62,20 @@ interface ResultLike {
  * Concrete implementation of ShaclValidator backed by rdf-validate-shacl.
  */
 export class RdfShaclValidator implements ShaclValidator {
+  /**
+   * The compiled validator for the last shapes graph, keyed by the array's
+   * identity. Compiling is the expensive part — the ArchiMate relationship
+   * shapes alone are 70 000 quads — and the shapes only change when a
+   * metamodel is loaded or dropped, so callers that pass the same array get the
+   * same engine back.
+   */
+  private cache: { shapes: Quad[]; engine: CompiledShapes } | null = null;
+
   validate(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
-    return runValidation(dataGraph, shapesGraph);
+    if (this.cache?.shapes !== shapesGraph) {
+      this.cache = { shapes: shapesGraph, engine: compileShapes(shapesGraph) };
+    }
+    return runCompiled(this.cache.engine, dataGraph);
   }
 
   validateIncremental(
@@ -81,18 +93,29 @@ export class RdfShaclValidator implements ShaclValidator {
 }
 
 /** Build the validator, run it, and map the report. Shared by both entry points. */
-function runValidation(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
+/** A shapes graph compiled into a reusable engine. */
+interface CompiledShapes {
+  validator: SHACLValidator;
+  shapesStore: N3Store;
+}
+
+function compileShapes(shapesGraph: Quad[]): CompiledShapes {
   const usableShapes = stripSparqlConstraints(shapesGraph);
   const shapesStore = quadsToStore(usableShapes);
-  const dataStore = quadsToStore(dataGraph);
-
   const options: ValidatorOptions = {
     importGraph: () => Promise.resolve(new N3Store()),
   };
-  const validator = new SHACLValidator(shapesStore, options);
-  const report = validator.validate(dataStore);
+  return { validator: new SHACLValidator(shapesStore, options), shapesStore };
+}
 
-  return toValidationReport(report, shapesStore, dataStore);
+function runCompiled(engine: CompiledShapes, dataGraph: Quad[]): ValidationReport {
+  const dataStore = quadsToStore(dataGraph);
+  const report = engine.validator.validate(dataStore);
+  return toValidationReport(report, engine.shapesStore, dataStore);
+}
+
+function runValidation(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
+  return runCompiled(compileShapes(shapesGraph), dataGraph);
 }
 
 /**

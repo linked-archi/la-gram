@@ -137,8 +137,24 @@ function buildComponents(overrides: Partial<AppComponents> = {}): AppComponents 
   const viewManager: ViewManager = {
     createView: vi.fn(() => namedNode('urn:v') as unknown as NamedNode),
     getViews: vi.fn((): ViewInfo[] => []),
-    addElementToView: vi.fn(),
+    getView: vi.fn(() => undefined),
+    renameView: vi.fn(),
+    setViewpoint: vi.fn(),
+    deleteView: vi.fn(),
+    collectViewQuads: vi.fn(() => []),
+    duplicateView: vi.fn(() => namedNode('urn:v2') as unknown as NamedNode),
+    addElementToView: vi.fn(() => 'urn:v/node/1'),
     removeElementFromView: vi.fn(),
+    collectNodeQuads: vi.fn(() => []),
+    getNodes: vi.fn(() => []),
+    getNode: vi.fn(() => undefined),
+    updateNodeBounds: vi.fn(),
+    addRelationshipToView: vi.fn(() => undefined),
+    removeRelationshipFromView: vi.fn(),
+    collectLinkQuads: vi.fn(() => []),
+    getLinks: vi.fn(() => []),
+    updateLinkWaypoints: vi.fn(),
+    viewsContaining: vi.fn(() => []),
   };
 
   return {
@@ -240,15 +256,18 @@ describe('mountUi', () => {
 
     it('gives the store to every store-backed panel', () => {
       const { store } = app.components;
-      expect(ui.modelExplorer.rdfStore).toBe(store);
+      // The model tree reads a classified snapshot of the store, not raw quads.
+      expect(ui.modelExplorer.contentsProvider).toBeTypeOf('function');
       expect(ui.propertyPanel.rdfStore).toBe(store);
       expect(ui.sparqlEditor.rdfStore).toBe(store);
       expect(ui.catalogView.rdfStore).toBe(store);
       expect(ui.matrixView.rdfStore).toBe(store);
     });
 
-    it('gives the element manager to the editing panels', () => {
-      expect(ui.propertyPanel.elementManager).toBe(app.components.elementManager);
+    it('gives the element manager to the catalog, and routes property edits through the App', () => {
+      // The property panel emits edits instead of writing: the App tags text
+      // with its language, which the Linked.Archi shapes require of labels.
+      expect(ui.propertyPanel.elementManager).toBeUndefined();
       expect(ui.catalogView.elementManager).toBe(app.components.elementManager);
     });
 
