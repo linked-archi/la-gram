@@ -1,8 +1,10 @@
 > Copied from `tools/modellers/excalidraw-linked-archi-yjs-demo/linked-archi-tool-spec.md` (2026-09-25) so this repository is self-contained. It is implementation-independent; la-gram's own requirements are in `.kiro/specs/la-gram/`.
+>
+> **Updated 2026-09-26 (v0.2)** with what building la-gram settled: the core namespace IRI (§0), property editing (§5.4), validation display (§5.5), formats and a live RDF view (§5.13), the model namespace and IRI shape (§8.1), the at-rest graph layout (§8.2), a triple-set Y.Doc (§8.3), and the implementation status (Appendix D).
 
 # Linked.Archi Modeling Tool — Specification
 
-**Version:** 0.1 (draft)
+**Version:** 0.2 (draft, 2026-09-26)
 **Status:** Working specification — interface contracts are normative, implementation options are illustrative
 **Scope:** A collaborative, semantic-driven modeling tool that consumes `meta.linked.archi` assets and supports the full lifecycle from freehand ideation to formally typed, SHACL-validated enterprise architecture.
 
@@ -13,7 +15,7 @@
 - Words in **MUST** / **SHOULD** / **MAY** carry RFC 2119 weight when capitalized.
 - Sections titled "Interface" are normative — any implementation must satisfy them.
 - Sections titled "Implementation option" are illustrative — they are concrete realizations of an interface and are explicitly substitutable.
-- All IRIs use the `arch:` prefix for the Linked.Archi core namespace (`https://meta.linked.archi/ns/core#`) and `:` for a project-local namespace.
+- All IRIs use the `arch:` prefix for the Linked.Archi core namespace (`https://meta.linked.archi/core#`), `arch-vis:` for core-vis (`https://meta.linked.archi/core-vis#`), and `:` (`m:` in la-gram) for the model's own namespace (§8.1).
 
 ---
 
@@ -246,6 +248,10 @@ interface PropertyField {
 
 **Notes.** Field order **SHOULD** follow `sh:order` when present; required fields come first otherwise. Property edits **MUST** flow through the same command stack as graph mutations so undo/redo and provenance work uniformly.
 
+**Identity first.** The form **SHOULD** open with what identifies the concept — its IRI, its type(s), the model it belongs to, its name (`skos:prefLabel`) and its definition (`skos:definition`) — and list the name and definition even when empty, so they can be filled in; the concept's other properties follow. Membership in views (`arch:inView`) **SHOULD** be shown as navigation (the views the concept appears in), not as editable fields. Relationships and view membership **MAY** be shown alongside the form (la-gram: vertical tabs *information · properties · analysis · views*).
+
+**Adding a property.** The properties offered for a concept **SHOULD** be those that apply to its type — whose `rdfs:domain`, or a SHACL property shape targeting the type or a superclass, says so — together with properties the model already uses and general documentation properties (SKOS, Dublin Core, PROV); the rest **MAY** be reachable by search. Diagram geometry and notation styling (`arch-vis:`) and metamodel-authoring annotations (`arch:unqualifiedForm`, `arch:domainIncludes`, …) **MUST NOT** be offered as properties of model concepts. A property's human-readable name **SHOULD** be shown before its IRI. Any IRI or prefixed name **MAY** be entered; a bare name **SHOULD** become a property in the model's namespace (§8.1).
+
 ### 5.5 Live SHACL validation
 
 **Goal.** After every edit, report violations and surface them on the canvas and in a problems panel.
@@ -272,7 +278,7 @@ interface ValidationResult {
 }
 ```
 
-**Notes.** Validation **MUST** run on every committed edit, debounced no longer than 250ms. Each `focusNode` **MUST** map back to a canvas element and be annotated visually. The report **MUST** carry the same fields the wire-format `sh:ValidationReport` would, so server-side validation produces identical output.
+**Notes.** Validation **MUST** run on every committed edit, debounced no longer than 250ms. Each `focusNode` **MUST** map back to a canvas element and be annotated visually. The report **MUST** carry the same fields the wire-format `sh:ValidationReport` would, so server-side validation produces identical output. Results **SHOULD** be grouped by severity, and the number of Violations **SHOULD** stay visible while the results list is not (la-gram: on the Validation tab). A severity stated on a node shape does not reach the property shapes nested in it, so published shapes state it on each property shape; a tool **MUST NOT** re-interpret severities.
 
 ### 5.6 Viewpoint filtering
 
@@ -453,7 +459,9 @@ interface FormatAdapter {
 }
 ```
 
-**Notes.** v0.1 **MUST** support Turtle, TriG, N-Quads, and JSON-LD. v0.2 **SHOULD** support Archi's `.archimate` XML and BPMN 2.0 XML.
+**Notes.** v0.1 **MUST** support Turtle, TriG, N-Quads, and JSON-LD; N-Triples and RDF/XML **SHOULD** be supported too. v0.2 **SHOULD** support the ArchiMate Exchange Format (import), Archi's `.archimate` XML and BPMN 2.0 XML.
+
+Export **MUST** write the model only, never the metamodel, in a deterministic order (the same model always serializes to the same text, so files diff cleanly); prefixes **SHOULD** come from the vocabularies' own `vann:` declarations plus the model's own (§8.1), and graph-carrying formats **SHOULD** use the Linked.Archi layout (§8.2). A profile without diagram geometry **SHOULD** be offered. The tool **SHOULD** offer a live view of the model's serialization that is exactly what export writes (la-gram: the RDF panel).
 
 ---
 
@@ -580,7 +588,20 @@ The engine **MUST** provide SPARQL 1.1, SHACL validation, and SHACL rules. Concr
 | User | `https://{instance}/u/{username}` (or external IdP IRI) |
 | AI agent | `https://{instance}/agent/{agentId}` |
 
-IRIs **MUST NOT** encode mutable data (labels, positions). Once minted, an element IRI is permanent for the lifetime of the workspace.
+The table is illustrative, for a multi-workspace server. IRIs **MUST NOT** encode mutable data (labels, positions). Once minted, an element IRI is permanent for the lifetime of the workspace — changed only by an explicit namespace move (below).
+
+**Model namespace.** Each model **MUST** have a namespace, stated on the model resource with `vann:preferredNamespaceUri` and `vann:preferredNamespacePrefix` — the convention the Linked.Archi ontologies use for their own — and every IRI minted for the model **MUST** be in it. The namespace **SHOULD** follow the published layout `{base}{notation}/{modelId}/` (Linked.Archi DD-15/DD-29). The base **MUST** be configurable and **SHOULD** default to a placeholder such as `https://example.org/`, never to a domain the tool does not own. Local names **SHOULD** be valid Turtle prefixed-name locals — letters, digits, `-`, `_`, and no `/` — so the whole model serializes as prefixed names:
+
+| Resource | IRI (la-gram) | Written as |
+|---|---|---|
+| Model | `{ns}model` | `m:model` |
+| Element | `{ns}element-{uuid}` | `m:element-…` |
+| Relationship (qualified form) | `{ns}relationship-{uuid}` | `m:relationship-…` |
+| View | `{ns}view-{uuid}` | `m:view-…` |
+| Diagram node / link | `{ns}node-{uuid}` / `{ns}link-{uuid}` | `m:node-…` / `m:link-…` |
+| Route (list cells, points) | `{link}-points-{i}` / `{link}-p{i}` | `m:link-…-p0` |
+
+Moving a model to another namespace renames every IRI the model owns and **MUST** be applied as one change (one CRDT update), never partially; terms a loaded vocabulary defines are never renamed. A model that states no namespace gets one derived from its IRI.
 
 ### 8.2 Named graph layout
 
@@ -595,6 +616,8 @@ Each workspace persists into the following named graphs:
 | `/derived` | Triples produced by SHACL rules; rebuildable from `/data` |
 | `/snapshot/{commitId}` | Optional point-in-time snapshots when not using Git |
 
+The workspace graphs describe a server-side store. At rest, a model file in a graph-carrying format (TriG, N-Quads, JSON-LD) **SHOULD** use the Linked.Archi layout (DD-15) under the model's namespace — `{ns}graph/model` (the model resource), `{ns}graph/semantic` (elements, relationships, views, membership), `{ns}graph/views` (geometry only, droppable on its own); formats without graphs carry the union, with `arch:inModel` on every concept keeping membership recoverable. In a browser store, the model **MAY** be the default graph with each metamodel document in a named graph of its own (la-gram), which lets a metamodel be swapped without touching the model.
+
 ### 8.3 Y.Doc shape
 
 ```
@@ -607,6 +630,8 @@ yDoc
 ```
 
 The Y.Doc is projected to RDF on every commit; projection rules are deterministic so the same Y.Doc state always produces the same triples.
+
+**Alternative: a triple set.** The Y.Doc **MAY** instead hold the RDF graph itself — one `Y.Map` keyed by each triple's canonical N-Triples form (a graph is a set of triples, and a map-as-set is its CRDT). The RDF store then stays the model of record at runtime too, and no projection is needed; a single-valued property edited concurrently needs a deterministic convergence rule (la-gram: the greatest key wins), and blank nodes are avoided because they have no identity across replicas. This is la-gram's shape; §8.4 then does not apply.
 
 ### 8.4 Projection rules (Y.Doc → RDF)
 
@@ -782,4 +807,32 @@ These are existing open-source projects whose patterns the build can lift or lea
 
 ---
 
-*End of specification v0.1*
+## Appendix D — Implementation status (la-gram, 2026-09-26)
+
+What la-gram (`tools/modellers/la-gram`) implements of this specification. Details: `.kiro/specs/la-gram/` (requirements, design, tasks).
+
+| Section | Status in la-gram | Notes |
+|---|---|---|
+| §1.2 (1) metamodel is data | ✓ | Metamodels loaded at runtime from `meta.linked.archi`; ArchiMate 4.0 / 3.2 also bundled for offline use |
+| §1.2 (5) provenance mandatory | ✗ | No `prov:` on authored triples yet |
+| §1.2 (6) CRDT truth at runtime | differs | The RDF store is the model of record; the Y.Doc mirrors it as a triple set (§8.3 alternative) |
+| §5.1 Metamodel loading | ✓ | Manifest discovery, parallel levels, `Accept: text/turtle`, catalogue, load by IRI, uploads, several at once, switching |
+| §5.2 Palette generation | ✓ | SKOS + OWL dual classification, axes, notation sets, presentation contexts |
+| §5.3 Relationship validity | ✓ mostly | Closure-aware domain/range + SHACL. When several types are valid, connect takes the one picked in the palette, else the first valid one, and the type can be changed in place among the valid ones afterwards — not a choice up front as §5.3 asks; no suggestion popup for two selected elements yet |
+| §5.4 Property editing | ✓ | SHACL-derived fields; identity first; adding by applicability; custom names in the model namespace. Property edits are store changes, not canvas commands — not undoable from the canvas yet |
+| §5.5 Live SHACL validation | ✓ | Debounced 300 ms (spec: ≤ 250 ms); `sh:sparql` left to a server that does not exist yet; violations marked on the canvas and counted on the Validation tab |
+| §5.6 Viewpoint filtering | ✓ | Palette filtered, outside-viewpoint shapes greyed, never removed |
+| §5.7 Deliverable generation | ✗ | |
+| §5.8 Freehand sketch layer | ✗ | |
+| §5.9 Progressive typing | ✗ | |
+| §5.10 Real-time collaboration | ✓ mostly | Yjs over Hocuspocus; presence, remote selection, soft locks; no remote cursors; awareness not persisted |
+| §5.11 Persistence & versioning | partly | Files in six formats; rooms persisted by the server (`.nt` + `.ttl`); no commits, history or diff yet |
+| §5.12 AI assistance | ✗ | |
+| §5.13 Import / export | ✓ | Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG; no-geometry profile; live RDF panel |
+| §8.1 IRI conventions | ✓ | Per-model namespace, flat local names, `vann:` on the model, Model settings to move it |
+| §8.2 Named graph layout | ✓ at rest | DD-15 partition in graph formats; at runtime model = default graph, metamodels = named graphs |
+| §8.3 / §8.4 Y.Doc | differs | Triple-set Y.Doc; labels are `skos:prefLabel`@lang (not `rdfs:label`), geometry is `arch-vis:ArchNode`/`Link` (not `:renderedAt`) |
+
+---
+
+*End of specification v0.2*

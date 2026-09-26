@@ -60,6 +60,15 @@
       overflow: auto;
     }
 
+    /* The model tree fills the left column and scrolls inside; the palette
+       fills the right one (its column scrolls, see app-shell). */
+    model-explorer {
+      height: 100%;
+    }
+    palette-panel {
+      min-height: 100%;
+    }
+
     /* Center area: the tool strip, the diagram host, and the alternative
        catalog/matrix views. A column flexbox rather than a block, so the
        toolbar takes its own height and the diagram host takes the rest —
@@ -421,23 +430,6 @@
     }
 
     /* Bottom bar: validation results next to the SPARQL editor. */
-    .la-bottom-area {
-      display: flex;
-      align-items: stretch;
-      gap: 4px;
-      height: 100%;
-      width: 100%;
-      box-sizing: border-box;
-      overflow: hidden;
-    }
-
-    .la-bottom-area > validation-panel {
-      flex: 1 1 40%;
-    }
-
-    .la-bottom-area > sparql-editor {
-      flex: 1 1 60%;
-    }
   </style>
 </head>
 <body>

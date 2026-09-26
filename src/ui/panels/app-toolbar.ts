@@ -45,7 +45,7 @@ export type ToolbarCommand =
   | 'share'
   | 'undo'
   | 'redo'
-  | 'toggle-properties'
+  | 'toggle-palette'
   | 'toggle-rdf';
 
 /** Detail of `toolbar-command`. */
@@ -275,8 +275,8 @@ export class AppToolbar extends LitElement {
   @property({ attribute: false }) collab: CollabIndicator = { status: 'off', peers: [] };
   /** Whether the RDF panel is shown (the toggle's pressed state). */
   @property({ type: Boolean }) rdfOpen = false;
-  /** Whether the property panel is shown (the "Properties" toggle is pressed). */
-  @property({ type: Boolean }) propertyOpen = true;
+  /** Whether the palette is shown (the "Palette" toggle is pressed). */
+  @property({ type: Boolean }) paletteOpen = true;
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | null = null;
 
@@ -505,12 +505,12 @@ export class AppToolbar extends LitElement {
       <span class="spacer"></span>
       <button
         class="toggle"
-        data-command="toggle-properties"
-        aria-pressed=${this.propertyOpen ? 'true' : 'false'}
-        title=${this.propertyOpen ? 'Hide the property panel' : 'Show the selected element or view on the right'}
-        @click=${() => this._cmd('toggle-properties')}
+        data-command="toggle-palette"
+        aria-pressed=${this.paletteOpen ? 'true' : 'false'}
+        title=${this.paletteOpen ? 'Hide the palette' : 'Show the palette on the right'}
+        @click=${() => this._cmd('toggle-palette')}
       >
-        ⓘ Properties
+        ▦ Palette
       </button>
       <button
         class="toggle"

@@ -46,7 +46,10 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.kiro/specs/la-gram/
 - Model data lives in the store's **default graph**; each metamodel document in a
   named graph keyed by its ontology IRI. Never write model data to a named graph
   at runtime; never read "all quads" when you mean the model (`modelQuads`).
-- IRIs are minted with `rdf-engine/iri.ts` (UUIDs under the model), never counters.
+- IRIs are minted with `rdf-engine/iri.ts` — flat names in the model's namespace
+  (`{ns}element-{uuid}`, so Turtle writes them as `m:…`), never counters, never
+  with a `/` in the local part. Mint through the managers, which look the
+  namespace up (`model-manager/model-namespace.ts`); never hard-code a base.
 - Labels and other human text are language-tagged (`@en` by default) — the
   Linked.Archi shapes reject plain strings.
 - RDF terms for the model layer come from `model-manager/vocabulary.ts` (`IRI`,
@@ -68,7 +71,8 @@ src/
   index.ts                entry point, URL parameters
   rdf-engine/             store, observable wrapper, IRIs, parser/serializer, SHACL
   metamodel-manager/      asset sources, loader, catalogue, palette, notation, viewpoints
-  model-manager/          session, element/relationship/view managers, cascade, queries, migration
+  model-manager/          session, namespace, element/relationship/view managers, cascade, queries,
+                          property catalog, migration
   import-export/          model I/O, ArchiMate exchange import, SVG/PNG, legacy TTL I/O
   ui/                     shell, mount-ui, dialogs, panels/, canvas/, views/
   collab/                 Y.Doc binding, collaboration start-up

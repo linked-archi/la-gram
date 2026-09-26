@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EventBus, ModelEventType } from '../event-bus.js';
 import { AppShell } from '../app-shell.js';
 
@@ -21,67 +22,97 @@ describe('AppShell', () => {
     expect(typeof AppShell.prototype.disconnectedCallback).toBe('function');
   });
 
-  describe('render template', () => {
-    it('contains all five named slots', () => {
-      // Create a minimal instance just to call render()
-      // We need to bypass Lit's constructor, so we use a trick:
-      // instantiate with new but catch any DOM errors
-      const proto = AppShell.prototype;
-      const result = proto.render.call({}) as any;
+  describe('layout', () => {
+    async function mount(props: Partial<AppShell> = {}) {
+      const shell = document.createElement('app-shell') as AppShell;
+      Object.assign(shell, props);
+      document.body.append(shell);
+      await shell.updateComplete;
+      const root = shell.shadowRoot!;
+      const grid = () => root.querySelector<HTMLElement>('.shell')!;
+      return { shell, root, grid };
+    }
 
-      // Lit TemplateResult has a strings array
-      const joined = result.strings?.join('') ?? '';
-      expect(joined).toContain('name="palette"');
-      expect(joined).toContain('name="canvas"');
-      expect(joined).toContain('name="property-panel"');
-      expect(joined).toContain('name="explorer"');
-      expect(joined).toContain('name="validation"');
+    afterEach(() => {
+      document.body.innerHTML = '';
     });
 
-    it('contains the grid shell container', () => {
-      const proto = AppShell.prototype;
-      const result = proto.render.call({}) as any;
-      const joined = result.strings?.join('') ?? '';
-      expect(joined).toContain('class="shell ');
+    it('has the model tree on the left, the palette and RDF on the right, three tabs under the canvas', async () => {
+      const { root } = await mount();
+      expect([...root.querySelectorAll('slot')].map((s) => s.getAttribute('name'))).toEqual([
+        'toolbar',
+        'explorer',
+        'canvas',
+        'properties',
+        'validation',
+        'sparql',
+        'palette',
+        'rdf',
+      ]);
+      expect([...root.querySelectorAll('.tab')].map((t) => t.textContent!.trim())).toEqual([
+        'Properties',
+        'Validation',
+        'SPARQL Query',
+      ]);
+      // Resize handles: the bottom panel's top edge, the side panels' left edges.
+      expect([...root.querySelectorAll('.resizer')].map((r) => r.getAttribute('data-panel'))).toEqual([
+        'bottom',
+        'palette',
+        'rdf',
+      ]);
     });
 
-    it('has an RDF slot on the far right, collapsed unless rdfOpen', () => {
-      const proto = AppShell.prototype;
-      const closed = proto.render.call({ rdfOpen: false, rdfWidth: 440 }) as any;
-      expect(closed.strings.join('')).toContain('name="rdf"');
-      expect(closed.strings.join('')).toContain('panel-rdf');
-      // The column width and the open class are the template's values.
-      expect(closed.values).toContain('0px');
-      expect(closed.values).not.toContain('rdf-open');
-      const open = proto.render.call({ rdfOpen: true, rdfWidth: 440 }) as any;
-      expect(open.values).toContain('440px');
-      expect(open.values).toContain('rdf-open');
+    it('shows the palette and hides the RDF panel by default; each column follows its switch and width', async () => {
+      const { shell, grid } = await mount({ paletteWidth: 250, rdfWidth: 440 });
+      expect(grid().classList.contains('palette-open')).toBe(true);
+      expect(grid().classList.contains('rdf-open')).toBe(false);
+      expect(grid().style.getPropertyValue('--la-palette-column')).toBe('250px');
+      expect(grid().style.getPropertyValue('--la-rdf-column')).toBe('0px');
+
+      shell.paletteOpen = false;
+      shell.rdfOpen = true;
+      await shell.updateComplete;
+      expect(grid().classList.contains('palette-open')).toBe(false);
+      expect(grid().style.getPropertyValue('--la-palette-column')).toBe('0px');
+      expect(grid().style.getPropertyValue('--la-rdf-column')).toBe('440px');
     });
 
-    it('shows the property panel by default, at its width, and collapses its column when hidden', () => {
-      const proto = AppShell.prototype;
-      const shown = proto.render.call({ propertyOpen: true, propertyWidth: 360, rdfOpen: false, rdfWidth: 440 }) as any;
-      expect(shown.values).toContain('property-open');
-      expect(shown.values).toContain('360px');
-      // Both side panels carry a resize handle on their left edge.
-      const handles = shown.values.filter((v: any) => v?.strings?.join('').includes('class="resizer"'));
-      expect(handles.map((h: any) => h.values[0])).toEqual(['property', 'rdf']);
-      const hidden = proto.render.call({ propertyOpen: false, propertyWidth: 360, rdfOpen: false, rdfWidth: 440 }) as any;
-      expect(hidden.values).not.toContain('property-open');
-      expect(hidden.values).not.toContain('360px');
-      // A bare render (no state yet) shows it at the default width.
-      expect((proto.render.call({}) as any).values).toContain('300px');
+    it('opens Properties first; a tab opens its pane, the open tab folds the panel to its tabs', async () => {
+      const { shell, root, grid } = await mount({ bottomTab: 'properties', bottomFolded: false, bottomHeight: 280 });
+      const pane = (id: string) => root.querySelector<HTMLElement>(`.tab-pane[data-tab="${id}"]`)!;
+      const tab = (id: string) => root.querySelector<HTMLButtonElement>(`.tab[data-tab="${id}"]`)!;
+      expect(tab('properties').getAttribute('aria-selected')).toBe('true');
+      expect(pane('properties').hidden).toBe(false);
+      expect(pane('validation').hidden).toBe(true);
+      expect(grid().style.getPropertyValue('--la-bottom-row')).toBe('280px');
+
+      const opened: string[] = [];
+      shell.addEventListener('bottom-tab-changed', (e) => opened.push((e as CustomEvent<{ tab: string }>).detail.tab));
+      tab('validation').click();
+      await shell.updateComplete;
+      expect(opened).toEqual(['validation']);
+      expect(pane('validation').hidden).toBe(false);
+      expect(pane('properties').hidden).toBe(true);
+
+      tab('validation').click();
+      await shell.updateComplete;
+      expect(shell.bottomFolded).toBe(true);
+      expect(root.querySelector<HTMLElement>('.tab-body')!.hidden).toBe(true);
+      expect(grid().style.getPropertyValue('--la-bottom-row')).toBe('auto');
+
+      // Another tab unfolds it.
+      tab('sparql').click();
+      await shell.updateComplete;
+      expect(shell.bottomFolded).toBe(false);
+      expect(pane('sparql').hidden).toBe(false);
     });
 
-    it('contains all panel CSS classes', () => {
-      const proto = AppShell.prototype;
-      const result = proto.render.call({}) as any;
-      const joined = result.strings?.join('') ?? '';
-      expect(joined).toContain('panel-palette');
-      expect(joined).toContain('panel-canvas');
-      expect(joined).toContain('panel-property');
-      expect(joined).toContain('panel-explorer');
-      expect(joined).toContain('panel-validation');
+    it('shows a count on a tab', async () => {
+      const { shell, root } = await mount();
+      shell.tabBadges = { validation: '3' };
+      await shell.updateComplete;
+      expect(root.querySelector('.tab[data-tab="validation"] .badge')!.textContent).toBe('3');
+      expect(root.querySelector('.tab[data-tab="properties"] .badge')).toBeNull();
     });
   });
 

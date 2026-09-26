@@ -39,8 +39,10 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Drag or click-to-place from the palette; element minted inside the create command
 - [x] UUID IRIs; `rdf:type`, `skos:prefLabel`@en, `arch:inModel`; node in the open view — *element-manager.test*
 - [x] Undo/redo restores the same IRI — *view-canvas.test*
-- [x] Property panel: kind, type, IRI, SHACL-derived fields, add/remove values with ontology suggestions
-- [x] Field order: ID, type, `inModel`, `prefLabel`, then the rest (added properties) behind a divider; no `inView` rows — *property-panel.test, workbench.spec*
+- [x] Property panel: kind, type, IRI, SHACL-derived fields, add/remove values
+- [x] Field order: ID, type, `inModel`, `prefLabel`, `definition` (name and definition always listed), then the rest (added properties); no `inView` rows
+- [x] Vertical tabs: information, properties (+ add field), analysis, appears in views; counts; Up/Down; open tab remembered — *property-panel.test, workbench.test, workbench.spec*
+- [x] Property picker: grouped by applicability (domain / shapes), used in model, documentation, More (folded); no geometry / styling / authoring terms; name first, CURIE second; custom names in the model namespace — *property-catalog.test, property-picker.test, workbench.test, workbench.spec*
 - [x] Delete from view (default) vs. delete from model (confirmation lists views) — *view-canvas.test, workbench.spec*
 - [x] Delete from model cascades to relationships and every view, undoable in one step — *view-canvas.test*
 - [ ] Inline label editing on the canvas (double-click)
@@ -59,7 +61,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 ### Task 5: RDF export (Req 5)
 - [x] Six formats: Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML — *model-io.test* (round-trip each)
 - [x] Model only, never the metamodel; deterministic ordering
-- [x] Prefixes from the vocabularies' `vann:` declarations; only used ones
+- [x] Prefixes from the vocabularies' `vann:` declarations and the model's own (`m:`); only used ones; `rdf:type` first under each subject
 - [x] DD-15 partition (`graph/model`, `graph/semantic`, `graph/views`) for graph formats
 - [x] "Without diagram geometry" profile
 - [x] SVG / PNG of the open view (Req 14)
@@ -74,6 +76,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] `sh:sparql` stripped client-side
 - [x] Results named by label; click reveals the concept (opening a view that has it)
 - [x] Violations marked on the canvas — *workbench.test*
+- [x] Validation tab under the canvas; Violations counted on the tab, Warnings/Infos listed only — *workbench.test, workbench.spec*
 
 ### Task 7: Collaboration (Req 7)
 - [x] Store ⇄ Y.Doc binding: triple set keyed by canonical N-Triples; echo prevention — *rdf-yjs-binding.test*
@@ -92,9 +95,8 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Toolbar, palette, model tree, canvas with tool strip, property panel, validation + SPARQL
 - [x] Dialogs (prompt / confirm / choose / info) and toasts
 - [x] RDF panel hideable (hidden by default) and resizable, width remembered
-- [x] Property panel hideable (shown by default; × and "ⓘ Properties" toggle) and resizable, width remembered — *app-shell.test, workbench.test, workbench.spec*
-- [ ] Hideable panels (left sidebar, bottom row)
-- [ ] Resizable panels with persisted sizes (left sidebar, bottom row)
+- [x] Layout: model tree left (full height); palette right, hideable ("▦ Palette") and resizable; bottom tabs Properties / Validation (violation count) / SPARQL Query, resizable by the top edge, folding to the tabs; sizes, tab and folding remembered — *app-shell.test, mount-ui.test, workbench.test, workbench.spec, smoke.spec*
+- [ ] Hideable / resizable model tree
 - [ ] Right-click canvas menu (the context pad covers the same actions today)
 
 ---
@@ -158,4 +160,32 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 2. **Container and label nodes** from exchange files are skipped (core-vis has `arch-vis:ContainerNode`; the editor does not draw it yet).
 3. **Store-led changes are not undoable** from the canvas (a collaborator's edit, an import, a model-level delete started from the tree for a concept not on the canvas).
 4. **SPARQL constraints** only on a server (Phase 3).
-5. ~~**Published shape issue:** `ViewMustDeclareViewpointShape` in the ArchiMate viewpoint shapes puts `sh:severity sh:Warning` on the node shape; SHACL does not propagate it to the property shape, so a view without a viewpoint reports a Violation rather than a Warning. Fix belongs in `linked-archi-meta`.~~ Fixed upstream — the property shapes of `ViewMustDeclareViewpointShape` and `ViewpointCompletenessShape` now declare their own `sh:severity`, and `assets/archimate3/archimate3.2-viewpoint-shapes.ttl` is re-synced from `linked-archi-meta`. A view without a viewpoint reports a Warning.
+5. ~~**Published shape issue:** `ViewMustDeclareViewpointShape` in the ArchiMate viewpoint shapes puts `sh:severity sh:Warning` on the node shape; SHACL does not propagate it to the property shape, so a view without a viewpoint reports a Violation rather than a Warning. Fix belongs in `linked-archi-meta`.~~ Fixed upstream — the property shapes now declare their own `sh:severity` in both languages (`ViewMustDeclareViewpointShape` / `ViewpointCompletenessShape` in 3.2, `ViewDeclaresViewpointShape` / `ViewpointCompletenessShape` in 4.0), and both bundled copies are re-synced from `linked-archi-meta` (`assets/archimate3/archimate3.2-viewpoint-shapes.ttl`; `assets/archimate4/archimate4-viewpoint-shapes.ttl` on 2026-09-26). A view without a viewpoint reports a Warning. Every other bundled asset matches `linked-archi-meta`.
+
+---
+
+## Change log
+
+### Not yet committed (2026-09-26) — layout, properties
+
+- **Layout** (Req 11): model tree left (full height); palette right (hideable "▦ Palette", resizable); under the canvas, tabs **Properties / Validation / SPARQL Query** — resizable by the top edge, folding to the tabs, remembered; the number of Violations on the Validation tab.
+- **Property panel** (Req 3.4, 3.6): the Properties tab, with vertical tabs — *‹Kind› information* (ID, type, `inModel`, name, definition; the name and the definition always listed, emptying the definition removes it), *Properties* (added ones + add field), *Analysis*, *Appears in views* — counts, Up/Down, the open tab remembered.
+- **Adding a property** (Req 3.6): a picker grouped by applicability (`rdfs:domain`, SHACL), *Used in this model*, *Documentation*, folded *More*; no geometry, styling or metamodel-authoring terms; `skos:definition` and `dcterms:description` not offered; name first, CURIE second; plain names become properties in the model namespace; the list floats, so the bottom panel does not clip it.
+- **Assets:** `archimate4-viewpoint-shapes.ttl` re-synced from `linked-archi-meta` (severity on the property shapes): a view without a viewpoint is a Warning in ArchiMate 4.0 too.
+- **Docs:** specs, README, conventions and the tool spec brought up to date; the tool spec gains the model-namespace, property-editing and format decisions and an implementation-status appendix.
+
+### 2026-09-25 — RDF view, IRIs, first property panel changes (commit `c19608c`)
+
+- **RDF panel** (Req 5.7): the live model as Turtle (or TriG, JSON-LD, N-Quads, N-Triples, RDF/XML) on the far right, hidden by default (`{ } RDF`, `?rdf=1`); geometry toggle, counts, copy, download, highlighting, selection ⇄ statements; resizable.
+- **HTTP URIs and a model namespace** (Req 9.7a/b): `urn:la-gram:` replaced by `{base}{notation}/{uuid}/`, base `https://example.org/` (or `?base=`); flat local names so the whole model is written with `m:`; the namespace and prefix stated on the model with `vann:`; **Model settings** changes them and moves the model's IRIs (legacy IRIs flattened); collaborators follow. DD-15 graph IRIs under the namespace; the collaboration server's snapshot uses the model's prefix; `rdf:type` first under each subject.
+- **Property panel:** hideable and resizable on the right (since moved to the bottom tabs); fields ordered ID, type, `inModel`, `prefLabel`, then the rest; no `inView` rows.
+
+### 2026-09-25 — Phase 1: spec alignment (commit `0ab0acf`)
+
+- Requirements, design and tasks ported from the `la-modeller-excalidraw` specification (numbers 1–11 kept for comparison; 12–16 la-gram's own); the implementation-independent tool spec copied to `docs/`.
+- Test fixtures read from the bundled assets instead of absolute paths.
+- Model / view / canvas on the published vocabulary (`arch:inModel`, `arch:inView`, qualified relationships + unqualified triples, `arch-vis:` geometry), several views, the model tree, six file formats with the DD-15 partition, ArchiMate Exchange import, legacy migration on open.
+- Metamodels discovered and loaded at runtime (catalogue, load by IRI, uploads, several at once, switching), presentation contexts, validation against the real shapes.
+- Real-time collaboration: store ⇄ Y.Doc triple set, deterministic convergence, presence and soft locks, a Hocuspocus server persisting rooms as `.nt` + `.ttl`.
+- Fixed on the way: validation read an empty shapes graph, Save exported the metamodel, counter-based IRIs, malformed literals from the property panel, reconnect not updating the model.
+

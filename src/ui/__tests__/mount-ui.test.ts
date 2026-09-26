@@ -220,9 +220,12 @@ describe('mountUi', () => {
     });
 
     it.each([
-      ['palette', 'PALETTE-PANEL'],
       ['explorer', 'MODEL-EXPLORER'],
-      ['property-panel', 'PROPERTY-PANEL'],
+      ['palette', 'PALETTE-PANEL'],
+      ['properties', 'PROPERTY-PANEL'],
+      ['validation', 'VALIDATION-PANEL'],
+      ['sparql', 'SPARQL-EDITOR'],
+      ['rdf', 'RDF-PANEL'],
     ])('fills the %s slot with %s', (slot, tagName) => {
       const els = slotted(ui, slot);
       expect(els).toHaveLength(1);
@@ -235,15 +238,14 @@ describe('mountUi', () => {
       expect(els[0].contains(ui.canvasHost)).toBe(true);
     });
 
-    it('fills the validation slot with the validation panel and SPARQL editor', () => {
-      const els = slotted(ui, 'validation');
-      expect(els).toHaveLength(1);
-      expect(els[0].contains(ui.validationPanel)).toBe(true);
-      expect(els[0].contains(ui.sparqlEditor)).toBe(true);
+    it('puts the properties, validation and SPARQL editor in the bottom panel’s tabs', () => {
+      expect(slotted(ui, 'properties')[0]).toBe(ui.propertyPanel);
+      expect(slotted(ui, 'validation')[0]).toBe(ui.validationPanel);
+      expect(slotted(ui, 'sparql')[0]).toBe(ui.sparqlEditor);
     });
 
     it('leaves no slot empty', () => {
-      for (const slot of ['palette', 'explorer', 'property-panel', 'canvas', 'validation']) {
+      for (const slot of ['toolbar', 'explorer', 'canvas', 'properties', 'validation', 'sparql', 'palette', 'rdf']) {
         expect(slotted(ui, slot).length).toBeGreaterThan(0);
       }
     });

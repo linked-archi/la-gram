@@ -1,9 +1,10 @@
 /**
  * UI mounting — instantiates every panel/view and wires it to the App.
  *
- * `app-shell` only renders the layout grid plus named slots (`toolbar`,
- * `palette`, `canvas`, `property-panel`, `explorer`, `validation`). Nothing
- * fills those slots unless something creates the panel elements, wires them to
+ * `app-shell` only renders the layout grid plus named slots — `toolbar`,
+ * `explorer` (the model tree, left), `canvas`, `properties` / `validation` /
+ * `sparql` (the bottom panel's tabs), `palette` (right) and `rdf` (far right).
+ * Nothing fills those slots unless something creates the panel elements, wires them to
  * the App's components and appends them as light-DOM children of the shell —
  * that is this module's job, together with executing what the toolbar, the
  * model tree and the canvas ask for.
@@ -34,6 +35,7 @@ import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/i
 import { METAMODEL_CATALOGUE } from '../metamodel-manager/catalogue.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { labelOf, modelQuads, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
@@ -52,7 +54,7 @@ import './views/catalog-view.js';
 import './views/matrix-view.js';
 import './panels/rdf-panel.js';
 
-import type { AppShell } from './app-shell.js';
+import type { AppShell, BottomTab } from './app-shell.js';
 import type { AppToolbar, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
 import type {
   PalettePanel,
@@ -113,10 +115,12 @@ export interface MountedUi {
   sparqlEditor: SparqlEditor;
   catalogView: CatalogView;
   matrixView: MatrixView;
-  /** Show or hide the property panel (shown by default). */
-  setPropertyPanelOpen(open: boolean): void;
-  /** Whether the property panel is shown. */
-  isPropertyPanelOpen(): boolean;
+  /** Show or hide the palette, on the right (shown by default). */
+  setPaletteOpen(open: boolean): void;
+  /** Whether the palette is shown. */
+  isPaletteOpen(): boolean;
+  /** Open a tab of the bottom panel: properties, validation or the SPARQL editor. */
+  showBottomTab(tab: BottomTab): void;
   /** The model as RDF (Turtle, …), far right; hidden until opened. */
   rdfPanel: RdfPanel;
   /** Show or hide the RDF panel. */
@@ -245,20 +249,20 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   appToolbar.slot = 'toolbar';
   appToolbar.catalogue = METAMODEL_CATALOGUE;
 
-  // ── Left top: palette ────────────────────────────────────────────────
+  // ── Right: palette ───────────────────────────────────────────────────
   const palettePanel = document.createElement('palette-panel');
   palettePanel.slot = 'palette';
   palettePanel.palette = emptyPalette();
 
-  // ── Left bottom: model tree ──────────────────────────────────────────
+  // ── Left: model tree ─────────────────────────────────────────────────
   const modelExplorer = document.createElement('model-explorer');
   modelExplorer.slot = 'explorer';
 
-  // ── Right: property panel ────────────────────────────────────────────
+  // ── Bottom, "Properties" tab: property panel ─────────────────────────
   // No element manager: edits travel as events to the App, which tags text
   // with its language — the one place that knows the shapes want it.
   const propertyPanel = document.createElement('property-panel');
-  propertyPanel.slot = 'property-panel';
+  propertyPanel.slot = 'properties';
   propertyPanel.rdfStore = store;
   propertyPanel.shapesGraph = app.shapesGraph();
 
@@ -307,21 +311,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     },
   });
 
-  // ── Bottom: validation results + SPARQL editor ───────────────────────
-  const bottomArea = document.createElement('div');
-  bottomArea.slot = 'validation';
-  bottomArea.className = 'la-bottom-area';
-
+  // ── Bottom, "Validation" and "SPARQL Query" tabs ─────────────────────
   const validationPanel = document.createElement('validation-panel');
+  validationPanel.slot = 'validation';
   validationPanel.validator = validator;
   validationPanel.labelFor = (iri) => labelOf(store, iri);
   validationPanel.dataGraph = store.getQuads();
   validationPanel.shapesGraph = app.shapesGraph();
 
   const sparqlEditor = document.createElement('sparql-editor');
+  sparqlEditor.slot = 'sparql';
   sparqlEditor.rdfStore = store;
-
-  bottomArea.append(validationPanel, sparqlEditor);
 
   // ── Far right: the model as RDF ──────────────────────────────────────
   // Hidden by default; the toolbar's "RDF" toggles it. It serializes through
@@ -341,7 +341,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   // ── Attach to the document ───────────────────────────────────────────
-  shell.append(appToolbar, palettePanel, modelExplorer, propertyPanel, canvasArea, bottomArea, rdfPanel);
+  shell.append(appToolbar, modelExplorer, canvasArea, propertyPanel, validationPanel, sparqlEditor, palettePanel, rdfPanel);
   root.appendChild(shell);
 
   // ── Model tree data ──────────────────────────────────────────────────
@@ -718,36 +718,18 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   // ── Property suggestions ─────────────────────────────────────────────
   /**
-   * Predicates offered when adding a property: the datatype and annotation
-   * properties the loaded ontologies declare, plus common SKOS / Dublin Core /
-   * PROV terms. Object properties are left out on purpose: a relationship is
-   * drawn on the canvas, where it becomes a qualified resource as well as a
-   * triple, not typed in here as a bare triple.
+   * What the property panel offers when adding a property: what applies to the
+   * selected concept's type, what the model already uses, documentation, and
+   * the rest folded away; or any name, CURIE or IRI typed
+   * (`model-manager/property-catalog.ts`). Object properties are not offered:
+   * a relationship is drawn on the canvas, where it becomes a qualified
+   * resource as well as a triple.
    */
-  const COMMON_PREDICATES = [
-    NAMESPACES.skos + 'definition',
-    NAMESPACES.skos + 'altLabel',
-    NAMESPACES.skos + 'note',
-    NAMESPACES.skos + 'scopeNote',
-    NAMESPACES.dcterms + 'description',
-    NAMESPACES.dcterms + 'source',
-    NAMESPACES.dcterms + 'creator',
-    NAMESPACES.dcterms + 'created',
-    NAMESPACES.prov + 'wasDerivedFrom',
-  ];
-  const predicateSuggestions = (): LabelledIri[] => {
-    const iris = new Set<string>(COMMON_PREDICATES);
-    const rdfType = namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode;
-    for (const kind of ['DatatypeProperty', 'AnnotationProperty']) {
-      for (const q of store.getQuads(null, rdfType, namedNode(NAMESPACES.owl + kind) as unknown as NamedNode)) {
-        if (q.subject.termType === 'NamedNode' && q.graph.termType !== 'DefaultGraph') iris.add(q.subject.value);
-      }
-    }
-    return [...iris]
-      .map((iri) => ({ iri, label: labelOf(store, iri) }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .slice(0, 500);
-  };
+  propertyPanel.catalog = new PropertyCatalog(store, {
+    closure: () => closure,
+    prefixes: () => app.modelIO.collectPrefixes(session.modelIri),
+    modelNamespace: () => session.namespace()?.namespace ?? DEFAULT_MODEL_BASE,
+  });
 
   // Showing, hiding or resizing a side panel resizes the canvas; diagram-js
   // caches the viewbox size (zoom-to-fit, scrolling) until told.
@@ -757,13 +739,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       : undefined;
   canvasResize?.observe(canvasHost);
 
-  // ── Property panel: shown by default, hideable and resizable ──────────
-  const setPropertyPanelOpen = (open: boolean): void => {
-    shell.propertyOpen = open;
-    appToolbar.propertyOpen = open;
+  // ── Palette: shown by default, hideable and resizable ────────────────
+  const setPaletteOpen = (open: boolean): void => {
+    shell.paletteOpen = open;
+    appToolbar.paletteOpen = open;
   };
-  const onPropertyClose = (): void => setPropertyPanelOpen(false);
-  propertyPanel.addEventListener('property-close', onPropertyClose);
 
   // ── RDF panel ────────────────────────────────────────────────────────
   const setRdfPanelOpen = (open: boolean): void => {
@@ -1065,8 +1045,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         case 'share':
           eventBus.emit('collab-status', { request: 'share' });
           return;
-        case 'toggle-properties':
-          setPropertyPanelOpen(!shell.propertyOpen);
+        case 'toggle-palette':
+          setPaletteOpen(!shell.paletteOpen);
           return;
         case 'toggle-rdf':
           setRdfPanelOpen(!shell.rdfOpen);
@@ -1097,6 +1077,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const results = detail?.results ?? [];
     validationPanel.conforms = detail?.conforms ?? true;
     validationPanel.results = results;
+    // The violations show on the Validation tab, which may not be the open one.
+    const violations = results.filter((r) => r.severity === 'Violation').length;
+    shell.tabBadges = violations > 0 ? { validation: String(violations) } : {};
     diagramCanvas.setMarkers(
       VIOLATION_MARKER,
       new Set(results.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value)),
@@ -1114,7 +1097,6 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }
     refreshGraphs();
     refreshToolbar();
-    propertyPanel.predicateSuggestions = predicateSuggestions();
     diagramCanvas.syncFromStore();
   };
 
@@ -1217,7 +1199,6 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     rdfPanel.removeEventListener('rdf-download', onRdfDownload);
     rdfPanel.removeEventListener('rdf-select', onRdfSelect);
     rdfPanel.removeEventListener('rdf-close', onRdfClose);
-    propertyPanel.removeEventListener('property-close', onPropertyClose);
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
@@ -1254,8 +1235,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     rdfPanel,
     setRdfPanelOpen,
     isRdfPanelOpen: () => shell.rdfOpen,
-    setPropertyPanelOpen,
-    isPropertyPanelOpen: () => shell.propertyOpen,
+    setPaletteOpen,
+    isPaletteOpen: () => shell.paletteOpen,
+    showBottomTab: (tab: BottomTab) => shell.showTab(tab),
     setActiveCanvasView,
     activeCanvasView: () => active,
     setPaletteAxis: (axisIri) => {

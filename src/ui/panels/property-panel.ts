@@ -1,18 +1,29 @@
 /**
- * Property Panel — displays and edits RDF properties of a selected element or relationship.
+ * Property Panel — shows and edits the selected concept (element, relationship,
+ * view or model); the bottom panel's Properties tab.
  *
- * Queries the RDF store for the element's properties (skos:prefLabel, skos:definition,
- * rdf:type, and any custom properties). Optionally uses SHACL shapes to determine
- * field types and cardinality. Propagates edits through ElementManager.updateProperty().
+ * Vertical tabs on the left: *‹Kind› information* (ID, type, `inModel`, name,
+ * definition — always in that order, the name and the definition even when
+ * empty), *Properties* (everything else, and the add field, `property-picker.ts`),
+ * *Analysis* (relationships) and *Appears in views*. The open tab is remembered.
+ *
+ * Reads the store directly; SHACL shapes give field types and cardinality.
+ * Edits are emitted as events (`property-edit`, `property-add`,
+ * `property-remove`) for the host to apply — or written through an
+ * ElementManager when one is given.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
 import type { ElementManager } from '../../model-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
+import './property-picker.js';
+import type { PropertyPicker } from './property-picker.js';
 
 // ── Well-known predicate IRIs ───────────────────────────────────────────
 
@@ -107,9 +118,22 @@ const TEXT_PREDICATES = new Set([
 
 /**
  * The fields listed first, in this order, under the ID row: what the concept
- * is, which model it belongs to, and its name. Everything else follows.
+ * is, which model it belongs to, its name and its definition. Everything else
+ * follows.
  */
-const LEADING_FIELDS = [RDF_TYPE, NAMESPACES.arch + 'inModel', SKOS_PREF_LABEL];
+const LEADING_FIELDS = [RDF_TYPE, NAMESPACES.arch + 'inModel', SKOS_PREF_LABEL, SKOS_DEFINITION];
+
+/**
+ * Shown even without a value, ready to fill in: the name and the definition.
+ * They are not removed with ×; emptying the definition removes it.
+ */
+const DEFAULT_FIELDS = [SKOS_PREF_LABEL, SKOS_DEFINITION];
+
+/** Placeholder of an empty default field. */
+const DEFAULT_FIELD_PLACEHOLDER: Record<string, string> = {
+  [SKOS_PREF_LABEL]: 'Add a name…',
+  [SKOS_DEFINITION]: 'Add a definition…',
+};
 
 /**
  * Not listed: the views a concept is in are in the toolbar and under
@@ -192,8 +216,10 @@ function iriLabel(iri: string): string {
  * Builds the list of PropertyEntry objects for a given element IRI
  * by querying the RDF store and optionally enriching with SHACL shape info.
  *
- * Order: type, inModel, prefLabel ({@link LEADING_FIELDS}), then every other
- * property by label — so a property the modeller adds appears under the name.
+ * Order: type, inModel, prefLabel, definition ({@link LEADING_FIELDS}), then
+ * every other property by label — so a property the modeller adds appears under
+ * them. The name and the definition are listed even without a value
+ * ({@link DEFAULT_FIELDS}), empty, so they can be filled in.
  * `arch:inView` is left out ({@link HIDDEN_FIELDS}). The panel shows the ID
  * (the IRI) above them all.
  */
@@ -229,6 +255,22 @@ export function buildPropertyEntries(quads: Quad[], shaclShapes: ShaclPropertySh
     });
   }
 
+  if (quads.length > 0) {
+    for (const predicate of DEFAULT_FIELDS) {
+      if (entries.some((e) => e.predicate === predicate)) continue;
+      const shape = shapeMap.get(predicate);
+      entries.push({
+        predicate,
+        label: shape?.name ?? iriLabel(predicate),
+        value: '',
+        readonly: false,
+        datatype: shape?.datatype,
+        minCount: shape?.minCount,
+        maxCount: shape?.maxCount,
+      });
+    }
+  }
+
   const rank = (entry: PropertyEntry): number =>
     entry.custom ? LEADING_FIELDS.length : LEADING_FIELDS.indexOf(entry.predicate);
   entries.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label) || a.value.localeCompare(b.value));
@@ -236,9 +278,22 @@ export function buildPropertyEntries(quads: Quad[], shaclShapes: ShaclPropertySh
   return entries;
 }
 
-/** The header's ×: asks the host to hide the panel (`property-close`). */
-function closeButton(onClose: () => void) {
-  return html`<button class="close" title="Hide the property panel" @click=${onClose}>×</button>`;
+/** The panel's vertical tabs, top to bottom. */
+export type PanelSection = 'info' | 'properties' | 'analysis' | 'views';
+
+/** localStorage key of the open tab (kept across selections and reloads). */
+const TAB_KEY = 'la-gram:property-panel-tab';
+
+const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views'];
+
+/** The tab the user last opened, per browser; the information tab otherwise. */
+function storedTab(): PanelSection {
+  try {
+    const value = globalThis.localStorage?.getItem(TAB_KEY);
+    return PANEL_SECTIONS.find((t) => t === value) ?? 'info';
+  } catch {
+    return 'info';
+  }
 }
 
 @customElement('property-panel')
@@ -276,9 +331,89 @@ export class PropertyPanel extends LitElement {
       border-bottom: 1px solid #f0f0f0;
     }
 
-    /* Sets the properties a modeller added off from the fields above. */
-    .property-row.first-added {
-      border-top: 1px solid #dadce0;
+    /* Vertical tabs on the left, the open tab's pane on the right. */
+    .layout {
+      display: flex;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .side {
+      flex: 0 0 190px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: auto;
+      background: #f8f9fa;
+      border-right: 1px solid #e8eaed;
+    }
+
+    .side .panel-header {
+      flex-wrap: wrap;
+      border-bottom: 1px solid #e8eaed;
+    }
+
+    .vtabs {
+      display: flex;
+      flex-direction: column;
+      padding: 4px 0;
+    }
+
+    .vtab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px 7px 9px;
+      border: 0;
+      border-left: 3px solid transparent;
+      background: none;
+      font: inherit;
+      font-size: 13px;
+      color: #3c4043;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .vtab:hover {
+      background: #f1f3f4;
+    }
+
+    .vtab[aria-selected='true'] {
+      border-left-color: #1a73e8;
+      background: #e8f0fe;
+      color: #1a73e8;
+      font-weight: 500;
+    }
+
+    .count {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 500;
+      color: #5f6368;
+      background: #e8eaed;
+      border-radius: 8px;
+      padding: 0 6px;
+    }
+
+    .vtab[aria-selected='true'] .count {
+      background: #d2e3fc;
+      color: #1a73e8;
+    }
+
+    .pane {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: auto;
+    }
+
+    /* Fields side by side where there is room; text areas take the whole row. */
+    .pane .property-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+
+    .pane .property-list .property-row.wide {
+      grid-column: 1 / -1;
     }
 
     .property-label {
@@ -328,22 +463,6 @@ export class PropertyPanel extends LitElement {
       min-width: 0;
     }
 
-    button.close {
-      margin-left: auto;
-      border: 0;
-      background: none;
-      font: inherit;
-      font-size: 16px;
-      line-height: 1;
-      padding: 0 2px;
-      color: #5f6368;
-      cursor: pointer;
-    }
-
-    button.close:hover {
-      color: #202124;
-    }
-
     .type-chip {
       font-size: 11px;
       font-weight: 500;
@@ -385,10 +504,15 @@ export class PropertyPanel extends LitElement {
 
     .add-row {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: 1fr auto;
       gap: 4px;
       padding: 8px 12px;
       border-bottom: 1px solid #f0f0f0;
+    }
+
+    /* The picker gets the whole width: its list needs the room. */
+    .add-row property-picker {
+      grid-column: 1 / -1;
     }
 
     .add {
@@ -397,15 +521,6 @@ export class PropertyPanel extends LitElement {
       border-radius: 3px;
       cursor: pointer;
       font: inherit;
-    }
-
-    .section-title {
-      padding: 8px 12px 2px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #5f6368;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
     }
 
     .analysis-list {
@@ -467,12 +582,23 @@ export class PropertyPanel extends LitElement {
   @property({ attribute: false })
   analysis?: PropertyAnalysis;
 
-  /** Predicates offered when adding a property (from the loaded ontologies). */
+  /**
+   * The properties offered when adding one, and what typed text means as a
+   * property — `model-manager/property-catalog.ts`, supplied by the host.
+   */
   @property({ attribute: false })
-  predicateSuggestions: Array<{ iri: string; label: string }> = [];
+  catalog?: {
+    suggest(subjectIri: string): PropertySuggestion[];
+    resolve(text: string): ResolvedProperty | undefined;
+  };
 
-  @state() private _newPredicate = '';
   @state() private _newValue = '';
+
+  /** The open vertical tab; remembered per browser. */
+  @state() private _tab: PanelSection = storedTab();
+
+  @query('property-picker') private _picker?: PropertyPicker;
+  @query('.add-row .new-value') private _valueInput?: HTMLInputElement;
 
   /** Computed property entries for the selected element. */
   @state()
@@ -520,6 +646,14 @@ export class PropertyPanel extends LitElement {
   /** Handle input change and propagate to ElementManager. */
   private _onPropertyChange(entry: PropertyEntry, newValue: string): void {
     if (entry.readonly || !this.selectedIri) return;
+
+    if (newValue.trim() === '' && DEFAULT_FIELDS.includes(entry.predicate)) {
+      // Emptying the definition removes it; a name cannot be emptied, and the
+      // field shows the name again (the value bindings are `live`).
+      if (entry.predicate === SKOS_DEFINITION && entry.value !== '') this._remove(entry);
+      else this.requestUpdate();
+      return;
+    }
 
     // Keep the value's language; text without one gets `en`, which is what the
     // Linked.Archi shapes expect of labels and definitions.
@@ -587,17 +721,26 @@ export class PropertyPanel extends LitElement {
   }
 
   private _add(): void {
-    const predicate = this._newPredicate.trim();
+    const predicate = this._picker?.value?.iri;
     const value = this._newValue;
-    if (!this.selectedIri || !/^[a-z][a-z0-9+.-]*:\S+$/i.test(predicate) || value === '') return;
+    if (!this.selectedIri) return;
+    if (!predicate) {
+      this._picker?.focus();
+      return;
+    }
+    if (value === '') {
+      this._valueInput?.focus();
+      return;
+    }
     this._emit<PropertyChangeDetail>('property-add', { elementIri: this.selectedIri, predicate, value });
-    this._newPredicate = '';
+    this._picker?.clear();
     this._newValue = '';
   }
 
   private _renderRemove(entry: PropertyEntry) {
-    // The type and the name are what make the concept what it is; the rest can go.
-    if (entry.readonly || entry.predicate === SKOS_PREF_LABEL) return nothing;
+    // The type and the name are what make the concept what it is; the rest can
+    // go — the definition by emptying it, as it stays listed anyway.
+    if (entry.readonly || DEFAULT_FIELDS.includes(entry.predicate)) return nothing;
     return html`<button class="remove" title="Remove this value" @click=${() => this._remove(entry)}>×</button>`;
   }
 
@@ -607,7 +750,6 @@ export class PropertyPanel extends LitElement {
       <div class="panel-header">
         <span>${h?.kind ?? 'Properties'}</span>
         ${h?.typeLabel ? html`<span class="type-chip" title=${h.typeIri ?? ''}>${h.typeLabel}</span>` : nothing}
-        ${closeButton(() => this._emit('property-close', {}))}
       </div>
     `;
   }
@@ -615,18 +757,13 @@ export class PropertyPanel extends LitElement {
   private _renderAdd() {
     return html`
       <div class="add-row">
+        <property-picker
+          .suggest=${() => (this.selectedIri && this.catalog ? this.catalog.suggest(this.selectedIri) : [])}
+          .resolve=${(text: string) => this.catalog?.resolve(text)}
+          @property-picked=${() => this._valueInput?.focus()}
+        ></property-picker>
         <input
-          class="property-value"
-          list="la-predicates"
-          placeholder="Property IRI"
-          .value=${this._newPredicate}
-          @input=${(e: Event) => (this._newPredicate = (e.target as HTMLInputElement).value)}
-        />
-        <datalist id="la-predicates">
-          ${this.predicateSuggestions.map((p) => html`<option value=${p.iri}>${p.label}</option>`)}
-        </datalist>
-        <input
-          class="property-value"
+          class="property-value new-value"
           placeholder="Value"
           .value=${this._newValue}
           @input=${(e: Event) => (this._newValue = (e.target as HTMLInputElement).value)}
@@ -637,12 +774,39 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
-  private _renderAnalysis() {
+  /** The open vertical tab. */
+  get activeTab(): PanelSection {
+    return this._tab ?? 'info';
+  }
+
+  /** Open a vertical tab; the choice is kept for other selections and reloads. */
+  selectTab(id: PanelSection): void {
+    this._tab = id;
+    try {
+      globalThis.localStorage?.setItem(TAB_KEY, id);
+    } catch {
+      /* not remembered: fine */
+    }
+  }
+
+  /** Up/Down move between the vertical tabs, as in any tab list. */
+  private _onTabKey(e: KeyboardEvent, tabs: PanelSection[]): void {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const at = tabs.indexOf(this.activeTab);
+    const next = tabs[(at + (e.key === 'ArrowDown' ? 1 : tabs.length - 1)) % tabs.length];
+    this.selectTab(next);
+    this.updateComplete.then(() =>
+      (this.renderRoot.querySelector(`.vtab[data-tab="${next}"]`) as HTMLElement | null)?.focus(),
+    );
+  }
+
+  /** The relationships (or, for a relationship, its ends). */
+  private _renderRelationships() {
     const a = this.analysis;
     if (!a) return nothing;
     const go = (iri: string) => this._emit('panel-navigate', { iri });
     return html`
-      <div class="section-title">Analysis</div>
       ${a.ends
         ? html`<div class="analysis-row">
             <a href="#" @click=${(e: Event) => { e.preventDefault(); go(a.ends!.sourceIri); }}>${a.ends.sourceLabel}</a>
@@ -663,7 +827,14 @@ export class PropertyPanel extends LitElement {
         : a.ends
           ? nothing
           : html`<div class="muted">No relationships.</div>`}
-      <div class="section-title">Appears in views</div>
+    `;
+  }
+
+  /** The views the concept is drawn in. */
+  private _renderViews() {
+    const a = this.analysis;
+    if (!a) return nothing;
+    return html`
       ${a.views.length > 0
         ? html`<ul class="analysis-list">
             ${a.views.map(
@@ -678,21 +849,21 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
-  /** @param firstAdded The first of the added properties: a divider sets them off. */
-  private _renderEntry(entry: PropertyEntry, firstAdded = false) {
+  private _renderEntry(entry: PropertyEntry) {
     const isRequired = entry.minCount !== undefined && entry.minCount > 0;
-    const rowClass = `property-row${firstAdded ? ' first-added' : ''}`;
+    const rowClass = 'property-row';
 
     if (this._isTextArea(entry)) {
       return html`
-        <li class=${rowClass}>
+        <li class="${rowClass} wide">
           <label class="property-label">
             ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
             ${this._renderRemove(entry)}
           </label>
           <textarea
             class="property-value"
-            .value=${entry.value}
+            .value=${live(entry.value)}
+            placeholder=${entry.value ? '' : (DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
             ?readonly=${entry.readonly}
             @change=${(e: Event) =>
               this._onPropertyChange(entry, (e.target as HTMLTextAreaElement).value)}
@@ -711,7 +882,8 @@ export class PropertyPanel extends LitElement {
         <input
           class="property-value"
           type=${this._inputType(entry)}
-          .value=${entry.value}
+          .value=${live(entry.value)}
+          placeholder=${entry.value ? '' : (DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
           ?readonly=${entry.readonly}
           @change=${(e: Event) =>
             this._onPropertyChange(entry, (e.target as HTMLInputElement).value)}
@@ -722,25 +894,68 @@ export class PropertyPanel extends LitElement {
 
   override render() {
     if (!this.selectedIri) {
-      return html`
-        <div class="panel-header"><span>Properties</span>${closeButton(() => this._emit('property-close', {}))}</div>
-        <div class="no-selection">No element selected</div>
-      `;
+      return html`<div class="no-selection">No element selected — select an element, a relationship or a view.</div>`;
     }
 
+    const entries = this._entries ?? [];
+    const leading = entries.filter((e) => !e.custom);
+    const added = entries.filter((e) => e.custom);
+    const a = this.analysis;
+    const kind = this.heading?.kind ?? 'Element';
+    const tabs: Array<{ id: PanelSection; title: string; count?: number }> = [
+      { id: 'info', title: `${kind} information` },
+      { id: 'properties', title: 'Properties', count: added.length },
+      ...(a
+        ? [
+            { id: 'analysis' as const, title: 'Analysis', count: a.relationships.length },
+            { id: 'views' as const, title: 'Appears in views', count: a.views.length },
+          ]
+        : []),
+    ];
+    // A remembered tab this concept does not have (a model has no analysis) falls back.
+    const remembered = this._tab ?? 'info';
+    const active = tabs.some((t) => t.id === remembered) ? remembered : 'info';
+    const ids = tabs.map((t) => t.id);
     return html`
-      ${this._renderHeading()}
-      <ul class="property-list">
-        <li class="property-row id-row">
-          <label class="property-label">ID</label>
-          <input class="property-value iri" readonly title=${this.selectedIri} .value=${this.selectedIri} />
-        </li>
-        ${this._entries.map((entry, i) =>
-          this._renderEntry(entry, Boolean(entry.custom && (i === 0 || !this._entries[i - 1].custom))),
-        )}
-      </ul>
-      ${this._renderAdd()}
-      ${this._renderAnalysis()}
+      <div class="layout">
+        <nav class="side">
+          ${this._renderHeading()}
+          <div class="vtabs" role="tablist" aria-orientation="vertical">
+            ${tabs.map(
+              (t) => html`<button
+                class="vtab"
+                role="tab"
+                data-tab=${t.id}
+                aria-selected=${t.id === active ? 'true' : 'false'}
+                tabindex=${t.id === active ? '0' : '-1'}
+                @click=${() => this.selectTab(t.id)}
+                @keydown=${(e: KeyboardEvent) => this._onTabKey(e, ids)}
+              >
+                <span class="vtab-name">${t.title}</span>
+                ${t.count !== undefined ? html`<span class="count">${t.count}</span>` : nothing}
+              </button>`,
+            )}
+          </div>
+        </nav>
+        <div class="pane" role="tabpanel" data-tab=${active}>
+          ${active === 'info'
+            ? html`<ul class="property-list">
+                <li class="property-row id-row">
+                  <label class="property-label">ID</label>
+                  <input class="property-value iri" readonly title=${this.selectedIri} .value=${this.selectedIri} />
+                </li>
+                ${leading.map((entry) => this._renderEntry(entry))}
+              </ul>`
+            : active === 'properties'
+              ? html`${added.length > 0
+                  ? html`<ul class="property-list">${added.map((entry) => this._renderEntry(entry))}</ul>`
+                  : html`<div class="muted">No properties yet — add one below.</div>`}
+                ${this._renderAdd()}`
+              : active === 'analysis'
+                ? this._renderRelationships()
+                : this._renderViews()}
+        </div>
+      </div>
     `;
   }
 }

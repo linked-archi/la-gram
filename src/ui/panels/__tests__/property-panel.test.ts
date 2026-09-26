@@ -137,14 +137,24 @@ describe('buildPropertyEntries', () => {
     expect(labelEntry?.readonly).toBe(false);
   });
 
-  it('sorts rdf:type first, then prefLabel, then the rest by label', () => {
+  it('sorts rdf:type first, then prefLabel, definition, then the rest by label', () => {
     const entries = buildPropertyEntries(sampleQuads(iri), []);
     expect(entries.map((e) => e.predicate)).toEqual([
       RDF_TYPE,
       SKOS_PREF_LABEL,
-      'https://example.org/custom',
       SKOS_DEFINITION,
+      'https://example.org/custom',
     ]);
+  });
+
+  it('lists the name and the definition even without a value, empty, to be filled in', () => {
+    const entries = buildPropertyEntries([makeQuad(iri, RDF_TYPE, 'https://example.org/BP')], []);
+    expect(entries.map((e) => [e.predicate, e.value])).toEqual([
+      [RDF_TYPE, 'https://example.org/BP'],
+      [SKOS_PREF_LABEL, ''],
+      [SKOS_DEFINITION, ''],
+    ]);
+    expect(entries.slice(1).every((e) => !e.readonly && !e.custom)).toBe(true);
   });
 
   it('uses SHACL shape name as label when available', () => {
@@ -168,7 +178,7 @@ describe('buildPropertyEntries', () => {
     expect(buildPropertyEntries([], [])).toEqual([]);
   });
 
-  it('lists type, inModel, prefLabel, then every other property by label; leaves out inView', () => {
+  it('lists type, inModel, prefLabel, definition, then every other property by label; leaves out inView', () => {
     const ARCH = NAMESPACES.arch;
     const AM4 = 'https://meta.linked.archi/archimate4/onto#';
     const quads = [
@@ -181,7 +191,7 @@ describe('buildPropertyEntries', () => {
       makeQuad(iri, RDF_TYPE, AM4 + 'ApplicationComponent'),
     ];
     const entries = buildPropertyEntries(quads, []);
-    expect(entries.map((e) => e.label)).toEqual(['type', 'inModel', 'prefLabel', 'cost', 'owner', 'serves']);
+    expect(entries.map((e) => e.label)).toEqual(['type', 'inModel', 'prefLabel', 'definition', 'cost', 'owner', 'serves']);
     expect(entries.filter((e) => e.custom).map((e) => e.label)).toEqual(['cost', 'owner', 'serves']);
   });
 
@@ -195,7 +205,15 @@ describe('buildPropertyEntries', () => {
       makeQuad(iri, ARCH + 'source', 'https://example.org/m/element-1'),
       makeQuad(iri, RDF_TYPE, 'https://meta.linked.archi/archimate4/onto#Serving'),
     ];
-    expect(buildPropertyEntries(quads, []).map((e) => e.label)).toEqual(['type', 'inModel', 'source', 'target', 'weight']);
+    expect(buildPropertyEntries(quads, []).map((e) => e.label)).toEqual([
+      'type',
+      'inModel',
+      'prefLabel',
+      'definition',
+      'source',
+      'target',
+      'weight',
+    ]);
   });
 });
 
@@ -221,7 +239,7 @@ describe('PropertyPanel', () => {
         shapesGraph: undefined,
         _entries: [],
         dispatchEvent: vi.fn(),
-        predicateSuggestions: [],
+        catalog: undefined,
         ...overrides,
       };
       // Bind methods from prototype
@@ -233,7 +251,10 @@ describe('PropertyPanel', () => {
         '_loadProperties',
         '_renderHeading',
         '_renderAdd',
-        '_renderAnalysis',
+        '_renderRelationships',
+        '_renderViews',
+        'selectTab',
+        '_onTabKey',
         '_renderRemove',
         '_emit',
         '_remove',
@@ -268,7 +289,6 @@ describe('PropertyPanel', () => {
 
     it('shows "No element selected" when no IRI', () => {
       const o = renderPanel();
-      expect(o).toContain('Properties');
       expect(o).toContain('No element selected');
     });
 
@@ -284,19 +304,54 @@ describe('PropertyPanel', () => {
       expect(o).not.toContain('No element selected');
     });
 
-    it('starts with the ID, and sets the added properties off with a divider above the first', () => {
-      const entries: PropertyEntry[] = [
-        { predicate: RDF_TYPE, label: 'type', value: 'https://example.org/BP', readonly: true },
-        { predicate: SKOS_PREF_LABEL, label: 'prefLabel', value: 'Web', readonly: false },
-        { predicate: 'https://example.org/cost', label: 'cost', value: '1', readonly: false, custom: true },
-        { predicate: 'https://example.org/owner', label: 'owner', value: 'A', readonly: false, custom: true },
-      ];
-      const o = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries });
-      expect(o.indexOf('>ID<')).toBeGreaterThan(-1);
-      expect(o.indexOf('>ID<')).toBeLessThan(o.indexOf('type'));
-      expect(o.match(/property-row first-added/g)).toHaveLength(1);
-      expect(o.indexOf('first-added')).toBeGreaterThan(o.indexOf('prefLabel'));
-      expect(o.indexOf('first-added')).toBeLessThan(o.indexOf('cost'));
+    const TABBED: PropertyEntry[] = [
+      { predicate: RDF_TYPE, label: 'type', value: 'https://example.org/BP', readonly: true },
+      { predicate: SKOS_PREF_LABEL, label: 'prefLabel', value: 'Web', readonly: false },
+      { predicate: 'https://example.org/cost', label: 'cost', value: '1', readonly: false, custom: true },
+      { predicate: 'https://example.org/owner', label: 'owner', value: 'A', readonly: false, custom: true },
+    ];
+    const ANALYSIS = { relationships: [], views: [{ iri: 'https://example.org/v1', label: 'Main' }] };
+
+    it('lists the vertical tabs — information, properties, analysis, views — with counts', () => {
+      const o = renderPanel({
+        selectedIri: 'https://example.org/elem1',
+        _entries: TABBED,
+        heading: { kind: 'Element' },
+        analysis: ANALYSIS,
+      });
+      const at = (text: string) => o.indexOf(text);
+      expect(o).toContain('aria-orientation="vertical"');
+      expect(at('Element information')).toBeGreaterThan(-1);
+      expect(at('Element information')).toBeLessThan(at('>Properties<'));
+      expect(at('>Properties<')).toBeLessThan(at('>Analysis<'));
+      expect(at('>Analysis<')).toBeLessThan(at('>Appears in views<'));
+      // The information tab is open: ID first, then the leading fields; not the added ones.
+      expect(at('>ID<')).toBeGreaterThan(at('>Appears in views<'));
+      expect(at('>ID<')).toBeLessThan(o.search(/property-label">\s*type/));
+      expect(o).not.toContain('>cost<');
+    });
+
+    it('shows the open tab’s pane only', () => {
+      const o = renderPanel({
+        selectedIri: 'https://example.org/elem1',
+        _entries: TABBED,
+        analysis: ANALYSIS,
+        _tab: 'properties',
+      });
+      expect(o).toContain('cost');
+      expect(o).toContain('owner');
+      expect(o).toContain('Add');
+      expect(o).not.toContain('>ID<');
+      const views = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: TABBED, analysis: ANALYSIS, _tab: 'views' });
+      expect(views).toContain('Main');
+      expect(views).not.toContain('cost');
+    });
+
+    it('falls back to the information tab when the remembered one does not apply', () => {
+      // No analysis (a model): no analysis or views tab.
+      const o = renderPanel({ selectedIri: 'https://example.org/m', _entries: TABBED, _tab: 'views' });
+      expect(o).not.toContain('Appears in views');
+      expect(o).toContain('>ID<');
     });
 
     it('renders textarea for definition fields', () => {

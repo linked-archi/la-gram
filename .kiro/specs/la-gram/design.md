@@ -20,19 +20,18 @@ specification is `docs/linked-archi-tool-spec.md`.
 graph TB
     subgraph Browser["Browser / Electron renderer (TypeScript, Lit, webpack)"]
         subgraph UI["UI layer — src/ui"]
-            Toolbar["app-toolbar<br/>file · metamodels · views · presence"]
-            Palette["palette-panel"]
-            Tree["model-explorer<br/>model tree"]
+            Toolbar["app-toolbar<br/>file · metamodels · views · panel toggles · presence"]
+            Tree["model-explorer<br/>model tree (left)"]
             Canvas["DiagramCanvas<br/>diagram-js + RDF modules"]
-            Props["property-panel"]
-            Bottom["validation-panel · sparql-editor"]
             Alt["catalog-view · matrix-view"]
+            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor"]
+            Palette["palette-panel (right)"]
             Rdf["rdf-panel (hidden by default)<br/>live Turtle / TriG / JSON-LD …"]
         end
         Mount["mount-ui — wiring, commands, dialogs"]
         subgraph Core["App — src/app.ts"]
-            Session["ModelSession<br/>model + open view"]
-            Managers["Element / Relationship / View managers"]
+            Session["ModelSession<br/>model + open view + namespace"]
+            Managers["Element / Relationship / View managers<br/>property catalog"]
             MM["N3MetamodelLoader<br/>asset sources"]
             Val["RdfShaclValidator (cached)"]
             IO["ModelIO · ArchiMate importer"]
@@ -56,9 +55,9 @@ graph TB
 |---|---|---|
 | RDF engine | `src/rdf-engine` | Oxigraph store (native bulk load), observable wrapper (change feed, recording), IRI minting, parser/serializer, SHACL validator |
 | Metamodel manager | `src/metamodel-manager` | Asset sources, manifest-driven loader, catalogue, palette generation (dual classification, axes, notation), viewpoints |
-| Model manager | `src/model-manager` | Session, element/relationship/view managers, cascade rules, queries, legacy migration, shared vocabulary |
+| Model manager | `src/model-manager` | Session, model namespace (minting, moving), element/relationship/view managers, cascade rules, queries, property catalog (what to offer when adding a property), legacy migration, shared vocabulary |
 | Import/export | `src/import-export` | Model I/O (six formats, DD-15 partition, profiles), ArchiMate exchange import, SVG/PNG |
-| UI | `src/ui` | Shell, panels, canvas, dialogs, mounting |
+| UI | `src/ui` | Shell (layout, side panels, bottom tabs), panels, canvas, dialogs, mounting |
 | Collaboration | `src/collab`, `server/` | Y.Doc binding, presence and locks, Hocuspocus server |
 | Platform | `src/platform` | Web vs. Electron file access |
 
@@ -70,7 +69,7 @@ graph TB
 
 | Concept | RDF | Where at runtime | Persisted |
 |---|---|---|---|
-| **Model** | `arch:Model` + `arch:modelConformsToMetamodel` | default graph | yes |
+| **Model** | `arch:Model` + `arch:modelConformsToMetamodel` + its namespace (`vann:preferredNamespaceUri` / `…Prefix`) | default graph | yes |
 | **Element** | a metamodel class; `skos:prefLabel`@en; `arch:inModel` | default graph | yes |
 | **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`) | default graph | yes |
 | **View** | `arch:View` + `arch:Diagram`/`Catalog`/`Matrix`, `arch:inModel`, `arch:viewConformsToViewpoint` | default graph | yes |
@@ -202,16 +201,64 @@ property panel, opening a file — reach the canvas as `model-changed` events, a
 never appear in the undo history. Markers (viewpoint, validation, remote
 selection, lock) are kept per concept and re-applied to shapes drawn later.
 
-### Side panels
+### Layout
 
-The shell's two right-hand columns — the property panel and the RDF panel — are
-*side panels* (`app-shell.ts`): each column's width is a CSS variable that is
-0 while the panel is hidden, and each has a drag handle on its left edge. Widths
-are clamped (property ≥ 220 px, RDF ≥ 280 px, and the canvas keeps ≥ 240 px) and
-remembered per browser in `localStorage`. The property panel is shown by default
-and hidden from its × or the toolbar's "ⓘ Properties" toggle; the RDF panel is
-hidden by default. A `ResizeObserver` on the canvas host tells diagram-js
-(`canvas.resized()`) whenever a side panel changes the canvas's size.
+```
+┌──────────────────────── toolbar ─────────────────────────┐
+│ model    │ canvas                      │ palette │ RDF    │
+│ tree     │─────────────────────────────│         │ (hidden│
+│          │ [Properties|Validation|SPARQL Query]  │  until │
+│          │ bottom panel                │         │ opened)│
+└──────────┴─────────────────────────────┴─────────┴────────┘
+```
+
+`app-shell.ts` is a CSS grid with named slots: `explorer`, `canvas`,
+`properties` / `validation` / `sparql` (the bottom panel's tabs), `palette`,
+`rdf`. The two right-hand columns are *side panels*: each column's width is a
+CSS variable that is 0 while the panel is hidden, and each has a drag handle on
+its left edge (palette ≥ 180 px, RDF ≥ 280 px). The bottom panel's row height is
+dragged by its top edge (≥ 120 px); clicking the open tab folds the row to the
+tab strip, and another tab opens and unfolds it. The canvas keeps at least
+240 × 160 px. Sizes, the open tab and the folding are remembered per browser in
+`localStorage`. The Validation tab carries the number of violations, since it
+is often not the open one. A `ResizeObserver` on the canvas host tells
+diagram-js (`canvas.resized()`) whenever a panel changes the canvas's size.
+
+### Property panel tabs
+
+The panel (the bottom panel's Properties tab) has vertical tabs on the left,
+under the heading (kind and type), each with a count where one applies:
+**‹Kind› information** — ID, type, `inModel`, name, definition, always in that
+order; **Properties** — everything else on the concept, then the add field;
+**Analysis** — the relationships (or a relationship's ends); **Appears in
+views**. Only the open tab's pane is rendered; its fields sit side by side where
+there is room, a text area taking the whole row. Up/Down move between the tabs.
+The open tab is kept in `localStorage` (`la-gram:property-panel-tab`), so it
+holds from one selection to the next and across reloads; a concept without that
+tab (a model has no analysis) shows its information instead.
+
+### Adding a property
+
+The property panel's "Add a property…" field is a picker over
+`model-manager/property-catalog.ts`, which decides what to offer from the loaded
+vocabularies' own `rdfs:domain` declarations (and SHACL shapes) rather than
+offering every declared property — the core-vis ontology alone would bring the
+diagram geometry and notation styling. Groups: **For ‹type›** (domain or shape
+covers the selected concept's type closure), **Used in this model** (literal-valued
+properties on the model's concepts, and anything in the model's namespace — so a
+custom property added once is offered everywhere), **Documentation** (SKOS, Dublin
+Core, PROV — not `skos:definition`, which the panel always lists under the name,
+nor `dcterms:description`, which would say it again), and **More** (no declared domain; folded until opened or searched).
+Never offered: `arch-vis:` / `sh:` / `owl:` terms, what the tool writes itself
+(type, membership, ends, conformance, the name, the model's namespace) and the
+metamodel-authoring annotations (`arch:unqualifiedForm`, `domainIncludes`, …).
+A property whose domain is another class is not listed but can be typed. Typed
+text resolves as a CURIE with a known prefix, an absolute IRI, or a plain name in
+the model's namespace (`cost center` → `m:costCenter`). Each entry shows the name
+first and the prefixed IRI under it. The list floats (`position: fixed`) under the
+field, or above it when there is more room there — as in the bottom panel — so
+no scrolling container clips it; a native `<datalist>` could neither group
+nor put the name first.
 
 ### RDF panel
 
@@ -231,7 +278,9 @@ Shapes: every `shapes` graph of the loaded metamodels + core + core-vis shapes
 (+ legacy `urn:la-gram:shapes`), cached as one array so the validator keeps its
 compiled engine. Data: the model + all `rdfs:subClassOf` axioms + the types of
 referenced resources. `sh:sparql` is stripped (server-side, Req 8). Debounced
-300 ms. Measured: 140 ms for a 500-element model against the ArchiMate 4.0
+300 ms. Results go to the Validation tab; the tab carries the number of
+Violations (Warnings and Infos are listed, not counted), and violating concepts
+are marked on the canvas. Measured: 140 ms for a 500-element model against the ArchiMate 4.0
 element and relationship shapes.
 
 ### Collaboration
@@ -252,6 +301,11 @@ sequenceDiagram
     S->>S: onStoreDocument → rooms/<room>.nt + .ttl
 ```
 
+The server's Turtle snapshot uses the model's own prefix, read from the model's
+`vann:` statements as the editor reads them. A namespace move arrives at the
+other clients as one update; `ModelSession.resync` re-points them at the model
+and at the same view under its new IRI.
+
 The Y.Doc holds one `Y.Map<true>` keyed by canonical N-Triples: an RDF graph is a
 set of triples, and a map-as-set is its CRDT. Single-valued predicates (bounds,
 points, list cells, endpoints, `skos:prefLabel` per language) are normalised
@@ -261,9 +315,10 @@ locked (a rule at priority 3000 denies move/resize/delete/re-route).
 
 ### Files
 
-`ModelIO.serialize` writes the default graph only, sorted (deterministic),
-with prefixes from the loaded vocabularies' `vann:` declarations, partitioned
-per DD-15 for graph formats; `no-geometry` drops the views graph. Turtle and
+`ModelIO.serialize` writes the default graph only, sorted (deterministic;
+`rdf:type` first under each subject), with prefixes from the loaded
+vocabularies' `vann:` declarations and the model's own (`m:` unless it declares
+another), partitioned per DD-15 for graph formats; `no-geometry` drops the views graph. Turtle and
 TriG go through n3's writer; JSON-LD, RDF/XML, N-Quads, N-Triples through
 Oxigraph. `ModelSession.adopt` runs after every load: migrate retired
 vocabulary, ensure `arch:Model` and `arch:inModel`, ensure a view, and lay the
@@ -294,6 +349,11 @@ elements out in a grid when the data has no geometry.
    selection.
 7. **Indicative vs. normative.** `domainIncludes`/`rangeIncludes` drive
    suggestions; only SHACL decides validity.
+8. **A model owns a namespace.** HTTP IRIs, minted flat in it, so every IRI of
+   the model is a prefixed name in Turtle; the namespace is data on the model
+   and can be moved.
+9. **The vocabularies decide what to offer.** Properties are suggested by
+   `rdfs:domain` and SHACL, not listed wholesale.
 
 ---
 

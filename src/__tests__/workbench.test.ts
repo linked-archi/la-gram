@@ -88,10 +88,13 @@ describe('the workbench', () => {
     expect(ui.palettePanel.palette.elementGroups.length).toBeGreaterThan(0);
     expect(ui.appToolbar.loadedMetamodels.map((m) => m.label)).toEqual(['ArchiMate 4.0 Metamodel']);
     expect(ui.appToolbar.presentationContexts.length).toBeGreaterThan(0);
-    // "Add property" offers the ontologies' datatype/annotation properties.
-    const suggested = ui.propertyPanel.predicateSuggestions.map((p) => p.iri);
-    expect(suggested).toContain(NAMESPACES.skos + 'definition');
-    expect(suggested.length).toBeGreaterThan(9);
+    // "Add property" is served by the catalog: what applies to the concept, never geometry.
+    const actor = app.components.elementManager.createElement(`${AM4}BusinessActor`, app.session.modelIri!).value;
+    const suggested = ui.propertyPanel.catalog!.suggest(actor);
+    expect(suggested.map((p) => p.iri)).toContain(NAMESPACES.skos + 'altLabel');
+    expect(suggested.map((p) => p.iri)).not.toContain(NAMESPACES.skos + 'definition');
+    expect(suggested.some((p) => p.iri.startsWith(NAMESPACES['arch-vis']))).toBe(false);
+    app.components.elementManager.deleteElement(actor);
   });
 
   it('keeps the RDF panel hidden until toggled, then shows the live model as Turtle', async () => {
@@ -123,16 +126,83 @@ describe('the workbench', () => {
     expect(ui.isRdfPanelOpen()).toBe(false);
   });
 
-  it('shows the property panel by default; its × and the toolbar toggle hide and show it', async () => {
-    expect(ui.isPropertyPanelOpen()).toBe(true);
-    expect(ui.appToolbar.propertyOpen).toBe(true);
-    ui.propertyPanel.dispatchEvent(new CustomEvent('property-close', { bubbles: true, composed: true }));
-    expect(ui.isPropertyPanelOpen()).toBe(false);
-    expect(ui.shell.propertyOpen).toBe(false);
-    expect(ui.appToolbar.propertyOpen).toBe(false);
-    await ui.runCommand({ command: 'toggle-properties' });
-    expect(ui.isPropertyPanelOpen()).toBe(true);
-    expect(ui.appToolbar.propertyOpen).toBe(true);
+  it('shows the palette on the right by default; the toolbar toggle hides and shows it', async () => {
+    expect(ui.isPaletteOpen()).toBe(true);
+    expect(ui.appToolbar.paletteOpen).toBe(true);
+    await ui.runCommand({ command: 'toggle-palette' });
+    expect(ui.isPaletteOpen()).toBe(false);
+    expect(ui.shell.paletteOpen).toBe(false);
+    expect(ui.appToolbar.paletteOpen).toBe(false);
+    await ui.runCommand({ command: 'toggle-palette' });
+    expect(ui.isPaletteOpen()).toBe(true);
+  });
+
+  it('keeps properties, validation and the SPARQL editor in the bottom tabs, violations counted on Validation', async () => {
+    expect(ui.shell.bottomTab).toBe('properties');
+    ui.showBottomTab('validation');
+    expect(ui.shell.bottomTab).toBe('validation');
+    // The new model's default view declares no viewpoint: a Warning, not counted.
+    app.runValidation();
+    await ui.shell.updateComplete;
+    expect(ui.validationPanel.results.some((r) => r.severity === 'Warning')).toBe(true);
+    expect(ui.shell.tabBadges.validation).toBeUndefined();
+    // An element without a name is a Violation: counted on the tab.
+    const unnamed = app.components.elementManager.createElement(`${AM4}BusinessActor`, app.session.modelIri!).value;
+    app.runValidation();
+    expect(ui.shell.tabBadges.validation).toBe('1');
+    app.components.elementManager.deleteElement(unnamed);
+    app.runValidation();
+    expect(ui.shell.tabBadges.validation).toBeUndefined();
+    ui.showBottomTab('properties');
+  });
+
+  it('splits the property panel into vertical tabs, and remembers the open one', async () => {
+    // Node's own `localStorage` stub shadows jsdom's here; a store in memory stands in.
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => stored.get(k) ?? null,
+      setItem: (k: string, v: string) => void stored.set(k, v),
+      removeItem: (k: string) => void stored.delete(k),
+    });
+    const el = app.components.elementManager.createElement(`${AM4}BusinessActor`, app.session.modelIri!, { label: 'Tabbed' }).value;
+    app.components.viewManager.addElementToView(app.session.activeViewIri!, el);
+    ui.selectConcept(el);
+    await ui.propertyPanel.updateComplete;
+    const root = ui.propertyPanel.shadowRoot!;
+    const tabs = () =>
+      [...root.querySelectorAll('.vtab')].map((t) => [
+        t.getAttribute('data-tab'),
+        t.querySelector('.vtab-name')!.textContent,
+        t.getAttribute('aria-selected'),
+      ]);
+    expect(tabs()).toEqual([
+      ['info', 'Element information', 'true'],
+      ['properties', 'Properties', 'false'],
+      ['analysis', 'Analysis', 'false'],
+      ['views', 'Appears in views', 'false'],
+    ]);
+    expect(root.querySelector('.pane')!.getAttribute('data-tab')).toBe('info');
+    expect(root.querySelector('.pane .id-row')).not.toBeNull();
+
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="views"]')!.click();
+    await ui.propertyPanel.updateComplete;
+    expect(root.querySelector('.pane')!.getAttribute('data-tab')).toBe('views');
+    expect(root.querySelector('.pane .id-row')).toBeNull();
+    expect(root.querySelector('.pane')!.textContent).toContain('Default View');
+    // Kept for the next selection, and for a panel built later (a reload).
+    expect(stored.get('la-gram:property-panel-tab')).toBe('views');
+    expect(document.createElement('property-panel').activeTab).toBe('views');
+
+    // Up / Down move between the tabs.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="views"]')!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+    );
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.activeTab).toBe('info');
+
+    ui.selectConcept(undefined);
+    app.components.elementManager.deleteElement(el);
+    vi.unstubAllGlobals();
   });
 
   it('creates, names and opens a new view from the toolbar', async () => {

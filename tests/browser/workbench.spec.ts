@@ -289,7 +289,7 @@ describe('the RDF panel', () => {
   });
 });
 
-describe('the property panel', () => {
+describe('the layout and the property panel', () => {
   let page: Page;
   let session: BrowserSession;
 
@@ -297,70 +297,206 @@ describe('the property panel', () => {
     ({ page, session } = await openPage());
   }, 120_000);
 
-  const widthOf = async (selector: string) => (await page.locator(selector).boundingBox())?.width ?? 0;
+  const boxOf = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
 
-  it('is shown by default; hides from its × and the toolbar, and resizes by its left edge', async () => {
-    const panel = page.locator('property-panel');
-    const toggle = page.locator('app-toolbar button[data-command="toggle-properties"]');
-    await panel.waitFor({ state: 'visible' });
-    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
-    const canvasShown = await widthOf('.la-diagram-host');
-
-    // Hidden from its own ×: the canvas takes the room.
-    await panel.locator('button.close').click();
-    await panel.waitFor({ state: 'hidden' });
-    expect(await toggle.getAttribute('aria-pressed')).toBe('false');
-    await until(async () => (await widthOf('.la-diagram-host')) > canvasShown + 250, 'the wider canvas');
-
-    // Back from the toolbar.
-    await toggle.click();
-    await panel.waitFor({ state: 'visible' });
-    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
-    const before = await widthOf('app-shell .panel-property');
-    expect(Math.round(before)).toBe(300);
-
-    // Dragging the left edge left widens it; the width is remembered.
-    const handle = (await page.locator('app-shell .panel-property .resizer').boundingBox())!;
-    const y = handle.y + 200;
-    await page.mouse.move(handle.x + 3, y);
+  /** Drag a resize handle by (dx, dy). */
+  async function drag(selector: string, dx: number, dy: number): Promise<void> {
+    const handle = await boxOf(selector);
+    const x = handle.x + handle.width / 2;
+    const y = handle.y + handle.height / 2;
+    await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(handle.x - 150, y, { steps: 6 });
+    await page.mouse.move(x + dx, y + dy, { steps: 6 });
     await page.mouse.up();
-    const after = await widthOf('app-shell .panel-property');
-    expect(after).toBeGreaterThan(before + 120);
-    const stored = await page.evaluate(() => Number(localStorage.getItem('la-gram:property-panel-width')));
-    expect(Math.abs(stored - after)).toBeLessThanOrEqual(2);
-    await session.screenshot('workbench-property-panel-resized');
+  }
 
-    // Leave the default width for whatever runs next in this browser.
-    await page.evaluate(() => localStorage.removeItem('la-gram:property-panel-width'));
-    findings.push(`property panel: × / toolbar toggle, resized ${Math.round(before)} → ${Math.round(after)}px, remembered: ok`);
+  it('lays out the tree left, the palette right, and Properties / Validation / SPARQL tabs under the canvas', async () => {
+    await page.locator('property-panel').waitFor({ state: 'visible' });
+    const tree = await boxOf('model-explorer');
+    const canvas = await boxOf('.la-diagram-host');
+    const palette = await boxOf('palette-panel');
+    const tabs = await boxOf('app-shell .tabs');
+    expect(tree.x + tree.width).toBeLessThanOrEqual(canvas.x + 1);
+    expect(palette.x).toBeGreaterThanOrEqual(canvas.x + canvas.width - 1);
+    expect(tabs.y).toBeGreaterThanOrEqual(canvas.y + canvas.height - 1);
+    expect(tree.height).toBeGreaterThan(canvas.height); // the tree runs the full height
+    expect(await page.locator('app-shell .tab').allInnerTexts()).toEqual([
+      expect.stringMatching(/^Properties/),
+      expect.stringMatching(/^Validation/),
+      expect.stringMatching(/^SPARQL Query/),
+    ]);
+
+    // Validation: its own tab. The new model's view has no viewpoint — a Warning, listed, not counted.
+    await page.locator('app-shell .tab[data-tab="validation"]').click();
+    await page.locator('validation-panel').waitFor({ state: 'visible' });
+    expect(await page.locator('property-panel').isVisible()).toBe(false);
+    await until(async () => /warning/i.test(await page.locator('validation-panel .summary').innerText()), 'the viewpoint warning');
+    const badge = page.locator('app-shell .tab[data-tab="validation"] .badge');
+    expect(await badge.count()).toBe(0);
+    // A Violation (an element without a name) is counted on the tab, and the count goes when it is fixed.
+    const unnamed = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      return app.components.elementManager.createElement(
+        'https://meta.linked.archi/archimate4/onto#BusinessActor',
+        app.session.modelIri,
+      ).value as string;
+    });
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.scheduleValidation());
+    await until(async () => (await badge.count()) === 1 && (await badge.innerText()) === '1', 'the violation count');
+    await page.evaluate((iri) => {
+      const app = (window as any).__LA_GRAM_APP__;
+      app.components.elementManager.deleteElement(iri);
+      app.scheduleValidation();
+    }, unnamed);
+    await until(async () => (await badge.count()) === 0, 'the count cleared');
+    await page.locator('app-shell .tab[data-tab="sparql"]').click();
+    await page.locator('sparql-editor').waitFor({ state: 'visible' });
+
+    // The open tab folds the panel to its tabs; the canvas takes the room.
+    await page.locator('app-shell .tab[data-tab="sparql"]').click();
+    await page.locator('sparql-editor').waitFor({ state: 'hidden' });
+    await until(async () => (await boxOf('.la-diagram-host')).height > canvas.height + 150, 'the taller canvas');
+    await page.locator('app-shell .tab[data-tab="properties"]').click();
+    await page.locator('property-panel').waitFor({ state: 'visible' });
+
+    // The bottom panel grows by its top edge, the palette by its left edge; both remembered.
+    const bottomBefore = (await boxOf('app-shell .panel-bottom')).height;
+    await drag('app-shell .panel-bottom .resizer', 0, -100);
+    const bottomAfter = (await boxOf('app-shell .panel-bottom')).height;
+    expect(bottomAfter).toBeGreaterThan(bottomBefore + 80);
+    const paletteBefore = (await boxOf('app-shell .panel-palette')).width;
+    await drag('app-shell .panel-palette .resizer', -80, 0);
+    const paletteAfter = (await boxOf('app-shell .panel-palette')).width;
+    expect(paletteAfter).toBeGreaterThan(paletteBefore + 60);
+    const remembered = await page.evaluate(() => [
+      Number(localStorage.getItem('la-gram:bottom-panel-height')),
+      Number(localStorage.getItem('la-gram:palette-panel-width')),
+    ]);
+    expect(Math.abs(remembered[0] - bottomAfter)).toBeLessThanOrEqual(2);
+    expect(Math.abs(remembered[1] - paletteAfter)).toBeLessThanOrEqual(2);
+    await session.screenshot('workbench-layout');
+
+    // The palette hides from the toolbar.
+    const toggle = page.locator('app-toolbar button[data-command="toggle-palette"]');
+    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+    await toggle.click();
+    await page.locator('palette-panel').waitFor({ state: 'hidden' });
+    expect(await toggle.getAttribute('aria-pressed')).toBe('false');
+    await toggle.click();
+    await page.locator('palette-panel').waitFor({ state: 'visible' });
+
+    // Leave the defaults for whatever runs next in this browser.
+    await page.evaluate(() => {
+      for (const key of ['bottom-panel-height', 'palette-panel-width', 'bottom-panel-tab', 'bottom-panel-folded']) {
+        localStorage.removeItem(`la-gram:${key}`);
+      }
+    });
+    await page.reload();
+    await page.locator('palette-panel .palette-item').first().waitFor({ state: 'attached', timeout: 30_000 });
+    await page.waitForFunction(() => Boolean((window as any).__LA_GRAM_APP__), undefined, { timeout: 30_000 });
+    findings.push(
+      `layout: tree | canvas + tabs | palette; bottom ${Math.round(bottomBefore)} → ${Math.round(bottomAfter)}px, palette ${Math.round(paletteBefore)} → ${Math.round(paletteAfter)}px: ok`,
+    );
   });
 
-  it('lists ID, type, inModel, prefLabel, then the added properties (no inView rows)', async () => {
+  it('shows the element in vertical tabs: information, properties (added here), analysis, views', async () => {
     await dropActor(page, 300, 200);
     await until(async () => (await model(page)).actors.length === 1, 'the actor');
     const [actor] = (await model(page)).actors;
     await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.selectConcept(iri), actor);
     const panel = page.locator('property-panel');
+    const openTab = (id: string) => panel.locator(`.vtab[data-tab="${id}"]`).click();
     const labels = async () =>
-      (await panel.locator('li.property-row .property-label').allInnerTexts()).map((t) => t.trim().split(/\s/)[0]);
-    await until(async () => (await labels()).includes('prefLabel'), 'the element’s fields');
+      (await panel.locator('.pane li.property-row .property-label').allInnerTexts()).map((t) => t.trim().split(/\s/)[0]);
 
-    for (const [predicate, value] of [
-      ['https://example.org/props#owner', 'Team A'],
-      ['https://example.org/props#cost', '100'],
+    // Vertical tabs on the left, with counts; the information tab: ID, type, inModel, name, definition.
+    await openTab('info');
+    await until(async () => (await labels()).includes('prefLabel'), 'the element’s fields');
+    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual([
+      'Element information',
+      'Properties',
+      'Analysis',
+      'Appears in views',
+    ]);
+    expect(await labels()).toEqual(['ID', 'type', 'inModel', 'prefLabel', 'definition']);
+    expect(await panel.locator('li.id-row input').inputValue()).toBe(actor);
+    const side = (await panel.locator('.side').boundingBox())!;
+    const pane = (await panel.locator('.pane').boundingBox())!;
+    expect(side.x + side.width).toBeLessThanOrEqual(pane.x + 1); // tabs on the left
+
+    // The definition is listed under the name, empty, to be filled in; emptying it removes it again.
+    const definitions = async () =>
+      page.evaluate(
+        (iri) =>
+          (window as any).__LA_GRAM_APP__.components.store.getQuads(
+            { termType: 'NamedNode', value: iri },
+            { termType: 'NamedNode', value: 'http://www.w3.org/2004/02/skos/core#definition' },
+          ).map((q: any) => q.object.value) as string[],
+        actor,
+      );
+    const definition = panel.locator('.pane li.property-row textarea');
+    expect(await definition.getAttribute('placeholder')).toBe('Add a definition…');
+    await definition.fill('Serves customers at the counter.');
+    await definition.press('Tab');
+    await until(async () => (await definitions()).length === 1, 'the definition');
+    expect(await definitions()).toEqual(['Serves customers at the counter.']);
+    await session.screenshot('workbench-property-panel-added');
+    await panel.locator('.pane li.property-row textarea').fill('');
+    await panel.locator('.pane li.property-row textarea').press('Tab');
+    await until(async () => (await definitions()).length === 0, 'the definition removed');
+    expect(await labels()).toContain('definition');
+
+    // The Properties tab: a plain name typed in the picker is a new property in the model's namespace.
+    await openTab('properties');
+    const picker = panel.locator('property-picker input');
+    for (const [name, value] of [
+      ['owner', 'Team A'],
+      ['cost', '100'],
     ]) {
-      await panel.locator('.add-row input').nth(0).fill(predicate);
-      await panel.locator('.add-row input').nth(1).fill(value);
+      await picker.fill(name);
+      await picker.press('Enter');
+      await panel.locator('.add-row .new-value').fill(value);
       await panel.locator('.add-row button.add').click();
     }
     await until(async () => (await labels()).includes('cost'), 'the added properties');
-    expect(await labels()).toEqual(['ID', 'type', 'inModel', 'prefLabel', 'cost', 'owner']);
-    expect(await panel.locator('li.id-row input').inputValue()).toBe(actor);
-    expect(await panel.locator('li.property-row.first-added .property-label').innerText()).toMatch(/^cost/);
-    await session.screenshot('workbench-property-panel-added');
-    findings.push('property panel: ID, type, inModel, prefLabel, then added properties: ok');
+    expect(await labels()).toEqual(['cost', 'owner']);
+    expect(await panel.locator('.vtab[data-tab="properties"] .count').innerText()).toBe('2');
+    const ns = await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.namespace().namespace as string);
+    const owner = await page.evaluate(
+      ([iri, p]) => (window as any).__LA_GRAM_APP__.components.store.getQuads({ termType: 'NamedNode', value: iri }, { termType: 'NamedNode', value: p }).length,
+      [actor, `${ns}owner`],
+    );
+    expect(owner).toBe(1);
+    await session.screenshot('workbench-property-tabs');
+
+    // The list: what applies to a Business Actor, what the model uses, documentation; More folded; no geometry.
+    await picker.click();
+    const list = panel.locator('property-picker .list');
+    await list.waitFor();
+    const groups = await list.locator('.group').allInnerTexts();
+    expect(groups.slice(0, 3)).toEqual(['FOR BUSINESS ACTOR', 'USED IN THIS MODEL', 'DOCUMENTATION']);
+    expect(groups[3]).toMatch(/^MORE \(\d+\)/);
+    const options = await list.locator('.option').allInnerTexts();
+    expect(options.some((o) => /bounds|point-x|fillColor|unqualifiedForm|skos:definition|dcterms:description/.test(o))).toBe(false);
+    expect(options.some((o) => o.includes('m:owner'))).toBe(true);
+    // The name reads first; the prefixed IRI is quieter.
+    const [nameColor, curieColor] = await list.locator('.option').first().evaluate((o) => [
+      getComputedStyle(o.querySelector('.name')!).color,
+      getComputedStyle(o.querySelector('.curie')!).color,
+    ]);
+    expect(nameColor).toBe('rgb(32, 33, 36)');
+    expect(curieColor).toBe('rgb(128, 134, 139)');
+    await session.screenshot('workbench-property-picker');
+    await picker.press('Escape');
+
+    // Analysis and views have tabs of their own.
+    await openTab('views');
+    expect(await panel.locator('.pane').innerText()).toContain('Default View');
+    await openTab('analysis');
+    expect(await panel.locator('.pane').innerText()).toContain('No relationships');
+    await openTab('info');
+    await page.evaluate(() => localStorage.removeItem('la-gram:property-panel-tab'));
+    findings.push('property panel: vertical tabs (information, properties, analysis, views); picker groups, no geometry: ok');
   });
 });
 

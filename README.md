@@ -10,12 +10,13 @@ rules, the notation and the validation all come from data.
 
 - **Model / views** — one model, any number of diagram, catalog and matrix views; an element is one resource wherever it appears. Delete from a view or from the model.
 - **Published vocabulary** — `arch:inModel`, `arch:inView`, qualified relationships plus their unqualified triples, `arch-vis:ArchNode`/`Link` geometry; older models are migrated on open.
-- **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes.
+- **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes; the Validation tab counts the violations.
+- **Properties** — the selected concept in vertical tabs (information, properties, analysis, views); adding a property offers what applies to its type (by the vocabularies' `rdfs:domain` and SHACL shapes), what the model already uses and documentation properties — or any name, prefixed name or IRI.
 - **Files** — Turtle, TriG (per-layer graphs), JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG export.
 - **Collaboration** — real-time rooms (Yjs over Hocuspocus) that share the model's triples; presence and soft locks.
 - **Undo everywhere** — every canvas change, including placements and model-level deletes.
 - **See the RDF** — the "{ } RDF" toggle opens a panel on the right with the live model as Turtle (or any other format), exactly as it would be saved.
-- **Room for the canvas** — the property panel and the RDF panel hide (their × or the toolbar toggles) and resize by dragging their left edge; widths are remembered.
+- **Layout** — the model tree on the left; the palette on the right; under the canvas, tabs for **Properties**, **Validation** (with the violation count) and **SPARQL Query**. The palette and the RDF panel hide from the toolbar and resize by their left edge; the bottom panel resizes by its top edge and folds to its tabs (click the open tab). Sizes are remembered.
 - **Your namespace** — every IRI is an HTTP URI in the model's namespace, written as `m:element-…`, `m:view-…`. New models start under the placeholder `https://example.org/`; **Model settings** (click the model name) sets your own namespace and prefix and moves the model into it.
 
 ## Run
@@ -58,6 +59,6 @@ and `DATA_DIR`.
 
 ## Documentation
 
-- `.kiro/specs/la-gram/` — requirements, design, tasks (what is done, what is next)
+- `.kiro/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
 - `.kiro/steering/project-conventions.md` — principles and code conventions
-- `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification
+- `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification; Appendix D says what la-gram implements of it

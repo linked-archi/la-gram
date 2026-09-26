@@ -92,9 +92,9 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 1. Dragging a palette entry onto the canvas creates the element at the drop point; clicking an entry arms click-to-place
 2. Each element has a stable IRI (UUID-based, minted at creation, never changed), its class, a language-tagged `skos:prefLabel`, and `arch:inModel`; it is placed in the open view as an `arch-vis:ArchNode`
 3. The label is editable in the property panel; the canvas and the tree follow
-4. Selecting an element (canvas or tree) shows it in the property panel: kind, type, IRI, properties, relationships, the views it appears in
+4. Selecting an element (canvas or tree) shows it in the property panel (the Properties tab under the canvas): kind, type, IRI, properties, relationships, the views it appears in
 5. Properties are persisted with the element and included in every export
-6. Properties can be added as predicate IRI + value, with suggestions from the loaded ontologies; values can be removed (not the type, not the name). The panel lists, in order: ID (the IRI), type, `inModel`, `prefLabel`, then every other property by label, set off by a divider — so an added property appears under the name. `arch:inView` is not listed: the views are in the toolbar and under "Appears in views"
+6. Properties are added by picking or typing a property and a value; values can be removed (not the type, not the name). The picker offers what applies to the concept's type (by `rdfs:domain` / SHACL), what the model already uses, documentation properties, and — folded — the rest; never diagram geometry, notation styling or metamodel-authoring terms. Entries show the name first, the prefixed IRI smaller. Any property can be typed: a plain name (a new property in the model's namespace, `m:owner`), a prefixed name, or an IRI. The panel lists, in order: ID (the IRI), type, `inModel`, `prefLabel`, `skos:definition` — the name and the definition always, empty until filled in (emptying the definition removes it; the name cannot be emptied) — then — in the panel's own *Properties* tab, with the add field — every other property by label. `arch:inView` is not listed: the views are in the toolbar and under "Appears in views"
 7. Deleting: **Delete from View** (the canvas default — Delete key, pad ×) removes the placement only; **Delete from Model** (pad ✖, tree menu) removes the element everywhere after a confirmation listing the views it appears in
 8. Delete from Model removes every relationship connected to the element, in every view
 9. Edit latency ≤ 16 ms per command
@@ -156,7 +156,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 4. `sh:sparql` constraints are stripped client-side (left to the server, Req 8)
 5. Each result shows severity, the concept's name, the message and the source shape
 6. `sh:message` is shown when present; otherwise a generated message
-7. Results are in the Validation panel; clicking one shows the concept (switching to a view that contains it)
+7. Results are in the Validation tab under the canvas; clicking one shows the concept (switching to a view that contains it). The tab shows the number of Violations, so they are seen while another tab is open; Warnings and Infos are listed but not counted — a view without a viewpoint is a Warning (the published viewpoint shapes declare `sh:severity` on their property shapes)
 8. Violating concepts are marked on the canvas
 9. Results match what a server-side SHACL engine reports for the core constraints
 
@@ -229,12 +229,12 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 #### Acceptance Criteria
 
-1. The model tree is in the left panel
+1. The model tree is the left column, full height
 2. Model → Views + Elements (grouped by type) + Relationships (grouped by type) + Unclassified
 3. The open view is highlighted; concepts placed in it are marked
 4. Double-click opens a view; single click selects
 5. Right-click menus:
-   - **Model**: Rename, New diagram / catalog / matrix
+   - **Model**: Rename, Model settings (name, namespace, prefix — also on double-click), New diagram / catalog / matrix
    - **View**: Open, Rename, Set viewpoint, Duplicate, Delete (concepts stay)
    - **Element**: Select on canvas / Add to current view, Rename, Delete from model
    - **Relationship**: Select on canvas / Add to current view, Show source, Show target, Rename, Delete from model
@@ -251,14 +251,14 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 #### Acceptance Criteria
 
-1. Left: palette (top) and model tree (bottom)
+1. Left, full height: the model tree
 2. Centre: the canvas with its tool strip (connect, lasso, hand), or a catalog/matrix view
-3. Top: the app toolbar — model name (rename; unsaved-changes dot), File, Metamodels, undo/redo, view selector + new view, viewpoint, presentation context, collaboration
-4. Right: the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) — shown by default; hidden from its × or the toolbar's "ⓘ Properties" toggle
-5. Bottom: validation results and the SPARQL editor
+3. Top: the app toolbar — model name (opens Model settings; unsaved-changes dot), File, Metamodels, undo/redo, view selector + new view, viewpoint, presentation context, the "▦ Palette" and "{ } RDF" toggles, collaboration
+4. Bottom, under the canvas: a tabbed panel — **Properties**, **Validation** (the number of violations shown on the tab), **SPARQL Query**. Properties is the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) with vertical tabs on its left — *‹Kind› information* (ID, type, `inModel`, name, definition), *Properties* (the added ones and the add field), *Analysis* (relationships), *Appears in views* — with counts; the open tab stays open across selections and reloads. Clicking the open tab (or ▾) folds the panel to its tabs; the open tab, the height and the folding are remembered
+5. Right: the palette — shown by default, hidden from the toolbar's "▦ Palette" toggle
 5a. Far right, full height: the RDF panel (Req 5.7) — hidden by default
-6. Panels hideable — the right-hand side panels (property, RDF) are; the left sidebar and the bottom row *not yet*
-7. Panels resizable with persisted sizes — the side panels are, by dragging their left edge (width remembered per browser; the canvas keeps at least 240 px); the others *not yet*
+6. Panels hideable — the palette and the RDF panel; the bottom panel folds to its tabs; the model tree *not yet*
+7. Panels resizable with persisted sizes — the palette and the RDF panel by their left edge, the bottom panel by its top edge (remembered per browser; the canvas keeps at least 240 × 160 px); the model tree *not yet*
 8. Selecting on the canvas updates the property panel and the tree
 9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, change type)
 10. Keyboard: Delete, Ctrl/Cmd+Z/Y, zoom; keys typed in panel fields never reach the canvas
@@ -290,5 +290,5 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 ### Requirement 16: SPARQL (la-gram)
 
-1. A SPARQL 1.1 editor queries the live store (model and metamodels) with syntax highlighting and prefix completion
+1. A SPARQL 1.1 editor, the SPARQL Query tab under the canvas, queries the live store (model and metamodels) with syntax highlighting and prefix completion
 2. CONSTRUCT results can be rendered as a view — *existing component; view creation from it not yet wired*
