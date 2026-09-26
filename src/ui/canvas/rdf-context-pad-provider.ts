@@ -34,6 +34,7 @@ import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import {
   hasOutgoingRelationshipTypes,
+  shapesOf,
   identityClosure,
   type ClassClosure,
 } from './relationship-resolution.js';
@@ -304,9 +305,11 @@ export class RdfContextPadProvider {
    * Matching runs against the type's superclass closure, not its exact IRI:
    * metamodels declare `arch:domainIncludes` against abstract superclasses
    * (`am4:ActiveStructureElement`), so an exact-IRI test is `false` for every
-   * concrete type and the Connect entry would never appear.
+   * concrete type and the Connect entry would never appear. Where the
+   * relationship shapes cover a type they are asked instead of the hints, as the
+   * manager does.
    */
   private hasOutgoingRelationships(typeIri: string): boolean {
-    return hasOutgoingRelationshipTypes(this.paletteDefinition, this.classClosure, typeIri);
+    return hasOutgoingRelationshipTypes(this.paletteDefinition, this.classClosure, typeIri, shapesOf(this.relationshipManager));
   }
 }

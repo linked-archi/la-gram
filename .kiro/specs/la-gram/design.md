@@ -192,6 +192,42 @@ model runs its model operation inside a nested command:
 undo applies the inverse diff, redo re-applies it. Re-running logic on redo
 would mint new IRIs; replaying the diff cannot.
 
+### Which relationships are permitted
+
+`RelationshipManager.getValidRelationships(source, target)` answers for connect,
+append and "change type". The authority is the metamodel's **relationship
+shapes**: ArchiMate 4.0's and 3.2's are generated from the specification's
+relationship matrix — one node shape per qualified relationship class whose
+`sh:or` lists every permitted (source class, target classes) pair.
+`model-manager/relationship-table.ts` reads them into a lookup, walking the RDF
+lists with indexed quad lookups (136 ms for ArchiMate 4.0, 500 ms for 3.2; the
+same as one SPARQL query with `rdf:rest*` took ~50 s), cached until the loaded
+graphs change. As in validation, `sh:targetClass` reaches subclasses, so every
+shape on a class in the relationship's closure must admit the pair — Composition
+is allowed exactly where Aggregation is. Relationship classes no shape covers
+(metamodels without relationship shapes) fall back to the `domainIncludes` /
+`rangeIncludes` hints. Before the table, the hints admitted every ArchiMate 4.0
+pair, and the relationship an append created by default failed the shapes for
+68% of them.
+
+**Append.** "+" on the pad lists the element types some relationship is
+permitted to, with the palette's icons. Association is permitted between any two
+elements, so a silent default would always hide a choice: the entry decides
+alone only when one *specific* relationship is permitted (or Association alone);
+otherwise a second menu lists them, best-ranked first, Association last, and the
+pick is preferred for that one append. A drag from the menu cannot pause to ask
+and takes the best-ranked one.
+
+**Existing relationships.** The same menu's header carries two tabs (diagram-js
+header entries in their own group, styled as a tab strip): *New element* and
+*Existing relationships (n)* — what the element is already related to in the
+model, other ends not in the view listed first. A click places the other end
+beside the source (`findFreePosition`, right of it for an outgoing relationship,
+left for an incoming one) through the same path as the tree's "Add to current
+view", which draws its relationships to what is placed; a drag is the tree's
+drag. The tabs exist only when either list has something, because a header entry
+alone makes a popup menu non-empty — and emptiness is what hides the pad's "+".
+
 ### Store → canvas
 
 Changes that do not come from the canvas — a collaborator, the tree, the
@@ -347,8 +383,9 @@ elements out in a grid when the data has no geometry.
 6. **Collaboration shares the model, not the canvas.** A triple-set CRDT;
    deterministic convergence for single-valued properties; soft locks on
    selection.
-7. **Indicative vs. normative.** `domainIncludes`/`rangeIncludes` drive
-   suggestions; only SHACL decides validity.
+7. **Indicative vs. normative.** `domainIncludes`/`rangeIncludes` are hints;
+   the relationship shapes decide — what the canvas offers as well as what
+   validation reports (`relationship-table.ts`).
 8. **A model owns a namespace.** HTTP IRIs, minted flat in it, so every IRI of
    the model is a prefixed name in Turtle; the namespace is data on the model
    and can be moved.

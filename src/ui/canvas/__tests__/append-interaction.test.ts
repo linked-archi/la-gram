@@ -476,8 +476,8 @@ describe('the offered target types are derived from the metamodel', () => {
     expect(typeof entry.action.click).toBe('function');
     expect(typeof entry.action.dragstart).toBe('function');
     // Bucketed the way the palette is.
-    expect(entry.group).toBe('Business');
-    expect(entries[appendEntryId(DATA_OBJECT)].group).toBe('Application');
+    expect(entry.group).toEqual({ id: 'Business', name: 'Business' });
+    expect(entries[appendEntryId(DATA_OBJECT)].group?.name).toBe('Application');
   });
 
   it('a source that can reach nothing yields an empty menu, which is the gate', () => {
@@ -617,6 +617,16 @@ describe('click-to-append', () => {
     expect(appended!.x).toBeGreaterThan(source.bounds.x + source.bounds.width);
     expect(f.canvas.getRelationships().size).toBe(1);
     expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(SERVING);
+  });
+
+  it('creates the relationship the user picked, when the metamodel permits it', () => {
+    const f = fixture();
+
+    f.canvas.appendElement(SRC, BUSINESS_ROLE, ASSOCIATION);
+
+    expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(ASSOCIATION);
+    // The pick lasts for that append only.
+    expect(f.canvas.preferredRelationshipType()).toBeUndefined();
   });
 
   it('is what the menu entry does on click', () => {

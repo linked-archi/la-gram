@@ -46,18 +46,74 @@
  *
  * The type choice therefore costs one click before the drag, and nothing after.
  *
+ * ## Which relationship
+ *
+ * An append is two model changes: the element, and a relationship to it. The
+ * relationship types offered are exactly those the metamodel permits for the
+ * pair — its relationship shapes where it has them (`relationship-table.ts`),
+ * its domain/range hints where not — so whatever is created is valid.
+ *
+ * Several are usually permitted, if only because ArchiMate allows Association
+ * between any two elements. So the entry decides without asking only when the
+ * choice is clear: one *specific* relationship (Association aside), or
+ * Association alone. When several specific ones are permitted — Flow, Serving,
+ * Triggering — a click opens a second menu listing them, best-ranked first and
+ * Association last ({@link RdfAppendRelationshipMenuProvider}). A drag cannot
+ * pause to ask, so it takes the best-ranked one; the type can be changed on the
+ * connection afterwards.
+ *
+ * ## Two tabs: new elements, existing relationships
+ *
+ * The menu's header carries two tabs. **New element** is the above. **Existing
+ * relationships** lists the relationships the element already has in the model
+ * — to and from elements that are often not in the open view — so the related
+ * element and the relationship can be brought onto the canvas in one click
+ * (placed beside the source) or dragged to a spot. Nothing new is created in the
+ * model: it is a placement, like dropping the element from the model tree.
+ *
  * ## Emptiness is the gate
  *
- * Like {@link RdfReplaceMenuProvider}, this returns **no entries at all** when
- * the metamodel permits no target. `PopupMenu.isEmpty(element, id)` is then true,
+ * Like {@link RdfReplaceMenuProvider}, this returns **no entries at all** — and
+ * no tabs — when the metamodel permits no target and the element has no
+ * relationship in the model. `PopupMenu.isEmpty(element, id)` is then true,
  * which is exactly what keeps the pad's `append` entry away — so the pad needs to
  * know nothing about metamodels.
  */
 
+import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
+import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { iconHref } from './notation-shapes.js';
 import type { AppendTarget } from './relationship-resolution.js';
 
 /** Provider id the menu is registered and opened under. */
 export const APPEND_TARGET_MENU_ID = 'la-append-target';
+
+/** Provider id of the second step: which relationship to the chosen type. */
+export const APPEND_RELATIONSHIP_MENU_ID = 'la-append-relationship';
+
+/**
+ * A relationship type that holds between almost anything — ArchiMate's
+ * Association. It is always offered, so it does not make a choice ambiguous;
+ * the relationship manager ranks it last for the same reason.
+ */
+export function isGenericRelationship(relationship: RelationshipTypeInfo): boolean {
+  return relationship.label === 'Association';
+}
+
+/**
+ * The relationship an append creates without asking, or `undefined` when the
+ * user has to choose: several specific relationships are permitted.
+ */
+export function unambiguousRelationship(relationships: RelationshipTypeInfo[]): RelationshipTypeInfo | undefined {
+  const specific = relationships.filter((r) => !isGenericRelationship(r));
+  if (specific.length > 1) return undefined;
+  return specific[0] ?? relationships[0];
+}
+
+/** The icon of a palette type or relationship, as a URL an `<img>` can load. */
+function iconOf(iconUrl: string | undefined): string | undefined {
+  return iconHref(iconUrl, assetUrl) ?? undefined;
+}
 
 /** Class on every entry, so the menu can be styled and found in tests. */
 export const APPEND_ENTRY_CLASS = 'la-append-target';
@@ -84,12 +140,51 @@ export type AppendMenuContextResolver = (target: unknown) => AppendMenuContext |
 /** The element types that may be appended to a source type, ranked. */
 export type AppendTargetResolver = (sourceTypeIri: string) => AppendTarget[];
 
+/** A relationship the source element already has in the model, and its other end. */
+export interface ExistingRelationship {
+  relationshipIri: string;
+  /** The relationship type's label (`Serving`). */
+  typeLabel: string;
+  /** From the source (`out`) or to it (`in`). */
+  direction: 'out' | 'in';
+  otherIri: string;
+  otherLabel: string;
+  /** The other end's type label (`Application Component`). */
+  otherTypeLabel?: string;
+  /** The other end's type icon, as the palette publishes it. */
+  otherIconUrl?: string;
+  /** Whether the other end is placed in the open view. */
+  otherInView: boolean;
+  /** Whether the relationship is drawn in the open view. */
+  drawn: boolean;
+}
+
+/** The relationships a source element has in the model. */
+export type ExistingRelationshipResolver = (context: AppendMenuContext) => ExistingRelationship[];
+
+/** The append menu's tabs. */
+export type AppendTab = 'new' | 'existing';
+
+/** Header group the tabs are rendered in (styled as tabs in `index.html`). */
+export const APPEND_TABS_GROUP = 'la-append-tabs';
+
 /** How the menu performs the append. The provider never mutates the model. */
 export interface AppendSupport {
-  /** Click: place the new element automatically and connect it. */
-  place(context: AppendMenuContext, typeIri: string): void;
+  /**
+   * Click: place the new element automatically and connect it — with
+   * `relationshipTypeIri` when given, else the best-ranked permitted one.
+   */
+  place(context: AppendMenuContext, typeIri: string, relationshipTypeIri?: string): void;
   /** Drag: hand a new shape to diagram-js's `create` tool, sourced at `context`. */
   drag(context: AppendMenuContext, typeIri: string, event: unknown): void;
+  /** Several specific relationships are permitted: ask which (the second menu). */
+  chooseRelationship(context: AppendMenuContext, target: AppendTarget, event: unknown): void;
+  /** Existing relationships tab, click: bring the other end into the view beside the source, and the relationship. */
+  showExisting?(context: AppendMenuContext, relationship: ExistingRelationship): void;
+  /** Existing relationships tab, drag: place the other end where it is dropped. */
+  dragExisting?(context: AppendMenuContext, relationship: ExistingRelationship, event: unknown): void;
+  /** Re-render the open menu (after a tab switch). */
+  refresh?(): void;
 }
 
 /**
@@ -102,7 +197,8 @@ export interface AppendMenuEntry {
   /** Primary line: the element type's label. */
   label: string;
   className: string;
-  group?: string;
+  /** A group with a `name` is rendered under that heading. */
+  group?: { id: string; name: string };
   imageUrl?: string;
   /** Tooltip on the whole row. */
   title?: string;
@@ -137,15 +233,77 @@ export class RdfAppendMenuProvider {
   private resolve: AppendMenuContextResolver;
   private targets: AppendTargetResolver;
   private support: AppendSupport;
+  private existing: ExistingRelationshipResolver;
+
+  /** The open tab. */
+  tab: AppendTab = 'new';
 
   constructor(
     resolve: AppendMenuContextResolver,
     targets: AppendTargetResolver,
     support: AppendSupport,
+    existing: ExistingRelationshipResolver = () => [],
   ) {
     this.resolve = resolve;
     this.targets = targets;
     this.support = support;
+    this.existing = existing;
+  }
+
+  /**
+   * Choose the tab a fresh opening starts on: new elements, unless the metamodel
+   * permits none and there are existing relationships to show.
+   */
+  startOn(target: unknown): void {
+    const context = this.resolve(target);
+    this.tab =
+      context && this.targets(context.sourceTypeIri).length === 0 && this.existing(context).length > 0
+        ? 'existing'
+        : 'new';
+  }
+
+  /**
+   * The two tabs, as header entries — only when the menu has anything to offer,
+   * because a header entry alone makes a popup menu non-empty (and so would put
+   * the pad's `append` button on an element that can reach nothing).
+   */
+  getPopupMenuHeaderEntries(target: unknown): Array<{
+    id: string;
+    label: string;
+    title: string;
+    className: string;
+    group: string;
+    active: boolean;
+    action: () => void;
+  }> {
+    const context = this.resolve(target);
+    if (!context) return [];
+    const newCount = this.targets(context.sourceTypeIri).length;
+    const existingCount = this.existing(context).length;
+    if (newCount === 0 && existingCount === 0) return [];
+    const tab = (id: AppendTab, label: string, title: string) => ({
+      id: `la-append-tab-${id}`,
+      label,
+      title,
+      className: `la-append-tab la-append-tab-${id}`,
+      group: APPEND_TABS_GROUP,
+      active: this.tab === id,
+      action: () => {
+        this.tab = id;
+        this.support.refresh?.();
+      },
+    });
+    return [
+      tab('new', 'New element', 'Append a new element, connected to this one'),
+      tab('existing', `Existing relationships (${existingCount})`, 'Show what this element is already related to in the model'),
+    ];
+  }
+
+  /** What an empty tab says. */
+  getEmptyPlaceholder(): string {
+    return this.tab === 'existing'
+      ? 'No relationships in the model yet.'
+      : 'The metamodel permits no relationship from this element.';
   }
 
   /**
@@ -158,6 +316,7 @@ export class RdfAppendMenuProvider {
   getPopupMenuEntries(target: unknown): AppendMenuEntries {
     const context = this.resolve(target);
     if (!context) return {};
+    if (this.tab === 'existing') return this.existingEntries(context);
 
     const entries: AppendMenuEntries = {};
     for (const appendTarget of this.targets(context.sourceTypeIri)) {
@@ -166,16 +325,47 @@ export class RdfAppendMenuProvider {
     return entries;
   }
 
+  /** The Existing relationships tab: not yet in the view first, then what is. */
+  private existingEntries(context: AppendMenuContext): AppendMenuEntries {
+    const rows = [...this.existing(context)].sort(
+      (a, b) => Number(a.otherInView && a.drawn) - Number(b.otherInView && b.drawn) || a.otherLabel.localeCompare(b.otherLabel),
+    );
+    const entries: AppendMenuEntries = {};
+    for (const row of rows) {
+      const shown = row.otherInView && row.drawn;
+      const arrow = row.direction === 'out' ? '→' : '←';
+      const imageUrl = iconOf(row.otherIconUrl);
+      entries[`existing-${appendEntryId(row.relationshipIri)}`] = {
+        label: row.otherLabel,
+        className: `${APPEND_ENTRY_CLASS} la-append-existing`,
+        group: shown ? { id: 'in-view', name: 'In this view' } : { id: 'not-in-view', name: 'Not in this view' },
+        ...(imageUrl ? { imageUrl } : {}),
+        title: shown
+          ? `Already shown — select it`
+          : `${row.otherInView ? 'Draw' : 'Bring in'} ${row.otherLabel} ${arrow} ${row.typeLabel}`,
+        description: `${arrow} ${row.typeLabel}${row.otherTypeLabel ? ` · ${row.otherTypeLabel}` : ''}`,
+        search: `${row.otherLabel} ${row.typeLabel} ${row.otherTypeLabel ?? ''}`.trim(),
+        action: {
+          click: () => this.support.showExisting?.(context, row),
+          dragstart: (event: unknown) => this.support.dragExisting?.(context, row, event),
+        },
+      };
+    }
+    return entries;
+  }
+
   private entry(context: AppendMenuContext, target: AppendTarget): AppendMenuEntry {
     const { type, relationships } = target;
-    const winner = relationships[0];
+    const chosen = unambiguousRelationship(relationships);
+    const specific = relationships.filter((r) => !isGenericRelationship(r));
 
     // Naming the relationship that *will* be created is the point: an append is
     // two model changes, and the second one is not otherwise visible until the
-    // line is drawn.
-    const via = winner ? `via ${winner.label}` : 'via a relationship';
-    const alternatives =
-      relationships.length > 1 ? ` (+${relationships.length - 1} other)` : '';
+    // line is drawn. When it is not decided yet, say what the choice will be.
+    const description = chosen
+      ? `via ${chosen.label}`
+      : `choose: ${specific.map((r) => r.label).join(' / ')}`;
+    const imageUrl = iconOf(type.iconUrl);
 
     return {
       label: type.label,
@@ -184,16 +374,65 @@ export class RdfAppendMenuProvider {
       // the user is looking at is bucketed. `PopupMenuList` groups but does not
       // sort, so the rank order `appendableTargetTypes` established survives
       // within each group.
-      group: target.category || APPEND_DEFAULT_GROUP,
-      ...(type.iconUrl !== undefined ? { imageUrl: type.iconUrl } : {}),
-      title: `Append ${type.label} ${via}${alternatives}`,
-      description: `${via}${alternatives}`,
-      search: `${type.label} ${winner?.label ?? ''}`.trim(),
+      group: { id: target.category || APPEND_DEFAULT_GROUP, name: target.category || 'Other' },
+      ...(imageUrl ? { imageUrl } : {}),
+      title: `Append ${type.label} — ${description}`,
+      description,
+      search: `${type.label} ${relationships.map((r) => r.label).join(' ')}`.trim(),
       action: {
-        click: () => this.support.place(context, type.iri),
+        click: (event: unknown) =>
+          chosen
+            ? this.support.place(context, type.iri, chosen.iri)
+            : this.support.chooseRelationship(context, target, event),
         dragstart: (event: unknown) => this.support.drag(context, type.iri, event),
       },
     };
+  }
+}
+
+/**
+ * The second step of an append: which of the permitted relationships to create
+ * to the chosen element type. Best-ranked first, the generic one (Association)
+ * last. The canvas sets {@link pending} before opening it.
+ */
+export class RdfAppendRelationshipMenuProvider {
+  /** What the second menu is for: set by the canvas as it opens it. */
+  pending: { context: AppendMenuContext; target: AppendTarget } | undefined;
+
+  /**
+   * @param iconFor The icon of a relationship type as the palette publishes it,
+   *   for relationships the manager reports without one.
+   */
+  constructor(
+    private readonly support: Pick<AppendSupport, 'place'>,
+    private readonly iconFor?: (relationshipTypeIri: string) => string | undefined,
+  ) {}
+
+  getPopupMenuEntries(_target: unknown): AppendMenuEntries {
+    const pending = this.pending;
+    if (!pending) return {};
+    const { context, target } = pending;
+    const ordered = [
+      ...target.relationships.filter((r) => !isGenericRelationship(r)),
+      ...target.relationships.filter((r) => isGenericRelationship(r)),
+    ];
+    const entries: AppendMenuEntries = {};
+    for (const relationship of ordered) {
+      const imageUrl = iconOf(relationship.iconUrl ?? this.iconFor?.(relationship.iri));
+      entries[appendEntryId(relationship.iri)] = {
+        label: relationship.label,
+        className: APPEND_ENTRY_CLASS,
+        ...(imageUrl ? { imageUrl } : {}),
+        title: relationship.definition ?? relationship.reason ?? relationship.label,
+        description: `to a new ${target.type.label}`,
+        search: relationship.label,
+        action: {
+          click: () => this.support.place(context, target.type.iri, relationship.iri),
+          dragstart: () => undefined,
+        },
+      };
+    }
+    return entries;
   }
 }
 

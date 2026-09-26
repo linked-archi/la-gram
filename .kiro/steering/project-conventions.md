@@ -20,8 +20,9 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.kiro/specs/la-gram/
 2. **The metamodel is data, not code.** Palette, relationship rules, notation,
    viewpoints and validation come from loaded metamodel documents. No
    language-specific logic.
-3. **SHACL is the validation contract.** `domainIncludes`/`rangeIncludes` suggest;
-   shapes decide.
+3. **SHACL is the validation contract.** Shapes decide — what is offered as well
+   as what validation reports; `domainIncludes`/`rangeIncludes` are hints, used
+   only where no shape covers a relationship type.
 4. **Use the published vocabulary exactly.** Core 0.4.0 and core-vis: `arch:inModel`,
    `arch:inView`, `arch:modelConformsToMetamodel`, `arch:viewConformsToViewpoint`,
    qualified relationships with `arch:source`/`arch:target` plus the unqualified
@@ -60,6 +61,9 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.kiro/specs/la-gram/
   `rdf.relationship.*`, `rdf.store.change`, `rdf.model.delete`); store-side
   changes reach the canvas through `syncFromStore()` and never the command stack.
 - Panels emit events; `mount-ui` and the App execute them. Panels do not write the store.
+- What relationships are permitted is `RelationshipManager.getValidRelationships`'s answer
+  (relationship shapes first, `domainIncludes`/`rangeIncludes` hints only where no shape
+  covers); never decide validity from the hints elsewhere.
 - No blank nodes in model data: geometry uses IRI-named list cells.
 - Comments explain *why* and name the spec or design decision (DD-n) behind a choice.
 

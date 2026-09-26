@@ -436,7 +436,12 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     (entries['append'].action as (event: unknown) => void)({ x: 30, y: 40 });
 
     const targets = f.canvas.appendTargets(BUSINESS_ACTOR);
-    expect(f.container.querySelectorAll('.djs-popup .entry')).toHaveLength(targets.length);
+    // The list rows — the header's two tabs are entries too.
+    expect(f.container.querySelectorAll('.djs-popup .djs-popup-results .entry')).toHaveLength(targets.length);
+    expect([...f.container.querySelectorAll('.djs-popup .la-append-tab')].map((t) => t.textContent!.trim())).toEqual([
+      'New element',
+      'Existing relationships (0)',
+    ]);
     expect(
       f.container.querySelector(
         `.djs-popup .entry[data-id="${appendEntryId(targets[0].type.iri)}"]`,

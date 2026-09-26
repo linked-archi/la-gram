@@ -108,9 +108,9 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 #### Acceptance Criteria
 
 1. Selecting an element shows diagram-js's context pad with Connect and Append
-2. Connect (pad or toolbar tool) offers only the relationship types the metamodel's `arch:domainIncludes`/`arch:rangeIncludes` allow (closure-aware), best first
+2. Connect (pad or toolbar tool), Append and "change type" offer only the relationship types the metamodel permits for the pair, best first: where the metamodel publishes relationship shapes (ArchiMate 4.0 and 3.2 — the relationship matrix), exactly the pairs they list, a shape on a superclass applying to its subclasses (Composition ⊂ Aggregation); elsewhere the `arch:domainIncludes`/`arch:rangeIncludes` hints (closure-aware)
 3. Dropping the connection on a target creates the relationship with the best-ranked type; the pad's "change type" menu lists the alternatives
-4. Append creates a new element of an allowed type *and* the relationship to it, as one undo step
+4. Append ("+" on the pad) lists the element types a relationship is permitted to, with their icons, and creates the new element *and* the relationship to it, as one undo step. When one specific relationship is permitted (Association aside) it is created directly; when several are, a second step asks which, Association last. A drag from the menu takes the best-ranked one. The menu has two tabs: **New element** (the above, grouped by the palette's categories) and **Existing relationships** (n) — the relationships the element already has in the model, those whose other end is not in the view first; a click brings the other end into the view beside the element (right for outgoing, left for incoming, at a free spot) with the relationship drawn, a drag places it where dropped; nothing new is created in the model
 5. Relationship types are in the palette; picking one arms the connect tool with that type preferred
 6. Connections are bound to their elements and follow them
 7. Each relationship is a qualified resource (stable IRI, class type, `arch:source`, `arch:target`, `arch:inModel`) *and* the unqualified triple; it is drawn as an `arch-vis:Link` with its route
@@ -119,7 +119,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 10. Connections cannot exist unattached (diagram-js reconnect rules)
 11. Changing a relationship's type keeps its IRI and properties (retyped in place), undoably
 12. Deletion as for elements: from the view by default, from the model on request
-13. `domainIncludes`/`rangeIncludes` are indicative (suggestions); only SHACL decides validity
+13. `domainIncludes`/`rangeIncludes` are indicative; SHACL decides validity — the relationship shapes both for what is offered and in validation, so an offered relationship never fails validation
 
 ---
 

@@ -233,6 +233,48 @@
       cursor: grabbing;
     }
 
+    /* The append menu's tabs — "New element" / "Existing relationships" — are
+       header entries in their own group; the header is one flex row, so the
+       group takes a line of its own under the title and reads as a tab strip. */
+    .la-diagram-host .djs-popup .djs-popup-header:has([data-header-group="la-append-tabs"]) {
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .la-diagram-host .djs-popup [data-header-group="la-append-tabs"] {
+      flex-basis: 100%;
+      gap: 2px;
+      margin-top: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .la-diagram-host .djs-popup [data-header-group="la-append-tabs"]::before {
+      display: none;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-append-tab {
+      padding: 4px 10px 5px;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      color: #5f6368;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-append-tab:hover,
+    .la-diagram-host .djs-popup button.entry.la-append-tab.selected {
+      color: #202124;
+      background: #f1f3f4;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-append-tab.active {
+      color: #1a73e8;
+      border-bottom-color: #1a73e8;
+      font-weight: 500;
+      background: transparent;
+    }
+
     /* ── Canvas markers ────────────────────────────────────────────────
        diagram-js markers are CSS classes on the element's .djs-element group. */
 

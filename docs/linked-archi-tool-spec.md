@@ -216,7 +216,7 @@ interface RelationshipCandidate {
 }
 ```
 
-**Notes.** Validity **MUST** combine `arch:domainIncludes` / `arch:rangeIncludes` from ontologies with SHACL relationship-validity shapes. When more than one candidate is valid, the tool **SHOULD** present a choice rather than auto-selecting.
+**Notes.** Validity **MUST** combine `arch:domainIncludes` / `arch:rangeIncludes` from ontologies with SHACL relationship-validity shapes; where shapes exist they decide what is offered, not only what validation reports afterwards (a shape on a relationship superclass applies to its subclasses, as in validation). When more than one candidate is valid, the tool **SHOULD** present a choice rather than auto-selecting; a relationship permitted between any two elements (ArchiMate's Association) need not count towards the choice.
 
 ### 5.4 Property editing
 
@@ -818,7 +818,7 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §1.2 (6) CRDT truth at runtime | differs | The RDF store is the model of record; the Y.Doc mirrors it as a triple set (§8.3 alternative) |
 | §5.1 Metamodel loading | ✓ | Manifest discovery, parallel levels, `Accept: text/turtle`, catalogue, load by IRI, uploads, several at once, switching |
 | §5.2 Palette generation | ✓ | SKOS + OWL dual classification, axes, notation sets, presentation contexts |
-| §5.3 Relationship validity | ✓ mostly | Closure-aware domain/range + SHACL. When several types are valid, connect takes the one picked in the palette, else the first valid one, and the type can be changed in place among the valid ones afterwards — not a choice up front as §5.3 asks; no suggestion popup for two selected elements yet |
+| §5.3 Relationship validity | ✓ mostly | Offers exactly what the relationship shapes permit (hints only where no shape exists). Append asks which relationship when several specific ones are permitted, and has a second tab for the element's existing relationships (bringing the other end into the view); connect takes the one picked in the palette, else the best-ranked, changeable in place afterwards — not a choice up front as §5.3 asks; no suggestion popup for two selected elements yet |
 | §5.4 Property editing | ✓ | SHACL-derived fields; identity first; adding by applicability; custom names in the model namespace. Property edits are store changes, not canvas commands — not undoable from the canvas yet |
 | §5.5 Live SHACL validation | ✓ | Debounced 300 ms (spec: ≤ 250 ms); `sh:sparql` left to a server that does not exist yet; violations marked on the canvas and counted on the Validation tab |
 | §5.6 Viewpoint filtering | ✓ | Palette filtered, outside-viewpoint shapes greyed, never removed |

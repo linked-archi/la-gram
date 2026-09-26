@@ -17,10 +17,12 @@ import { describe, it, expect } from 'vitest';
 import { DataFactory, Store } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
 import {
+  appendableTargetTypes,
   buildClassClosure,
   hasOutgoingRelationshipTypes,
   identityClosure,
   type ClosureSource,
+  type RelationshipShapes,
 } from '../relationship-resolution.js';
 import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
 import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
@@ -152,6 +154,48 @@ describe('hasOutgoingRelationshipTypes', () => {
     };
 
     expect(hasOutgoingRelationshipTypes(palette, identityClosure, DATA_OBJECT)).toBe(true);
+  });
+});
+
+describe('the prefilters, where relationship shapes cover a type', () => {
+  // Access's hints admit only active → passive structure; the "shapes" here
+  // permit exactly DataObject → BusinessRole instead — the hints are wrong for
+  // it, and the shapes must win, as they do in the manager.
+  const shapes: RelationshipShapes = {
+    covers: (rel) => rel.includes(ACCESS),
+    allowsSource: (_rel, source) => source.includes(DATA_OBJECT),
+    allowsTarget: (_rel, target) => target.includes(BUSINESS_ROLE),
+  };
+  const palette: PaletteDefinition = {
+    elementGroups: [
+      {
+        category: 'All',
+        elements: [
+          { iri: BUSINESS_ACTOR, label: 'Business Actor', isAbstract: false },
+          { iri: BUSINESS_ROLE, label: 'Business Role', isAbstract: false },
+          { iri: DATA_OBJECT, label: 'Data Object', isAbstract: false },
+        ],
+      },
+    ],
+    relationshipTypes: [abstractDomainPalette().relationshipTypes[1]],
+  };
+
+  it('asks the shapes, not the hints, whether a type can start one', () => {
+    const closure = buildClassClosure(hierarchyStore());
+    // By the hints: only active structure can start Access.
+    expect(hasOutgoingRelationshipTypes(palette, closure, DATA_OBJECT)).toBe(false);
+    expect(hasOutgoingRelationshipTypes(palette, closure, DATA_OBJECT, shapes)).toBe(true);
+    expect(hasOutgoingRelationshipTypes(palette, closure, BUSINESS_ACTOR, shapes)).toBe(false);
+  });
+
+  it('keeps the append candidates the shapes permit and the hints would have dropped', () => {
+    const closure = buildClassClosure(hierarchyStore());
+    const manager = (source: string, target: string) =>
+      source === DATA_OBJECT && target === BUSINESS_ROLE ? [{ ...palette.relationshipTypes[0] }] : [];
+    expect(appendableTargetTypes(palette, closure, manager, DATA_OBJECT)).toEqual([]);
+    expect(appendableTargetTypes(palette, closure, manager, DATA_OBJECT, shapes).map((t) => t.type.iri)).toEqual([
+      BUSINESS_ROLE,
+    ]);
   });
 });
 

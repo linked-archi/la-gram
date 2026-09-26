@@ -49,7 +49,10 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 
 ### Task 4: Relationships (Req 4)
 - [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
+- [x] Permitted relationships from the metamodel's relationship shapes (the matrix), superclass shapes applied; hints only where no shape covers — also in the pad's and the append menu's prefilters — *relationship-table.test, relationship-resolution.test*
 - [x] Append: element + relationship in one command
+- [x] Append menu: type icons; asks which relationship when several specific ones are permitted (Association last), else creates it directly — *rdf-append-menu-provider.test, append-interaction.test, workbench.spec*
+- [x] Append menu tabs: *New element* / *Existing relationships (n)* — brings a related element (and the relationship) into the view beside the source, or where dragged — *rdf-append-menu-provider.test, connect-integration.test, workbench.spec*
 - [x] Qualified resource + unqualified triple + link in the view — *connect-integration.test*
 - [x] Change type in place (same IRI, properties kept), undoable — *connect-integration.test*
 - [x] Reattaching an end moves the relationship in the model and in other views, undoable — *view-canvas.test*
@@ -166,7 +169,11 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ## Change log
 
-### Not yet committed (2026-09-26) — layout, properties
+### Not yet committed (2026-09-26) — relationships
+
+- **Relationships** (Req 4.2, 4.4, 4.13): what connect, append and "change type" offer comes from the relationship shapes (ArchiMate's matrix), not the domain/range hints alone — before, 68% of the relationships an ArchiMate 4.0 append created by default failed validation. The append menu's icons load (they were asset-relative paths the page could not resolve), and it asks which relationship when several specific ones are permitted. It has two tabs, **New element** and **Existing relationships**: the second brings what the element is already related to in the model into the view, beside it, with the relationship.
+
+### 2026-09-26 — layout, properties, docs (commit `eac25c4`)
 
 - **Layout** (Req 11): model tree left (full height); palette right (hideable "▦ Palette", resizable); under the canvas, tabs **Properties / Validation / SPARQL Query** — resizable by the top edge, folding to the tabs, remembered; the number of Violations on the Validation tab.
 - **Property panel** (Req 3.4, 3.6): the Properties tab, with vertical tabs — *‹Kind› information* (ID, type, `inModel`, name, definition; the name and the definition always listed, emptying the definition removes it), *Properties* (added ones + add field), *Analysis*, *Appears in views* — counts, Up/Down, the open tab remembered.

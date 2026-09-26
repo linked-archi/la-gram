@@ -96,6 +96,7 @@ import { DataFactory } from 'n3';
 // diagram-js feature modules. These are plain didi module declarations; the
 // package ships no type declarations for the index files, hence the assertions.
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
+import { findFreePosition, generateGetNextPosition } from 'diagram-js/lib/features/auto-place/AutoPlaceUtil.js';
 import MoveModule from 'diagram-js/lib/features/move/index.js';
 import ResizeModule from 'diagram-js/lib/features/resize/index.js';
 import SelectionModule from 'diagram-js/lib/features/selection/index.js';
@@ -159,11 +160,15 @@ import {
 } from './rdf-replace-menu-provider.js';
 import {
   RdfAppendMenuProvider,
+  RdfAppendRelationshipMenuProvider,
   APPEND_TARGET_MENU_ID,
+  APPEND_RELATIONSHIP_MENU_ID,
   type AppendMenuContext,
+  type ExistingRelationship,
 } from './rdf-append-menu-provider.js';
 import {
   appendableTargetTypes,
+  shapesOf,
   identityClosure,
   relationshipKey,
   type AppendTarget,
@@ -439,6 +444,8 @@ interface DjsServices {
     registerProvider(id: string, provider: unknown): void;
     open(target: unknown, providerId: string, position: unknown, options?: unknown): void;
     isEmpty(target: unknown, providerId: string): boolean;
+    /** Re-read the open menu's entries (after a tab switch). */
+    refresh(): void;
     close(): void;
     isOpen(): boolean;
   };
@@ -537,6 +544,8 @@ export class DiagramCanvas {
   readonly contextPadProvider: RdfContextPadProvider;
   readonly replaceMenuProvider: RdfReplaceMenuProvider;
   readonly appendMenuProvider: RdfAppendMenuProvider;
+  /** The append's second step: which relationship, when several are permitted. */
+  readonly appendRelationshipMenuProvider: RdfAppendRelationshipMenuProvider;
   readonly notationStyles: NotationStyleRegistry;
 
   /** The diagram-js instance, or `null` once destroyed. */
@@ -621,9 +630,21 @@ export class DiagramCanvas {
       (target) => this.resolveAppendContext(target),
       (sourceTypeIri) => this.appendTargets(sourceTypeIri),
       {
-        place: (context, typeIri) => this.appendElement(context, typeIri),
+        place: (context, typeIri, relationshipTypeIri) => this.appendElement(context, typeIri, relationshipTypeIri),
         drag: (context, typeIri, event) => this.startAppend(context, typeIri, event),
+        chooseRelationship: (context, target) => this.openAppendRelationshipMenu(context, target),
+        showExisting: (context, relationship) => this.showExistingRelationship(context, relationship),
+        dragExisting: (_context, relationship, event) => this.startPlaceExisting(relationship.otherIri, event),
+        refresh: () => this.services()?.popupMenu.refresh(),
       },
+      (context) => this.existingRelationships(context),
+    );
+
+    this.appendRelationshipMenuProvider = new RdfAppendRelationshipMenuProvider(
+      {
+        place: (context, typeIri, relationshipTypeIri) => this.appendElement(context, typeIri, relationshipTypeIri),
+      },
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
 
     const keyboardBindTo =
@@ -1279,17 +1300,29 @@ export class DiagramCanvas {
    * right of its source, then goes through the same `modeling.appendShape` —
    * so the relationship is created exactly as it is for the drag.
    *
+   * @param relationshipTypeIri The relationship to create, when the user chose
+   *   one; it is preferred for this append only, and — like any preference — only
+   *   honoured when the metamodel permits it for the pair.
    * @return the appended shape, or `undefined` when nothing could be appended.
    */
   appendElement(
     source: AppendMenuContext | ContextPadElement | string,
     typeIri: string,
+    relationshipTypeIri?: string,
   ): DjsShape | undefined {
     const services = this.services();
     const sourceShape = this.resolveShape(source);
     const shape = this.buildNewShape(typeIri);
     if (!services || !sourceShape || !shape) return undefined;
-    return services.autoPlace.append(sourceShape, shape);
+    const previous = this.ruleProvider.getPreferredType();
+    if (relationshipTypeIri) this.ruleProvider.setPreferredType(relationshipTypeIri);
+    try {
+      return services.autoPlace.append(sourceShape, shape);
+    } finally {
+      if (relationshipTypeIri) this.ruleProvider.setPreferredType(previous);
+      // No command runs when the append is refused; do not leave the menu open.
+      services.popupMenu.close();
+    }
   }
 
   /**
@@ -1308,6 +1341,7 @@ export class DiagramCanvas {
       this.classClosure,
       (source, target) => this.relationshipManager.getValidRelationships(source, target),
       sourceTypeIri,
+      shapesOf(this.relationshipManager),
     );
     this.appendTargetCache.set(sourceTypeIri, targets);
     return targets;
@@ -1649,11 +1683,110 @@ export class DiagramCanvas {
     const diagramElement = element.diagramElement;
     if (!services || !diagramElement) return;
 
-    services.popupMenu.open(diagramElement, APPEND_TARGET_MENU_ID, this.padMenuPosition(event), {
+    this.appendMenuPosition = this.padMenuPosition(event);
+    this.appendMenuProvider.startOn(diagramElement);
+    services.popupMenu.open(diagramElement, APPEND_TARGET_MENU_ID, this.appendMenuPosition, {
       title: 'Append element',
       width: 300,
       search: true,
     });
+  }
+
+  /**
+   * The relationships an element has in the model, with what is known about the
+   * other end — the append menu's "Existing relationships" tab. Relationships to
+   * relationships (an ArchiMate association may point at one) and to itself are
+   * left out: there is no element to bring in.
+   */
+  existingRelationships(context: AppendMenuContext): ExistingRelationship[] {
+    const services = this.services();
+    const rows: ExistingRelationship[] = [];
+    for (const rel of this.relationshipManager.getRelationshipsOf?.(context.sourceIri) ?? []) {
+      const out = rel.sourceIri === context.sourceIri;
+      const other = out ? rel.targetIri : rel.sourceIri;
+      if (other === context.sourceIri || this.relationshipManager.getRelationship?.(other)) continue;
+      const description = this.describeElement?.(other);
+      const otherType = description?.typeIri
+        ? this.paletteDefinition.elementGroups.flatMap((g) => g.elements).find((e) => e.iri === description.typeIri)
+        : undefined;
+      const typeLabel =
+        this.paletteDefinition.relationshipTypes.find((r) => r.iri === rel.classIri)?.label ?? localName(rel.classIri);
+      const iconUrl = description?.iconUrl ?? otherType?.iconUrl;
+      rows.push({
+        relationshipIri: rel.iri,
+        typeLabel,
+        direction: out ? 'out' : 'in',
+        otherIri: other,
+        otherLabel: description?.label ?? localName(other),
+        ...(otherType ? { otherTypeLabel: otherType.label } : {}),
+        ...(iconUrl ? { otherIconUrl: iconUrl } : {}),
+        otherInView: Boolean(services?.elementRegistry.get(other)),
+        drawn: Boolean(this.findConnection(rel.iri)),
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Bring the other end of an existing relationship into the view — beside the
+   * source, right of it for an outgoing relationship and left for an incoming
+   * one, at the first free spot — and draw the relationship. Placing an element
+   * draws its relationships to what is already placed, so this is usually one
+   * undoable step; an element already here only gets the relationship drawn.
+   */
+  showExistingRelationship(context: AppendMenuContext, row: ExistingRelationship): boolean {
+    const services = this.services();
+    const source = this.resolveShape(context);
+    if (!services || !source || !this.viewIri) return false;
+    try {
+      if (!services.elementRegistry.get(row.otherIri)) {
+        const shape = this.buildExistingShape(row.otherIri);
+        if (!shape) return false;
+        const gap = 60;
+        const start = {
+          x:
+            row.direction === 'out'
+              ? source.x + source.width + gap + shape.width / 2
+              : source.x - gap - shape.width / 2,
+          y: source.y + source.height / 2,
+        };
+        const at = findFreePosition(
+          source as never,
+          shape as never,
+          start,
+          generateGetNextPosition({ y: { margin: 30, minDistance: 20 } }),
+        );
+        if (!this.placeExisting(row.otherIri, at)) return false;
+      }
+      const drawn = this.drawExistingRelationship(row.relationshipIri);
+      this.reveal(row.relationshipIri);
+      return drawn;
+    } finally {
+      services.popupMenu.close();
+    }
+  }
+
+  /** Where the append menu opened, so its second step opens in the same place. */
+  private appendMenuPosition: { x: number; y: number } | undefined;
+
+  /**
+   * The append's second step: several specific relationships are permitted to
+   * the chosen type, so ask which. Replaces the first menu in place.
+   */
+  private openAppendRelationshipMenu(context: AppendMenuContext, target: AppendTarget): void {
+    const services = this.services();
+    if (!services || !context.diagramElement) return;
+    this.appendRelationshipMenuProvider.pending = { context, target };
+    services.popupMenu.open(
+      context.diagramElement,
+      APPEND_RELATIONSHIP_MENU_ID,
+      this.appendMenuPosition ?? this.padMenuPosition(undefined),
+      {
+        title: 'Which relationship?',
+        width: 300,
+        search: true,
+      },
+    );
   }
 
   /**
@@ -1973,6 +2106,7 @@ export class DiagramCanvas {
       this.replaceMenuProvider,
     );
     services.popupMenu.registerProvider(APPEND_TARGET_MENU_ID, this.appendMenuProvider);
+    services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
   }
 
   /**

@@ -110,6 +110,42 @@ function admits(constraints: string[], closure: string[]): boolean {
 }
 
 /**
+ * What the metamodel's relationship shapes say (`model-manager/relationship-table.ts`),
+ * for the prefilters below. Where the shapes cover a relationship type they
+ * decide, as they do in the manager; the `domainIncludes`/`rangeIncludes`
+ * hints are consulted only for types no shape covers. Asking the hints about a
+ * shaped type could discard a pair the shapes permit — ArchiMate 4.0's Flow is
+ * hinted from behaviour and strategy elements, yet the matrix lets a Business
+ * Actor have Flow.
+ */
+export interface RelationshipShapes {
+  covers(relationshipClosure: readonly string[]): boolean;
+  allowsSource(relationshipClosure: readonly string[], sourceClosure: readonly string[]): boolean;
+  allowsTarget(relationshipClosure: readonly string[], targetClosure: readonly string[]): boolean;
+}
+
+/** The shapes a relationship manager has read, when it reads any (`OxigraphRelationshipManager`). */
+export function shapesOf(manager: unknown): RelationshipShapes | undefined {
+  return (manager as { relationshipTable?(): RelationshipShapes } | undefined)?.relationshipTable?.();
+}
+
+/** Whether a relationship type may start at a source: its shapes, else its hints. */
+function mayStart(rel: RelationshipTypeInfo, sourceClosure: string[], closure: ClassClosure, shapes?: RelationshipShapes): boolean {
+  const relationshipClosure = closure(rel.iri);
+  return shapes?.covers(relationshipClosure)
+    ? shapes.allowsSource(relationshipClosure, sourceClosure)
+    : admits(rel.domainTypes, sourceClosure);
+}
+
+/** Whether a relationship type may end at a target: its shapes, else its hints. */
+function mayEnd(rel: RelationshipTypeInfo, targetClosure: string[], closure: ClassClosure, shapes?: RelationshipShapes): boolean {
+  const relationshipClosure = closure(rel.iri);
+  return shapes?.covers(relationshipClosure)
+    ? shapes.allowsTarget(relationshipClosure, targetClosure)
+    : admits(rel.rangeTypes, targetClosure);
+}
+
+/**
  * Whether any relationship type in the palette can start at `typeIri`.
  *
  * This is the gate on the context pad's Connect entry.
@@ -118,10 +154,11 @@ export function hasOutgoingRelationshipTypes(
   palette: PaletteDefinition,
   closure: ClassClosure,
   typeIri: string,
+  shapes?: RelationshipShapes,
 ): boolean {
   if (!typeIri) return false;
   const sourceClosure = closure(typeIri);
-  return palette.relationshipTypes.some((rel) => admits(rel.domainTypes, sourceClosure));
+  return palette.relationshipTypes.some((rel) => mayStart(rel, sourceClosure, closure, shapes));
 }
 
 /**
@@ -165,12 +202,14 @@ export type ValidRelationshipLookup = (
  * naive cost, so it is only ever run on candidates that survive a free
  * prefilter:
  *
- * 1. **Palette prefilter.** Relationship types whose `arch:domainIncludes`
- *    admits the source's closure, then element types whose closure some such
- *    type's `arch:rangeIncludes` admits. Pure array work over data already in
- *    memory, and it uses the same {@link admits} predicate — including the
- *    "empty constraints are permissive" rule — as the manager, so it can only
- *    discard a candidate the manager would also have discarded.
+ * 1. **Palette prefilter.** Relationship types that may start at the source,
+ *    then element types some such type may end at — judged by the relationship
+ *    shapes where they cover the type ({@link RelationshipShapes}) and by
+ *    `arch:domainIncludes`/`arch:rangeIncludes` otherwise, exactly as the
+ *    manager judges. Array and set work over data already in memory; it asks
+ *    only "any row with this source / target", a superset of the manager's
+ *    pairwise answer, so it can only discard a candidate the manager would
+ *    also have discarded.
  * 2. **Manager confirmation.** `getValidRelationships(source, survivor)` for
  *    each survivor. This is the authority: the ranking, the wildcard handling
  *    and the scoring all live there, and a survivor it answers `[]` for is
@@ -189,11 +228,12 @@ export function appendableTargetTypes(
   closure: ClassClosure,
   getValidRelationships: ValidRelationshipLookup,
   sourceTypeIri: string,
+  shapes?: RelationshipShapes,
 ): AppendTarget[] {
   if (!sourceTypeIri) return [];
 
   const sourceClosure = closure(sourceTypeIri);
-  const outgoing = palette.relationshipTypes.filter((rel) => admits(rel.domainTypes, sourceClosure));
+  const outgoing = palette.relationshipTypes.filter((rel) => mayStart(rel, sourceClosure, closure, shapes));
   if (outgoing.length === 0) return [];
 
   const targets: AppendTarget[] = [];
@@ -204,7 +244,7 @@ export function appendableTargetTypes(
 
       // (1) free prefilter — can any outgoing type's range admit this element?
       const targetClosure = closure(element.iri);
-      if (!outgoing.some((rel) => admits(rel.rangeTypes, targetClosure))) continue;
+      if (!outgoing.some((rel) => mayEnd(rel, targetClosure, closure, shapes))) continue;
 
       // (2) the manager decides, and supplies the ranking.
       const relationships = getValidRelationships(sourceTypeIri, element.iri);

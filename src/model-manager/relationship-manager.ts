@@ -6,6 +6,14 @@
  *
  * ## How relationship validity is decided
  *
+ * **The relationship shapes first.** Where the metamodel publishes them —
+ * ArchiMate 4.0 and 3.2 encode the specification's relationship matrix as SHACL
+ * — they decide what {@link OxigraphRelationshipManager.getValidRelationships}
+ * answers, exactly as validation would (`relationship-table.ts`, read once per
+ * set of loaded graphs; a shape on a relationship superclass applies to its
+ * subclasses). The hints below decide only for relationship types no shape
+ * covers — metamodels without relationship shapes.
+ *
  * `arch:domainIncludes` / `arch:rangeIncludes` are `owl:AnnotationProperty`
  * *hints*, not `rdfs:domain` / `rdfs:range` axioms. The core ontology is
  * explicit: they are "used for guiding modelling but not restricting
@@ -65,6 +73,7 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scope.js';
 import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
 import { modelNamespace } from './model-namespace.js';
+import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
 import {
   collectRelationshipQuads,
   relationshipClassOf,
@@ -183,19 +192,28 @@ export class OxigraphRelationshipManager implements RelationshipManager {
 
     const sourceClosure = this.classClosure(sourceTypeIri, scope);
     const targetClosure = this.classClosure(targetTypeIri, scope);
+    const table = this.relationshipTable(scope);
 
     const matches: RelationshipTypeInfo[] = [];
 
     for (const candidate of candidates) {
       const { domainTypes, rangeTypes } = candidate;
+      const relationshipClosure = this.relationshipClosure(candidate.iri, scope);
+      const shaped = table.covers(relationshipClosure);
 
-      // Empty constraints are permissive: arch:domainIncludes is a hint, so an
-      // absent hint restricts nothing.
-      const sourceOk =
-        domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri));
-      const targetOk =
-        rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri));
-      if (!sourceOk || !targetOk) continue;
+      if (shaped) {
+        // The relationship shapes are normative (the language's relationship
+        // table); the domain/range hints are not consulted where they exist.
+        if (!table.allows(relationshipClosure, sourceClosure, targetClosure)) continue;
+      } else {
+        // Empty constraints are permissive: arch:domainIncludes is a hint, so an
+        // absent hint restricts nothing.
+        const sourceOk =
+          domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri));
+        const targetOk =
+          rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri));
+        if (!sourceOk || !targetOk) continue;
+      }
 
       const label = candidate.label ?? fragmentToLabel(iriFragment(candidate.iri));
 
@@ -206,7 +224,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (label === 'Composition' || label === 'Aggregation') score -= CONTAINMENT_PENALTY;
 
       const constrained = domainTypes.length > 0 || rangeTypes.length > 0;
-      const reason = constrained
+      const reason = shaped
+        ? `Allowed by the metamodel's relationship shapes: a ${shortLabel(sourceTypeIri)} may have ` +
+          `${label} to a ${shortLabel(targetTypeIri)}.`
+        : constrained
         ? `Allowed because ${shortLabel(sourceTypeIri)} matches ${shortList(domainTypes)} ` +
           `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}.`
         : 'Allowed because the metamodel declares no arch:domainIncludes or ' +
@@ -225,6 +246,35 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     }
 
     return matches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.label.localeCompare(b.label));
+  }
+
+  /** The relationship table of the loaded shapes, read once per set of loaded graphs. */
+  private tableCache: { key: string; table: RelationshipTable } | undefined;
+
+  /**
+   * The relationship table the loaded relationship shapes encode
+   * (`relationship-table.ts`). Loading or unloading a metamodel changes the
+   * store's named graphs, which is what the cache is keyed on.
+   */
+  relationshipTable(scope: GraphScope = graphScope(this.store)): RelationshipTable {
+    const key = scope.namedGraphs.join('\n');
+    if (this.tableCache?.key !== key) {
+      this.tableCache = { key, table: readRelationshipTable(this.store) };
+      this.relationshipClosures.clear();
+    }
+    return this.tableCache.table;
+  }
+
+  /** `rdfs:subClassOf*` closures of relationship classes; they change only with the metamodels. */
+  private readonly relationshipClosures = new Map<string, string[]>();
+
+  private relationshipClosure(relationshipClassIri: string, scope: GraphScope): string[] {
+    let closure = this.relationshipClosures.get(relationshipClassIri);
+    if (!closure) {
+      closure = this.classClosure(relationshipClassIri, scope);
+      this.relationshipClosures.set(relationshipClassIri, closure);
+    }
+    return closure;
   }
 
   /**

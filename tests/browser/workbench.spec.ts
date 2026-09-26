@@ -500,6 +500,122 @@ describe('the layout and the property panel', () => {
   });
 });
 
+describe('appending from the context pad', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  it('shows the types with their icons, and asks which relationship when several are permitted', async () => {
+    await dropActor(page, 300, 200);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    // The drop leaves the shape selected, and clicking a selected shape deselects it: start clean.
+    const shape = (await page.locator(SHAPE).first().boundingBox())!;
+    await page.mouse.click(shape.x + shape.width + 200, shape.y + shape.height + 150);
+    await page.locator(SHAPE).first().click();
+    await page.locator('.djs-context-pad .context-pad-append').click();
+    const menu = page.locator('.djs-popup');
+    await menu.waitFor({ state: 'visible' });
+
+    // Every entry's image loads (the glyphs used to be asset-relative paths the page could not resolve).
+    await until(
+      async () =>
+        menu.locator('img').evaluateAll((imgs) => imgs.length > 0 && imgs.every((i) => (i as HTMLImageElement).complete)),
+      'the icons',
+    );
+    const broken = await menu
+      .locator('img')
+      .evaluateAll((imgs) => imgs.filter((i) => (i as HTMLImageElement).naturalWidth === 0).map((i) => (i as HTMLImageElement).src));
+    expect(broken).toEqual([]);
+    const icons = await menu.locator('img').count();
+    expect(icons).toBeGreaterThan(20);
+
+    // Business Actor → Application Component: Flow, Serving, Triggering — so it asks.
+    const component = menu.locator('.entry', { hasText: 'Application Component' }).first();
+    expect(await component.innerText()).toMatch(/choose: Flow \/ Serving \/ Triggering/);
+    await session.screenshot('workbench-append-menu');
+    await component.click();
+    await until(async () => (await menu.locator('.entry').allInnerTexts()).some((t) => t.includes('Serving')), 'the relationship step');
+    const step = (await menu.locator('.entry .djs-popup-label').allInnerTexts()).map((t) => t.trim());
+    expect(step).toEqual(['Flow', 'Serving', 'Triggering', 'Association']);
+    await session.screenshot('workbench-append-relationship');
+    await menu.locator('.entry', { hasText: 'Serving' }).first().click();
+
+    // The element and a Serving relationship to it; nothing the shapes reject.
+    await until(
+      async () =>
+        page.evaluate(() => {
+          const store = (window as any).__LA_GRAM_APP__.components.store;
+          return store.getQuads(null, { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' }, {
+            termType: 'NamedNode',
+            value: 'https://meta.linked.archi/archimate4/onto#Serving',
+          }).length === 1;
+        }),
+      'the Serving relationship',
+    );
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.runValidation());
+    const violations = await page.evaluate(() =>
+      ((window as any).__LA_GRAM_UI__.validationPanel.results as any[])
+        .filter((r) => r.severity === 'Violation')
+        .map((r) => r.message as string),
+    );
+    expect(violations).toEqual([]);
+    findings.push(`append: ${icons} icons loaded; ambiguous target asked (Flow / Serving / Triggering / Association); Serving created, valid: ok`);
+  });
+
+  it('brings a related element back from the Existing relationships tab', async () => {
+    const shapes = async () =>
+      page.evaluate(() => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getNodes(app.session.activeViewIri).length as number;
+      });
+    const links = async () =>
+      page.evaluate(() => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getLinks(app.session.activeViewIri).length as number;
+      });
+    expect(await shapes()).toBe(2);
+    // The appended Application Component is selected: take it out of this view (not the model).
+    await page.keyboard.press('Delete');
+    await until(async () => (await shapes()) === 1 && (await links()) === 0, 'the component gone from the view');
+
+    // "+" on the actor: two tabs; the relationship is still in the model.
+    const actor = page.locator(SHAPE).first();
+    const box = (await actor.boundingBox())!;
+    await page.mouse.click(box.x + box.width + 200, box.y + box.height + 150);
+    await actor.click();
+    await page.locator('.djs-context-pad .context-pad-append').click();
+    const menu = page.locator('.djs-popup');
+    await menu.waitFor({ state: 'visible' });
+    const tabs = menu.locator('.la-append-tab');
+    expect((await tabs.allInnerTexts()).map((t) => t.trim())).toEqual(['New element', 'Existing relationships (1)']);
+    expect(await menu.locator('.la-append-tab.active').innerText()).toBe('New element');
+
+    await menu.locator('.la-append-tab-existing').click();
+    await until(async () => (await menu.locator('.la-append-tab.active').innerText()) === 'Existing relationships (1)', 'the tab');
+    // The provider's class sits on the row's name element, inside the `.entry` row. The list
+    // follows the header a paint later (diagram-js applies new entries in an effect).
+    const entry = menu.locator('.entry', { has: page.locator('.la-append-existing') });
+    await until(async () => (await entry.count()) === 1, 'the existing relationship');
+    expect(await entry.innerText()).toMatch(/Application Component[\s\S]*→ Serving/);
+    await session.screenshot('workbench-append-existing');
+    await entry.click();
+
+    // Back in the view, with the Serving link drawn — and nothing new in the model.
+    await until(async () => (await shapes()) === 2 && (await links()) === 1, 'the component and link back');
+    const servings = await page.evaluate(() =>
+      (window as any).__LA_GRAM_APP__.components.store.getQuads(null, { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' }, {
+        termType: 'NamedNode',
+        value: 'https://meta.linked.archi/archimate4/onto#Serving',
+      }).length,
+    );
+    expect(servings).toBe(1);
+    findings.push('append: Existing relationships tab brings the related element and its link back: ok');
+  });
+});
+
 describe('metamodels from the network', () => {
   it('loads a published metamodel that is not bundled (C4) and offers its types', async () => {
     const online = await fetch('https://meta.linked.archi/c4/metamodel', { headers: { Accept: 'text/turtle' } })
