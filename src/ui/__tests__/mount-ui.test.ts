@@ -225,6 +225,7 @@ describe('mountUi', () => {
       ['properties', 'PROPERTY-PANEL'],
       ['validation', 'VALIDATION-PANEL'],
       ['sparql', 'SPARQL-EDITOR'],
+      ['graph', 'GRAPH-PANEL'],
       ['rdf', 'RDF-PANEL'],
     ])('fills the %s slot with %s', (slot, tagName) => {
       const els = slotted(ui, slot);
@@ -245,7 +246,7 @@ describe('mountUi', () => {
     });
 
     it('leaves no slot empty', () => {
-      for (const slot of ['toolbar', 'explorer', 'canvas', 'properties', 'validation', 'sparql', 'palette', 'rdf']) {
+      for (const slot of ['toolbar', 'explorer', 'canvas', 'properties', 'validation', 'sparql', 'graph', 'palette', 'rdf']) {
         expect(slotted(ui, slot).length).toBeGreaterThan(0);
       }
     });

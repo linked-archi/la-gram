@@ -207,6 +207,14 @@ export class ModelIO {
   }
 
   /**
+   * Write any set of quads — a query's result — in a model format, with the
+   * same prefixes and ordering a saved model gets.
+   */
+  serializeQuads(quads: Quad[], modelIri: string | undefined, format: ModelFormat = 'turtle'): string {
+    return this.write(quads, formatInfo(format), modelIri);
+  }
+
+  /**
    * Parse a file and make it the model: the current model data is replaced,
    * every quad lands in the default graph.
    *

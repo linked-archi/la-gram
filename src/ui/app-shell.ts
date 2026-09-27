@@ -10,7 +10,7 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
  * ┌──────────────────────── toolbar ─────────────────────────┐
  * │ explorer │ canvas                      │ palette │ rdf    │
  * │ (model   │─────────────────────────────│         │ (hidden│
- * │  tree)   │ [Properties|Validation|SPARQL]│       │  until │
+ * │  tree)   │ [Properties|Validation|SPARQL|Graph]  │  until │
  * │          │ bottom panel                │         │ opened)│
  * └──────────┴─────────────────────────────┴─────────┴────────┘
  * ```
@@ -18,8 +18,8 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
  * - toolbar (top bar: file, metamodels, views, collaboration)
  * - explorer (left, full height: the model tree)
  * - canvas (centre)
- * - bottom panel under the canvas: tabs over the `properties`, `validation` and
- *   `sparql` slots; resizable by its top edge, folded to its tabs by clicking
+ * - bottom panel under the canvas: tabs over the `properties`, `validation`,
+ *   `sparql` and `graph` slots; resizable by its top edge, folded to its tabs by clicking
  *   the open tab
  * - palette (right) — shown by default, can be hidden
  * - rdf (far right, full height: the model as RDF) — hidden until opened
@@ -33,13 +33,14 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
 export type SidePanel = 'palette' | 'rdf';
 
 /** A tab of the bottom panel. */
-export type BottomTab = 'properties' | 'validation' | 'sparql';
+export type BottomTab = 'properties' | 'validation' | 'sparql' | 'graph';
 
 /** The bottom panel's tabs, in order. */
 export const BOTTOM_TABS: ReadonlyArray<{ id: BottomTab; label: string }> = [
   { id: 'properties', label: 'Properties' },
   { id: 'validation', label: 'Validation' },
   { id: 'sparql', label: 'SPARQL Query' },
+  { id: 'graph', label: 'Graph' },
 ];
 
 /** Width limits and the localStorage key of each side panel. */
@@ -300,12 +301,30 @@ export class AppShell extends LitElement {
     remember(BOTTOM.tabKey, tab);
     remember(BOTTOM.foldedKey, 'false');
     this.dispatchEvent(new CustomEvent('bottom-tab-changed', { detail: { tab }, bubbles: true, composed: true }));
+    this._panelChanged();
   }
 
   /** Fold the bottom panel down to its tabs, or unfold it; remembered. */
   setBottomFolded(folded: boolean): void {
     this.bottomFolded = folded;
     remember(BOTTOM.foldedKey, String(folded));
+    this._panelChanged();
+  }
+
+  /** Which bottom tab is showing, if any — for panels that work only while seen. */
+  get visibleBottomTab(): BottomTab | undefined {
+    return this.bottomFolded ? undefined : this.bottomTab;
+  }
+
+  /** Tell the host the bottom panel's visible tab may have changed. */
+  private _panelChanged(): void {
+    this.dispatchEvent(
+      new CustomEvent('bottom-panel-changed', {
+        detail: { tab: this.visibleBottomTab },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   /** A click on a tab: the open one folds or unfolds the panel, another opens. */

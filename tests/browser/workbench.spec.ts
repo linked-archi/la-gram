@@ -324,6 +324,7 @@ describe('the layout and the property panel', () => {
       expect.stringMatching(/^Properties/),
       expect.stringMatching(/^Validation/),
       expect.stringMatching(/^SPARQL Query/),
+      expect.stringMatching(/^Graph/),
     ]);
 
     // Validation: its own tab. The new model's view has no viewpoint — a Warning, listed, not counted.
@@ -613,6 +614,46 @@ describe('appending from the context pad', () => {
     );
     expect(servings).toBe(1);
     findings.push('append: Existing relationships tab brings the related element and its link back: ok');
+  });
+
+  it('draws the relationships around the selected element in the Graph tab, filters them, and exports query and Turtle', async () => {
+    const actor = page.locator(SHAPE).first();
+    const box = (await actor.boundingBox())!;
+    await page.mouse.click(box.x + box.width + 200, box.y + box.height + 150);
+    await actor.click();
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    const panel = page.locator('graph-panel');
+    await panel.waitFor({ state: 'visible' });
+
+    // Drawn by Cytoscape into its canvas: the actor and the component it serves.
+    await until(async () => (await panel.locator('.cy canvas').count()) > 0, 'the drawing');
+    const stats = panel.locator('.stats');
+    await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph');
+    expect((await panel.locator('.root').innerText()).trim()).toMatch(/^Business Actor/);
+    await session.screenshot('workbench-graph');
+
+    // Filtering out Serving prunes it: the actor alone.
+    const serving = panel.locator('details[data-kind="relationship"] label', { hasText: 'Serving' }).locator('input');
+    await serving.uncheck();
+    await until(async () => (await stats.innerText()).includes('1 elements · 0 relationships'), 'the filtered graph');
+    await serving.check();
+    await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph again');
+
+    // The exports: the CONSTRUCT itself, and its result as Turtle.
+    const [rq] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="sparql"]').click()]);
+    expect(rq.suggestedFilename()).toBe('Business-Actor-graph.rq');
+    const query = await readFile((await rq.path())!, 'utf8');
+    expect(query).toMatch(/^# Relationships within 2 hops of "Business Actor"/);
+    expect(query).toContain('CONSTRUCT {');
+    const [ttl] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="turtle"]').click()]);
+    const turtle = await readFile((await ttl.path())!, 'utf8');
+    expect(turtle).toMatch(/^@prefix /);
+    expect(turtle).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Serving;/);
+
+    // The query runs as it is in the SPARQL tab.
+    await panel.locator('[data-export="open-sparql"]').click();
+    await page.locator('sparql-editor').waitFor({ state: 'visible' });
+    findings.push('graph: drawn, filter prunes, .rq and .ttl exported, query opened in the SPARQL tab: ok');
   });
 });
 

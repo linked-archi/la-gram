@@ -13,7 +13,7 @@ These requirements are adapted from the `la-modeller-excalidraw` specification
 (`tools/modellers/excalidraw-linked-archi-yjs-demo/.kiro/specs/la-modeller-excalidraw/`),
 which is the reference for behaviour; requirement numbers 1–11 match it so the
 two can be compared line by line. Where la-gram deliberately differs, the
-criterion says so. Requirements 12–16 are specific to la-gram. The broader,
+criterion says so. Requirements 12–17 are specific to la-gram. The broader,
 implementation-independent tool specification is `docs/linked-archi-tool-spec.md`.
 
 ## Glossary
@@ -254,7 +254,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 1. Left, full height: the model tree
 2. Centre: the canvas with its tool strip (connect, lasso, hand), or a catalog/matrix view
 3. Top: the app toolbar — model name (opens Model settings; unsaved-changes dot), File, Metamodels, undo/redo, view selector + new view, viewpoint, presentation context, the "▦ Palette" and "{ } RDF" toggles, collaboration
-4. Bottom, under the canvas: a tabbed panel — **Properties**, **Validation** (the number of violations shown on the tab), **SPARQL Query**. Properties is the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) with vertical tabs on its left — *‹Kind› information* (ID, type, `inModel`, name, definition), *Properties* (the added ones and the add field), *Analysis* (relationships), *Appears in views* — with counts; the open tab stays open across selections and reloads. Clicking the open tab (or ▾) folds the panel to its tabs; the open tab, the height and the folding are remembered
+4. Bottom, under the canvas: a tabbed panel — **Properties**, **Validation** (the number of violations shown on the tab), **SPARQL Query**, **Graph** (Req 17). Properties is the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) with vertical tabs on its left — *‹Kind› information* (ID, type, `inModel`, name, definition), *Properties* (the added ones and the add field), *Analysis* (relationships), *Appears in views* — with counts; the open tab stays open across selections and reloads. Clicking the open tab (or ▾) folds the panel to its tabs; the open tab, the height and the folding are remembered
 5. Right: the palette — shown by default, hidden from the toolbar's "▦ Palette" toggle
 5a. Far right, full height: the RDF panel (Req 5.7) — hidden by default
 6. Panels hideable — the palette and the RDF panel; the bottom panel folds to its tabs; the model tree *not yet*
@@ -292,3 +292,20 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 1. A SPARQL 1.1 editor, the SPARQL Query tab under the canvas, queries the live store (model and metamodels) with syntax highlighting and prefix completion
 2. CONSTRUCT results can be rendered as a view — *existing component; view creation from it not yet wired*
+
+---
+
+### Requirement 17: Relationship Graph (la-gram)
+
+**User Story:** As an architect, I want to see what an element is related to — directly and a few steps out — as a graph, narrow it to the kinds of elements and relationships I care about, and take the result elsewhere.
+
+#### Acceptance Criteria
+
+1. The **Graph** tab under the canvas draws the relationships around the selected element: the element in the middle, every qualified relationship within *n* hops in either direction, and the elements at their ends
+2. The depth is selectable, 1–5 hops (2 by default, remembered); the layout is selectable (rings around the element, tree, force-directed), and the graph can be fitted to the panel
+3. Element types and relationship types can be filtered (all shown by default, with counts); a type left out is not traversed — the graph is pruned, not only greyed
+4. Nodes and edges are drawn with the notation: fill colour and badge glyph of the element type; line style and end decorations of the relationship type; the relationship's own name after its type
+5. The graph follows the selection (canvas, tree, catalog); clicking a node or edge selects that concept; double-clicking a node makes it the middle
+6. What is drawn is the result of one SPARQL `CONSTRUCT` run on the store. The query can be downloaded (`.rq`) or opened in the SPARQL Query tab; its result can be downloaded as Turtle (`.ttl`) with the model's prefixes — the exported query, run on the same model, returns exactly the exported triples
+7. The tab does no work while it is not shown; while shown it refreshes, debounced, when the model changes
+

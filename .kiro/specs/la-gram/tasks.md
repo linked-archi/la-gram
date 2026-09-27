@@ -145,6 +145,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ## Phase 5: Polish & production readiness
 - [x] Viewpoint greying
 - [x] SPARQL console (existing component)
+- [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; the graph is one SPARQL CONSTRUCT — exported as `.rq` or opened in the SPARQL tab, its result as `.ttl` — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
 - [ ] Accessibility audit (keyboard navigation of palette and tree, WCAG AA contrast, focus management in dialogs)
 - [ ] Catalog/matrix views driven by the view's own membership (`arch:inView`) and settings
@@ -169,7 +170,11 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ## Change log
 
-### Not yet committed (2026-09-26) — relationships
+### Not yet committed (2026-09-27) — relationship graph
+
+- **Relationship graph** (Req 17): a **Graph** tab under the canvas — the relationships around the selected element to a chosen depth (1–5), filterable by element and relationship type (filters prune the traversal), drawn with the notation (Cytoscape.js, a new dependency); exports the SPARQL CONSTRUCT that draws it (`.rq`, or into the SPARQL tab) and its result as Turtle.
+
+### 2026-09-26 — relationships, append menu (commit `baf413d`)
 
 - **Relationships** (Req 4.2, 4.4, 4.13): what connect, append and "change type" offer comes from the relationship shapes (ArchiMate's matrix), not the domain/range hints alone — before, 68% of the relationships an ArchiMate 4.0 append created by default failed validation. The append menu's icons load (they were asset-relative paths the page could not resolve), and it asks which relationship when several specific ones are permitted. It has two tabs, **New element** and **Existing relationships**: the second brings what the element is already related to in the model into the view, beside it, with the relationship.
 

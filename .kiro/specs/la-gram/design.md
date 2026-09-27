@@ -24,7 +24,7 @@ graph TB
             Tree["model-explorer<br/>model tree (left)"]
             Canvas["DiagramCanvas<br/>diagram-js + RDF modules"]
             Alt["catalog-view · matrix-view"]
-            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor"]
+            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor · graph-panel (Cytoscape.js)"]
             Palette["palette-panel (right)"]
             Rdf["rdf-panel (hidden by default)<br/>live Turtle / TriG / JSON-LD …"]
         end
@@ -243,13 +243,13 @@ selection, lock) are kept per concept and re-applied to shapes drawn later.
 ┌──────────────────────── toolbar ─────────────────────────┐
 │ model    │ canvas                      │ palette │ RDF    │
 │ tree     │─────────────────────────────│         │ (hidden│
-│          │ [Properties|Validation|SPARQL Query]  │  until │
+│          │ [Properties|Validation|SPARQL|Graph]  │  until │
 │          │ bottom panel                │         │ opened)│
 └──────────┴─────────────────────────────┴─────────┴────────┘
 ```
 
 `app-shell.ts` is a CSS grid with named slots: `explorer`, `canvas`,
-`properties` / `validation` / `sparql` (the bottom panel's tabs), `palette`,
+`properties` / `validation` / `sparql` / `graph` (the bottom panel's tabs), `palette`,
 `rdf`. The two right-hand columns are *side panels*: each column's width is a
 CSS variable that is 0 while the panel is hidden, and each has a drag handle on
 its left edge (palette ≥ 180 px, RDF ≥ 280 px). The bottom panel's row height is
@@ -295,6 +295,33 @@ first and the prefixed IRI under it. The list floats (`position: fixed`) under t
 field, or above it when there is more room there — as in the bottom panel — so
 no scrolling container clips it; a native `<datalist>` could neither group
 nor put the name first.
+
+### Relationship graph
+
+The Graph tab (`ui/panels/graph-panel.ts`) draws the relationships around the
+selected element. The graph **is** the result of one SPARQL `CONSTRUCT`
+(`model-manager/relationship-graph.ts`), run on the store; so the two exports —
+the query (`.rq`, or into the SPARQL Query tab) and its result as Turtle
+(`ModelIO.serializeQuads`, the model's prefixes and ordering) — agree by
+construction.
+
+The query finds every qualified relationship (`arch:source` + `arch:target`)
+within *n* hops, either direction. The elements within *n − 1* hops are computed
+level by level, each level a `SELECT DISTINCT` subquery over the previous one —
+so the work grows with the elements reached, not with the paths (a flat UNION of
+hop chains would enumerate every path); one more hop gives the relationships and
+their ends. Filters sit on every hop (`FILTER(?rt IN (…))`, `FILTER(?nt IN
+(…))`), so a type left out prunes the traversal; relationship ends that are
+themselves relationships are not followed. The depth is capped at 5.
+
+Drawing is Cytoscape.js (`graph-view.ts`, behind a factory so the panel is
+tested without a canvas): round rectangles in the notation's fill colour with the
+badge glyph, edges with the notation's line style and end decorations; rings
+(breadth-first, circular, around the root), tree or force-directed layout; a fit
+never zooms past 1.25×. The view is created the first time the tab is shown — a
+hidden container has no size — and the panel neither queries nor draws while the
+tab is hidden; while shown it refreshes 300 ms after a model change. The root
+follows the selection unless the selection came from the graph itself.
 
 ### RDF panel
 
@@ -399,6 +426,7 @@ elements out in a grid when the data has no geometry.
 | Concern | Choice |
 |---|---|
 | Canvas | diagram-js 14 (MIT) + custom RDF renderer, rules, modeling, context pad, popup menus |
+| Relationship graph | Cytoscape.js 3 (MIT) |
 | UI | Lit 3 web components, CodeMirror 6 (SPARQL) |
 | RDF store / SPARQL | Oxigraph 0.4 (WASM in the browser, native module in Node) |
 | Parsing / writing | n3 (Turtle, TriG, N-Triples, N-Quads), Oxigraph (JSON-LD, RDF/XML) |

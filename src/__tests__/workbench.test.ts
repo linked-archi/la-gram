@@ -205,6 +205,58 @@ describe('the workbench', () => {
     vi.unstubAllGlobals();
   });
 
+  it('draws the relationships around the selected element in the Graph tab, and exports the query and its result', async () => {
+    const els = app.components.elementManager;
+    const rels = app.components.relationshipManager;
+    const model = app.session.modelIri!;
+    const clerk = els.createElement(`${AM4}BusinessActor`, model, { label: 'Clerk' }).value;
+    const role = els.createElement(`${AM4}BusinessRole`, model, { label: 'Cashier' }).value;
+    const shop = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Till' }).value;
+    rels.createQualifiedRelationship!({ typeIri: `${AM4}Assignment`, sourceIri: clerk, targetIri: role, modelIri: model });
+    rels.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: shop, targetIri: role, modelIri: model });
+
+    // jsdom draws nothing: a stand-in records what would be drawn.
+    const drawn: Array<{ nodes: number; edges: number }> = [];
+    ui.graphPanel.viewFactory = () => ({
+      show: (nodes, edges) => void drawn.push({ nodes: nodes.length, edges: edges.length }),
+      relayout: () => undefined,
+      fit: () => undefined,
+      resize: () => undefined,
+      highlight: () => undefined,
+      destroy: () => undefined,
+    });
+    ui.selectConcept(clerk);
+    expect(ui.graphPanel.rootIri).toBe(clerk);
+    ui.showBottomTab('graph');
+    expect(ui.graphPanel.active).toBe(true);
+    await ui.graphPanel.updateComplete;
+
+    // Depth 2 by default: Clerk → Cashier ← Till.
+    expect(ui.graphPanel.graph!.nodes.map((n) => n.label).sort()).toEqual(['Cashier', 'Clerk', 'Till']);
+    expect(ui.graphPanel.graph!.edges).toHaveLength(2);
+    expect(drawn.at(-1)).toEqual({ nodes: 3, edges: 2 });
+    ui.graphPanel.setDepth(1);
+    expect(ui.graphPanel.graph!.nodes.map((n) => n.label).sort()).toEqual(['Cashier', 'Clerk']);
+
+    // The query goes to the SPARQL tab; the result to a Turtle file with the model's prefixes.
+    // Showing the tab queries and re-renders: wait for the export buttons to be live.
+    await vi.waitFor(() =>
+      expect(ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.disabled).toBe(false),
+    );
+    ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.click();
+    expect(ui.shell.bottomTab).toBe('sparql');
+    ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>('[data-export="turtle"]')!.click();
+    const turtle = saved.at(-1)!;
+    expect(turtle.fileName).toBe('Clerk-graph.ttl');
+    expect(turtle.content as string).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Assignment;/);
+    expect(turtle.content as string).not.toContain('Till'); // depth 1
+
+    ui.graphPanel.setDepth(2);
+    ui.showBottomTab('properties');
+    expect(ui.graphPanel.active).toBe(false);
+    for (const iri of [clerk, role, shop]) els.deleteElement(iri);
+  });
+
   it('creates, names and opens a new view from the toolbar', async () => {
     script.answers.push('Application landscape');
     await ui.runCommand({ command: 'new-view', value: 'Diagram' });

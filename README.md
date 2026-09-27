@@ -11,6 +11,7 @@ rules, the notation and the validation all come from data.
 - **Model / views** — one model, any number of diagram, catalog and matrix views; an element is one resource wherever it appears. Delete from a view or from the model.
 - **Relationships the metamodel permits** — connect, change type and the "+" menu offer only what the metamodel's relationship shapes allow (ArchiMate's relationship matrix); "+" appends a new element — asking which relationship when several fit — or brings in what the element is already related to in the model.
 - **Published vocabulary** — `arch:inModel`, `arch:inView`, qualified relationships plus their unqualified triples, `arch-vis:ArchNode`/`Link` geometry; older models are migrated on open.
+- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type; the graph is one SPARQL CONSTRUCT, exportable as `.rq` (or opened in the SPARQL tab) and its result as Turtle.
 - **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes; the Validation tab counts the violations.
 - **Properties** — the selected concept in vertical tabs (information, properties, analysis, views); adding a property offers what applies to its type (by the vocabularies' `rdfs:domain` and SHACL shapes), what the model already uses and documentation properties — or any name, prefixed name or IRI.
 - **Files** — Turtle, TriG (per-layer graphs), JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG export.

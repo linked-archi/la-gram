@@ -829,6 +829,7 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §5.11 Persistence & versioning | partly | Files in six formats; rooms persisted by the server (`.nt` + `.ttl`); no commits, history or diff yet |
 | §5.12 AI assistance | ✗ | |
 | §5.13 Import / export | ✓ | Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG; no-geometry profile; live RDF panel |
+| (beyond this spec) Relationship graph | ✓ | The relationships around an element to a chosen depth, filterable by type; the graph is one SPARQL CONSTRUCT, exportable with its Turtle result |
 | §8.1 IRI conventions | ✓ | Per-model namespace, flat local names, `vann:` on the model, Model settings to move it |
 | §8.2 Named graph layout | ✓ at rest | DD-15 partition in graph formats; at runtime model = default graph, metamodels = named graphs |
 | §8.3 / §8.4 Y.Doc | differs | Triple-set Y.Doc; labels are `skos:prefLabel`@lang (not `rdfs:label`), geometry is `arch-vis:ArchNode`/`Link` (not `:renderedAt`) |
