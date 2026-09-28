@@ -76,13 +76,17 @@ export {
 } from './views/index.js';
 export {
   SparqlEditor,
-  type ConstructViewRequestDetail,
+  type ResultsViewRequestDetail,
+  type SparqlSelectDetail,
   type QueryExecuteDetail,
   sparqlStreamParser,
   sparqlLanguage,
   buildPrefixCompletions,
   extractColumns,
   termValue,
+  curieOf,
+  projectedVariables,
+  resultIris,
 } from './panels/index.js';
 export {
   ValidationPanel,

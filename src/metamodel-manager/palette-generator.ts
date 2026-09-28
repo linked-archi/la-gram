@@ -44,6 +44,7 @@ import { resolveIconUri } from './bundled-assets.js';
 import {
   buildClasses,
   buildClassificationAxes,
+  isCoreAxis,
   type SemanticClass,
   type TaxonomyAxis,
 } from './taxonomy.js';
@@ -71,6 +72,7 @@ const RDF_TYPE = `${NAMESPACES.rdf}type`;
 const RDFS_LABEL = `${NAMESPACES.rdfs}label`;
 const RDFS_COMMENT = `${NAMESPACES.rdfs}comment`;
 const RDFS_SUBCLASS_OF = `${NAMESPACES.rdfs}subClassOf`;
+const RDFS_SEE_ALSO = `${NAMESPACES.rdfs}seeAlso`;
 const OWL_CLASS = `${NAMESPACES.owl}Class`;
 const SKOS_PREF_LABEL = `${NAMESPACES.skos}prefLabel`;
 const SKOS_DEFINITION = `${NAMESPACES.skos}definition`;
@@ -133,7 +135,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       this.toElementTypeInfo(graph, cls, activeAxis, notationSet),
     );
     const elementGroups = this.groupElements(elements, activeAxis);
-    const relationshipTypes = this.discoverRelationships(graph, notationSet);
+    const relationshipTypes = this.discoverRelationships(graph, notationSet, taxonomyAxes);
 
     const axes: PaletteAxis[] = taxonomyAxes.map((axis) => ({
       iri: axis.iri,
@@ -257,8 +259,12 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     // Under a chosen axis, a class with no group there goes to "Other" rather
     // than borrowing its label from another axis — mixing axes in one grouping
     // is exactly the collapse this rewrite exists to avoid. With no axis at all
-    // the taxonomy's own default group (its OWL-only fallback) is used.
-    const group = activeAxis ? cls.groupsByAxis[activeAxis.iri] : cls.group;
+    // the taxonomy's own default group (its OWL-only fallback) is used. The one
+    // exception: a class only the core's classification groups (the generic
+    // element) keeps that group under a language's axis — no language classifies
+    // it, and "Generic" says what it is where "Other" would not.
+    const onlyCore = Object.keys(cls.groupsByAxis).length > 0 && Object.keys(cls.groupsByAxis).every(isCoreAxis);
+    const group = activeAxis ? (cls.groupsByAxis[activeAxis.iri] ?? (onlyCore ? cls.group : undefined)) : cls.group;
 
     return {
       iri: cls.iri,
@@ -305,12 +311,19 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
    *
    * `+` rather than `*` because the intermediate steps are real (ArchiMate's
    * `Composition` subclasses `Aggregation`) and `arch:QualifiedRelationship`
-   * itself is not a relationship type. A legacy `?rel a arch:Relationship`
+   * itself is not a relationship type — unless a loaded taxonomy names it (the
+   * core metamodel's "Generic" group): then it is the generic relationship,
+   * labelled as the taxonomy labels it. A legacy `?rel a arch:Relationship`
    * typing is also accepted so hand-written metamodels keep working, even though
    * the published ArchiMate 4.0 data never uses it.
    */
-  private discoverRelationships(graph: Store, notationSet: NotationSet | null): RelationshipTypeInfo[] {
+  private discoverRelationships(
+    graph: Store,
+    notationSet: NotationSet | null,
+    axes: readonly TaxonomyAxis[] = [],
+  ): RelationshipTypeInfo[] {
     const superClassMap = buildSuperClassMap(graph);
+    const generic = taxonomyNameFor(graph, axes, ARCH_QUALIFIED_RELATIONSHIP);
 
     const candidates = new Set<string>();
     for (const [iri, supers] of superClassMap) {
@@ -327,8 +340,10 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
 
     const relationships: RelationshipTypeInfo[] = [];
 
+    if (generic) candidates.add(ARCH_QUALIFIED_RELATIONSHIP);
+
     for (const iri of candidates) {
-      if (iri === ARCH_QUALIFIED_RELATIONSHIP) continue;
+      if (iri === ARCH_QUALIFIED_RELATIONSHIP && !generic) continue;
       if (isAbstractClass(graph, iri)) continue;
 
       const unqualifiedPredicateIri = objectValue(graph, iri, ARCH_UNQUALIFIED_FORM);
@@ -348,10 +363,11 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
         notation?.prefVisNotation ?? objectValue(graph, iri, ARCH_PREF_VIS_NOTATION),
       );
 
+      const named = iri === ARCH_QUALIFIED_RELATIONSHIP ? generic : undefined;
       relationships.push({
         iri,
-        label: labelFor(graph, iri),
-        definition: definitionFor(graph, iri),
+        label: named?.label || labelFor(graph, iri),
+        definition: named?.definition || definitionFor(graph, iri),
         iconUrl: prefVisNotation?.url,
         prefVisNotation,
         relationshipStyle: notation?.relationshipStyle,
@@ -389,6 +405,30 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
 }
 
 // ── Module-level graph helpers ──────────────────────────────────────────
+
+/**
+ * How the core's own classification names a core class, when one of its axes
+ * lists it — by a concept pointing at it with `rdfs:seeAlso`.
+ */
+function taxonomyNameFor(
+  graph: Store,
+  axes: readonly TaxonomyAxis[],
+  classIri: string,
+): { label: string; definition?: string } | undefined {
+  for (const axis of axes) {
+    if (!isCoreAxis(axis.iri)) continue;
+    for (const member of axis.groups.keys()) {
+      const names =
+        member === classIri ||
+        graph.getQuads(namedNode(member), namedNode(RDFS_SEE_ALSO), namedNode(classIri), null).length > 0;
+      if (names) {
+        const definition = definitionFor(graph, member);
+        return { label: labelFor(graph, member) || labelFor(graph, classIri), ...(definition ? { definition } : {}) };
+      }
+    }
+  }
+  return undefined;
+}
 
 /** Map every class IRI in the graph to its direct `rdfs:subClassOf` parents. */
 function buildSuperClassMap(graph: Store): Map<string, string[]> {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad, NamedNode } from '@rdfjs/types';
-import { OxigraphRdfStore } from '../rdf-store.js';
+import { OxigraphRdfStore, detectQueryType } from '../rdf-store.js';
 
 const { namedNode, literal, quad } = DataFactory;
 
@@ -157,6 +157,30 @@ describe('OxigraphRdfStore', () => {
       if (result.type === 'quads') {
         expect(result.quads).toHaveLength(0);
       }
+    });
+
+    it('returns empty quads for a CONSTRUCT with prefixes, IRIs with # and a subquery', () => {
+      const result = store.query(
+        [
+          '# a comment with SELECT in it',
+          'PREFIX ex: <http://ex.org/ns#>',
+          'CONSTRUCT { ?s ex:p ?o } WHERE {',
+          '  { SELECT ?s WHERE { ?s a <http://ex.org/ns#Thing> } }',
+          '  ?s ?q ?o . FILTER(?q IN (<http://ex.org/ns#a>, <http://ex.org/ns#b>) && ?o != "# not a comment")',
+          '  ?o ex:q <http://ex.org/plain> .',
+          '}',
+        ].join('\n'),
+      );
+      expect(result).toEqual({ type: 'quads', quads: [] });
+    });
+  });
+
+  describe('detectQueryType', () => {
+    it('reads the query form, not a subquery, a comment, an IRI or a string', () => {
+      expect(detectQueryType('SELECT * WHERE { ?s ?p ?o }')).toBe('SELECT');
+      expect(detectQueryType('prefix x: <http://x/#> construct { ?s ?p ?o } where { { select ?s where { ?s ?p ?o } } }')).toBe('CONSTRUCT');
+      expect(detectQueryType('# ASK\nDESCRIBE <http://x/ASK#SELECT>')).toBe('DESCRIBE');
+      expect(detectQueryType('PREFIX s: <http://x/SELECT#>\nASK { ?s ?p "CONSTRUCT" }')).toBe('ASK');
     });
   });
 

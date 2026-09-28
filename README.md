@@ -4,21 +4,25 @@ An RDF-first architecture modeller for [Linked.Archi](https://meta.linked.archi/
 
 The model lives in an RDF store; the diagram, the model tree, files and the
 collaboration document are views of it. Metamodels — ArchiMate 4.0 and 3.2
-bundled, and every other language, framework and extension published on
-`meta.linked.archi` — are loaded at runtime, so the palette, the relationship
+bundled, the Linked.Archi Core (a generic element and relationship, to add
+alongside a language or use alone), and every other language, framework and
+extension published on `meta.linked.archi` — are loaded at runtime, so the palette, the relationship
 rules, the notation and the validation all come from data.
 
 - **Model / views** — one model, any number of diagram, catalog and matrix views; an element is one resource wherever it appears. Delete from a view or from the model.
 - **Relationships the metamodel permits** — connect, change type and the "+" menu offer only what the metamodel's relationship shapes allow (ArchiMate's relationship matrix); "+" appends a new element — asking which relationship when several fit — or brings in what the element is already related to in the model.
 - **Published vocabulary** — `arch:inModel`, `arch:inView`, qualified relationships plus their unqualified triples, `arch-vis:ArchNode`/`Link` geometry; older models are migrated on open.
-- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type; the graph is one SPARQL CONSTRUCT, exportable as `.rq` (or opened in the SPARQL tab) and its result as Turtle.
+- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type; the query behind it — as a SELECT (a table) or a CONSTRUCT (the triples) — runs in the SPARQL tab or downloads as `.rq`; the graph becomes a new view, laid out as drawn, or a Turtle file.
+- **SPARQL** — the SPARQL Query tab shows results as tables with prefixed names that select the concept; *Render as new view* makes a diagram of the elements and relationships a result mentions.
 - **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes; the Validation tab counts the violations.
+- **Rename in place** — double-click an element's box (or select it and press F2) and type its name; Enter keeps it, Esc drops it, undo brings the old one back.
+- **About ‹type›** — under the model tree, what the loaded ontology and taxonomy say about the selected type (for a view, its viewpoint) or the type picked in the palette: definition, guidance, other names, classification and the other types in its group, superclasses, changes, the specification section. Folds to its header; resizes by its top edge.
 - **Properties** — the selected concept in vertical tabs (information, properties, analysis, views); adding a property offers what applies to its type (by the vocabularies' `rdfs:domain` and SHACL shapes), what the model already uses and documentation properties — or any name, prefixed name or IRI.
 - **Files** — Turtle, TriG (per-layer graphs), JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG export.
 - **Collaboration** — real-time rooms (Yjs over Hocuspocus) that share the model's triples; presence and soft locks.
 - **Undo everywhere** — every canvas change, including placements and model-level deletes.
 - **See the RDF** — the "{ } RDF" toggle opens a panel on the right with the live model as Turtle (or any other format), exactly as it would be saved.
-- **Layout** — the model tree on the left; the palette on the right; under the canvas, tabs for **Properties**, **Validation** (with the violation count) and **SPARQL Query**. The palette and the RDF panel hide from the toolbar and resize by their left edge; the bottom panel resizes by its top edge and folds to its tabs (click the open tab). Sizes are remembered.
+- **Layout** — the model tree on the left; the palette on the right; under the canvas, tabs for **Properties**, **Validation** (with the violation count), **SPARQL Query** and **Graph**. The tree, the palette and the RDF panel hide from the toolbar ("☰ Model", "▦ Palette", "{ } RDF") and resize by their inner edge; the bottom panel resizes by its top edge, folds to its tabs (click the open tab) and maximizes over the workspace (⤢; Esc restores). Sizes are remembered.
 - **Your namespace** — every IRI is an HTTP URI in the model's namespace, written as `m:element-…`, `m:view-…`. New models start under the placeholder `https://example.org/`; **Model settings** (click the model name) sets your own namespace and prefix and moves the model into it.
 
 ## Run

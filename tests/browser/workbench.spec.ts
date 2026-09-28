@@ -319,7 +319,12 @@ describe('the layout and the property panel', () => {
     expect(tree.x + tree.width).toBeLessThanOrEqual(canvas.x + 1);
     expect(palette.x).toBeGreaterThanOrEqual(canvas.x + canvas.width - 1);
     expect(tabs.y).toBeGreaterThanOrEqual(canvas.y + canvas.height - 1);
-    expect(tree.height).toBeGreaterThan(canvas.height); // the tree runs the full height
+    // The left column runs the full height: the tree, and the type guide under it.
+    const column = await boxOf('app-shell .panel-explorer');
+    expect(column.height).toBeGreaterThan(canvas.height);
+    const guide = await boxOf('type-guide-panel');
+    expect(guide.y).toBeGreaterThanOrEqual(tree.y + tree.height - 1);
+    expect(guide.y + guide.height).toBeGreaterThan(column.y + column.height - 2);
     expect(await page.locator('app-shell .tab').allInnerTexts()).toEqual([
       expect.stringMatching(/^Properties/),
       expect.stringMatching(/^Validation/),
@@ -369,12 +374,19 @@ describe('the layout and the property panel', () => {
     await drag('app-shell .panel-palette .resizer', -80, 0);
     const paletteAfter = (await boxOf('app-shell .panel-palette')).width;
     expect(paletteAfter).toBeGreaterThan(paletteBefore + 60);
+    // The tree grows by its right edge.
+    const treeBefore = (await boxOf('app-shell .panel-explorer')).width;
+    await drag('app-shell .panel-explorer .resizer', 80, 0);
+    const treeAfter = (await boxOf('app-shell .panel-explorer')).width;
+    expect(treeAfter).toBeGreaterThan(treeBefore + 60);
     const remembered = await page.evaluate(() => [
       Number(localStorage.getItem('la-gram:bottom-panel-height')),
       Number(localStorage.getItem('la-gram:palette-panel-width')),
+      Number(localStorage.getItem('la-gram:explorer-panel-width')),
     ]);
     expect(Math.abs(remembered[0] - bottomAfter)).toBeLessThanOrEqual(2);
     expect(Math.abs(remembered[1] - paletteAfter)).toBeLessThanOrEqual(2);
+    expect(Math.abs(remembered[2] - treeAfter)).toBeLessThanOrEqual(2);
     await session.screenshot('workbench-layout');
 
     // The palette hides from the toolbar.
@@ -385,10 +397,18 @@ describe('the layout and the property panel', () => {
     expect(await toggle.getAttribute('aria-pressed')).toBe('false');
     await toggle.click();
     await page.locator('palette-panel').waitFor({ state: 'visible' });
+    // So does the tree, and the canvas takes its room.
+    const treeToggle = page.locator('app-toolbar button[data-command="toggle-explorer"]');
+    const canvasWidth = (await boxOf('.la-diagram-host')).width;
+    await treeToggle.click();
+    await page.locator('model-explorer').waitFor({ state: 'hidden' });
+    await until(async () => (await boxOf('.la-diagram-host')).width > canvasWidth + 150, 'the wider canvas');
+    await treeToggle.click();
+    await page.locator('model-explorer').waitFor({ state: 'visible' });
 
     // Leave the defaults for whatever runs next in this browser.
     await page.evaluate(() => {
-      for (const key of ['bottom-panel-height', 'palette-panel-width', 'bottom-panel-tab', 'bottom-panel-folded']) {
+      for (const key of ['bottom-panel-height', 'palette-panel-width', 'explorer-panel-width', 'bottom-panel-tab', 'bottom-panel-folded', 'guide-height', 'guide-folded']) {
         localStorage.removeItem(`la-gram:${key}`);
       }
     });
@@ -396,7 +416,7 @@ describe('the layout and the property panel', () => {
     await page.locator('palette-panel .palette-item').first().waitFor({ state: 'attached', timeout: 30_000 });
     await page.waitForFunction(() => Boolean((window as any).__LA_GRAM_APP__), undefined, { timeout: 30_000 });
     findings.push(
-      `layout: tree | canvas + tabs | palette; bottom ${Math.round(bottomBefore)} → ${Math.round(bottomAfter)}px, palette ${Math.round(paletteBefore)} → ${Math.round(paletteAfter)}px: ok`,
+      `layout: tree | canvas + tabs | palette; bottom ${Math.round(bottomBefore)} → ${Math.round(bottomAfter)}px, palette ${Math.round(paletteBefore)} → ${Math.round(paletteAfter)}px, tree ${Math.round(treeBefore)} → ${Math.round(treeAfter)}px; tree and palette hide: ok`,
     );
   });
 
@@ -420,6 +440,52 @@ describe('the layout and the property panel', () => {
       'Appears in views',
     ]);
     expect(await labels()).toEqual(['ID', 'type', 'inModel', 'prefLabel', 'definition']);
+
+    // Under the model tree, in the left panel: what the ontology and the taxonomy say about the type.
+    const guide = page.locator('type-guide-panel');
+    await until(async () => (await guide.locator('.header .title').innerText()) === 'About Business Actor', 'the guide');
+    const tree = (await page.locator('model-explorer').boundingBox())!;
+    const guideBox = (await guide.boundingBox())!;
+    expect(guideBox.y).toBeGreaterThanOrEqual(tree.y + tree.height - 1); // under the tree
+    expect(Math.abs(guideBox.x - tree.x)).toBeLessThanOrEqual(1); // in the same column
+    expect(await guide.locator('.definition').innerText()).toBe(
+      'A business actor represents a business entity that is capable of performing behavior.',
+    );
+    expect(await guide.locator('details[data-section="guidance"] p').count()).toBe(4);
+    expect(await guide.locator('details[data-section="classification"]').innerText()).toMatch(/Business Domain/);
+    await session.screenshot('workbench-type-guide');
+    // A type in the same group opens its own page; ← comes back.
+    await guide.locator('.members a', { hasText: 'Business Interface' }).first().click();
+    await until(async () => /Business Interface/.test(await guide.locator('.type').innerText()), 'the Business Interface page');
+    await guide.locator('.back a').click();
+    await until(async () => /Business Actor/.test(await guide.locator('.type').innerText()), 'back to Business Actor');
+    // Picking a type in the palette shows that type — before anything is created;
+    // Esc drops the create gesture, and nothing is added.
+    const before = (await model(page)).actors.length;
+    await page.locator('palette-panel .palette-item[data-iri$="#BusinessInterface"]').click();
+    await until(async () => (await guide.locator('.header .title').innerText()) === 'About Business Interface', 'the picked type');
+    expect(await guide.locator('.definition').innerText()).toMatch(/^A business interface represents a point of access/);
+    await page.keyboard.press('Escape');
+    await page.mouse.click(700, 500);
+    expect((await model(page)).actors.length).toBe(before);
+    expect(
+      await page.evaluate(() => {
+        const store = (window as any).__LA_GRAM_APP__.components.store;
+        return store.getQuads(null, { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' }, {
+          termType: 'NamedNode',
+          value: 'https://meta.linked.archi/archimate4/onto#BusinessInterface',
+        }).length as number;
+      }),
+    ).toBe(0);
+    // Selecting a concept again shows its own type.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.selectConcept(iri), actor);
+    await until(async () => (await guide.locator('.header .title').innerText()) === 'About Business Actor', 'the selection’s type again');
+
+    // It folds to its header, and the tree takes the room.
+    await guide.locator('.header').click();
+    await until(async () => ((await page.locator('model-explorer').boundingBox())!.height > tree.height + 150), 'the taller tree');
+    await guide.locator('.header').click();
+    await until(async () => (await guide.locator('.body').isVisible()), 'the guide again');
     expect(await panel.locator('li.id-row input').inputValue()).toBe(actor);
     const side = (await panel.locator('.side').boundingBox())!;
     const pane = (await panel.locator('.pane').boundingBox())!;
@@ -639,22 +705,182 @@ describe('appending from the context pad', () => {
     await serving.check();
     await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph again');
 
-    // The exports: the CONSTRUCT itself, and its result as Turtle.
+    // The exports: the query (a SELECT by default), and the drawn triples as Turtle.
     const [rq] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="sparql"]').click()]);
-    expect(rq.suggestedFilename()).toBe('Business-Actor-graph.rq');
+    expect(rq.suggestedFilename()).toBe('Business-Actor-graph-select.rq');
     const query = await readFile((await rq.path())!, 'utf8');
     expect(query).toMatch(/^# Relationships within 2 hops of "Business Actor"/);
-    expect(query).toContain('CONSTRUCT {');
+    expect(query).toContain('SELECT DISTINCT (?s AS ?source)');
     const [ttl] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="turtle"]').click()]);
     const turtle = await readFile((await ttl.path())!, 'utf8');
     expect(turtle).toMatch(/^@prefix /);
     expect(turtle).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Serving;/);
 
-    // The query runs as it is in the SPARQL tab.
+    // The graph becomes a view, laid out as drawn: two elements and their link, side by side or stacked.
+    await panel.locator('[data-export="view"]').click();
+    await answerPrompt(page, 'Around the actor');
+    await until(
+      async () =>
+        page.evaluate(() => {
+          const app = (window as any).__LA_GRAM_APP__;
+          return app.components.viewManager.getView(app.session.activeViewIri)?.label === 'Around the actor';
+        }),
+      'the new view',
+    );
+    await until(async () => (await page.locator(SHAPE).count()) === 2, 'its two elements on the canvas');
+    const [first, second] = await Promise.all([page.locator(SHAPE).nth(0).boundingBox(), page.locator(SHAPE).nth(1).boundingBox()]);
+    const apart = Math.abs(first!.x - second!.x) >= first!.width || Math.abs(first!.y - second!.y) >= first!.height;
+    expect(apart).toBe(true);
+    await session.screenshot('workbench-graph-new-view');
+
+    // Maximized, the panel covers the workspace and the drawing grows with it; Esc restores.
+    const drawingWidth = async () => (await panel.locator('.cy').boundingBox())!.width;
+    const before = await drawingWidth();
+    await page.locator('app-shell .fold[data-action="maximize"]').click();
+    await until(async () => (await drawingWidth()) > before + 200, 'the drawing to grow');
+    const covered = await page.locator('app-shell .panel-bottom').boundingBox();
+    expect(covered!.width).toBeGreaterThan(1500);
+    await until(async () => (await panel.locator('.cy canvas').first().boundingBox())!.width > before + 200, 'Cytoscape to redraw at the new size');
+    await session.screenshot('workbench-graph-maximized');
+    await page.keyboard.press('Escape');
+    await until(async () => Math.abs((await drawingWidth()) - before) < 2, 'the panel restored');
+
+    // The query runs in the SPARQL tab: a table, one row per relationship.
+    // (The Graph tab is still the one open: clicking it would fold the panel.)
     await panel.locator('[data-export="open-sparql"]').click();
-    await page.locator('sparql-editor').waitFor({ state: 'visible' });
-    findings.push('graph: drawn, filter prunes, .rq and .ttl exported, query opened in the SPARQL tab: ok');
+    const editor = page.locator('sparql-editor');
+    await editor.waitFor({ state: 'visible' });
+    await until(async () => (await editor.locator('tbody tr').count()) === 1, 'the result table');
+    expect(await editor.locator('tbody tr').innerText()).toMatch(/m:element-[\s\S]*Business Actor[\s\S]*am4:Serving[\s\S]*Application Component/);
+    await session.screenshot('workbench-graph-select');
+    // … and as a CONSTRUCT: the triples.
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    await panel.locator('[data-form="construct"]').click();
+    await panel.locator('[data-export="open-sparql"]').click();
+    await until(async () => /triple\(s\)/.test(await editor.locator('.construct-count').innerText().catch(() => '')), 'the triples');
+    expect(await editor.locator('th').allInnerTexts()).toEqual(['subject', 'predicate', 'object']);
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    await panel.locator('[data-form="select"]').click();
+    findings.push('graph: drawn, filter prunes, .rq and .ttl exported, made a view as drawn, SELECT table and CONSTRUCT triples in the SPARQL tab: ok');
   });
+});
+
+describe('renaming on the canvas', () => {
+  it('edits an element’s name in its box: double-click or F2, Enter keeps, Esc drops, undo restores', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    await dropActor(page, 300, 200);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const [actor] = (await model(page)).actors;
+    const names = async () =>
+      page.evaluate(
+        (iri) =>
+          (window as any).__LA_GRAM_APP__.components.store
+            .getQuads({ termType: 'NamedNode', value: iri }, { termType: 'NamedNode', value: 'http://www.w3.org/2004/02/skos/core#prefLabel' })
+            .map((q: any) => `${q.object.value}@${q.object.language}`) as string[],
+        actor,
+      );
+    const shape = page.locator(SHAPE).first();
+    const drawn = async () =>
+      (await shape.locator('text tspan').evaluateAll((lines) => lines.map((t) => t.textContent ?? '')))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const editor = page.locator('.djs-direct-editing-content');
+    expect(await names()).toEqual(['Business Actor@en']);
+
+    // Double-click: the name is selected in a box over the shape; typing replaces it.
+    await shape.dblclick();
+    await editor.waitFor({ state: 'visible' });
+    expect(await editor.innerText()).toBe('Business Actor');
+    await session.screenshot('workbench-rename-editing');
+    await page.keyboard.type('Front  desk clerk');
+    await page.keyboard.press('Enter');
+    await editor.waitFor({ state: 'hidden' });
+    await until(async () => (await names())[0] === 'Front desk clerk@en', 'the new name in the model');
+    expect(await drawn()).toBe('Front desk clerk');
+    // The tree follows.
+    await page.locator('model-explorer').getByText('Front desk clerk').first().waitFor({ state: 'visible' });
+
+    // Undo gives the old name back, in the model and on the canvas.
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    await page.keyboard.press('Control+z');
+    await until(async () => (await names())[0] === 'Business Actor@en', 'the old name back');
+    expect(await drawn()).toBe('Business Actor');
+    await page.keyboard.press('Control+y');
+    await until(async () => (await names())[0] === 'Front desk clerk@en', 'redone');
+
+    // F2 on the selected element; Esc drops the edit.
+    await shape.click();
+    await page.keyboard.press('F2');
+    await editor.waitFor({ state: 'visible' });
+    await page.keyboard.type('Nobody');
+    await page.keyboard.press('Escape');
+    await editor.waitFor({ state: 'hidden' });
+    expect(await names()).toEqual(['Front desk clerk@en']);
+
+    // A name cannot be emptied.
+    await shape.dblclick();
+    await editor.waitFor({ state: 'visible' });
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Enter');
+    await editor.waitFor({ state: 'hidden' });
+    expect(await names()).toEqual(['Front desk clerk@en']);
+    expect(await drawn()).toBe('Front desk clerk');
+    findings.push('rename on canvas: double-click/F2, Enter, Esc, undo/redo, empty refused: ok');
+  }, 60_000);
+});
+
+describe('the core metamodel: a generic element', () => {
+  it('adds "Linked.Archi Core" from the Metamodels menu and places a generic Element', async () => {
+    const { page, session } = await openPage();
+    await page.locator('palette-panel .palette-item').first().waitFor({ state: 'attached', timeout: 30_000 });
+    await page.locator('app-toolbar button[data-menu="metamodels"]').click();
+    const entry = page.locator(
+      'app-toolbar button[data-command="add-metamodel"][data-value="https://meta.linked.archi/core/metamodel#Core"]',
+    );
+    // Its own section, first.
+    const sections = (await page.locator('app-toolbar .dropdown .group').allInnerTexts()).map((t) => t.trim().toLowerCase());
+    expect(sections.slice(0, 3)).toEqual(['loaded', 'core', 'modelling languages']);
+    await entry.click();
+    const element = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/core#Element"]');
+    await element.waitFor({ state: 'visible', timeout: 30_000 });
+    expect((await element.innerText()).trim()).toBe('Element');
+    const relationship = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/core#QualifiedRelationship"]');
+    expect((await relationship.innerText()).trim()).toBe('Relationship');
+
+    // Dropped on the canvas: an element typed arch:Element only, named, in the view.
+    const box = (await element.boundingBox())!;
+    const host = (await page.locator('.la-diagram-host').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(host.x + 260, host.y + 200, { steps: 8 });
+    await page.mouse.move(host.x + 300, host.y + 200, { steps: 8 });
+    await page.mouse.up();
+    const created = async () =>
+      page.evaluate(() => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const store = app.components.store;
+        const typed = store.getQuads(null, { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' }, {
+          termType: 'NamedNode',
+          value: 'https://meta.linked.archi/core#Element',
+        }).filter((q: any) => q.graph.termType === 'DefaultGraph');
+        return typed.map((q: any) => ({
+          iri: q.subject.value,
+          types: store.getQuads(q.subject, { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' }).map((t: any) => t.object.value),
+          nodes: app.components.viewManager.getNodes(app.session.activeViewIri).filter((n: any) => n.elementIri === q.subject.value).length,
+        }));
+      });
+    await until(async () => (await created()).length === 1, 'the generic element');
+    const [made] = await created();
+    expect(made.types).toEqual(['https://meta.linked.archi/core#Element']);
+    expect(made.nodes).toBe(1);
+    // Selected, the guide under the tree says what an Element is.
+    const guide = page.locator('type-guide-panel');
+    await until(async () => (await guide.locator('.header .title').innerText()) === 'About Element', 'the guide');
+    await session.screenshot('workbench-core-element');
+    findings.push('core metamodel: added from the menu, Generic › Element dropped as arch:Element: ok');
+  }, 60_000);
 });
 
 describe('metamodels from the network', () => {

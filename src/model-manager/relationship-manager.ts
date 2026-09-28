@@ -109,6 +109,8 @@ const EXACT_TARGET_BONUS = 5;
 const ASSOCIATION_PENALTY = 4;
 /** Composition and aggregation are valid nearly everywhere; nudge them down. */
 const CONTAINMENT_PENALTY = 1;
+/** The core's generic relationship says less than any language's: below Association. */
+const GENERIC_PENALTY = 5;
 
 /** Counter for generating unique QualifiedRelationship IRIs. */
 let qrCounter = 0;
@@ -221,6 +223,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (domainTypes.includes(sourceTypeIri)) score += EXACT_SOURCE_BONUS;
       if (rangeTypes.includes(targetTypeIri)) score += EXACT_TARGET_BONUS;
       if (label === 'Association') score -= ASSOCIATION_PENALTY;
+      if (candidate.iri === NAMESPACES.arch + 'QualifiedRelationship') score -= GENERIC_PENALTY;
       if (label === 'Composition' || label === 'Aggregation') score -= CONTAINMENT_PENALTY;
 
       const constrained = domainTypes.length > 0 || rangeTypes.length > 0;
@@ -322,7 +325,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * reaches `arch:QualifiedRelationship` — `+` rather than `*` because
    * intermediate steps are real (ArchiMate's `Composition` subclasses
    * `Aggregation`, which subclasses `arch:QualifiedRelationship`) and because
-   * `arch:QualifiedRelationship` itself is not a relationship type.
+   * `arch:QualifiedRelationship` itself is not a relationship type — unless the
+   * core's own classification names it (the core metamodel's "Generic" group, a
+   * SKOS concept with `rdfs:seeAlso arch:QualifiedRelationship`): then it is the
+   * generic relationship, under that concept's label, between any two concepts.
    *
    * A legacy `?rel a arch:Relationship` typing is also accepted. That class was
    * removed from the core ontology, but recognising it costs one UNION branch
@@ -336,13 +342,18 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       PREFIX arch: <${NAMESPACES.arch}>
       PREFIX skos: <${NAMESPACES.skos}>
 
-      SELECT DISTINCT ?rel ?label ?icon ?pred ?domain ?range
+      SELECT DISTINCT ?rel ?label ?namedLabel ?icon ?pred ?domain ?range
       ${from}
       WHERE {
         {
           ?rel rdfs:subClassOf+ arch:QualifiedRelationship .
         } UNION {
           ?rel rdf:type arch:Relationship .
+        } UNION {
+          ?named a skos:Concept ; rdfs:seeAlso arch:QualifiedRelationship .
+          FILTER(STRSTARTS(STR(?named), "https://meta.linked.archi/core/tax#"))
+          OPTIONAL { ?named skos:prefLabel ?namedLabel }
+          BIND(arch:QualifiedRelationship AS ?rel)
         }
         OPTIONAL { ?rel skos:prefLabel ?label }
         OPTIONAL { ?rel arch:prefVisNotation ?icon }
@@ -374,7 +385,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (!record) {
         record = {
           iri,
-          label: row['label']?.value,
+          label: row['namedLabel']?.value ?? row['label']?.value,
           iconUrl: row['icon']?.value,
           unqualifiedPredicateIri: row['pred']?.value,
           domainTypes: [],
@@ -384,6 +395,8 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       } else {
         // A later row may carry an OPTIONAL the first one lacked — the two
         // passes are independent, so neither is guaranteed to be the richer.
+        // The taxonomy's name for the generic relationship wins over the class's.
+        if (row['namedLabel']) record.label = row['namedLabel'].value;
         record.label ??= row['label']?.value;
         record.iconUrl ??= row['icon']?.value;
         record.unqualifiedPredicateIri ??= row['pred']?.value;

@@ -4,7 +4,7 @@
  * Creates a BrowserWindow that loads the renderer bundle and
  * handles standard app lifecycle events (ready, window-all-closed, activate).
  */
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 
 function createWindow(): BrowserWindow {
@@ -19,6 +19,19 @@ function createWindow(): BrowserWindow {
 
   // Load the renderer bundle produced by the electron-renderer webpack config
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Web links (a type's source in the specification) open in the system
+  // browser: the renderer runs with Node integration, so no web page is ever
+  // loaded into this window or a child of it.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url === win.webContents.getURL()) return;
+    event.preventDefault();
+    if (/^https?:/.test(url)) void shell.openExternal(url);
+  });
 
   return win;
 }

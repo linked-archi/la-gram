@@ -170,6 +170,26 @@ Palette generation (existing, unchanged in approach): dual classification over
 the taxonomy (`conceptClassification`) and ontology, several axes, notation
 resolved via presentation context → metamodel notation set → `prefVisNotation`.
 
+**The core as a metamodel** ("Linked.Archi Core", bundled:
+`core/core-metamodel.ttl`, `https://meta.linked.archi/core/metamodel#Core`).
+Its `arch:modelConcepts` is the core ontology itself and its
+`arch:conceptClassification` a small scheme (`core/core-tax.ttl`,
+`…/core/tax#`): axis *Core Concepts* › group *Generic* › two concepts that
+`rdfs:seeAlso` `arch:Element` ("Element") and `arch:QualifiedRelationship`
+("Relationship"). Core classes are never palette types otherwise, and a
+language's taxonomy listing one does not make it one: the palette
+(`taxonomy.ts`, `palette-generator.ts`) and the relationship manager's type
+query offer a core class only when the core's own classification names it, by
+`rdfs:seeAlso`, and label it as the classification does. So that adding the
+core does not disturb a language: its axis always sorts after the language's
+(so a language's grouping stays the default), and under a language's axis the
+generic element keeps its "Generic" group instead of falling into "Other". The
+generic relationship has no domain or range, so it connects any two concepts;
+it is scored below Association and, like Association, counts as generic in the
+append menu (`isGenericRelationship`), so it never makes a choice ambiguous.
+The core ontology document loads under its bundled `coreOntology` role, which
+unloading never drops.
+
 ### Editing on the canvas — recorded changes
 
 diagram-js owns *when* things happen (its command stack, rules, tools);
@@ -182,6 +202,7 @@ model runs its model operation inside a nested command:
 | Tree drop / "add to view" | `shape.create` (existing IRI) | `rdf.store.change` → node; then draws its relationships (`connection.create` + existing-relationship hint) |
 | Connect | `connection.create` | `rdf.relationship.create` → qualified resource + triple + link |
 | Change type | `rdf.relationship.retype` | retype in place (same IRI) |
+| Rename in the box (double-click, F2) | `rdf.element.relabel` | `rdf.store.change` → the `skos:prefLabel` in the shown language; also relabels the shape, on undo too |
 | Move / resize | `shape.move` / `shape.resize` | `rdf.store.change` → node bounds |
 | Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list |
 | Reconnect end | `connection.reconnect` | `rdf.store.change` → ends, triple, links in other views |
@@ -191,6 +212,17 @@ model runs its model operation inside a nested command:
 `rdf.store.change` runs its operation once inside `ObservableRdfStore.record`;
 undo applies the inverse diff, redo re-applies it. Re-running logic on redo
 would mint new IRIs; replaying the diff cannot.
+
+Renaming in the box (`ui/canvas/rdf-label-editing.ts`) uses
+`diagram-js-direct-editing`, the text box bpmn-js edits its labels with (its
+`DirectEditing` class, declared in la-gram's own module: the package entry
+imports a diagram-js folder without `/index.js`, which Node's ESM loader
+refuses). The provider offers element shapes only, lays the box over the shape
+with the renderer's font scaled by the zoom and room for the badge, hides the
+drawn name meanwhile (a marker), and selects the whole name. Completing with a
+changed, non-empty name runs `rdf.element.relabel`; canvas commands are not
+followed by a re-read of the store, so the command relabels the shape itself on
+execute and on revert.
 
 ### Which relationships are permitted
 
@@ -250,12 +282,21 @@ selection, lock) are kept per concept and re-applied to shapes drawn later.
 
 `app-shell.ts` is a CSS grid with named slots: `explorer`, `canvas`,
 `properties` / `validation` / `sparql` / `graph` (the bottom panel's tabs), `palette`,
-`rdf`. The two right-hand columns are *side panels*: each column's width is a
-CSS variable that is 0 while the panel is hidden, and each has a drag handle on
-its left edge (palette ≥ 180 px, RDF ≥ 280 px). The bottom panel's row height is
+`rdf`. The tree and the two right-hand columns are *side panels*: each column's
+width is a CSS variable that is 0 while the panel is hidden, and each has a
+drag handle on its inner edge — the tree's right (≥ 160 px), the palette's and
+the RDF panel's left (≥ 180, ≥ 280 px). The bottom panel's row height is
 dragged by its top edge (≥ 120 px); clicking the open tab folds the row to the
 tab strip, and another tab opens and unfolds it. The canvas keeps at least
-240 × 160 px. Sizes, the open tab and the folding are remembered per browser in
+240 × 160 px.
+
+*Maximized*, the bottom panel spans the grid's rows 2–3 and every column, over
+the other panels (`z-index`), which stay laid out underneath and are `inert` —
+so the canvas keeps its size, viewbox and selection, and nothing has to be
+re-laid out on restore. Esc restores unless a dialog or a diagram-js popup is
+open; so does folding, and `mount-ui` restores it when a view is opened. The
+Graph tab watches its drawing area with a `ResizeObserver` (Cytoscape.js
+notices window resizes only) and refits when it changes. Sizes, the open tab and the folding are remembered per browser in
 `localStorage`. The Validation tab carries the number of violations, since it
 is often not the open one. A `ResizeObserver` on the canvas host tells
 diagram-js (`canvas.resized()`) whenever a panel changes the canvas's size.
@@ -272,6 +313,46 @@ there is room, a text area taking the whole row. Up/Down move between the tabs.
 The open tab is kept in `localStorage` (`la-gram:property-panel-tab`), so it
 holds from one selection to the next and across reloads; a concept without that
 tab (a model has no analysis) shows its information instead.
+
+### Type guide (About ‹type›)
+
+The left column is the model tree over `type-guide-panel` (the shell's `guide`
+slot): what the loaded metamodels say about the selected concept's type — or
+about a type picked in the palette (element or relationship), which stays until
+something is selected. Starting to create clears the canvas selection, so a
+cleared selection does not clear a palette pick; nor does the refresh after a
+model change. The
+shell sizes the section like the bottom panel — its height is dragged by its
+top edge (≥ 90 px, the tree keeping 120 px), it folds to its header, and both
+are remembered (`la-gram:guide-height`, `la-gram:guide-folded`); the header
+asks for the fold (`guide-fold-toggle`) and the shell answers
+(`guide-panel-changed`). It lives there rather than in the property panel: it
+describes the *type*, not the concept being edited, and stays in view while
+the bottom panel shows validation, a query or the graph.
+
+The guide is read by `metamodel-manager/type-guide.ts` from whatever
+metamodels are loaded (all graphs of the store), structurally, so any notation
+that publishes the same properties gets the same page. From the ontology:
+`skos:definition`, `skos:scopeNote` (as paragraphs — the published texts are
+hard-wrapped, so a line break starts a paragraph only after a sentence ends),
+`skos:altLabel`, `skos:changeNote`, `arch:isAbstractClass`, the
+`rdfs:subClassOf` closure nearest first, `rdfs:seeAlso` / `dcterms:source`
+links that are web pages rather than resources of the metamodels, and facts by
+kind — `arch:domainIncludes` / `rangeIncludes` / `unqualifiedForm` for a
+relationship, `arch:includesConcept` / `targetsStakeholder` /
+`viewpointHasPurpose` for a viewpoint. From the taxonomy: every SKOS concept
+that holds the type (`skos:narrower`, or the type's `skos:broader`), with the
+path up to its top concept (the axis), the concept's definition, notes and
+changes, and its other members. The host caches a guide per type until a
+metamodel or a model is loaded. `guideIri` says what to describe: the type, or
+for a view its viewpoint. Links inside the section open another type's page in
+place (a trail with a way back); the trail is dropped when the selection's
+type changes, not when the host merely re-sends the same one after a model
+change. The sections are `<details>`, their open state in
+`localStorage` (`la-gram:about-sections`); guidance and classification start
+open, superclasses and changes folded. Source links open in a new browser tab
+— in Electron in the system browser: the main process denies new windows and
+navigation away from the app, since the renderer runs with Node integration.
 
 ### Adding a property
 
@@ -299,20 +380,68 @@ nor put the name first.
 ### Relationship graph
 
 The Graph tab (`ui/panels/graph-panel.ts`) draws the relationships around the
-selected element. The graph **is** the result of one SPARQL `CONSTRUCT`
-(`model-manager/relationship-graph.ts`), run on the store; so the two exports —
-the query (`.rq`, or into the SPARQL Query tab) and its result as Turtle
-(`ModelIO.serializeQuads`, the model's prefixes and ordering) — agree by
-construction.
+selected element. `model-manager/relationship-graph.ts` gets the graph's triples
+two ways, required by tests to be the same set:
 
-The query finds every qualified relationship (`arch:source` + `arch:target`)
-within *n* hops, either direction. The elements within *n − 1* hops are computed
-level by level, each level a `SELECT DISTINCT` subquery over the previous one —
-so the work grows with the elements reached, not with the paths (a flat UNION of
-hop chains would enumerate every path); one more hop gives the relationships and
-their ends. Filters sit on every hop (`FILTER(?rt IN (…))`, `FILTER(?nt IN
-(…))`), so a type left out prunes the traversal; relationship ends that are
-themselves relationships are not followed. The depth is capped at 5.
+- `buildGraphQuery` writes the "query behind the graph" the tab exports, run
+  in the SPARQL Query tab or downloaded (`.rq`): a `CONSTRUCT` (the triples —
+  RDF) or, from the same `WHERE`, a `SELECT` (one row per relationship: source,
+  relationship, type, target and their names — a table). It is plain SPARQL
+  1.1, so it runs on any store holding the model.
+- `traverseGraph` walks the store breadth first with indexed lookups
+  (`getQuads` on `arch:source` / `arch:target` / `rdf:type`, memoised). This is
+  what is drawn, and what the Turtle export (`ModelIO.serializeQuads`, the
+  model's prefixes and ordering) writes.
+
+Both find every qualified relationship (`arch:source` + `arch:target`) within
+*n* hops, either direction: the elements within *n − 1* hops level by level,
+then one more hop for the relationships and their ends. Filters sit on every
+hop (`FILTER(?rt IN (…))`, `FILTER(?nt IN (…))` in the query), so a type left out
+prunes the traversal; relationship ends that are themselves relationships are
+not followed. The depth is capped at 5. In the query, each level is a
+`SELECT DISTINCT` subquery over the previous one, so it does not enumerate
+paths as a flat UNION of hop chains would; a level includes the one before
+(a hop's ends include the element it starts from), and the root is added to
+the last level explicitly, since a filter may leave it out.
+
+*The query's shape* (2026-09-27) is chosen for Oxigraph, measured on
+synthetic models with two relationships per element (Node). Oxigraph joins a
+bound variable into triple patterns, property paths and filters one lookup at
+a time, but:
+
+- a `UNION` on the right of a join is evaluated over the whole model — so a
+  hop's two directions are one property path, `?p ^(arch:source|arch:target) ?r`
+  (the union form: 1.1 s at depth 1, 2,000 elements; the path: 0 ms);
+- anything after a `BIND` in a group is evaluated on its own — so the other
+  end of a relationship is picked by a filter,
+  `?r arch:source|arch:target ?n FILTER(!sameTerm(?n, ?p) || sameTerm(?s, ?t))`
+  (with `BIND(IF(…))`: 4.7 s at depth 1, 2,000 elements; without: 1 ms);
+- a join between a level (a subquery) and the next hop is reordered so that
+  the subquery is re-run for every relationship in the model — so every hop
+  is written `OPTIONAL { … } FILTER(BOUND(?r))`, the same rows as a join, which
+  the optimizer does not reorder (depth 2, 2,000 elements: 9.4 s → 58 ms). The
+  filter must end the hop's own group: a group's `FILTER` applies after all of
+  its `OPTIONAL`s, and a later `OPTIONAL { ?r skos:prefLabel … }` would bind
+  `?r` where the hop did not (the agreement tests caught this).
+
+The first shape (subquery levels with `UNION`, `BIND` and `NOT EXISTS`) took
+1.7 s at depth 2 and 7 s at depth 5 at 100 elements, and 13.9 s at depth 1 at
+200. This one: 10 ms at depth 5 at 100 elements; 42 ms at 500; 0.4 s at 2,000;
+around a hub (a hundred relationships on the root) 0.2 s at 500 and 3.4 s at
+2,000 elements, depth 5.
+
+The walk still draws, because it touches only what it reaches — 1–2 ms in
+those cases, 62 ms around the 2,000-element hub. The agreement tests
+(`relationship-graph.test.ts`) run the walk, the `CONSTRUCT` and the `SELECT`
+on a hand-made model, corner cases (several types, labels in several
+languages, loops, untyped things, other graphs) and generated models, at every
+depth and filter, so the export stays honest: run on the same model, the query
+returns exactly what is drawn.
+
+**＋ New view** sends the drawn elements and relationships, with their
+positions in the drawing, to the same path as the SPARQL tab's *Render as new
+view* (below); the positions are spread by 1.3 — the drawing's boxes are
+smaller and closer than a diagram's.
 
 Drawing is Cytoscape.js (`graph-view.ts`, behind a factory so the panel is
 tested without a canvas): round rectangles in the notation's fill colour with the
@@ -322,6 +451,28 @@ never zooms past 1.25×. The view is created the first time the tab is shown —
 hidden container has no size — and the panel neither queries nor draws while the
 tab is hidden; while shown it refreshes 300 ms after a model change. The root
 follows the selection unless the selection came from the graph itself.
+
+### SPARQL tab and views from results
+
+`sparql-editor` runs the query on the store and shows the result as a table: a
+SELECT's rows, with its projected variables as the columns (read from the
+query, so a column no row binds is still there); a CONSTRUCT's triples as
+subject / predicate / object; at most 500 rows. IRIs are prefixed names —
+the model's prefixes (`ModelIO.collectPrefixes`, read when the query runs) and
+the vocabularies' — and clicking one reveals the concept as the RDF panel
+does. The query-form detection masks IRIs and strings before it strips
+comments, so a `#` in `<…/core#>` is not a comment.
+
+*Render as new view* (`model-manager/view-from-results.ts`): `planView` takes
+the IRIs the result mentions, in order, and keeps the model's elements
+(`rdf:type` in the default graph — a metamodel class is not one) and the
+relationships between elements, each bringing its ends; `placeNodes` turns
+layout centres into bounds at each element's notation default size;
+`ModelSession.createViewWith` writes the diagram, its nodes and links in one
+batch and opens it. Without positions from a drawing, the layout is the Graph
+tab's tree, run headless (`layoutPositions` in `graph-view.ts`, Cytoscape.js
+without a container). Like *New view*, it is not on the canvas's undo stack;
+deleting the view removes it.
 
 ### RDF panel
 
@@ -418,6 +569,47 @@ elements out in a grid when the data has no geometry.
    and can be moved.
 9. **The vocabularies decide what to offer.** Properties are suggested by
    `rdfs:domain` and SHACL, not listed wholesale.
+10. **The relationship graph is drawn with Cytoscape.js, not D3** (2026-09-27).
+    Cytoscape.js is a graph component — pan/zoom, drag, click/double-click,
+    selection, fit, and breadth-first (rings, tree) and force layouts built in,
+    canvas-rendered so hundreds to thousands of nodes stay responsive, and a
+    stylesheet whose arrow shapes and line styles map almost one-to-one onto the
+    notation's decorations; `graph-view.ts` is ~250 lines. D3 is a toolkit: the
+    SVG rendering, markers, labels, hit-testing, fit and every layout but force
+    would be ours to write and test (d3-hierarchy needs a tree; a relationship
+    graph is not one), and an SVG force graph slows past a thousand or two
+    nodes. Cost accepted: 435 KB minified / 137 KB gzipped (≈3% of the bundle,
+    which Oxigraph dominates), MIT, no dependencies. What D3 would buy — and the
+    reason to revisit — is drawing the graph with the diagram's own ArchiMate
+    shapes (`notation-shapes.ts` already builds them as SVG) and trivial SVG
+    export; diagram-js with an auto-layout (elkjs) was the third option, heavier
+    for a read-only view. Switching is contained: the drawing sits behind
+    `GraphView` / `GraphViewFactory`, so the panel, query, filters and exports
+    would not change.
+11. **The graph is walked; the query is exported** (2026-09-27). The Graph tab
+    offers the SPARQL query behind the graph because a query is the portable,
+    rerunnable definition of "what this element is related to" — it runs on
+    any SPARQL 1.1 store and can be edited in the SPARQL tab; as a `SELECT` it
+    is a table, as a `CONSTRUCT` it returns RDF. It is generated because depth
+    and filters vary, and SPARQL has no bounded-length paths or per-hop filters
+    in property paths. Its shape is chosen for Oxigraph's evaluator (see
+    *Relationship graph*): tens of milliseconds where the first shape took
+    seconds to minutes. The drawing still walks the store, which touches only
+    what it reaches, and tests hold the walk and both query forms to the same
+    result.
+12. **A bottom tab is maximized in the window, not opened in another**
+    (2026-09-27). The SPARQL and Graph tabs work on the model in this window's
+    store; a second window (a popup in the browser, a `BrowserWindow` in
+    Electron) would need its own copy of the model kept in step — the
+    collaboration channel could do it, at the cost of a second store,
+    popup-blocker handling and a second Electron renderer. The browser's
+    Fullscreen API on the panel was ruled out too: only the full-screened
+    element is shown, so the dialogs the panels open ("New view", toasts) would
+    open unseen. Maximizing within the window works the same in the browser and
+    Electron, keeps every dialog, and the OS's own full screen gives the whole
+    display; side by side with the canvas is the resizable panel's job. The
+    reason to revisit: a second monitor. Then a synced second window, over the
+    collaboration channel, is the path.
 
 ---
 
@@ -427,6 +619,7 @@ elements out in a grid when the data has no geometry.
 |---|---|
 | Canvas | diagram-js 14 (MIT) + custom RDF renderer, rules, modeling, context pad, popup menus |
 | Relationship graph | Cytoscape.js 3 (MIT) |
+| Renaming on the canvas | diagram-js-direct-editing 3 (MIT) |
 | UI | Lit 3 web components, CodeMirror 6 (SPARQL) |
 | RDF store / SPARQL | Oxigraph 0.4 (WASM in the browser, native module in Node) |
 | Parsing / writing | n3 (Turtle, TriG, N-Triples, N-Quads), Oxigraph (JSON-LD, RDF/XML) |

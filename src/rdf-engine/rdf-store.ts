@@ -99,19 +99,17 @@ function fromOxQuad(q: oxigraph.Quad): Quad {
 type SparqlQueryType = 'SELECT' | 'CONSTRUCT' | 'ASK' | 'DESCRIBE';
 
 /** Detect the SPARQL query form from the query string. */
-function detectQueryType(sparql: string): SparqlQueryType {
-  // Strip comments and prefixes to find the actual query keyword
-  const stripped = sparql
-    .replace(/#[^\n]*/g, '')
-    .replace(/PREFIX\s+\S+\s+<[^>]*>/gi, '')
-    .trim();
-
-  const upper = stripped.toUpperCase();
-  if (upper.startsWith('SELECT') || /\bSELECT\b/.test(upper.split(/\bWHERE\b/)[0])) return 'SELECT';
-  if (upper.startsWith('CONSTRUCT') || /\bCONSTRUCT\b/.test(upper)) return 'CONSTRUCT';
-  if (upper.startsWith('ASK') || /\bASK\b/.test(upper)) return 'ASK';
-  if (upper.startsWith('DESCRIBE') || /\bDESCRIBE\b/.test(upper)) return 'DESCRIBE';
-  return 'SELECT'; // fallback
+export function detectQueryType(sparql: string): SparqlQueryType {
+  // The query form is the first form keyword after the prologue; subqueries
+  // come later. IRIs and strings are masked before comments are stripped: a
+  // '#' inside <…/core#> is not a comment, and stripping from it used to take
+  // the closing '>' along, so a CONSTRUCT with a SELECT subquery read as SELECT.
+  const code = sparql
+    .replace(/<[^<>"{}|^`\\\s]*>/g, '<>')
+    .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""')
+    .replace(/#[^\n]*/g, '');
+  const form = /\b(SELECT|CONSTRUCT|ASK|DESCRIBE)\b/i.exec(code);
+  return (form ? form[1].toUpperCase() : 'SELECT') as SparqlQueryType;
 }
 
 // ── WASM initialization ────────────────────────────────────────────────

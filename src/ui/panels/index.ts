@@ -24,13 +24,17 @@ export {
 } from './model-explorer.js';
 export {
   SparqlEditor,
-  type ConstructViewRequestDetail,
+  type ResultsViewRequestDetail,
+  type SparqlSelectDetail,
   type QueryExecuteDetail,
   sparqlStreamParser,
   sparqlLanguage,
   buildPrefixCompletions,
   extractColumns,
   termValue,
+  curieOf,
+  projectedVariables,
+  resultIris,
 } from './sparql-editor.js';
 export {
   ValidationPanel,

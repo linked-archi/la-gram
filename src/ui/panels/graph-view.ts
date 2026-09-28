@@ -58,6 +58,8 @@ export interface GraphView {
   resize(): void;
   /** Highlight a node or edge (the concept selected elsewhere). */
   highlight(id: string | undefined): void;
+  /** Where each node is drawn: its centre, in the graph's coordinates. */
+  positions(): Map<string, { x: number; y: number }>;
   destroy(): void;
 }
 
@@ -148,14 +150,15 @@ const STYLE: StylesheetJson = [
   { selector: ':selected', style: { 'overlay-color': '#1a73e8', 'overlay-opacity': 0.2, 'overlay-padding': 4 } },
 ];
 
-function layoutOptions(layout: GraphLayout, rootId: string): LayoutOptions {
+function layoutOptions(layout: GraphLayout, rootId: string | undefined): LayoutOptions {
+  const roots = rootId ? { roots: [rootId] } : {};
   switch (layout) {
     case 'tree':
-      return { name: 'breadthfirst', roots: [rootId], directed: false, spacingFactor: 1.15, animate: false, padding: 24 } as LayoutOptions;
+      return { name: 'breadthfirst', ...roots, directed: false, spacingFactor: 1.15, animate: false, padding: 24 } as LayoutOptions;
     case 'force':
       return { name: 'cose', animate: false, padding: 24, nodeRepulsion: () => 12000, idealEdgeLength: () => 120 } as LayoutOptions;
     default:
-      return { name: 'breadthfirst', roots: [rootId], circle: true, directed: false, spacingFactor: 1.05, animate: false, padding: 24 } as LayoutOptions;
+      return { name: 'breadthfirst', ...roots, circle: true, directed: false, spacingFactor: 1.05, animate: false, padding: 24 } as LayoutOptions;
   }
 }
 
@@ -243,6 +246,33 @@ export const createCytoscapeView: GraphViewFactory = (container, handlers) => {
       cy.elements('.highlighted').removeClass('highlighted');
       if (id) cy.getElementById(id).addClass('highlighted');
     },
+    positions: () => new Map(cy.nodes().map((n) => [n.id(), { ...n.position() }] as const)),
     destroy: () => cy.destroy(),
   };
 };
+
+/**
+ * Lay out a graph that is not drawn — query results made into a view — with
+ * the layouts the Graph tab draws with, on nodes of the given size.
+ *
+ * @returns Each node's centre.
+ */
+export function layoutPositions(
+  nodes: ReadonlyArray<{ id: string }>,
+  edges: ReadonlyArray<{ id: string; source: string; target: string }>,
+  options: { layout: GraphLayout; rootId?: string; width: number; height: number },
+): Map<string, { x: number; y: number }> {
+  const cy = cytoscape({
+    headless: true,
+    styleEnabled: true,
+    style: [{ selector: 'node', style: { width: options.width, height: options.height } }],
+    elements: [
+      ...nodes.map((n) => ({ group: 'nodes' as const, data: { id: n.id } })),
+      ...edges.map((e) => ({ group: 'edges' as const, data: { id: e.id, source: e.source, target: e.target } })),
+    ],
+  });
+  if (nodes.length > 0) cy.layout({ ...layoutOptions(options.layout, options.rootId), boundingBox: undefined } as LayoutOptions).run();
+  const positions = new Map(cy.nodes().map((n) => [n.id(), { ...n.position() }] as const));
+  cy.destroy();
+  return positions;
+}

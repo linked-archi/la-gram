@@ -42,6 +42,7 @@ describe('AppShell', () => {
       expect([...root.querySelectorAll('slot')].map((s) => s.getAttribute('name'))).toEqual([
         'toolbar',
         'explorer',
+        'guide',
         'canvas',
         'properties',
         'validation',
@@ -56,12 +57,106 @@ describe('AppShell', () => {
         'SPARQL Query',
         'Graph',
       ]);
-      // Resize handles: the bottom panel's top edge, the side panels' left edges.
-      expect([...root.querySelectorAll('.resizer')].map((r) => r.getAttribute('data-panel'))).toEqual([
-        'bottom',
-        'palette',
-        'rdf',
+      // Resize handles: the tree's right edge, the guide's and the bottom panel's top edges, the right panels' left edges.
+      expect([...root.querySelectorAll('.resizer')].map((r) => `${r.getAttribute('data-panel')} ${r.className}`)).toEqual([
+        'explorer resizer vertical at-right',
+        'guide resizer horizontal',
+        'bottom resizer horizontal',
+        'palette resizer vertical',
+        'rdf resizer vertical',
       ]);
+    });
+
+    it('shows the model tree by default; it hides, and widens when its right edge is dragged right', async () => {
+      const { shell, root, grid } = await mount({ explorerWidth: 260 });
+      expect(grid().classList.contains('explorer-open')).toBe(true);
+      expect(grid().style.getPropertyValue('--la-explorer-column')).toBe('260px');
+
+      const handle = root.querySelector<HTMLElement>('.resizer[data-panel="explorer"]')!;
+      handle.dispatchEvent(new MouseEvent('pointerdown', { clientX: 260, bubbles: true }));
+      handle.dispatchEvent(new MouseEvent('pointermove', { clientX: 340, bubbles: true }));
+      handle.dispatchEvent(new MouseEvent('pointerup', { clientX: 340, bubbles: true }));
+      await shell.updateComplete;
+      expect(shell.explorerWidth).toBe(340);
+      expect(grid().style.getPropertyValue('--la-explorer-column')).toBe('340px');
+
+      shell.explorerOpen = false;
+      await shell.updateComplete;
+      expect(grid().classList.contains('explorer-open')).toBe(false);
+      expect(grid().style.getPropertyValue('--la-explorer-column')).toBe('0px');
+    });
+
+    it('puts the guide under the tree: it folds when its content asks, and grows by its top edge', async () => {
+      const { shell, root } = await mount({ guideFolded: false, guideHeight: 300 });
+      const section = () => root.querySelector<HTMLElement>('.explorer-guide')!;
+      expect(section().style.height).toBe('300px');
+
+      const handle = root.querySelector<HTMLElement>('.resizer[data-panel="guide"]')!;
+      handle.dispatchEvent(new MouseEvent('pointerdown', { clientY: 600, bubbles: true }));
+      handle.dispatchEvent(new MouseEvent('pointermove', { clientY: 500, bubbles: true }));
+      handle.dispatchEvent(new MouseEvent('pointerup', { clientY: 500, bubbles: true }));
+      await shell.updateComplete;
+      expect(shell.guideHeight).toBe(400);
+
+      // The guide's header asks; the shell folds it to the header and says so.
+      const changes: boolean[] = [];
+      shell.addEventListener('guide-panel-changed', (e) => changes.push((e as CustomEvent<{ folded: boolean }>).detail.folded));
+      const content = document.createElement('div');
+      content.slot = 'guide';
+      shell.append(content);
+      content.dispatchEvent(new CustomEvent('guide-fold-toggle', { bubbles: true, composed: true }));
+      await shell.updateComplete;
+      expect(shell.guideFolded).toBe(true);
+      expect(changes).toEqual([true]);
+      expect(section().style.height).toBe('auto');
+      expect(root.querySelector('.resizer[data-panel="guide"]')).toBeNull();
+      content.dispatchEvent(new CustomEvent('guide-fold-toggle', { bubbles: true, composed: true }));
+      await shell.updateComplete;
+      expect(section().style.height).toBe('400px');
+    });
+
+    it('maximizes the bottom panel over the workspace, and restores it with the button, Esc or folding', async () => {
+      const { shell, root, grid } = await mount({ bottomTab: 'graph', bottomFolded: false });
+      const button = () => root.querySelector<HTMLButtonElement>('.fold[data-action="maximize"]')!;
+      const changes: Array<{ tab?: string; maximized: boolean }> = [];
+      shell.addEventListener('bottom-panel-changed', (e) => changes.push((e as CustomEvent).detail));
+
+      button().click();
+      await shell.updateComplete;
+      expect(grid().classList.contains('bottom-maximized')).toBe(true);
+      expect(button().getAttribute('aria-pressed')).toBe('true');
+      // What it covers cannot be reached meanwhile; there is nothing to drag.
+      expect(root.querySelector('.panel-canvas')!.hasAttribute('inert')).toBe(true);
+      expect(root.querySelector('.resizer[data-panel="bottom"]')).toBeNull();
+      expect(changes.at(-1)).toEqual({ tab: 'graph', maximized: true });
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      await shell.updateComplete;
+      expect(shell.bottomMaximized).toBe(false);
+      expect(grid().classList.contains('bottom-maximized')).toBe(false);
+      expect(root.querySelector('.panel-canvas')!.hasAttribute('inert')).toBe(false);
+
+      // Maximizing a folded panel unfolds it; folding restores it.
+      shell.setBottomFolded(true);
+      shell.setBottomMaximized(true);
+      await shell.updateComplete;
+      expect([shell.bottomFolded, shell.bottomMaximized]).toEqual([false, true]);
+      shell.setBottomFolded(true);
+      await shell.updateComplete;
+      expect([shell.bottomFolded, shell.bottomMaximized]).toEqual([true, false]);
+      expect(grid().classList.contains('bottom-maximized')).toBe(false);
+    });
+
+    it('leaves Esc to an open dialog', async () => {
+      const { shell } = await mount({ bottomFolded: false });
+      shell.setBottomMaximized(true);
+      const dialog = Object.assign(document.createElement('div'), { className: 'la-dialog' });
+      document.body.append(dialog);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(shell.bottomMaximized).toBe(true);
+      dialog.remove();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(shell.bottomMaximized).toBe(false);
     });
 
     it('shows the palette and hides the RDF panel by default; each column follows its switch and width', async () => {

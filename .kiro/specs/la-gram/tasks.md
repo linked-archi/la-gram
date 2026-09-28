@@ -98,7 +98,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Toolbar, palette, model tree, canvas with tool strip, property panel, validation + SPARQL
 - [x] Dialogs (prompt / confirm / choose / info) and toasts
 - [x] RDF panel hideable (hidden by default) and resizable, width remembered
-- [x] Layout: model tree left (full height); palette right, hideable ("▦ Palette") and resizable; bottom tabs Properties / Validation (violation count) / SPARQL Query, resizable by the top edge, folding to the tabs; sizes, tab and folding remembered — *app-shell.test, mount-ui.test, workbench.test, workbench.spec, smoke.spec*
+- [x] Layout: model tree left (full height), hideable ("☰ Model") and resizable by its right edge; palette right, hideable ("▦ Palette") and resizable; bottom tabs Properties / Validation (violation count) / SPARQL Query / Graph, resizable by the top edge, folding to the tabs, maximizing over the workspace (⤢; Esc restores); sizes, tab and folding remembered — *app-shell.test, mount-ui.test, workbench.test, workbench.spec, smoke.spec*
 - [ ] Hideable / resizable model tree
 - [ ] Right-click canvas menu (the context pad covers the same actions today)
 
@@ -144,12 +144,15 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ## Phase 5: Polish & production readiness
 - [x] Viewpoint greying
-- [x] SPARQL console (existing component)
-- [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; the graph is one SPARQL CONSTRUCT — exported as `.rq` or opened in the SPARQL tab, its result as `.ttl` — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
+- [x] Rename on the canvas (Req 3.3): in-place editing of an element's name, undoable — *rdf-label-editing.test, workbench.spec*
+- [x] Linked.Archi Core metamodel (Req 1.12): generic Element and Relationship — *core-metamodel.test, bundled-assets.test, taxonomy.test, workbench.spec*
+- [x] About ‹type› (Req 3.10): the ontology's and the taxonomy's guidance on the selected type (a view's viewpoint), a foldable, resizable section under the model tree — *type-guide.test, type-guide-panel.test, app-shell.test, workbench.test, workbench.spec*
+- [x] SPARQL console: SELECT tables under their projected columns, CONSTRUCT triples as a table, prefixed names that reveal the concept, 500-row cap, results scrolled into sight — *sparql-editor.test, workbench.test, workbench.spec*
+- [x] Relationship graph (Req 17): Graph tab; depth 1–5; element/relationship type filters that prune; notation styling; rings / tree / force; follows selection, double-click re-roots; drawn by walking the store; the query behind it as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported as `.rq`, the drawn triples as `.ttl`; ＋ New view laid out as drawn; tests hold walk and both query forms to the same result — *relationship-graph.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
 - [ ] Accessibility audit (keyboard navigation of palette and tree, WCAG AA contrast, focus management in dialogs)
 - [ ] Catalog/matrix views driven by the view's own membership (`arch:inView`) and settings
-- [ ] Render SPARQL CONSTRUCT results as a new view
+- [x] Render SPARQL results (SELECT or CONSTRUCT) as a new view: the elements and relationships they mention, laid out as a tree — *view-from-results.test, model-session.test, graph-layout.test, workbench.test*
 - [ ] Electron packaging and a smoke test of the desktop build (bundles build; not launched in CI)
 
 ## Beyond the reference spec (tool spec phases 3–4)
@@ -170,9 +173,23 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ## Change log
 
-### Not yet committed (2026-09-27) — relationship graph
+### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
-- **Relationship graph** (Req 17): a **Graph** tab under the canvas — the relationships around the selected element to a chosen depth (1–5), filterable by element and relationship type (filters prune the traversal), drawn with the notation (Cytoscape.js, a new dependency); exports the SPARQL CONSTRUCT that draws it (`.rq`, or into the SPARQL tab) and its result as Turtle.
+- **Rename on the canvas** (Req 3.3): double-click an element's box (or F2) and type its name — Enter keeps, Esc drops, undo/redo restore; the name in the shown language, never empty. `diagram-js-direct-editing` (MIT, bpmn-io) is a new dependency.
+- **Linked.Archi Core** (Req 1.12): the core ontology as a metamodel, first in the Metamodels menu — a generic **Element** (palette group "Generic") and a generic **Relationship**, alone or alongside a language, whose grouping stays the default. Bundled manifest and classification (`assets/core/core-metamodel.ttl`, `core-tax.ttl`) until meta.linked.archi publishes them; the palette and the relationship manager offer a core class only when the core's own classification names it. The generic relationship ranks last and never makes an append ambiguous.
+
+- **Graph query, fast** (Req 17.6): the generated query is reshaped for Oxigraph — a property path for the two directions, a filter instead of `BIND`, every hop as `OPTIONAL { … } FILTER(BOUND(?r))` so the optimizer cannot reorder it: 10 ms at depth 5 on 100 elements (was 7 s), 42 ms on 500 (was minutes). Offered as **SELECT** (a table, the default) or **CONSTRUCT**, and *Run in SPARQL tab* runs it.
+- **SPARQL tab** (Req 16.2): results as tables — SELECT under its projected columns, CONSTRUCT as subject / predicate / object — with prefixed names that reveal the concept; the long query scrolls in its own box and the results come into sight.
+- **Layout** (Req 11.1, 11.4, 11.6–11.7): the model tree hides ("☰ Model" in the toolbar) and resizes by its right edge, like the palette and the RDF panel. The bottom panel maximizes over the workspace (⤢, or double-click the tab strip; ⤡, Esc or folding restores; opening a view restores it) — in the window rather than a separate one (design decision 12); the Graph drawing follows its area's size.
+- **About ‹type›** (Req 3.10): a section under the model tree, in the left panel — folds to its header, resizes by its top edge, both remembered — with what the ontology and the taxonomy say about the selected concept's type, or a type picked in the palette — definition, other names, guidance, a relationship's typical ends, a viewpoint's concepts and stakeholders (for a view: its viewpoint), superclasses, changes, the specification link; classification per axis with the group's notes and its other types. Sections fold (remembered); linked types open in place with a way back. In Electron, web links open in the system browser.
+- **Build**: the web bundle is named by its content (`bundle.<hash>.js`) — `npm run serve` sends no cache headers, and a plain reload kept running a cached `bundle.js` after a rebuild.
+- **Views from results** (Req 16.3, 17.7): *Render as new view* works (it was a button with nothing behind it) for SELECT and CONSTRUCT results, and the Graph tab has **＋ New view**, laid out as drawn.
+- **Graph performance** (Req 17.6, 17.8): running the Graph tab's SPARQL CONSTRUCT in Oxigraph took seconds from 100 elements (7 s at depth 5) and grew with the model, so the tab walks the store breadth first instead — milliseconds, growing with what is reached; the query stays the export, and tests require the walk and the query to return the same triples (decision 11).
+- **SPARQL tab**: an empty `CONSTRUCT` result with a `#` in a `PREFIX` IRI came back as an empty table — the query-form detection read comments inside IRIs and let the prefix-stripping swallow the query; it now masks IRIs and strings first and takes the first form keyword.
+
+### 2026-09-27 — relationship graph (commit `88ba85e`)
+
+- **Relationship graph** (Req 17): a **Graph** tab under the canvas — the relationships around the selected element to a chosen depth (1–5), filterable by element and relationship type (filters prune the traversal), drawn with the notation (Cytoscape.js, a new dependency — decision 10 in the design); exports the SPARQL CONSTRUCT behind it (`.rq`, or into the SPARQL tab) and what is drawn as Turtle.
 
 ### 2026-09-26 — relationships, append menu (commit `baf413d`)
 

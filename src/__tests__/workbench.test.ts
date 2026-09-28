@@ -156,6 +156,92 @@ describe('the workbench', () => {
     ui.showBottomTab('properties');
   });
 
+  it('tells about the selected type under the tree, from the loaded ontology and taxonomy — for a view, its viewpoint', async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => stored.get(k) ?? null,
+      setItem: (k: string, v: string) => void stored.set(k, v),
+      removeItem: (k: string) => void stored.delete(k),
+    });
+    const model = app.session.modelIri!;
+    const actor = app.components.elementManager.createElement(`${AM4}BusinessActor`, model, { label: 'Clerk' }).value;
+    const role = app.components.elementManager.createElement(`${AM4}Role`, model, { label: 'Cashier' }).value;
+    const assignment = app.components.relationshipManager.createQualifiedRelationship!({
+      typeIri: `${AM4}Assignment`,
+      sourceIri: actor,
+      targetIri: role,
+      modelIri: model,
+    }).iri;
+    const guide = ui.typeGuidePanel;
+    const root = guide.shadowRoot!;
+    // In the left panel, under the tree — not in the property panel.
+    expect(guide.slot).toBe('guide');
+    expect(ui.propertyPanel.shadowRoot!.querySelector('.vtab[data-tab="about"]')).toBeNull();
+    const about = async (iri: string) => {
+      ui.selectConcept(iri);
+      await guide.updateComplete;
+      return root.querySelector<HTMLElement>('.body')!;
+    };
+
+    const actorAbout = await about(actor);
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Business Actor');
+    expect(actorAbout.querySelector('.definition')!.textContent).toBe(
+      'A business actor represents a business entity that is capable of performing behavior.',
+    );
+    expect(actorAbout.querySelector('details[data-section="guidance"]')!.textContent).toMatch(/should preferably be a noun/);
+    expect(actorAbout.querySelector('details[data-section="classification"]')!.textContent).toMatch(/Business Domain[\s\S]*Also in Business Domain:/);
+    expect(actorAbout.querySelector('.sources a')!.getAttribute('href')).toMatch(/^https:\/\/pubs\.opengroup\.org\//);
+
+    const relationshipAbout = await about(assignment);
+    expect(relationshipAbout.querySelector('.type')!.textContent).toMatch(/Assignment/);
+    expect(relationshipAbout.querySelector('.definition')!.textContent).toMatch(/assignment/i);
+
+    // A view: its viewpoint, when it has one.
+    const view = app.session.createView('Diagram', { label: 'Org', viewpointIri: 'https://meta.linked.archi/archimate4/viewpoints#Organization', open: false });
+    const viewAbout = await about(view);
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Organization Viewpoint');
+    expect(viewAbout.querySelector('details[data-section="facts"]')!.textContent).toMatch(/Shows[\s\S]*Business Actor/);
+
+    // A type picked in the palette — here a relationship, which arms the connect
+    // tool — is shown until something is selected; a model change meanwhile keeps it.
+    // (jsdom cannot run the connect tool; the browser suite does.)
+    const connect = vi.spyOn(ui.diagramCanvas, 'activateTool').mockImplementation(() => undefined);
+    ui.palettePanel.dispatchEvent(
+      new CustomEvent('palette-drag-start', {
+        detail: { iri: `${AM4}Serving`, label: 'Serving', kind: 'relationship', sourceEvent: new MouseEvent('click') },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await guide.updateComplete;
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Serving');
+    ui.selectConcept(undefined);
+    const other = app.components.elementManager.createElement(`${AM4}Product`, model, { label: 'Other' }).value;
+    await guide.updateComplete;
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Serving');
+    ui.selectConcept(actor);
+    await guide.updateComplete;
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Business Actor');
+    app.components.elementManager.deleteElement(other);
+    connect.mockRestore();
+
+    // Folding it from its header leaves the header; the shell remembers.
+    root.querySelector<HTMLButtonElement>('.header')!.click();
+    await guide.updateComplete;
+    expect([ui.shell.guideFolded, guide.folded]).toEqual([true, true]);
+    expect(stored.get('la-gram:guide-folded')).toBe('true');
+    root.querySelector<HTMLButtonElement>('.header')!.click();
+    await guide.updateComplete;
+    expect(guide.folded).toBe(false);
+
+    ui.selectConcept(undefined);
+    await guide.updateComplete;
+    expect(root.querySelector('.header .title')!.textContent).toBe('About');
+    app.session.deleteView(view);
+    for (const iri of [actor, role]) app.components.elementManager.deleteElement(iri);
+    vi.unstubAllGlobals();
+  });
+
   it('splits the property panel into vertical tabs, and remembers the open one', async () => {
     // Node's own `localStorage` stub shadows jsdom's here; a store in memory stands in.
     const stored = new Map<string, string>();
@@ -205,7 +291,7 @@ describe('the workbench', () => {
     vi.unstubAllGlobals();
   });
 
-  it('draws the relationships around the selected element in the Graph tab, and exports the query and its result', async () => {
+  it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {
     const els = app.components.elementManager;
     const rels = app.components.relationshipManager;
     const model = app.session.modelIri!;
@@ -217,12 +303,17 @@ describe('the workbench', () => {
 
     // jsdom draws nothing: a stand-in records what would be drawn.
     const drawn: Array<{ nodes: number; edges: number }> = [];
+    let placed = new Map<string, { x: number; y: number }>();
     ui.graphPanel.viewFactory = () => ({
-      show: (nodes, edges) => void drawn.push({ nodes: nodes.length, edges: edges.length }),
+      show: (nodes, edges) => {
+        drawn.push({ nodes: nodes.length, edges: edges.length });
+        placed = new Map(nodes.map((n, i) => [n.id, { x: i * 150, y: n.depth * 120 }]));
+      },
       relayout: () => undefined,
       fit: () => undefined,
       resize: () => undefined,
       highlight: () => undefined,
+      positions: () => placed,
       destroy: () => undefined,
     });
     ui.selectConcept(clerk);
@@ -238,14 +329,62 @@ describe('the workbench', () => {
     ui.graphPanel.setDepth(1);
     expect(ui.graphPanel.graph!.nodes.map((n) => n.label).sort()).toEqual(['Cashier', 'Clerk']);
 
-    // The query goes to the SPARQL tab; the result to a Turtle file with the model's prefixes.
-    // Showing the tab queries and re-renders: wait for the export buttons to be live.
-    await vi.waitFor(() =>
-      expect(ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.disabled).toBe(false),
-    );
-    ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.click();
+    // The query runs in the SPARQL tab — a SELECT by default: a table, one row
+    // per relationship, IRIs as prefixed names. Showing the tab queries and
+    // re-renders: wait for the export buttons to be live.
+    const button = (name: string) => ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>(`[data-export="${name}"]`)!;
+    await vi.waitFor(() => expect(button('open-sparql').disabled).toBe(false));
+    expect(ui.graphPanel.queryForm).toBe('select');
+    button('open-sparql').click();
     expect(ui.shell.bottomTab).toBe('sparql');
-    ui.graphPanel.shadowRoot!.querySelector<HTMLButtonElement>('[data-export="turtle"]')!.click();
+    await ui.sparqlEditor.updateComplete;
+    const editor = ui.sparqlEditor.shadowRoot!;
+    expect(editor.querySelector('.result-info')!.textContent).toMatch(/^1 result\(s\)/);
+    expect([...editor.querySelectorAll('th')].map((th) => th.textContent)).toEqual([
+      'source', 'sourceName', 'relationship', 'relationshipType', 'relationshipName', 'target', 'targetName',
+    ]);
+    expect(editor.querySelector('tbody tr')!.textContent).toMatch(/m:element-.*Clerk.*m:relationship-.*am4:Assignment.*m:element-.*Cashier/s);
+
+    // … and its rows become a view.
+    script.answers.push('Clerk and role');
+    editor.querySelector<HTMLButtonElement>('.view-btn')!.click();
+    await vi.waitFor(() => expect(app.components.viewManager.getViews().some((v) => v.label === 'Clerk and role')).toBe(true));
+    const fromQuery = app.components.viewManager.getViews().find((v) => v.label === 'Clerk and role')!;
+    expect(app.session.activeViewIri).toBe(fromQuery.iri);
+    expect(app.components.viewManager.getNodes(fromQuery.iri).map((n) => n.elementIri).sort()).toEqual([clerk, role].sort());
+    expect(app.components.viewManager.getLinks(fromQuery.iri)).toHaveLength(1);
+
+    // The CONSTRUCT runs too, and shows its triples.
+    ui.graphPanel.setQueryForm('construct');
+    button('open-sparql').click();
+    await ui.sparqlEditor.updateComplete;
+    expect(editor.querySelector('.construct-count')!.textContent).toMatch(/^\d+ triple\(s\)/);
+    expect([...editor.querySelectorAll('th')].map((th) => th.textContent)).toEqual(['subject', 'predicate', 'object']);
+    ui.graphPanel.setQueryForm('select');
+
+    // The graph itself becomes a view, laid out as drawn — from the maximized
+    // panel, which then steps aside for the new view.
+    ui.showBottomTab('graph');
+    ui.graphPanel.setDepth(2);
+    ui.shell.setBottomMaximized(true);
+    script.answers.push('Clerk — 2 hops');
+    button('view').click();
+    await vi.waitFor(() => expect(app.components.viewManager.getViews().some((v) => v.label === 'Clerk — 2 hops')).toBe(true));
+    // The name offered: the root and the depth.
+    expect(vi.mocked(script.dialogs.prompt).mock.calls.at(-1)).toEqual(['New view', 'Name — 3 elements, 2 relationships', 'Clerk — 2 hops']);
+    const fromGraph = app.components.viewManager.getViews().find((v) => v.label === 'Clerk — 2 hops')!;
+    expect(ui.shell.bottomMaximized).toBe(false);
+    const nodes = app.components.viewManager.getNodes(fromGraph.iri);
+    expect(nodes).toHaveLength(3);
+    expect(app.components.viewManager.getLinks(fromGraph.iri)).toHaveLength(2);
+    // Clerk is drawn first (the root), so it is leftmost and on top.
+    const clerkNode = nodes.find((n) => n.elementIri === clerk)!;
+    expect(clerkNode.bounds).toMatchObject({ x: 40, y: 40, width: 120, height: 55 });
+    for (const view of [fromQuery, fromGraph]) app.session.deleteView(view.iri);
+    ui.graphPanel.setDepth(1);
+
+    // The graph's triples go to a Turtle file with the model's prefixes.
+    button('turtle').click();
     const turtle = saved.at(-1)!;
     expect(turtle.fileName).toBe('Clerk-graph.ttl');
     expect(turtle.content as string).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Assignment;/);
@@ -255,6 +394,18 @@ describe('the workbench', () => {
     ui.showBottomTab('properties');
     expect(ui.graphPanel.active).toBe(false);
     for (const iri of [clerk, role, shop]) els.deleteElement(iri);
+  });
+
+  it('hides and shows the model tree from the toolbar', async () => {
+    const toggle = () => ui.appToolbar.shadowRoot!.querySelector<HTMLButtonElement>('[data-command="toggle-explorer"]')!;
+    await ui.appToolbar.updateComplete;
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    toggle().click();
+    await ui.appToolbar.updateComplete;
+    expect([ui.isExplorerOpen(), ui.shell.explorerOpen, toggle().getAttribute('aria-pressed')]).toEqual([false, false, 'false']);
+    ui.setExplorerOpen(true);
+    await ui.appToolbar.updateComplete;
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
   });
 
   it('creates, names and opens a new view from the toolbar', async () => {

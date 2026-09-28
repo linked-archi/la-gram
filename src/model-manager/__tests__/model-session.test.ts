@@ -198,6 +198,32 @@ describe('ModelSession', () => {
     expect(views.getView(session.activeViewIri as string)).toBeDefined();
   });
 
+  it('creates a view with elements where given and the relationships among them, and opens it', () => {
+    const { modelIri } = session.newModel();
+    const a = elements.createElement(AM4 + 'ApplicationComponent', modelIri, { label: 'A' }).value;
+    const b = elements.createElement(AM4 + 'ApplicationComponent', modelIri, { label: 'B' }).value;
+    store.addQuads([
+      quad(namedNode('urn:x:r'), namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(namedNode('urn:x:r'), namedNode(ARCH + 'source'), namedNode(a)),
+      quad(namedNode('urn:x:r'), namedNode(ARCH + 'target'), namedNode(b)),
+    ]);
+    emit.mockClear();
+    const viewIri = session.createViewWith(
+      'From a query',
+      [
+        { iri: a, bounds: { x: 40, y: 40, width: 120, height: 55 } },
+        { iri: b, bounds: { x: 240, y: 40, width: 120, height: 55 } },
+      ],
+      ['urn:x:r'],
+    );
+    expect(views.getView(viewIri)).toMatchObject({ label: 'From a query', type: 'Diagram', modelIri });
+    expect(views.getNode(viewIri, b)?.bounds).toEqual({ x: 240, y: 40, width: 120, height: 55 });
+    expect(views.getLinks(viewIri).map((l) => l.relationshipIri)).toEqual(['urn:x:r']);
+    expect(session.activeViewIri).toBe(viewIri);
+    expect(emit).toHaveBeenCalledWith('views-changed', { viewIri });
+    expect(emit).toHaveBeenCalledWith('view-opened', { viewIri });
+  });
+
   it('renames the model with a language-tagged label', () => {
     const { modelIri } = session.newModel({ label: 'A' });
     session.renameModel('B');

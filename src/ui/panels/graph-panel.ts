@@ -7,10 +7,12 @@
  * relationship types — which prune the traversal, not only the drawing. On the
  * right, the graph (`graph-view.ts`, Cytoscape.js).
  *
- * What is drawn is the result of one SPARQL CONSTRUCT
- * (`model-manager/relationship-graph.ts`), so the two exports are the query
- * itself (`.rq`, or straight into the SPARQL Query tab) and its result as
- * Turtle — run the one and you get the other.
+ * Below them, what to do with the graph: its SPARQL query — as a `SELECT` (a
+ * table, one row per relationship) or a `CONSTRUCT` (the triples) — run in the
+ * SPARQL Query tab or downloaded; the graph as a new view, laid out as drawn;
+ * the drawn triples as Turtle. The graph is drawn by walking the store
+ * (`model-manager/relationship-graph.ts`); tests hold the query to the same
+ * result, so run the query and you get what is drawn.
  *
  * The panel does no work while its tab is hidden; while shown it follows the
  * selection and refreshes, debounced, on model changes.
@@ -22,6 +24,7 @@ import type { Quad } from '@rdfjs/types';
 import type { Decoration, LineStyle } from '../../metamodel-manager/notation.js';
 import {
   MAX_GRAPH_DEPTH,
+  type GraphQueryForm,
   type GraphQueryOptions,
   type RelationshipGraph,
 } from '../../model-manager/relationship-graph.js';
@@ -67,8 +70,25 @@ export interface GraphDownloadDetail {
   mediaType: string;
 }
 
+/** Detail of `graph-open-sparql`: run this query in the SPARQL Query tab. */
+export interface GraphOpenSparqlDetail {
+  query: string;
+  form: GraphQueryForm;
+}
+
+/** Detail of `graph-new-view`: a view of the graph, laid out as drawn. */
+export interface GraphNewViewDetail {
+  /** The drawn elements and relationships. */
+  iris: string[];
+  /** Each element's centre in the drawing. */
+  centres: Map<string, { x: number; y: number }>;
+  /** A name to offer. */
+  label: string;
+}
+
 const DEPTH_KEY = 'la-gram:graph-depth';
 const LAYOUT_KEY = 'la-gram:graph-layout';
+const FORM_KEY = 'la-gram:graph-query-form';
 const REFRESH_DELAY_MS = 300;
 
 function stored(key: string): string | undefined {
@@ -244,6 +264,10 @@ export class GraphPanel extends LitElement {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
+      margin-bottom: 8px;
+    }
+    .row .exports {
+      margin-bottom: 0;
     }
     .canvas {
       position: relative;
@@ -286,6 +310,7 @@ export class GraphPanel extends LitElement {
 
   @state() private _depth = Math.min(MAX_GRAPH_DEPTH, Math.max(1, Number(stored(DEPTH_KEY)) || 2));
   @state() private _layout: GraphLayout = (['rings', 'tree', 'force'] as const).find((l) => l === stored(LAYOUT_KEY)) ?? 'rings';
+  @state() private _form: GraphQueryForm = stored(FORM_KEY) === 'construct' ? 'construct' : 'select';
   @state() private _hiddenElements = new Set<string>();
   @state() private _hiddenRelationships = new Set<string>();
   @state() private _graph: RelationshipGraph | undefined;
@@ -296,6 +321,9 @@ export class GraphPanel extends LitElement {
 
   private _view: GraphView | undefined;
   private _timer: ReturnType<typeof setTimeout> | null = null;
+  /** Follows the drawing area's size (the panel dragged, maximized, restored). */
+  private _sizeWatcher: ResizeObserver | undefined;
+  private _resizeFrame = 0;
 
   /** The depth drawn. */
   get depth(): number {
@@ -425,6 +453,16 @@ export class GraphPanel extends LitElement {
           select: (iri) => this._emit('graph-select', { iri }),
           root: (iri) => this._emit('graph-root', { iri }),
         });
+        if (typeof ResizeObserver !== 'undefined') {
+          // Cytoscape notices window resizes only; refit when the area changes.
+          this._sizeWatcher = new ResizeObserver(() => {
+            cancelAnimationFrame(this._resizeFrame);
+            this._resizeFrame = requestAnimationFrame(() => {
+              if (this.active && this._container && this._container.clientWidth > 0) this._view?.resize();
+            });
+          });
+          this._sizeWatcher.observe(this._container);
+        }
       } else {
         this._view?.resize();
       }
@@ -436,12 +474,29 @@ export class GraphPanel extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this._timer) clearTimeout(this._timer);
+    this._sizeWatcher?.disconnect();
+    this._sizeWatcher = undefined;
+    if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(this._resizeFrame);
     this._view?.destroy();
     this._view = undefined;
   }
 
   private _emit<T>(name: string, detail: T): void {
     this.dispatchEvent(new CustomEvent<T>(name, { detail, bubbles: true, composed: true }));
+  }
+
+  /** The query form offered: `SELECT` (a table) or `CONSTRUCT` (triples). */
+  get queryForm(): GraphQueryForm {
+    return this._form;
+  }
+
+  setQueryForm(form: GraphQueryForm): void {
+    this._form = form;
+    remember(FORM_KEY, form);
+  }
+
+  private _query(graph: RelationshipGraph): string {
+    return this._form === 'select' ? graph.selectQuery : graph.query;
   }
 
   private _download(kind: 'sparql' | 'turtle'): void {
@@ -451,9 +506,25 @@ export class GraphPanel extends LitElement {
     this._emit<GraphDownloadDetail>(
       'graph-download',
       kind === 'sparql'
-        ? { text: graph.query, fileName: `${base}.rq`, mediaType: 'application/sparql-query' }
+        ? { text: this._query(graph), fileName: `${base}-${this._form}.rq`, mediaType: 'application/sparql-query' }
         : { text: this.source.turtle(graph.quads), fileName: `${base}.ttl`, mediaType: 'text/turtle' },
     );
+  }
+
+  private _openSparql(): void {
+    const graph = this._graph;
+    if (graph) this._emit<GraphOpenSparqlDetail>('graph-open-sparql', { query: this._query(graph), form: this._form });
+  }
+
+  private _newView(): void {
+    const graph = this._graph;
+    if (!graph || !this.source) return;
+    const hops = `${this._depth} hop${this._depth === 1 ? '' : 's'}`;
+    this._emit<GraphNewViewDetail>('graph-new-view', {
+      iris: [...graph.nodes.map((n) => n.iri), ...graph.edges.map((e) => e.iri)],
+      centres: this._view?.positions() ?? new Map(),
+      label: `${this.source.label(this.rootIri)} — ${hops}`,
+    });
   }
 
   private _renderTypes(kind: 'element' | 'relationship', title: string, options: GraphTypeOption[], hidden: Set<string>) {
@@ -537,29 +608,64 @@ export class GraphPanel extends LitElement {
             </select>
             <button class="tool" title="Fit the graph to the panel" @click=${() => this._view?.fit()}>Fit</button>
           </div>
-          ${this._renderTypes('element', 'Elements', this._types.elements, this._hiddenElements)}
-          ${this._renderTypes('relationship', 'Relationships', this._types.relationships, this._hiddenRelationships)}
           <div class="stats">
             ${graph ? html`${graph.nodes.length} elements · ${graph.edges.length} relationships` : nothing}
           </div>
           ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
+          <div class="row">
+            <span class="caption">Query</span>
+            <div class="depth form" role="group" aria-label="Query form">
+              <button
+                data-form="select"
+                aria-pressed=${this._form === 'select' ? 'true' : 'false'}
+                title="SELECT: a table, one row per relationship"
+                @click=${() => this.setQueryForm('select')}
+              >
+                SELECT
+              </button>
+              <button
+                data-form="construct"
+                aria-pressed=${this._form === 'construct' ? 'true' : 'false'}
+                title="CONSTRUCT: the graph's triples"
+                @click=${() => this.setQueryForm('construct')}
+              >
+                CONSTRUCT
+              </button>
+            </div>
+          </div>
           <div class="exports">
-            <button class="tool" data-export="sparql" ?disabled=${!graph} title="The SPARQL CONSTRUCT that draws this graph" @click=${() => this._download('sparql')}>
-              SPARQL ⬇
-            </button>
             <button
               class="tool"
               data-export="open-sparql"
               ?disabled=${!graph}
-              title="Open the query in the SPARQL Query tab"
-              @click=${() => graph && this._emit('graph-open-sparql', { query: graph.query })}
+              title="Run the ${this._form.toUpperCase()} query behind this graph in the SPARQL Query tab"
+              @click=${() => this._openSparql()}
             >
-              Open in SPARQL tab
+              Run in SPARQL tab
             </button>
-            <button class="tool" data-export="turtle" ?disabled=${!graph} title="The graph's triples as Turtle" @click=${() => this._download('turtle')}>
-              Turtle ⬇
+            <button class="tool" data-export="sparql" ?disabled=${!graph} title="Download the ${this._form.toUpperCase()} query (.rq)" @click=${() => this._download('sparql')}>
+              .rq ⬇
             </button>
           </div>
+          <div class="row">
+            <span class="caption">Graph</span>
+            <div class="exports">
+              <button
+                class="tool"
+                data-export="view"
+                ?disabled=${!graph || graph.nodes.length === 0}
+                title="A new view with these elements and relationships, laid out as drawn"
+                @click=${() => this._newView()}
+              >
+                ＋ New view
+              </button>
+              <button class="tool" data-export="turtle" ?disabled=${!graph} title="The graph's triples as Turtle (.ttl)" @click=${() => this._download('turtle')}>
+                .ttl ⬇
+              </button>
+            </div>
+          </div>
+          ${this._renderTypes('element', 'Elements', this._types.elements, this._hiddenElements)}
+          ${this._renderTypes('relationship', 'Relationships', this._types.relationships, this._hiddenRelationships)}
         </aside>
         <div class="canvas">
           <div class="cy"></div>

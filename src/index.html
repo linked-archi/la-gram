@@ -140,6 +140,19 @@
       cursor: move;
     }
 
+    /* Renaming on the canvas: the typed name replaces the drawn one while editing,
+       over the shape's own fill and badge. */
+    .la-diagram-host .djs-element.la-label-editing .la-shape-label {
+      visibility: hidden;
+    }
+    .la-diagram-host .djs-direct-editing-parent {
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+    .la-diagram-host .djs-direct-editing-content {
+      outline: none;
+      color: #202124;
+    }
     .la-diagram-host .la-shape-label {
       pointer-events: none;
       user-select: none;

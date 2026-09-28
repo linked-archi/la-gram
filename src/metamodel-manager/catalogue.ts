@@ -7,13 +7,15 @@
  * repository. Every entry is an `arch:Metamodel` subject IRI that dereferences
  * with `Accept: text/turtle` — the loader fetches the rest from it.
  *
- * The two bundled ArchiMate versions load offline; every other entry needs the
- * network. A metamodel not in this list loads just the same through
+ * The two bundled ArchiMate versions and the core metamodel load offline;
+ * every other entry needs the network. The core metamodel (the core ontology's
+ * generic element and relationship) is la-gram's own manifest, bundled, until
+ * meta.linked.archi publishes one. A metamodel not in this list loads just the same through
  * "Load by IRI" or an upload.
  */
 
 /** What a catalogue entry describes. */
-export type CatalogueKind = 'language' | 'framework' | 'extension';
+export type CatalogueKind = 'core' | 'language' | 'framework' | 'extension';
 
 /** One published metamodel. */
 export interface CatalogueEntry {
@@ -23,8 +25,10 @@ export interface CatalogueEntry {
   kind: CatalogueKind;
 }
 
-/** Every published metamodel: modelling languages, then frameworks, then extensions. */
+/** Every published metamodel: the core, modelling languages, then frameworks, then extensions. */
 export const METAMODEL_CATALOGUE: readonly CatalogueEntry[] = [
+  // Bundled; its manifest is la-gram's own until meta.linked.archi publishes one.
+  { iri: 'https://meta.linked.archi/core/metamodel#Core', label: 'Linked.Archi Core — generic element and relationship', kind: 'core' },
   { iri: 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2', label: 'ArchiMate 3.2', kind: 'language' },
   { iri: 'https://meta.linked.archi/archimate4/metamodel#ArchiMate4', label: 'ArchiMate 4.0', kind: 'language' },
   { iri: 'https://meta.linked.archi/backstage/metamodel#BackstageCatalog', label: 'Backstage Catalog', kind: 'language' },
@@ -54,6 +58,7 @@ export const METAMODEL_CATALOGUE: readonly CatalogueEntry[] = [
 
 /** Section titles for {@link CatalogueKind}. */
 export const CATALOGUE_KIND_LABELS: Record<CatalogueKind, string> = {
+  core: 'Core',
   language: 'Modelling languages',
   framework: 'Frameworks',
   extension: 'Extensions',

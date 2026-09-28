@@ -7,7 +7,10 @@ import {
   buildPrefixCompletions,
   extractColumns,
   termValue,
-  type ConstructViewRequestDetail,
+  curieOf,
+  projectedVariables,
+  resultIris,
+  type ResultsViewRequestDetail,
   type QueryExecuteDetail,
 } from '../sparql-editor.js';
 
@@ -51,6 +54,8 @@ function makeCtx(overrides: Record<string, any> = {}) {
     _result: null,
     _error: '',
     _editorView: null,
+    _prefixes: { ex: 'http://example.org/' },
+    _columns: undefined,
     extraPrefixes: undefined,
     dispatchEvent: vi.fn(),
     requestUpdate: vi.fn(),
@@ -62,11 +67,15 @@ function makeCtx(overrides: Record<string, any> = {}) {
     'getQuery',
     'setQuery',
     '_onRunClick',
-    '_onConstructViewClick',
+    '_onViewClick',
+    '_onIriClick',
     '_renderResult',
     '_renderBindingsResult',
     '_renderBooleanResult',
     '_renderQuadsResult',
+    '_renderTerm',
+    '_renderViewButton',
+    '_renderCount',
     'render',
   ]) {
     if (typeof (SparqlEditor.prototype as any)[m] === 'function') {
@@ -410,15 +419,33 @@ describe('result rendering', () => {
     expect(o).toContain('false');
   });
 
-  it('renders quads result with count', () => {
+  it('renders IRIs in a table as prefixed names, with the view button', () => {
     const ctx = makeCtx({
+      _columns: ['s', 'name', 'unbound'],
       _result: {
-        type: 'quads',
-        quads: [{ subject: {}, predicate: {}, object: {}, graph: {} }],
+        type: 'bindings',
+        results: [{ s: { termType: 'NamedNode', value: 'http://example.org/a' }, name: { value: 'A' } }],
       },
     });
     const o = flat(ctx._renderResult());
-    expect(o).toContain('1 quad(s) returned');
+    // The projection's columns, the unbound one too.
+    expect(o).toMatch(/<th>s<\/th>\s*<th>name<\/th>\s*<th>unbound<\/th>/);
+    expect(o).toContain('ex:a');
+    expect(o).toContain('Render as new view');
+  });
+
+  it('renders quads as a table of triples, with the view button', () => {
+    const iri = (value: string) => ({ termType: 'NamedNode', value });
+    const ctx = makeCtx({
+      _result: {
+        type: 'quads',
+        quads: [{ subject: iri('http://example.org/a'), predicate: iri('http://example.org/p'), object: { termType: 'Literal', value: 'x' }, graph: {} }],
+      },
+    });
+    const o = flat(ctx._renderResult());
+    expect(o).toContain('1 triple(s)');
+    expect(o).toMatch(/<th>subject<\/th><th>predicate<\/th><th>object<\/th>/);
+    expect(o).toContain('ex:p');
     expect(o).toContain('Render as new view');
   });
 
@@ -427,8 +454,14 @@ describe('result rendering', () => {
       _result: { type: 'quads', quads: [] },
     });
     const o = flat(ctx._renderResult());
-    expect(o).toContain('quad(s) returned');
+    expect(o).toContain('0 triple(s)');
     expect(o).not.toContain('Render as new view');
+  });
+
+  it('says when only the first rows are shown', () => {
+    const results = Array.from({ length: 501 }, (_, i) => ({ n: { value: String(i) } }));
+    const o = flat(makeCtx({ _result: { type: 'bindings', results } })._renderResult());
+    expect(o).toContain('501 result(s) — the first 500 shown');
   });
 
   it('returns nothing when no result', () => {
@@ -440,25 +473,73 @@ describe('result rendering', () => {
   });
 });
 
-describe('construct view request', () => {
-  it('dispatches construct-view-request event', () => {
-    const quads = [{ subject: {}, predicate: {}, object: {}, graph: {} }];
-    const ctx = makeCtx({
-      _result: { type: 'quads', quads },
-    });
-    ctx._onConstructViewClick();
-    expect(ctx.dispatchEvent).toHaveBeenCalled();
-    const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<ConstructViewRequestDetail>;
-    expect(evt.type).toBe('construct-view-request');
-    expect(evt.detail.quads).toBe(quads);
+describe('results view request', () => {
+  const iri = (value: string) => ({ termType: 'NamedNode', value });
+
+  it('asks for a view of the IRIs a CONSTRUCT result mentions', () => {
+    const quads = [
+      { subject: iri('http://x/r'), predicate: iri('http://x/source'), object: iri('http://x/a'), graph: {} },
+      { subject: iri('http://x/r'), predicate: iri('http://x/label'), object: { termType: 'Literal', value: 'r' }, graph: {} },
+    ];
+    const ctx = makeCtx({ _result: { type: 'quads', quads } });
+    ctx._onViewClick();
+    const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<ResultsViewRequestDetail>;
+    expect(evt.type).toBe('results-view-request');
+    expect(evt.detail.iris).toEqual(['http://x/r', 'http://x/a']);
   });
 
-  it('does not dispatch when result is not quads', () => {
-    const ctx = makeCtx({
-      _result: { type: 'bindings', results: [] },
-    });
-    ctx._onConstructViewClick();
+  it('asks for a view of the IRIs in a SELECT table', () => {
+    const ctx = makeCtx({ _result: { type: 'bindings', results: [{ a: iri('http://x/a'), n: { value: 'A' } }, { a: iri('http://x/b') }] } });
+    ctx._onViewClick();
+    expect((ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<ResultsViewRequestDetail>).detail.iris).toEqual(['http://x/a', 'http://x/b']);
+  });
+
+  it('does not ask when the result mentions no IRI', () => {
+    const ctx = makeCtx({ _result: { type: 'bindings', results: [{ n: { value: '1' } }] } });
+    ctx._onViewClick();
     expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+  });
+
+  it('reports a clicked IRI', () => {
+    const ctx = makeCtx();
+    ctx._onIriClick(new Event('click'), 'http://x/a');
+    const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<{ iri: string }>;
+    expect([evt.type, evt.detail.iri]).toEqual(['sparql-select', 'http://x/a']);
+  });
+});
+
+describe('curieOf', () => {
+  it('writes an IRI with the longest prefix that covers it', () => {
+    const prefixes = { ex: 'http://example.org/', exm: 'http://example.org/m/' };
+    expect(curieOf('http://example.org/m/a', prefixes)).toBe('exm:a');
+    expect(curieOf('http://example.org/b', prefixes)).toBe('ex:b');
+    expect(curieOf('http://other.org/c', prefixes)).toBe('http://other.org/c');
+    // A local part a prefixed name cannot hold stays an IRI.
+    expect(curieOf('http://example.org/a/b?c', { ex: 'http://example.org/' })).toBe('http://example.org/a/b?c');
+  });
+});
+
+describe('projectedVariables', () => {
+  it('reads the columns of a SELECT, aliases included', () => {
+    expect(projectedVariables('SELECT ?a ?b WHERE { ?a ?p ?b }')).toEqual(['a', 'b']);
+    expect(
+      projectedVariables('# SELECT ?no\nPREFIX x: <http://x/#>\nSELECT DISTINCT (?s AS ?source) (STR(?l) AS ?name) ?t { ?s ?p ?t }'),
+    ).toEqual(['source', 'name', 't']);
+    expect(projectedVariables('SELECT (COUNT(?s) AS ?n) WHERE { ?s ?p ?o }')).toEqual(['n']);
+  });
+
+  it('knows no columns for SELECT * or other forms', () => {
+    expect(projectedVariables('SELECT * WHERE { ?s ?p ?o }')).toBeUndefined();
+    expect(projectedVariables('ASK { ?s ?p ?o }')).toBeUndefined();
+  });
+});
+
+describe('resultIris', () => {
+  it('lists each IRI once, in order, and nothing for other results', () => {
+    const iri = (value: string) => ({ termType: 'NamedNode', value });
+    expect(resultIris({ type: 'bindings', results: [{ a: iri('http://x/1') as never, b: iri('http://x/1') as never }] })).toEqual(['http://x/1']);
+    expect(resultIris({ type: 'boolean', value: true })).toEqual([]);
+    expect(resultIris(null)).toEqual([]);
   });
 });
 

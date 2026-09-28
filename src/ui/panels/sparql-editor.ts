@@ -3,8 +3,10 @@
  *
  * Provides syntax highlighting for SPARQL keywords, variables, and prefixes,
  * auto-completion for namespace prefixes from the loaded metamodel,
- * query execution against an RdfStore, and result display (table for SELECT,
- * boolean for ASK, quads for CONSTRUCT/DESCRIBE with option to create a new view).
+ * query execution against an RdfStore, and result display: a table for SELECT,
+ * the triples as a table for CONSTRUCT/DESCRIBE, a boolean for ASK. IRIs show as
+ * prefixed names and select the concept when clicked; the elements and
+ * relationships a SELECT or CONSTRUCT result mentions can become a new view.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -131,9 +133,15 @@ export function buildPrefixCompletions(
 
 // ── Event detail types ──────────────────────────────────────────────────
 
-/** Detail emitted when the user requests rendering CONSTRUCT results as a view. */
-export interface ConstructViewRequestDetail {
-  quads: import('@rdfjs/types').Quad[];
+/** Detail of `results-view-request`: make a view of what the result mentions. */
+export interface ResultsViewRequestDetail {
+  /** The IRIs in the result, in order, once each. */
+  iris: string[];
+}
+
+/** Detail of `sparql-select`: an IRI in the results was clicked. */
+export interface SparqlSelectDetail {
+  iri: string;
 }
 
 /** Detail emitted when a query is executed. */
@@ -161,6 +169,67 @@ export function termValue(term: any): string {
   return term.value ?? String(term);
 }
 
+/**
+ * The variables a SELECT projects, in order — the table's columns even where
+ * no row binds them. `undefined` for `SELECT *` or what cannot be read.
+ */
+export function projectedVariables(sparql: string): string[] | undefined {
+  const code = sparql
+    .replace(/<[^<>"{}|^`\\\s]*>/g, '<>')
+    .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""')
+    .replace(/#[^\n]*/g, '');
+  const clause = /\bSELECT\b([\s\S]*?)(?:\bWHERE\b|\{)/i.exec(code)?.[1];
+  if (clause === undefined || clause.includes('*')) return undefined;
+  const columns: string[] = [];
+  let depth = 0;
+  let alias = false;
+  for (const token of clause.match(/\(|\)|[?$]\w+|\bAS\b/gi) ?? []) {
+    if (token === '(') depth += 1;
+    else if (token === ')') depth -= 1;
+    else if (/^AS$/i.test(token)) alias = true;
+    else if (depth === 0 || alias) {
+      // `?x`, or the `?x` of `(… AS ?x)`; a variable inside an expression is not a column.
+      columns.push(token.slice(1));
+      alias = false;
+    }
+  }
+  return columns.length > 0 ? columns : undefined;
+}
+
+/** Rows shown at most; the count says how many there are. */
+export const MAX_RESULT_ROWS = 500;
+
+/** `prefix:local` when a prefix covers the IRI (the longest namespace wins), else the IRI. */
+export function curieOf(iri: string, prefixes: Record<string, string>): string {
+  let best: [string, string] | undefined;
+  for (const [prefix, ns] of Object.entries(prefixes)) {
+    if (!ns || !iri.startsWith(ns) || (best && best[1].length >= ns.length)) continue;
+    if (/^[\w.-]*$/.test(iri.slice(ns.length))) best = [prefix, ns];
+  }
+  return best ? `${best[0]}:${iri.slice(best[1].length)}` : iri;
+}
+
+function isIri(term: any): boolean {
+  return !!term && typeof term === 'object' && term.termType === 'NamedNode';
+}
+
+/** The IRIs a result mentions, in order, once each. */
+export function resultIris(result: SparqlResult | null): string[] {
+  const seen = new Set<string>();
+  const add = (term: any) => {
+    if (isIri(term)) seen.add(term.value);
+  };
+  if (result?.type === 'bindings') {
+    for (const row of result.results) for (const value of Object.values(row)) add(value);
+  } else if (result?.type === 'quads') {
+    for (const q of result.quads) {
+      add(q.subject);
+      add(q.object);
+    }
+  }
+  return [...seen];
+}
+
 // ── Lit Component ───────────────────────────────────────────────────────
 
 @customElement('sparql-editor')
@@ -182,11 +251,16 @@ export class SparqlEditor extends LitElement {
     .editor-container {
       border: 1px solid #ccc;
       margin: 8px;
-      min-height: 120px;
+      /* A long query (the Graph tab's) scrolls here, leaving room for its
+         results; drag the corner for more. */
+      height: 180px;
+      min-height: 80px;
+      overflow: auto;
+      resize: vertical;
     }
 
     .editor-container .cm-editor {
-      min-height: 120px;
+      min-height: 100%;
     }
 
     .toolbar {
@@ -248,7 +322,8 @@ export class SparqlEditor extends LitElement {
     .result-table td {
       padding: 4px 8px;
       border: 1px solid #eee;
-      word-break: break-all;
+      /* Names wrap at spaces; long IRIs wherever they must. */
+      overflow-wrap: anywhere;
     }
 
     .result-table tr:hover td {
@@ -292,6 +367,22 @@ export class SparqlEditor extends LitElement {
       background: #e8f0fe;
     }
 
+    .result-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    a.iri {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    a.iri:hover {
+      text-decoration: underline;
+    }
+
     .result-info {
       padding: 4px 8px;
       color: #666;
@@ -306,6 +397,16 @@ export class SparqlEditor extends LitElement {
   /** Additional namespace prefixes for auto-completion (beyond defaults). */
   @property({ attribute: false })
   extraPrefixes?: Record<string, string>;
+
+  /** The model's prefixes, read when a query runs, to show IRIs by. */
+  @property({ attribute: false })
+  prefixSource?: () => Record<string, string>;
+
+  /** Prefixes the shown result is written with. */
+  private _prefixes: Record<string, string> = { ...NAMESPACES };
+
+  /** The shown SELECT's columns, from its projection. */
+  private _columns: string[] | undefined;
 
   @state()
   private _result: SparqlResult | null = null;
@@ -360,10 +461,17 @@ export class SparqlEditor extends LitElement {
 
     this._error = '';
     this._result = null;
+    this._prefixes = { ...NAMESPACES, ...this.extraPrefixes, ...this.prefixSource?.() };
+    this._columns = projectedVariables(sparql);
 
     try {
       const result = this.rdfStore.query(sparql);
       this._result = result;
+
+      // Bring the results into sight under a long query.
+      void this.updateComplete?.then(() =>
+        this.renderRoot?.querySelector('.result-section')?.scrollIntoView?.({ block: 'nearest' }),
+      );
 
       this.dispatchEvent(
         new CustomEvent<QueryExecuteDetail>('query-execute', {
@@ -385,16 +493,50 @@ export class SparqlEditor extends LitElement {
     this.executeQuery();
   }
 
-  private _onConstructViewClick(): void {
-    if (this._result?.type === 'quads') {
-      this.dispatchEvent(
-        new CustomEvent<ConstructViewRequestDetail>('construct-view-request', {
-          detail: { quads: this._result.quads },
-          bubbles: true,
-          composed: true,
-        }),
-      );
-    }
+  /** Put a query in the editor and run it. */
+  run(sparql: string): SparqlResult | null {
+    this.setQuery(sparql);
+    return this.executeQuery();
+  }
+
+  private _onViewClick(): void {
+    const iris = resultIris(this._result);
+    if (iris.length === 0) return;
+    this.dispatchEvent(
+      new CustomEvent<ResultsViewRequestDetail>('results-view-request', {
+        detail: { iris },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _onIriClick(e: Event, iri: string): void {
+    e.preventDefault();
+    this.dispatchEvent(
+      new CustomEvent<SparqlSelectDetail>('sparql-select', { detail: { iri }, bubbles: true, composed: true }),
+    );
+  }
+
+  /** A value in a table: an IRI as a prefixed name that selects it, else its text. */
+  _renderTerm(term: any): unknown {
+    if (!isIri(term)) return termValue(term);
+    const iri = term.value as string;
+    return html`<a class="iri" href="#" title=${iri} @click=${(e: Event) => this._onIriClick(e, iri)}
+      >${curieOf(iri, this._prefixes ?? NAMESPACES)}</a
+    >`;
+  }
+
+  _renderViewButton(): unknown {
+    return resultIris(this._result).length > 0
+      ? html`<button class="view-btn" title="A new view with the elements and relationships in these results" @click=${this._onViewClick}>
+          Render as new view
+        </button>`
+      : nothing;
+  }
+
+  _renderCount(count: number, noun: string): string {
+    return `${count} ${noun}${count > MAX_RESULT_ROWS ? ` — the first ${MAX_RESULT_ROWS} shown` : ''}`;
   }
 
   override firstUpdated(): void {
@@ -440,21 +582,25 @@ export class SparqlEditor extends LitElement {
   // ── Result rendering ────────────────────────────────────────────────
 
   _renderBindingsResult(results: Record<string, any>[]): unknown {
-    const columns = extractColumns(results);
+    const found = extractColumns(results);
+    const columns = this._columns ? [...this._columns, ...found.filter((c) => !this._columns!.includes(c))] : found;
     if (columns.length === 0) {
       return html`<div class="result-info">No results</div>`;
     }
     return html`
       <div class="result-section">
-        <div class="result-info">${results.length} result(s)</div>
+        <div class="result-bar">
+          <span class="result-info">${this._renderCount(results.length, 'result(s)')}</span>
+          ${this._renderViewButton()}
+        </div>
         <table class="result-table">
           <thead>
             <tr>${columns.map((c) => html`<th>${c}</th>`)}</tr>
           </thead>
           <tbody>
-            ${results.map(
+            ${results.slice(0, MAX_RESULT_ROWS).map(
               (row) => html`
-                <tr>${columns.map((c) => html`<td>${termValue(row[c])}</td>`)}</tr>
+                <tr>${columns.map((c) => html`<td>${this._renderTerm(row[c])}</td>`)}</tr>
               `,
             )}
           </tbody>
@@ -476,11 +622,25 @@ export class SparqlEditor extends LitElement {
   _renderQuadsResult(quads: import('@rdfjs/types').Quad[]): unknown {
     return html`
       <div class="result-section construct-result">
-        <div class="construct-count">${quads.length} quad(s) returned</div>
+        <div class="result-bar">
+          <span class="construct-count">${this._renderCount(quads.length, 'triple(s)')}</span>
+          ${this._renderViewButton()}
+        </div>
         ${quads.length > 0
-          ? html`<button class="view-btn" @click=${this._onConstructViewClick}>
-              Render as new view
-            </button>`
+          ? html`<table class="result-table">
+              <thead>
+                <tr><th>subject</th><th>predicate</th><th>object</th></tr>
+              </thead>
+              <tbody>
+                ${quads.slice(0, MAX_RESULT_ROWS).map(
+                  (q) => html`<tr>
+                    <td>${this._renderTerm(q.subject)}</td>
+                    <td>${this._renderTerm(q.predicate)}</td>
+                    <td>${this._renderTerm(q.object)}</td>
+                  </tr>`,
+                )}
+              </tbody>
+            </table>`
           : nothing}
       </div>
     `;

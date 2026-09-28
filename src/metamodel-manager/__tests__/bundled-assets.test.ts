@@ -18,8 +18,9 @@ import {
 
 describe('bundled asset registry', () => {
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    // Four core files, plus ten per bundled language (ArchiMate 4.0 and 3.2).
-    expect(BUNDLED_ASSETS).toHaveLength(24);
+    // Four core files, ten per bundled language (ArchiMate 4.0 and 3.2), and the
+    // core metamodel's manifest and taxonomy.
+    expect(BUNDLED_ASSETS).toHaveLength(26);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);
@@ -36,13 +37,17 @@ describe('bundled asset registry', () => {
       'presentationContexts',
       'viewpoints',
     ];
-    for (const metamodel of BUNDLED_METAMODELS) {
+    for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'core')) {
       for (const role of roles) {
         expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
       }
       // arch:formalRules names four shapes graphs per language.
       expect(getAssetsByRole('shapes', metamodel.id)).toHaveLength(4);
     }
+    // The core metamodel: its manifest and its classification; its concepts are the core ontology's.
+    expect(getAssetsByRole('manifest', 'core')).toHaveLength(1);
+    expect(getAssetsByRole('taxonomy', 'core')).toHaveLength(1);
+    expect(getAssetsByRole('ontology', 'core')).toHaveLength(0);
     expect(getAssetsByRole('coreOntology')).toHaveLength(1);
     expect(getAssetsByRole('coreVisOntology')).toHaveLength(1);
     expect(getAssetsByRole('coreShapes')).toHaveLength(2);

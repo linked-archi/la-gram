@@ -56,6 +56,8 @@ const ARCH_CONCEPT_CLASSIFICATION = `${CORE}conceptClassification`;
 /** The abstractness flag actually published in the Linked.Archi ontologies. */
 const ARCH_IS_ABSTRACT_CLASS = `${CORE}isAbstractClass`;
 const CORE_ELEMENT = `${CORE}Element`;
+/** Namespace of the core metamodel's classification of the core's own concepts. */
+const CORE_TAXONOMY = 'https://meta.linked.archi/core/tax#';
 const CORE_MODEL_CONCEPT = `${CORE}ModelConcept`;
 const CORE_QUALIFIED_RELATIONSHIP = `${CORE}QualifiedRelationship`;
 
@@ -338,9 +340,22 @@ export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
     }
   }
 
-  axes.sort((a, b) => aspectRank(a.label) - aspectRank(b.label) || a.label.localeCompare(b.label));
+  // A language's axes first: the core's classification (the generic element and
+  // relationship) is added alongside a language, and must not become the default
+  // grouping of that language's palette.
+  axes.sort(
+    (a, b) =>
+      Number(isCoreAxis(a.iri)) - Number(isCoreAxis(b.iri)) ||
+      aspectRank(a.label) - aspectRank(b.label) ||
+      a.label.localeCompare(b.label),
+  );
 
   return axes;
+}
+
+/** An axis of the core metamodel's own classification (`…/core/tax#`). */
+export function isCoreAxis(axisIri: string): boolean {
+  return axisIri.startsWith(CORE_TAXONOMY);
 }
 
 /**
@@ -382,6 +397,11 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
   const isOwlClass = (iri: string): boolean =>
     store.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(OWL_CLASS), null).length > 0;
 
+  /** Whether a taxonomy member names the class itself: it is the class, or points at it. */
+  const namesExplicitly = (memberIri: string, classIri: string): boolean =>
+    memberIri === classIri ||
+    store.getQuads(namedNode(memberIri), namedNode(RDFS_SEE_ALSO), namedNode(classIri), null).length > 0;
+
   /** Resolves a taxonomy member IRI to the instantiable OWL class it stands for. */
   const resolveOwlClass = (memberIri: string): string | null => {
     // 1. The member is itself an owl:Class.
@@ -419,13 +439,18 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
     for (const memberIri of memberIris) {
       const owlClassIri = resolveOwlClass(memberIri);
       if (!owlClassIri || seenOwl.has(owlClassIri)) continue;
-      if (owlClassIri.startsWith(CORE)) continue;
+      // A core class is offered only when the core's own classification names it
+      // (the core metamodel's "Generic" group, by rdfs:seeAlso) — not when a
+      // language's taxonomy lists one, nor through the local-name fallback.
+      if (owlClassIri.startsWith(CORE) && !(memberIri.startsWith(CORE_TAXONOMY) && namesExplicitly(memberIri, owlClassIri))) continue;
 
       if (isAbstractClass(store, owlClassIri)) continue;
 
       const closure = computeClosure(owlClassIri, superClassMap);
       const isRelationship =
-        closure.includes(CORE_QUALIFIED_RELATIONSHIP) || RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri));
+        owlClassIri === CORE_QUALIFIED_RELATIONSHIP ||
+        closure.includes(CORE_QUALIFIED_RELATIONSHIP) ||
+        RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri));
       if (isRelationship) continue;
 
       seenOwl.add(owlClassIri);

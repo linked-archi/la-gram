@@ -80,6 +80,7 @@
  * know nothing about metamodels.
  */
 
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
@@ -93,11 +94,13 @@ export const APPEND_RELATIONSHIP_MENU_ID = 'la-append-relationship';
 
 /**
  * A relationship type that holds between almost anything — ArchiMate's
- * Association. It is always offered, so it does not make a choice ambiguous;
- * the relationship manager ranks it last for the same reason.
+ * Association, and the core's generic relationship (`arch:QualifiedRelationship`,
+ * offered when the core metamodel is loaded). They are always offered, so they
+ * do not make a choice ambiguous; the relationship manager ranks them last for
+ * the same reason.
  */
 export function isGenericRelationship(relationship: RelationshipTypeInfo): boolean {
-  return relationship.label === 'Association';
+  return relationship.label === 'Association' || relationship.iri === NAMESPACES.arch + 'QualifiedRelationship';
 }
 
 /**

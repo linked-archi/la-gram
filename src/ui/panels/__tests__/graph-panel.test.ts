@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import type { GraphQueryOptions, RelationshipGraph } from '../../../model-manager/relationship-graph.js';
 import '../graph-panel.js';
-import type { GraphPanel, GraphSource, GraphDownloadDetail } from '../graph-panel.js';
+import type { GraphPanel, GraphSource, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail } from '../graph-panel.js';
 import type { GraphView, GraphViewHandlers } from '../graph-view.js';
 
 const M = 'https://example.org/m/';
@@ -17,6 +17,7 @@ function fakeView() {
     fit: vi.fn(),
     resize: vi.fn(),
     highlight: vi.fn(),
+    positions: () => new Map([[M + 'a', { x: 0, y: 0 }], [M + 'b', { x: 150, y: 0 }]]),
     destroy: vi.fn(),
   };
   return { view, shown, factory: vi.fn((_c: HTMLElement, h: GraphViewHandlers) => ((handlers = h), view)), handlers: () => handlers! };
@@ -28,7 +29,8 @@ function fakeSource() {
     graph: (options): RelationshipGraph => {
       calls.push(options);
       return {
-        query: `# query for depth ${options.depth}`,
+        query: `# construct for depth ${options.depth}`,
+        selectQuery: `# select for depth ${options.depth}`,
         quads: [],
         nodes: [
           { iri: M + 'a', label: 'Clerk', typeIri: L + 'Actor', depth: 0 },
@@ -66,8 +68,20 @@ async function mount(active = true) {
   return { panel, view, calls, root: panel.shadowRoot! };
 }
 
+// Node's own localStorage stub shadows jsdom's: remembered choices go here.
+const remembered = new Map<string, string>();
+beforeEach(() => {
+  remembered.clear();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => remembered.get(key) ?? null,
+    setItem: (key: string, value: string) => void remembered.set(key, value),
+    removeItem: (key: string) => void remembered.delete(key),
+  });
+});
+
 afterEach(() => {
   document.body.innerHTML = '';
+  vi.unstubAllGlobals();
 });
 
 describe('<graph-panel>', () => {
@@ -112,20 +126,43 @@ describe('<graph-panel>', () => {
     expect(calls.at(-1)!.relationshipTypes).toEqual([]);
   });
 
-  it('exports the query and its result, and opens the query in the SPARQL tab', async () => {
+  it('runs and exports the query as a SELECT or a CONSTRUCT, and exports the triples', async () => {
     const { panel, root } = await mount();
     const downloads: GraphDownloadDetail[] = [];
-    const opened: string[] = [];
+    const opened: GraphOpenSparqlDetail[] = [];
     panel.addEventListener('graph-download', (e) => downloads.push((e as CustomEvent<GraphDownloadDetail>).detail));
-    panel.addEventListener('graph-open-sparql', (e) => opened.push((e as CustomEvent<{ query: string }>).detail.query));
+    panel.addEventListener('graph-open-sparql', (e) => opened.push((e as CustomEvent<GraphOpenSparqlDetail>).detail));
+    // SELECT by default: a table.
+    expect(root.querySelector('[data-form="select"]')!.getAttribute('aria-pressed')).toBe('true');
+    root.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-export="sparql"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-form="construct"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('[data-form="construct"]')!.getAttribute('aria-pressed')).toBe('true');
+    expect(remembered.get('la-gram:graph-query-form')).toBe('construct');
+    root.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.click();
     root.querySelector<HTMLButtonElement>('[data-export="sparql"]')!.click();
     root.querySelector<HTMLButtonElement>('[data-export="turtle"]')!.click();
-    root.querySelector<HTMLButtonElement>('[data-export="open-sparql"]')!.click();
+    expect(opened).toEqual([
+      { query: '# select for depth 2', form: 'select' },
+      { query: '# construct for depth 2', form: 'construct' },
+    ]);
     expect(downloads).toEqual([
-      { text: '# query for depth 2', fileName: 'Clerk-graph.rq', mediaType: 'application/sparql-query' },
+      { text: '# select for depth 2', fileName: 'Clerk-graph-select.rq', mediaType: 'application/sparql-query' },
+      { text: '# construct for depth 2', fileName: 'Clerk-graph-construct.rq', mediaType: 'application/sparql-query' },
       { text: '@prefix m: <https://example.org/m/>.\nm:r1 a lang:Serving.', fileName: 'Clerk-graph.ttl', mediaType: 'text/turtle' },
     ]);
-    expect(opened).toEqual(['# query for depth 2']);
+  });
+
+  it('asks for a new view of what is drawn, where it is drawn', async () => {
+    const { panel, root } = await mount();
+    const asked: GraphNewViewDetail[] = [];
+    panel.addEventListener('graph-new-view', (e) => asked.push((e as CustomEvent<GraphNewViewDetail>).detail));
+    root.querySelector<HTMLButtonElement>('[data-export="view"]')!.click();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.iris).toEqual([M + 'a', M + 'b', M + 'r1']);
+    expect(asked[0]!.label).toBe('Clerk — 2 hops');
+    expect(asked[0]!.centres.get(M + 'b')).toEqual({ x: 150, y: 0 });
   });
 
   it('reports clicks and double-clicks on the drawing', async () => {

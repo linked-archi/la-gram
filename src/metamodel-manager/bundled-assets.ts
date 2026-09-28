@@ -153,6 +153,14 @@ export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
     manifestIri: 'https://meta.linked.archi/archimate3/metamodel#',
     label: 'ArchiMate 3.2',
   },
+  {
+    // The core ontology as a metamodel: a generic element and relationship.
+    // Its manifest and taxonomy are la-gram's own until meta.linked.archi publishes them.
+    id: 'core',
+    metamodelIri: 'https://meta.linked.archi/core/metamodel#Core',
+    manifestIri: 'https://meta.linked.archi/core/metamodel#',
+    label: 'Linked.Archi Core',
+  },
 ];
 
 /** The metamodel loaded when nothing else is asked for. */
@@ -221,6 +229,8 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
   },
   ...languageAssets('archimate4', 'archimate4', 'archimate4'),
   ...languageAssets('archimate3', 'archimate3', 'archimate3.2'),
+  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/core/metamodel#', path: 'core/core-metamodel.ttl', metamodel: 'core' },
+  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/core/tax#', path: 'core/core-tax.ttl', metamodel: 'core' },
 ];
 
 // ── Registry lookups ───────────────────────────────────────────────────

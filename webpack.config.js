@@ -76,7 +76,11 @@ export default (_env, argv) => {
     target: 'web',
     entry: './src/index.ts',
     output: {
-      filename: 'bundle.js',
+      // Named by content: `npm run serve` sends no cache headers, and a browser
+      // keeps a heuristically fresh `bundle.js` across plain reloads — a
+      // rebuild must change the URL for the page to load it.
+      filename: 'bundle.[contenthash:8].js',
+      chunkFilename: '[name].[contenthash:8].js',
       path: path.resolve(__dirname, 'dist/web'),
       clean: true,
     },

@@ -25,7 +25,7 @@
 import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
-import type { ElementManager, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
+import type { Bounds, ElementManager, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
 import { migrateLegacyModel, type MigrationReport } from './legacy-migration.js';
 import { classify, findModelIri, labelOf, modelQuads, typeClosure } from './model-queries.js';
 import {
@@ -330,6 +330,31 @@ export class ModelSession {
       label: options.label?.trim() || `New ${kind.toLowerCase()}`,
       ...(this.currentModel ? { modelIri: this.currentModel } : {}),
     }).value;
+    this.events?.emit('views-changed', { viewIri });
+    if (options.open !== false) this.openView(viewIri);
+    return viewIri;
+  }
+
+  /**
+   * A new diagram showing these elements, where given, and the relationships
+   * among them — one change for collaborators; opened unless `open` is false.
+   */
+  createViewWith(
+    label: string,
+    nodes: ReadonlyArray<{ iri: string; bounds: Bounds }>,
+    relationships: readonly string[],
+    options: { open?: boolean } = {},
+  ): string {
+    let viewIri = '';
+    this.batch(() => {
+      viewIri = this.views.createView('Diagram', undefined, {
+        label: label.trim() || 'New diagram',
+        ...(this.currentModel ? { modelIri: this.currentModel } : {}),
+      }).value;
+      for (const node of nodes) this.views.addElementToView(viewIri, node.iri, node.bounds);
+      for (const relationship of relationships) this.views.addRelationshipToView(viewIri, relationship);
+      this.touch();
+    });
     this.events?.emit('views-changed', { viewIri });
     if (options.open !== false) this.openView(viewIri);
     return viewIri;

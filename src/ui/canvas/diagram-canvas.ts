@@ -92,6 +92,7 @@
 
 import Diagram from 'diagram-js';
 import { DataFactory } from 'n3';
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 // diagram-js feature modules. These are plain didi module declarations; the
 // package ships no type declarations for the index files, hence the assertions.
@@ -137,6 +138,7 @@ import { NOTATION_DEFAULTS } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
 import { RdfRenderer, rdfRendererModule, type RdfBusinessObject } from './rdf-renderer.js';
 import { RdfRuleProvider, rdfRulesModule } from './rdf-rule-provider.js';
+import { rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import {
   rdfModelingModule,
   RDF_CHANGE_COMMAND,
@@ -684,6 +686,8 @@ export class DiagramCanvas {
         rdfRulesModule(this.ruleProvider),
         // Last, so its `modeling` binding replaces the one ModelingModule made.
         rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null),
+        // Renaming on the canvas: double-click or F2 (needs `rdfChangeStore` from the line above).
+        rdfLabelEditingModule(this.labelWriter()),
       ] as never[],
     });
 
@@ -2568,6 +2572,29 @@ export class DiagramCanvas {
    * and the relationship triple from the same group is left pointing at the
    * previous IRI.
    */
+  /**
+   * Writes a name typed on the canvas: the `skos:prefLabel` in the language
+   * shown (the English one, else an untagged one, else English is added), leaving
+   * the element's names in other languages as they are.
+   */
+  private labelWriter(): LabelWriter {
+    return (iri: string, label: string) => {
+      const prefLabel = NAMESPACES.skos + 'prefLabel';
+      const existing = (this.rdfStore?.getQuads(namedNode(iri), namedNode(prefLabel)) ?? []) as Array<{
+        object: { termType: string; language?: string };
+        graph: { termType: string };
+      }>;
+      const inModel = existing.filter((q) => q.graph.termType === 'DefaultGraph' && q.object.termType === 'Literal');
+      const shown = inModel.find((q) => q.object.language === 'en') ?? inModel.find((q) => !q.object.language);
+      const language = shown ? (shown.object.language ?? '') : 'en';
+      const replaced = inModel.filter((q) => (q.object.language ?? '') === language);
+      if (replaced.length > 0) this.rdfStore?.removeQuads(replaced as never[]);
+      this.rdfStore?.addQuads?.([
+        DataFactory.quad(namedNode(iri), namedNode(prefLabel), DataFactory.literal(label, language || undefined)) as never,
+      ]);
+    };
+  }
+
   private elementWriter(): RdfElementWriter {
     return {
       create: (request: RdfElementRequest): RdfElementResult | undefined => {

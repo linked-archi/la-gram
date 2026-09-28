@@ -45,6 +45,7 @@ export type ToolbarCommand =
   | 'share'
   | 'undo'
   | 'redo'
+  | 'toggle-explorer'
   | 'toggle-palette'
   | 'toggle-rdf';
 
@@ -277,6 +278,8 @@ export class AppToolbar extends LitElement {
   @property({ type: Boolean }) rdfOpen = false;
   /** Whether the palette is shown (the "Palette" toggle is pressed). */
   @property({ type: Boolean }) paletteOpen = true;
+  /** Whether the model tree is shown (the "Model" toggle is pressed). */
+  @property({ type: Boolean }) explorerOpen = true;
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | null = null;
 
@@ -356,7 +359,7 @@ export class AppToolbar extends LitElement {
 
   private _metamodelMenu() {
     const loaded = new Set(this.loadedMetamodels.map((m) => m.iri));
-    const kinds = ['language', 'framework', 'extension'] as const;
+    const kinds = ['core', 'language', 'framework', 'extension'] as const;
     return html`<div class="dropdown" role="menu">
       <div class="group">Loaded</div>
       ${this.loadedMetamodels.length === 0
@@ -503,6 +506,15 @@ export class AppToolbar extends LitElement {
           </label>`
         : nothing}
       <span class="spacer"></span>
+      <button
+        class="toggle"
+        data-command="toggle-explorer"
+        aria-pressed=${this.explorerOpen ? 'true' : 'false'}
+        title=${this.explorerOpen ? 'Hide the model tree' : 'Show the model tree on the left'}
+        @click=${() => this._cmd('toggle-explorer')}
+      >
+        ☰ Model
+      </button>
       <button
         class="toggle"
         data-command="toggle-palette"

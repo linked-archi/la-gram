@@ -54,6 +54,7 @@ import './views/catalog-view.js';
 import './views/matrix-view.js';
 import './panels/rdf-panel.js';
 import './panels/graph-panel.js';
+import './panels/type-guide-panel.js';
 
 import type { AppShell, BottomTab } from './app-shell.js';
 import type { AppToolbar, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
@@ -77,13 +78,18 @@ import type {
 } from './panels/model-explorer.js';
 import type { ValidationPanel, ValidationNavigateDetail } from './panels/validation-panel.js';
 import type { SparqlEditor } from './panels/sparql-editor.js';
+import type { TypeGuidePanel } from './panels/type-guide-panel.js';
 import type { CatalogView, CatalogSelectDetail } from './views/catalog-view.js';
 import type { MatrixView } from './views/matrix-view.js';
 import type { RdfPanel, RdfDownloadDetail, RdfSelectDetail } from './panels/rdf-panel.js';
-import type { GraphPanel, GraphDownloadDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
-import { runGraphQuery } from '../model-manager/relationship-graph.js';
+import type { GraphPanel, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
+import type { ResultsViewRequestDetail, SparqlSelectDetail } from './panels/sparql-editor.js';
+import { layoutPositions } from './panels/graph-view.js';
+import { relationshipGraph } from '../model-manager/relationship-graph.js';
+import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
+import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
 import { assetUrl } from '../metamodel-manager/bundled-assets.js';
-import { iconHref } from './canvas/notation-shapes.js';
+import { iconHref, NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
 // DOM node in its constructor and manages that subtree itself.
@@ -120,6 +126,10 @@ export interface MountedUi {
   sparqlEditor: SparqlEditor;
   catalogView: CatalogView;
   matrixView: MatrixView;
+  /** Show or hide the model tree, on the left (shown by default). */
+  setExplorerOpen(open: boolean): void;
+  /** Whether the model tree is shown. */
+  isExplorerOpen(): boolean;
   /** Show or hide the palette, on the right (shown by default). */
   setPaletteOpen(open: boolean): void;
   /** Whether the palette is shown. */
@@ -130,6 +140,8 @@ export interface MountedUi {
   rdfPanel: RdfPanel;
   /** The relationships around the selected element, as a graph (the Graph tab). */
   graphPanel: GraphPanel;
+  /** What the metamodel says about the selected type, under the model tree. */
+  typeGuidePanel: TypeGuidePanel;
   /** Show or hide the RDF panel. */
   setRdfPanelOpen(open: boolean): void;
   /** Whether the RDF panel is shown. */
@@ -332,6 +344,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const graphPanel = document.createElement('graph-panel');
   graphPanel.slot = 'graph';
+  const typeGuidePanel = document.createElement('type-guide-panel');
+  typeGuidePanel.slot = 'guide';
 
   // ── Far right: the model as RDF ──────────────────────────────────────
   // Hidden by default; the toolbar's "RDF" toggles it. It serializes through
@@ -351,7 +365,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   // ── Attach to the document ───────────────────────────────────────────
-  shell.append(appToolbar, modelExplorer, canvasArea, propertyPanel, validationPanel, sparqlEditor, graphPanel, palettePanel, rdfPanel);
+  shell.append(appToolbar, modelExplorer, typeGuidePanel, canvasArea, propertyPanel, validationPanel, sparqlEditor, graphPanel, palettePanel, rdfPanel);
   root.appendChild(shell);
 
   // ── Model tree data ──────────────────────────────────────────────────
@@ -417,6 +431,27 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return { kind, ...(typeIri ? { typeIri, typeLabel: labelOf(store, typeIri) } : {}) };
   };
 
+  // ── Under the tree: what the metamodel says about the selected type ──
+  /** What the metamodels say about a type; cached until metamodels or the model change. */
+  const guides = new Map<string, TypeGuide | undefined>();
+  typeGuidePanel.guideSource = (iri) => {
+    if (!guides.has(iri)) guides.set(iri, readTypeGuide(store, iri));
+    return guides.get(iri);
+  };
+  /** What the guide describes for a concept: its type — for a view, the viewpoint it follows. */
+  const guideIriFor = (iri: string): string => {
+    const heading = headingFor(iri);
+    const viewpointIri = heading.kind === 'View' ? viewManager.getView?.(iri)?.viewpointIri : undefined;
+    return viewpointIri ?? heading.typeIri ?? '';
+  };
+  /** The guide shows a type picked in the palette, not the selection's. */
+  let guideFromPalette = false;
+  typeGuidePanel.folded = shell.guideFolded;
+  const onGuidePanelChanged = (e: Event): void => {
+    typeGuidePanel.folded = (e as CustomEvent<{ folded: boolean }>).detail.folded;
+  };
+  shell.addEventListener('guide-panel-changed', onGuidePanelChanged);
+
   let selecting = false;
   const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean; fromGraph?: boolean } = {}): void => {
     if (selecting) return;
@@ -425,6 +460,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       propertyPanel.selectedIri = iri ?? '';
       propertyPanel.heading = iri ? headingFor(iri) : undefined;
       propertyPanel.analysis = iri ? analysisFor(iri) : undefined;
+      // A palette pick stays until something is selected: starting to create
+      // it clears the canvas selection, and so may a click on empty canvas.
+      if (iri) {
+        typeGuidePanel.guideIri = guideIriFor(iri);
+        guideFromPalette = false;
+      } else if (!guideFromPalette) {
+        typeGuidePanel.guideIri = '';
+      }
       if (iri) modelExplorer.revealIri(iri);
       else modelExplorer.selectedIri = '';
       catalogView.selectedIri = iri ?? '';
@@ -529,6 +572,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onPaletteDragStart = (e: Event): void => {
     const detail = (e as CustomEvent<PaletteDragDetail>).detail;
     if (!detail?.iri) return;
+    // The picked type is what the guide under the tree describes, until something is selected.
+    typeGuidePanel.guideIri = detail.iri;
+    guideFromPalette = true;
 
     if (detail.kind === 'relationship') {
       // A relationship type is not a shape, so there is nothing to drag onto the
@@ -753,16 +799,26 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       : undefined;
   canvasResize?.observe(canvasHost);
 
-  // ── Palette: shown by default, hideable and resizable ────────────────
+  // ── Model tree and palette: shown by default, hideable and resizable ──
+  const setExplorerOpen = (open: boolean): void => {
+    shell.explorerOpen = open;
+    appToolbar.explorerOpen = open;
+  };
   const setPaletteOpen = (open: boolean): void => {
     shell.paletteOpen = open;
     appToolbar.paletteOpen = open;
   };
 
   // ── Graph tab: the relationships around the selected element ─────────
-  /** An element — not a relationship, a view or the model — can be a graph's root. */
+  /**
+   * An element of the model — not a relationship, a view, the model, or a
+   * class of a metamodel (typed in its named graph) — can be a graph's root.
+   */
   const isElement = (iri: string): boolean => {
-    const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
+    const types = store
+      .getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode)
+      .filter((q) => q.graph.termType === 'DefaultGraph')
+      .map((q) => q.object.value);
     if (types.length === 0) return false;
     if (store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.arch + 'source') as unknown as NamedNode).length > 0) return false;
     const all = new Set(types.flatMap((t) => closure(t)));
@@ -804,7 +860,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return [...byType.values()].sort((a, b) => a.label.localeCompare(b.label));
   };
   graphPanel.source = {
-    graph: (options) => runGraphQuery(store, options, app.modelIO.collectPrefixes(session.modelIri)),
+    graph: (options) => relationshipGraph(store, options, app.modelIO.collectPrefixes(session.modelIri)),
     types: () => {
       const contents = readModelContents(store, viewManager.getViews(), closure);
       return { elements: countTypes(contents.elements), relationships: countTypes(contents.relationships) };
@@ -835,12 +891,77 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onGraphOpenSparql = (e: Event): void => {
     // The tab first: the editor lays its text out when it is visible.
     shell.showTab('sparql');
-    sparqlEditor.setQuery((e as CustomEvent<{ query: string }>).detail.query);
+    sparqlEditor.run((e as CustomEvent<GraphOpenSparqlDetail>).detail.query);
+  };
+  const onGraphNewView = (e: Event): void => {
+    const { iris, centres, label } = (e as CustomEvent<GraphNewViewDetail>).detail;
+    void newViewFrom(iris, { label, centres });
   };
   graphPanel.addEventListener('graph-select', onGraphSelect);
   graphPanel.addEventListener('graph-root', onGraphRoot);
   graphPanel.addEventListener('graph-download', onGraphDownload);
   graphPanel.addEventListener('graph-open-sparql', onGraphOpenSparql);
+  graphPanel.addEventListener('graph-new-view', onGraphNewView);
+
+  // ── A new view from results: the Graph tab's and the SPARQL tab's ────
+  const conceptKinds: ConceptKinds = {
+    isElement,
+    endsOf: (iri) => {
+      const end = (predicate: string) =>
+        store
+          .getQuads(namedNode(iri) as unknown as NamedNode, namedNode(predicate) as unknown as NamedNode)
+          .find((q) => q.graph.termType === 'DefaultGraph' && q.object.termType === 'NamedNode')?.object.value;
+      const source = end(NAMESPACES.arch + 'source');
+      const target = end(NAMESPACES.arch + 'target');
+      return source && target ? { source, target } : undefined;
+    },
+  };
+  /** An element's size on a new view: its notation's default. */
+  const sizeOf = (iri: string): { width: number; height: number } => {
+    const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode);
+    const elements = currentPalette.elementGroups.flatMap((g) => g.elements);
+    const style = types.map((q) => elements.find((el) => el.iri === q.object.value)?.style).find(Boolean);
+    return { width: style?.defaultWidth ?? NOTATION_DEFAULTS.width, height: style?.defaultHeight ?? NOTATION_DEFAULTS.height };
+  };
+  /**
+   * Make a view of the elements and relationships among `iris` — laid out as
+   * drawn when `centres` places them all (the Graph tab), else as a tree.
+   */
+  const newViewFrom = async (iris: string[], options: { label: string; centres?: Map<string, { x: number; y: number }> }): Promise<void> => {
+    const plan = planView(iris, conceptKinds);
+    if (plan.elements.length === 0) {
+      dialogs.toast('The results mention no elements of this model.', 'warning');
+      return;
+    }
+    const counts = `${plan.elements.length} element${plan.elements.length === 1 ? '' : 's'}, ${plan.relationships.length} relationship${plan.relationships.length === 1 ? '' : 's'}`;
+    const label = await dialogs.prompt('New view', `Name — ${counts}`, options.label);
+    if (label === null) return;
+    const drawn = !!options.centres && plan.elements.every((iri) => options.centres!.has(iri));
+    const centres = drawn
+      ? options.centres!
+      : layoutPositions(
+          plan.elements.map((id) => ({ id })),
+          plan.relationships.map((id) => ({ id, ...conceptKinds.endsOf(id)! })),
+          { layout: 'tree', width: NOTATION_DEFAULTS.width, height: NOTATION_DEFAULTS.height },
+        );
+    // The Graph tab draws smaller boxes, closer together, than a diagram.
+    const bounds = placeNodes(plan.elements, centres, sizeOf, { spread: drawn ? 1.3 : 1.1 });
+    session.createViewWith(
+      label,
+      plan.elements.map((iri) => ({ iri, bounds: bounds.get(iri)! })),
+      plan.relationships,
+    );
+    dialogs.toast(`New view "${label.trim()}": ${counts}.`);
+  };
+  const onResultsViewRequest = (e: Event): void => {
+    void newViewFrom((e as CustomEvent<ResultsViewRequestDetail>).detail.iris, { label: 'Query results' });
+  };
+  const onSparqlSelect = (e: Event): void => {
+    void revealAnywhere((e as CustomEvent<SparqlSelectDetail>).detail.iri);
+  };
+  sparqlEditor.prefixSource = () => app.modelIO.collectPrefixes(session.modelIri);
+  sparqlEditor.addEventListener('results-view-request', onResultsViewRequest);
+  sparqlEditor.addEventListener('sparql-select', onSparqlSelect);
 
   // ── RDF panel ────────────────────────────────────────────────────────
   const setRdfPanelOpen = (open: boolean): void => {
@@ -1142,6 +1263,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         case 'share':
           eventBus.emit('collab-status', { request: 'share' });
           return;
+        case 'toggle-explorer':
+          setExplorerOpen(!shell.explorerOpen);
+          return;
         case 'toggle-palette':
           setPaletteOpen(!shell.paletteOpen);
           return;
@@ -1185,6 +1309,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const onMetamodelLoaded: ModelEventHandler = (event) => {
     // The class hierarchy has just changed, so the closure indexes are stale.
+    guides.clear();
     classClosure = buildClassClosure(store);
     closure = typeClosure(store);
     const metamodelIri = event.detail?.metamodelIri as string | undefined;
@@ -1198,6 +1323,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const onModelLoaded: ModelEventHandler = () => {
+    guides.clear();
     diagramCanvas.setModelIri(session.modelIri ?? DEFAULT_MODEL_IRI);
     selectConcept(undefined);
     refreshGraphs();
@@ -1206,6 +1332,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const onViewOpened: ModelEventHandler = () => {
     showActiveView();
+    // A view opened from a maximized panel (a new view from results, a
+    // revealed concept) is what the user wants to see: put the panel back.
+    shell.setBottomMaximized(false);
   };
 
   const onViewsChanged: ModelEventHandler = (event) => {
@@ -1220,6 +1349,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (propertyPanel.selectedIri) {
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
+      // A view's viewpoint may have changed — unless the guide shows a palette pick.
+      if (!guideFromPalette) typeGuidePanel.guideIri = guideIriFor(propertyPanel.selectedIri);
     }
     appToolbar.dirty = app.isDirty();
     appToolbar.modelLabel = session.modelLabel();
@@ -1303,6 +1434,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     graphPanel.removeEventListener('graph-root', onGraphRoot);
     graphPanel.removeEventListener('graph-download', onGraphDownload);
     graphPanel.removeEventListener('graph-open-sparql', onGraphOpenSparql);
+    graphPanel.removeEventListener('graph-new-view', onGraphNewView);
+    shell.removeEventListener('guide-panel-changed', onGuidePanelChanged);
+    sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
+    sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);
     shell.removeEventListener('bottom-panel-changed', onBottomPanelChanged);
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
@@ -1339,8 +1474,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     diagramCanvas,
     rdfPanel,
     graphPanel,
+    typeGuidePanel,
     setRdfPanelOpen,
     isRdfPanelOpen: () => shell.rdfOpen,
+    setExplorerOpen,
+    isExplorerOpen: () => shell.explorerOpen,
     setPaletteOpen,
     isPaletteOpen: () => shell.paletteOpen,
     showBottomTab: (tab: BottomTab) => shell.showTab(tab),

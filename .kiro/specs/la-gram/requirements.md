@@ -54,6 +54,8 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 9. Track asset loading status per document (loaded / already-loaded / skipped / unavailable / error, origin, triple count) and show it ("Show loaded assets")
 10. Cold-start to interactive ≤ 3 seconds (measured: ≈ 1.2 s with the bundled ArchiMate 4.0)
 11. Multiple metamodels can be loaded simultaneously; palette, validity rules and validation use the union
+12. **Linked.Archi Core** — the core ontology as a metamodel, first in the selector (its own "Core" section), bundled: added to a language or alone, it offers a generic **Element** (`arch:Element`, in a "Generic" palette group) and a generic **Relationship** (`arch:QualifiedRelationship`), which may connect any two model concepts and ranks last among a language's relationships (like Association, it never makes a choice ambiguous). A language's grouping stays the default; its elements are unaffected. Unloading it keeps the core ontology every model depends on
+   - *la-gram:* `meta.linked.archi` publishes no core manifest, so la-gram bundles one (`assets/core/core-metamodel.ttl`) with a small classification (`assets/core/core-tax.ttl`, `https://meta.linked.archi/core/tax#`) naming the two generic concepts — the palette offers a core class only when this classification names it
 12. Documents the editor cannot use (derivation rules, deliverable templates, reference data, the framework document) are recorded as *skipped* rather than fetched
 
 ---
@@ -91,13 +93,14 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 1. Dragging a palette entry onto the canvas creates the element at the drop point; clicking an entry arms click-to-place
 2. Each element has a stable IRI (UUID-based, minted at creation, never changed), its class, a language-tagged `skos:prefLabel`, and `arch:inModel`; it is placed in the open view as an `arch-vis:ArchNode`
-3. The label is editable in the property panel; the canvas and the tree follow
+3. The label is editable in the property panel — and on the canvas, in the element's box: double-click it (or select it and press F2), type (the name starts selected, so typing replaces it), Enter or a click elsewhere keeps it, Esc drops it; one line, and never empty. It is the `skos:prefLabel` in the language shown (other languages' names are kept), an undoable canvas step; the canvas, the tree and the property panel follow
 4. Selecting an element (canvas or tree) shows it in the property panel (the Properties tab under the canvas): kind, type, IRI, properties, relationships, the views it appears in
 5. Properties are persisted with the element and included in every export
 6. Properties are added by picking or typing a property and a value; values can be removed (not the type, not the name). The picker offers what applies to the concept's type (by `rdfs:domain` / SHACL), what the model already uses, documentation properties, and — folded — the rest; never diagram geometry, notation styling or metamodel-authoring terms. Entries show the name first, the prefixed IRI smaller. Any property can be typed: a plain name (a new property in the model's namespace, `m:owner`), a prefixed name, or an IRI. The panel lists, in order: ID (the IRI), type, `inModel`, `prefLabel`, `skos:definition` — the name and the definition always, empty until filled in (emptying the definition removes it; the name cannot be emptied) — then — in the panel's own *Properties* tab, with the add field — every other property by label. `arch:inView` is not listed: the views are in the toolbar and under "Appears in views"
 7. Deleting: **Delete from View** (the canvas default — Delete key, pad ×) removes the placement only; **Delete from Model** (pad ✖, tree menu) removes the element everywhere after a confirmation listing the views it appears in
 8. Delete from Model removes every relationship connected to the element, in every view
 9. Edit latency ≤ 16 ms per command
+10. **About ‹type›** — a section of the left panel, under the model tree, tells what the loaded metamodels say about the selected concept's type (for a view, its viewpoint) — or about a type picked in the palette, until something is selected: from the ontology its definition, other names, guidance (`skos:scopeNote`), typical ends and unqualified form of a relationship, a viewpoint's concepts, stakeholders and purposes, the classes it specializes (with their definitions), what changed, and its source in the specification; from the taxonomy where it is classified — the path under each axis ("Element by Domain › Business Domain"), the group's definition and notes, and the other types in the group. The section folds to its header ("About Business Actor") and is resized by its top edge — its height and folding remembered; its parts fold too, and which are open is remembered; any type or concept it names opens its own page, with a way back; a new selection shows its own type again. With nothing selected, or a type the metamodels say nothing about, it says so
 
 ---
 
@@ -251,14 +254,14 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 #### Acceptance Criteria
 
-1. Left, full height: the model tree
+1. Left, full height: the model tree, and under it the *About ‹type›* section (Req 3.10) — shown by default, hidden together from the toolbar's "☰ Model" toggle
 2. Centre: the canvas with its tool strip (connect, lasso, hand), or a catalog/matrix view
-3. Top: the app toolbar — model name (opens Model settings; unsaved-changes dot), File, Metamodels, undo/redo, view selector + new view, viewpoint, presentation context, the "▦ Palette" and "{ } RDF" toggles, collaboration
-4. Bottom, under the canvas: a tabbed panel — **Properties**, **Validation** (the number of violations shown on the tab), **SPARQL Query**, **Graph** (Req 17). Properties is the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) with vertical tabs on its left — *‹Kind› information* (ID, type, `inModel`, name, definition), *Properties* (the added ones and the add field), *Analysis* (relationships), *Appears in views* — with counts; the open tab stays open across selections and reloads. Clicking the open tab (or ▾) folds the panel to its tabs; the open tab, the height and the folding are remembered
+3. Top: the app toolbar — model name (opens Model settings; unsaved-changes dot), File, Metamodels, undo/redo, view selector + new view, viewpoint, presentation context, the "☰ Model", "▦ Palette" and "{ } RDF" toggles, collaboration
+4. Bottom, under the canvas: a tabbed panel — **Properties**, **Validation** (the number of violations shown on the tab), **SPARQL Query**, **Graph** (Req 17). Properties is the property panel (kind, type, IRI, properties with SHACL-derived fields, add/remove, relationships, views) with vertical tabs on its left — *‹Kind› information* (ID, type, `inModel`, name, definition), *Properties* (the added ones and the add field), *Analysis* (relationships), *Appears in views* — with counts; the open tab stays open across selections and reloads. Clicking the open tab (or ▾) folds the panel to its tabs; the open tab, the height and the folding are remembered. **⤢** (or a double-click on the tab strip) maximizes the panel over the whole workspace — for a large graph, a long query or a wide result — and **⤡**, Esc or folding restores it; opening a view (a new view from results, a revealed concept) restores it too. Maximized is not remembered: a reload starts restored
 5. Right: the palette — shown by default, hidden from the toolbar's "▦ Palette" toggle
 5a. Far right, full height: the RDF panel (Req 5.7) — hidden by default
-6. Panels hideable — the palette and the RDF panel; the bottom panel folds to its tabs; the model tree *not yet*
-7. Panels resizable with persisted sizes — the palette and the RDF panel by their left edge, the bottom panel by its top edge (remembered per browser; the canvas keeps at least 240 × 160 px); the model tree *not yet*
+6. Panels hideable — the model tree, the palette and the RDF panel; the bottom panel folds to its tabs and maximizes
+7. Panels resizable with persisted sizes — the model tree by its right edge, the palette and the RDF panel by their left edge, the bottom panel by its top edge (remembered per browser; the canvas keeps at least 240 × 160 px)
 8. Selecting on the canvas updates the property panel and the tree
 9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, change type)
 10. Keyboard: Delete, Ctrl/Cmd+Z/Y, zoom; keys typed in panel fields never reach the canvas
@@ -291,7 +294,8 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 ### Requirement 16: SPARQL (la-gram)
 
 1. A SPARQL 1.1 editor, the SPARQL Query tab under the canvas, queries the live store (model and metamodels) with syntax highlighting and prefix completion
-2. CONSTRUCT results can be rendered as a view — *existing component; view creation from it not yet wired*
+2. Results are tables: a SELECT's rows under its projected variables (a column no row binds is still shown); a CONSTRUCT's or DESCRIBE's triples as subject / predicate / object; the first 500 rows, with the count. IRIs are shown as prefixed names with the model's and the vocabularies' prefixes (the full IRI on hover), and clicking one shows that concept as the RDF panel does (selected on the canvas, opening a view that shows it if the open one does not; else in the tree). A long query scrolls in its own box, and the results are scrolled into sight after a run
+3. **Render as new view** (SELECT and CONSTRUCT results): a new diagram with the model's elements the result mentions and the relationships between elements it mentions, a relationship bringing its ends; laid out as a tree, each element at its notation's default size; named in a dialog; opened
 
 ---
 
@@ -306,6 +310,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 3. Element types and relationship types can be filtered (all shown by default, with counts); a type left out is not traversed — the graph is pruned, not only greyed
 4. Nodes and edges are drawn with the notation: fill colour and badge glyph of the element type; line style and end decorations of the relationship type; the relationship's own name after its type
 5. The graph follows the selection (canvas, tree, catalog); clicking a node or edge selects that concept; double-clicking a node makes it the middle
-6. What is drawn is the result of one SPARQL `CONSTRUCT` run on the store. The query can be downloaded (`.rq`) or opened in the SPARQL Query tab; its result can be downloaded as Turtle (`.ttl`) with the model's prefixes — the exported query, run on the same model, returns exactly the exported triples
-7. The tab does no work while it is not shown; while shown it refreshes, debounced, when the model changes
+6. The SPARQL query behind the graph is offered as a `SELECT` (a table: one row per relationship, with source, relationship type and target, and their names — the default, remembered) or a `CONSTRUCT` (the triples); either can be run in the SPARQL Query tab or downloaded (`.rq`). What is drawn can be downloaded as Turtle (`.ttl`) with the model's prefixes. The exported query, run on the same model, returns exactly what is drawn (the tab draws by walking the store, which tests hold to the query's result); in la-gram it runs in tens of milliseconds at a few hundred elements
+7. **＋ New view** makes the drawn graph a diagram: its elements and relationships, laid out as drawn, each element at its notation's default size (Req 16.3)
+8. The tab does no work while it is not shown; while shown it refreshes, debounced, when the model changes; a graph at depth 5 draws in milliseconds in a model of thousands of elements
 
