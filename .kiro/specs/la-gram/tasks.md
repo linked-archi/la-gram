@@ -144,6 +144,8 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ## Phase 5: Polish & production readiness
 - [x] Viewpoint greying
+- [x] Change an element's type (Req 3.11), from the property panel and the right-click menu — *rdf-element-retype.test, workbench.test, workbench.spec*
+- [x] Right-click menu on the canvas (Req 11.9) — *rdf-element-retype.test, workbench.test, workbench.spec*
 - [x] Rename on the canvas (Req 3.3): in-place editing of an element's name, undoable — *rdf-label-editing.test, workbench.spec*
 - [x] Linked.Archi Core metamodel (Req 1.12): generic Element and Relationship — *core-metamodel.test, bundled-assets.test, taxonomy.test, workbench.spec*
 - [x] About ‹type› (Req 3.10): the ontology's and the taxonomy's guidance on the selected type (a view's viewpoint), a foldable, resizable section under the model tree — *type-guide.test, type-guide-panel.test, app-shell.test, workbench.test, workbench.spec*
@@ -175,6 +177,8 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
+- **Change an element's type** (Req 3.11): from the property panel's type field (a choice of the loaded element types, grouped as in the palette — also for elements not in the view) or the right-click menu's "Change type…" (searchable); same IRI, name, properties and placements; the default name follows; relationships not permitted with the new type named before, kept after; undoable on the canvas.
+- **Right-click menu** (Req 11.9): on elements and relationships — Rename, Change type…, Append…; Properties, Show in model tree, Show relationship graph; Copy IRI; Delete from view, Delete from model…
 - **Rename on the canvas** (Req 3.3): double-click an element's box (or F2) and type its name — Enter keeps, Esc drops, undo/redo restore; the name in the shown language, never empty. `diagram-js-direct-editing` (MIT, bpmn-io) is a new dependency.
 - **Linked.Archi Core** (Req 1.12): the core ontology as a metamodel, first in the Metamodels menu — a generic **Element** (palette group "Generic") and a generic **Relationship**, alone or alongside a language, whose grouping stays the default. Bundled manifest and classification (`assets/core/core-metamodel.ttl`, `core-tax.ttl`) until meta.linked.archi publishes them; the palette and the relationship manager offer a core class only when the core's own classification names it. The generic relationship ranks last and never makes an append ambiguous.
 

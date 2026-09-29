@@ -22,6 +22,7 @@ import type { RdfStore } from '../../rdf-engine/interfaces.js';
 import type { ElementManager } from '../../model-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
+import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
 import './property-picker.js';
 import type { PropertyPicker } from './property-picker.js';
 
@@ -451,6 +452,11 @@ export class PropertyPanel extends LitElement {
       cursor: default;
     }
 
+    select.type-select {
+      background: #fff;
+      cursor: pointer;
+    }
+
     textarea.property-value {
       resize: vertical;
       min-height: 48px;
@@ -591,6 +597,14 @@ export class PropertyPanel extends LitElement {
     suggest(subjectIri: string): PropertySuggestion[];
     resolve(text: string): ResolvedProperty | undefined;
   };
+
+  /**
+   * The element types an element can be changed to — the loaded metamodels',
+   * grouped as in the palette. Set for elements only; the type field is then a
+   * choice rather than read-only.
+   */
+  @property({ attribute: false })
+  typeChoices?: readonly ElementGroup[];
 
   @state() private _newValue = '';
 
@@ -849,9 +863,48 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
+  /**
+   * The element's type as a choice of the loaded types. Picking one asks the
+   * host (`property-retype`); the host answers whether the type changed, and
+   * the choice goes back to the current type when it did not (a cancelled
+   * warning, say).
+   */
+  private _renderTypeChoice(entry: PropertyEntry, groups: readonly ElementGroup[]) {
+    const known = groups.some((g) => g.elements.some((t) => t.iri === entry.value));
+    const onChange = (e: Event) => {
+      const select = e.target as HTMLSelectElement;
+      const typeIri = select.value;
+      this._emit('property-retype', {
+        elementIri: this.selectedIri,
+        typeIri,
+        reply: (changed: boolean) => {
+          if (!changed) select.value = entry.value;
+        },
+      });
+    };
+    return html`
+      <li class="property-row">
+        <label class="property-label">type</label>
+        <select class="property-value type-select" title=${entry.value} aria-label="Type" @change=${onChange}>
+          ${known ? nothing : html`<option value=${entry.value} selected>${this.heading?.typeLabel ?? entry.value}</option>`}
+          ${groups.map(
+            (group) => html`<optgroup label=${group.category || 'Other'}>
+              ${group.elements.map((type) => html`<option value=${type.iri} ?selected=${type.iri === entry.value}>${type.label}</option>`)}
+            </optgroup>`,
+          )}
+        </select>
+      </li>
+    `;
+  }
+
   private _renderEntry(entry: PropertyEntry) {
     const isRequired = entry.minCount !== undefined && entry.minCount > 0;
     const rowClass = 'property-row';
+
+    // An element's own type: a choice of the loaded types.
+    if (entry.predicate === RDF_TYPE && this.typeChoices && this.typeChoices.length > 0 && entry.value === this.heading?.typeIri) {
+      return this._renderTypeChoice(entry, this.typeChoices);
+    }
 
     if (this._isTextArea(entry)) {
       return html`

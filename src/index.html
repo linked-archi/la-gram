@@ -140,6 +140,20 @@
       cursor: move;
     }
 
+    /* The canvas's right-click menu: sections apart, the model-wide delete marked. */
+    .djs-popup.la-context-menu .djs-popup-group + .djs-popup-group {
+      border-top: 1px solid #e8eaed;
+      margin-top: 3px;
+      padding-top: 3px;
+    }
+    /* A context menu shows all its actions: no scrolling list. */
+    .djs-popup.la-context-menu .djs-popup-results {
+      max-height: none;
+    }
+    .djs-popup.la-context-menu .la-context-delete-model {
+      color: #c5221f;
+    }
+
     /* Renaming on the canvas: the typed name replaces the drawn one while editing,
        over the shape's own fill and badge. */
     .la-diagram-host .djs-element.la-label-editing .la-shape-label {

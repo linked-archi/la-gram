@@ -831,6 +831,138 @@ describe('renaming on the canvas', () => {
   }, 60_000);
 });
 
+describe('changing an element’s type', () => {
+  it('offers the loaded types from the right-click menu and the property panel, keeps the element, warns about relationships, and undoes', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    await dropActor(page, 300, 200);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const [actor] = (await model(page)).actors;
+    const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+    const facts = async () =>
+      page.evaluate((iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const store = app.components.store;
+        const nn = (value: string) => ({ termType: 'NamedNode', value });
+        return {
+          types: store.getQuads(nn(iri), nn('http://www.w3.org/1999/02/22-rdf-syntax-ns#type')).map((q: any) => q.object.value),
+          name: store.getQuads(nn(iri), nn('http://www.w3.org/2004/02/skos/core#prefLabel')).map((q: any) => q.object.value)[0],
+          drawnType: app.components.viewManager ? (window as any).__LA_GRAM_UI__.diagramCanvas.getElement(iri)?.typeIri : undefined,
+        };
+      }, actor);
+    const shape = page.locator(SHAPE).first();
+    const menu = page.locator('.djs-popup');
+    // Right-click: the context menu; "Change type…" opens the type menu.
+    const openTypeMenu = async () => {
+      await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+      await shape.click({ button: 'right' });
+      const context = page.locator('.djs-popup.la-context-menu');
+      await context.waitFor({ state: 'visible' });
+      await context.locator('.entry', { hasText: 'Change type…' }).click();
+      await page.locator('.djs-popup.la-element-replace').waitFor({ state: 'visible' });
+    };
+
+    // The right-click menu itself: the actions, in sections; the pad no longer changes an element's type.
+    await shape.click({ button: 'right' });
+    const contextMenu = page.locator('.djs-popup.la-context-menu');
+    await contextMenu.waitFor({ state: 'visible' });
+    expect((await contextMenu.locator('.entry').allInnerTexts()).map((t) => t.trim())).toEqual([
+      'Rename',
+      'Change type…',
+      'Append…',
+      'Properties',
+      'Show in model tree',
+      'Show relationship graph',
+      'Copy IRI',
+      'Delete from view',
+      'Delete from model…',
+    ]);
+    expect(await page.locator('.djs-context-pad .context-pad-replace').count()).toBe(0);
+    await session.screenshot('workbench-context-menu');
+    await page.keyboard.press('Escape');
+    await contextMenu.waitFor({ state: 'hidden' });
+
+    // The menu: every loaded element type, grouped as in the palette, the current one marked; searchable.
+    await openTypeMenu();
+    expect(await menu.locator('.la-element-type').count()).toBeGreaterThan(40);
+    expect(await menu.locator('.la-element-type-current').innerText()).toMatch(/Business Actor/);
+    await session.screenshot('workbench-change-type-menu');
+    await page.keyboard.type('Application Comp');
+    await until(async () => (await menu.locator('.la-element-type').count()) === 1, 'the search');
+    await menu.locator('.entry', { hasText: 'Application Component' }).first().click();
+    // Same element, new type; its default name follows the type; drawn as one.
+    await until(async () => (await facts()).types.includes(AM4 + 'ApplicationComponent'), 'the new type');
+    expect(await facts()).toEqual({ types: [AM4 + 'ApplicationComponent'], name: 'Application Component', drawnType: AM4 + 'ApplicationComponent' });
+    expect((await model(page)).actors).toEqual([]);
+    // The About section and the property panel follow.
+    await until(async () => (await page.locator('type-guide-panel .header .title').innerText()) === 'About Application Component', 'the guide');
+
+    // Undo: the actor back, with its name.
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    await page.keyboard.press('Control+z');
+    await until(async () => (await facts()).types.includes(AM4 + 'BusinessActor'), 'the old type back');
+    expect(await facts()).toEqual({ types: [AM4 + 'BusinessActor'], name: 'Business Actor', drawnType: AM4 + 'BusinessActor' });
+
+    // With a relationship the new type is not permitted in: named, and kept if the user goes ahead.
+    const role = await page.evaluate((actorIri) => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const model = app.session.modelIri;
+      const view = app.session.activeViewIri;
+      const role = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#Role', model, { label: 'Cashier' }).value;
+      app.components.viewManager.addElementToView(view, role, { x: 600, y: 180, width: 120, height: 55 });
+      const rel = app.components.relationshipManager.createQualifiedRelationship({
+        typeIri: 'https://meta.linked.archi/archimate4/onto#Assignment',
+        sourceIri: actorIri,
+        targetIri: role,
+        modelIri: model,
+      });
+      app.components.viewManager.addRelationshipToView(view, rel.iri);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return role as string;
+    }, actor);
+    await until(async () => (await page.locator(SHAPE).count()) === 2, 'the role');
+    await openTypeMenu();
+    await page.keyboard.type('Business Object');
+    await menu.locator('.entry', { hasText: 'Business Object' }).first().click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.innerText()).toMatch(/Assignment → Cashier/);
+    await session.screenshot('workbench-change-type-warning');
+    await dialog.locator('.la-button:not(.primary)').first().click(); // Cancel
+    await dialog.waitFor({ state: 'hidden' });
+    expect((await facts()).types).toEqual([AM4 + 'BusinessActor']);
+
+    await openTypeMenu();
+    await page.keyboard.type('Business Object');
+    await menu.locator('.entry', { hasText: 'Business Object' }).first().click();
+    await dialog.waitFor({ state: 'visible' });
+    await dialog.locator('.la-button.primary').click();
+    await until(async () => (await facts()).types.includes(AM4 + 'BusinessObject'), 'the business object');
+    const kept = await page.evaluate(
+      ([a, r]) => (window as any).__LA_GRAM_APP__.components.relationshipManager.getRelationshipsOf(a).filter((x: any) => x.targetIri === r).length,
+      [actor, role],
+    );
+    expect(kept).toBe(1);
+    // The same from the property panel's type field.
+    // (Showing the tab rather than clicking it: clicking the open tab folds the panel.)
+    await page.evaluate(() => (window as any).__LA_GRAM_UI__.showBottomTab('properties'));
+    // (A click on an already selected shape deselects it: click the canvas first.)
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    await shape.click();
+    const typeField = page.locator('property-panel select.type-select');
+    await typeField.waitFor({ state: 'visible' });
+    expect(await typeField.inputValue()).toBe(AM4 + 'BusinessObject');
+    await typeField.selectOption(AM4 + 'Product');
+    // The relationship is still not permitted: the same warning, from here too.
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.innerText()).toMatch(/Assignment → Cashier/);
+    await dialog.locator('.la-button.primary').click();
+    await until(async () => (await facts()).types.includes(AM4 + 'Product'), 'the product');
+    expect(await typeField.inputValue()).toBe(AM4 + 'Product');
+    findings.push('change element type: right-click menu and property panel (search, current marked), default name follows, undo, not-permitted relationships named and kept: ok');
+  }, 90_000);
+});
+
 describe('the core metamodel: a generic element', () => {
   it('adds "Linked.Archi Core" from the Metamodels menu and places a generic Element', async () => {
     const { page, session } = await openPage();

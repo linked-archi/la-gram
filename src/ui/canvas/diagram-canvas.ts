@@ -139,6 +139,9 @@ import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
 import { RdfRenderer, rdfRendererModule, type RdfBusinessObject } from './rdf-renderer.js';
 import { RdfRuleProvider, rdfRulesModule } from './rdf-rule-provider.js';
 import { rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
+import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
+import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
+import { RdfContextMenuProvider, CONTEXT_MENU_ID, type ContextMenuAction } from './rdf-context-menu-provider.js';
 import {
   rdfModelingModule,
   RDF_CHANGE_COMMAND,
@@ -154,7 +157,7 @@ import {
   type RdfRelationshipWriter,
   type RetypeRelationshipContext,
 } from './rdf-modeling.js';
-import { RdfContextPadProvider, type ContextPadElement } from './rdf-context-pad-provider.js';
+import { RdfContextPadProvider, toContextPadElement, type ContextPadElement } from './rdf-context-pad-provider.js';
 import {
   RdfReplaceMenuProvider,
   RELATIONSHIP_REPLACE_MENU_ID,
@@ -265,6 +268,30 @@ export interface DiagramCanvasOptions {
    * appears in; returns whether to go ahead. Absent means "yes".
    */
   confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
+  /**
+   * Asked before changing an element's type when some of its relationships are
+   * not permitted with the new type. Returns whether to go ahead. Absent means "yes".
+   */
+  confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
+  /**
+   * The right-click menu's actions that belong to the rest of the app: show
+   * the concept's properties, reveal it in the model tree, show its relationship
+   * graph, copy its IRI.
+   */
+  onContextAction?: (action: CanvasContextAction, iri: string) => void;
+}
+
+/** A right-click menu action the host carries out. */
+export type CanvasContextAction = 'properties' | 'reveal-tree' | 'graph' | 'copy-iri';
+
+/** What {@link DiagramCanvasOptions.confirmRetypeElement} is asked about. */
+export interface RetypeElementRequest {
+  iri: string;
+  label: string;
+  fromLabel: string;
+  toLabel: string;
+  /** The relationships the new type is not permitted in, as "Assignment → Cashier". */
+  notPermitted: string[];
 }
 
 /** What {@link DiagramCanvasOptions.describeElement} returns. */
@@ -434,7 +461,7 @@ interface DjsServices {
     on(event: string | string[], priority: number, callback: (event: any, ...rest: any[]) => unknown): void;
     fire(event: string, payload?: unknown): unknown;
   };
-  commandStack: { execute(command: string, context: unknown): void; clear(): void };
+  commandStack: { execute(command: string, context: unknown): void; clear(): void; registerHandler(command: string, handler: unknown): void };
   layouter: { layoutConnection(connection: unknown, hints?: unknown): Array<{ x: number; y: number }> };
   contextPad: { registerProvider(provider: unknown): void };
   /**
@@ -521,6 +548,10 @@ export class DiagramCanvas {
   private changeStore?: ObservableRdfStore;
   private describeElement?: (iri: string) => ConceptDescription | undefined;
   private confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
+  private confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
+  private onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  /** Where the right-click menu was opened, for the menus it opens in turn. */
+  private contextMenuAt: { x: number; y: number } | undefined;
 
   /** The `arch:View` on the canvas, when a view manager is in use. */
   private viewIri: string | undefined;
@@ -545,6 +576,8 @@ export class DiagramCanvas {
   readonly ruleProvider: RdfRuleProvider;
   readonly contextPadProvider: RdfContextPadProvider;
   readonly replaceMenuProvider: RdfReplaceMenuProvider;
+  readonly elementReplaceMenuProvider: RdfElementReplaceMenuProvider;
+  readonly contextMenuProvider: RdfContextMenuProvider;
   readonly appendMenuProvider: RdfAppendMenuProvider;
   /** The append's second step: which relationship, when several are permitted. */
   readonly appendRelationshipMenuProvider: RdfAppendRelationshipMenuProvider;
@@ -595,6 +628,8 @@ export class DiagramCanvas {
     this.changeStore = options.changeStore;
     this.describeElement = options.describeElement;
     this.confirmDeleteFromModel = options.confirmDeleteFromModel;
+    this.confirmRetypeElement = options.confirmRetypeElement;
+    this.onContextAction = options.onContextAction;
 
     this.notationStyles = new NotationStyleRegistry(options.paletteDefinition);
     this.paletteDefinition = options.paletteDefinition;
@@ -627,6 +662,19 @@ export class DiagramCanvas {
       (target) => this.resolveReplaceContext(target),
       (connectionId, typeIri) => this.applyRelationshipTypeChoice(connectionId, typeIri),
     );
+
+    this.elementReplaceMenuProvider = new RdfElementReplaceMenuProvider(
+      (target) => {
+        const shape = target as DjsShape | undefined;
+        const shown = shape?.businessObject;
+        if (!shape || shown?.kind !== 'element' || !shown.iri) return undefined;
+        return { shapeId: shape.id, currentTypeIri: shown.typeIri };
+      },
+      () => this.paletteDefinition.elementGroups,
+      (shapeId, typeIri) => void this.retypeElement(shapeId, typeIri),
+    );
+
+    this.contextMenuProvider = new RdfContextMenuProvider((target) => this.contextMenuActions(target));
 
     this.appendMenuProvider = new RdfAppendMenuProvider(
       (target) => this.resolveAppendContext(target),
@@ -1632,6 +1680,174 @@ export class DiagramCanvas {
     return undefined;
   }
 
+  /**
+   * Change an element's type to one of the loaded element types, as one
+   * undoable step (`rdf.element.retype`). Its IRI, name, properties and
+   * placements stay; a name that was the old type's default becomes the new
+   * type's. Relationships the new type is not permitted in are named first
+   * ({@link DiagramCanvasOptions.confirmRetypeElement}) and, if the user goes
+   * ahead, kept — validation flags them; nothing is deleted.
+   *
+   * @returns Whether the type was changed.
+   */
+  async retypeElement(iri: string, typeIri: string): Promise<boolean> {
+    const services = this.services();
+    // In the open view, the change is a canvas command; otherwise (an element
+    // selected in the tree) the same change is made in the store directly.
+    const shape = services?.elementRegistry.get(iri);
+    const shown = shape?.businessObject?.kind === 'element' ? shape.businessObject : undefined;
+    const described = shown ? undefined : this.describeElement?.(iri);
+    const fromTypeIri = shown?.typeIri ?? described?.typeIri;
+    const name = shown?.label ?? described?.label;
+    if (!fromTypeIri || fromTypeIri === typeIri) return false;
+    const to = this.elementTypeInfo(typeIri);
+    if (!to) return false;
+    const fromLabel = this.elementTypeInfo(fromTypeIri)?.label ?? this.notationStyles.labelFor(fromTypeIri) ?? localName(fromTypeIri);
+
+    const notPermitted = this.relationshipsNotPermitted(iri, typeIri);
+    if (notPermitted.length > 0 && this.confirmRetypeElement) {
+      const go = await this.confirmRetypeElement({
+        iri,
+        label: name ?? localName(iri),
+        fromLabel,
+        toLabel: to.label,
+        notPermitted,
+      });
+      if (!go) return false;
+    }
+
+    // A name still the old type's default follows the type.
+    const label = name === fromLabel ? to.label : undefined;
+    const writeLabel = this.labelWriter();
+    const RDF_TYPE = NAMESPACES.rdf + 'type';
+    const apply = (): void => {
+      const store = this.rdfStore;
+      const old = ((store?.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(fromTypeIri)) ?? []) as Array<{
+        graph: { termType: string };
+      }>).filter((q) => q.graph.termType === 'DefaultGraph');
+      if (old.length > 0) store?.removeQuads(old as never[]);
+      store?.addQuads?.([DataFactory.quad(namedNode(iri), namedNode(RDF_TYPE), namedNode(typeIri)) as never]);
+      if (label) writeLabel(iri, label);
+    };
+    if (!services || !shape || !shown) {
+      apply();
+      this.eventBus.emit('element-updated', { iri, typeIri });
+      this.eventBus.emit('model-changed', { origin: 'properties', iri });
+      return true;
+    }
+    const context: RetypeElementContext = {
+      element: shape,
+      typeIri,
+      ...(to.iconUrl ? { iconUrl: to.iconUrl } : {}),
+      ...(label ? { label } : {}),
+      apply,
+    };
+    services.commandStack.execute(RETYPE_ELEMENT_COMMAND, context);
+    this.eventBus.emit('element-updated', { iri, typeIri });
+    return true;
+  }
+
+  /** Open the right-click menu on an element or a relationship, at a point on the page. */
+  openContextMenu(element: DjsShape, at: { x: number; y: number }): void {
+    const services = this.services();
+    if (!services) return;
+    this.service<{ select(element: unknown): void }>('selection')?.select(element);
+    this.contextMenuAt = at;
+    services.popupMenu.open(element, CONTEXT_MENU_ID, at, { width: 240 });
+  }
+
+  /** The element-type menu on a shape, at a point on the page (the right-click menu's "Change type…"). */
+  openElementTypeMenu(element: DjsShape, at: { x: number; y: number }): void {
+    const services = this.services();
+    if (!services || services.popupMenu.isEmpty(element, ELEMENT_REPLACE_MENU_ID)) return;
+    services.popupMenu.open(element, ELEMENT_REPLACE_MENU_ID, at, { title: 'Change element type', width: 320, search: true });
+  }
+
+  /**
+   * What the right-click menu offers for `target`: renaming and changing the
+   * type (elements), changing the relationship type (relationships), appending,
+   * where to look at it (properties, tree, graph), its IRI, and deleting it.
+   */
+  private contextMenuActions(target: unknown): ContextMenuAction[] {
+    const element = target as DjsShape | undefined;
+    const shown = element?.businessObject;
+    if (!element || !shown?.iri) return [];
+    const iri = shown.iri;
+    const at = this.contextMenuAt ?? { x: 0, y: 0 };
+    const pad = toContextPadElement(element as never);
+    // A menu opened from this one's action would be closed with it: open it next.
+    const then = (open: () => void) => () => void setTimeout(open, 0);
+    const host = (action: CanvasContextAction) => () => this.onContextAction?.(action, iri);
+    const actions: ContextMenuAction[] = [];
+
+    if (shown.kind === 'element') {
+      actions.push({
+        id: 'rename',
+        label: 'Rename',
+        section: 'edit',
+        shortcut: 'F2',
+        run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
+      });
+      if (!this.services()?.popupMenu.isEmpty(element, ELEMENT_REPLACE_MENU_ID)) {
+        actions.push({ id: 'change-type', label: 'Change type…', section: 'edit', run: then(() => this.openElementTypeMenu(element, at)) });
+      }
+      if (this.canAppend(pad)) {
+        actions.push({ id: 'append', label: 'Append…', section: 'relate', run: then(() => this.openAppendMenu(pad, { clientX: at.x, clientY: at.y })) });
+      }
+    } else if (shown.kind === 'relationship' && this.canReplaceRelationshipType(pad)) {
+      actions.push({
+        id: 'change-type',
+        label: 'Change relationship type…',
+        section: 'edit',
+        run: then(() => this.openRelationshipReplaceMenu(pad, { clientX: at.x, clientY: at.y })),
+      });
+    }
+
+    if (this.onContextAction) {
+      actions.push({ id: 'properties', label: 'Properties', section: 'show', run: host('properties') });
+      actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
+      if (shown.kind === 'element') {
+        actions.push({ id: 'graph', label: 'Show relationship graph', section: 'show', run: host('graph') });
+      }
+      actions.push({ id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') });
+    }
+
+    actions.push({
+      id: 'delete',
+      label: this.viewManager ? 'Delete from view' : 'Delete',
+      section: 'delete',
+      shortcut: 'Delete',
+      run: () => this.deleteFromPad(pad),
+    });
+    if (this.viewManager) {
+      actions.push({ id: 'delete-model', label: 'Delete from model…', section: 'delete', run: () => void this.deleteFromModel(iri) });
+    }
+    return actions;
+  }
+
+  /**
+   * The element's relationships that would not be permitted with `typeIri`,
+   * as "Assignment → Cashier" (outgoing) or "Serving ← Till" (incoming).
+   * Relationships to or from a relationship are not judged here.
+   */
+  private relationshipsNotPermitted(iri: string, typeIri: string): string[] {
+    const relationships = this.relationshipManager.getRelationshipsOf?.(iri) ?? [];
+    const lines: string[] = [];
+    for (const relationship of relationships) {
+      const outgoing = relationship.sourceIri === iri;
+      const otherIri = outgoing ? relationship.targetIri : relationship.sourceIri;
+      const other = this.describeElement?.(otherIri);
+      const otherType = relationship.sourceIri === relationship.targetIri ? typeIri : other?.typeIri;
+      if (!otherType || this.relationshipManager.getRelationship?.(otherIri)) continue;
+      const [source, target] = outgoing ? [typeIri, otherType] : [otherType, typeIri];
+      const permitted = this.relationshipManager.getValidRelationships(source, target).some((c) => c.iri === relationship.classIri);
+      if (permitted) continue;
+      const name = this.paletteDefinition.relationshipTypes.find((r) => r.iri === relationship.classIri)?.label ?? localName(relationship.classIri);
+      lines.push(`${name} ${outgoing ? '→' : '←'} ${other?.label ?? localName(otherIri)}`);
+    }
+    return lines;
+  }
+
   /** The diagram-js shape behind an IRI, a pad element or an append context. */
   private resolveShape(
     source: AppendMenuContext | ContextPadElement | string,
@@ -2109,6 +2325,9 @@ export class DiagramCanvas {
       RELATIONSHIP_REPLACE_MENU_ID,
       this.replaceMenuProvider,
     );
+    services.popupMenu.registerProvider(ELEMENT_REPLACE_MENU_ID, this.elementReplaceMenuProvider);
+    services.popupMenu.registerProvider(CONTEXT_MENU_ID, this.contextMenuProvider);
+    services.commandStack.registerHandler(RETYPE_ELEMENT_COMMAND, RetypeElementHandler);
     services.popupMenu.registerProvider(APPEND_TARGET_MENU_ID, this.appendMenuProvider);
     services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
   }
@@ -2183,6 +2402,17 @@ export class DiagramCanvas {
     const services = this.services();
     if (!services) return;
     const djs = services.eventBus;
+
+    // Right-click on an element or a relationship: select it, and open the
+    // context menu at the pointer instead of the browser's.
+    djs.on('element.contextmenu', 1500, (event: { element?: DjsShape; originalEvent?: MouseEvent }) => {
+      const element = event.element;
+      const shown = element?.businessObject;
+      if (!element || !shown?.iri || (shown.kind !== 'element' && shown.kind !== 'relationship')) return undefined;
+      event.originalEvent?.preventDefault();
+      this.openContextMenu(element, { x: event.originalEvent?.clientX ?? 0, y: event.originalEvent?.clientY ?? 0 });
+      return false;
+    });
 
     // Which global tool is armed. `ToolManager` is the only honest source: the
     // tools deactivate themselves when their gesture completes, `Escape` cancels

@@ -13,7 +13,7 @@ import type { NamedNode } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
 import { mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
 import type { Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
-import { modelQuads, readModelContents } from '../model-manager/model-queries.js';
+import { labelOf, modelQuads, readModelContents } from '../model-manager/model-queries.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
 
@@ -406,6 +406,65 @@ describe('the workbench', () => {
     ui.setExplorerOpen(true);
     await ui.appToolbar.updateComplete;
     expect(toggle().getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('changes an element\u2019s type from the property panel — in the view or not — and offers a right-click menu', async () => {
+    const els = app.components.elementManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+    const typesOf = (iri: string) =>
+      app.components.store.getQuads({ termType: 'NamedNode', value: iri } as never, { termType: 'NamedNode', value: RDF_TYPE } as never).map((q) => q.object.value);
+    const placed = els.createElement(`${AM4}BusinessActor`, model, { label: 'Business Actor' }).value;
+    app.components.viewManager.addElementToView(view, placed, { x: 100, y: 100, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const unplaced = els.createElement(`${AM4}BusinessActor`, model, { label: 'Clerk' }).value;
+    const root = ui.propertyPanel.shadowRoot!;
+    const typeSelect = async (iri: string) => {
+      ui.selectConcept(iri);
+      await ui.propertyPanel.updateComplete;
+      return root.querySelector<HTMLSelectElement>('select.type-select');
+    };
+    const pick = async (select: HTMLSelectElement, typeIri: string) => {
+      select.value = typeIri;
+      select.dispatchEvent(new Event('change'));
+      await vi.waitFor(() => expect(typesOf(select === null ? '' : (ui.propertyPanel.selectedIri as string))).toContain(typeIri));
+    };
+
+    // In the view: the dropdown lists the loaded types, grouped as in the palette; the change is undoable.
+    const inView = (await typeSelect(placed))!;
+    expect(inView.value).toBe(`${AM4}BusinessActor`);
+    expect([...inView.querySelectorAll('optgroup')].map((g) => g.label)).toContain('Business Domain');
+    await pick(inView, `${AM4}ApplicationComponent`);
+    expect(typesOf(placed)).toEqual([`${AM4}ApplicationComponent`]);
+    expect(ui.diagramCanvas.getElement(placed)?.typeIri).toBe(`${AM4}ApplicationComponent`);
+    expect(labelOf(app.components.store, placed)).toBe('Application Component'); // the default name follows
+    await ui.runCommand({ command: 'undo' });
+    expect(typesOf(placed)).toEqual([`${AM4}BusinessActor`]);
+
+    // Not in the view (selected in the tree): changed in the model directly; its own name stays.
+    const offCanvas = (await typeSelect(unplaced))!;
+    await pick(offCanvas, `${AM4}Role`);
+    expect(typesOf(unplaced)).toEqual([`${AM4}Role`]);
+    expect(labelOf(app.components.store, unplaced)).toBe('Clerk');
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.heading?.typeLabel).toBe('Role');
+
+    // A relationship's type stays read-only here.
+    const rel = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Assignment`, sourceIri: placed, targetIri: unplaced, modelIri: model }).iri;
+    expect(await typeSelect(rel)).toBeNull();
+
+    // The right-click menu on the shape: edit, relate, show, copy, delete.
+    const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);
+    const entries = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(shape) as Record<string, { group: string; action: () => void }>;
+    expect(Object.keys(entries)).toEqual(['rename', 'change-type', 'append', 'properties', 'reveal-tree', 'graph', 'copy-iri', 'delete', 'delete-model']);
+    entries['graph']!.action();
+    expect([ui.shell.bottomTab, ui.graphPanel.rootIri]).toEqual(['graph', placed]);
+    entries['properties']!.action();
+    expect(ui.shell.bottomTab).toBe('properties');
+
+    ui.selectConcept(undefined);
+    for (const iri of [placed, unplaced]) els.deleteElement(iri);
   });
 
   it('creates, names and opens a new view from the toolbar', async () => {

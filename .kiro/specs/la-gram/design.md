@@ -202,6 +202,7 @@ model runs its model operation inside a nested command:
 | Tree drop / "add to view" | `shape.create` (existing IRI) | `rdf.store.change` → node; then draws its relationships (`connection.create` + existing-relationship hint) |
 | Connect | `connection.create` | `rdf.relationship.create` → qualified resource + triple + link |
 | Change type | `rdf.relationship.retype` | retype in place (same IRI) |
+| Change an element's type (property panel, right-click menu) | `rdf.element.retype` | `rdf.store.change` → the `rdf:type` (and the default name); also redraws the shape in the new notation, on undo too |
 | Rename in the box (double-click, F2) | `rdf.element.relabel` | `rdf.store.change` → the `skos:prefLabel` in the shown language; also relabels the shape, on undo too |
 | Move / resize | `shape.move` / `shape.resize` | `rdf.store.change` → node bounds |
 | Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list |
@@ -212,6 +213,34 @@ model runs its model operation inside a nested command:
 `rdf.store.change` runs its operation once inside `ObservableRdfStore.record`;
 undo applies the inverse diff, redo re-applies it. Re-running logic on redo
 would mint new IRIs; replaying the diff cannot.
+
+Changing an element's type (`rdf-element-replace-menu-provider.ts`,
+`rdf-element-retype.ts`) is `DiagramCanvas.retypeElement(iri, type)`, asked by
+the property panel's type field (`property-retype`, answered so a cancelled
+change puts the field back) and by the right-click menu's "Change type…", which
+opens the `la-element-replace` popup: the canvas's palette definition — every
+loaded element type, unfiltered by the viewpoint, grouped under the palette's
+current axis — searching names and groups only (definitions would match half
+the list). An element in the open view changes through the command, undoably;
+one that is not (selected in the tree) changes in the store directly, like any
+property panel edit. Before either, the canvas checks each of the element's relationships with
+`getValidRelationships(source, target)` under the new type; any that would not
+be permitted are passed to `confirmRetypeElement` (the app's confirm dialog,
+listing them) and, if confirmed, kept for validation to flag — deleting
+relationships to make a type change fit would silently lose model content.
+
+The **right-click menu** (`rdf-context-menu-provider.ts`, popup provider
+`la-context-menu`) opens on `element.contextmenu` for elements and
+relationships (the browser's menu is suppressed; the concept is selected first).
+The canvas decides the actions (`contextMenuActions`) in sections — edit
+(Rename, Change type… / Change relationship type…), relate (Append…), show
+(Properties, Show in model tree, Show relationship graph), copy (Copy IRI),
+delete (Delete from view, Delete from model…) — and hands the "show" and
+"copy" ones to the host (`onContextAction`). A menu an action opens (the type
+menu, the append menu) is opened on the next tick: diagram-js closes the menu
+an entry was picked from after its action runs. The pad keeps delete, connect,
+append and a relationship's change type; an element's type moved to the panel
+and the menu.
 
 Renaming in the box (`ui/canvas/rdf-label-editing.ts`) uses
 `diagram-js-direct-editing`, the text box bpmn-js edits its labels with (its

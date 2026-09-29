@@ -93,7 +93,13 @@ import { iconHref, NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
 // DOM node in its constructor and manages that subtree itself.
-import { DiagramCanvas, type ConceptDescription, type DeleteFromModelRequest } from './canvas/diagram-canvas.js';
+import {
+  DiagramCanvas,
+  type CanvasContextAction,
+  type ConceptDescription,
+  type DeleteFromModelRequest,
+  type RetypeElementRequest,
+} from './canvas/diagram-canvas.js';
 import { buildClassClosure, type ClassClosure } from './canvas/relationship-resolution.js';
 
 const { namedNode } = DataFactory;
@@ -325,6 +331,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     ...(store instanceof ObservableRdfStore ? { changeStore: store } : {}),
     describeElement: describe,
     confirmDeleteFromModel: (request: DeleteFromModelRequest) => confirmModelDelete(request),
+    confirmRetypeElement: (request: RetypeElementRequest) =>
+      dialogs.confirm(
+        `Change ${request.label} to ${request.toLabel}?`,
+        request.notPermitted.length === 1
+          ? `One of its relationships is not permitted between a ${request.toLabel} and the other end. It is kept, and validation will flag it until it is changed or deleted.`
+          : `${request.notPermitted.length} of its relationships are not permitted between a ${request.toLabel} and the other end. They are kept, and validation will flag them until they are changed or deleted.`,
+        { confirmLabel: 'Change type', details: request.notPermitted },
+      ),
+    onContextAction: (action, iri) => onCanvasContextAction(action, iri),
     onToolChanged: (tool) => {
       canvasToolbar.activeTool = tool ?? undefined;
     },
@@ -460,6 +475,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       propertyPanel.selectedIri = iri ?? '';
       propertyPanel.heading = iri ? headingFor(iri) : undefined;
       propertyPanel.analysis = iri ? analysisFor(iri) : undefined;
+      propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
       // A palette pick stays until something is selected: starting to create
       // it clears the canvas selection, and so may a click on empty canvas.
       if (iri) {
@@ -518,6 +534,40 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       diagramCanvas.reveal(iri);
     }
     selectConcept(iri, { fromCanvas: true });
+  };
+
+  // ── An element's type: from the property panel ───────────────────────
+  /** An element can be changed to any loaded element type; other concepts show theirs read-only. */
+  const typeChoicesFor = (heading: { kind: string } | undefined) =>
+    heading?.kind === 'Element' ? currentPalette.elementGroups : undefined;
+  const onPropertyRetype = (e: Event): void => {
+    const { elementIri, typeIri, reply } = (e as CustomEvent<{ elementIri: string; typeIri: string; reply?: (changed: boolean) => void }>).detail;
+    void diagramCanvas.retypeElement(elementIri, typeIri).then((changed) => reply?.(changed));
+  };
+  propertyPanel.addEventListener('property-retype', onPropertyRetype);
+
+  // ── The canvas's right-click menu: what the rest of the app does ─────
+  const onCanvasContextAction = (action: CanvasContextAction, iri: string): void => {
+    switch (action) {
+      case 'properties':
+        selectConcept(iri, { fromCanvas: true });
+        shell.showTab('properties');
+        return;
+      case 'reveal-tree':
+        setExplorerOpen(true);
+        modelExplorer.revealIri(iri);
+        return;
+      case 'graph':
+        selectConcept(iri, { fromCanvas: true });
+        graphPanel.rootIri = iri;
+        shell.showTab('graph');
+        return;
+      case 'copy-iri':
+        void Promise.resolve(globalThis.navigator?.clipboard?.writeText(iri))
+          .then(() => dialogs.toast('IRI copied'))
+          .catch(() => dialogs.toast(`IRI: ${iri}`));
+        return;
+    }
   };
 
   // ── Property panel → model ───────────────────────────────────────────
@@ -732,6 +782,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     currentPalette = palette;
     palettePanel.palette = palette;
     diagramCanvas.updatePaletteDefinition(palette);
+    propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
   };
 
   const onAxisChange = (e: Event): void => {
@@ -1349,6 +1400,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (propertyPanel.selectedIri) {
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
+      propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
       // A view's viewpoint may have changed — unless the guide shows a palette pick.
       if (!guideFromPalette) typeGuidePanel.guideIri = guideIriFor(propertyPanel.selectedIri);
     }
@@ -1436,6 +1488,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     graphPanel.removeEventListener('graph-open-sparql', onGraphOpenSparql);
     graphPanel.removeEventListener('graph-new-view', onGraphNewView);
     shell.removeEventListener('guide-panel-changed', onGuidePanelChanged);
+    propertyPanel.removeEventListener('property-retype', onPropertyRetype);
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);
     shell.removeEventListener('bottom-panel-changed', onBottomPanelChanged);
