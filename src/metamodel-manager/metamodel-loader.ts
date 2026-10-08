@@ -20,6 +20,10 @@
  * {@link documentIriFor} normalises both to the document IRI, which is what the
  * bundled-asset registry is keyed by and what each graph is named after.
  *
+ * Discovery follows those properties, every loaded document's `owl:imports`,
+ * and the `arch:usesNotationSet` of the presentation contexts — the one place
+ * an alternative notation set (Basic's bubble set) is named.
+ *
  * ## One graph per document
  *
  * Every discovered document lands in its own named graph, keyed by its ontology
@@ -71,6 +75,7 @@ import {
   type AssetOrigin,
   type AssetSource,
 } from './asset-sources.js';
+import { compareIris } from './class-hierarchy.js';
 
 const { namedNode, quad } = DataFactory;
 
@@ -92,6 +97,7 @@ const DCTERMS_DESCRIPTION = namedNode(DCTERMS + 'description');
 const SKOS_PREF_LABEL = namedNode(NAMESPACES.skos + 'prefLabel');
 const ARCH_METAMODEL = namedNode(NAMESPACES.arch + 'Metamodel');
 const ARCH_NOTATION_SET = namedNode(NAMESPACES.arch + 'notationSet');
+const ARCH_USES_NOTATION_SET = namedNode(NAMESPACES.arch + 'usesNotationSet');
 
 /** Default graph IRI used for SHACL shapes. */
 const SHAPES_GRAPH = namedNode('urn:la-gram:shapes');
@@ -155,6 +161,7 @@ function roleFromVia(via: string): BundledAssetRole | undefined {
     case 'arch:conceptClassification':
       return 'taxonomy';
     case 'arch:notationSet':
+    case 'arch:usesNotationSet':
       return 'notation';
     case 'arch:formalRules':
     case 'arch:architectureViewpointsRestrictions':
@@ -237,7 +244,10 @@ export class N3MetamodelLoader implements MetamodelLoader {
   /**
    * Load a metamodel from its manifest, pulling in every document the manifest
    * points at plus their transitive `owl:imports`, from whatever the configured
-   * {@link AssetSource} can reach.
+   * {@link AssetSource} can reach. A presentation-contexts document adds the
+   * notation sets its contexts select (`arch:usesNotationSet`): an alternative
+   * set is named only there. The manifest's `arch:notationSet` stays the
+   * default ({@link LoadedMetamodel.notationSetIri}).
    *
    * The manifest itself is loaded first so the `arch:Metamodel` subject is
    * queryable even if nothing else resolves. Discovered documents are fetched a
@@ -311,6 +321,11 @@ export class N3MetamodelLoader implements MetamodelLoader {
           // shapes graph to find its one import would undo the bulk load.
           const importQuads = this.store.getQuads(null, OWL_IMPORTS, null, namedNode(status.documentIri));
           next.push(...this.discoverImports(importQuads, status.documentIri));
+          // The alternative notation sets live where the contexts choose them,
+          // not on the manifest — load them too, or choosing the context finds nothing.
+          if (status.role === 'presentationContexts') {
+            next.push(...this.discoverContextNotationSets(status.documentIri));
+          }
         }
       }
       level = next;
@@ -693,6 +708,24 @@ export class N3MetamodelLoader implements MetamodelLoader {
       }
     }
     return refs;
+  }
+
+  /**
+   * The notation sets a loaded presentation-contexts document selects with
+   * `arch:usesNotationSet`, read back from its graph.
+   *
+   * Each is queued like a manifest reference, so the level's dedup reduces it to
+   * its document and skips the default set the manifest already named. Sorted
+   * so the status list does not depend on store order.
+   */
+  private discoverContextNotationSets(documentIri: string): DiscoveredRef[] {
+    const sets = new Set<string>();
+    for (const q of this.store.getQuads(null, ARCH_USES_NOTATION_SET, null, namedNode(documentIri))) {
+      if (q.object.termType === 'NamedNode') sets.add(q.object.value);
+    }
+    return [...sets]
+      .sort(compareIris)
+      .map((referencedIri) => ({ referencedIri, via: 'arch:usesNotationSet' }));
   }
 
   /** `owl:imports` values declared by a document (any subject in it). */

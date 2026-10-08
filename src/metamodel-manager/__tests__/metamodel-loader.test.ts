@@ -5,6 +5,16 @@ import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { N3MetamodelLoader } from '../metamodel-loader.js';
 import { BUNDLED_ASSETS } from '../bundled-assets.js';
 import { DataFactory } from 'n3';
+import {
+  BASIC_BUBBLE_DOC,
+  BASIC_CONTEXTS_DOC,
+  BASIC_CONTEXTS_TTL,
+  BASIC_METAMODEL,
+  BASIC_NOTATION_DOC,
+  BUBBLE_SET,
+  RECTANGLE_SET,
+  basicAssetSource,
+} from './basic-fixture.js';
 
 const { namedNode } = DataFactory;
 
@@ -325,6 +335,68 @@ describe('N3MetamodelLoader — manifest loading', () => {
     await expect(loader.loadMetamodelFromManifest(MINIMAL_METAMODEL)).rejects.toThrow(
       /No arch:Metamodel subject/,
     );
+  });
+});
+
+describe('N3MetamodelLoader — arch:usesNotationSet targets', () => {
+  it('loads the set a presentation context names, keeping arch:notationSet as the default', async () => {
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store, basicAssetSource());
+
+    const loaded = await loader.loadMetamodelByIri(BASIC_METAMODEL);
+
+    expect(loaded.graphsByRole.notation).toEqual([BASIC_NOTATION_DOC, BASIC_BUBBLE_DOC]);
+    expect(loaded.notationSetIri).toBe(RECTANGLE_SET);
+
+    const bubble = loaded.assets.filter((a) => a.documentIri === BASIC_BUBBLE_DOC);
+    expect(bubble).toEqual([
+      expect.objectContaining({
+        referencedIri: BUBBLE_SET,
+        via: 'arch:usesNotationSet',
+        role: 'notation',
+        outcome: 'loaded',
+      }),
+    ]);
+    expect(store.getQuads(null, null, null, namedNode(BASIC_BUBBLE_DOC)).length).toBeGreaterThan(0);
+
+    // The context naming the default set again adds nothing: the document was
+    // reached through arch:notationSet first.
+    const rectangle = loaded.assets.filter((a) => a.documentIri === BASIC_NOTATION_DOC);
+    expect(rectangle).toEqual([
+      expect.objectContaining({ via: 'arch:notationSet', outcome: 'loaded' }),
+    ]);
+    expect(loaded.assets.filter((a) => a.via === 'arch:usesNotationSet')).toHaveLength(1);
+
+    // Reached through the presentation-context scheme, which is what triggers the follow-up.
+    expect(loaded.graphsByRole.presentationContexts).toEqual([BASIC_CONTEXTS_DOC]);
+  });
+
+  it('reports a context set no source has as unavailable, without failing the load', async () => {
+    const contexts = `${BASIC_CONTEXTS_TTL}
+      <${BASIC_CONTEXTS_DOC}MissingContext>
+        <${NAMESPACES.rdf}type> <${NAMESPACES.skos}Concept> ;
+        <${NAMESPACES.skos}inScheme> <${BASIC_CONTEXTS_DOC}> ;
+        <${NAMESPACES.arch}usesNotationSet> <https://example.org/absent-notation#AbsentNotation> .
+    `;
+    const loader = new N3MetamodelLoader(
+      new N3TtlParser(),
+      new OxigraphRdfStore(),
+      basicAssetSource({ [BASIC_CONTEXTS_DOC]: contexts }),
+    );
+
+    const loaded = await loader.loadMetamodelByIri(BASIC_METAMODEL);
+
+    const absent = loaded.assets.filter((a) => a.documentIri === 'https://example.org/absent-notation#');
+    expect(absent).toEqual([
+      expect.objectContaining({
+        referencedIri: 'https://example.org/absent-notation#AbsentNotation',
+        via: 'arch:usesNotationSet',
+        role: 'notation',
+        outcome: 'unavailable',
+      }),
+    ]);
+    // The rest of the set still loaded.
+    expect(loaded.graphsByRole.notation).toEqual([BASIC_NOTATION_DOC, BASIC_BUBBLE_DOC]);
   });
 });
 

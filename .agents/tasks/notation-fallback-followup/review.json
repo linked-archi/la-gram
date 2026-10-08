@@ -1,0 +1,22 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "label": "Unwritten fallback-layer rule",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "issue": "Req 2.16, design.md and the resolver and palette-generator headers say steps 2 and 5 use another loaded metamodel's default set. orderedFallbackSets drops only the active set's IRI, so it also keeps the active context's own metamodel default (the pinned reading). With the new order (step 2 before step 4), this decides EDGY's Overview map look in the concurrent run's uncommitted files. edgy:Metrics and edgy:Tagging resolve 'fallback' from the v2 default set; under the literal text they would get built-in defaults. No test pins the rule in a case where it decides the answer.",
+      "action": "State the rule in Req 2.16, design.md and the resolver and palette-generator headers. Add a test in which the context's alternative set lacks a class its own metamodel's default describes. Pass the same wording to the concurrent run's visual notation guide."
+    },
+    {
+      "id": 2,
+      "label": "ArchiMate-beside-Basic only at resolver level",
+      "severity": "minor",
+      "confidence": "confirmed",
+      "issue": "The am4:Composition and am4:BusinessActor cases build the resolver by hand in inContext, repeating the generator's choice of active set and fallback order. No test loads Basic and ArchiMate 4.0 through generatePalette or the renderer. The generator's wiring is pinned only with the test language. A read-only scratch run through generatePalette on the real Basic files gives the same answers.",
+      "action": "Optional: add one palette-level assertion with Basic primary, checking that am4:Composition's relationshipStyle keeps FilledDiamond."
+    }
+  ],
+  "reviewDoc": "linked.archi/tools/modellers/la-gram/.agents/tasks/notation-fallback-followup/review.md"
+}

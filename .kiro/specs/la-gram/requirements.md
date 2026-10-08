@@ -41,7 +41,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 1. On startup, load the default metamodel — ArchiMate 4.0 (`https://meta.linked.archi/archimate4/metamodel#ArchiMate4`) — or the metamodels named by `?metamodel=` (repeatable, comma-separated)
 2. Offer every published metamodel in a selector so the user can add one, or switch to it (replacing the others)
-   - *la-gram:* `meta.linked.archi` publishes no machine-readable catalogue (the site root and `/catalog` answer 404 to `Accept: text/turtle`), so the 25 published manifests ship as a built-in catalogue generated from the `linked-archi-meta` repository (`src/metamodel-manager/catalogue.ts`)
+   - *la-gram:* `meta.linked.archi` publishes no machine-readable catalogue (the site root and `/catalog` answer 404 to `Accept: text/turtle`), so the published manifests ship as a built-in catalogue maintained by hand from the `linked-archi-meta` repository (`src/metamodel-manager/catalogue.ts`). Basic (`https://meta.linked.archi/basic/metamodel#Basic`) is listed ahead of its publication; until then choosing it reports a load error
 3. Parse the manifest and discover all linked resources via `owl:imports` and `arch:*` properties (`arch:modelConcepts`, `arch:conceptClassification`, `arch:notationSet`, `arch:formalRules`, `arch:architectureViewpoints`, `arch:presentationContextScheme`, …)
 4. Load discovered resources in parallel (one level of the reference graph at a time) with `Accept: text/turtle`
 5. Multi-value Accept headers with quality parameters must not be sent (the server returns 404)
@@ -80,8 +80,8 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 12. Visual notation comes from the metamodel's `arch:notationSet` (`arch-vis:NotationSet` / `arch-vis:VisualNotation`)
 13. Each `arch-vis:VisualNotation` provides shape, fill, line, icon, icon placement, rendering mode and default size
 14. Three rendering modes: `ShapeWithBadge`, `IconCentric`, `ShapeOnly`
-15. **Presentation contexts** (`arch:presentationContextScheme`) are offered in the toolbar; the chosen context's `arch:usesNotationSet` restyles palette and canvas
-16. Fallback: context's notation set → metamodel's `arch:notationSet` → the class's `arch:prefVisNotation`
+15. **Presentation contexts** (`arch:presentationContextScheme`) are offered in the toolbar; the chosen context's `arch:usesNotationSet` restyles palette and canvas. The sets the contexts name are loaded with the metamodel, so an alternative set needs no other reference; the manifest's `arch:notationSet` stays the default
+16. Notation lookup, the same for palette and canvas. For a class C, the active set A is the set that the active presentation context names with `arch:usesNotationSet`, or else the primary metamodel's `arch:notationSet`. The fallback layers F are the default sets (`arch:notationSet`) of all loaded metamodels except A itself, in load order. F includes the default set of A's own metamodel when a presentation context picked an alternative set. (1) A descriptor in A for C. (2) A descriptor for C in F, the first match in load order. (3) C's own `arch:prefVisNotation`. (4) A descriptor for the nearest superclass of C that has one in A or F. The walk goes breadth-first over `rdfs:subClassOf`: by distance first, and superclasses at the same distance in IRI order. It stops at `arch:Element` and `arch:QualifiedRelationship`. For each superclass, A is checked first, then F in load order. (5) Built-in defaults. Elements: a rectangle with a white fill and a black line. Relationships: a solid black line. Anything published for the class itself beats anything inherited; among inherited descriptors the nearest ancestor wins; the active set only breaks ties. Relationships are drawn black unless a descriptor states a colour; they differ by line style and arrowhead
 
 ---
 

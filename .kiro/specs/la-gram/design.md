@@ -167,8 +167,40 @@ relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
 templates, reference data and the framework document are skipped.
 
 Palette generation (existing, unchanged in approach): dual classification over
-the taxonomy (`conceptClassification`) and ontology, several axes, notation
-resolved via presentation context → metamodel notation set → `prefVisNotation`.
+the taxonomy (`conceptClassification`) and ontology, several axes. Notation is
+resolved per class by `notation-resolver.ts` in five steps (Req 2.16):
+
+For a class C, the active set A is the set that the active presentation context
+names with `arch:usesNotationSet`, or else the primary metamodel's
+`arch:notationSet`. The fallback layers F are the default sets
+(`arch:notationSet`) of all loaded metamodels except A itself, in load order.
+F includes the default set of A's own metamodel when a presentation context
+picked an alternative set.
+
+1. A descriptor in A for C.
+2. A descriptor for C in F, the first match in load order.
+3. C's own `arch:prefVisNotation`.
+4. A descriptor for the nearest superclass of C that has one in A or F. The
+   walk goes breadth-first over `rdfs:subClassOf`: by distance first, and
+   superclasses at the same distance in IRI order. It stops at `arch:Element`
+   and `arch:QualifiedRelationship`. For each superclass, A is checked first,
+   then F in load order.
+5. Built-in defaults. Elements: a rectangle with a white fill and a black line.
+   Relationships: a solid black line.
+
+Anything published for the class itself beats anything inherited; among
+inherited descriptors the nearest ancestor wins; the active set only breaks
+ties.
+
+So a generic set such as Basic, when active, leaves ArchiMate's own notation in
+place, and an extension subclass of an ArchiMate class with nothing of its own
+takes its parent's look. `class-hierarchy.ts` does the walk. The palette
+carries every resolved class in `notationIndex`. The canvas's
+`NotationStyleRegistry` reads it for types the palette does not list, and so do
+the Graph tab's type look and a new view's element sizes in `mount-ui.ts`,
+through a registry of their own, so every path gives the same answer. The
+loader also loads the sets the presentation contexts name
+(`arch:usesNotationSet`).
 
 **The core as a metamodel** ("Linked.Archi Core", bundled:
 `core/core-metamodel.ttl`, `https://meta.linked.archi/core/metamodel#Core`).

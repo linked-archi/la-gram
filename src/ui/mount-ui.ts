@@ -90,6 +90,7 @@ import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-f
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
 import { assetUrl } from '../metamodel-manager/bundled-assets.js';
 import { iconHref, NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
+import { NotationStyleRegistry } from './canvas/notation-styles.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
 // DOM node in its constructor and manages that subtree itself.
@@ -317,6 +318,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // The palette drives the closure-aware domain/range matching on the context
   // pad, so it has to be readable as it changes.
   let currentPalette: PaletteDefinition = emptyPalette();
+  // How a type looks outside the canvas — the Graph tab, a new view's sizes —
+  // read the way the canvas reads it: the palette entry, else the palette's
+  // notation index (Req 2.16). Updated wherever `currentPalette` is.
+  const lookStyles = new NotationStyleRegistry(currentPalette);
 
   const diagramCanvas = new DiagramCanvas({
     container: canvasHost,
@@ -772,14 +777,22 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const regeneratePalette = (): void => {
     const context = app.activePresentationContext();
+    // The loaded metamodels' default sets in load order: the primary's styles
+    // the palette when no context chooses, the others are the fallback layers
+    // for classes the active set does not describe (Req 2.16).
+    const defaultNotationSetIris = app
+      .loadedMetamodels()
+      .flatMap((m) => (m.notationSetIri ? [m.notationSetIri] : []));
     const palette = paletteGenerator.generatePalette(currentMetamodelIri, {
       ...(currentAxisIri ? { axisIri: currentAxisIri } : {}),
       ...(context ? { presentationContextIri: context } : {}),
+      ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),
     });
     // The active axis may differ from the requested one when the metamodel does
     // not publish it; follow what the generator actually used.
     currentAxisIri = palette.activeAxisIri;
     currentPalette = palette;
+    lookStyles.update(palette);
     palettePanel.palette = palette;
     diagramCanvas.updatePaletteDefinition(palette);
     propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -875,25 +888,32 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const all = new Set(types.flatMap((t) => closure(t)));
     return !all.has(NAMESPACES.arch + 'View') && !all.has(NAMESPACES.arch + 'Model');
   };
+  /**
+   * How the Graph tab draws a type: as the canvas would — the palette entry,
+   * else the notation index, so a type the palette does not list keeps its
+   * resolved colour or line. Labels stay the palette's, else the store's.
+   */
   const graphLook = (typeIri: string | undefined): GraphTypeLook => {
     if (!typeIri) return { label: 'Unknown' };
-    const element = currentPalette.elementGroups.flatMap((g) => g.elements).find((e) => e.iri === typeIri);
-    if (element) {
-      const icon = iconHref(element.style?.iconSymbol ?? element.iconSymbol?.url, assetUrl);
+    const element = lookStyles.elementType(typeIri);
+    // A type the palette lists as a relationship is drawn as one, whatever the index holds.
+    const relationship = element ? undefined : lookStyles.relationshipType(typeIri);
+    const style = relationship ? undefined : lookStyles.styleFor(typeIri);
+    if (element || style) {
+      const icon = iconHref(style?.iconSymbol ?? element?.iconSymbol?.url, assetUrl);
       return {
-        label: element.label,
-        ...(element.style?.fillColor ? { color: element.style.fillColor } : {}),
+        label: lookStyles.labelFor(typeIri) ?? labelOf(store, typeIri),
+        ...(style?.fillColor ? { color: style.fillColor } : {}),
         ...(icon ? { icon } : {}),
       };
     }
-    const relationship = currentPalette.relationshipTypes.find((r) => r.iri === typeIri);
-    if (relationship) {
-      const style = relationship.relationshipStyle;
+    const line = lookStyles.relationshipStyleFor(typeIri);
+    if (relationship || line) {
       return {
-        label: relationship.label,
-        ...(style?.lineStyle ? { lineStyle: style.lineStyle } : {}),
-        ...(style?.sourceDecor ? { sourceDecor: style.sourceDecor } : {}),
-        ...(style?.targetDecor ? { targetDecor: style.targetDecor } : {}),
+        label: relationship?.label ?? labelOf(store, typeIri),
+        ...(line?.lineStyle ? { lineStyle: line.lineStyle } : {}),
+        ...(line?.sourceDecor ? { sourceDecor: line.sourceDecor } : {}),
+        ...(line?.targetDecor ? { targetDecor: line.targetDecor } : {}),
       };
     }
     return { label: labelOf(store, typeIri) };
@@ -967,11 +987,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       return source && target ? { source, target } : undefined;
     },
   };
-  /** An element's size on a new view: its notation's default. */
+  /** An element's size on a new view: its notation's default, from the palette entry or the notation index. */
   const sizeOf = (iri: string): { width: number; height: number } => {
     const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode);
-    const elements = currentPalette.elementGroups.flatMap((g) => g.elements);
-    const style = types.map((q) => elements.find((el) => el.iri === q.object.value)?.style).find(Boolean);
+    const style = types.map((q) => lookStyles.styleFor(q.object.value)).find(Boolean);
     return { width: style?.defaultWidth ?? NOTATION_DEFAULTS.width, height: style?.defaultHeight ?? NOTATION_DEFAULTS.height };
   };
   /**

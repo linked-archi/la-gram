@@ -7,6 +7,7 @@
 
 import type { BundledAssetRole } from './bundled-assets.js';
 import type { RelationshipVisualStyle, RenderingMode, VisualStyle } from './notation.js';
+import type { NotationIndexEntry } from './notation-resolver.js';
 
 // ---------------------------------------------------------------------------
 // Metamodel Loader
@@ -172,7 +173,10 @@ export interface ElementTypeInfo {
   /** `arch-vis:iconSymbol` badge glyph, source and resolved form. */
   iconSymbol?: ResolvedUri;
   /**
-   * Full visual style from the active notation set.
+   * Full visual style from the notation lookup (`notation-resolver.ts`): a
+   * descriptor for the class itself in the active set or a fallback layer, or,
+   * failing that and its own image, the nearest superclass's descriptor in
+   * either.
    *
    * `style.iconSymbol` carries the *resolved* URL so a renderer can use it
    * directly; {@link iconSymbol} keeps the published URI.
@@ -210,7 +214,10 @@ export interface RelationshipTypeInfo {
   iconUrl?: string;
   /** `arch:prefVisNotation` image, source and resolved form. */
   prefVisNotation?: ResolvedUri;
-  /** Line style and endpoint decorations from the active notation set. */
+  /**
+   * Line style and endpoint decorations from the notation lookup. Carries a
+   * colour only when the descriptor states one; renderers draw black otherwise.
+   */
   relationshipStyle?: RelationshipVisualStyle;
   /** IRIs of valid source element types (arch:domainIncludes). */
   domainTypes: string[];
@@ -248,10 +255,19 @@ export interface PaletteDefinition {
   axes?: PaletteAxis[];
   /** IRI of the axis the `elementGroups` are grouped by. */
   activeAxisIri?: string;
-  /** IRI of the notation set the styles came from. */
+  /** IRI of the active notation set: the one consulted first. */
   notationSetIri?: string;
   /** Label of that notation set. */
   notationSetLabel?: string;
+  /**
+   * The resolved notation of every class the generator could resolve, keyed by
+   * class IRI, plus each relationship class's `arch:unqualifiedForm` predicate.
+   *
+   * Entries come from the same lookup as the palette entries, so the two agree;
+   * the canvas reads this for types the palette does not list (a class no
+   * taxonomy names). Classes that resolve to nothing are absent.
+   */
+  notationIndex?: Record<string, NotationIndexEntry>;
 }
 
 /** How to build a palette: which axis groups it, which notation styles it. */
@@ -268,6 +284,16 @@ export interface PaletteOptions {
    * Ignored when {@link notationSetIri} is given.
    */
   presentationContextIri?: string;
+  /**
+   * The loaded metamodels' default sets (`arch:notationSet`), in load order.
+   *
+   * With no set chosen, the first that has descriptors is the active set. Every
+   * set here except the active one is a fallback layer, consulted for a class
+   * the active set does not describe; when a context or an explicit choice
+   * picked another set, that includes the first. Without it, the graph's
+   * metamodels are used, in IRI order.
+   */
+  defaultNotationSetIris?: readonly string[];
 }
 
 /** Generates UI palettes from metamodel definitions. */

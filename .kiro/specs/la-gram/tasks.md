@@ -32,6 +32,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Filter by the open view's viewpoint — *workbench.test*
 - [x] Outside-viewpoint shapes greyed, not hidden — *view-canvas.test*
 - [x] Presentation-context selector; palette and canvas follow the context's notation set
+- [x] Notation fallback: superclass walk and other metamodels' default sets, one five-step lookup (the class's own descriptors and image before inherited ones; the nearest ancestor among inherited ones) for palette, canvas, Graph tab and new-view sizes; `arch:usesNotationSet` targets loaded; Basic in the catalogue — *class-hierarchy.test, notation-resolver.test, palette-generator.test, notation-styles.test, notation-fallback-integration.test, mount-ui.test, metamodel-loader.test, catalogue.test*
 - [x] OWL-only fallback when there is no taxonomy
 - [ ] Show a notice when the OWL-only fallback is in use
 

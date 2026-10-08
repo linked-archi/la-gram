@@ -1,0 +1,38 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "label": "Basic-active override of other languages",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "issue": "With Basic's set active (Basic is the primary metamodel, or a Basic context is chosen), step 2 gives every other loaded language's elements and relationships Basic's generic look and flattens ArchiMate's relationship notation. For example, am4:Composition becomes NoDecoration→OpenArrowhead. This follows the brief's order (step 2 before step 3).",
+      "action": "User decision: accept, or change the order in the spec. Pin the relationship case with a test either way."
+    },
+    {
+      "id": 2,
+      "label": "Basic elements missing from the palette next to another language",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "issue": "taxonomy.ts:326-327 synthesises a flat axis only when the store has no axis at all. The real basic-tax.ttl is the only flat published taxonomy, so it contributes no palette entries once ArchiMate 4.0 is loaded. Basic's relationships and its canvas styling are unaffected. The root cause predates this change, and the test fixture hides it with an axis wrapper.",
+      "action": "Give basic-tax.ttl an axis concept, as every other taxonomy has, or synthesise a flat axis per scheme in la-gram. Then reshape basic-fixture.ts to match the real files."
+    },
+    {
+      "id": 3,
+      "label": "Palette-only sizing and Graph look",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "issue": "sizeOf (mount-ui.ts:978) and graphLook (mount-ui.ts:885) ignore notationIndex. Classes the palette does not list get 120×55 boxes in new views, and no colour or line style in the Graph tab.",
+      "action": "Read both through NotationStyleRegistry or notationIndex."
+    },
+    {
+      "id": 4,
+      "label": "Guide still documents three steps",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "issue": "notation-resolver.ts:23-24 says the visual notation guide carries the same order, but linked-archi-meta/doc/guide/visual-notation-guide.md:56-60 still lists the old three steps.",
+      "action": "Land the concurrent run's guide update together with this change, or reword the comment."
+    }
+  ],
+  "reviewDoc": "linked.archi/tools/modellers/la-gram/.agents/tasks/notation-fallback/review.md"
+}

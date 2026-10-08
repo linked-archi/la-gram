@@ -40,7 +40,16 @@ import { TtlFileIO } from '../../import-export/ttl-file-io.js';
 import { EventBus } from '../event-bus.js';
 import { App, type AppComponents } from '../../app.js';
 import { mountUi, DEFAULT_MODEL_IRI, type MountedUi } from '../mount-ui.js';
+import type { Dialogs } from '../dialogs.js';
 import { RELATIONSHIP_REPLACE_MENU_ID } from '../canvas/rdf-replace-menu-provider.js';
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import {
+  ARCH_ELEMENT,
+  ARCH_QUALIFIED_RELATIONSHIP,
+  BUBBLE_ELEMENT_STYLE,
+  BUBBLE_SET,
+  GENERIC_RELATIONSHIP_STYLE,
+} from '../../metamodel-manager/__tests__/basic-fixture.js';
 import { installJsdomSvgSupport } from './jsdom-svg-support.js';
 
 // mountUi constructs a real diagram-js Diagram for the canvas slot, which needs
@@ -341,6 +350,28 @@ describe('mountUi', () => {
       });
     });
 
+    it("passes the loaded metamodels' default notation sets in load order (Req 2.16)", () => {
+      const loaded = (iri: string, notationSetIri?: string): LoadedMetamodel => ({
+        metamodelIri: iri,
+        manifestGraphIri: iri,
+        info: { iri, name: '', version: '', description: '' },
+        graphsByRole: {},
+        assets: [],
+        ...(notationSetIri ? { notationSetIri } : {}),
+      });
+      vi.spyOn(app, 'loadedMetamodels').mockReturnValue([
+        loaded('urn:mm:primary', 'urn:set:primary'),
+        loaded('urn:mm:core'),
+        loaded('urn:mm:added', 'urn:set:added'),
+      ]);
+
+      app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm:primary' });
+
+      expect(app.components.paletteGenerator.generatePalette).toHaveBeenLastCalledWith('urn:mm:primary', {
+        defaultNotationSetIris: ['urn:set:primary', 'urn:set:added'],
+      });
+    });
+
     it('routes an explorer selection to the property panel', () => {
       const seen: string[] = [];
       app.components.eventBus.on('selection-changed', (e) => {
@@ -556,6 +587,134 @@ describe('mountUi', () => {
       const area = ui.canvasHost.parentElement!;
       expect(Array.from(area.children).indexOf(ui.canvasToolbar)).toBe(0);
       expect(Array.from(area.children).indexOf(ui.canvasHost)).toBe(1);
+    });
+  });
+
+  describe('notation look outside the canvas (Req 2.16)', () => {
+    /** A class no taxonomy names, so the palette never lists it. */
+    const UNLISTED = 'https://example.org/extra#Unlisted';
+    const LISTED = 'urn:t:Styled';
+    const LISTED_RELATIONSHIP = 'urn:t:Serving';
+    const ELEMENT = 'urn:e:unlisted-1';
+
+    /**
+     * A palette whose notation index answers for types it does not list, as the
+     * generator resolves them with Basic's bubble set active: a class under
+     * arch:Element, and the generic relationship, which the palette lists only
+     * when the core taxonomy names it.
+     */
+    const paletteWithIndex = (): PaletteDefinition => ({
+      elementGroups: [
+        {
+          category: 'Business',
+          elements: [
+            { iri: LISTED, label: 'Styled', isAbstract: false, style: { shapeType: 'Rectangle', fillColor: '#FFFFB5' } },
+          ],
+        },
+      ],
+      relationshipTypes: [
+        {
+          iri: LISTED_RELATIONSHIP,
+          label: 'Serving',
+          domainTypes: [],
+          rangeTypes: [],
+          relationshipStyle: { lineStyle: 'SolidLine', sourceDecor: 'NoDecoration', targetDecor: 'OpenArrowhead' },
+        },
+      ],
+      notationIndex: {
+        [UNLISTED]: {
+          source: 'active-superclass',
+          notationSetIri: BUBBLE_SET,
+          matchedClassIri: ARCH_ELEMENT,
+          style: { ...BUBBLE_ELEMENT_STYLE },
+          renderingMode: 'ShapeOnly',
+        },
+        [ARCH_QUALIFIED_RELATIONSHIP]: {
+          source: 'active',
+          notationSetIri: BUBBLE_SET,
+          matchedClassIri: ARCH_QUALIFIED_RELATIONSHIP,
+          relationshipStyle: { ...GENERIC_RELATIONSHIP_STYLE },
+        },
+        // Same IRIs as palette entries, styled differently: the palette entries must win.
+        [LISTED]: { source: 'fallback', style: { shapeType: 'Circle', fillColor: '#000001', defaultWidth: 10, defaultHeight: 10 } },
+        [LISTED_RELATIONSHIP]: {
+          source: 'fallback',
+          style: { fillColor: '#000002' },
+          relationshipStyle: { lineStyle: 'DottedLine' },
+        },
+      },
+    });
+
+    /** Dialogs that answer every prompt with `answer`. */
+    const scriptedDialogs = (answer: string): Dialogs => ({
+      prompt: vi.fn(async () => answer),
+      form: vi.fn(async () => null),
+      confirm: vi.fn(async () => false),
+      choose: vi.fn(async () => null),
+      info: vi.fn(async () => {}),
+      toast: vi.fn(),
+    });
+
+    let scopedRoot: HTMLElement;
+    let scopedUi: MountedUi;
+    let components: AppComponents;
+
+    beforeEach(() => {
+      const store = stubStore([
+        quad(namedNode(ELEMENT), namedNode(`${NAMESPACES.rdf}type`), namedNode(UNLISTED)) as unknown as Quad,
+      ]);
+      const paletteGenerator: PaletteGenerator = {
+        generatePalette: vi.fn(paletteWithIndex),
+        filterByViewpoint: vi.fn((p: PaletteDefinition) => p),
+      };
+      components = buildComponents({ store, paletteGenerator });
+      scopedRoot = document.createElement('div');
+      document.body.appendChild(scopedRoot);
+      scopedUi = mountUi(new App(components), scopedRoot, { dialogs: scriptedDialogs('Around the element') });
+      components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+    });
+
+    afterEach(() => {
+      scopedUi.dispose();
+      scopedRoot.remove();
+    });
+
+    it("gives the Graph tab the index's colour for a type the palette does not list", () => {
+      expect(scopedUi.graphPanel.source?.look(UNLISTED)).toMatchObject({ color: BUBBLE_ELEMENT_STYLE.fillColor });
+    });
+
+    it("gives the Graph tab the index's line and decorations for a relationship type the palette does not list", () => {
+      expect(scopedUi.graphPanel.source?.look(ARCH_QUALIFIED_RELATIONSHIP)).toMatchObject({
+        lineStyle: 'SolidLine',
+        sourceDecor: 'NoDecoration',
+        targetDecor: 'OpenArrowhead',
+      });
+    });
+
+    it('keeps palette entries ahead of the index, and a listed relationship a relationship', () => {
+      expect(scopedUi.graphPanel.source?.look(LISTED)).toEqual({ label: 'Styled', color: '#FFFFB5' });
+      expect(scopedUi.graphPanel.source?.look(LISTED_RELATIONSHIP)).toEqual({
+        label: 'Serving',
+        lineStyle: 'SolidLine',
+        sourceDecor: 'NoDecoration',
+        targetDecor: 'OpenArrowhead',
+      });
+    });
+
+    it("sizes an element the palette does not list at its notation's default on a new view", async () => {
+      scopedUi.graphPanel.dispatchEvent(
+        new CustomEvent('graph-new-view', {
+          detail: { iris: [ELEMENT], centres: new Map([[ELEMENT, { x: 0, y: 0 }]]), label: 'Around' },
+        }),
+      );
+
+      await vi.waitFor(() => expect(components.viewManager.addElementToView).toHaveBeenCalled());
+      // The bubble set's 80 × 80 circle, not the built-in 120 × 55 box.
+      expect(components.viewManager.addElementToView).toHaveBeenCalledWith(
+        'urn:v',
+        ELEMENT,
+        expect.objectContaining({ width: BUBBLE_ELEMENT_STYLE.defaultWidth, height: BUBBLE_ELEMENT_STYLE.defaultHeight }),
+      );
     });
   });
 

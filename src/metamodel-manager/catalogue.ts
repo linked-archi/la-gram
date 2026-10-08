@@ -2,15 +2,18 @@
  * The metamodels published on `meta.linked.archi`.
  *
  * The site has no machine-readable catalogue endpoint yet (`/catalog` and `/`
- * answer 404 to `Accept: text/turtle`), so the list ships with the tool,
- * generated from the `arch:Metamodel` manifests in the `linked-archi-meta`
- * repository. Every entry is an `arch:Metamodel` subject IRI that dereferences
- * with `Accept: text/turtle` — the loader fetches the rest from it.
+ * answer 404 to `Accept: text/turtle`), so the list ships with the tool. It is
+ * maintained by hand from the `arch:Metamodel` manifests in the
+ * `linked-archi-meta` repository; no script generates it. Every entry is an
+ * `arch:Metamodel` subject IRI that dereferences with `Accept: text/turtle` —
+ * the loader fetches the rest from it.
  *
  * The two bundled ArchiMate versions and the core metamodel load offline;
  * every other entry needs the network. The core metamodel (the core ontology's
  * generic element and relationship) is la-gram's own manifest, bundled, until
- * meta.linked.archi publishes one. A metamodel not in this list loads just the same through
+ * meta.linked.archi publishes one. Basic is listed ahead of its publication:
+ * until its manifest is served, choosing it reports a load error and changes
+ * nothing else. A metamodel not in this list loads just the same through
  * "Load by IRI" or an upload.
  */
 
@@ -32,6 +35,9 @@ export const METAMODEL_CATALOGUE: readonly CatalogueEntry[] = [
   { iri: 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2', label: 'ArchiMate 3.2', kind: 'language' },
   { iri: 'https://meta.linked.archi/archimate4/metamodel#ArchiMate4', label: 'ArchiMate 4.0', kind: 'language' },
   { iri: 'https://meta.linked.archi/backstage/metamodel#BackstageCatalog', label: 'Backstage Catalog', kind: 'language' },
+  // A minimal language whose two notation sets (rectangle by default, bubble by
+  // presentation context) describe arch:Element and arch:QualifiedRelationship. Not published yet.
+  { iri: 'https://meta.linked.archi/basic/metamodel#Basic', label: 'Basic', kind: 'language' },
   { iri: 'https://meta.linked.archi/bmc/metamodel#BusinessModelCanvas', label: 'Business Model Canvas', kind: 'language' },
   { iri: 'https://meta.linked.archi/bpmn-lite/metamodel#BPMNLite', label: 'BPMN Lite', kind: 'language' },
   { iri: 'https://meta.linked.archi/bpmn/metamodel#BPMN2', label: 'BPMN 2.0.2', kind: 'language' },
