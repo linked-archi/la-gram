@@ -6,10 +6,9 @@
  * The picture (`arch:prefVisNotation`) and the glyph are paired through the
  * notation data, not by file name. The picture's badge marks each part
  * `look="background"` (painted in the element colour), `look="border"` (the
- * line grey) or `look="allInOne"` (stroked, and filled with either). A few
- * pictures were drawn by hand without these marks (value stream; in 3.2 also the
- * business function, event, service and interaction, the application process
- * and service); they are not compared.
+ * line grey) or `look="allInOne"` (stroked, and filled with either). The
+ * value stream pictures were drawn by hand without these marks and are not
+ * compared.
  */
 
 import { describe, it, expect } from 'vitest';
