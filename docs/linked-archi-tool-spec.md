@@ -194,7 +194,7 @@ interface PaletteEntry {
 }
 ```
 
-**Notes.** Entries **MUST** be derived from SPARQL queries over the union of loaded ontologies + taxonomies. In `sketch` and `ideation` bands, the palette **SHOULD** be restricted to `:Element` and the most generic relationship types. The active viewpoint's `arch:includesConcept` set filters entries when set.
+**Notes.** An element **SHOULD** be drawn from its `arch-vis:Style` as the core-vis vocabulary describes each value — the geometry of every `arch-vis:ShapeType` (including the inner lines of the banded, tabbed and 3D shapes, which are not part of the outline connections meet), `arch-vis:borderStyle` for the outline, and each `arch-vis:Decoration`'s `arch-vis:decorSymbol` for relationship ends — so that a diagram looks like the notation's published pictures. Entries **MUST** be derived from SPARQL queries over the union of loaded ontologies + taxonomies. In `sketch` and `ideation` bands, the palette **SHOULD** be restricted to `:Element` and the most generic relationship types. The active viewpoint's `arch:includesConcept` set filters entries when set.
 
 ### 5.3 Relationship proposal & validity
 

@@ -271,6 +271,15 @@ describe('shape types through the renderer', () => {
     Hexagon: 'polygon',
     Diamond: 'polygon',
     Parallelogram: 'polygon',
+    BandedRectangle: 'rect',
+    DoubleBandedRectangle: 'rect',
+    TabbedRectangle: 'rect',
+    Box3D: 'polygon',
+    WavyRectangle: 'path',
+    WavyBandedRectangle: 'path',
+    Cloud: 'path',
+    Folder: 'polygon',
+    Cylinder: 'path',
   };
 
   it.each(SHAPE_TYPES)('%s draws the expected SVG element', (shapeType: ShapeType) => {
@@ -295,6 +304,70 @@ describe('shape types through the renderer', () => {
 
     expect(plainRx).toBeNull();
     expect(Number(roundedRx)).toBeGreaterThan(0);
+  });
+
+  it('draws a shape\'s inner lines over its body, stroked and unfilled', () => {
+    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'Box3D', lineColor: '#333333' }, { width: 130, height: 60 });
+    const [body, details] = [...shape.children];
+    expect(body!.getAttribute('class')).toBe(RENDER_CLASSES.body);
+    expect(details!.getAttribute('class')).toBe(RENDER_CLASSES.details);
+    expect(details!.getAttribute('d')).toBe('M0,12L118,12L118,60M118,12L130,0');
+    expect([details!.getAttribute('fill'), details!.getAttribute('stroke')]).toEqual(['none', '#333333']);
+    harness?.destroy();
+    harness = undefined;
+
+    // A shape with no inner lines draws none.
+    const plain = drawWithStyle({ ...badgeStyle, shapeType: 'Rectangle' });
+    expect(plain.querySelector(`.${RENDER_CLASSES.details}`)).toBeNull();
+  });
+
+  it('dashes the outline and the inner lines for a dashed borderStyle', () => {
+    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'Folder', borderStyle: 'DashedLine' });
+    const dashes = [RENDER_CLASSES.body, RENDER_CLASSES.details].map((name) =>
+      shape.querySelector(`.${name}`)!.getAttribute('stroke-dasharray'),
+    );
+    expect(dashes).toEqual(['8 4', '8 4']);
+    harness?.destroy();
+    harness = undefined;
+
+    const solid = drawWithStyle({ ...badgeStyle, shapeType: 'Folder' });
+    expect(solid.querySelector(`.${RENDER_CLASSES.body}`)!.getAttribute('stroke-dasharray')).toBeNull();
+  });
+
+  it('puts the badge and label on a 3D box\'s front face', () => {
+    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'Box3D' }, { width: 130, height: 60, label: 'Server' });
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    // Front face: x 0–118, y 12–60; the badge in its top-right corner.
+    expect([badge.getAttribute('x'), badge.getAttribute('y')]).toEqual(['94', '16']);
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.getAttribute('x')).toBe('59');
+    expect(Number(label.getAttribute('y'))).toBeGreaterThan(12 + 24);
+  });
+
+  it('puts a Folder\'s label in its tab, on one line, and its badge in the body', () => {
+    const shape = drawWithStyle(
+      { ...badgeStyle, shapeType: 'Folder' },
+      { width: 130, height: 60, label: 'A grouping with a name too long for one line' },
+    );
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.querySelectorAll('tspan')).toHaveLength(1);
+    // Centred in the 104 × 21 tab.
+    expect(label.getAttribute('x')).toBe('52');
+    expect(Number(label.getAttribute('y'))).toBeLessThan(21);
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    expect(Number(badge.getAttribute('y'))).toBeGreaterThanOrEqual(21);
+  });
+
+  it('keeps the label below a band', () => {
+    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'BandedRectangle', renderingMode: 'ShapeOnly' }, { width: 130, height: 60, label: 'Order' });
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    // Centred in the 49.6 below the band rather than in the whole 60.
+    const centred = Number(label.getAttribute('y'));
+    harness?.destroy();
+    harness = undefined;
+    const plain = drawWithStyle({ ...badgeStyle, shapeType: 'Rectangle', renderingMode: 'ShapeOnly' }, { width: 130, height: 60, label: 'Order' });
+    const plainY = Number(plain.querySelector(`.${RENDER_CLASSES.label}`)!.getAttribute('y'));
+    expect(centred - plainY).toBeCloseTo(10.4 / 2, 1);
   });
 });
 

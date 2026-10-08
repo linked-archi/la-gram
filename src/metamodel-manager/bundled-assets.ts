@@ -125,12 +125,13 @@ export const PUBLISHED_BASE_URI = 'https://meta.linked.archi/';
 /**
  * Asset-root-relative directories under which icons are actually bundled.
  *
- * Only these are shipped. `core-vis/markers/` and the other language icon sets
- * exist on the published site but are not in this bundle, so
- * {@link resolveIconUri} reports them as unresolvable rather than handing back
- * a path that would 404.
+ * Only these are shipped: the two ArchiMate icon sets, and the core-vis
+ * decoration markers (`arch-vis:decorSymbol`) the canvas draws relationship
+ * ends with. The other language icon sets exist on the published site but are
+ * not in this bundle, so {@link resolveIconUri} reports them as unresolvable
+ * rather than handing back a path that would 404.
  */
-export const BUNDLED_ICON_PREFIXES: readonly string[] = ['archimate4/icons/', 'archimate3/icons/'];
+export const BUNDLED_ICON_PREFIXES: readonly string[] = ['archimate4/icons/', 'archimate3/icons/', 'core-vis/markers/'];
 
 /**
  * The metamodels shipped complete, default first.
@@ -430,7 +431,9 @@ export async function fetchAssetText(asset: BundledAsset | string): Promise<stri
   }
 
   const url = assetUrl(assetPath);
-  const response = await fetch(url);
+  // Revalidate: the static server sends no Cache-Control, and a re-synced
+  // snapshot must not be shadowed by the browser's copy of the old one.
+  const response = await fetch(url, { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(
       `Failed to fetch bundled asset '${assetPath}' from ${url}: ${response.status} ${response.statusText}`,

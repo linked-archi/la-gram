@@ -160,11 +160,48 @@ uploaded  →  bundled (assets/, mirrors meta.linked.archi)  →  remote (Accept
 ```
 
 (`bundled-first`, the browser default; `remote-first` and `offline` reorder or
-drop the remote source). Every discovered document gets a status (loaded,
+drop the remote source). Every fetch revalidates (`cache: 'no-cache'`): neither
+the static server nor meta.linked.archi sends `Cache-Control`, and a browser
+would otherwise keep a heuristically fresh copy for hours. `assets/` is
+refreshed from a linked-archi-meta checkout with `npm run sync-assets`, which
+uses that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
 templates, reference data and the framework document are skipped.
+
+**Relationship ends** (Req 2.17). The palette carries each decoration's
+published symbol (`decorationSymbols`: `arch-vis:decorSymbol` on the core-vis
+`arch-vis:Decoration` individuals, resolved to the bundled
+`assets/core-vis/markers/` copy). The renderer draws a `<marker>` from it:
+the SVG is rebuilt from plain shape elements and their geometry and paint
+attributes only (no scripts, handlers, styles or references), with the
+symbol's viewBox and size, `refX`/`refY` at the middle of the viewBox's right
+edge, `orient="auto-start-reverse"` at a source end, and `color` set to the
+line colour for `currentColor`. The first connection to need a decoration
+starts loading its symbol; until it arrives that marker uses built-in
+geometry, and is then replaced in place (same id, so every line using it
+follows). A symbol that cannot be loaded leaves the built-in marker.
+
+**Element shapes** (Req 2.18). `notation-shapes.ts` turns a `ShapeType` into one
+geometry with two encodings: the drawn body (`shapeGeometry`: a `rect`,
+`ellipse`, `circle`, `polygon` or `path`, plus `details`, a path of inner lines)
+and the outline in absolute coordinates that connection docking crops against
+(`shapePath`). `Box3D` and `Folder` are polygons; the wavy shapes, `Cloud` and
+`Cylinder` are paths (the wave a cubic, the cloud the published picture's six
+quadratic lobes scaled to the shape, the cylinder's ends arcs) — all of which
+`path-intersection` takes as they stand. The banded and tabbed rectangles dock
+as rectangles and the wavy banded one as the wavy one: inner lines are not
+outline. `shapeLayout` gives the box the badge goes in and the box the label is
+centred in (a `Folder`'s tab, one line). The proportions are those the
+vocabulary states: a band of h × 0.173 (at most 14), a 3D depth of h × 0.2 (at
+most 12), a tab of h × 0.35 (at most 21) by w × 0.8 (at most 200 or w / 2), a rim
+of h × 0.2 (at most 16); at 130 × 60 the shapes reproduce the published
+pictures, which a unit test checks against the bundled picture files.
+`arch-vis:borderStyle` takes the relationship dash patterns. Badges stay
+`<image href>`: the published glyphs are transparent where the element's fill
+shows (the vocabulary's `arch-vis:iconSymbol` convention), so they need no
+recolouring to match the pictures.
 
 Palette generation (existing, unchanged in approach): dual classification over
 the taxonomy (`conceptClassification`) and ontology, several axes. Notation is

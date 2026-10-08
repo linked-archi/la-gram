@@ -28,6 +28,7 @@ import type {
 import type { NotationIndexEntry } from '../../metamodel-manager/notation-resolver.js';
 import {
   effectiveRenderingMode,
+  type Decoration,
   type RenderingMode,
   type RelationshipVisualStyle,
   type VisualStyle,
@@ -43,6 +44,8 @@ export class NotationStyleRegistry {
   private relationships = new Map<string, RelationshipTypeInfo>();
   /** `notationIndex` as a map: IRIs are keys, and a plain object would answer for `toString`. */
   private index = new Map<string, NotationIndexEntry>();
+  /** Where each decoration's published symbol is: the bundled copy, else the published URI. */
+  private decorationSymbols: Partial<Record<Decoration, string>> = {};
 
   constructor(paletteDefinition: PaletteDefinition = emptyPaletteDefinition()) {
     this.update(paletteDefinition);
@@ -53,6 +56,9 @@ export class NotationStyleRegistry {
     this.elements = new Map();
     this.relationships = new Map();
     this.index = new Map(Object.entries(paletteDefinition.notationIndex ?? {}));
+    this.decorationSymbols = Object.fromEntries(
+      Object.entries(paletteDefinition.decorationSymbols ?? {}).map(([decoration, symbol]) => [decoration, symbol?.url]),
+    );
 
     for (const group of paletteDefinition.elementGroups) {
       for (const element of group.elements) {
@@ -122,6 +128,11 @@ export class NotationStyleRegistry {
     const info = this.relationshipType(typeIri);
     if (info) return info.relationshipStyle;
     return this.indexEntry(typeIri)?.relationshipStyle;
+  }
+
+  /** Where a decoration's published marker symbol is (`arch-vis:decorSymbol`), when one is. */
+  decorationSymbolFor(decoration: Decoration): string | undefined {
+    return this.decorationSymbols[decoration];
   }
 
   /** How many element types are indexed. Useful for diagnostics and tests. */

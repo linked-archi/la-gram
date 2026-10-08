@@ -346,7 +346,8 @@ it.'''@en ;
         sh:class    arch-vis:ShapeType ;
         sh:message  '''shapeType must be a single member of the ShapeType enumeration
 (arch-vis:RoundedRectangle, Rectangle, Octagon, Ellipse, Circle, Hexagon, Diamond,
-Parallelogram).'''@en ;
+Parallelogram, BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
+WavyBandedRectangle, Cloud, Folder, Cylinder), or a ShapeType a notation declares itself.'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:iconSymbol ;
@@ -382,6 +383,14 @@ ShapeWithBadge.'''@en ;
         sh:maxCount 1 ;
         sh:datatype xsd:double ;
         sh:message  "defaultHeight is a single xsd:double."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:borderStyle ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LineStyle ;
+        sh:message  '''borderStyle must be a single member of the LineStyle enumeration
+(arch-vis:SolidLine, arch-vis:DashedLine, arch-vis:DottedLine). Absent means solid.'''@en ;
     ] ;
 .
 

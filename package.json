@@ -19,7 +19,8 @@
     "test:browser:build": "npm run build:web && npm run test:browser",
     "collab": "node server/collab-server.mjs",
     "dev": "npm run build:dev -- --config-name web && npm run serve",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sync-assets": "node scripts/sync-assets.mjs"
   },
   "dependencies": {
     "@codemirror/language": "^6.10.0",

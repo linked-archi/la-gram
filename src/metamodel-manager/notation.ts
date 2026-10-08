@@ -50,6 +50,7 @@ const T = {
   renderingMode: `${ARCH_VIS}renderingMode`,
   defaultWidth: `${ARCH_VIS}defaultWidth`,
   defaultHeight: `${ARCH_VIS}defaultHeight`,
+  borderStyle: `${ARCH_VIS}borderStyle`,
   lineStyle: `${ARCH_VIS}lineStyle`,
   sourceDecor: `${ARCH_VIS}sourceDecor`,
   targetDecor: `${ARCH_VIS}targetDecor`,
@@ -64,7 +65,10 @@ const T = {
 /** How shape and icon are composed when rendering an element. */
 export type RenderingMode = 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly';
 
-/** Geometric shape for element visual notation. */
+/**
+ * Geometric shape for element visual notation. The vocabulary's comments
+ * (`core-vis-onto.ttl`) give each one's geometry; `notation-shapes.ts` draws them.
+ */
 export type ShapeType =
   | 'RoundedRectangle'
   | 'Rectangle'
@@ -73,7 +77,16 @@ export type ShapeType =
   | 'Circle'
   | 'Hexagon'
   | 'Diamond'
-  | 'Parallelogram';
+  | 'Parallelogram'
+  | 'BandedRectangle'
+  | 'DoubleBandedRectangle'
+  | 'TabbedRectangle'
+  | 'Box3D'
+  | 'WavyRectangle'
+  | 'WavyBandedRectangle'
+  | 'Cloud'
+  | 'Folder'
+  | 'Cylinder';
 
 /** Icon position within (or relative to) the shape. */
 export type IconPlacement = 'TopRight' | 'TopLeft' | 'TopCenter' | 'Center' | 'BottomCenter';
@@ -103,6 +116,8 @@ export interface VisualStyle {
   renderingMode?: RenderingMode;
   defaultWidth?: number;
   defaultHeight?: number;
+  /** Line style of the shape's outline (`arch-vis:borderStyle`); solid when absent. */
+  borderStyle?: LineStyle;
 }
 
 /** Visual style for a relationship type. */
@@ -144,6 +159,15 @@ const SHAPE_TYPES: ReadonlySet<string> = new Set<ShapeType>([
   'Hexagon',
   'Diamond',
   'Parallelogram',
+  'BandedRectangle',
+  'DoubleBandedRectangle',
+  'TabbedRectangle',
+  'Box3D',
+  'WavyRectangle',
+  'WavyBandedRectangle',
+  'Cloud',
+  'Folder',
+  'Cylinder',
 ]);
 
 const ICON_PLACEMENTS: ReadonlySet<string> = new Set<IconPlacement>([
@@ -183,6 +207,27 @@ const DECORATIONS: ReadonlySet<string> = new Set<Decoration>([
  * The subject is passed through as a term so blank-node `Style` nodes resolve
  * exactly like named ones.
  */
+/**
+ * The marker symbol published for each decoration: `arch-vis:decorSymbol` on
+ * the `arch-vis:Decoration` individuals of the core-vis ontology.
+ *
+ * A renderer draws a decoration from its symbol — anchored and oriented as the
+ * vocabulary's description of `arch-vis:decorSymbol` says — and from built-in
+ * geometry only where nothing is published. Only the core-vis individuals are
+ * read: the decoration names are that vocabulary's.
+ */
+export function buildDecorationSymbols(store: Store): Partial<Record<Decoration, string>> {
+  const symbols: Partial<Record<Decoration, string>> = {};
+  for (const subject of store.getSubjects(namedNode(RDF_TYPE), namedNode(`${ARCH_VIS}Decoration`), null)) {
+    if (subject.termType !== 'NamedNode' || !subject.value.startsWith(ARCH_VIS)) continue;
+    const decoration = parseEnum<Decoration>(subject.value, DECORATIONS);
+    if (!decoration || decoration === 'NoDecoration') continue;
+    const symbol = objectValue(store, subject, `${ARCH_VIS}decorSymbol`);
+    if (symbol) symbols[decoration] = symbol;
+  }
+  return symbols;
+}
+
 function objectValue(store: Store, subject: Term, predicate: string): string | null {
   for (const object of store.getObjects(subject, namedNode(predicate), null)) {
     return object.value;
@@ -307,6 +352,7 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
   );
   const defaultWidth = parseNumber(objectValue(store, styleTerm, T.defaultWidth));
   const defaultHeight = parseNumber(objectValue(store, styleTerm, T.defaultHeight));
+  const borderStyle = parseEnum<LineStyle>(objectValue(store, styleTerm, T.borderStyle), LINE_STYLES);
 
   const declaredPlacement = parseEnum<IconPlacement>(
     objectValue(store, styleTerm, T.iconPlacement),
@@ -322,10 +368,13 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
     iconSymbol !== undefined ||
     renderingMode !== undefined ||
     defaultWidth !== undefined ||
-    defaultHeight !== undefined;
+    defaultHeight !== undefined ||
+    borderStyle !== undefined;
   if (!hasAny) return undefined;
 
-  return { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
+  const style: VisualStyle = { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
+  if (borderStyle) style.borderStyle = borderStyle;
+  return style;
 }
 
 function extractRelationshipStyle(store: Store, subject: Term): RelationshipVisualStyle | undefined {

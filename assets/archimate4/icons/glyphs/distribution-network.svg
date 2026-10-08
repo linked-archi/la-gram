@@ -4,7 +4,7 @@
             <polyline fill="none" points="58.578,27.664 6.659,78.209  58.578,132.33 " stroke="#333333"
                       stroke-miterlimit="10" stroke-width="10"/>
             <g>
-                <polygon fill="#333333"
+                <polygon fill="none"
                          points="152.637,81.499 132.5,99.497   27.5,99.497 6.659,78.209 27.5,60.497 132.5,60.497  "
                          stroke="#333333" stroke-miterlimit="10" stroke-width="10"/>
             </g>

@@ -8,12 +8,15 @@
  *
  * Two deliberate choices:
  *
- * - **Real polygons, not degraded rectangles.** `Octagon`, `Hexagon`, `Diamond`
- *   and `Parallelogram` are `<polygon>` elements with computed points. diagram-js
+ * - **Real outlines, not degraded rectangles.** `Octagon`, `Hexagon`, `Diamond`,
+ *   `Parallelogram`, `Box3D` and `Folder` are `<polygon>` elements with computed
+ *   points; the wavy shapes, `Cloud` and `Cylinder` are `<path>`s. diagram-js
  *   hands the renderer direct SVG control, so there is no reason to approximate.
- *   {@link shapePath} emits the same eight outlines as SVG path strings, which is
- *   what connection docking crops against — one geometry, two encodings, so a
- *   line always meets the shape where it is actually drawn.
+ *   {@link shapePath} emits the same outlines as SVG path strings, which is what
+ *   connection docking crops against — one geometry, two encodings, so a line
+ *   always meets the shape where it is actually drawn. The inner lines some
+ *   shapes carry (a band, a tab, a 3D box's front edges, a cylinder's rim) are
+ *   {@link ShapeGeometry.details}: drawn, but not part of the outline.
  * - **No measurement.** Label layout is computed from a character-width estimate
  *   rather than `getComputedTextLength`, so it is deterministic and behaves the
  *   same under jsdom as in a browser. The cost is that very wide glyphs can
@@ -72,9 +75,68 @@ export function svgEl(tag: string, attrs: SvgAttrs = {}): SVGElement {
 
 /** The SVG element kind and attributes that draw a given {@link ShapeType}. */
 export interface ShapeGeometry {
-  tag: 'rect' | 'ellipse' | 'circle' | 'polygon';
+  tag: 'rect' | 'ellipse' | 'circle' | 'polygon' | 'path';
   attrs: SvgAttrs;
+  /**
+   * Inner lines drawn over the body, as a shape-local path (`M`/`L`/`A` only):
+   * the band of a `BandedRectangle`, the tab of a `TabbedRectangle` or `Folder`,
+   * the front edges of a `Box3D`, the front of a `Cylinder`'s rim. Stroked, not
+   * filled, and not part of the outline connections dock against.
+   */
+  details?: string;
 }
+
+/** A box in shape-local coordinates. */
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Proportions of the shapes with inner lines or curved edges, against the
+// shape's size; the comments give the 130 × 60 picture values they match.
+
+/** Header band of the banded, tabbed and wavy shapes: h × 0.173 (10.4), at most 14. */
+function bandHeight(h: number): number {
+  return Math.min((h * 10.4) / 60, 14);
+}
+
+/** Depth of a `Box3D`'s top and side faces: h × 0.2 (12), at most 12, and no more than w × 0.2. */
+function boxDepth(w: number, h: number): number {
+  return Math.min(h * 0.2, w * 0.2, 12);
+}
+
+/** A `Folder`'s name tab: h × 0.35 (21) high, at most 21; w × 0.8 (104) wide, at most 200 or w / 2. */
+function folderTab(w: number, h: number): { width: number; height: number } {
+  return { width: Math.min(w * 0.8, Math.max(200, w / 2)), height: Math.min(h * 0.35, 21) };
+}
+
+/** Height of a `Cylinder`'s top rim: h × 0.2, at most 16. */
+function cylinderRim(h: number): number {
+  return Math.min(h * 0.2, 16);
+}
+
+/**
+ * `Cloud`, as published in the ArchiMate pictures at 130 × 60: a start point
+ * and six quadratic lobes, each a control point and an end point.
+ */
+const CLOUD_START: [number, number] = [28.6, 9.6];
+const CLOUD_LOBES: Array<[[number, number], [number, number]]> = [
+  [[46.8, -7.2], [74.1, 9.6]],
+  [[113.1, -2.4], [119.6, 22.2]],
+  [[145.6, 43.8], [100.1, 52.2]],
+  [[67.6, 69], [35.1, 47.4]],
+  [[-5.2, 52.2], [7.8, 30.6]],
+  [[-10.4, 9.6], [28.6, 9.6]],
+];
+
+/** Shapes whose outline is a plain rectangle; they differ only in their inner lines. */
+const RECTANGLE_OUTLINED: ReadonlySet<ShapeType> = new Set<ShapeType>([
+  'BandedRectangle',
+  'DoubleBandedRectangle',
+  'TabbedRectangle',
+]);
 
 /** Clamp to a sane, non-negative size. */
 function size(value: number, fallback: number): number {
@@ -148,8 +210,106 @@ function polygonVertices(type: ShapeType, w: number, h: number): Vertices | null
       ];
     }
 
+    case 'Box3D': {
+      // The silhouette: front face plus the top and side faces behind it.
+      const d = boxDepth(w, h);
+      return [
+        [0, d],
+        [d, 0],
+        [w, 0],
+        [w, h - d],
+        [w - d, h],
+        [0, h],
+      ];
+    }
+
+    case 'Folder': {
+      const tab = folderTab(w, h);
+      return [
+        [0, 0],
+        [tab.width, 0],
+        [tab.width, tab.height],
+        [w, tab.height],
+        [w, h],
+        [0, h],
+      ];
+    }
+
     default:
       return null;
+  }
+}
+
+/**
+ * Outline of the shape types drawn with curves, offset by (`dx`, `dy`), or
+ * `null` for any other type. Absolute commands only, every coordinate a
+ * `x,y` pair, so the outline can be offset and intersected as it stands.
+ */
+function curvedOutline(type: ShapeType, w: number, h: number, dx: number, dy: number): string | null {
+  const at = (x: number, y: number) => `${round(dx + x)},${round(dy + y)}`;
+  switch (type) {
+    case 'WavyRectangle':
+    case 'WavyBandedRectangle': {
+      // The bottom edge is one wave from the right end to the left, both one
+      // band above the bottom; it stays inside the bounds (its lowest point is
+      // 0.13 band above the bottom).
+      const b = bandHeight(h);
+      return (
+        `M${at(0, 0)}L${at(w, 0)}L${at(w, h - b)}` +
+        `C${at(w / 2, h - 4 * b)} ${at(w / 2, h + 2 * b)} ${at(0, h - b)}Z`
+      );
+    }
+
+    case 'Cloud': {
+      const sx = w / 130;
+      const sy = h / 60;
+      const lobes = CLOUD_LOBES.map(([[cx, cy], [ex, ey]]) => `Q${at(cx * sx, cy * sy)} ${at(ex * sx, ey * sy)}`);
+      return `M${at(CLOUD_START[0] * sx, CLOUD_START[1] * sy)}${lobes.join('')}Z`;
+    }
+
+    case 'Cylinder': {
+      // Over the top of the rim, down the right side, round the bottom, up the left.
+      const ry = cylinderRim(h) / 2;
+      const rx = round(w / 2);
+      const r = round(ry);
+      return (
+        `M${at(0, ry)}A${rx},${r} 0 0 1 ${at(w, ry)}` +
+        `L${at(w, h - ry)}A${rx},${r} 0 0 1 ${at(0, h - ry)}Z`
+      );
+    }
+
+    default:
+      return null;
+  }
+}
+
+/** Inner lines of a shape type, shape-local — see {@link ShapeGeometry.details}. */
+function shapeDetails(type: ShapeType, w: number, h: number): string | undefined {
+  const at = (x: number, y: number) => `${round(x)},${round(y)}`;
+  const band = bandHeight(h);
+  switch (type) {
+    case 'BandedRectangle':
+    case 'WavyBandedRectangle':
+      return `M${at(0, band)}L${at(w, band)}`;
+    case 'DoubleBandedRectangle':
+      return `M${at(0, band)}L${at(w, band)}M${at(0, h - band)}L${at(w, h - band)}`;
+    case 'TabbedRectangle':
+      return `M${at(0, band)}L${at(w / 2, band)}L${at(w / 2, 0)}`;
+    case 'Box3D': {
+      const d = boxDepth(w, h);
+      return `M${at(0, d)}L${at(w - d, d)}L${at(w - d, h)}M${at(w - d, d)}L${at(w, 0)}`;
+    }
+    case 'Folder': {
+      const tab = folderTab(w, h);
+      return `M${at(0, tab.height)}L${at(tab.width, tab.height)}`;
+    }
+    case 'Cylinder': {
+      // The front of the rim: the lower half of the top ellipse.
+      const ry = round(cylinderRim(h) / 2);
+      return `M${at(0, ry)}A${round(w / 2)},${ry} 0 0 0 ${at(w, ry)}`;
+    }
+    default:
+      return undefined;
   }
 }
 
@@ -169,9 +329,16 @@ export function shapeGeometry(
   const w = size(width, NOTATION_DEFAULTS.width);
   const h = size(height, NOTATION_DEFAULTS.height);
   const type = shapeType ?? NOTATION_DEFAULTS.shapeType;
+  const details = shapeDetails(type, w, h);
+  const withDetails = (geometry: ShapeGeometry): ShapeGeometry => (details ? { ...geometry, details } : geometry);
+
+  if (RECTANGLE_OUTLINED.has(type)) return withDetails(shapeGeometry('Rectangle', w, h));
 
   const vertices = polygonVertices(type, w, h);
-  if (vertices) return { tag: 'polygon', attrs: { points: points(vertices) } };
+  if (vertices) return withDetails({ tag: 'polygon', attrs: { points: points(vertices) } });
+
+  const curved = curvedOutline(type, w, h, 0, 0);
+  if (curved) return withDetails({ tag: 'path', attrs: { d: curved } });
 
   switch (type) {
     case 'RoundedRectangle': {
@@ -205,7 +372,7 @@ function cornerRadius(w: number, h: number): number {
 /**
  * SVG path outlining a shape of the given type, in **absolute** coordinates.
  *
- * The counterpart to {@link shapeGeometry}: same eight shapes, same geometry,
+ * The counterpart to {@link shapeGeometry}: same shapes, same geometry,
  * expressed as a `d` attribute rather than as element attributes, and offset by
  * the shape's position on the diagram instead of drawn shape-local. This is what
  * connection cropping needs — diagram-js hands the shape's path and the
@@ -220,7 +387,12 @@ function cornerRadius(w: number, h: number): number {
  * converted to cubic segments *exactly*, in one place, by the library itself.
  * Approximating them here with beziers would add our own error on top of that
  * conversion for no gain, and would not match `<ellipse>`/`<circle>`, which the
- * renderer draws as true conics.
+ * renderer draws as true conics. A `Cylinder`'s ends are arcs for the same
+ * reason; the wave and the `Cloud` are the cubic and quadratic curves the
+ * ArchiMate pictures draw, which `pathToCurve` also takes as they stand.
+ *
+ * Inner lines are not outline: a `BandedRectangle`, `DoubleBandedRectangle` or
+ * `TabbedRectangle` docks as the rectangle it is drawn in.
  *
  * An ellipse needs two arcs rather than one: a single arc whose end point equals
  * its start point is degenerate and SVG renders nothing, so the outline is split
@@ -237,7 +409,12 @@ export function shapePath(
   const h = size(height, NOTATION_DEFAULTS.height);
   const left = Number.isFinite(x) ? x : 0;
   const top = Number.isFinite(y) ? y : 0;
-  const type = shapeType ?? NOTATION_DEFAULTS.shapeType;
+  const requested = shapeType ?? NOTATION_DEFAULTS.shapeType;
+  // Inner lines are not outline: a banded rectangle docks as a rectangle.
+  const type = RECTANGLE_OUTLINED.has(requested) ? 'Rectangle' : requested;
+
+  const curved = curvedOutline(type, w, h, left, top);
+  if (curved) return curved;
 
   const vertices = polygonVertices(type, w, h);
   if (vertices) {
@@ -305,7 +482,72 @@ export const SHAPE_TYPES: readonly ShapeType[] = [
   'Hexagon',
   'Diamond',
   'Parallelogram',
+  'BandedRectangle',
+  'DoubleBandedRectangle',
+  'TabbedRectangle',
+  'Box3D',
+  'WavyRectangle',
+  'WavyBandedRectangle',
+  'Cloud',
+  'Folder',
+  'Cylinder',
 ];
+
+/** Where a shape's badge and label go, in shape-local coordinates. */
+export interface ShapeLayout {
+  /** The area inside the inner lines: the badge is placed in it, and so is the label unless {@link label} differs. */
+  content: Box;
+  /** The area the label is laid out in. */
+  label: Box;
+  /** The most label lines {@link label} holds, when that is fewer than the default. */
+  maxLabelLines?: number;
+}
+
+/**
+ * The areas a shape's badge and label are laid out in: the whole shape, except
+ * where inner lines or curves take part of it — below a band, on a 3D box's
+ * front face, above a wave, inside a cloud, under a cylinder's rim. A `Folder`'s
+ * label goes in its tab (one line), leaving the body for what it contains.
+ */
+export function shapeLayout(shapeType: ShapeType | undefined, width: number, height: number): ShapeLayout {
+  const w = size(width, NOTATION_DEFAULTS.width);
+  const h = size(height, NOTATION_DEFAULTS.height);
+  const box = (x: number, y: number, bw: number, bh: number): Box => ({
+    x: round(x),
+    y: round(y),
+    width: round(Math.max(1, bw)),
+    height: round(Math.max(1, bh)),
+  });
+  const band = bandHeight(h);
+  const same = (content: Box): ShapeLayout => ({ content, label: content });
+
+  switch (shapeType ?? NOTATION_DEFAULTS.shapeType) {
+    case 'BandedRectangle':
+    case 'TabbedRectangle':
+      return same(box(0, band, w, h - band));
+    case 'DoubleBandedRectangle':
+    case 'WavyBandedRectangle':
+      return same(box(0, band, w, h - 2 * band));
+    case 'WavyRectangle':
+      return same(box(0, 0, w, h - band));
+    case 'Box3D': {
+      const d = boxDepth(w, h);
+      return same(box(0, d, w - d, h - d));
+    }
+    case 'Cloud':
+      return same(box(w * 0.1, h * 0.15, w * 0.8, h * 0.7));
+    case 'Cylinder': {
+      const rim = cylinderRim(h);
+      return same(box(0, rim, w, h - rim - rim / 2));
+    }
+    case 'Folder': {
+      const tab = folderTab(w, h);
+      return { content: box(0, tab.height, w, h - tab.height), label: box(0, 0, tab.width, tab.height), maxLabelLines: 1 };
+    }
+    default:
+      return same(box(0, 0, w, h));
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Icon placement
@@ -442,6 +684,8 @@ export function labelLayout(
     fontSize?: number;
     /** Reserve the bottom band and put the label in it (IconCentric). */
     below?: boolean;
+    /** At most this many lines; {@link NOTATION_DEFAULTS.maxLabelLines} when absent. */
+    maxLines?: number;
   } = {},
 ): LabelLayout {
   const w = size(width, NOTATION_DEFAULTS.width);
@@ -456,7 +700,7 @@ export function labelLayout(
     : options.badgePlacement
       ? Math.max(w - NOTATION_DEFAULTS.badgeSize - 2 * pad, w * 0.5)
       : Math.max(w - 2 * pad, w * 0.5);
-  const lines = wrapLabel(label, available, fontSize);
+  const lines = wrapLabel(label, available, fontSize, options.maxLines);
   const block = lines.length * lineHeight;
 
   let centreY: number;
@@ -663,6 +907,119 @@ function decorationShape(decoration: Decoration): DecorationShape | null {
   }
 }
 
+// ── Decorations from their published symbols ────────────────────────────
+
+/**
+ * A decoration's published marker symbol (`arch-vis:decorSymbol`): its viewBox,
+ * the size it is drawn at, and its drawing.
+ */
+export interface DecorationSymbol {
+  viewBox: { x: number; y: number; width: number; height: number };
+  /** Drawn size in user units: the file's `width`/`height`, else the viewBox's. */
+  width: number;
+  height: number;
+  /** The drawing: plain shape elements only — see {@link parseDecorationSymbol}. */
+  content: Element[];
+}
+
+/** Shape elements a symbol may draw with; anything else is dropped. */
+const SYMBOL_ELEMENTS = new Set(['g', 'path', 'polygon', 'polyline', 'circle', 'ellipse', 'rect', 'line']);
+
+/** Geometry and paint attributes a symbol may use; anything else is dropped. */
+const SYMBOL_ATTRIBUTES = new Set([
+  'd', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2', 'transform',
+  'fill', 'fill-rule', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-linejoin', 'stroke-linecap',
+  'stroke-dasharray', 'stroke-opacity', 'opacity',
+]);
+
+/**
+ * Read a published decoration symbol (SVG text) into a {@link DecorationSymbol},
+ * or `null` when it is not a usable SVG.
+ *
+ * The symbol is drawn inside the canvas, so it is rebuilt rather than inserted:
+ * only plain shape elements and their geometry and paint attributes survive —
+ * no scripts, event handlers, styles, links or references to other content.
+ */
+export function parseDecorationSymbol(svgText: string): DecorationSymbol | null {
+  if (typeof DOMParser === 'undefined') return null;
+  const parsed = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+  const root = parsed.documentElement;
+  if (!root || root.localName !== 'svg' || parsed.getElementsByTagName('parsererror').length > 0) return null;
+
+  const numbers = (value: string | null) => (value ?? '').trim().split(/[\s,]+/).map(Number);
+  const size = (value: string | null) => {
+    const n = Number.parseFloat(value ?? '');
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  const [vx, vy, vw, vh] = numbers(root.getAttribute('viewBox'));
+  const width = size(root.getAttribute('width'));
+  const height = size(root.getAttribute('height'));
+  const viewBox =
+    [vx, vy, vw, vh].every((n) => Number.isFinite(n)) && vw! > 0 && vh! > 0
+      ? { x: vx!, y: vy!, width: vw!, height: vh! }
+      : width && height
+        ? { x: 0, y: 0, width, height }
+        : undefined;
+  if (!viewBox) return null;
+
+  const rebuild = (source: Element): Element | null => {
+    if (!SYMBOL_ELEMENTS.has(source.localName)) return null;
+    const copy = document.createElementNS(SVG_NS, source.localName);
+    for (const attribute of Array.from(source.attributes)) {
+      if (!SYMBOL_ATTRIBUTES.has(attribute.name)) continue;
+      if (/url\(|javascript:/i.test(attribute.value)) continue;
+      copy.setAttribute(attribute.name, attribute.value);
+    }
+    for (const child of Array.from(source.children)) {
+      const kept = rebuild(child);
+      if (kept) copy.appendChild(kept);
+    }
+    return copy;
+  };
+  const content = Array.from(root.children).map(rebuild).filter((e): e is Element => e !== null);
+  if (content.length === 0) return null;
+  return { viewBox, width: width ?? viewBox.width, height: height ?? viewBox.height, content };
+}
+
+/**
+ * The `<marker>` drawing a decoration from its published symbol, placed as the
+ * vocabulary describes `arch-vis:decorSymbol`: the symbol points in +x, the
+ * connector meets it at the middle of its viewBox's right edge, and it is
+ * mirrored at a source end; `currentColor` takes the line's colour.
+ */
+export function symbolMarkerDefinition(
+  symbol: DecorationSymbol,
+  decoration: Decoration,
+  end: DecorationEnd,
+  lineColor: string,
+): MarkerDefinition {
+  const id = markerId(decoration, end, lineColor);
+  const { viewBox } = symbol;
+  const marker = svgEl('marker', {
+    id,
+    viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
+    markerWidth: symbol.width,
+    markerHeight: symbol.height,
+    refX: viewBox.x + viewBox.width,
+    refY: viewBox.y + viewBox.height / 2,
+    markerUnits: 'userSpaceOnUse',
+    orient: end === 'source' ? 'auto-start-reverse' : 'auto',
+  });
+  marker.setAttribute('class', `la-marker la-marker-${decoration}`);
+  marker.setAttribute('color', lineColor);
+  markMarker(marker, decoration, end, lineColor, 'published');
+  for (const element of symbol.content) marker.appendChild(element.cloneNode(true));
+  return { id, element: marker };
+}
+
+/** What a marker draws, so it can be found and replaced once a symbol arrives. */
+function markMarker(marker: SVGElement, decoration: Decoration, end: DecorationEnd, lineColor: string, source: 'built-in' | 'published'): void {
+  marker.setAttribute('data-decoration', decoration);
+  marker.setAttribute('data-end', end);
+  marker.setAttribute('data-color', lineColor);
+  marker.setAttribute('data-source', source);
+}
+
 /** Reduce a colour to something safe to embed in an element id. */
 function colorSlug(color: string): string {
   return color.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'default';
@@ -700,6 +1057,7 @@ export function markerDefinition(
     orient: end === 'source' ? 'auto-start-reverse' : 'auto',
   });
   marker.setAttribute('class', `la-marker la-marker-${decoration}`);
+  markMarker(marker, decoration, end, lineColor, 'built-in');
 
   const glyph = svgEl(shape.tag, shape.attrs);
   glyph.setAttribute('stroke', lineColor);

@@ -23,10 +23,11 @@
     dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
     dcterms:title                 "Linked.Archi ArchiMate 4.0 SHACL Shapes"@en ;
     dcterms:description           '''SHACL shapes for validating ArchiMate 4.0 model data. Generated from the
-ArchiMate 4.0 relationship validity matrix (Appendix B). Validates qualified
-relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
+ArchiMate 4.0 relationship validity matrix (Appendix B), including the relationships
+between relationships of Table B-1. Validates qualified relationship instances and
+unqualified direct triples. Pure SHACL core.'''@en ;
     dcterms:created               "2026-04-28"^^xsd:date ;
-    dcterms:modified              "2026-05-18"^^xsd:date ;
+    dcterms:modified              "2026-10-08"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/shapes/4.0#> ;
@@ -979,7 +980,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     sh:message "Flow relationship has an invalid source/target combination per the ArchiMate 4.0 specification. Valid sources: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Capability, Collaboration, CommunicationNetwork, CourseOfAction, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Plateau, Process, Product, Resource, Role, Service, SystemSoftware, TechnologyInterface, ValueStream, WorkPackage."@en ;
 .
 
-# ── Aggregation (qualified) — 208 valid pairs ──
+# ── Aggregation (qualified) — 211 valid pairs ──
 
 :AggregationShape
     a              sh:NodeShape ;
@@ -1173,6 +1174,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -1220,6 +1231,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -1297,6 +1318,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Plateau ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2455,7 +2486,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     sh:message "Influence relationship has an invalid source/target combination per the ArchiMate 4.0 specification. Valid sources: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
 .
 
-# ── Association (qualified) — 1768 valid pairs ──
+# ── Association (qualified) — 1852 valid pairs ──
 
 :AssociationShape
     a              sh:NodeShape ;
@@ -2496,6 +2527,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2543,6 +2584,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2590,6 +2641,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2637,6 +2698,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2684,6 +2755,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2731,6 +2812,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2778,6 +2869,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2825,6 +2926,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2872,6 +2983,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2919,6 +3040,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -2966,6 +3097,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3013,6 +3154,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3060,6 +3211,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3107,6 +3268,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3154,6 +3325,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3201,6 +3382,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3248,6 +3439,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3295,6 +3496,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3342,6 +3553,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3389,6 +3610,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3436,6 +3667,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3483,6 +3724,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3530,6 +3781,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3577,6 +3838,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3624,6 +3895,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3671,6 +3952,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3718,6 +4009,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3765,6 +4066,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3812,6 +4123,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3859,6 +4180,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3906,6 +4237,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -3920,6 +4261,63 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
         ) ]
         [ sh:and (
             [ sh:property [ sh:path arch:source ; sh:class am4:Product ] ]
+            [ sh:property [ sh:path arch:target ; sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:Assessment ]
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:Capability ]
+                [ sh:class am4:Collaboration ]
+                [ sh:class am4:CommunicationNetwork ]
+                [ sh:class am4:CourseOfAction ]
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Deliverable ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:DistributionNetwork ]
+                [ sh:class am4:Driver ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Event ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Function ]
+                [ sh:class am4:Goal ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Location ]
+                [ sh:class am4:Material ]
+                [ sh:class am4:Meaning ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:Outcome ]
+                [ sh:class am4:Path ]
+                [ sh:class am4:Plateau ]
+                [ sh:class am4:Principle ]
+                [ sh:class am4:Process ]
+                [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
+                [ sh:class am4:Requirement ]
+                [ sh:class am4:Resource ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:Service ]
+                [ sh:class am4:Stakeholder ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+                [ sh:class am4:Value ]
+                [ sh:class am4:ValueStream ]
+                [ sh:class am4:WorkPackage ]
+            ) ] ]
+        ) ]
+        [ sh:and (
+            [ sh:property [ sh:path arch:source ; sh:or ( [ sh:class am4:Access ] [ sh:class am4:Aggregation ] [ sh:class am4:Assignment ] [ sh:class am4:Association ] [ sh:class am4:Flow ] [ sh:class am4:Influence ] [ sh:class am4:Realization ] [ sh:class am4:Serving ] [ sh:class am4:Specialization ] [ sh:class am4:Triggering ] ) ] ]
             [ sh:property [ sh:path arch:target ; sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -4000,6 +4398,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4047,6 +4455,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4094,6 +4512,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4141,6 +4569,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4188,6 +4626,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4235,6 +4683,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4282,6 +4740,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4329,6 +4797,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4376,6 +4854,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4423,6 +4911,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -4452,7 +4950,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
             [ sh:property [ sh:path arch:target ; sh:class am4:OrJunction ] ]
         ) ]
     ) ;
-    sh:message "Association relationship has an invalid source/target combination per the ArchiMate 4.0 specification. Valid sources: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+    sh:message "Association relationship has an invalid source/target combination per the ArchiMate 4.0 specification. Valid sources: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
 .
 
 # ── Realization (qualified) — 581 valid pairs ──
@@ -6989,7 +7487,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "ApplicationComponent cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "ApplicationComponent cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -7023,6 +7521,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -7200,7 +7708,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "ApplicationInterface cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "ApplicationInterface cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -7234,6 +7742,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -7398,7 +7916,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Artifact cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Artifact cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -7432,6 +7950,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -7492,7 +8020,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Assessment cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Assessment cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -7526,6 +8054,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -7634,7 +8172,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "BusinessActor cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "BusinessActor cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -7668,6 +8206,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -7835,7 +8383,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "BusinessInterface cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "BusinessInterface cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -7869,6 +8417,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8031,7 +8589,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "BusinessObject cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "BusinessObject cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8065,6 +8623,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8124,7 +8692,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Capability cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Capability cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8158,6 +8726,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8288,7 +8866,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Collaboration cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Collaboration cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8322,6 +8900,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8469,7 +9057,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "CommunicationNetwork cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "CommunicationNetwork cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8503,6 +9091,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8644,7 +9242,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "CourseOfAction cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "CourseOfAction cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8678,6 +9276,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8793,7 +9401,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "DataObject cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "DataObject cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8827,6 +9435,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -8880,7 +9498,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Deliverable cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Deliverable cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -8914,6 +9532,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -9022,7 +9650,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Device cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Device cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -9056,6 +9684,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -9214,7 +9852,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "DistributionNetwork cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "DistributionNetwork cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -9248,6 +9886,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -9382,7 +10030,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Driver cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Driver cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -9416,6 +10064,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -9525,7 +10183,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Equipment cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Equipment cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -9559,6 +10217,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -9730,7 +10398,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Event cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Event cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -9764,6 +10432,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -9940,7 +10618,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Facility cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Facility cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -9974,6 +10652,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -10138,7 +10826,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Function cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Function cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -10172,6 +10860,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -10320,7 +11018,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Goal cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Goal cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -10354,6 +11052,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -10482,7 +11190,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:aggregates ;
-        sh:message "Grouping cannot have aggregation to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Grouping cannot have aggregation to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -10516,6 +11224,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -10554,7 +11272,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Grouping cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Grouping cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -10588,6 +11306,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -10856,7 +11584,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:aggregates ;
-        sh:message "Location cannot have aggregation to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Location cannot have aggregation to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -10890,6 +11618,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -10904,7 +11642,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Location cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Location cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -10938,6 +11676,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11084,7 +11832,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Material cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Material cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11118,6 +11866,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11176,7 +11934,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Meaning cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Meaning cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11210,6 +11968,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11321,7 +12089,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Node cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Node cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11355,6 +12123,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11489,7 +12267,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Outcome cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Outcome cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11523,6 +12301,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11654,7 +12442,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Path cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Path cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11688,6 +12476,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11827,7 +12625,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:aggregates ;
-        sh:message "Plateau cannot have aggregation to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Device, DistributionNetwork, Equipment, Event, Facility, Function, Goal, Location, Material, Node, Outcome, Path, Plateau, Process, Product, Requirement, Resource, Role, Service, SystemSoftware, TechnologyInterface, ValueStream."@en ;
+        sh:message "Plateau cannot have aggregation to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Device, DistributionNetwork, Equipment, Event, Facility, Function, Goal, Location, Material, Node, Outcome, Path, Plateau, Process, Product, Relationship, Requirement, Resource, Role, Service, SystemSoftware, TechnologyInterface, ValueStream."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11855,6 +12653,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Plateau ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11866,7 +12674,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Plateau cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Plateau cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -11900,6 +12708,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11998,7 +12816,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Principle cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Principle cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -12032,6 +12850,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -12184,7 +13012,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Process cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Process cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -12218,6 +13046,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -12382,7 +13220,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Product cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Product cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -12416,6 +13254,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -12538,19 +13386,21 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
 .
 
-:RequirementUnqualifiedShape
+:RelationshipUnqualifiedShape
     a              sh:NodeShape ;
-    sh:targetClass am4:Requirement ;
-    sh:property [
-        sh:path am4:aggregates ;
-        sh:message "Requirement cannot have aggregation to {$value} — permitted targets: Requirement."@en ;
-        sh:or (
-                [ sh:class am4:Requirement ]
-        ) ;
-    ] ;
+    sh:targetClass am4:Access ;
+    sh:targetClass am4:Aggregation ;
+    sh:targetClass am4:Assignment ;
+    sh:targetClass am4:Association ;
+    sh:targetClass am4:Flow ;
+    sh:targetClass am4:Influence ;
+    sh:targetClass am4:Realization ;
+    sh:targetClass am4:Serving ;
+    sh:targetClass am4:Specialization ;
+    sh:targetClass am4:Triggering ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Requirement cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Relationship cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -12584,6 +13434,76 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Requirement ]
+                [ sh:class am4:Resource ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:Service ]
+                [ sh:class am4:Stakeholder ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+                [ sh:class am4:Value ]
+                [ sh:class am4:ValueStream ]
+                [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+.
+
+:RequirementUnqualifiedShape
+    a              sh:NodeShape ;
+    sh:targetClass am4:Requirement ;
+    sh:property [
+        sh:path am4:aggregates ;
+        sh:message "Requirement cannot have aggregation to {$value} — permitted targets: Requirement."@en ;
+        sh:or (
+                [ sh:class am4:Requirement ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:associatedWith ;
+        sh:message "Requirement cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:Assessment ]
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:Capability ]
+                [ sh:class am4:Collaboration ]
+                [ sh:class am4:CommunicationNetwork ]
+                [ sh:class am4:CourseOfAction ]
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Deliverable ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:DistributionNetwork ]
+                [ sh:class am4:Driver ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Event ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Function ]
+                [ sh:class am4:Goal ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Location ]
+                [ sh:class am4:Material ]
+                [ sh:class am4:Meaning ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:Outcome ]
+                [ sh:class am4:Path ]
+                [ sh:class am4:Plateau ]
+                [ sh:class am4:Principle ]
+                [ sh:class am4:Process ]
+                [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -12650,7 +13570,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Resource cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Resource cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -12684,6 +13604,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -12795,7 +13725,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Role cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Role cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -12829,6 +13759,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -13005,7 +13945,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Service cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Service cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -13039,6 +13979,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -13205,7 +14155,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Stakeholder cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Stakeholder cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -13239,6 +14189,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -13363,7 +14323,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "SystemSoftware cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "SystemSoftware cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -13397,6 +14357,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -13576,7 +14546,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "TechnologyInterface cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "TechnologyInterface cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -13610,6 +14580,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -13757,7 +14737,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "Value cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "Value cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -13791,6 +14771,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -13880,7 +14870,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "ValueStream cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "ValueStream cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -13914,6 +14904,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -14044,7 +15044,7 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
     ] ;
     sh:property [
         sh:path am4:associatedWith ;
-        sh:message "WorkPackage cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:message "WorkPackage cannot have association to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Relationship, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
         sh:or (
                 [ sh:class am4:ApplicationComponent ]
                 [ sh:class am4:ApplicationInterface ]
@@ -14078,6 +15078,16 @@ relationship instances and unqualified direct triples. Pure SHACL core.'''@en ;
                 [ sh:class am4:Principle ]
                 [ sh:class am4:Process ]
                 [ sh:class am4:Product ]
+                [ sh:class am4:Access ]
+                [ sh:class am4:Aggregation ]
+                [ sh:class am4:Assignment ]
+                [ sh:class am4:Association ]
+                [ sh:class am4:Flow ]
+                [ sh:class am4:Influence ]
+                [ sh:class am4:Realization ]
+                [ sh:class am4:Serving ]
+                [ sh:class am4:Specialization ]
+                [ sh:class am4:Triggering ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]

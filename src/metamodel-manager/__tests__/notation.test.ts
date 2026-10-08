@@ -125,6 +125,35 @@ describe('buildVisualNotations — element notation', () => {
       'TopRight',
     );
   });
+
+  it('reads the shapes with inner lines and curves, and a dashed borderStyle', () => {
+    const set = buildVisualNotations(
+      storeFromTurtle(`${PREFIXES}
+:ArchiMate40StandardNotation a arch-vis:NotationSet .
+:GroupingNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Grouping ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Folder ; arch-vis:borderStyle arch-vis:DashedLine ] .
+:DeviceNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Device ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Box3D ] .
+:OtherNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:Other ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType <https://example.org/notation#RightArrow> ; arch-vis:fillColor "#FFFFFF" ] .
+`),
+    );
+    const style = (local: string) => set!.notations.get(`https://meta.linked.archi/archimate4/onto#${local}`)!.style;
+    expect(style('Grouping')).toMatchObject({ shapeType: 'Folder', borderStyle: 'DashedLine' });
+    expect(style('Device')).toMatchObject({ shapeType: 'Box3D' });
+    expect(style('Device')!.borderStyle).toBeUndefined();
+    // A shape type a notation declares for itself is not one la-gram draws: the default applies.
+    expect(style('Other')!.shapeType).toBeUndefined();
+  });
 });
 
 describe('buildVisualNotations — relationship notation', () => {
@@ -357,5 +386,42 @@ describe('real published ArchiMate 4.0 notation file', () => {
     const serving = set!.notations.get(SERVING);
     expect(serving?.relationshipStyle?.lineStyle).toBe('SolidLine');
     expect(serving?.relationshipStyle?.targetDecor).toBe('OpenArrowhead');
+  });
+
+  it('gives each element the shape its published picture shows', () => {
+    const shapes = (path: string, ns: string) => {
+      const set = buildVisualNotations(
+        storeFromTurtle(readFileSync(fileURLToPath(new URL(`../../../assets/${path}`, import.meta.url)), 'utf8')),
+      )!;
+      return (local: string) => set.notations.get(`${ns}${local}`)?.style;
+    };
+    const am4 = shapes('archimate4/archimate4-notation.ttl', 'https://meta.linked.archi/archimate4/onto#');
+    const am3 = shapes('archimate3/archimate3.2-notation.ttl', 'https://meta.linked.archi/archimate3/onto#');
+    const expected: Array<[typeof am4, string, string]> = [
+      [am4, 'BusinessObject', 'BandedRectangle'],
+      [am4, 'DataObject', 'BandedRectangle'],
+      [am4, 'Product', 'TabbedRectangle'],
+      [am4, 'Device', 'Box3D'],
+      [am4, 'Equipment', 'Box3D'],
+      [am4, 'Facility', 'Box3D'],
+      [am4, 'Plateau', 'Box3D'],
+      [am4, 'Deliverable', 'WavyRectangle'],
+      [am4, 'Meaning', 'Cloud'],
+      [am4, 'Grouping', 'Folder'],
+      [am4, 'Location', 'Rectangle'],
+      [am4, 'Resource', 'Rectangle'],
+      [am4, 'Node', 'Rectangle'],
+      [am4, 'Process', 'RoundedRectangle'],
+      [am3, 'Contract', 'DoubleBandedRectangle'],
+      [am3, 'Representation', 'WavyBandedRectangle'],
+      [am3, 'Gap', 'WavyRectangle'],
+      [am3, 'Meaning', 'Cloud'],
+      [am3, 'Grouping', 'Folder'],
+    ];
+    for (const [shapesOf, local, shapeType] of expected) {
+      expect(shapesOf(local)?.shapeType, local).toBe(shapeType);
+    }
+    expect(am4('Grouping')?.borderStyle).toBe('DashedLine');
+    expect(am3('Grouping')?.borderStyle).toBe('DashedLine');
   });
 });

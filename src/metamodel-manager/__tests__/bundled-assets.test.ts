@@ -94,9 +94,21 @@ describe('icon URI resolution', () => {
   });
 
   it('reports icon sets that are not bundled as unresolvable', () => {
-    // Published, but core-vis markers are not part of this bundle.
-    expect(resolveIconUri('https://meta.linked.archi/core-vis/markers/arrow.svg')).toBeNull();
+    // Published, but C4's icons are not part of this bundle.
     expect(resolveIconUri('https://meta.linked.archi/c4/icons/person.svg')).toBeNull();
+  });
+
+  it('resolves the core-vis decoration markers to the bundle — every one the vocabulary names', async () => {
+    expect(resolveIconUri('https://meta.linked.archi/core-vis/markers/open-arrowhead.svg')).toBe('core-vis/markers/open-arrowhead.svg');
+    const { readFileSync, existsSync } = await import('node:fs');
+    const vocabulary = readFileSync(new URL('../../../assets/core/core-vis-onto.ttl', import.meta.url), 'utf8');
+    const symbols = [...vocabulary.matchAll(/arch-vis:decorSymbol\s+"([^"]+)"/g)].map((m) => m[1]!);
+    expect(symbols.length).toBe(7);
+    for (const uri of symbols) {
+      const path = resolveIconUri(uri);
+      expect(path, uri).not.toBeNull();
+      expect(existsSync(new URL(`../../../assets/${path}`, import.meta.url)), uri).toBe(true);
+    }
   });
 
   it('returns null for URIs outside the published base', () => {

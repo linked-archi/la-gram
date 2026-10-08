@@ -6,7 +6,7 @@
  */
 
 import type { BundledAssetRole } from './bundled-assets.js';
-import type { RelationshipVisualStyle, RenderingMode, VisualStyle } from './notation.js';
+import type { Decoration, RelationshipVisualStyle, RenderingMode, VisualStyle } from './notation.js';
 import type { NotationIndexEntry } from './notation-resolver.js';
 
 // ---------------------------------------------------------------------------
@@ -268,6 +268,14 @@ export interface PaletteDefinition {
    * taxonomy names). Classes that resolve to nothing are absent.
    */
   notationIndex?: Record<string, NotationIndexEntry>;
+
+  /**
+   * The published marker symbol of each relationship-end decoration
+   * (`arch-vis:decorSymbol`), resolved to the bundled copy where this bundle
+   * ships one. Renderers draw decorations from these, falling back to built-in
+   * geometry for a decoration with no symbol.
+   */
+  decorationSymbols?: Partial<Record<Decoration, ResolvedUri>>;
 }
 
 /** How to build a palette: which axis groups it, which notation styles it. */

@@ -142,7 +142,7 @@ export class BundledAssetSource implements AssetSource {
 /** The part of `fetch` this module uses; injectable for tests. */
 export type FetchLike = (
   url: string,
-  init?: { headers?: Record<string, string>; signal?: AbortSignal },
+  init?: { headers?: Record<string, string>; signal?: AbortSignal; cache?: 'no-cache' },
 ) => Promise<{
   ok: boolean;
   status: number;
@@ -196,6 +196,10 @@ export class RemoteAssetSource implements AssetSource {
     try {
       const response = await this.fetchImpl(url, {
         headers: { Accept: 'text/turtle' },
+        // Always ask the server: meta.linked.archi sends no Cache-Control, so a
+        // browser would otherwise keep a "fresh" copy for hours after a publish.
+        // An unchanged document costs a 304.
+        cache: 'no-cache',
         ...(controller ? { signal: controller.signal } : {}),
       });
       if (!response.ok) {

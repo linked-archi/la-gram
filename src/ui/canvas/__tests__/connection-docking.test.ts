@@ -258,7 +258,7 @@ describe('getShapePath', () => {
     });
   }
 
-  it('gives the eight shape types eight different paths', () => {
+  it('gives every shape type its own path, except that inner lines are not outline', () => {
     const canvas = mount();
     const paths = SHAPE_TYPES.map((shapeType) => {
       const iri = `https://example.org/model/${shapeType}`;
@@ -266,7 +266,10 @@ describe('getShapePath', () => {
       return shapePathOf(canvas, iri);
     });
 
-    expect(new Set(paths).size).toBe(SHAPE_TYPES.length);
+    // The banded and tabbed rectangles dock as the rectangle they are drawn in,
+    // and the wavy banded one as the wavy one.
+    const sharingAnOutline = ['BandedRectangle', 'DoubleBandedRectangle', 'TabbedRectangle', 'WavyBandedRectangle'];
+    expect(new Set(paths).size).toBe(SHAPE_TYPES.length - sharingAnOutline.length);
   });
 
   it('falls back to the rectangle path for a type with no notation style', () => {

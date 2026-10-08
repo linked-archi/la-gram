@@ -24,13 +24,21 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-08-13"^^xsd:date ;
+    dcterms:modified     "2026-10-08"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.3"@en ;
+    owl:versionInfo "0.4"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.3: Widened arch-vis:label from rdfs:domain arch-vis:Node to
+    skos:historyNote '''0.4: Added the shape types the ArchiMate pictures use beyond plain outlines —
+BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
+WavyBandedRectangle, Cloud and Folder — and Cylinder, which the C4 notation already used.
+Each comment gives its geometry. Added arch-vis:borderStyle (a Style's outline LineStyle) for
+dashed outlines such as ArchiMate's grouping. Documented the arch-vis:decorSymbol drawing
+convention, and that an arch-vis:iconSymbol glyph is transparent where the element's fill shows
+through (the ArchiMate glyphs were solid there).
+
+0.3: Widened arch-vis:label from rdfs:domain arch-vis:Node to
 arch-vis:DiagElement — an edge's label is the ordinary case (BPMN BPMNEdge-label, a named
 sequence flow) and the narrow domain entailed that every labelled edge was also a Node.
 Declared Node, Link and Point mutually disjoint (arch-vis:NodeLinkPointDisjoint), which is
@@ -333,7 +341,9 @@ arch-vis:iconSymbol
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "iconSymbol"@en ;
-    rdfs:comment "URI of the small glyph/icon displayed within the element shape (typically top-right corner)."@en ;
+    rdfs:comment '''URI of the small glyph/icon displayed within the element shape (typically top-right corner).
+The glyph is drawn over the shape as it is: its lines are opaque and the parts that show the element's
+fill are transparent, so one glyph serves every fill colour and notation set.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -376,6 +386,15 @@ Determines the rendering algorithm a tool should use:
 - ShapeOnly: colored shape with label, no icon (simplified notation)'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   arch-vis:RenderingMode ;
+.
+
+arch-vis:borderStyle
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "borderStyle"@en ;
+    rdfs:comment "The line style of the shape's outline: solid when absent. ArchiMate's grouping is dashed."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:LineStyle ;
 .
 
 
@@ -435,6 +454,82 @@ arch-vis:Parallelogram
     a            arch-vis:ShapeType ;
     rdfs:label   "Parallelogram"@en ;
     rdfs:comment "Slanted rectangle — used for interfaces in some notations."@en ;
+.
+
+# Shapes with inner lines or curved edges. Proportions are given against the
+# shape's width w and height h, with the 130 x 60 picture size in brackets;
+# the "band" b is h x 0.173 (10.4), at most 14.
+
+arch-vis:BandedRectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Banded Rectangle"@en ;
+    rdfs:comment '''Sharp-cornered rectangle with a line across its full width one band (b) below the
+top edge. The label and badge sit below the band. ArchiMate's passive structure objects:
+business object, data object.'''@en ;
+.
+
+arch-vis:DoubleBandedRectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Double Banded Rectangle"@en ;
+    rdfs:comment '''Banded rectangle with a second line one band (b) above the bottom edge.
+ArchiMate's contract.'''@en ;
+.
+
+arch-vis:TabbedRectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Tabbed Rectangle"@en ;
+    rdfs:comment '''Sharp-cornered rectangle with a tab in the left half of its top: a line one band (b)
+below the top edge from the left edge to the middle, then up to the top edge. ArchiMate's
+product.'''@en ;
+.
+
+arch-vis:Box3D
+    a            arch-vis:ShapeType ;
+    rdfs:label   "3D Box"@en ;
+    rdfs:comment '''Three-dimensional box: a front rectangle with a top face and a right-hand side face
+behind it, at a depth of h x 0.2 (12), at most 12. Both faces take the fill colour; the label
+and badge sit on the front face. ArchiMate's device, equipment, facility and plateau.'''@en ;
+.
+
+arch-vis:WavyRectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Wavy Rectangle"@en ;
+    rdfs:comment '''Rectangle whose bottom edge is one wave: a cubic curve from the right end to the
+left end, both one band (b) above the bottom, with control points at the middle of the width,
+3b above and 3b below those ends (130 x 60: M0,0 H130 V49.6 C65,18.4 65,80.8 0,49.6 Z). The label
+and badge sit above the wave. ArchiMate's deliverable and gap; the document shape of
+flowcharts.'''@en ;
+.
+
+arch-vis:WavyBandedRectangle
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Wavy Banded Rectangle"@en ;
+    rdfs:comment '''Wavy rectangle with a band line across the top, as in a banded rectangle.
+ArchiMate's representation.'''@en ;
+.
+
+arch-vis:Cloud
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Cloud"@en ;
+    rdfs:comment '''Cloud of six lobes that stays within the bounds (130 x 60: M28.6,9.6 Q46.8,-7.2 74.1,9.6
+Q113.1,-2.4 119.6,22.2 Q145.6,43.8 100.1,52.2 Q67.6,69 35.1,47.4 Q-5.2,52.2 7.8,30.6
+Q-10.4,9.6 28.6,9.6 Z, scaled to the shape). ArchiMate's meaning.'''@en ;
+.
+
+arch-vis:Folder
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Folder"@en ;
+    rdfs:comment '''Rectangle with a name tab on the left of its top edge. The tab is h x 0.35 high (21),
+at most 21, and w x 0.8 wide (104), but no wider than 200 or half the width, whichever is
+larger. The label goes in the tab, which leaves the body free for what the shape contains.
+ArchiMate's grouping (with a dashed arch-vis:borderStyle); UML's package.'''@en ;
+.
+
+arch-vis:Cylinder
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Cylinder"@en ;
+    rdfs:comment '''Upright cylinder: an elliptical top rim, drawn whole, over a body with a rounded
+bottom. The rim is h x 0.2 high, at most 16. A database or other data store, as in C4.'''@en ;
 .
 
 
@@ -597,7 +692,7 @@ Used by: Executive dashboards, printed reports, accessibility-focused views.'''@
 arch-vis:LineStyle
     a            owl:Class ;
     rdfs:label   "LineStyle"@en ;
-    rdfs:comment "Enumeration of line rendering styles for relationship connectors."@en ;
+    rdfs:comment "Enumeration of line rendering styles: for relationship connectors (arch-vis:lineStyle) and shape outlines (arch-vis:borderStyle)."@en ;
 .
 
 arch-vis:SolidLine
@@ -625,7 +720,12 @@ arch-vis:decorSymbol
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "decorSymbol"@en ;
-    rdfs:comment "URI of the SVG marker symbol for this decoration (typically a small arrow or diamond shape)."@en ;
+    rdfs:comment '''URI of the SVG marker symbol for this decoration (typically a small arrow or diamond shape).
+The symbol is drawn pointing in the +x direction, towards the endpoint it decorates. The connector meets it at
+the middle of the right edge of its viewBox, so a renderer anchors that point on the endpoint and orients the
+symbol along the connector; at a source end it mirrors the symbol, so that it points at the source. Strokes and
+fills that take the connector's colour are currentColor; a hollow symbol's interior is white. The published
+symbols use a 12 x 12 viewBox, drawn at that size in user units.'''@en ;
     rdfs:domain  arch-vis:Decoration ;
     rdfs:range   xsd:anyURI ;
 .

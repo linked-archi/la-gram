@@ -21,6 +21,10 @@
  * | `IconCentric` | invisible hit container only | glyph at full size | below the icon |
  * | `ShapeOnly` | `shapeType`, filled/stroked from the style | none at all | centred inside |
  *
+ * "Inside" is the shape's {@link shapeLayout}: below a band, on a 3D box's front
+ * face, above a wave; a `Folder`'s label sits in its tab. A shape's inner lines
+ * are drawn over its body, and `arch-vis:borderStyle` dashes or dots both.
+ *
  * ## Icons are `<image href>`, not inlined SVG
  *
  * The glyphs are bundled files addressed by an asset-root-relative path
@@ -53,9 +57,14 @@ import {
   labelLayout,
   markerDefinition,
   markerId,
+  parseDecorationSymbol,
+  symbolMarkerDefinition,
+  type DecorationSymbol,
   shapeGeometry,
+  shapeLayout,
   shapePath,
   strokeDashArray,
+  type Box,
   svgEl,
   type DecorationEnd,
 } from './notation-shapes.js';
@@ -102,6 +111,7 @@ export interface RenderableElement {
 export const RENDER_CLASSES = {
   shape: 'la-shape',
   body: 'la-shape-body',
+  details: 'la-shape-details',
   badge: 'la-shape-badge',
   icon: 'la-shape-icon',
   label: 'la-shape-label',
@@ -116,6 +126,10 @@ export class RdfRenderer extends BaseRenderer {
 
   /** Marker ids already added to the canvas `<defs>`. */
   private installedMarkers = new Set<string>();
+  /** The `<defs>` markers were installed into, to upgrade them when a symbol arrives. */
+  private markerDefs = new Set<Element>();
+  /** Published decoration symbols by URL: loaded, failed (`null`) or loading. */
+  private symbols = new Map<string, DecorationSymbol | null | Promise<void>>();
 
   constructor(eventBus: unknown, notationStyles: NotationStyleRegistry) {
     // BaseRenderer's constructor wires the render.* listeners.
@@ -153,14 +167,17 @@ export class RdfRenderer extends BaseRenderer {
       this.drawIconCentric(group, width, height, label, href as string);
     } else {
       this.drawShapeBody(group, style, width, height);
+      const layout = shapeLayout(style?.shapeType, width, height);
       // Present exactly when a badge is drawn — ShapeOnly reserves no room.
       const badgePlacement =
         mode === 'ShapeWithBadge' && href ? (style?.iconPlacement ?? 'TopRight') : undefined;
       if (badgePlacement && href) {
-        this.drawBadge(group, href, badgePlacement, width, height);
+        this.drawBadge(group, href, badgePlacement, layout.content);
       }
-      this.appendLabel(group, label, width, height, {
-        badgePlacement,
+      this.appendLabel(group, label, layout.label, {
+        // The label makes room for the badge only when the two share a box.
+        badgePlacement: layout.label === layout.content ? badgePlacement : undefined,
+        maxLines: layout.maxLabelLines,
         lineColor: style?.lineColor ?? NOTATION_DEFAULTS.lineColor,
       });
     }
@@ -182,7 +199,7 @@ export class RdfRenderer extends BaseRenderer {
     return href ? declared : 'ShapeOnly';
   }
 
-  /** The filled, stroked `shapeType` body. */
+  /** The filled, stroked `shapeType` body, and its inner lines over it. */
   private drawShapeBody(
     group: SVGElement,
     style: VisualStyle | undefined,
@@ -190,27 +207,40 @@ export class RdfRenderer extends BaseRenderer {
     height: number,
   ): SVGElement {
     const geometry = shapeGeometry(style?.shapeType, width, height);
+    const lineColor = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+    const dash = strokeDashArray(style?.borderStyle);
+    const stroke = (element: SVGElement) => {
+      element.setAttribute('stroke', lineColor);
+      element.setAttribute('stroke-width', String(NOTATION_DEFAULTS.strokeWidth));
+      if (dash) element.setAttribute('stroke-dasharray', dash);
+    };
+
     const body = svgEl(geometry.tag, geometry.attrs);
     body.setAttribute('class', RENDER_CLASSES.body);
     body.setAttribute('fill', style?.fillColor ?? NOTATION_DEFAULTS.fillColor);
-    body.setAttribute('stroke', style?.lineColor ?? NOTATION_DEFAULTS.lineColor);
-    body.setAttribute('stroke-width', String(NOTATION_DEFAULTS.strokeWidth));
+    stroke(body);
     group.appendChild(body);
+
+    if (geometry.details) {
+      const details = svgEl('path', { d: geometry.details, fill: 'none' });
+      details.setAttribute('class', RENDER_CLASSES.details);
+      stroke(details);
+      group.appendChild(details);
+    }
     return body;
   }
 
-  /** The small glyph badge at `iconPlacement`. */
+  /** The small glyph badge at `iconPlacement` within the shape's content box. */
   private drawBadge(
     group: SVGElement,
     href: string,
     placement: VisualStyle['iconPlacement'],
-    width: number,
-    height: number,
+    area: Box,
   ): SVGElement {
-    const box = badgeBox(placement, width, height);
+    const box = badgeBox(placement, area.width, area.height);
     const badge = svgEl('image', {
-      x: box.x,
-      y: box.y,
+      x: offset(area.x, box.x),
+      y: offset(area.y, box.y),
       width: box.size,
       height: box.size,
       href,
@@ -260,25 +290,31 @@ export class RdfRenderer extends BaseRenderer {
     this.removeOnLoadError(icon);
     group.appendChild(icon);
 
-    this.appendLabel(group, label, width, height, {
+    this.appendLabel(group, label, { x: 0, y: 0, width, height }, {
       below: true,
       lineColor: NOTATION_DEFAULTS.lineColor,
     });
   }
 
-  /** Centred (or below-icon) multi-line label. */
+  /** Multi-line label, centred in `area` (or below the icon). */
   private appendLabel(
     group: SVGElement,
     label: string,
-    width: number,
-    height: number,
-    options: { badgePlacement?: VisualStyle['iconPlacement']; below?: boolean; lineColor: string },
+    area: Box,
+    options: {
+      badgePlacement?: VisualStyle['iconPlacement'];
+      below?: boolean;
+      maxLines?: number;
+      lineColor: string;
+    },
   ): SVGElement | null {
-    const layout = labelLayout(label, width, height, {
+    const local = labelLayout(label, area.width, area.height, {
       badgePlacement: options.badgePlacement,
       below: options.below,
+      maxLines: options.maxLines,
     });
-    if (layout.lines.length === 0) return null;
+    if (local.lines.length === 0) return null;
+    const layout = { ...local, x: offset(area.x, local.x), y: offset(area.y, local.y) };
 
     const text = svgEl('text', {
       x: layout.x,
@@ -379,10 +415,49 @@ export class RdfRenderer extends BaseRenderer {
     }
 
     if (!defs.querySelector(`#${cssEscapeId(id)}`)) {
-      const marker = markerDefinition(decoration, end, lineColor);
+      // The published symbol when it is here; built-in geometry until it is.
+      const symbol = this.decorationSymbol(decoration);
+      const marker = symbol ? symbolMarkerDefinition(symbol, decoration, end, lineColor) : markerDefinition(decoration, end, lineColor);
       if (marker) defs.appendChild(marker.element);
     }
+    this.markerDefs.add(defs);
     this.installedMarkers.add(id);
+  }
+
+  /**
+   * The published symbol of a decoration (`arch-vis:decorSymbol`), once loaded.
+   * The first ask starts loading it; markers drawn meanwhile use built-in
+   * geometry and are replaced when it arrives ({@link upgradeMarkers}).
+   */
+  private decorationSymbol(decoration: Decoration): DecorationSymbol | undefined {
+    const href = iconHref(this.notationStyles.decorationSymbolFor?.(decoration), assetUrl);
+    if (!href) return undefined;
+    const known = this.symbols.get(href);
+    if (known === undefined) this.symbols.set(href, this.loadSymbol(href, decoration));
+    return known && !(known instanceof Promise) ? known : undefined;
+  }
+
+  private async loadSymbol(href: string, decoration: Decoration): Promise<void> {
+    let symbol: DecorationSymbol | null = null;
+    try {
+      const response = await fetch(href, { cache: 'no-cache' });
+      if (response.ok) symbol = parseDecorationSymbol(await response.text());
+    } catch {
+      symbol = null; // unreachable or unreadable: the built-in geometry stays
+    }
+    this.symbols.set(href, symbol);
+    if (symbol) this.upgradeMarkers(decoration, symbol);
+  }
+
+  /** Replace the built-in markers of a decoration with its published symbol, wherever installed. */
+  private upgradeMarkers(decoration: Decoration, symbol: DecorationSymbol): void {
+    for (const defs of this.markerDefs) {
+      for (const old of Array.from(defs.querySelectorAll(`marker[data-decoration="${decoration}"][data-source="built-in"]`))) {
+        const end = old.getAttribute('data-end') as DecorationEnd;
+        const color = old.getAttribute('data-color') ?? NOTATION_DEFAULTS.lineColor;
+        old.replaceWith(symbolMarkerDefinition(symbol, decoration, end, color).element);
+      }
+    }
   }
 
   // ── Paths (used by connection cropping / docking) ─────────────────────
@@ -447,6 +522,11 @@ export class RdfRenderer extends BaseRenderer {
 }
 
 /** Nearest ancestor `<svg>`, for nodes not yet attached to one. */
+/** A shape-local coordinate moved by a box's offset, to two decimals as the geometry is. */
+function offset(origin: number, value: number): number {
+  return Math.round((origin + value) * 100) / 100;
+}
+
 function closestSvg(node: Element | null): SVGSVGElement | null {
   let current: Element | null = node;
   while (current) {

@@ -82,9 +82,11 @@ import {
   type TaxonomyAxis,
 } from './taxonomy.js';
 import {
+  buildDecorationSymbols,
   buildVisualNotations,
   effectiveRenderingMode,
   resolveNotationSetForContext,
+  type Decoration,
   type NotationSet,
   type VisualNotation,
   type VisualStyle,
@@ -205,6 +207,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       notationSetIri: notationSet?.iri,
       notationSetLabel: notationSet?.label,
       notationIndex,
+      decorationSymbols: resolvedDecorationSymbols(graph),
     };
   }
 
@@ -587,6 +590,16 @@ function definitionFor(graph: Store, iri: string): string | undefined {
 }
 
 /** Pair a published URI with its bundled path, when this bundle ships one. */
+/** {@link buildDecorationSymbols}, each symbol resolved to its bundled copy where there is one. */
+function resolvedDecorationSymbols(graph: Store): Partial<Record<Decoration, ResolvedUri>> {
+  const resolved: Partial<Record<Decoration, ResolvedUri>> = {};
+  for (const [decoration, uri] of Object.entries(buildDecorationSymbols(graph)) as Array<[Decoration, string]>) {
+    const symbol = resolveUri(uri);
+    if (symbol) resolved[decoration] = symbol;
+  }
+  return resolved;
+}
+
 function resolveUri(sourceUri: string | undefined): ResolvedUri | undefined {
   if (!sourceUri) return undefined;
   const bundledPath = resolveIconUri(sourceUri) ?? undefined;

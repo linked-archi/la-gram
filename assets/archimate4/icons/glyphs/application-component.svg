@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 160 160" width="16" height="16">
-            <rect fill="#333333" height="88.988" width="130.437" x="24.563" y="35.459"/>
-            <path d="M150,40.459v78.988H29.564V40.459H150 M160,30.459H19.564v98.988H160V30.459L160,30.459z"
+    <defs><mask id="behind-1" maskUnits="userSpaceOnUse" x="0" y="0" width="160" height="160"><rect x="0" y="0" width="160" height="160" fill="white"/><rect fill="black" height="15.684" width="37.788" x="5" y="53.12"/><rect fill="black" height="15.684" width="37.788" x="5" y="91.103"/></mask><mask id="behind-3" maskUnits="userSpaceOnUse" x="0" y="0" width="160" height="160"><rect x="0" y="0" width="160" height="160" fill="white"/><rect fill="black" height="15.684" width="37.788" x="5" y="91.103"/></mask></defs>
+            <rect fill="none" height="88.988" width="130.437" x="24.563" y="35.459"/>
+            <path mask="url(#behind-1)" d="M150,40.459v78.988H29.564V40.459H150 M160,30.459H19.564v98.988H160V30.459L160,30.459z"
                   fill="#333333" stroke="none"/>
-            <rect fill="#333333" height="15.684" width="37.788" x="5" y="53.12"/>
-            <path d="M37.788,58.12v5.684H10V58.12H37.788 M47.788,48.12H0v25.684h47.788V48.12L47.788,48.12z"
+            <rect fill="none" height="15.684" width="37.788" x="5" y="53.12"/>
+            <path mask="url(#behind-3)" d="M37.788,58.12v5.684H10V58.12H37.788 M47.788,48.12H0v25.684h47.788V48.12L47.788,48.12z"
                   fill="#333333" stroke="none"/>
-            <rect fill="#333333" height="15.684" width="37.788" x="5" y="91.103"/>
+            <rect fill="none" height="15.684" width="37.788" x="5" y="91.103"/>
             <path d="M37.788,96.102v5.684H10v-5.684H37.788 M47.788,86.102H0v25.684h47.788V86.102L47.788,86.102z"
                   fill="#333333" stroke="none"/>
         </svg>

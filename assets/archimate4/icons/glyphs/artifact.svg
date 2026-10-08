@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 160 160" width="16" height="16">
-            <polygon fill="#333333"
+    <defs><mask id="behind-1" maskUnits="userSpaceOnUse" x="0" y="0" width="160" height="160"><rect x="0" y="0" width="160" height="160" fill="white"/><polyline fill="black" points="87.062,9.093 87.062,49.942 127.911,49.942 " /></mask></defs>
+            <polygon fill="none"
                      points="27,155.037 27,5.037 86.93,5.037 133,51.072 133,155.037  "/>
-            <path d="M84.86,10.037L128,53.144v96.893H32v-140H84.86 M89,0.037H22v160h116V49L89,0.037L89,0.037z"
+            <path mask="url(#behind-1)" d="M84.86,10.037L128,53.144v96.893H32v-140H84.86 M89,0.037H22v160h116V49L89,0.037L89,0.037z"
                   fill="#333333" stroke="none"/>
-            <polyline fill="#333333" points="87.062,9.093 87.062,49.942  127.911,49.942 "
+            <polyline fill="none" points="87.062,9.093 87.062,49.942  127.911,49.942 "
                       stroke="#333333" stroke-miterlimit="10" stroke-width="10"/>
         </svg>

@@ -28,7 +28,7 @@ and relationships. Defines the standard visual appearance (shape, color, icon,
 line style) for each model concept, enabling palette generation and diagram
 rendering from structured metadata.'''@en ;
     dcterms:created               "2026-05-16"^^xsd:date ;
-    dcterms:modified              "2026-05-16"^^xsd:date ;
+    dcterms:modified              "2026-10-08"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/notation/4.0#> ;
@@ -192,7 +192,8 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/grouping.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:Folder ;
+        arch-vis:borderStyle   arch-vis:DashedLine ;
         arch-vis:fillColor     "#E5DFD3" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -210,7 +211,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/location.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#E5DFD3" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -264,7 +265,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/business-object.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:BandedRectangle ;
         arch-vis:fillColor     "#FFFFB5" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -282,7 +283,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/product.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:TabbedRectangle ;
         arch-vis:fillColor     "#FFFFB5" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -336,7 +337,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/data-object.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:BandedRectangle ;
         arch-vis:fillColor     "#AFFFFF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -372,7 +373,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/device.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:Box3D ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -462,7 +463,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/equipment.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:Box3D ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -480,7 +481,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/facility.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Rectangle ;
+        arch-vis:shapeType     arch-vis:Box3D ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -534,7 +535,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/resource.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#F5DEAA" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -732,7 +733,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/meaning.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Octagon ;
+        arch-vis:shapeType     arch-vis:Cloud ;
         arch-vis:fillColor     "#CBCBFF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -786,7 +787,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/deliverable.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:shapeType     arch-vis:WavyRectangle ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -804,7 +805,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/plateau.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:RoundedRectangle ;
+        arch-vis:shapeType     arch-vis:Box3D ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
