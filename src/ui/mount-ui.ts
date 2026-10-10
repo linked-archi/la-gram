@@ -588,9 +588,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   const onPropertyAdd = (e: Event): void => {
     const d = (e as CustomEvent<PropertyChangeDetail>).detail;
-    const value = /^(https?|urn):/.test(d.value)
-      ? DataFactory.namedNode(d.value)
-      : DataFactory.literal(d.value, d.predicate.startsWith(NAMESPACES.skos) || d.predicate.startsWith(NAMESPACES.dcterms) ? 'en' : undefined);
+    // A value chosen from the shape's list is an IRI; a value of a property whose
+    // shape names a datatype is a literal of it (bs:orphan → xsd:boolean).
+    const value =
+      d.isIri || (!d.datatype && /^(https?|urn):/.test(d.value))
+        ? DataFactory.namedNode(d.value)
+        : d.datatype
+          ? DataFactory.literal(d.value, DataFactory.namedNode(d.datatype))
+          : DataFactory.literal(d.value, d.predicate.startsWith(NAMESPACES.skos) || d.predicate.startsWith(NAMESPACES.dcterms) ? 'en' : undefined);
     store.addQuads([DataFactory.quad(DataFactory.namedNode(d.elementIri), DataFactory.namedNode(d.predicate), value) as unknown as Quad]);
     eventBus.emit('model-changed', { origin: 'properties', iri: d.elementIri });
   };

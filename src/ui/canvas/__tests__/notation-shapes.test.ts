@@ -64,6 +64,9 @@ describe('shapeGeometry', () => {
         'RightArrow',
         'Stadium',
         'Cylinder',
+        'Person',
+        'MobileDevice',
+        'WebBrowser',
       ].sort(),
     );
   });
@@ -215,8 +218,17 @@ describe('shapePath', () => {
       'L110,50A30,30 0 0 1 80,80' +
       'L40,80A30,30 0 0 1 10,50' +
       'L10,50A30,30 0 0 1 40,20Z',
-    // Rim 12 = h * 0.2: arcs over the top and round the bottom.
-    Cylinder: 'M10,26A50,6 0 0 1 110,26L110,74A50,6 0 0 1 10,74Z',
+    // Rim 16.2 = h * 0.27: arcs over the top and round the bottom.
+    Cylinder: 'M10,28.1A50,8.1 0 0 1 110,28.1L110,71.9A50,8.1 0 0 1 10,71.9Z',
+    // Two closed parts: the body from h * 0.35 with corners of h * 0.15, then the head.
+    Person:
+      'M19,41L101,41A9,9 0 0 1 110,50L110,71A9,9 0 0 1 101,80L19,80A9,9 0 0 1 10,71L10,50A9,9 0 0 1 19,41Z' +
+      'M51,29.9A9,9 0 0 1 69,29.9A9,9 0 0 1 51,29.9Z',
+    // The frame: corners of h * 0.055.
+    MobileDevice:
+      'M13.3,20L106.7,20A3.3,3.3 0 0 1 110,23.3L110,76.7A3.3,3.3 0 0 1 106.7,80L13.3,80A3.3,3.3 0 0 1 10,76.7L10,23.3A3.3,3.3 0 0 1 13.3,20Z',
+    // The window: corners of 2.
+    WebBrowser: 'M12,20L108,20A2,2 0 0 1 110,22L110,78A2,2 0 0 1 108,80L12,80A2,2 0 0 1 10,78L10,22A2,2 0 0 1 12,20Z',
   };
 
   for (const shapeType of SHAPE_TYPES) {
@@ -360,9 +372,29 @@ describe('the shapes with inner lines and curves', () => {
       Folder: 'M0,21L104,21',
       RightArrow: undefined,
       Stadium: undefined,
-      // The front of the rim (12 high): the lower half of the top ellipse.
-      Cylinder: 'M0,6A65,6 0 0 0 130,6',
+      // The front of the rim (16.2 high): the lower half of the top ellipse.
+      Cylinder: 'M0,8.1A65,8.1 0 0 0 130,8.1',
+      Person: undefined,
+      // The screen and the home button; the title bar's content, dots and address bar.
+      MobileDevice: expect.stringMatching(/^M5\.4,7\.8L124\.6,7\.8L124\.6,56\.7L5\.4,56\.7ZM63\.38,3\.9A1\.62/),
+      WebBrowser: expect.stringMatching(/^M3,9\.3L127,9\.3L127,57L3,57Z(M[^M]+){3}M23\.06,2\.79L120\.86,2\.79/),
     });
+  });
+
+  it('reproduce the C4 pictures at their sizes: person, mobile app, web browser and database', () => {
+    // person.svg, 120 × 120: the head at 60,20 with radius 18; the body from 42 with corners of 18.
+    expect(shapePath('Person', 0, 0, 120, 120)).toMatch(/^M18,42L102,42A18,18 .*ZM42,19\.8A18,18 0 0 1 78,19\.8/);
+    expect(shapeLayout('Person', 120, 120).content).toEqual({ x: 0, y: 42, width: 120, height: 78 });
+    // mobile-app.svg, 160 × 110: the screen 10–150 × 14–104, the home button at 80,7 with radius 3.
+    expect(shapeLayout('MobileDevice', 160, 110).content).toEqual({ x: 9.9, y: 14.3, width: 140.2, height: 89.65 });
+    expect(shapeGeometry('MobileDevice', 160, 110).details).toContain('M77.03,7.15A2.97,2.97 0 0 1 82.97,7.15');
+    // web-browser.svg, 160 × 110: the content area 3–157 × 17–107, dots at 10, 20 and 30, the bar from 38 to 153.
+    expect(shapeLayout('WebBrowser', 160, 110).content).toEqual({ x: 3, y: 17.05, width: 154, height: 89.95 });
+    const browser = shapeGeometry('WebBrowser', 160, 110).details!;
+    for (const dot of ['M7.16,9.04', 'M17.39,9.04', 'M27.62,9.04']) expect(browser).toContain(dot);
+    expect(browser).toContain('M42.28,5.12L149.08,5.12');
+    // database.svg, 160 × 110: the rim's half-height 15.
+    expect(shapePath('Cylinder', 0, 0, 160, 110)).toBe('M0,14.85A80,14.85 0 0 1 160,14.85L160,95.15A80,14.85 0 0 1 0,95.15Z');
   });
 
   it('draw EDGY\'s arrow as its official shape, and a pill with ends of half the height', () => {
@@ -469,7 +501,7 @@ describe('shapeLayout', () => {
     expect(shapeLayout('DoubleBandedRectangle', 130, 60).content).toEqual({ x: 0, y: 10.4, width: 130, height: 39.2 });
     expect(shapeLayout('Box3D', 130, 60).content).toEqual({ x: 0, y: 12, width: 118, height: 48 });
     expect(shapeLayout('WavyRectangle', 130, 60).content).toEqual({ x: 0, y: 0, width: 130, height: 49.6 });
-    expect(shapeLayout('Cylinder', 130, 60).content).toEqual({ x: 0, y: 12, width: 130, height: 42 });
+    expect(shapeLayout('Cylinder', 130, 60).content).toEqual({ x: 0, y: 16.2, width: 130, height: 35.7 });
   });
 
   it('keeps the label left of a RightArrow\'s point and clear of a Stadium\'s round ends', () => {

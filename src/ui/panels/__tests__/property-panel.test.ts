@@ -238,6 +238,9 @@ describe('PropertyPanel', () => {
         rdfStore: undefined,
         shapesGraph: undefined,
         _entries: [],
+        _shapes: new Map(),
+        _pickedPredicate: '',
+        _newValue: '',
         dispatchEvent: vi.fn(),
         catalog: undefined,
         ...overrides,
@@ -251,6 +254,7 @@ describe('PropertyPanel', () => {
         '_loadProperties',
         '_renderHeading',
         '_renderAdd',
+        '_renderNewValue',
         '_renderRelationships',
         '_renderViews',
         'selectTab',
@@ -584,5 +588,94 @@ describe('PropertyPanel', () => {
       (PropertyPanel.prototype as any)._onPropertyChange.call(ctx, entry, 'New');
       expect(spy).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+// ── Allowed values (sh:in) and booleans ──────────────────────────────────
+
+describe('a property whose shape lists its values (sh:in), and a boolean', () => {
+  const BS = 'https://meta.linked.archi/backstage/onto#';
+  const RDF = NAMESPACES.rdf;
+  const XSD_BOOLEAN = NAMESPACES.xsd + 'boolean';
+  const iriQuad = (s: string, p: string, o: string): Quad =>
+    ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+  const boolQuad = (s: string, p: string, o: string): Quad =>
+    ({ ...makeQuad(s, p, o), object: { value: o, termType: 'Literal', datatype: { value: XSD_BOOLEAN } } }) as unknown as Quad;
+
+  /** Backstage's component shape: bs:lifecycleState from a list of states, bs:orphan a boolean. */
+  const SHAPES: Quad[] = [
+    iriQuad('_:shape', SH + 'targetClass', `${BS}Component`),
+    iriQuad('_:shape', SH + 'property', '_:type'),
+    iriQuad('_:type', SH + 'path', `${BS}lifecycleState`),
+    makeQuad('_:type', SH + 'name', 'Lifecycle state'),
+    iriQuad('_:type', SH + 'in', '_:l1'),
+    iriQuad('_:l1', RDF + 'first', `${BS}Production`),
+    iriQuad('_:l1', RDF + 'rest', '_:l2'),
+    iriQuad('_:l2', RDF + 'first', `${BS}DeprecatedState`),
+    iriQuad('_:l2', RDF + 'rest', RDF + 'nil'),
+    iriQuad('_:shape', SH + 'property', '_:ext'),
+    iriQuad('_:ext', SH + 'path', `${BS}orphan`),
+    makeQuad('_:ext', SH + 'name', 'Orphan'),
+    iriQuad('_:ext', SH + 'datatype', XSD_BOOLEAN),
+  ];
+  const DB = 'https://example.org/m/billing-service';
+
+  it('reads the list in order', () => {
+    const shapes = extractShaclShapes(SHAPES, `${BS}Component`);
+    expect(shapes.find((s) => s.path === `${BS}lifecycleState`)?.in).toEqual([
+      { value: `${BS}Production`, isIri: true },
+      { value: `${BS}DeprecatedState`, isIri: true },
+    ]);
+  });
+
+  it('makes a listed link a choice, labelled in words, rather than read-only', () => {
+    const entries = buildPropertyEntries(
+      [makeQuad(DB, RDF_TYPE, `${BS}Component`), iriQuad(DB, `${BS}lifecycleState`, `${BS}Production`)],
+      extractShaclShapes(SHAPES, `${BS}Component`),
+    );
+    const entry = entries.find((e) => e.predicate === `${BS}lifecycleState`)!;
+    expect(entry.readonly).toBe(false);
+    expect(entry.choices?.map((c) => c.label)).toEqual(['Production', 'Deprecated State']);
+    // A link without a list stays read-only.
+    const other = buildPropertyEntries([iriQuad(DB, 'https://example.org/dependsOn', 'https://example.org/m/x')], []);
+    expect(other.find((e) => e.predicate === 'https://example.org/dependsOn')!.readonly).toBe(true);
+  });
+
+  it('saves a chosen value as the IRI it is, and a ticked box as true', () => {
+    const elementManager = mockElementManager();
+    const ctx: any = { selectedIri: DB, elementManager, dispatchEvent: vi.fn(), requestUpdate: vi.fn(), _loadProperties: vi.fn() };
+    const change = (PropertyPanel.prototype as any)._onPropertyChange.bind(ctx);
+    const [typeEntry, externalEntry] = [`${BS}lifecycleState`, `${BS}orphan`].map(
+      (p) =>
+        buildPropertyEntries(
+          [iriQuad(DB, `${BS}lifecycleState`, `${BS}Production`), boolQuad(DB, `${BS}orphan`, 'false')],
+          extractShaclShapes(SHAPES, `${BS}Component`),
+        ).find((e) => e.predicate === p)!,
+    );
+    change(typeEntry, `${BS}DeprecatedState`);
+    change(externalEntry, 'true');
+    const calls = (elementManager.updateProperty as any).mock.calls;
+    expect(calls[0][2]).toMatchObject({ termType: 'NamedNode', value: `${BS}DeprecatedState` });
+    expect(calls[1][2]).toMatchObject({ termType: 'Literal', value: 'true', datatype: { value: XSD_BOOLEAN } });
+  });
+
+  it('adds a value the way its shape says: a chosen IRI, or a literal of its datatype', () => {
+    const shapes = new Map(extractShaclShapes(SHAPES, `${BS}Component`).map((s) => [s.path, s]));
+    const added: any[] = [];
+    const add = (predicate: string, value: string) => {
+      const ctx: any = {
+        selectedIri: DB,
+        _shapes: shapes,
+        _newValue: value,
+        _picker: { value: { iri: predicate }, clear: vi.fn(), focus: vi.fn() },
+        _emit: (_name: string, detail: unknown) => added.push(detail),
+      };
+      (PropertyPanel.prototype as any)._add.call(ctx);
+    };
+    add(`${BS}lifecycleState`, `${BS}Production`);
+    add(`${BS}orphan`, 'true');
+    expect(added[0]).toMatchObject({ predicate: `${BS}lifecycleState`, value: `${BS}Production`, isIri: true });
+    expect(added[1]).toMatchObject({ predicate: `${BS}orphan`, value: 'true', datatype: XSD_BOOLEAN });
+    expect(added[1].isIri).toBeUndefined();
   });
 });

@@ -75,6 +75,33 @@ describe('PropertyCatalog.suggest', () => {
     store.removeQuads(store.getQuads(DataFactory.namedNode(access) as never));
   });
 
+  it('offers a link whose shape lists its values (sh:in) as an attribute, but not a relationship predicate', () => {
+    const store = app.components.store;
+    const g = DataFactory.namedNode('https://example.org/test-shapes#');
+    const nn = DataFactory.namedNode;
+    const EX = 'https://example.org/test#';
+    const SH = NAMESPACES.sh;
+    const q = (s: string, p: string, o: string) => DataFactory.quad(nn(s), nn(p), nn(o), g) as unknown as Quad;
+    const added = [
+      // Both links are object properties; only the first has its values listed.
+      q(`${EX}kind`, NAMESPACES.rdf + 'type', NAMESPACES.owl + 'ObjectProperty'),
+      q(`${EX}servedBy`, NAMESPACES.rdf + 'type', NAMESPACES.owl + 'ObjectProperty'),
+      q(`${EX}Shape`, SH + 'targetClass', `${AM4}BusinessActor`),
+      q(`${EX}Shape`, SH + 'property', `${EX}kindShape`),
+      q(`${EX}kindShape`, SH + 'path', `${EX}kind`),
+      q(`${EX}kindShape`, SH + 'in', `${EX}list`),
+      q(`${EX}list`, NAMESPACES.rdf + 'first', `${EX}Internal`),
+      q(`${EX}list`, NAMESPACES.rdf + 'rest', NAMESPACES.rdf + 'nil'),
+      q(`${EX}Shape`, SH + 'property', `${EX}servedShape`),
+      q(`${EX}servedShape`, SH + 'path', `${EX}servedBy`),
+    ];
+    store.addQuads(added);
+    const suggestions = catalog.suggest(actor);
+    expect(suggestions.find((s) => s.iri === `${EX}kind`)?.group).toBe('type');
+    expect(suggestions.find((s) => s.iri === `${EX}servedBy`)).toBeUndefined();
+    store.removeQuads(added);
+  });
+
   it('offers the properties the model already uses, custom ones included', () => {
     const store = app.components.store;
     const owner = `${app.session.namespace()!.namespace}owner`;

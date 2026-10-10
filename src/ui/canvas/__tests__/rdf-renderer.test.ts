@@ -282,6 +282,9 @@ describe('shape types through the renderer', () => {
     RightArrow: 'polygon',
     Stadium: 'rect',
     Cylinder: 'path',
+    Person: 'path',
+    MobileDevice: 'path',
+    WebBrowser: 'path',
   };
 
   it.each(SHAPE_TYPES)('%s draws the expected SVG element', (shapeType: ShapeType) => {

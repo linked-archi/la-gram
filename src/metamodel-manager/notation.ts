@@ -89,7 +89,10 @@ export type ShapeType =
   | 'Folder'
   | 'RightArrow'
   | 'Stadium'
-  | 'Cylinder';
+  | 'Cylinder'
+  | 'Person'
+  | 'MobileDevice'
+  | 'WebBrowser';
 
 /** Icon position within (or relative to) the shape. */
 export type IconPlacement = 'TopRight' | 'TopLeft' | 'TopCenter' | 'Center' | 'BottomCenter';
@@ -175,6 +178,9 @@ const SHAPE_TYPES: ReadonlySet<string> = new Set<ShapeType>([
   'RightArrow',
   'Stadium',
   'Cylinder',
+  'Person',
+  'MobileDevice',
+  'WebBrowser',
 ]);
 
 const ICON_PLACEMENTS: ReadonlySet<string> = new Set<IconPlacement>([

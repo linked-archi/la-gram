@@ -347,8 +347,8 @@ it.'''@en ;
         sh:message  '''shapeType must be a single member of the ShapeType enumeration
 (arch-vis:RoundedRectangle, Rectangle, Octagon, Ellipse, Circle, Hexagon, Diamond,
 Parallelogram, BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
-WavyBandedRectangle, Cloud, Folder, RightArrow, Stadium, Cylinder), or a ShapeType a notation
-declares itself.'''@en ;
+WavyBandedRectangle, Cloud, Folder, RightArrow, Stadium, Cylinder, Person, MobileDevice,
+WebBrowser), or a ShapeType a notation declares itself.'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:iconSymbol ;

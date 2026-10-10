@@ -40,6 +40,11 @@ const SH_DATATYPE = NAMESPACES.sh + 'datatype';
 const SH_MIN_COUNT = NAMESPACES.sh + 'minCount';
 const SH_MAX_COUNT = NAMESPACES.sh + 'maxCount';
 const SH_NAME = NAMESPACES.sh + 'name';
+const SH_IN = NAMESPACES.sh + 'in';
+const RDF_FIRST = NAMESPACES.rdf + 'first';
+const RDF_REST = NAMESPACES.rdf + 'rest';
+const RDF_NIL = NAMESPACES.rdf + 'nil';
+const XSD_BOOLEAN = NAMESPACES.xsd + 'boolean';
 
 /** A single property row displayed in the panel. */
 export interface PropertyEntry {
@@ -63,6 +68,15 @@ export interface PropertyEntry {
   isIri?: boolean;
   /** Listed after the leading fields (type, inModel, prefLabel): a property the modeller added. */
   custom?: boolean;
+  /** The values the SHACL shape allows (`sh:in`): shown as a choice. */
+  choices?: PropertyChoice[];
+}
+
+/** One allowed value of a property (`sh:in`). */
+export interface PropertyChoice {
+  value: string;
+  label: string;
+  isIri: boolean;
 }
 
 /** Detail emitted when a property value is edited. */
@@ -79,6 +93,10 @@ export interface PropertyChangeDetail {
   elementIri: string;
   predicate: string;
   value: string;
+  /** An added value is an IRI (chosen from the shape's `sh:in`), not text. */
+  isIri?: boolean;
+  /** An added literal's datatype, from the property's SHACL shape. */
+  datatype?: string;
 }
 
 /** What the analysis section lists about the selected concept. */
@@ -149,6 +167,23 @@ export interface ShaclPropertyShape {
   datatype?: string;
   minCount?: number;
   maxCount?: number;
+  /** The allowed values (`sh:in`), in list order. */
+  in?: Array<{ value: string; isIri: boolean }>;
+}
+
+/** The members of an RDF list, from its head node. */
+function listMembers(quads: Quad[], head: string): Quad['object'][] {
+  const members: Quad['object'][] = [];
+  const seen = new Set<string>();
+  let node = head;
+  while (node !== RDF_NIL && !seen.has(node)) {
+    seen.add(node);
+    const first = quads.find((q) => q.subject.value === node && q.predicate.value === RDF_FIRST);
+    if (!first) break;
+    members.push(first.object);
+    node = quads.find((q) => q.subject.value === node && q.predicate.value === RDF_REST)?.object.value ?? RDF_NIL;
+  }
+  return members;
 }
 
 /**
@@ -194,11 +229,33 @@ export function extractShaclShapes(
       const maxQ = propQuads.find((q) => q.predicate.value === SH_MAX_COUNT);
       if (maxQ) shape.maxCount = parseInt(maxQ.object.value, 10);
 
+      const inQ = propQuads.find((q) => q.predicate.value === SH_IN);
+      if (inQ) {
+        shape.in = listMembers(shapesQuads, inQ.object.value).map((term) => ({
+          value: term.value,
+          isIri: term.termType === 'NamedNode',
+        }));
+      }
+
       if (shape.path) shapes.push(shape);
     }
   }
 
   return shapes;
+}
+
+/** An allowed value's label: its local name in words (`SinglePageApp` → `Single Page App`). */
+function choiceLabel(value: string, isIri: boolean): string {
+  if (!isIri) return value;
+  return iriLabel(value)
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+}
+
+/** The choice a shape's `sh:in` gives, labelled. */
+function choicesOf(shape: ShaclPropertyShape | undefined): PropertyChoice[] | undefined {
+  if (!shape?.in || shape.in.length === 0) return undefined;
+  return shape.in.map((member) => ({ ...member, label: choiceLabel(member.value, member.isIri) }));
 }
 
 /**
@@ -240,13 +297,16 @@ export function buildPropertyEntries(quads: Quad[], shaclShapes: ShaclPropertySh
     const isIri = q.object.termType === 'NamedNode';
     const language = (q.object as { language?: string }).language || undefined;
     const custom = !LEADING_FIELDS.includes(predicate);
+    const choices = isType ? undefined : choicesOf(shape);
     entries.push({
       predicate,
       label: shape?.name ?? iriLabel(predicate),
       value,
       // Types and links to other resources are shown, not typed over: editing
-      // an IRI as free text is how dangling references get made.
-      readonly: isType || isIri,
+      // an IRI as free text is how dangling references get made. A link the
+      // shape lists its values for (`sh:in`) is a choice among them instead.
+      readonly: isType || (isIri && !choices),
+      ...(choices ? { choices } : {}),
       datatype: shape?.datatype,
       minCount: shape?.minCount,
       maxCount: shape?.maxCount,
@@ -611,6 +671,12 @@ export class PropertyPanel extends LitElement {
   /** The open vertical tab; remembered per browser. */
   @state() private _tab: PanelSection = storedTab();
 
+  /** The property chosen in the add row, so its value field can follow its shape. */
+  @state() private _pickedPredicate = '';
+
+  /** The selected concept's SHACL property shapes, by path. */
+  private _shapes = new Map<string, ShaclPropertyShape>();
+
   @query('property-picker') private _picker?: PropertyPicker;
   @query('.add-row .new-value') private _valueInput?: HTMLInputElement;
 
@@ -653,6 +719,7 @@ export class PropertyPanel extends LitElement {
     const shaclShapes = this.shapesGraph && typeIri
       ? extractShaclShapes(this.shapesGraph, typeIri)
       : [];
+    this._shapes = new Map(shaclShapes.map((s) => [s.path, s]));
 
     this._entries = buildPropertyEntries(quads, shaclShapes);
   }
@@ -675,12 +742,15 @@ export class PropertyPanel extends LitElement {
 
     // Propagate through ElementManager if available
     if (this.elementManager) {
+      const chosen = entry.choices?.find((c) => c.value === newValue);
       const valueTerm = (
-        language
-          ? DataFactory.literal(newValue, language)
-          : entry.datatype
-            ? DataFactory.literal(newValue, DataFactory.namedNode(entry.datatype))
-            : DataFactory.literal(newValue)
+        chosen?.isIri
+          ? DataFactory.namedNode(newValue)
+          : language
+            ? DataFactory.literal(newValue, language)
+            : entry.datatype
+              ? DataFactory.literal(newValue, DataFactory.namedNode(entry.datatype))
+              : DataFactory.literal(newValue)
       ) as unknown as Term;
       this.elementManager.updateProperty(this.selectedIri, entry.predicate, valueTerm);
     }
@@ -746,9 +816,18 @@ export class PropertyPanel extends LitElement {
       this._valueInput?.focus();
       return;
     }
-    this._emit<PropertyChangeDetail>('property-add', { elementIri: this.selectedIri, predicate, value });
+    // The value takes the property's shape: a chosen IRI, or a literal of its datatype.
+    const shape = this._shapes.get(predicate);
+    const chosen = choicesOf(shape)?.find((c) => c.value === value);
+    this._emit<PropertyChangeDetail>('property-add', {
+      elementIri: this.selectedIri,
+      predicate,
+      value,
+      ...(chosen?.isIri ? { isIri: true } : shape?.datatype ? { datatype: shape.datatype } : {}),
+    });
     this._picker?.clear();
     this._newValue = '';
+    this._pickedPredicate = '';
   }
 
   private _renderRemove(entry: PropertyEntry) {
@@ -774,18 +853,49 @@ export class PropertyPanel extends LitElement {
         <property-picker
           .suggest=${() => (this.selectedIri && this.catalog ? this.catalog.suggest(this.selectedIri) : [])}
           .resolve=${(text: string) => this.catalog?.resolve(text)}
-          @property-picked=${() => this._valueInput?.focus()}
+          @property-picked=${(e: CustomEvent<{ iri: string }>) => {
+            this._pickedPredicate = e.detail?.iri ?? '';
+            this._newValue = '';
+            void this.updateComplete.then(() => this._valueInput?.focus());
+          }}
         ></property-picker>
-        <input
-          class="property-value new-value"
-          placeholder="Value"
-          .value=${this._newValue}
-          @input=${(e: Event) => (this._newValue = (e.target as HTMLInputElement).value)}
-          @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this._add()}
-        />
+        ${this._renderNewValue()}
         <button class="add" @click=${() => this._add()}>Add</button>
       </div>
     `;
+  }
+
+  /**
+   * The add row's value field, following the picked property's shape: a
+   * choice of its `sh:in` values, true/false for a boolean, else text.
+   */
+  private _renderNewValue() {
+    const shape = this._shapes.get(this._pickedPredicate);
+    const choices =
+      choicesOf(shape) ??
+      (shape?.datatype === XSD_BOOLEAN
+        ? [
+            { value: 'true', label: 'true', isIri: false },
+            { value: 'false', label: 'false', isIri: false },
+          ]
+        : undefined);
+    if (choices) {
+      return html`<select
+        class="property-value new-value"
+        .value=${live(this._newValue)}
+        @change=${(e: Event) => (this._newValue = (e.target as HTMLSelectElement).value)}
+      >
+        <option value="" ?selected=${this._newValue === ''}>Choose…</option>
+        ${choices.map((c) => html`<option value=${c.value} ?selected=${c.value === this._newValue}>${c.label}</option>`)}
+      </select>`;
+    }
+    return html`<input
+      class="property-value new-value"
+      placeholder="Value"
+      .value=${this._newValue}
+      @input=${(e: Event) => (this._newValue = (e.target as HTMLInputElement).value)}
+      @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this._add()}
+    />`;
   }
 
   /** The open vertical tab. */
@@ -904,6 +1014,44 @@ export class PropertyPanel extends LitElement {
     // An element's own type: a choice of the loaded types.
     if (entry.predicate === RDF_TYPE && this.typeChoices && this.typeChoices.length > 0 && entry.value === this.heading?.typeIri) {
       return this._renderTypeChoice(entry, this.typeChoices);
+    }
+
+    // A value from the shape's list (`sh:in`).
+    if (entry.choices && !entry.readonly) {
+      const listed = entry.choices.some((c) => c.value === entry.value);
+      return html`
+        <li class=${rowClass}>
+          <label class="property-label">
+            ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
+            ${this._renderRemove(entry)}
+          </label>
+          <select
+            class="property-value choice"
+            @change=${(e: Event) => this._onPropertyChange(entry, (e.target as HTMLSelectElement).value)}
+          >
+            ${listed ? nothing : html`<option value=${entry.value} selected>${entry.value}</option>`}
+            ${entry.choices.map((c) => html`<option value=${c.value} ?selected=${c.value === entry.value}>${c.label}</option>`)}
+          </select>
+        </li>
+      `;
+    }
+
+    // A boolean: ticked or not, saved as true/false.
+    if (entry.datatype === XSD_BOOLEAN && !entry.readonly) {
+      return html`
+        <li class=${rowClass}>
+          <label class="property-label">
+            ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
+            ${this._renderRemove(entry)}
+          </label>
+          <input
+            class="property-value"
+            type="checkbox"
+            .checked=${live(entry.value === 'true' || entry.value === '1')}
+            @change=${(e: Event) => this._onPropertyChange(entry, String((e.target as HTMLInputElement).checked))}
+          />
+        </li>
+      `;
     }
 
     if (this._isTextArea(entry)) {

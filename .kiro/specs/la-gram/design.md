@@ -202,6 +202,10 @@ pictures, which a unit test checks against the bundled picture files.
 `Stadium` a rect with corner radius half the smaller side. The label is drawn in
 `arch-vis:fontColor`, else the line colour; under an IconCentric icon, where it
 sits on the canvas, black unless `fontColor` is given.
+`Person`, `MobileDevice` and `WebBrowser` are paths drawn from C4's pictures (the
+person's head and body as two closed parts), with their screen, title bar and
+content area as the layout box.
+
 `arch-vis:borderStyle` takes the relationship dash patterns. Badges stay
 `<image href>`: the published glyphs are transparent where the element's fill
 shows (the vocabulary's `arch-vis:iconSymbol` convention), so they need no

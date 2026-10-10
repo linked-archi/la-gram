@@ -154,9 +154,12 @@ export class PropertyCatalog {
     for (const q of store.getQuads(null, nn(NAMESPACES.sh + 'targetClass'))) {
       if (!applicable.has(q.object.value)) continue;
       for (const link of store.getQuads(q.subject as NamedNode, nn(NAMESPACES.sh + 'property'))) {
+        // A shape that lists the values (`sh:in`) makes even a link an attribute —
+        // Backstage's bs:lifecycleState takes one of three named states.
+        const listed = store.getQuads(link.object as NamedNode, nn(NAMESPACES.sh + 'in')).length > 0;
         for (const path of store.getQuads(link.object as NamedNode, nn(NAMESPACES.sh + 'path'))) {
           // A shape on a relationship predicate constrains a relationship, drawn on the canvas.
-          if (path.object.termType === 'NamedNode' && !objectProperties.has(path.object.value)) {
+          if (path.object.termType === 'NamedNode' && (listed || !objectProperties.has(path.object.value))) {
             offer(path.object.value, 'type');
           }
         }

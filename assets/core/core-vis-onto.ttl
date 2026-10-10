@@ -33,7 +33,7 @@ at the type level (default notation for model concepts via NotationSet).'''@en ;
     skos:historyNote '''0.4: Added the shape types the ArchiMate pictures use beyond plain outlines —
 BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
 WavyBandedRectangle, Cloud and Folder — RightArrow and Stadium, which EDGY's notation declared
-as its own shape types, and Cylinder, which the C4 notation already used.
+as its own shape types, and Cylinder, Person, MobileDevice and WebBrowser for C4's pictures.
 Each comment gives its geometry. Added arch-vis:borderStyle (a Style's outline LineStyle) for
 dashed outlines such as ArchiMate's grouping. Documented arch-vis:fontColor as the label colour,
 the line colour when absent. Documented the arch-vis:decorSymbol drawing
@@ -547,7 +547,35 @@ arch-vis:Cylinder
     a            arch-vis:ShapeType ;
     rdfs:label   "Cylinder"@en ;
     rdfs:comment '''Upright cylinder: an elliptical top rim, drawn whole, over a body with a rounded
-bottom. The rim is h x 0.2 high, at most 16. A database or other data store, as in C4.'''@en ;
+bottom. The rim is h x 0.27 high (30 in C4's 160 x 110 database picture), at most 30. The label and
+badge sit below the rim. A database or other data store, as in C4.'''@en ;
+.
+
+arch-vis:Person
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Person"@en ;
+    rdfs:comment '''A head over a body: a circle of radius h x 0.15 (at most w x 0.3), centred on the
+middle of the width at h x 0.165, over a rectangle from h x 0.35 to the bottom with corners of radius
+h x 0.15. The label and badge sit in the body. C4's person (120 x 120: the head at 60,20 with radius 18,
+the body from 42 with corner radius 18).'''@en ;
+.
+
+arch-vis:MobileDevice
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Mobile Device"@en ;
+    rdfs:comment '''A device frame around a screen: a rectangle with corners of radius h x 0.055, the
+screen inset h x 0.09 at the sides, h x 0.13 at the top and h x 0.055 at the bottom, and a dot of
+radius h x 0.027 for the home button, centred above the screen. The label and badge sit on the screen.
+C4's mobile app (160 x 110).'''@en ;
+.
+
+arch-vis:WebBrowser
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Web Browser"@en ;
+    rdfs:comment '''A browser window: a rectangle with a title bar t = h x 0.155 high (17 in C4's
+160 x 110 picture), at most 20, holding three dots of radius t x 0.18 at t x 0.6, 1.2 and 1.8 from the
+left and an address bar from t x 2.25 to 7 short of the right edge; under it a content area inset by 3.
+The label and badge sit in the content area. C4's web browser.'''@en ;
 .
 
 

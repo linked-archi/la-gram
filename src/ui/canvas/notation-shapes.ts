@@ -10,7 +10,8 @@
  *
  * - **Real outlines, not degraded rectangles.** `Octagon`, `Hexagon`, `Diamond`,
  *   `Parallelogram`, `Box3D`, `Folder` and `RightArrow` are `<polygon>` elements with computed
- *   points; the wavy shapes, `Cloud` and `Cylinder` are `<path>`s. diagram-js
+ *   points; the wavy shapes, `Cloud`, `Cylinder`, `Person` (two parts),
+ *   `MobileDevice` and `WebBrowser` are `<path>`s. diagram-js
  *   hands the renderer direct SVG control, so there is no reason to approximate.
  *   {@link shapePath} emits the same outlines as SVG path strings, which is what
  *   connection docking crops against — one geometry, two encodings, so a line
@@ -119,7 +120,48 @@ function arrowDepth(w: number, h: number): number {
 
 /** Height of a `Cylinder`'s top rim: h × 0.2, at most 16. */
 function cylinderRim(h: number): number {
-  return Math.min(h * 0.2, 16);
+  return Math.min(h * 0.27, 30);
+}
+
+/** A `Person`: its head (a circle) and where its body starts, as C4's 120 × 120 person. */
+function personParts(w: number, h: number): { r: number; cy: number; bodyTop: number; bodyRadius: number } {
+  const r = Math.min(h * 0.15, w * 0.3);
+  const bodyTop = h * 0.35;
+  return { r, cy: h * 0.165, bodyTop, bodyRadius: Math.min(h * 0.15, (h - bodyTop) / 2, w / 2) };
+}
+
+/** A `MobileDevice`'s frame corners, screen and home button, as C4's 160 × 110 mobile app. */
+function mobileParts(w: number, h: number): { frameRadius: number; screen: Box; button: { cy: number; r: number } } {
+  const side = Math.min(h * 0.09, w / 4);
+  const top = h * 0.13;
+  const bottom = h * 0.055;
+  return {
+    frameRadius: Math.min(h * 0.055, w / 2),
+    screen: { x: side, y: top, width: w - 2 * side, height: h - top - bottom },
+    button: { cy: h * 0.065, r: h * 0.027 },
+  };
+}
+
+/** A `WebBrowser`'s title bar height, as C4's 160 × 110 web browser (17), at most 20. */
+function browserBar(h: number): number {
+  return Math.min(h * 0.155, 20);
+}
+
+/** A rectangle with round corners of radius `r`, from (x0, y0) to (x1, y1), as path commands. */
+function roundedRectPath(at: (x: number, y: number) => string, x0: number, y0: number, x1: number, y1: number, r: number): string {
+  const rr = round(r);
+  return (
+    `M${at(x0 + r, y0)}L${at(x1 - r, y0)}A${rr},${rr} 0 0 1 ${at(x1, y0 + r)}` +
+    `L${at(x1, y1 - r)}A${rr},${rr} 0 0 1 ${at(x1 - r, y1)}` +
+    `L${at(x0 + r, y1)}A${rr},${rr} 0 0 1 ${at(x0, y1 - r)}` +
+    `L${at(x0, y0 + r)}A${rr},${rr} 0 0 1 ${at(x0 + r, y0)}Z`
+  );
+}
+
+/** A circle of radius `r` round (cx, cy), as two half arcs (one arc back to its start draws nothing). */
+function circlePath(at: (x: number, y: number) => string, cx: number, cy: number, r: number): string {
+  const rr = round(r);
+  return `M${at(cx - r, cy)}A${rr},${rr} 0 0 1 ${at(cx + r, cy)}A${rr},${rr} 0 0 1 ${at(cx - r, cy)}Z`;
 }
 
 /**
@@ -295,6 +337,18 @@ function curvedOutline(type: ShapeType, w: number, h: number, dx: number, dy: nu
       );
     }
 
+    case 'Person': {
+      // Two closed parts: the body, then the head above it.
+      const p = personParts(w, h);
+      return roundedRectPath(at, 0, p.bodyTop, w, h, p.bodyRadius) + circlePath(at, w / 2, p.cy, p.r);
+    }
+
+    case 'MobileDevice':
+      return roundedRectPath(at, 0, 0, w, h, mobileParts(w, h).frameRadius);
+
+    case 'WebBrowser':
+      return roundedRectPath(at, 0, 0, w, h, Math.min(2, w / 2, h / 2));
+
     default:
       return null;
   }
@@ -324,6 +378,25 @@ function shapeDetails(type: ShapeType, w: number, h: number): string | undefined
       // The front of the rim: the lower half of the top ellipse.
       const ry = round(cylinderRim(h) / 2);
       return `M${at(0, ry)}A${round(w / 2)},${ry} 0 0 0 ${at(w, ry)}`;
+    }
+    case 'MobileDevice': {
+      // The screen, and the home button above it.
+      const { screen, button } = mobileParts(w, h);
+      return (
+        `M${at(screen.x, screen.y)}L${at(screen.x + screen.width, screen.y)}` +
+        `L${at(screen.x + screen.width, screen.y + screen.height)}L${at(screen.x, screen.y + screen.height)}Z` +
+        circlePath(at, w / 2, button.cy, button.r)
+      );
+    }
+    case 'WebBrowser': {
+      // The content area under the title bar, three dots and the address bar.
+      const t = browserBar(h);
+      const dots = [0.6, 1.2, 1.8].map((f) => circlePath(at, t * f, t * 0.53, t * 0.18)).join('');
+      return (
+        `M${at(3, t)}L${at(w - 3, t)}L${at(w - 3, h - 3)}L${at(3, h - 3)}Z` +
+        dots +
+        roundedRectPath(at, t * 2.25, t * 0.3, Math.max(t * 2.25, w - 7), t * 0.76, t * 0.23)
+      );
     }
     default:
       return undefined;
@@ -513,6 +586,9 @@ export const SHAPE_TYPES: readonly ShapeType[] = [
   'RightArrow',
   'Stadium',
   'Cylinder',
+  'Person',
+  'MobileDevice',
+  'WebBrowser',
 ];
 
 /** Where a shape's badge and label go, in shape-local coordinates. */
@@ -572,6 +648,18 @@ export function shapeLayout(shapeType: ShapeType | undefined, width: number, hei
     case 'Folder': {
       const tab = folderTab(w, h);
       return { content: box(0, tab.height, w, h - tab.height), label: box(0, 0, tab.width, tab.height), maxLabelLines: 1 };
+    }
+    case 'Person': {
+      const { bodyTop } = personParts(w, h);
+      return same(box(0, bodyTop, w, h - bodyTop));
+    }
+    case 'MobileDevice': {
+      const { screen } = mobileParts(w, h);
+      return same(box(screen.x, screen.y, screen.width, screen.height));
+    }
+    case 'WebBrowser': {
+      const t = browserBar(h);
+      return same(box(3, t, w - 6, h - t - 3));
     }
     default:
       return same(box(0, 0, w, h));

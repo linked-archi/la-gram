@@ -28,7 +28,7 @@ and relationships. Defines the standard visual appearance (shape, color, icon,
 line style) for each model concept, enabling palette generation and diagram
 rendering from structured metadata.'''@en ;
     dcterms:created               "2026-05-16"^^xsd:date ;
-    dcterms:modified              "2026-10-08"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/notation/3.2#> ;
@@ -72,8 +72,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/stakeholder.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -90,8 +90,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/driver.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -108,8 +108,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/assessment.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -126,8 +126,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/goal.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -144,8 +144,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/outcome.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -162,8 +162,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/principle.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -180,8 +180,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/requirement.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -198,8 +198,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/constraint.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -216,8 +216,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/meaning.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -234,8 +234,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/value.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -252,8 +252,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/resource.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -270,8 +270,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/capability.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -288,8 +288,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/value-stream.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -306,8 +306,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/course-of-action.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -324,8 +324,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/actor.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -342,8 +342,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/role.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -360,8 +360,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/collaboration.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -378,8 +378,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/interface.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -396,8 +396,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/process.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -414,8 +414,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/function.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -432,8 +432,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/interaction.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -450,8 +450,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/event.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -468,8 +468,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/service.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -486,8 +486,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/object.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -504,8 +504,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/contract.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -522,8 +522,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/representation.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -540,8 +540,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/product.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -558,8 +558,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/application-component.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -576,8 +576,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/collaboration.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -594,8 +594,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/interface.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -612,8 +612,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/function.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -630,8 +630,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/interaction.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -648,8 +648,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/process.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -666,8 +666,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/event.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -684,8 +684,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/service.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -702,8 +702,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/data-object.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -720,8 +720,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/node.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -738,8 +738,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/device.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -756,8 +756,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/system-software.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -774,8 +774,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/collaboration.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -792,8 +792,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/interface.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -810,8 +810,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/path.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -828,8 +828,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/communication-network.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -846,8 +846,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/function.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -864,8 +864,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/process.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -882,8 +882,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/interaction.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -900,8 +900,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/event.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -918,8 +918,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/service.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -936,8 +936,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/artifact.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -954,8 +954,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/equipment.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -972,8 +972,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/facility.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -990,8 +990,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/distribution-network.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1008,8 +1008,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/material.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1026,8 +1026,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/work-package.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1044,8 +1044,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/deliverable.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1062,8 +1062,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/event.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1080,8 +1080,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/plateau.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1098,8 +1098,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/gap.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1117,8 +1117,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/grouping.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1135,8 +1135,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate3/icons/glyphs/location.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1151,8 +1151,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:fillColor     "#000000" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
@@ -1167,8 +1167,8 @@ rendering from structured metadata.'''@en ;
         arch-vis:fillColor     "#FFFFFF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
-        arch-vis:defaultWidth  120.0 ;
-        arch-vis:defaultHeight 55.0 ;
+        arch-vis:defaultWidth  "120.0"^^xsd:double ;
+        arch-vis:defaultHeight "55.0"^^xsd:double ;
     ] ;
 .
 
