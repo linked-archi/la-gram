@@ -1,6 +1,8 @@
 > Copied from `tools/modellers/excalidraw-linked-archi-yjs-demo/linked-archi-tool-spec.md` (2026-09-25) so this repository is self-contained. It is implementation-independent; la-gram's own requirements are in `.kiro/specs/la-gram/`.
 >
 > **Updated 2026-09-26 (v0.2)** with what building la-gram settled: the core namespace IRI (§0), property editing (§5.4), validation display (§5.5), formats and a live RDF view (§5.13), the model namespace and IRI shape (§8.1), the at-rest graph layout (§8.2), a triple-set Y.Doc (§8.3), and the implementation status (Appendix D).
+>
+> **Updated 2026-10-11:** drawing from the notation data — core shapes natively, a notation's own shapes from their path templates, relationship ends from the published marker symbols (§5.2 notes); allowed values as a choice in property editing (§5.4); the implementation status (Appendix D).
 
 # Linked.Archi Modeling Tool — Specification
 
@@ -807,7 +809,7 @@ These are existing open-source projects whose patterns the build can lift or lea
 
 ---
 
-## Appendix D — Implementation status (la-gram, 2026-09-26)
+## Appendix D — Implementation status (la-gram, 2026-10-11)
 
 What la-gram (`tools/modellers/la-gram`) implements of this specification. Details: `.kiro/specs/la-gram/` (requirements, design, tasks).
 
@@ -817,9 +819,9 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §1.2 (5) provenance mandatory | ✗ | No `prov:` on authored triples yet |
 | §1.2 (6) CRDT truth at runtime | differs | The RDF store is the model of record; the Y.Doc mirrors it as a triple set (§8.3 alternative) |
 | §5.1 Metamodel loading | ✓ | Manifest discovery, parallel levels, `Accept: text/turtle`, catalogue, load by IRI, uploads, several at once, switching; the core ontology as a metamodel (generic element and relationship) |
-| §5.2 Palette generation | ✓ | SKOS + OWL dual classification, axes, notation sets, presentation contexts |
+| §5.2 Palette generation | ✓ | SKOS + OWL dual classification, axes, notation sets, presentation contexts; elements drawn as the notation describes them — the core shapes natively, a notation's own shapes from their path templates (else their fallback), relationship ends from the published marker symbols, badges as published, labels in `arch-vis:fontColor` |
 | §5.3 Relationship validity | ✓ mostly | Offers exactly what the relationship shapes permit (hints only where no shape exists). Append asks which relationship when several specific ones are permitted, and has a second tab for the element's existing relationships (bringing the other end into the view); connect takes the one picked in the palette, else the best-ranked, changeable in place afterwards — not a choice up front as §5.3 asks; no suggestion popup for two selected elements yet |
-| §5.4 Property editing | ✓ | SHACL-derived fields; identity first; adding by applicability; custom names in the model namespace. Property edits are store changes, not canvas commands — not undoable from the canvas yet |
+| §5.4 Property editing | ✓ | SHACL-derived fields — `sh:in` values as a choice, booleans as a checkbox, added values typed by their shape; identity first; adding by applicability; custom names in the model namespace; an element's type as a choice of the loaded types. Property edits are store changes, not canvas commands — not undoable from the canvas yet |
 | §5.5 Live SHACL validation | ✓ | Debounced 300 ms (spec: ≤ 250 ms); `sh:sparql` left to a server that does not exist yet; violations marked on the canvas and counted on the Validation tab |
 | §5.6 Viewpoint filtering | ✓ | Palette filtered, outside-viewpoint shapes greyed, never removed |
 | §5.7 Deliverable generation | ✗ | |
@@ -830,6 +832,7 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §5.12 AI assistance | ✗ | |
 | §5.13 Import / export | ✓ | Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG; no-geometry profile; live RDF panel |
 | (beyond this spec) Relationship graph | ✓ | The relationships around an element to a chosen depth, filterable by type; its query as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported; the graph as a new view or Turtle; SPARQL results render as a new view |
+| (beyond this spec) Canvas editing | ✓ | Rename in place (double-click or F2), change an element's type (property panel or right-click), a right-click menu on elements and relationships |
 | §8.1 IRI conventions | ✓ | Per-model namespace, flat local names, `vann:` on the model, Model settings to move it |
 | §8.2 Named graph layout | ✓ at rest | DD-15 partition in graph formats; at runtime model = default graph, metamodels = named graphs |
 | §8.3 / §8.4 Y.Doc | differs | Triple-set Y.Doc; labels are `skos:prefLabel`@lang (not `rdfs:label`), geometry is `arch-vis:ArchNode`/`Link` (not `:renderedAt`) |
