@@ -9,7 +9,7 @@
  * Two deliberate choices:
  *
  * - **Real outlines, not degraded rectangles.** `Octagon`, `Hexagon`, `Diamond`,
- *   `Parallelogram`, `Box3D` and `Folder` are `<polygon>` elements with computed
+ *   `Parallelogram`, `Box3D`, `Folder` and `RightArrow` are `<polygon>` elements with computed
  *   points; the wavy shapes, `Cloud` and `Cylinder` are `<path>`s. diagram-js
  *   hands the renderer direct SVG control, so there is no reason to approximate.
  *   {@link shapePath} emits the same outlines as SVG path strings, which is what
@@ -110,6 +110,11 @@ function boxDepth(w: number, h: number): number {
 /** A `Folder`'s name tab: h × 0.35 (21) high, at most 21; w × 0.8 (104) wide, at most 200 or w / 2. */
 function folderTab(w: number, h: number): { width: number; height: number } {
   return { width: Math.min(w * 0.8, Math.max(200, w / 2)), height: Math.min(h * 0.35, 21) };
+}
+
+/** Depth of a `RightArrow`'s point: h × 0.3 (24 in EDGY's 123 × 80 shape), at most w / 2. */
+function arrowDepth(w: number, h: number): number {
+  return Math.min(h * 0.3, w / 2);
 }
 
 /** Height of a `Cylinder`'s top rim: h × 0.2, at most 16. */
@@ -218,6 +223,18 @@ function polygonVertices(type: ShapeType, w: number, h: number): Vertices | null
         [d, 0],
         [w, 0],
         [w, h - d],
+        [w - d, h],
+        [0, h],
+      ];
+    }
+
+    case 'RightArrow': {
+      // The point is h × 0.3 deep, as EDGY's activity shape, and never past the middle.
+      const d = arrowDepth(w, h);
+      return [
+        [0, 0],
+        [w - d, 0],
+        [w, h / 2],
         [w - d, h],
         [0, h],
       ];
@@ -341,8 +358,9 @@ export function shapeGeometry(
   if (curved) return withDetails({ tag: 'path', attrs: { d: curved } });
 
   switch (type) {
-    case 'RoundedRectangle': {
-      const r = cornerRadius(w, h);
+    case 'RoundedRectangle':
+    case 'Stadium': {
+      const r = cornerRadius(type, w, h);
       return { tag: 'rect', attrs: { x: 0, y: 0, width: w, height: h, rx: round(r), ry: round(r) } };
     }
 
@@ -364,9 +382,10 @@ export function shapeGeometry(
   }
 }
 
-/** Corner radius actually used for `RoundedRectangle` at this size. */
-function cornerRadius(w: number, h: number): number {
-  return Math.min(NOTATION_DEFAULTS.cornerRadius, w / 2, h / 2);
+/** Corner radius actually used for `RoundedRectangle` (or a `Stadium`'s ends) at this size. */
+function cornerRadius(type: ShapeType, w: number, h: number): number {
+  const half = Math.min(w, h) / 2;
+  return type === 'Stadium' ? half : Math.min(NOTATION_DEFAULTS.cornerRadius, half);
 }
 
 /**
@@ -424,8 +443,9 @@ export function shapePath(
   }
 
   switch (type) {
-    case 'RoundedRectangle': {
-      const r = round(cornerRadius(w, h));
+    case 'RoundedRectangle':
+    case 'Stadium': {
+      const r = round(cornerRadius(type, w, h));
       const x0 = round(left);
       const y0 = round(top);
       const x1 = round(left + w);
@@ -490,6 +510,8 @@ export const SHAPE_TYPES: readonly ShapeType[] = [
   'WavyBandedRectangle',
   'Cloud',
   'Folder',
+  'RightArrow',
+  'Stadium',
   'Cylinder',
 ];
 
@@ -536,6 +558,13 @@ export function shapeLayout(shapeType: ShapeType | undefined, width: number, hei
     }
     case 'Cloud':
       return same(box(w * 0.1, h * 0.15, w * 0.8, h * 0.7));
+    case 'RightArrow':
+      return same(box(0, 0, w - arrowDepth(w, h), h));
+    case 'Stadium': {
+      // Clear of the round ends.
+      const r = Math.min(w, h) / 2;
+      return same(box(r / 2, 0, w - r, h));
+    }
     case 'Cylinder': {
       const rim = cylinderRim(h);
       return same(box(0, rim, w, h - rim - rim / 2));

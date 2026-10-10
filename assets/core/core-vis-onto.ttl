@@ -32,9 +32,11 @@ at the type level (default notation for model concepts via NotationSet).'''@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
     skos:historyNote '''0.4: Added the shape types the ArchiMate pictures use beyond plain outlines —
 BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
-WavyBandedRectangle, Cloud and Folder — and Cylinder, which the C4 notation already used.
+WavyBandedRectangle, Cloud and Folder — RightArrow and Stadium, which EDGY's notation declared
+as its own shape types, and Cylinder, which the C4 notation already used.
 Each comment gives its geometry. Added arch-vis:borderStyle (a Style's outline LineStyle) for
-dashed outlines such as ArchiMate's grouping. Documented the arch-vis:decorSymbol drawing
+dashed outlines such as ArchiMate's grouping. Documented arch-vis:fontColor as the label colour,
+the line colour when absent. Documented the arch-vis:decorSymbol drawing
 convention, and that an arch-vis:iconSymbol glyph is transparent where the element's fill shows
 through (the ArchiMate glyphs were solid there).
 
@@ -318,7 +320,8 @@ arch-vis:fontColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "fontColor"@en ;
-    rdfs:comment "CSS rgba() string"@en ;
+    rdfs:comment '''Colour of the element's label, as a CSS colour string. When it is absent a renderer
+draws the label in the line colour (arch-vis:lineColor).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
 .
@@ -523,6 +526,21 @@ arch-vis:Folder
 at most 21, and w x 0.8 wide (104), but no wider than 200 or half the width, whichever is
 larger. The label goes in the tab, which leaves the body free for what the shape contains.
 ArchiMate's grouping (with a dashed arch-vis:borderStyle); UML's package.'''@en ;
+.
+
+arch-vis:RightArrow
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Right Arrow"@en ;
+    rdfs:comment '''Rectangle whose right side comes to a point at mid-height, h x 0.3 deep (24 in
+EDGY's 123 x 80 shape), at most half the width. The label and badge sit left of the point.
+EDGY's activity, story, process and journey.'''@en ;
+.
+
+arch-vis:Stadium
+    a            arch-vis:ShapeType ;
+    rdfs:label   "Stadium"@en ;
+    rdfs:comment '''Pill: a rectangle whose short ends are semicircles, the corner radius half the
+smaller side. EDGY's tags and metrics.'''@en ;
 .
 
 arch-vis:Cylinder

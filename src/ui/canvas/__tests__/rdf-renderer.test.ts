@@ -279,6 +279,8 @@ describe('shape types through the renderer', () => {
     WavyBandedRectangle: 'path',
     Cloud: 'path',
     Folder: 'polygon',
+    RightArrow: 'polygon',
+    Stadium: 'rect',
     Cylinder: 'path',
   };
 
@@ -356,6 +358,23 @@ describe('shape types through the renderer', () => {
     expect(Number(label.getAttribute('y'))).toBeLessThan(21);
     const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
     expect(Number(badge.getAttribute('y'))).toBeGreaterThanOrEqual(21);
+  });
+
+  it('colours the label with fontColor, else the line colour', () => {
+    const labelFill = (style: VisualStyle) => {
+      harness?.destroy();
+      const shape = drawWithStyle(style, { label: 'Story' });
+      return shape.querySelector(`.${RENDER_CLASSES.label}`)!.getAttribute('fill');
+    };
+    // EDGY's facets: white border, black name.
+    expect(labelFill({ shapeType: 'RightArrow', fillColor: '#75F0A5', lineColor: '#FFFFFF', fontColor: '#000000', renderingMode: 'ShapeOnly' })).toBe('#000000');
+    // Its tag: a black pill with the name in white, inside.
+    expect(labelFill({ shapeType: 'Stadium', fillColor: '#000000', lineColor: '#000000', fontColor: '#FFFFFF', renderingMode: 'ShapeOnly' })).toBe('#FFFFFF');
+    // No fontColor: the line colour, as before.
+    expect(labelFill({ shapeType: 'Rectangle', lineColor: '#1565C0', renderingMode: 'ShapeOnly' })).toBe('#1565C0');
+    // Under an IconCentric icon the label is on the canvas: black unless fontColor says otherwise.
+    expect(labelFill({ ...badgeStyle, lineColor: '#FFFFFF', renderingMode: 'IconCentric' })).toBe(NOTATION_DEFAULTS.lineColor);
+    expect(labelFill({ ...badgeStyle, fontColor: '#333333', renderingMode: 'IconCentric' })).toBe('#333333');
   });
 
   it('keeps the label below a band', () => {

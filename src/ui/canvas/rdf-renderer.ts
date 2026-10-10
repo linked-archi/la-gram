@@ -21,6 +21,9 @@
  * | `IconCentric` | invisible hit container only | glyph at full size | below the icon |
  * | `ShapeOnly` | `shapeType`, filled/stroked from the style | none at all | centred inside |
  *
+ * The label takes `arch-vis:fontColor`, else the line colour (under an
+ * IconCentric icon, else black).
+ *
  * "Inside" is the shape's {@link shapeLayout}: below a band, on a 3D box's front
  * face, above a wave; a `Folder`'s label sits in its tab. A shape's inner lines
  * are drawn over its body, and `arch-vis:borderStyle` dashes or dots both.
@@ -164,7 +167,7 @@ export class RdfRenderer extends BaseRenderer {
     group.setAttribute('data-rendering-mode', mode);
 
     if (mode === 'IconCentric') {
-      this.drawIconCentric(group, width, height, label, href as string);
+      this.drawIconCentric(group, width, height, label, href as string, style?.fontColor);
     } else {
       this.drawShapeBody(group, style, width, height);
       const layout = shapeLayout(style?.shapeType, width, height);
@@ -178,7 +181,8 @@ export class RdfRenderer extends BaseRenderer {
         // The label makes room for the badge only when the two share a box.
         badgePlacement: layout.label === layout.content ? badgePlacement : undefined,
         maxLines: layout.maxLabelLines,
-        lineColor: style?.lineColor ?? NOTATION_DEFAULTS.lineColor,
+        // The label's own colour, else the line colour, as the vocabulary says.
+        color: style?.fontColor ?? style?.lineColor ?? NOTATION_DEFAULTS.lineColor,
       });
     }
 
@@ -268,6 +272,7 @@ export class RdfRenderer extends BaseRenderer {
     height: number,
     label: string,
     href: string,
+    fontColor: string | undefined,
   ): void {
     const container = svgEl('rect', { x: 0, y: 0, width, height });
     container.setAttribute('class', RENDER_CLASSES.hitContainer);
@@ -292,7 +297,8 @@ export class RdfRenderer extends BaseRenderer {
 
     this.appendLabel(group, label, { x: 0, y: 0, width, height }, {
       below: true,
-      lineColor: NOTATION_DEFAULTS.lineColor,
+      // Under the icon, on the canvas: the line colour is no guide here.
+      color: fontColor ?? NOTATION_DEFAULTS.lineColor,
     });
   }
 
@@ -305,7 +311,7 @@ export class RdfRenderer extends BaseRenderer {
       badgePlacement?: VisualStyle['iconPlacement'];
       below?: boolean;
       maxLines?: number;
-      lineColor: string;
+      color: string;
     },
   ): SVGElement | null {
     const local = labelLayout(label, area.width, area.height, {
@@ -322,7 +328,7 @@ export class RdfRenderer extends BaseRenderer {
       'text-anchor': 'middle',
       'font-size': NOTATION_DEFAULTS.fontSize,
       'font-family': NOTATION_DEFAULTS.fontFamily,
-      fill: options.lineColor,
+      fill: options.color,
     });
     text.setAttribute('class', RENDER_CLASSES.label);
 

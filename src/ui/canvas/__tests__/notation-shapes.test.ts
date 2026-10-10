@@ -61,6 +61,8 @@ describe('shapeGeometry', () => {
         'WavyBandedRectangle',
         'Cloud',
         'Folder',
+        'RightArrow',
+        'Stadium',
         'Cylinder',
       ].sort(),
     );
@@ -205,6 +207,14 @@ describe('shapePath', () => {
     Cloud: 'M32,29.6Q46,12.8 67,29.6Q97,17.6 102,42.2Q122,63.8 87,72.2Q62,89 37,67.4Q6,72.2 16,50.6Q2,29.6 32,29.6Z',
     // Tab 80 × 21 = w * 0.8 by h * 0.35.
     Folder: 'M10,20L90,20L90,41L110,41L110,80L10,80Z',
+    // Point 18 = h * 0.3 deep, at mid-height.
+    RightArrow: 'M10,20L92,20L110,50L92,80L10,80Z',
+    // Ends of radius 30 = h / 2: the short sides are all arc.
+    Stadium:
+      'M40,20L80,20A30,30 0 0 1 110,50' +
+      'L110,50A30,30 0 0 1 80,80' +
+      'L40,80A30,30 0 0 1 10,50' +
+      'L10,50A30,30 0 0 1 40,20Z',
     // Rim 12 = h * 0.2: arcs over the top and round the bottom.
     Cylinder: 'M10,26A50,6 0 0 1 110,26L110,74A50,6 0 0 1 10,74Z',
   };
@@ -253,7 +263,7 @@ describe('shapePath', () => {
 
   it('agrees with the polygon that shapeGeometry draws', () => {
     // The two are generated from one vertex list; this is what pins them together.
-    for (const shapeType of ['Octagon', 'Hexagon', 'Diamond', 'Parallelogram', 'Box3D', 'Folder'] as ShapeType[]) {
+    for (const shapeType of ['Octagon', 'Hexagon', 'Diamond', 'Parallelogram', 'Box3D', 'Folder', 'RightArrow'] as ShapeType[]) {
       const geometry = shapeGeometry(shapeType, W, H);
       const vertices = parsePoints(String(geometry.attrs['points']));
       const expected = `M${vertices
@@ -348,9 +358,20 @@ describe('the shapes with inner lines and curves', () => {
       WavyBandedRectangle: 'M0,10.4L130,10.4',
       Cloud: undefined,
       Folder: 'M0,21L104,21',
+      RightArrow: undefined,
+      Stadium: undefined,
       // The front of the rim (12 high): the lower half of the top ellipse.
       Cylinder: 'M0,6A65,6 0 0 0 130,6',
     });
+  });
+
+  it('draw EDGY\'s arrow as its official shape, and a pill with ends of half the height', () => {
+    // EDGY 23's Shape-Activity: points 100 81, 1 81, 1 1, 100 1, 124 41 inside a 1-unit stroke margin.
+    expect(shapeGeometry('RightArrow', 123, 80).attrs['points']).toBe('0,0 99,0 123,40 99,80 0,80');
+    // EDGY 23's tags: an 88 × 24 rect with rx 12.
+    expect(shapeGeometry('Stadium', 88, 24).attrs).toMatchObject({ rx: 12, ry: 12 });
+    // A narrow arrow keeps its point inside the shape.
+    expect(shapeGeometry('RightArrow', 20, 80).attrs['points']).toBe('0,0 10,0 20,40 10,80 0,80');
   });
 
   it('keep the band and the 3D depth in proportion to the height, up to a limit', () => {
@@ -449,6 +470,11 @@ describe('shapeLayout', () => {
     expect(shapeLayout('Box3D', 130, 60).content).toEqual({ x: 0, y: 12, width: 118, height: 48 });
     expect(shapeLayout('WavyRectangle', 130, 60).content).toEqual({ x: 0, y: 0, width: 130, height: 49.6 });
     expect(shapeLayout('Cylinder', 130, 60).content).toEqual({ x: 0, y: 12, width: 130, height: 42 });
+  });
+
+  it('keeps the label left of a RightArrow\'s point and clear of a Stadium\'s round ends', () => {
+    expect(shapeLayout('RightArrow', 130, 60).content).toEqual({ x: 0, y: 0, width: 112, height: 60 });
+    expect(shapeLayout('Stadium', 90, 22).content).toEqual({ x: 5.5, y: 0, width: 79, height: 22 });
   });
 
   it('puts a Folder\'s label in its tab, on one line, and its badge in the body', () => {

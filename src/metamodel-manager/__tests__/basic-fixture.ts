@@ -60,6 +60,7 @@ export const RECTANGLE_ELEMENT_STYLE = {
   shapeType: 'Rectangle',
   fillColor: '#E8F0EA',
   lineColor: '#424242',
+  fontColor: '#212121',
   renderingMode: 'ShapeOnly',
   defaultWidth: 120,
   defaultHeight: 60,
@@ -70,6 +71,7 @@ export const BUBBLE_ELEMENT_STYLE = {
   shapeType: 'Circle',
   fillColor: '#E8F0EA',
   lineColor: '#424242',
+  fontColor: '#212121',
   renderingMode: 'ShapeOnly',
   defaultWidth: 80,
   defaultHeight: 80,
@@ -249,7 +251,7 @@ function notationDocument(doc: {
     arch-vis:renderingMode arch-vis:${element.renderingMode} ;
     arch-vis:fillColor "${element.fillColor}" ;
     arch-vis:lineColor "${element.lineColor}" ;
-    arch-vis:fontColor "#212121" ;
+    arch-vis:fontColor "${element.fontColor}" ;
     arch-vis:defaultWidth "${element.defaultWidth.toFixed(1)}"^^xsd:double ;
     arch-vis:defaultHeight "${element.defaultHeight.toFixed(1)}"^^xsd:double .
 ${relationship('QualifiedRelationshipNotation', 'Relationship notation', 'arch:QualifiedRelationship', 'relationship', GENERIC_RELATIONSHIP_STYLE)}

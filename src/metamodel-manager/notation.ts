@@ -45,6 +45,7 @@ const T = {
   shapeType: `${ARCH_VIS}shapeType`,
   fillColor: `${ARCH_VIS}fillColor`,
   lineColor: `${ARCH_VIS}lineColor`,
+  fontColor: `${ARCH_VIS}fontColor`,
   iconSymbol: `${ARCH_VIS}iconSymbol`,
   iconPlacement: `${ARCH_VIS}iconPlacement`,
   renderingMode: `${ARCH_VIS}renderingMode`,
@@ -86,6 +87,8 @@ export type ShapeType =
   | 'WavyBandedRectangle'
   | 'Cloud'
   | 'Folder'
+  | 'RightArrow'
+  | 'Stadium'
   | 'Cylinder';
 
 /** Icon position within (or relative to) the shape. */
@@ -110,6 +113,8 @@ export interface VisualStyle {
   shapeType?: ShapeType;
   fillColor?: string;
   lineColor?: string;
+  /** Colour of the label (`arch-vis:fontColor`); the line colour when absent. */
+  fontColor?: string;
   /** URI of the icon (SVG) to draw. */
   iconSymbol?: string;
   iconPlacement?: IconPlacement;
@@ -167,6 +172,8 @@ const SHAPE_TYPES: ReadonlySet<string> = new Set<ShapeType>([
   'WavyBandedRectangle',
   'Cloud',
   'Folder',
+  'RightArrow',
+  'Stadium',
   'Cylinder',
 ]);
 
@@ -345,6 +352,7 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
   const shapeType = parseEnum<ShapeType>(objectValue(store, styleTerm, T.shapeType), SHAPE_TYPES);
   const fillColor = objectValue(store, styleTerm, T.fillColor) ?? undefined;
   const lineColor = objectValue(store, styleTerm, T.lineColor) ?? undefined;
+  const fontColor = objectValue(store, styleTerm, T.fontColor) ?? undefined;
   const iconSymbol = objectValue(store, styleTerm, T.iconSymbol) ?? undefined;
   const renderingMode = parseEnum<RenderingMode>(
     objectValue(store, styleTerm, T.renderingMode),
@@ -369,11 +377,13 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
     renderingMode !== undefined ||
     defaultWidth !== undefined ||
     defaultHeight !== undefined ||
-    borderStyle !== undefined;
+    borderStyle !== undefined ||
+    fontColor !== undefined;
   if (!hasAny) return undefined;
 
   const style: VisualStyle = { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
   if (borderStyle) style.borderStyle = borderStyle;
+  if (fontColor) style.fontColor = fontColor;
   return style;
 }
 

@@ -144,7 +144,7 @@ describe('buildVisualNotations — element notation', () => {
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am4:Other ;
     arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:defaultStyle [ arch-vis:shapeType <https://example.org/notation#RightArrow> ; arch-vis:fillColor "#FFFFFF" ] .
+    arch-vis:defaultStyle [ arch-vis:shapeType <https://example.org/notation#Starburst> ; arch-vis:fillColor "#FFFFFF" ] .
 `),
     );
     const style = (local: string) => set!.notations.get(`https://meta.linked.archi/archimate4/onto#${local}`)!.style;
@@ -153,6 +153,22 @@ describe('buildVisualNotations — element notation', () => {
     expect(style('Device')!.borderStyle).toBeUndefined();
     // A shape type a notation declares for itself is not one la-gram draws: the default applies.
     expect(style('Other')!.shapeType).toBeUndefined();
+  });
+
+  it('reads EDGY\'s arrow and pill and the label colour (arch-vis:fontColor)', () => {
+    const set = buildVisualNotations(
+      storeFromTurtle(`${PREFIXES}
+@prefix edgy: <https://meta.linked.archi/edgy/onto#> .
+:ArchiMate40StandardNotation a arch-vis:NotationSet .
+:StoryNotation a arch-vis:VisualNotation ; arch-vis:notationFor edgy:Story ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:RightArrow ; arch-vis:fillColor "#75F0A5" ; arch-vis:lineColor "#FFFFFF" ; arch-vis:fontColor "#000000" ] .
+:TaggingNotation a arch-vis:VisualNotation ; arch-vis:notationFor edgy:Tagging ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Stadium ; arch-vis:fillColor "#000000" ; arch-vis:fontColor "#FFFFFF" ] .
+`),
+    );
+    const style = (local: string) => set!.notations.get(`https://meta.linked.archi/edgy/onto#${local}`)!.style;
+    expect(style('Story')).toMatchObject({ shapeType: 'RightArrow', lineColor: '#FFFFFF', fontColor: '#000000' });
+    expect(style('Tagging')).toMatchObject({ shapeType: 'Stadium', fontColor: '#FFFFFF' });
   });
 });
 

@@ -46,7 +46,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Property picker: grouped by applicability (domain / shapes), used in model, documentation, More (folded); no geometry / styling / authoring terms; name first, CURIE second; custom names in the model namespace — *property-catalog.test, property-picker.test, workbench.test, workbench.spec*
 - [x] Delete from view (default) vs. delete from model (confirmation lists views) — *view-canvas.test, workbench.spec*
 - [x] Delete from model cascades to relationships and every view, undoable in one step — *view-canvas.test*
-- [ ] Inline label editing on the canvas (double-click)
+- [x] Inline label editing on the canvas (double-click, F2) — see Phase 5, Rename on the canvas
 
 ### Task 4: Relationships (Req 4)
 - [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
@@ -100,8 +100,8 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Dialogs (prompt / confirm / choose / info) and toasts
 - [x] RDF panel hideable (hidden by default) and resizable, width remembered
 - [x] Layout: model tree left (full height), hideable ("☰ Model") and resizable by its right edge; palette right, hideable ("▦ Palette") and resizable; bottom tabs Properties / Validation (violation count) / SPARQL Query / Graph, resizable by the top edge, folding to the tabs, maximizing over the workspace (⤢; Esc restores); sizes, tab and folding remembered — *app-shell.test, mount-ui.test, workbench.test, workbench.spec, smoke.spec*
-- [ ] Hideable / resizable model tree
-- [ ] Right-click canvas menu (the context pad covers the same actions today)
+- [x] Hideable / resizable model tree
+- [x] Right-click canvas menu — see Phase 5 (Req 11.9)
 
 ---
 
@@ -179,6 +179,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
 - **`npm run sync-assets`** (`scripts/sync-assets.mjs`): refreshes `assets/` from a linked-archi-meta checkout by running its publishing scripts (`copy-ttl-sources.sh`, `copy-icon-assets.sh`) into a temporary folder and copying each bundled file from its published path (TTLs by namespace, icons by path; new icons in bundled folders added); `--check` reports and exits 1. First run brought in the 2026-10-08 relationship shapes for ArchiMate 3.2 and 4.0 (relationships as sources and targets where the spec allows).
+- **EDGY as published** (Req 2.18): `arch-vis:RightArrow` and `arch-vis:Stadium` join the core-vis vocabulary, replacing EDGY's own `edgynot:RightArrow`, `TagPill` and `MetricPill` (deprecated, `dcterms:isReplacedBy`); EDGY's activity, story, process and journey are arrows, its tags and metrics pills with the name inside. la-gram reads `arch-vis:fontColor` for the label — EDGY's white-bordered facets get black names, the black tag a white one, and C4's dark boxes the white text they declare. EDGY is not bundled: it shows this once linked-archi-meta is published.
 - **ArchiMate data and pictures agree** (Req 2.18), in linked-archi-meta: the 3.2 notation had the application and technology colours swapped (application elements green, technology cyan) — now application `#AFFFFF`, technology `#AFFFAF`, as the pictures and 4.0; 3.2 Gap, Location, Grouping and the Or junction take their pictures' colours. The elements ArchiMate tells apart by shape alone — business and data object, product, contract, representation, deliverable, meaning, value, work package, grouping — are `ShapeOnly`, as their pictures (no badge). Seven 3.2 pictures drawn by hand (business function, event, service and interaction; application process and service; representation) are now generated like the rest: rounded behaviour corners, the right colours, the interaction badge in place of the collaboration one, representation wavy with a band. `archimate-pictures.test.ts` holds the data to the pictures: colour, badge, corners.
 - **Outline badges** (Req 2.18): the ArchiMate 4.0 and 3.2 badge glyphs in linked-archi-meta were solid grey where the published pictures paint the element colour; those parts are now transparent (66 glyphs), with a mask where such a part covers a line drawn before it (application component, collaboration, artifact), so a badge looks like its picture's on any fill — checked against every picture marked by its generator (`archimate-glyphs.test.ts`). The vocabulary's `arch-vis:iconSymbol` states the convention.
 - **ArchiMate shapes as published** (Req 2.18): new core-vis shape types — `BandedRectangle`, `DoubleBandedRectangle`, `TabbedRectangle`, `Box3D`, `WavyRectangle`, `WavyBandedRectangle`, `Cloud`, `Folder`, `Cylinder` — and `arch-vis:borderStyle`, in linked-archi-meta with their geometry in the vocabulary; the ArchiMate 4.0 and 3.2 notations use them (objects banded, contract double-banded, product tabbed, device/equipment/facility/plateau as 3D boxes, deliverable/gap wavy, representation wavy and banded, meaning a cloud, grouping a dashed folder; location and resource square-cornered, as their pictures). The canvas draws them, docks against their outlines and lays the badge and label out inside the inner lines.

@@ -198,6 +198,10 @@ vocabulary states: a band of h × 0.173 (at most 14), a 3D depth of h × 0.2 (at
 most 12), a tab of h × 0.35 (at most 21) by w × 0.8 (at most 200 or w / 2), a rim
 of h × 0.2 (at most 16); at 130 × 60 the shapes reproduce the published
 pictures, which a unit test checks against the bundled picture files.
+`RightArrow` is a polygon (its point h × 0.3 deep, as EDGY's official shape) and
+`Stadium` a rect with corner radius half the smaller side. The label is drawn in
+`arch-vis:fontColor`, else the line colour; under an IconCentric icon, where it
+sits on the canvas, black unless `fontColor` is given.
 `arch-vis:borderStyle` takes the relationship dash patterns. Badges stay
 `<image href>`: the published glyphs are transparent where the element's fill
 shows (the vocabulary's `arch-vis:iconSymbol` convention), so they need no
