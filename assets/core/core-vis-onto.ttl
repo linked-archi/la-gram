@@ -38,7 +38,8 @@ that way. Added arch-vis:borderStyle (a Style's outline LineStyle) for
 dashed outlines such as ArchiMate's grouping. Documented arch-vis:fontColor as the label colour,
 the line colour when absent. Documented the arch-vis:decorSymbol drawing
 convention, and that an arch-vis:iconSymbol glyph is transparent where the element's fill shows
-through (the ArchiMate glyphs were solid there).
+through (the ArchiMate glyphs were solid there). arch-vis:CircleDot is a filled dot, as ArchiMate's assignment
+draws it; its symbol was a hollow ring with a dot, and its comment wrongly named access.
 
 0.3: Widened arch-vis:label from rdfs:domain arch-vis:Node to
 arch-vis:DiagElement — an edge's label is the ordinary case (BPMN BPMNEdge-label, a named
@@ -751,14 +752,14 @@ arch-vis:OpenArrowhead
 arch-vis:ClosedArrowhead
     a            arch-vis:Decoration ;
     rdfs:label   "Closed Arrowhead"@en ;
-    rdfs:comment "Filled (closed) arrowhead pointing at the endpoint."@en ;
+    rdfs:comment "Filled (closed) arrowhead pointing at the endpoint — ArchiMate's triggering, flow and assignment."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/closed-arrowhead.svg"^^xsd:anyURI ;
 .
 
 arch-vis:HollowArrowhead
     a            arch-vis:Decoration ;
     rdfs:label   "Hollow Arrowhead"@en ;
-    rdfs:comment "Hollow (white-filled) arrowhead — used for realization."@en ;
+    rdfs:comment "Hollow (white-filled) arrowhead — ArchiMate's realization and specialization."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/hollow-arrowhead.svg"^^xsd:anyURI ;
 .
 
@@ -779,14 +780,14 @@ arch-vis:FilledDiamond
 arch-vis:HalfArrowhead
     a            arch-vis:Decoration ;
     rdfs:label   "Half Arrowhead"@en ;
-    rdfs:comment "Half (one-sided) arrowhead — used for flow."@en ;
+    rdfs:comment "Half (one-sided) arrowhead, one barb only."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/half-arrowhead.svg"^^xsd:anyURI ;
 .
 
 arch-vis:CircleDot
     a            arch-vis:Decoration ;
-    rdfs:label   "Circle with Dot"@en ;
-    rdfs:comment "Small circle with a dot — used for access."@en ;
+    rdfs:label   "Dot"@en ;
+    rdfs:comment "A small filled circle at the end of the connector — ArchiMate's assignment, at the source end."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/circle-dot.svg"^^xsd:anyURI ;
 .
 

@@ -28,7 +28,7 @@ and relationships. Defines the standard visual appearance (shape, color, icon,
 line style) for each model concept, enabling palette generation and diagram
 rendering from structured metadata.'''@en ;
     dcterms:created               "2026-05-16"^^xsd:date ;
-    dcterms:modified              "2026-10-11"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/notation/3.2#> ;
@@ -1296,15 +1296,15 @@ rendering from structured metadata.'''@en ;
     arch-vis:notationFor am:Assignment ;
     arch-vis:inNotationSet :ArchiMate32StandardNotation ;
     arch-vis:lineStyle    arch-vis:SolidLine ;
-    arch-vis:sourceDecor  arch-vis:FilledDiamond ;
-    arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+    arch-vis:sourceDecor  arch-vis:CircleDot ;
+    arch-vis:targetDecor  arch-vis:ClosedArrowhead ;
 .
 
 :RealizationNotation
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am:Realization ;
     arch-vis:inNotationSet :ArchiMate32StandardNotation ;
-    arch-vis:lineStyle    arch-vis:DashedLine ;
+    arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
     arch-vis:targetDecor  arch-vis:HollowArrowhead ;
 .
@@ -1322,9 +1322,9 @@ rendering from structured metadata.'''@en ;
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am:Access ;
     arch-vis:inNotationSet :ArchiMate32StandardNotation ;
-    arch-vis:lineStyle    arch-vis:DashedLine ;
+    arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
-    arch-vis:targetDecor  arch-vis:CircleDot ;
+    arch-vis:targetDecor  arch-vis:NoDecoration ;
 .
 
 :InfluenceNotation
@@ -1351,7 +1351,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:inNotationSet :ArchiMate32StandardNotation ;
     arch-vis:lineStyle    arch-vis:DashedLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
-    arch-vis:targetDecor  arch-vis:HalfArrowhead ;
+    arch-vis:targetDecor  arch-vis:ClosedArrowhead ;
 .
 
 :SpecializationNotation

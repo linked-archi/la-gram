@@ -906,7 +906,7 @@ function decorationShape(decoration: Decoration): DecorationShape | null {
       };
 
     case 'HalfArrowhead':
-      // One barb, on the upper side only — ArchiMate's Flow notation.
+      // One barb, on the upper side only.
       return {
         tag: 'path',
         attrs: { d: 'M 1 1 L 11 6 L 3 6' },
@@ -918,13 +918,15 @@ function decorationShape(decoration: Decoration): DecorationShape | null {
       };
 
     case 'CircleDot':
+      // A filled dot whose edge meets the end of the line — ArchiMate's
+      // assignment, at the source end; as the published symbol draws it.
       return {
         tag: 'circle',
-        attrs: { cx: 5, cy: 5, r: 4 },
-        width: 10,
-        height: 10,
-        refX: 5,
-        refY: 5,
+        attrs: { cx: 8.5, cy: 6, r: 3.5 },
+        width: 12,
+        height: 12,
+        refX: 12,
+        refY: 6,
         fill: 'line',
       };
 

@@ -2,7 +2,7 @@
 >
 > **Updated 2026-09-26 (v0.2)** with what building la-gram settled: the core namespace IRI (§0), property editing (§5.4), validation display (§5.5), formats and a live RDF view (§5.13), the model namespace and IRI shape (§8.1), the at-rest graph layout (§8.2), a triple-set Y.Doc (§8.3), and the implementation status (Appendix D).
 >
-> **Updated 2026-10-11:** drawing from the notation data — core shapes natively, a notation's own shapes from their path templates, relationship ends from the published marker symbols (§5.2 notes); allowed values as a choice in property editing (§5.4); the implementation status (Appendix D).
+> **Updated 2026-10-10:** drawing from the notation data — core shapes natively, a notation's own shapes from their path templates, relationship ends from the published marker symbols (§5.2 notes); allowed values as a choice in property editing (§5.4); the implementation status (Appendix D).
 
 # Linked.Archi Modeling Tool — Specification
 
@@ -809,7 +809,7 @@ These are existing open-source projects whose patterns the build can lift or lea
 
 ---
 
-## Appendix D — Implementation status (la-gram, 2026-10-11)
+## Appendix D — Implementation status (la-gram, 2026-10-10)
 
 What la-gram (`tools/modellers/la-gram`) implements of this specification. Details: `.kiro/specs/la-gram/` (requirements, design, tasks).
 

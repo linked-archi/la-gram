@@ -41,7 +41,9 @@ describe('the published decoration symbols', () => {
     const symbol = parseDecorationSymbol(read('core-vis/markers/circle-dot.svg'))!;
     expect(symbol.viewBox).toEqual({ x: 0, y: 0, width: 12, height: 12 });
     expect([symbol.width, symbol.height]).toEqual([12, 12]);
-    expect(symbol.content.map((e) => e.localName)).toEqual(['circle', 'circle']);
+    expect(symbol.content.map((e) => e.localName)).toEqual(['circle']);
+    // A filled dot, as ArchiMate's assignment draws it.
+    expect(symbol.content[0].getAttribute('fill')).toBe('currentColor');
 
     const hostile = parseDecorationSymbol(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><script>alert(1)</script>' +
@@ -85,11 +87,11 @@ describe('the canvas', () => {
         [],
         [
           {
-            iri: 'https://example.org/lang#Access',
-            label: 'Access',
+            iri: 'https://example.org/lang#Assignment',
+            label: 'Assignment',
             domainTypes: [],
             rangeTypes: [],
-            relationshipStyle: { lineStyle: 'DashedLine', sourceDecor: 'NoDecoration', targetDecor: 'CircleDot' },
+            relationshipStyle: { lineStyle: 'SolidLine', sourceDecor: 'CircleDot', targetDecor: 'NoDecoration' },
           },
         ],
       ),
@@ -97,18 +99,18 @@ describe('the canvas', () => {
         CircleDot: { sourceUri: `${MARKERS}circle-dot.svg`, bundledPath: 'core-vis/markers/circle-dot.svg', url: 'core-vis/markers/circle-dot.svg' },
       },
     });
-    const line = harness.drawConnection({ iri: 'https://example.org/m/r1', typeIri: 'https://example.org/lang#Access', kind: 'relationship' });
-    const marker = () => harness.markerDefs()!.querySelector(`marker#${line.getAttribute('marker-end')!.slice(5, -1)}`)!;
+    const line = harness.drawConnection({ iri: 'https://example.org/m/r1', typeIri: 'https://example.org/lang#Assignment', kind: 'relationship' });
+    const marker = () => harness.markerDefs()!.querySelector(`marker#${line.getAttribute('marker-start')!.slice(5, -1)}`)!;
     expect(marker().getAttribute('data-source')).toBe('built-in');
 
     await vi.waitFor(() => expect(marker().getAttribute('data-source')).toBe('published'));
-    // The same marker id, now drawn from the published ring with a dot.
-    expect([...marker().children].map((e) => e.localName)).toEqual(['circle', 'circle']);
+    // The same marker id, now drawn from the published dot.
+    expect([...marker().children].map((e) => e.localName)).toEqual(['circle']);
     expect(fetched).toHaveLength(1);
     expect(fetched[0]).toMatch(/core-vis\/markers\/circle-dot\.svg$/);
     // Later connections use it straight away.
-    const second = harness.drawConnection({ iri: 'https://example.org/m/r2', typeIri: 'https://example.org/lang#Access', kind: 'relationship' });
-    expect(second.getAttribute('marker-end')).toBe(line.getAttribute('marker-end'));
+    const second = harness.drawConnection({ iri: 'https://example.org/m/r2', typeIri: 'https://example.org/lang#Assignment', kind: 'relationship' });
+    expect(second.getAttribute('marker-start')).toBe(line.getAttribute('marker-start'));
     expect(fetched).toHaveLength(1);
     harness.destroy();
   });

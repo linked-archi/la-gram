@@ -457,11 +457,20 @@ describe('markerDefinition', () => {
     expect(new Set(signatures).size).toBe(drawn.length);
   });
 
-  it('fills ClosedArrowhead and FilledDiamond with the line colour', () => {
+  it('fills ClosedArrowhead, FilledDiamond and CircleDot with the line colour', () => {
     for (const decoration of ['ClosedArrowhead', 'FilledDiamond', 'CircleDot'] as Decoration[]) {
       const marker = markerDefinition(decoration, 'target', '#336699')!;
       expect(marker.element.firstElementChild!.getAttribute('fill')).toBe('#336699');
     }
+  });
+
+  it('draws CircleDot as one dot whose edge meets the end of the line', () => {
+    const marker = markerDefinition('CircleDot', 'source', '#000000')!.element;
+    expect(marker.children).toHaveLength(1);
+    const dot = marker.firstElementChild!;
+    const edge = Number(dot.getAttribute('cx')) + Number(dot.getAttribute('r'));
+    expect(edge).toBe(Number(marker.getAttribute('refX')));
+    expect(dot.getAttribute('cy')).toBe(marker.getAttribute('refY'));
   });
 
   it('fills HollowArrowhead and HollowDiamond opaque white, stroked in the line colour', () => {
