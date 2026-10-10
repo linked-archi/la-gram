@@ -11,6 +11,7 @@ import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import {
   ARCHIMATE_NS,
   applyExchangeModel,
+  exchangeRelationshipTypeIri,
   exchangeTypeIri,
   parseArchiMateExchange,
 } from '../archimate-importer.js';
@@ -63,6 +64,26 @@ const EXCHANGE = `<?xml version="1.0" encoding="UTF-8"?>
   </views>
 </model>`;
 
+/** Every kind of access, and both kinds of association. */
+const KINDS = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       identifier="id-model">
+  <name xml:lang="en">Kinds</name>
+  <elements>
+    <element identifier="id-p" xsi:type="BusinessProcess"><name xml:lang="en">Ship</name></element>
+    <element identifier="id-o" xsi:type="BusinessObject"><name xml:lang="en">Order</name></element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-read" xsi:type="Access" accessType="Read" source="id-p" target="id-o"/>
+    <relationship identifier="id-write" xsi:type="Access" source="id-p" target="id-o"/>
+    <relationship identifier="id-rw" xsi:type="Access" accessType="ReadWrite" source="id-p" target="id-o"/>
+    <relationship identifier="id-any" xsi:type="Access" accessType="Access" source="id-p" target="id-o"/>
+    <relationship identifier="id-dir" xsi:type="Association" isDirected="true" source="id-p" target="id-o"/>
+    <relationship identifier="id-undir" xsi:type="Association" source="id-p" target="id-o"/>
+  </relationships>
+</model>`;
+
 describe('parseArchiMateExchange', () => {
   it('reads elements, relationships, properties and diagrams', () => {
     const model = parseArchiMateExchange(EXCHANGE);
@@ -92,6 +113,26 @@ describe('parseArchiMateExchange', () => {
   it('maps junction names onto the ontology spelling', () => {
     expect(exchangeTypeIri('AndJunction')).toBe(AM3 + 'Junction_And');
     expect(exchangeTypeIri('Serving')).toBe(AM3 + 'Serving');
+  });
+
+  it('reads the kind of access and a directed association', () => {
+    const model = parseArchiMateExchange(KINDS);
+    expect(model.relationships.map((r) => [r.type, r.accessType, r.isDirected])).toEqual([
+      ['Access', 'Read', undefined],
+      ['Access', undefined, undefined],
+      ['Access', 'ReadWrite', undefined],
+      ['Access', 'Access', undefined],
+      ['Association', undefined, true],
+      ['Association', undefined, undefined],
+    ]);
+  });
+
+  it('types an access by its kind — Write when the file gives none, the format default — and a directed association', () => {
+    const types = parseArchiMateExchange(KINDS).relationships.map((r) => exchangeRelationshipTypeIri(r).replace(AM3, ''));
+    expect(types).toEqual(['ReadAccess', 'WriteAccess', 'ReadWriteAccess', 'Access', 'DirectedAssociation', 'Association']);
+    // An ontology without the kinds keeps the relationship's own type.
+    const [read] = parseArchiMateExchange(KINDS).relationships;
+    expect(exchangeRelationshipTypeIri(read, AM3, (iri) => !iri.endsWith('ReadAccess'))).toBe(AM3 + 'Access');
   });
 });
 
@@ -158,5 +199,29 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       expect(store.getQuads(null, nn(NAMESPACES.arch + old))).toHaveLength(0);
     }
     expect(modelQuads(store).every((x) => x.subject.termType === 'NamedNode')).toBe(true);
+  });
+
+  it('writes each kind of access and association as its class, with the shared predicate', () => {
+    const ns = 'https://example.org/archimate/kinds/';
+    const knownClass = (iri: string) =>
+      store.getQuads(nn(iri), nn(NAMESPACES.rdf + 'type'), nn(NAMESPACES.owl + 'Class')).length > 0;
+    applyExchangeModel(parseArchiMateExchange(KINDS), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views: new OxigraphViewManager(store),
+      modelIri: `${ns}model`,
+      knownClass,
+    });
+    const typeOf = (id: string) =>
+      store.getQuads(nn(`${ns}relationship-${id}`), nn(NAMESPACES.rdf + 'type')).map((x) => x.object.value.replace(AM3, ''));
+    expect(typeOf('id-read')).toEqual(['ReadAccess']);
+    expect(typeOf('id-write')).toEqual(['WriteAccess']);
+    expect(typeOf('id-rw')).toEqual(['ReadWriteAccess']);
+    expect(typeOf('id-any')).toEqual(['Access']);
+    expect(typeOf('id-dir')).toEqual(['DirectedAssociation']);
+    expect(typeOf('id-undir')).toEqual(['Association']);
+    // The unqualified triples are the type's: am:accesses and am:associatedWith.
+    expect(store.getQuads(nn(`${ns}element-id-p`), nn(AM3 + 'accesses'), nn(`${ns}element-id-o`))).toHaveLength(1);
+    expect(store.getQuads(nn(`${ns}element-id-p`), nn(AM3 + 'associatedWith'), nn(`${ns}element-id-o`))).toHaveLength(1);
   });
 });

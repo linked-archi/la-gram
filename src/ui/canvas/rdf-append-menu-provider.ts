@@ -92,15 +92,22 @@ export const APPEND_TARGET_MENU_ID = 'la-append-target';
 /** Provider id of the second step: which relationship to the chosen type. */
 export const APPEND_RELATIONSHIP_MENU_ID = 'la-append-relationship';
 
+/** Local names of ArchiMate's association, undirected and directed. */
+const ASSOCIATIONS = new Set(['Association', 'DirectedAssociation']);
+
 /**
  * A relationship type that holds between almost anything — ArchiMate's
- * Association, and the core's generic relationship (`arch:QualifiedRelationship`,
- * offered when the core metamodel is loaded). They are always offered, so they
- * do not make a choice ambiguous; the relationship manager ranks them last for
- * the same reason.
+ * Association, directed or not, and the core's generic relationship
+ * (`arch:QualifiedRelationship`, offered when the core metamodel is loaded).
+ * They are always offered, so they do not make a choice ambiguous; the
+ * relationship manager ranks them last for the same reason.
  */
 export function isGenericRelationship(relationship: RelationshipTypeInfo): boolean {
-  return relationship.label === 'Association' || relationship.iri === NAMESPACES.arch + 'QualifiedRelationship';
+  return (
+    relationship.label === 'Association' ||
+    ASSOCIATIONS.has(relationship.iri.slice(relationship.iri.search(/[^#/]*$/))) ||
+    relationship.iri === NAMESPACES.arch + 'QualifiedRelationship'
+  );
 }
 
 /**

@@ -606,7 +606,7 @@ describe('appending from the context pad', () => {
     await component.click();
     await until(async () => (await menu.locator('.entry').allInnerTexts()).some((t) => t.includes('Serving')), 'the relationship step');
     const step = (await menu.locator('.entry .djs-popup-label').allInnerTexts()).map((t) => t.trim());
-    expect(step).toEqual(['Flow', 'Serving', 'Triggering', 'Association']);
+    expect(step).toEqual(['Flow', 'Serving', 'Triggering', 'Association', 'Directed Association']);
     await session.screenshot('workbench-append-relationship');
     await menu.locator('.entry', { hasText: 'Serving' }).first().click();
 

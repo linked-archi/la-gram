@@ -26,7 +26,7 @@
 ArchiMate relationship validity matrix (Archi tool, MIT license). Validates both qualified
 relationship instances and unqualified direct triples. Pure SHACL core — no SPARQL.'''@en ;
     dcterms:created               "2019-03-17"^^xsd:date ;
-    dcterms:modified              "2026-10-08"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/shapes/3.2.0#> ;
@@ -29184,10 +29184,9 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
     sh:targetClass am:Access ;
     sh:property [
         sh:path        am:accessType ;
-        sh:maxCount    1 ;
-        sh:datatype    xsd:string ;
-        sh:in          ( "Read" "Write" "ReadWrite" "Access" ) ;
-        sh:message     "accessType must be one of: Read, Write, ReadWrite, Access."@en ;
+        sh:maxCount    0 ;
+        sh:severity    sh:Warning ;
+        sh:message     "am:accessType is deprecated: type the access am:ReadAccess, am:WriteAccess or am:ReadWriteAccess, or leave it am:Access when the kind is unspecified."@en ;
     ] ;
 .
 

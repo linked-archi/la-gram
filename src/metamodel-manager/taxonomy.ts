@@ -74,12 +74,16 @@ const RELATIONSHIP_FRAGMENTS = new Set([
   'Assignment',
   'Association',
   'Composition',
+  'DirectedAssociation',
   'Flow',
   'Influence',
+  'ReadAccess',
+  'ReadWriteAccess',
   'Realization',
   'Serving',
   'Specialization',
   'Triggering',
+  'WriteAccess',
 ]);
 
 /** Local names that denote abstract scaffolding classes rather than palette elements. */

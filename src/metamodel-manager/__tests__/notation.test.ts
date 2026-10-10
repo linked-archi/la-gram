@@ -392,12 +392,12 @@ describe('real published ArchiMate 4.0 notation file', () => {
     expect(set).not.toBeNull();
     expect(set!.iri).toBe(NOTATION_SET);
     expect(set!.label).toBe('ArchiMate 4.0 Standard Notation');
-    expect(set!.notations.size).toBe(53);
+    expect(set!.notations.size).toBe(57);
 
     const elementStyles = [...set!.notations.values()].filter((n) => n.style !== undefined);
     const relationshipStyles = [...set!.notations.values()].filter((n) => n.relationshipStyle !== undefined);
     expect(elementStyles.length).toBe(42);
-    expect(relationshipStyles.length).toBe(11);
+    expect(relationshipStyles.length).toBe(15);
 
     // At least one style has every property populated, with icons present.
     const complete = elementStyles.filter(

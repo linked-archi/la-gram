@@ -103,13 +103,20 @@ export function migrateLegacyModel(
     const isClass = closure(predicateIri).includes(IRI.QualifiedRelationship);
     // Several resources may name the predicate as their unqualified form —
     // ArchiMate 4.0 also maps the qualified *property* `am4:qualifiedServes` to
-    // `am4:serves` — so only a relationship class qualifies.
-    const classIri = isClass
-      ? predicateIri
+    // `am4:serves` — so only a relationship class qualifies; and subclasses
+    // share their class's (`am4:ReadAccess` is `am4:accesses` too), so the most
+    // general one, which says no more than the predicate does.
+    const candidates = isClass
+      ? []
       : store
           .getQuads(null, T.unqualifiedForm, nn(predicateIri))
           .map((m) => m.subject.value)
-          .find((candidate) => closure(candidate).includes(IRI.QualifiedRelationship));
+          .filter((candidate) => closure(candidate).includes(IRI.QualifiedRelationship));
+    const classIri = isClass
+      ? predicateIri
+      : candidates.find((candidate) =>
+          closure(candidate).every((superClass) => superClass === candidate || !candidates.includes(superClass)),
+        );
     if (classIri) {
       add.push(triple(rel, T.rdfType, nn(classIri)));
     } else {

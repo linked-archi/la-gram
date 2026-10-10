@@ -949,6 +949,33 @@ rendering from structured metadata.'''@en ;
     arch-vis:targetDecor  arch-vis:NoDecoration ;
 .
 
+:ReadAccessNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:ReadAccess ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DottedLine ;
+    arch-vis:sourceDecor  arch-vis:OpenArrowhead ;
+    arch-vis:targetDecor  arch-vis:NoDecoration ;
+.
+
+:WriteAccessNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:WriteAccess ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DottedLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+.
+
+:ReadWriteAccessNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:ReadWriteAccess ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:DottedLine ;
+    arch-vis:sourceDecor  arch-vis:OpenArrowhead ;
+    arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+.
+
 :InfluenceNotation
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am4:Influence ;
@@ -992,4 +1019,13 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:SolidLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
     arch-vis:targetDecor  arch-vis:NoDecoration ;
+.
+
+:DirectedAssociationNotation
+    a                    arch-vis:VisualNotation ;
+    arch-vis:notationFor am4:DirectedAssociation ;
+    arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineStyle    arch-vis:SolidLine ;
+    arch-vis:sourceDecor  arch-vis:NoDecoration ;
+    arch-vis:targetDecor  arch-vis:HalfArrowhead ;
 .

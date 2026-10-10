@@ -493,7 +493,9 @@ function taxonomyNameFor(
  * classes that resolve to nothing are left out, so the renderer's defaults
  * apply. Each class's `arch:unqualifiedForm` predicate is added as an alias,
  * because a model triple uses the predicate, never overwriting a class key.
- * Keys are visited in IRI order so a predicate two classes share always aliases
+ * A predicate a class shares with its subclasses aliases the class: a bare
+ * `am4:accesses` triple is an `am4:Access`, not an `am4:ReadAccess`. Keys are
+ * visited in IRI order so a predicate unrelated classes share always aliases
  * the same one.
  */
 function buildNotationIndex(
@@ -517,7 +519,11 @@ function buildNotationIndex(
     const entry = index.get(iri);
     if (!entry) continue;
     const predicate = objectValue(graph, iri, ARCH_UNQUALIFIED_FORM);
-    if (predicate && !index.has(predicate)) index.set(predicate, entry);
+    if (!predicate || index.has(predicate)) continue;
+    const inherited = closureOf(iri, superClassMap).some(
+      (superClass) => objectValue(graph, superClass, ARCH_UNQUALIFIED_FORM) === predicate,
+    );
+    if (!inherited) index.set(predicate, entry);
   }
   return Object.fromEntries(index);
 }

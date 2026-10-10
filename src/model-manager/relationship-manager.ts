@@ -222,7 +222,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       let score = BASE_SCORE;
       if (domainTypes.includes(sourceTypeIri)) score += EXACT_SOURCE_BONUS;
       if (rangeTypes.includes(targetTypeIri)) score += EXACT_TARGET_BONUS;
-      if (label === 'Association') score -= ASSOCIATION_PENALTY;
+      // Association, and a kind of it (a directed association), is the fallback.
+      if (label === 'Association' || relationshipClosure.some((c) => iriFragment(c) === 'Association')) {
+        score -= ASSOCIATION_PENALTY;
+      }
       if (candidate.iri === NAMESPACES.arch + 'QualifiedRelationship') score -= GENERIC_PENALTY;
       if (label === 'Composition' || label === 'Aggregation') score -= CONTAINMENT_PENALTY;
 
@@ -484,6 +487,9 @@ export class OxigraphRelationshipManager implements RelationshipManager {
 
   /**
    * Resolve the relationship class whose `arch:unqualifiedForm` is `predicateIri`.
+   * Subclasses share their class's predicate — `am4:ReadAccess` is an
+   * `am4:Access` and also `am4:accesses` — so the most general one is meant: a
+   * bare triple says no more than that.
    *
    * Returns `null` when the metamodel is not loaded or declares no such
    * mapping.
@@ -503,6 +509,11 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       WHERE {
         ?cls arch:unqualifiedForm <${predicateIri}> .
         ?cls rdfs:subClassOf+ arch:QualifiedRelationship .
+        FILTER NOT EXISTS {
+          ?cls rdfs:subClassOf+ ?general .
+          ?general arch:unqualifiedForm <${predicateIri}> .
+          FILTER(?general != ?cls)
+        }
       }
       LIMIT 1
     `,

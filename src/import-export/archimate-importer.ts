@@ -25,6 +25,8 @@
  * |---------------------------------------|------------------------------------------------|
  * | `<element xsi:type="BusinessActor">`  | `am3:BusinessActor` (`AndJunction` → `am3:Junction_And`) |
  * | `<relationship xsi:type="Serving">`   | `am3:Serving` + `source am3:serves target`     |
+ * | `<relationship xsi:type="Access" accessType="Read">` | `am3:ReadAccess` (`Write`, the default → `am3:WriteAccess`; `ReadWrite` → `am3:ReadWriteAccess`; `Access` → `am3:Access`) |
+ * | `<relationship xsi:type="Association" isDirected="true">` | `am3:DirectedAssociation` |
  * | `<name>` / `<documentation>`          | `skos:prefLabel` / `skos:definition`, language-tagged |
  * | `<property propertyDefinitionRef>`    | `<model>/property/<slug>` with the value       |
  * | `<view xsi:type="Diagram">`           | `arch:Diagram` (+ viewpoint when it resolves)   |
@@ -59,6 +61,17 @@ const TYPE_ALIASES: Record<string, string> = {
   OrJunction: 'Junction_Or',
 };
 
+/**
+ * The exchange format's `accessType` values, as the ontology's kinds of access
+ * (subclasses of Access). `Access` is the unspecified kind.
+ */
+const ACCESS_KINDS: Record<string, string> = {
+  Read: 'ReadAccess',
+  Write: 'WriteAccess',
+  ReadWrite: 'ReadWriteAccess',
+  Access: 'Access',
+};
+
 // ── Parsed structure ──────────────────────────────────────────────────────
 
 /** A property value on an element, relationship or the model. */
@@ -81,6 +94,10 @@ export interface ExchangeConcept {
 export interface ExchangeRelationship extends ExchangeConcept {
   source: string;
   target: string;
+  /** An access's `accessType` attribute, when the file gives one (the format's default is `Write`). */
+  accessType?: string;
+  /** An association's `isDirected="true"`. */
+  isDirected?: boolean;
 }
 
 /** A node on a diagram, absolute coordinates. */
@@ -217,10 +234,13 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
   }
   for (const block of getChildElements(root, 'relationships')) {
     for (const el of getChildElements(block, 'relationship')) {
+      const accessType = el.getAttribute('accessType');
       model.relationships.push({
         ...concept(el),
         source: el.getAttribute('source') ?? '',
         target: el.getAttribute('target') ?? '',
+        ...(accessType ? { accessType } : {}),
+        ...(el.getAttribute('isDirected') === 'true' ? { isDirected: true } : {}),
       });
     }
   }
@@ -277,6 +297,27 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
 /** The ontology class for an exchange type name. */
 export function exchangeTypeIri(xsiType: string, namespace = ARCHIMATE_NS): string {
   return namespace + (TYPE_ALIASES[xsiType] ?? xsiType);
+}
+
+/**
+ * A relationship's class: its `xsi:type`, made specific by the attributes the
+ * ontology models as subclasses — an access's `accessType` (absent means
+ * `Write`, the format's default) and an association's `isDirected`. When the
+ * loaded ontology lacks the subclass, the type itself.
+ */
+export function exchangeRelationshipTypeIri(
+  rel: ExchangeRelationship,
+  namespace = ARCHIMATE_NS,
+  known: (iri: string) => boolean = () => true,
+): string {
+  const kind =
+    rel.type === 'Access'
+      ? ACCESS_KINDS[rel.accessType ?? 'Write']
+      : rel.type === 'Association' && rel.isDirected
+        ? 'DirectedAssociation'
+        : undefined;
+  const specific = kind ? namespace + kind : undefined;
+  return specific && known(specific) ? specific : exchangeTypeIri(rel.type, namespace);
 }
 
 /** Dependencies of {@link applyExchangeModel}: the editor's own managers. */
@@ -395,7 +436,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     progressed = false;
     for (let i = 0; i < pending.length; ) {
       const rel = pending[i];
-      const typeIri = exchangeTypeIri(rel.type, ns);
+      const typeIri = exchangeRelationshipTypeIri(rel, ns, known);
       if (!rel.type || !known(typeIri)) {
         if (rel.type) unrecognized.add(rel.type);
         pending.splice(i, 1);

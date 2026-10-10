@@ -266,9 +266,9 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     // Serving is the semantically expected answer for actor → actor, and it is
     // only reachable through the ActiveStructureElement closure.
     expect(candidates.map((c) => c.label)).toContain('Serving');
-    // Association carries the least meaning, so it must not lead.
+    // Association, undirected or directed, carries the least meaning, so it must not lead.
     expect(candidates[0].label).not.toBe('Association');
-    expect(candidates[candidates.length - 1].label).toBe('Association');
+    expect(candidates.slice(-2).map((c) => c.label)).toEqual(['Association', 'Directed Association']);
 
     // eslint-disable-next-line no-console
     console.log(

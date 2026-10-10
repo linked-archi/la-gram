@@ -17,7 +17,9 @@
  * | `more`          | the rest that may apply: no declared domain                 |
  *
  * A property whose domain is some other class is not offered — it does not
- * apply — but can still be typed. Anything can be typed: a plain name becomes a
+ * apply — nor is one its vocabulary deprecates (`owl:deprecated true`, as
+ * ArchiMate's `accessType`, replaced by the kinds of access); both can still be
+ * typed. Anything can be typed: a plain name becomes a
  * property in the model's namespace (`owner` → `m:owner`), a CURIE with a known
  * prefix is expanded, and a full IRI is taken as it is ({@link resolve}).
  */
@@ -131,8 +133,10 @@ export class PropertyCatalog {
     const typeLabel = types[0] ? this.labelOf(types[0]) : 'this concept';
 
     const groupOf = new Map<string, PropertyGroup>();
+    const deprecated = (iri: string) =>
+      store.getQuads(nn(iri), nn(NAMESPACES.owl + 'deprecated')).some((q) => q.object.value === 'true');
     const offer = (iri: string, group: PropertyGroup) => {
-      if (!offerable(iri)) return;
+      if (!offerable(iri) || deprecated(iri)) return;
       const current = groupOf.get(iri);
       if (!current || GROUP_ORDER.indexOf(group) < GROUP_ORDER.indexOf(current)) groupOf.set(iri, group);
     };

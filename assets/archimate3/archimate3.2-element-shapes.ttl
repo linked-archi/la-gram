@@ -43,7 +43,7 @@ For relationship pair validation, see archimate3.2-relationship-shapes.ttl.'''@e
                                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html>,
                                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Cross-Layer-Dependencies.html> ;
     dcterms:created               "2022-11-14"^^xsd:date ;
-    dcterms:modified              "2026-08-04"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/element-shapes/3.2#> ;
@@ -698,16 +698,15 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
 # 12. Attribute constraints
 #################################################################
 
-## A18: Access type validation
+## A18: Access type — deprecated: the kind of access is the class (am:ReadAccess, …)
 :AccessTypeShape
     a sh:NodeShape ;
     sh:targetClass am:Access ;
     sh:property [
         sh:path        am:accessType ;
-        sh:maxCount    1 ;
-        sh:datatype    xsd:string ;
-        sh:in          ( "Read" "Write" "ReadWrite" "Access" ) ;
-        sh:message     "accessType must be one of: Read, Write, ReadWrite, Access."@en ;
+        sh:maxCount    0 ;
+        sh:severity    sh:Warning ;
+        sh:message     "am:accessType is deprecated: type the access am:ReadAccess, am:WriteAccess or am:ReadWriteAccess, or leave it am:Access when the kind is unspecified."@en ;
     ] ;
 .
 

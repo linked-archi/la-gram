@@ -68,9 +68,21 @@ describe('readRelationshipTable', () => {
 describe('getValidRelationships against the relationship shapes', () => {
   it('offers only what the shapes permit — not everything the domain/range hints would', () => {
     // The hints alone admit Composition and Access here too; the matrix does not.
-    expect(labels('BusinessActor', 'ApplicationComponent')).toEqual(['Flow', 'Serving', 'Triggering', 'Association']);
+    expect(labels('BusinessActor', 'ApplicationComponent')).toEqual([
+      'Flow',
+      'Serving',
+      'Triggering',
+      'Association',
+      'Directed Association',
+    ]);
     expect(labels('ApplicationComponent', 'DataObject')).toContain('Access');
     expect(labels('BusinessActor', 'ApplicationComponent')).not.toContain('Access');
+  });
+
+  it('allows the kinds of access exactly where Access is allowed (they are its subclasses)', () => {
+    const kinds = ['Access', 'Read Access', 'Write Access', 'Read-Write Access'];
+    expect(labels('ApplicationComponent', 'DataObject')).toEqual(expect.arrayContaining(kinds));
+    for (const kind of kinds) expect(labels('BusinessActor', 'ApplicationComponent')).not.toContain(kind);
   });
 
   it('allows Composition exactly where Aggregation is allowed', () => {

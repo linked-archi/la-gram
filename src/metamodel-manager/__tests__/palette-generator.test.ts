@@ -412,6 +412,44 @@ describe('SparqlPaletteGenerator', () => {
   });
 });
 
+describe('a predicate a class shares with its subclasses', () => {
+  // ex:AnyUse sorts before ex:Use; it is the subclass, and must not take the
+  // shared predicate's look.
+  const KINDS = `
+    @prefix owl:      <${NAMESPACES.owl}> .
+    @prefix rdf:      <${NAMESPACES.rdf}> .
+    @prefix rdfs:     <${NAMESPACES.rdfs}> .
+    @prefix arch:     <${NAMESPACES.arch}> .
+    @prefix arch-vis: <${NAMESPACES['arch-vis']}> .
+    @prefix ex:       <https://example.org/kinds#> .
+
+    <https://example.org/kinds> rdf:type owl:Ontology .
+    ex:Kinds rdf:type arch:Metamodel ; arch:notationSet ex:Set .
+    ex:Set rdf:type arch-vis:NotationSet .
+
+    ex:Use rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; arch:unqualifiedForm ex:uses .
+    ex:AnyUse rdf:type owl:Class ; rdfs:subClassOf ex:Use ; arch:unqualifiedForm ex:uses .
+
+    ex:UseNotation rdf:type arch-vis:VisualNotation ;
+      arch-vis:notationFor ex:Use ; arch-vis:inNotationSet ex:Set ;
+      arch-vis:lineStyle arch-vis:DottedLine ;
+      arch-vis:sourceDecor arch-vis:NoDecoration ; arch-vis:targetDecor arch-vis:NoDecoration .
+    ex:AnyUseNotation rdf:type arch-vis:VisualNotation ;
+      arch-vis:notationFor ex:AnyUse ; arch-vis:inNotationSet ex:Set ;
+      arch-vis:lineStyle arch-vis:DottedLine ;
+      arch-vis:sourceDecor arch-vis:OpenArrowhead ; arch-vis:targetDecor arch-vis:OpenArrowhead .
+  `;
+
+  it('draws a bare triple as the class, not as a subclass that sorts first', async () => {
+    const store = new OxigraphRdfStore();
+    const loaded = await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(KINDS);
+    const p = new SparqlPaletteGenerator(store).generatePalette(loaded.metamodelIri);
+    const index = p.notationIndex ?? {};
+    expect(index['https://example.org/kinds#AnyUse']?.matchedClassIri).toBe('https://example.org/kinds#AnyUse');
+    expect(index['https://example.org/kinds#uses']).toEqual(index['https://example.org/kinds#Use']);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Notation fallback: superclass descriptors and other metamodels' default sets.
 // ---------------------------------------------------------------------------
@@ -669,7 +707,7 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     const elements = palette.elementGroups.flatMap((g) => g.elements);
     expect(elements.length).toBe(42);
     expect(palette.elementGroups.length).toBe(7);
-    expect(palette.relationshipTypes.length).toBe(11);
+    expect(palette.relationshipTypes.length).toBe(15);
     expect(palette.notationSetIri).toBe(
       'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
     );
@@ -722,19 +760,23 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(withoutBundledIcon.map((e) => e.iri)).toEqual([]);
   });
 
-  it('finds the eleven relationship types with their line styles', () => {
+  it('finds the eleven relationship types, and the kinds of access and association, with their line styles', () => {
     expect(palette.relationshipTypes.map((r) => r.label)).toEqual([
       'Access',
       'Aggregation',
       'Assignment',
       'Association',
       'Composition',
+      'Directed Association',
       'Flow',
       'Influence',
+      'Read Access',
+      'Read-Write Access',
       'Realization',
       'Serving',
       'Specialization',
       'Triggering',
+      'Write Access',
     ]);
 
     const serving = palette.relationshipTypes.find((r) => r.iri === `${AM4}Serving`);
@@ -743,6 +785,20 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     // Constraints live on the unqualified property in ArchiMate 4.0.
     expect(serving?.domainTypes).toContain(`${AM4}BehaviorElement`);
     expect(serving?.rangeTypes).toContain(`${AM4}ActiveStructureElement`);
+  });
+
+  it('draws each kind of access and the directed association with their own ends', () => {
+    const style = (local: string) => palette.relationshipTypes.find((r) => r.iri === `${AM4}${local}`)?.relationshipStyle;
+    expect(style('Access')).toMatchObject({ lineStyle: 'DottedLine', sourceDecor: 'NoDecoration', targetDecor: 'NoDecoration' });
+    expect(style('ReadAccess')).toMatchObject({ lineStyle: 'DottedLine', sourceDecor: 'OpenArrowhead', targetDecor: 'NoDecoration' });
+    expect(style('WriteAccess')).toMatchObject({ lineStyle: 'DottedLine', sourceDecor: 'NoDecoration', targetDecor: 'OpenArrowhead' });
+    expect(style('ReadWriteAccess')).toMatchObject({ sourceDecor: 'OpenArrowhead', targetDecor: 'OpenArrowhead' });
+    expect(style('DirectedAssociation')).toMatchObject({ lineStyle: 'SolidLine', sourceDecor: 'NoDecoration', targetDecor: 'HalfArrowhead' });
+    // The kinds share their class's predicate; a bare triple is drawn as the class.
+    const read = palette.relationshipTypes.find((r) => r.iri === `${AM4}ReadAccess`);
+    expect(read?.unqualifiedPredicateIri).toBe(`${AM4}accesses`);
+    expect(palette.notationIndex?.[`${AM4}accesses`]).toEqual(palette.notationIndex?.[`${AM4}Access`]);
+    expect(palette.notationIndex?.[`${AM4}associatedWith`]).toEqual(palette.notationIndex?.[`${AM4}Association`]);
   });
 
   it('regroups by the aspect axis with every element in a real group', () => {

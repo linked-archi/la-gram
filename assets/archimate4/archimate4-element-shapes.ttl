@@ -43,7 +43,7 @@ Draft — needs validation against the ArchiMate 4.0 relationship validity matri
                                   <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html>,
                                   <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html> ;
     dcterms:created               "2026-04-19"^^xsd:date ;
-    dcterms:modified              "2026-08-04"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/element-shapes/4.0#> ;
@@ -170,16 +170,15 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
     ] ;
 .
 
-## Access type validation
+## Access type — deprecated: the kind of access is the class (am4:ReadAccess, …)
 :AccessTypeShape
     a sh:NodeShape ;
     sh:targetClass am4:Access ;
     sh:property [
         sh:path        am4:accessType ;
-        sh:maxCount    1 ;
-        sh:datatype    xsd:string ;
-        sh:in          ( "Read" "Write" "ReadWrite" "Access" ) ;
-        sh:message     "accessType must be one of: Read, Write, ReadWrite, Access."@en ;
+        sh:maxCount    0 ;
+        sh:severity    sh:Warning ;
+        sh:message     "am4:accessType is deprecated: type the access am4:ReadAccess, am4:WriteAccess or am4:ReadWriteAccess, or leave it am4:Access when the kind is unspecified."@en ;
     ] ;
 .
 

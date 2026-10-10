@@ -77,7 +77,7 @@ export function buildSuperClassMap(graph: Store): Map<string, string[]> {
 }
 
 /** Transitive `rdfs:subClassOf` closure of `iri`, excluding `iri` itself. */
-export function closureOf(iri: string, superClassMap: Map<string, string[]>): string[] {
+export function closureOf(iri: string, superClassMap: ReadonlyMap<string, readonly string[]>): string[] {
   const seen = new Set<string>();
   const stack = [...(superClassMap.get(iri) ?? [])];
   while (stack.length > 0) {

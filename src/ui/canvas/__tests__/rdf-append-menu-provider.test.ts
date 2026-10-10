@@ -45,6 +45,11 @@ describe('unambiguousRelationship', () => {
     expect(unambiguousRelationship([ASSOCIATION])).toBe(ASSOCIATION);
     expect(unambiguousRelationship([FLOW, SERVING, ASSOCIATION])).toBeUndefined();
   });
+
+  it('counts a directed association as an association, not as a choice', () => {
+    const directed = { ...rel('DirectedAssociation'), label: 'Directed Association' };
+    expect(unambiguousRelationship([ASSIGNMENT, ASSOCIATION, directed])).toBe(ASSIGNMENT);
+  });
 });
 
 describe('RdfAppendMenuProvider', () => {

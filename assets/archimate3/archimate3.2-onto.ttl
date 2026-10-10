@@ -35,7 +35,7 @@ relationship pattern), and composite/connector concepts as RDF/OWL. Version 3.2 
 the ontology to current Linked.Archi conventions and RDF 1.2 rdf:reifies.'''@en ;
     dcterms:created               "2019-03-17"^^xsd:date ;
     dcterms:issued                "2019-03-17"^^xsd:date ;
-    dcterms:modified              "2025-12-01"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
@@ -54,6 +54,9 @@ qualified relationship classes (: namespace) and qualified properties. Replaced 
 with skos:prefLabel, arch:specURL with dcterms:source. Added RDF 1.2 rdf:reifies bridge in
 relationship examples. Updated license to CC-BY 4.0. Aligned all elements with
 archimate-tax ontology (:).'''@en ;
+    skos:changeNote               '''2026-10-10: the kinds of access are subclasses of Access — ReadAccess, WriteAccess and
+ReadWriteAccess, an Access that is none of them being unspecified — and a directed association is a
+DirectedAssociation, so each has a notation of its own (DD-31). accessType is deprecated.'''@en ;
     rdfs:seeAlso                  <https://www.w3.org/TR/rdf12-concepts/> ;
     skos:scopeNote                '''This namespace (archimate/onto#) covers ArchiMate 3.x (versions 3.0,
 3.1, 3.2). ArchiMate 2.x used a substantially different metamodel (different element
@@ -1276,10 +1279,44 @@ ex:qr-005 a am:Serving ;
     skos:prefLabel       "Access"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
     skos:definition      '''An access relationship indicates that a behavior element may access a business or data
-object. The accessType property specifies read, write, read-write, or unspecified.'''@en ;
+object. Its subclasses say the kind of access — am:ReadAccess, am:WriteAccess, am:ReadWriteAccess; an
+am:Access that is none of them is unspecified.'''@en ;
     arch:domainIncludes  arch:Element ;
     arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_access.svg" ;
+.
+
+:ReadAccess
+    a                    owl:Class ;
+    rdfs:subClassOf      :Access ;
+    arch:unqualifiedForm :accesses ;
+    skos:prefLabel       "Read Access"@en ;
+    skos:definition      '''An access relationship in which the accessing element reads or uses the passive structure element.'''@en ;
+    skos:scopeNote       '''The relationship still runs from the accessing element to the passive structure element; the notation points the other way, with the arrowhead at the source end. In the exchange format, accessType="Read".'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
+.
+
+:WriteAccess
+    a                    owl:Class ;
+    rdfs:subClassOf      :Access ;
+    arch:unqualifiedForm :accesses ;
+    skos:prefLabel       "Write Access"@en ;
+    skos:definition      '''An access relationship in which the accessing element creates, changes or writes the passive structure element.'''@en ;
+    skos:scopeNote       '''Drawn with the arrowhead at the target end, the passive structure element. In the exchange format, accessType="Write", its default.'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
+.
+
+:ReadWriteAccess
+    a                    owl:Class ;
+    rdfs:subClassOf      :Access ;
+    arch:unqualifiedForm :accesses ;
+    skos:prefLabel       "Read-Write Access"@en ;
+    skos:definition      '''An access relationship in which the accessing element both reads and changes the passive structure element.'''@en ;
+    skos:scopeNote       '''Drawn with arrowheads at both ends. In the exchange format, accessType="ReadWrite".'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
 .
 
 :qualifiedAccesses
@@ -1289,12 +1326,12 @@ object. The accessType property specifies read, write, read-write, or unspecifie
     arch:domainIncludes  arch:Element ;
     skos:prefLabel       "qualified Accesses"@en ;
     skos:definition      '''Navigates from a source element to an Access qualified relationship
-resource. The Access resource carries the accessType (Read, Write, ReadWrite).'''@en ;
+resource. The resource's class says the kind of access: am:ReadAccess, am:WriteAccess or
+am:ReadWriteAccess, or am:Access when it is unspecified.'''@en ;
     skos:example         '''ex:OrderProcess am:qualifiedAccesses ex:qr-006 .
-ex:qr-006 a am:Access ;
+ex:qr-006 a am:ReadWriteAccess ;
     arch:source ex:OrderProcess ;
-    arch:target ex:CustomerData ;
-    am:accessType "ReadWrite" .'''@en ;
+    arch:target ex:CustomerData .'''@en ;
 .
 
 ## Influence ───────────────────────────────────────────────────
@@ -1486,6 +1523,19 @@ represented by another ArchiMate relationship.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_association.svg" ;
 .
 
+:DirectedAssociation
+    a                    owl:Class ;
+    rdfs:subClassOf      :Association ;
+    arch:unqualifiedForm :associatedWith ;
+    skos:prefLabel       "Directed Association"@en ;
+    skos:definition      '''An association relationship with a direction, from its source to its target.'''@en ;
+    skos:scopeNote       '''A directed association can be used in derivations in its direction only. Drawn with a
+half arrowhead at the target end; an association that is not directed has none. In the exchange format,
+isDirected="true".'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Association-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Association-Relationship> ;
+.
+
 :qualifiedAssociatedWith
     a                    owl:ObjectProperty ;
     rdfs:range           :Association ;
@@ -1512,6 +1562,12 @@ ex:qr-011 a am:Association ;
     skos:definition  '''Specifies the type of access: read, write, read-write, or unspecified.'''@en ;
     rdfs:domain      :Access ;
     rdfs:range       xsd:string ;
+    owl:deprecated   true ;
+    dcterms:isReplacedBy :ReadAccess, :WriteAccess, :ReadWriteAccess ;
+    skos:historyNote '''Deprecated 2026-10-10: the kind of access is the relationship's class — am:ReadAccess,
+am:WriteAccess or am:ReadWriteAccess, and am:Access when it is unspecified — so the notation, the palette,
+viewpoints, SHACL and SPARQL all see it as a type (DD-31). An importer maps the exchange format's
+accessType attribute to these classes.'''@en ;
 .
 
 :influenceStrength

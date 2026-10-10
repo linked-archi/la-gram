@@ -60,19 +60,33 @@ describe('PropertyCatalog.suggest', () => {
     }
   });
 
-  it('offers a relationship its own properties: accessType for an Access', () => {
+  it('offers a relationship its own properties: influenceStrength for an Influence', () => {
     const store = app.components.store;
-    const access = `${app.session.namespace()!.namespace}relationship-test-access`;
+    const influence = `${app.session.namespace()!.namespace}relationship-test-influence`;
     store.addQuads([
-      DataFactory.quad(DataFactory.namedNode(access), DataFactory.namedNode(NAMESPACES.rdf + 'type'), DataFactory.namedNode(AM4 + 'Access')) as unknown as Quad,
+      DataFactory.quad(DataFactory.namedNode(influence), DataFactory.namedNode(NAMESPACES.rdf + 'type'), DataFactory.namedNode(AM4 + 'Influence')) as unknown as Quad,
     ]);
-    const suggestions = catalog.suggest(access);
-    expect(suggestions.find((s) => s.iri === AM4 + 'accessType')).toMatchObject({
+    const suggestions = catalog.suggest(influence);
+    expect(suggestions.find((s) => s.iri === AM4 + 'influenceStrength')).toMatchObject({
       group: 'type',
-      groupLabel: 'For Access',
-      label: 'Access Type', // the vocabulary's own label
+      groupLabel: 'For Influence',
+      label: 'Influence Strength', // the vocabulary's own label
     });
-    store.removeQuads(store.getQuads(DataFactory.namedNode(access) as never));
+    store.removeQuads(store.getQuads(DataFactory.namedNode(influence) as never));
+  });
+
+  it('does not offer a deprecated property: accessType, replaced by the kinds of access', () => {
+    const store = app.components.store;
+    for (const kind of ['Access', 'ReadAccess']) {
+      const access = `${app.session.namespace()!.namespace}relationship-test-${kind}`;
+      store.addQuads([
+        DataFactory.quad(DataFactory.namedNode(access), DataFactory.namedNode(NAMESPACES.rdf + 'type'), DataFactory.namedNode(AM4 + kind)) as unknown as Quad,
+      ]);
+      expect(catalog.suggest(access).map((s) => s.iri)).not.toContain(AM4 + 'accessType');
+      store.removeQuads(store.getQuads(DataFactory.namedNode(access) as never));
+    }
+    // It can still be typed.
+    expect(catalog.resolve('am4:accessType')?.iri).toBe(AM4 + 'accessType');
   });
 
   it('offers a link whose shape lists its values (sh:in) as an attribute, but not a relationship predicate', () => {

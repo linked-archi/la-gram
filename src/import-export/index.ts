@@ -3,6 +3,7 @@ export {
   parseArchiMateExchange,
   applyExchangeModel,
   exchangeTypeIri,
+  exchangeRelationshipTypeIri,
   getChildText,
   getXsiType,
   getChildElements,

@@ -454,9 +454,10 @@ describe('OxigraphRelationshipManager', () => {
       const scores = candidates.map((c) => c.score!);
       expect(scores).toEqual([...scores].sort((a, b) => b - a));
 
-      // Association is the least informative option, so it must sink to the bottom,
-      // and the containment relationships must sit below the specific ones.
-      expect(candidates[candidates.length - 1].label).toBe('Association');
+      // Association — undirected or directed — is the least informative option, so it
+      // must sink to the bottom, and the containment relationships must sit below the
+      // specific ones.
+      expect(labels.slice(-2)).toEqual(['Association', 'Directed Association']);
       const scoreOf = (label: string): number =>
         candidates.find((c) => c.label === label)!.score!;
       expect(scoreOf('Serving')).toBeGreaterThan(scoreOf('Composition'));
@@ -475,6 +476,16 @@ describe('OxigraphRelationshipManager', () => {
 
       expect(toDataObject).toContain('Access');
       expect(toProcess).not.toContain('Access');
+    });
+
+    it('types a qualified relationship made from a shared predicate with the most general class', () => {
+      // :accesses is the unqualified form of Access and of its kinds; a bare
+      // predicate says only that it is an access.
+      const qr = realManager.createRelationship(AM4 + 'accesses', 'https://example.org/m#p', 'https://example.org/m#o', true)!;
+      expect(realStore.getQuads(qr, nn(RDF_TYPE)).map((q) => q.object.value)).toContain(AM4 + 'Access');
+      for (const kind of ['ReadAccess', 'WriteAccess', 'ReadWriteAccess']) {
+        expect(realStore.getQuads(qr, nn(RDF_TYPE), nn(AM4 + kind))).toHaveLength(0);
+      }
     });
 
     it('resolves the Serving candidate to its unqualified predicate :serves', () => {
