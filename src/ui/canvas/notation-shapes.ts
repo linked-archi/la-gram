@@ -8,16 +8,14 @@
  *
  * Two deliberate choices:
  *
- * - **Real outlines, not degraded rectangles.** `Octagon`, `Hexagon`, `Diamond`,
- *   `Parallelogram`, `Box3D`, `Folder` and `RightArrow` are `<polygon>` elements with computed
- *   points; the wavy shapes, `Cloud`, `Cylinder`, `Person` (two parts),
- *   `MobileDevice` and `WebBrowser` are `<path>`s. diagram-js
- *   hands the renderer direct SVG control, so there is no reason to approximate.
- *   {@link shapePath} emits the same outlines as SVG path strings, which is what
- *   connection docking crops against — one geometry, two encodings, so a line
- *   always meets the shape where it is actually drawn. The inner lines some
- *   shapes carry (a band, a tab, a 3D box's front edges, a cylinder's rim) are
- *   {@link ShapeGeometry.details}: drawn, but not part of the outline.
+ * - **Real outlines, not degraded rectangles.** The core `Octagon`, `Hexagon`,
+ *   `Diamond` and `Parallelogram` are `<polygon>` elements with computed points;
+ *   a notation's own shape (ArchiMate's 3D box, C4's person) is a `<path>` drawn
+ *   from its path templates ({@link drawCustomShape}), so no notation needs code
+ *   here. {@link shapePath} emits the same outlines as SVG path strings, which is
+ *   what connection docking crops against — one geometry, two encodings, so a
+ *   line always meets the shape where it is actually drawn. A notation's own
+ *   shape's inner lines are {@link ShapeGeometry.details}: drawn, but not outline.
  * - **No measurement.** Label layout is computed from a character-width estimate
  *   rather than `getComputedTextLength`, so it is deterministic and behaves the
  *   same under jsdom as in a browser. The cost is that very wide glyphs can
@@ -26,6 +24,7 @@
  */
 
 import type {
+  CustomShape,
   Decoration,
   IconPlacement,
   LineStyle,
@@ -74,15 +73,17 @@ export function svgEl(tag: string, attrs: SvgAttrs = {}): SVGElement {
 // Shapes
 // ---------------------------------------------------------------------------
 
-/** The SVG element kind and attributes that draw a given {@link ShapeType}. */
+/** What to draw: a core shape, or a notation's own shape drawn from its templates. */
+export type ShapeRef = ShapeType | CustomShape | undefined;
+
+/** The SVG element kind and attributes that draw a shape. */
 export interface ShapeGeometry {
   tag: 'rect' | 'ellipse' | 'circle' | 'polygon' | 'path';
   attrs: SvgAttrs;
   /**
-   * Inner lines drawn over the body, as a shape-local path (`M`/`L`/`A` only):
-   * the band of a `BandedRectangle`, the tab of a `TabbedRectangle` or `Folder`,
-   * the front edges of a `Box3D`, the front of a `Cylinder`'s rim. Stroked, not
-   * filled, and not part of the outline connections dock against.
+   * Inner lines drawn over the body, as a shape-local path — a notation's own
+   * shape's `arch-vis:detailPath` (a band, a tab, a 3D box's front edges).
+   * Stroked, not filled, and not part of the outline connections dock against.
    */
   details?: string;
 }
@@ -94,96 +95,6 @@ export interface Box {
   width: number;
   height: number;
 }
-
-// Proportions of the shapes with inner lines or curved edges, against the
-// shape's size; the comments give the 130 × 60 picture values they match.
-
-/** Header band of the banded, tabbed and wavy shapes: h × 0.173 (10.4), at most 14. */
-function bandHeight(h: number): number {
-  return Math.min((h * 10.4) / 60, 14);
-}
-
-/** Depth of a `Box3D`'s top and side faces: h × 0.2 (12), at most 12, and no more than w × 0.2. */
-function boxDepth(w: number, h: number): number {
-  return Math.min(h * 0.2, w * 0.2, 12);
-}
-
-/** A `Folder`'s name tab: h × 0.35 (21) high, at most 21; w × 0.8 (104) wide, at most 200 or w / 2. */
-function folderTab(w: number, h: number): { width: number; height: number } {
-  return { width: Math.min(w * 0.8, Math.max(200, w / 2)), height: Math.min(h * 0.35, 21) };
-}
-
-/** Depth of a `RightArrow`'s point: h × 0.3 (24 in EDGY's 123 × 80 shape), at most w / 2. */
-function arrowDepth(w: number, h: number): number {
-  return Math.min(h * 0.3, w / 2);
-}
-
-/** Height of a `Cylinder`'s top rim: h × 0.2, at most 16. */
-function cylinderRim(h: number): number {
-  return Math.min(h * 0.27, 30);
-}
-
-/** A `Person`: its head (a circle) and where its body starts, as C4's 120 × 120 person. */
-function personParts(w: number, h: number): { r: number; cy: number; bodyTop: number; bodyRadius: number } {
-  const r = Math.min(h * 0.15, w * 0.3);
-  const bodyTop = h * 0.35;
-  return { r, cy: h * 0.165, bodyTop, bodyRadius: Math.min(h * 0.15, (h - bodyTop) / 2, w / 2) };
-}
-
-/** A `MobileDevice`'s frame corners, screen and home button, as C4's 160 × 110 mobile app. */
-function mobileParts(w: number, h: number): { frameRadius: number; screen: Box; button: { cy: number; r: number } } {
-  const side = Math.min(h * 0.09, w / 4);
-  const top = h * 0.13;
-  const bottom = h * 0.055;
-  return {
-    frameRadius: Math.min(h * 0.055, w / 2),
-    screen: { x: side, y: top, width: w - 2 * side, height: h - top - bottom },
-    button: { cy: h * 0.065, r: h * 0.027 },
-  };
-}
-
-/** A `WebBrowser`'s title bar height, as C4's 160 × 110 web browser (17), at most 20. */
-function browserBar(h: number): number {
-  return Math.min(h * 0.155, 20);
-}
-
-/** A rectangle with round corners of radius `r`, from (x0, y0) to (x1, y1), as path commands. */
-function roundedRectPath(at: (x: number, y: number) => string, x0: number, y0: number, x1: number, y1: number, r: number): string {
-  const rr = round(r);
-  return (
-    `M${at(x0 + r, y0)}L${at(x1 - r, y0)}A${rr},${rr} 0 0 1 ${at(x1, y0 + r)}` +
-    `L${at(x1, y1 - r)}A${rr},${rr} 0 0 1 ${at(x1 - r, y1)}` +
-    `L${at(x0 + r, y1)}A${rr},${rr} 0 0 1 ${at(x0, y1 - r)}` +
-    `L${at(x0, y0 + r)}A${rr},${rr} 0 0 1 ${at(x0 + r, y0)}Z`
-  );
-}
-
-/** A circle of radius `r` round (cx, cy), as two half arcs (one arc back to its start draws nothing). */
-function circlePath(at: (x: number, y: number) => string, cx: number, cy: number, r: number): string {
-  const rr = round(r);
-  return `M${at(cx - r, cy)}A${rr},${rr} 0 0 1 ${at(cx + r, cy)}A${rr},${rr} 0 0 1 ${at(cx - r, cy)}Z`;
-}
-
-/**
- * `Cloud`, as published in the ArchiMate pictures at 130 × 60: a start point
- * and six quadratic lobes, each a control point and an end point.
- */
-const CLOUD_START: [number, number] = [28.6, 9.6];
-const CLOUD_LOBES: Array<[[number, number], [number, number]]> = [
-  [[46.8, -7.2], [74.1, 9.6]],
-  [[113.1, -2.4], [119.6, 22.2]],
-  [[145.6, 43.8], [100.1, 52.2]],
-  [[67.6, 69], [35.1, 47.4]],
-  [[-5.2, 52.2], [7.8, 30.6]],
-  [[-10.4, 9.6], [28.6, 9.6]],
-];
-
-/** Shapes whose outline is a plain rectangle; they differ only in their inner lines. */
-const RECTANGLE_OUTLINED: ReadonlySet<ShapeType> = new Set<ShapeType>([
-  'BandedRectangle',
-  'DoubleBandedRectangle',
-  'TabbedRectangle',
-]);
 
 /** Clamp to a sane, non-negative size. */
 function size(value: number, fallback: number): number {
@@ -199,11 +110,16 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** A notation's own shape, as opposed to a core one. */
+function isCustom(shape: ShapeRef): shape is CustomShape {
+  return typeof shape === 'object' && shape !== null;
+}
+
 /** A vertex list in shape-local coordinates, or `null` for a non-polygon. */
 type Vertices = Array<[number, number]>;
 
 /**
- * Vertices of the polygonal shape types, in shape-local coordinates.
+ * Vertices of the polygonal core shapes, in shape-local coordinates.
  *
  * The single source of the polygon geometry: {@link shapeGeometry} formats these
  * into a `<polygon points>` attribute and {@link shapePath} into an SVG path, so
@@ -257,183 +173,38 @@ function polygonVertices(type: ShapeType, w: number, h: number): Vertices | null
       ];
     }
 
-    case 'Box3D': {
-      // The silhouette: front face plus the top and side faces behind it.
-      const d = boxDepth(w, h);
-      return [
-        [0, d],
-        [d, 0],
-        [w, 0],
-        [w, h - d],
-        [w - d, h],
-        [0, h],
-      ];
-    }
-
-    case 'RightArrow': {
-      // The point is h × 0.3 deep, as EDGY's activity shape, and never past the middle.
-      const d = arrowDepth(w, h);
-      return [
-        [0, 0],
-        [w - d, 0],
-        [w, h / 2],
-        [w - d, h],
-        [0, h],
-      ];
-    }
-
-    case 'Folder': {
-      const tab = folderTab(w, h);
-      return [
-        [0, 0],
-        [tab.width, 0],
-        [tab.width, tab.height],
-        [w, tab.height],
-        [w, h],
-        [0, h],
-      ];
-    }
-
     default:
       return null;
   }
 }
 
 /**
- * Outline of the shape types drawn with curves, offset by (`dx`, `dy`), or
- * `null` for any other type. Absolute commands only, every coordinate a
- * `x,y` pair, so the outline can be offset and intersected as it stands.
- */
-function curvedOutline(type: ShapeType, w: number, h: number, dx: number, dy: number): string | null {
-  const at = (x: number, y: number) => `${round(dx + x)},${round(dy + y)}`;
-  switch (type) {
-    case 'WavyRectangle':
-    case 'WavyBandedRectangle': {
-      // The bottom edge is one wave from the right end to the left, both one
-      // band above the bottom; it stays inside the bounds (its lowest point is
-      // 0.13 band above the bottom).
-      const b = bandHeight(h);
-      return (
-        `M${at(0, 0)}L${at(w, 0)}L${at(w, h - b)}` +
-        `C${at(w / 2, h - 4 * b)} ${at(w / 2, h + 2 * b)} ${at(0, h - b)}Z`
-      );
-    }
-
-    case 'Cloud': {
-      const sx = w / 130;
-      const sy = h / 60;
-      const lobes = CLOUD_LOBES.map(([[cx, cy], [ex, ey]]) => `Q${at(cx * sx, cy * sy)} ${at(ex * sx, ey * sy)}`);
-      return `M${at(CLOUD_START[0] * sx, CLOUD_START[1] * sy)}${lobes.join('')}Z`;
-    }
-
-    case 'Cylinder': {
-      // Over the top of the rim, down the right side, round the bottom, up the left.
-      const ry = cylinderRim(h) / 2;
-      const rx = round(w / 2);
-      const r = round(ry);
-      return (
-        `M${at(0, ry)}A${rx},${r} 0 0 1 ${at(w, ry)}` +
-        `L${at(w, h - ry)}A${rx},${r} 0 0 1 ${at(0, h - ry)}Z`
-      );
-    }
-
-    case 'Person': {
-      // Two closed parts: the body, then the head above it.
-      const p = personParts(w, h);
-      return roundedRectPath(at, 0, p.bodyTop, w, h, p.bodyRadius) + circlePath(at, w / 2, p.cy, p.r);
-    }
-
-    case 'MobileDevice':
-      return roundedRectPath(at, 0, 0, w, h, mobileParts(w, h).frameRadius);
-
-    case 'WebBrowser':
-      return roundedRectPath(at, 0, 0, w, h, Math.min(2, w / 2, h / 2));
-
-    default:
-      return null;
-  }
-}
-
-/** Inner lines of a shape type, shape-local — see {@link ShapeGeometry.details}. */
-function shapeDetails(type: ShapeType, w: number, h: number): string | undefined {
-  const at = (x: number, y: number) => `${round(x)},${round(y)}`;
-  const band = bandHeight(h);
-  switch (type) {
-    case 'BandedRectangle':
-    case 'WavyBandedRectangle':
-      return `M${at(0, band)}L${at(w, band)}`;
-    case 'DoubleBandedRectangle':
-      return `M${at(0, band)}L${at(w, band)}M${at(0, h - band)}L${at(w, h - band)}`;
-    case 'TabbedRectangle':
-      return `M${at(0, band)}L${at(w / 2, band)}L${at(w / 2, 0)}`;
-    case 'Box3D': {
-      const d = boxDepth(w, h);
-      return `M${at(0, d)}L${at(w - d, d)}L${at(w - d, h)}M${at(w - d, d)}L${at(w, 0)}`;
-    }
-    case 'Folder': {
-      const tab = folderTab(w, h);
-      return `M${at(0, tab.height)}L${at(tab.width, tab.height)}`;
-    }
-    case 'Cylinder': {
-      // The front of the rim: the lower half of the top ellipse.
-      const ry = round(cylinderRim(h) / 2);
-      return `M${at(0, ry)}A${round(w / 2)},${ry} 0 0 0 ${at(w, ry)}`;
-    }
-    case 'MobileDevice': {
-      // The screen, and the home button above it.
-      const { screen, button } = mobileParts(w, h);
-      return (
-        `M${at(screen.x, screen.y)}L${at(screen.x + screen.width, screen.y)}` +
-        `L${at(screen.x + screen.width, screen.y + screen.height)}L${at(screen.x, screen.y + screen.height)}Z` +
-        circlePath(at, w / 2, button.cy, button.r)
-      );
-    }
-    case 'WebBrowser': {
-      // The content area under the title bar, three dots and the address bar.
-      const t = browserBar(h);
-      const dots = [0.6, 1.2, 1.8].map((f) => circlePath(at, t * f, t * 0.53, t * 0.18)).join('');
-      return (
-        `M${at(3, t)}L${at(w - 3, t)}L${at(w - 3, h - 3)}L${at(3, h - 3)}Z` +
-        dots +
-        roundedRectPath(at, t * 2.25, t * 0.3, Math.max(t * 2.25, w - 7), t * 0.76, t * 0.23)
-      );
-    }
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Geometry for a shape of the given type at `width` × `height`.
+ * Geometry for a shape at `width` × `height`.
  *
- * An unknown or absent `shapeType` falls back to
- * {@link NOTATION_DEFAULTS.shapeType}. `Circle` is a true circle — its radius
- * is half the *smaller* dimension, so it stays inside the declared bounds
- * rather than being squashed into an ellipse.
+ * A core shape is drawn natively; an unknown or absent one falls back to
+ * {@link NOTATION_DEFAULTS.shapeType}. `Circle` is a true circle — its radius is
+ * half the *smaller* dimension, so it stays inside the declared bounds rather
+ * than being squashed into an ellipse. A notation's own shape is drawn from its
+ * templates ({@link drawCustomShape}); when they cannot be evaluated, as its
+ * fallback.
  */
-export function shapeGeometry(
-  shapeType: ShapeType | undefined,
-  width: number,
-  height: number,
-): ShapeGeometry {
+export function shapeGeometry(shape: ShapeRef, width: number, height: number): ShapeGeometry {
   const w = size(width, NOTATION_DEFAULTS.width);
   const h = size(height, NOTATION_DEFAULTS.height);
-  const type = shapeType ?? NOTATION_DEFAULTS.shapeType;
-  const details = shapeDetails(type, w, h);
-  const withDetails = (geometry: ShapeGeometry): ShapeGeometry => (details ? { ...geometry, details } : geometry);
 
-  if (RECTANGLE_OUTLINED.has(type)) return withDetails(shapeGeometry('Rectangle', w, h));
+  if (isCustom(shape)) {
+    const drawn = drawCustomShape(shape, w, h);
+    if (!drawn) return shapeGeometry(shape.fallback, w, h);
+    return { tag: 'path', attrs: { d: drawn.outline }, ...(drawn.details ? { details: drawn.details } : {}) };
+  }
 
+  const type = shape ?? NOTATION_DEFAULTS.shapeType;
   const vertices = polygonVertices(type, w, h);
-  if (vertices) return withDetails({ tag: 'polygon', attrs: { points: points(vertices) } });
-
-  const curved = curvedOutline(type, w, h, 0, 0);
-  if (curved) return withDetails({ tag: 'path', attrs: { d: curved } });
+  if (vertices) return { tag: 'polygon', attrs: { points: points(vertices) } };
 
   switch (type) {
-    case 'RoundedRectangle':
-    case 'Stadium': {
-      const r = cornerRadius(type, w, h);
+    case 'RoundedRectangle': {
+      const r = cornerRadius(w, h);
       return { tag: 'rect', attrs: { x: 0, y: 0, width: w, height: h, rx: round(r), ry: round(r) } };
     }
 
@@ -455,21 +226,22 @@ export function shapeGeometry(
   }
 }
 
-/** Corner radius actually used for `RoundedRectangle` (or a `Stadium`'s ends) at this size. */
-function cornerRadius(type: ShapeType, w: number, h: number): number {
-  const half = Math.min(w, h) / 2;
-  return type === 'Stadium' ? half : Math.min(NOTATION_DEFAULTS.cornerRadius, half);
+/** Corner radius actually used for `RoundedRectangle` at this size. */
+function cornerRadius(w: number, h: number): number {
+  return Math.min(NOTATION_DEFAULTS.cornerRadius, w / 2, h / 2);
 }
 
 /**
- * SVG path outlining a shape of the given type, in **absolute** coordinates.
+ * SVG path outlining a shape, in **absolute** coordinates.
  *
  * The counterpart to {@link shapeGeometry}: same shapes, same geometry,
  * expressed as a `d` attribute rather than as element attributes, and offset by
  * the shape's position on the diagram instead of drawn shape-local. This is what
  * connection cropping needs — diagram-js hands the shape's path and the
  * connection's path to `path-intersection` and docks the line where they meet,
- * so a path that did not match the drawn outline would dock in mid-air.
+ * so a path that did not match the drawn outline would dock in mid-air. For a
+ * notation's own shape it is its outline template, moved; its inner lines are
+ * not outline.
  *
  * ## Curves
  *
@@ -479,35 +251,24 @@ function cornerRadius(type: ShapeType, w: number, h: number): number {
  * converted to cubic segments *exactly*, in one place, by the library itself.
  * Approximating them here with beziers would add our own error on top of that
  * conversion for no gain, and would not match `<ellipse>`/`<circle>`, which the
- * renderer draws as true conics. A `Cylinder`'s ends are arcs for the same
- * reason; the wave and the `Cloud` are the cubic and quadratic curves the
- * ArchiMate pictures draw, which `pathToCurve` also takes as they stand.
- *
- * Inner lines are not outline: a `BandedRectangle`, `DoubleBandedRectangle` or
- * `TabbedRectangle` docks as the rectangle it is drawn in.
+ * renderer draws as true conics. A template's arcs and curves go the same way.
  *
  * An ellipse needs two arcs rather than one: a single arc whose end point equals
  * its start point is degenerate and SVG renders nothing, so the outline is split
  * at the left and right extremes into two half-sweeps.
  */
-export function shapePath(
-  shapeType: ShapeType | undefined,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): string {
+export function shapePath(shape: ShapeRef, x: number, y: number, width: number, height: number): string {
   const w = size(width, NOTATION_DEFAULTS.width);
   const h = size(height, NOTATION_DEFAULTS.height);
   const left = Number.isFinite(x) ? x : 0;
   const top = Number.isFinite(y) ? y : 0;
-  const requested = shapeType ?? NOTATION_DEFAULTS.shapeType;
-  // Inner lines are not outline: a banded rectangle docks as a rectangle.
-  const type = RECTANGLE_OUTLINED.has(requested) ? 'Rectangle' : requested;
 
-  const curved = curvedOutline(type, w, h, left, top);
-  if (curved) return curved;
+  if (isCustom(shape)) {
+    const drawn = drawCustomShape(shape, w, h);
+    return drawn ? translatePath(drawn.outline, left, top) : shapePath(shape.fallback, left, top, w, h);
+  }
 
+  const type = shape ?? NOTATION_DEFAULTS.shapeType;
   const vertices = polygonVertices(type, w, h);
   if (vertices) {
     // Every vertex list above has at least three entries, so `M` always has one.
@@ -516,9 +277,8 @@ export function shapePath(
   }
 
   switch (type) {
-    case 'RoundedRectangle':
-    case 'Stadium': {
-      const r = round(cornerRadius(type, w, h));
+    case 'RoundedRectangle': {
+      const r = round(cornerRadius(w, h));
       const x0 = round(left);
       const y0 = round(top);
       const x1 = round(left + w);
@@ -565,7 +325,7 @@ function arcOutline(cx: number, cy: number, rx: number, ry: number): string {
   );
 }
 
-/** Every {@link ShapeType} this module draws — the full vocabulary. */
+/** Every core {@link ShapeType} — the shapes every renderer draws natively. */
 export const SHAPE_TYPES: readonly ShapeType[] = [
   'Rectangle',
   'RoundedRectangle',
@@ -575,25 +335,11 @@ export const SHAPE_TYPES: readonly ShapeType[] = [
   'Hexagon',
   'Diamond',
   'Parallelogram',
-  'BandedRectangle',
-  'DoubleBandedRectangle',
-  'TabbedRectangle',
-  'Box3D',
-  'WavyRectangle',
-  'WavyBandedRectangle',
-  'Cloud',
-  'Folder',
-  'RightArrow',
-  'Stadium',
-  'Cylinder',
-  'Person',
-  'MobileDevice',
-  'WebBrowser',
 ];
 
 /** Where a shape's badge and label go, in shape-local coordinates. */
 export interface ShapeLayout {
-  /** The area inside the inner lines: the badge is placed in it, and so is the label unless {@link label} differs. */
+  /** Where the badge goes — and the label, unless {@link label} differs. */
   content: Box;
   /** The area the label is laid out in. */
   label: Box;
@@ -602,67 +348,231 @@ export interface ShapeLayout {
 }
 
 /**
- * The areas a shape's badge and label are laid out in: the whole shape, except
- * where inner lines or curves take part of it — below a band, on a 3D box's
- * front face, above a wave, inside a cloud, under a cylinder's rim. A `Folder`'s
- * label goes in its tab (one line), leaving the body for what it contains.
+ * The areas a shape's badge and label are laid out in: the whole shape for a
+ * core one; for a notation's own, its `arch-vis:contentBox` (below a band, on a
+ * 3D box's front face) and `arch-vis:labelBox` (a folder's tab), the label
+ * taking as many lines as that box is tall enough for.
  */
-export function shapeLayout(shapeType: ShapeType | undefined, width: number, height: number): ShapeLayout {
+export function shapeLayout(shape: ShapeRef, width: number, height: number): ShapeLayout {
   const w = size(width, NOTATION_DEFAULTS.width);
   const h = size(height, NOTATION_DEFAULTS.height);
-  const box = (x: number, y: number, bw: number, bh: number): Box => ({
-    x: round(x),
-    y: round(y),
-    width: round(Math.max(1, bw)),
-    height: round(Math.max(1, bh)),
-  });
-  const band = bandHeight(h);
-  const same = (content: Box): ShapeLayout => ({ content, label: content });
+  const whole = clampBox({ x: 0, y: 0, width: w, height: h });
+  if (!isCustom(shape)) return { content: whole, label: whole };
 
-  switch (shapeType ?? NOTATION_DEFAULTS.shapeType) {
-    case 'BandedRectangle':
-    case 'TabbedRectangle':
-      return same(box(0, band, w, h - band));
-    case 'DoubleBandedRectangle':
-    case 'WavyBandedRectangle':
-      return same(box(0, band, w, h - 2 * band));
-    case 'WavyRectangle':
-      return same(box(0, 0, w, h - band));
-    case 'Box3D': {
-      const d = boxDepth(w, h);
-      return same(box(0, d, w - d, h - d));
+  const drawn = drawCustomShape(shape, w, h);
+  const content = drawn?.content ? clampBox(drawn.content) : whole;
+  if (!drawn?.label) return { content, label: content };
+  const label = clampBox(drawn.label);
+  const lineHeight = round(NOTATION_DEFAULTS.fontSize * 1.2);
+  const fits = Math.max(1, Math.min(NOTATION_DEFAULTS.maxLabelLines, Math.floor(label.height / lineHeight)));
+  return { content, label, ...(fits < NOTATION_DEFAULTS.maxLabelLines ? { maxLabelLines: fits } : {}) };
+}
+
+function clampBox(box: Box): Box {
+  return {
+    x: round(box.x),
+    y: round(box.y),
+    width: round(Math.max(1, box.width)),
+    height: round(Math.max(1, box.height)),
+  };
+}
+
+// ── A notation's own shapes: path templates ──────────────────────────────
+
+/** A template that cannot be evaluated: a syntax error, an unknown name, a non-finite value. */
+export class ShapeTemplateError extends Error {}
+
+/**
+ * A template expression's value: numbers, the names in `names` (`w`, `h` and the
+ * shape's variables), `+ - * /`, parentheses, and `min()` / `max()`. Parsed
+ * here, never evaluated as code.
+ */
+export function evaluateExpression(source: string, names: Readonly<Record<string, number>>): number {
+  const tokens = source.match(/\d+(?:\.\d+)?|\.\d+|[A-Za-z_][A-Za-z0-9_]*|\S/g) ?? [];
+  let at = 0;
+  const fail = (why: string): never => {
+    throw new ShapeTemplateError(`${why} in "${source}"`);
+  };
+  const take = (expected: string) => {
+    if (tokens[at] !== expected) fail(`expected "${expected}"`);
+    at += 1;
+  };
+  const sum = (): number => {
+    let value = product();
+    while (tokens[at] === '+' || tokens[at] === '-') {
+      const op = tokens[at++];
+      const right = product();
+      value = op === '+' ? value + right : value - right;
     }
-    case 'Cloud':
-      return same(box(w * 0.1, h * 0.15, w * 0.8, h * 0.7));
-    case 'RightArrow':
-      return same(box(0, 0, w - arrowDepth(w, h), h));
-    case 'Stadium': {
-      // Clear of the round ends.
-      const r = Math.min(w, h) / 2;
-      return same(box(r / 2, 0, w - r, h));
+    return value;
+  };
+  const product = (): number => {
+    let value = unary();
+    while (tokens[at] === '*' || tokens[at] === '/') {
+      const op = tokens[at++];
+      const right = unary();
+      value = op === '*' ? value * right : value / right;
     }
-    case 'Cylinder': {
-      const rim = cylinderRim(h);
-      return same(box(0, rim, w, h - rim - rim / 2));
+    return value;
+  };
+  const unary = (): number => {
+    const token = tokens[at++];
+    if (token === undefined) return fail('unexpected end');
+    if (token === '-') return -unary();
+    if (token === '+') return unary();
+    if (token === '(') {
+      const value = sum();
+      take(')');
+      return value;
     }
-    case 'Folder': {
-      const tab = folderTab(w, h);
-      return { content: box(0, tab.height, w, h - tab.height), label: box(0, 0, tab.width, tab.height), maxLabelLines: 1 };
+    if (/^[\d.]/.test(token)) return Number(token);
+    if (/^[A-Za-z_]/.test(token)) {
+      if (tokens[at] === '(') {
+        at += 1;
+        const args = [sum()];
+        while (tokens[at] === ',') {
+          at += 1;
+          args.push(sum());
+        }
+        take(')');
+        if (token === 'min') return Math.min(...args);
+        if (token === 'max') return Math.max(...args);
+        return fail(`unknown function "${token}"`);
+      }
+      if (Object.prototype.hasOwnProperty.call(names, token)) return names[token]!;
+      return fail(`unknown name "${token}"`);
     }
-    case 'Person': {
-      const { bodyTop } = personParts(w, h);
-      return same(box(0, bodyTop, w, h - bodyTop));
+    return fail(`unexpected "${token}"`);
+  };
+  const value = sum();
+  if (at < tokens.length) fail(`unexpected "${tokens[at]}"`);
+  if (!Number.isFinite(value)) fail('not a finite number');
+  return value;
+}
+
+/**
+ * A template with each `{expression}` replaced by its value (two decimals), in
+ * the compact form the core shapes' paths use (`M0,12L12,0A9,9 0 0 1 …`).
+ */
+export function fillTemplate(template: string, names: Readonly<Record<string, number>>): string {
+  return template
+    .replace(/\{([^{}]*)\}/g, (_all, expression: string) => String(round(evaluateExpression(expression, names))))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s*([A-Za-z])\s*/g, '$1');
+}
+
+/** `w`, `h` and a shape's `arch-vis:shapeVariables`, each assignment able to use the ones before it. */
+function shapeNames(shape: CustomShape, w: number, h: number): Record<string, number> {
+  const names: Record<string, number> = { w, h };
+  for (const assignment of (shape.variables ?? '').split(';')) {
+    if (assignment.trim() === '') continue;
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/.exec(assignment);
+    if (!match || match[1] === 'w' || match[1] === 'h') throw new ShapeTemplateError(`bad assignment "${assignment.trim()}"`);
+    names[match[1]!] = evaluateExpression(match[2]!, names);
+  }
+  return names;
+}
+
+/** An `x y width height` box template. */
+function fillBox(template: string, names: Readonly<Record<string, number>>): Box {
+  const values = template
+    .replace(/\{([^{}]*)\}/g, (_all, expression: string) => String(evaluateExpression(expression, names)))
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (values.length !== 4 || values.some((v) => !Number.isFinite(v))) throw new ShapeTemplateError(`bad box "${template}"`);
+  const [x, y, width, height] = values as [number, number, number, number];
+  return { x, y, width, height };
+}
+
+/** A notation's own shape at a size: its outline, inner lines and boxes. */
+export interface DrawnCustomShape {
+  outline: string;
+  details?: string;
+  content?: Box;
+  label?: Box;
+}
+
+/** Template errors already reported, so a broken shape warns once rather than on every redraw. */
+const reportedTemplates = new Set<string>();
+
+/**
+ * A notation's own shape evaluated at `w` × `h`, or `undefined` when its
+ * templates cannot be — then it is drawn as its fallback.
+ */
+export function drawCustomShape(shape: CustomShape, w: number, h: number): DrawnCustomShape | undefined {
+  try {
+    const names = shapeNames(shape, w, h);
+    return {
+      outline: fillTemplate(shape.outline, names),
+      ...(shape.details ? { details: fillTemplate(shape.details, names) } : {}),
+      ...(shape.contentBox ? { content: fillBox(shape.contentBox, names) } : {}),
+      ...(shape.labelBox ? { label: fillBox(shape.labelBox, names) } : {}),
+    };
+  } catch (error) {
+    if (!(error instanceof ShapeTemplateError)) throw error;
+    if (!reportedTemplates.has(shape.iri)) {
+      reportedTemplates.add(shape.iri);
+      console.warn(`[la-gram] ${shape.iri}: drawn as its fallback — ${error.message}`);
     }
-    case 'MobileDevice': {
-      const { screen } = mobileParts(w, h);
-      return same(box(screen.x, screen.y, screen.width, screen.height));
+    return undefined;
+  }
+}
+
+/** How many numbers each path command takes, and which of them are x / y coordinates. */
+const PATH_ARGS: Record<string, { count: number; xs: number[]; ys: number[] }> = {
+  M: { count: 2, xs: [0], ys: [1] },
+  L: { count: 2, xs: [0], ys: [1] },
+  T: { count: 2, xs: [0], ys: [1] },
+  H: { count: 1, xs: [0], ys: [] },
+  V: { count: 1, xs: [], ys: [0] },
+  C: { count: 6, xs: [0, 2, 4], ys: [1, 3, 5] },
+  S: { count: 4, xs: [0, 2], ys: [1, 3] },
+  Q: { count: 4, xs: [0, 2], ys: [1, 3] },
+  A: { count: 7, xs: [5], ys: [6] },
+  Z: { count: 0, xs: [], ys: [] },
+};
+
+/**
+ * A path in absolute commands moved by (`dx`, `dy`), in the compact form
+ * {@link fillTemplate} writes. Arc radii and flags are not coordinates and
+ * stay as they are.
+ */
+export function translatePath(d: string, dx: number, dy: number): string {
+  const tokens = d.match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g) ?? [];
+  let out = '';
+  let at = 0;
+  while (at < tokens.length) {
+    const command = tokens[at++]!;
+    const args = PATH_ARGS[command];
+    if (!args) throw new ShapeTemplateError(`path command "${command}" is not absolute`);
+    do {
+      const values = tokens.slice(at, at + args.count).map(Number);
+      at += args.count;
+      for (const i of args.xs) values[i] = round(values[i]! + dx);
+      for (const i of args.ys) values[i] = round(values[i]! + dy);
+      out += command + formatArgs(command, values);
+    } while (args.count > 0 && at < tokens.length && !/^[A-Za-z]$/.test(tokens[at]!));
+  }
+  return out;
+}
+
+/** A command's numbers as {@link fillTemplate} writes them: coordinate pairs joined by commas. */
+function formatArgs(command: string, v: number[]): string {
+  switch (command) {
+    case 'H':
+    case 'V':
+      return `${v[0]}`;
+    case 'A':
+      return `${v[0]},${v[1]} ${v[2]} ${v[3]} ${v[4]} ${v[5]},${v[6]}`;
+    case 'Z':
+      return '';
+    default: {
+      const pairs: string[] = [];
+      for (let i = 0; i < v.length; i += 2) pairs.push(`${v[i]},${v[i + 1]}`);
+      return pairs.join(' ');
     }
-    case 'WebBrowser': {
-      const t = browserBar(h);
-      return same(box(3, t, w - 6, h - t - 3));
-    }
-    default:
-      return same(box(0, 0, w, h));
   }
 }
 

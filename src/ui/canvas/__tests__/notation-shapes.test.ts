@@ -8,8 +8,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Decoration, IconPlacement, ShapeType } from '../../../metamodel-manager/notation.js';
 import {
   DECORATIONS,
@@ -53,20 +51,6 @@ describe('shapeGeometry', () => {
         'Parallelogram',
         'Rectangle',
         'RoundedRectangle',
-        'BandedRectangle',
-        'DoubleBandedRectangle',
-        'TabbedRectangle',
-        'Box3D',
-        'WavyRectangle',
-        'WavyBandedRectangle',
-        'Cloud',
-        'Folder',
-        'RightArrow',
-        'Stadium',
-        'Cylinder',
-        'Person',
-        'MobileDevice',
-        'WebBrowser',
       ].sort(),
     );
   });
@@ -197,38 +181,6 @@ describe('shapePath', () => {
     Diamond: 'M60,20L110,50L60,80L10,50Z',
     // Skew 20 = w * 0.2.
     Parallelogram: 'M30,20L110,20L90,80L10,80Z',
-    // Inner lines are not outline: these dock as the rectangle.
-    BandedRectangle: 'M10,20L110,20L110,80L10,80Z',
-    DoubleBandedRectangle: 'M10,20L110,20L110,80L10,80Z',
-    TabbedRectangle: 'M10,20L110,20L110,80L10,80Z',
-    // Depth 12 = h * 0.2: the front face plus the top and side faces.
-    Box3D: 'M10,32L22,20L110,20L110,68L98,80L10,80Z',
-    // Band 10.4 = h * 0.173; the wave's control points 3 bands above and below its ends.
-    WavyRectangle: 'M10,20L110,20L110,69.6C60,38.4 60,100.8 10,69.6Z',
-    WavyBandedRectangle: 'M10,20L110,20L110,69.6C60,38.4 60,100.8 10,69.6Z',
-    // The published 130 × 60 cloud, scaled to 100 × 60.
-    Cloud: 'M32,29.6Q46,12.8 67,29.6Q97,17.6 102,42.2Q122,63.8 87,72.2Q62,89 37,67.4Q6,72.2 16,50.6Q2,29.6 32,29.6Z',
-    // Tab 80 × 21 = w * 0.8 by h * 0.35.
-    Folder: 'M10,20L90,20L90,41L110,41L110,80L10,80Z',
-    // Point 18 = h * 0.3 deep, at mid-height.
-    RightArrow: 'M10,20L92,20L110,50L92,80L10,80Z',
-    // Ends of radius 30 = h / 2: the short sides are all arc.
-    Stadium:
-      'M40,20L80,20A30,30 0 0 1 110,50' +
-      'L110,50A30,30 0 0 1 80,80' +
-      'L40,80A30,30 0 0 1 10,50' +
-      'L10,50A30,30 0 0 1 40,20Z',
-    // Rim 16.2 = h * 0.27: arcs over the top and round the bottom.
-    Cylinder: 'M10,28.1A50,8.1 0 0 1 110,28.1L110,71.9A50,8.1 0 0 1 10,71.9Z',
-    // Two closed parts: the body from h * 0.35 with corners of h * 0.15, then the head.
-    Person:
-      'M19,41L101,41A9,9 0 0 1 110,50L110,71A9,9 0 0 1 101,80L19,80A9,9 0 0 1 10,71L10,50A9,9 0 0 1 19,41Z' +
-      'M51,29.9A9,9 0 0 1 69,29.9A9,9 0 0 1 51,29.9Z',
-    // The frame: corners of h * 0.055.
-    MobileDevice:
-      'M13.3,20L106.7,20A3.3,3.3 0 0 1 110,23.3L110,76.7A3.3,3.3 0 0 1 106.7,80L13.3,80A3.3,3.3 0 0 1 10,76.7L10,23.3A3.3,3.3 0 0 1 13.3,20Z',
-    // The window: corners of 2.
-    WebBrowser: 'M12,20L108,20A2,2 0 0 1 110,22L110,78A2,2 0 0 1 108,80L12,80A2,2 0 0 1 10,78L10,22A2,2 0 0 1 12,20Z',
   };
 
   for (const shapeType of SHAPE_TYPES) {
@@ -237,20 +189,9 @@ describe('shapePath', () => {
     });
   }
 
-  it('gives every shape type a distinct outline, except the shapes told apart by inner lines', () => {
-    // Shape type → the shape whose outline it shares.
-    const sharing: Partial<Record<ShapeType, ShapeType>> = {
-      BandedRectangle: 'Rectangle',
-      DoubleBandedRectangle: 'Rectangle',
-      TabbedRectangle: 'Rectangle',
-      WavyBandedRectangle: 'WavyRectangle',
-    };
-    const outlined = SHAPE_TYPES.filter((shapeType) => !sharing[shapeType]);
-    const paths = outlined.map((shapeType) => shapePath(shapeType, X, Y, W, H));
-    expect(new Set(paths).size).toBe(outlined.length);
-    for (const [shapeType, outline] of Object.entries(sharing) as Array<[ShapeType, ShapeType]>) {
-      expect(shapePath(shapeType, X, Y, W, H)).toBe(EXPECTED[outline]);
-    }
+  it('gives every shape type a distinct outline', () => {
+    const paths = SHAPE_TYPES.map((shapeType) => shapePath(shapeType, X, Y, W, H));
+    expect(new Set(paths).size).toBe(SHAPE_TYPES.length);
   });
 
   it('translates with the shape rather than redrawing at the origin', () => {
@@ -275,7 +216,7 @@ describe('shapePath', () => {
 
   it('agrees with the polygon that shapeGeometry draws', () => {
     // The two are generated from one vertex list; this is what pins them together.
-    for (const shapeType of ['Octagon', 'Hexagon', 'Diamond', 'Parallelogram', 'Box3D', 'Folder', 'RightArrow'] as ShapeType[]) {
+    for (const shapeType of ['Octagon', 'Hexagon', 'Diamond', 'Parallelogram'] as ShapeType[]) {
       const geometry = shapeGeometry(shapeType, W, H);
       const vertices = parsePoints(String(geometry.attrs['points']));
       const expected = `M${vertices
@@ -322,173 +263,6 @@ function shiftPair(pair: string, dx: number, dy: number): string {
   return `${px + dx},${py + dy}`;
 }
 
-/** Every number in a path or point list, H and V expanded into full pairs. */
-function pathNumbers(d: string): number[] {
-  const numbers = (text: string) => (text.match(/-?[\d.]+(?:e-?\d+)?/g) ?? []).map((n) => Math.round(Number(n) * 100) / 100);
-  if (!/[A-Za-z]/.test(d)) return numbers(d);
-  const out: number[] = [];
-  let x = 0;
-  let y = 0;
-  for (const [, command, args] of d.matchAll(/([MLHVCQAZ])([^MLHVCQAZ]*)/gi)) {
-    const values = numbers(args!);
-    if (command === 'H') x = values[0]!;
-    else if (command === 'V') y = values[0]!;
-    else if (values.length >= 2) [x, y] = values.slice(-2) as [number, number];
-    if (command === 'H' || command === 'V') out.push(x, y);
-    else out.push(...values);
-  }
-  return out;
-}
-
-/** The first attribute `name` of element `tag` in an SVG file, before any nested badge. */
-function pictureAttribute(path: string, tag: string, name: string): string {
-  const text = readFileSync(join(process.cwd(), 'assets', path), 'utf8');
-  const outer = text.slice(0, text.indexOf('<svg', 5) > 0 ? text.indexOf('<svg', 5) : undefined);
-  const element = new RegExp(`<${tag}\\b[^>]*\\b${name}=['"]([^'"]+)['"]`).exec(outer);
-  if (!element) throw new Error(`${path}: no <${tag} ${name}>`);
-  return element[1]!;
-}
-
-describe('the shapes with inner lines and curves', () => {
-  it('draw inner lines only where the shape has them', () => {
-    const details = Object.fromEntries(SHAPE_TYPES.map((type) => [type, shapeGeometry(type, 130, 60).details]));
-    expect(details).toEqual({
-      Rectangle: undefined,
-      RoundedRectangle: undefined,
-      Octagon: undefined,
-      Ellipse: undefined,
-      Circle: undefined,
-      Hexagon: undefined,
-      Diamond: undefined,
-      Parallelogram: undefined,
-      BandedRectangle: 'M0,10.4L130,10.4',
-      DoubleBandedRectangle: 'M0,10.4L130,10.4M0,49.6L130,49.6',
-      TabbedRectangle: 'M0,10.4L65,10.4L65,0',
-      // The front face's top and right edges, and the edge from its corner to the back.
-      Box3D: 'M0,12L118,12L118,60M118,12L130,0',
-      WavyRectangle: undefined,
-      WavyBandedRectangle: 'M0,10.4L130,10.4',
-      Cloud: undefined,
-      Folder: 'M0,21L104,21',
-      RightArrow: undefined,
-      Stadium: undefined,
-      // The front of the rim (16.2 high): the lower half of the top ellipse.
-      Cylinder: 'M0,8.1A65,8.1 0 0 0 130,8.1',
-      Person: undefined,
-      // The screen and the home button; the title bar's content, dots and address bar.
-      MobileDevice: expect.stringMatching(/^M5\.4,7\.8L124\.6,7\.8L124\.6,56\.7L5\.4,56\.7ZM63\.38,3\.9A1\.62/),
-      WebBrowser: expect.stringMatching(/^M3,9\.3L127,9\.3L127,57L3,57Z(M[^M]+){3}M23\.06,2\.79L120\.86,2\.79/),
-    });
-  });
-
-  it('reproduce the C4 pictures at their sizes: person, mobile app, web browser and database', () => {
-    // person.svg, 120 × 120: the head at 60,20 with radius 18; the body from 42 with corners of 18.
-    expect(shapePath('Person', 0, 0, 120, 120)).toMatch(/^M18,42L102,42A18,18 .*ZM42,19\.8A18,18 0 0 1 78,19\.8/);
-    expect(shapeLayout('Person', 120, 120).content).toEqual({ x: 0, y: 42, width: 120, height: 78 });
-    // mobile-app.svg, 160 × 110: the screen 10–150 × 14–104, the home button at 80,7 with radius 3.
-    expect(shapeLayout('MobileDevice', 160, 110).content).toEqual({ x: 9.9, y: 14.3, width: 140.2, height: 89.65 });
-    expect(shapeGeometry('MobileDevice', 160, 110).details).toContain('M77.03,7.15A2.97,2.97 0 0 1 82.97,7.15');
-    // web-browser.svg, 160 × 110: the content area 3–157 × 17–107, dots at 10, 20 and 30, the bar from 38 to 153.
-    expect(shapeLayout('WebBrowser', 160, 110).content).toEqual({ x: 3, y: 17.05, width: 154, height: 89.95 });
-    const browser = shapeGeometry('WebBrowser', 160, 110).details!;
-    for (const dot of ['M7.16,9.04', 'M17.39,9.04', 'M27.62,9.04']) expect(browser).toContain(dot);
-    expect(browser).toContain('M42.28,5.12L149.08,5.12');
-    // database.svg, 160 × 110: the rim's half-height 15.
-    expect(shapePath('Cylinder', 0, 0, 160, 110)).toBe('M0,14.85A80,14.85 0 0 1 160,14.85L160,95.15A80,14.85 0 0 1 0,95.15Z');
-  });
-
-  it('draw EDGY\'s arrow as its official shape, and a pill with ends of half the height', () => {
-    // EDGY 23's Shape-Activity: points 100 81, 1 81, 1 1, 100 1, 124 41 inside a 1-unit stroke margin.
-    expect(shapeGeometry('RightArrow', 123, 80).attrs['points']).toBe('0,0 99,0 123,40 99,80 0,80');
-    // EDGY 23's tags: an 88 × 24 rect with rx 12.
-    expect(shapeGeometry('Stadium', 88, 24).attrs).toMatchObject({ rx: 12, ry: 12 });
-    // A narrow arrow keeps its point inside the shape.
-    expect(shapeGeometry('RightArrow', 20, 80).attrs['points']).toBe('0,0 10,0 20,40 10,80 0,80');
-  });
-
-  it('keep the band and the 3D depth in proportion to the height, up to a limit', () => {
-    expect(shapeGeometry('BandedRectangle', 120, 55).details).toBe('M0,9.53L120,9.53');
-    expect(shapeGeometry('BandedRectangle', 300, 200).details).toBe('M0,14L300,14');
-    expect(shapeGeometry('Box3D', 300, 200).attrs['points']).toBe('0,12 12,0 300,0 300,188 288,200 0,200');
-    // A large folder's tab stops at 200 wide or half the width, and 21 high.
-    expect(shapeGeometry('Folder', 300, 200).attrs['points']).toBe('0,0 200,0 200,21 300,21 300,200 0,200');
-    expect(shapeGeometry('Folder', 600, 400).attrs['points']).toBe('0,0 300,0 300,21 600,21 600,400 0,400');
-  });
-
-  it('draw the path they dock against', () => {
-    for (const type of ['WavyRectangle', 'WavyBandedRectangle', 'Cloud', 'Cylinder'] as ShapeType[]) {
-      const geometry = shapeGeometry(type, 100, 60);
-      expect(geometry.tag, type).toBe('path');
-      expect(geometry.attrs['d'], type).toBe(shapePath(type, 0, 0, 100, 60));
-    }
-  });
-
-  it('keep the wave and the cloud inside the bounds', () => {
-    // Sample the curves: a lobe or wave that bulged out would draw outside the
-    // shape's box, under its neighbours and outside its selection outline.
-    const W = 120;
-    const H = 55;
-    const sample = (d: string) => {
-      const points: Array<[number, number]> = [];
-      let from: [number, number] = [0, 0];
-      for (const [, command, args] of d.matchAll(/([MLCQZ])([^MLCQZ]*)/g)) {
-        const v = (args!.match(/-?[\d.]+/g) ?? []).map(Number);
-        const pairs: Array<[number, number]> = [];
-        for (let i = 0; i + 1 < v.length; i += 2) pairs.push([v[i]!, v[i + 1]!]);
-        for (let s = 0; s <= 20; s += 1) {
-          const k = s / 20;
-          const u = 1 - k;
-          if (command === 'C') {
-            const [p1, p2, p3] = pairs as [[number, number], [number, number], [number, number]];
-            points.push([0, 1].map((a) => u ** 3 * from[a]! + 3 * u * u * k * p1[a]! + 3 * u * k * k * p2[a]! + k ** 3 * p3[a]!) as [number, number]);
-          } else if (command === 'Q') {
-            const [p1, p2] = pairs as [[number, number], [number, number]];
-            points.push([0, 1].map((a) => u * u * from[a]! + 2 * u * k * p1[a]! + k * k * p2[a]!) as [number, number]);
-          }
-        }
-        if (pairs.length > 0) from = pairs[pairs.length - 1]!;
-      }
-      return points;
-    };
-    for (const type of ['WavyRectangle', 'Cloud'] as ShapeType[]) {
-      const points = sample(shapePath(type, 0, 0, W, H));
-      expect(points.length, type).toBeGreaterThan(0);
-      for (const [x, y] of points) {
-        expect(x, type).toBeGreaterThanOrEqual(0);
-        expect(x, type).toBeLessThanOrEqual(W);
-        expect(y, type).toBeGreaterThanOrEqual(0);
-        expect(y, type).toBeLessThanOrEqual(H);
-      }
-    }
-  });
-
-  it('reproduce the published ArchiMate pictures at their 130 × 60 size', () => {
-    // Read from the bundled pictures (`assets/` mirrors meta.linked.archi).
-    expect(pathNumbers(shapePath('WavyRectangle', 0, 0, 130, 60))).toEqual(
-      pathNumbers(pictureAttribute('archimate4/icons/deliverable.svg', 'path', 'd')),
-    );
-    expect(pathNumbers(shapePath('Cloud', 0, 0, 130, 60))).toEqual(
-      pathNumbers(pictureAttribute('archimate4/icons/meaning.svg', 'path', 'd')),
-    );
-    // The picture draws the silhouette open at the bottom-left corner; the polygon closes it.
-    expect(pathNumbers(String(shapeGeometry('Box3D', 130, 60).attrs['points']))).toEqual([
-      ...pathNumbers(pictureAttribute('archimate4/icons/device.svg', 'polyline', 'points')),
-      0,
-      60,
-    ]);
-    expect(pathNumbers(shapeGeometry('TabbedRectangle', 130, 60).details!)).toEqual(
-      pathNumbers(pictureAttribute('archimate4/icons/product.svg', 'polyline', 'points')),
-    );
-    expect(shapeGeometry('BandedRectangle', 130, 60).details).toBe(
-      `M0,${Number(pictureAttribute('archimate4/icons/business-object.svg', 'line', 'y1'))}L130,10.4`,
-    );
-    // The grouping picture's tab: up the left edge, across, and down to the body.
-    const tab = pathNumbers(pictureAttribute('archimate4/icons/grouping.svg', 'polyline', 'points'));
-    expect(tab).toEqual([0, 21, 0, 0, 104, 0, 104, 21]);
-    expect(pathNumbers(String(shapeGeometry('Folder', 130, 60).attrs['points'])).slice(0, 6)).toEqual(tab.slice(2));
-  });
-});
-
 describe('shapeLayout', () => {
   it('lays a plain shape out over the whole of it', () => {
     const whole = { x: 0, y: 0, width: 120, height: 55 };
@@ -496,25 +270,6 @@ describe('shapeLayout', () => {
     expect(shapeLayout(undefined, 120, 55)).toEqual({ content: whole, label: whole });
   });
 
-  it('keeps the badge and label below a band, on the front face, above a wave and under a rim', () => {
-    expect(shapeLayout('BandedRectangle', 130, 60).content).toEqual({ x: 0, y: 10.4, width: 130, height: 49.6 });
-    expect(shapeLayout('DoubleBandedRectangle', 130, 60).content).toEqual({ x: 0, y: 10.4, width: 130, height: 39.2 });
-    expect(shapeLayout('Box3D', 130, 60).content).toEqual({ x: 0, y: 12, width: 118, height: 48 });
-    expect(shapeLayout('WavyRectangle', 130, 60).content).toEqual({ x: 0, y: 0, width: 130, height: 49.6 });
-    expect(shapeLayout('Cylinder', 130, 60).content).toEqual({ x: 0, y: 16.2, width: 130, height: 35.7 });
-  });
-
-  it('keeps the label left of a RightArrow\'s point and clear of a Stadium\'s round ends', () => {
-    expect(shapeLayout('RightArrow', 130, 60).content).toEqual({ x: 0, y: 0, width: 112, height: 60 });
-    expect(shapeLayout('Stadium', 90, 22).content).toEqual({ x: 5.5, y: 0, width: 79, height: 22 });
-  });
-
-  it('puts a Folder\'s label in its tab, on one line, and its badge in the body', () => {
-    const layout = shapeLayout('Folder', 130, 60);
-    expect(layout.label).toEqual({ x: 0, y: 0, width: 104, height: 21 });
-    expect(layout.maxLabelLines).toBe(1);
-    expect(layout.content).toEqual({ x: 0, y: 21, width: 130, height: 39 });
-  });
 });
 
 describe('badgeBox', () => {

@@ -31,6 +31,7 @@ import type { ElementManager, RelationshipManager } from '../../../model-manager
 import { DiagramCanvas } from '../diagram-canvas.js';
 import { CroppingLayouter } from '../connection-docking.js';
 import { SHAPE_TYPES, shapePath } from '../notation-shapes.js';
+import { archimateShape } from './notation-shape-fixtures.js';
 import { EventBus } from '../../event-bus.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
 
@@ -44,6 +45,8 @@ const REL_TYPE = 'https://example.org/mm#Serves';
 const UNKNOWN_TYPE = 'https://example.org/mm#NotInThePalette';
 /** A type in the palette but carrying no `style` — the no-notation case. */
 const UNSTYLED_TYPE = 'https://example.org/mm#Unstyled';
+/** A type drawn with a notation's own shape: ArchiMate's 3D box. */
+const BOX3D_TYPE = 'https://example.org/mm#Box3D';
 /** A type rendered as a bare glyph, so no shape body is drawn. */
 const ICON_CENTRIC_TYPE = 'https://example.org/mm#IconCentric';
 /** A glyph the bundle really ships, so `iconHref` resolves it. */
@@ -73,6 +76,13 @@ function palette(): PaletteDefinition {
         category: 'Shapes',
         elements: [
           ...SHAPE_TYPES.map(styledType),
+          {
+            iri: BOX3D_TYPE,
+            label: '3D box',
+            isAbstract: false,
+            style: { shapeType: 'Rectangle', customShape: archimateShape('Box3D'), renderingMode: 'ShapeOnly' },
+            renderingMode: 'ShapeOnly',
+          },
           { iri: UNSTYLED_TYPE, label: 'Unstyled', isAbstract: false },
           {
             iri: ICON_CENTRIC_TYPE,
@@ -258,7 +268,13 @@ describe('getShapePath', () => {
     });
   }
 
-  it('gives every shape type its own path, except that inner lines are not outline', () => {
+  it('emits a notation\'s own shape\'s outline from its template, offset by the shape position', () => {
+    const canvas = mount();
+    canvas.addElement(SOURCE_IRI, BOX3D_TYPE, { x: 10, y: 20, width: 100, height: 60 });
+    expect(shapePathOf(canvas, SOURCE_IRI)).toBe('M10,32L22,20L110,20L110,68L98,80L10,80Z');
+  });
+
+  it('gives every shape type its own path', () => {
     const canvas = mount();
     const paths = SHAPE_TYPES.map((shapeType) => {
       const iri = `https://example.org/model/${shapeType}`;
@@ -266,10 +282,7 @@ describe('getShapePath', () => {
       return shapePathOf(canvas, iri);
     });
 
-    // The banded and tabbed rectangles dock as the rectangle they are drawn in,
-    // and the wavy banded one as the wavy one.
-    const sharingAnOutline = ['BandedRectangle', 'DoubleBandedRectangle', 'TabbedRectangle', 'WavyBandedRectangle'];
-    expect(new Set(paths).size).toBe(SHAPE_TYPES.length - sharingAnOutline.length);
+    expect(new Set(paths).size).toBe(SHAPE_TYPES.length);
   });
 
   it('falls back to the rectangle path for a type with no notation style', () => {

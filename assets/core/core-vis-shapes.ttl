@@ -346,9 +346,7 @@ it.'''@en ;
         sh:class    arch-vis:ShapeType ;
         sh:message  '''shapeType must be a single member of the ShapeType enumeration
 (arch-vis:RoundedRectangle, Rectangle, Octagon, Ellipse, Circle, Hexagon, Diamond,
-Parallelogram, BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
-WavyBandedRectangle, Cloud, Folder, RightArrow, Stadium, Cylinder, Person, MobileDevice,
-WebBrowser), or a ShapeType a notation declares itself.'''@en ;
+Parallelogram), or a ShapeType a notation declares itself with a fallback and its geometry.'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:iconSymbol ;
@@ -482,5 +480,58 @@ it.'''@en ;
         sh:nodeKind sh:IRI ;
         sh:class    arch-vis:Decoration ;
         sh:message  "targetDecor must be a single member of the Decoration enumeration."@en ;
+    ] ;
+.
+
+
+#################################################################
+# A notation's own shape — a fallback and its geometry
+#################################################################
+
+:NotationShapeTypeShape
+    a                   sh:NodeShape ;
+    rdfs:label          "Notation shape type shape"@en ;
+    rdfs:comment        '''A shape a notation declares with its geometry (arch-vis:outlinePath) names a
+core shape to fall back to and gives each template once.'''@en ;
+    sh:targetSubjectsOf arch-vis:outlinePath ;
+    sh:class            arch-vis:ShapeType ;
+    sh:property [
+        sh:path     arch-vis:fallbackShape ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in       ( arch-vis:RoundedRectangle arch-vis:Rectangle arch-vis:Octagon arch-vis:Ellipse
+                      arch-vis:Circle arch-vis:Hexagon arch-vis:Diamond arch-vis:Parallelogram ) ;
+        sh:message  '''A notation's own shape names exactly one core shape as its arch-vis:fallbackShape,
+for renderers that cannot draw it.'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:outlinePath ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "arch-vis:outlinePath is a single path template (xsd:string)."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:detailPath ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "arch-vis:detailPath is a single path template (xsd:string)."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:shapeVariables ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "arch-vis:shapeVariables is a single string of assignments."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:contentBox ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  'arch-vis:contentBox is a single "x y width height" string.'@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:labelBox ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  'arch-vis:labelBox is a single "x y width height" string.'@en ;
     ] ;
 .

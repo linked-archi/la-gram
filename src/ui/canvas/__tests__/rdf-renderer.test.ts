@@ -25,6 +25,12 @@ import {
 } from '../notation-shapes.js';
 import { RENDER_CLASSES } from '../rdf-renderer.js';
 import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
+import { archimateShape } from './notation-shape-fixtures.js';
+
+// ArchiMate's own shapes as its bundled notation declares them; their fallback as the core shape.
+const box3d = { shapeType: 'Rectangle' as const, customShape: archimateShape('Box3D') };
+const folder = { shapeType: 'Rectangle' as const, customShape: archimateShape('Folder') };
+const banded = { shapeType: 'Rectangle' as const, customShape: archimateShape('BandedRectangle') };
 
 const TYPE_IRI = 'https://example.org/mm#TestType';
 const BUNDLED_GLYPH = 'archimate4/icons/glyphs/actor.svg';
@@ -271,20 +277,6 @@ describe('shape types through the renderer', () => {
     Hexagon: 'polygon',
     Diamond: 'polygon',
     Parallelogram: 'polygon',
-    BandedRectangle: 'rect',
-    DoubleBandedRectangle: 'rect',
-    TabbedRectangle: 'rect',
-    Box3D: 'polygon',
-    WavyRectangle: 'path',
-    WavyBandedRectangle: 'path',
-    Cloud: 'path',
-    Folder: 'polygon',
-    RightArrow: 'polygon',
-    Stadium: 'rect',
-    Cylinder: 'path',
-    Person: 'path',
-    MobileDevice: 'path',
-    WebBrowser: 'path',
   };
 
   it.each(SHAPE_TYPES)('%s draws the expected SVG element', (shapeType: ShapeType) => {
@@ -312,7 +304,7 @@ describe('shape types through the renderer', () => {
   });
 
   it('draws a shape\'s inner lines over its body, stroked and unfilled', () => {
-    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'Box3D', lineColor: '#333333' }, { width: 130, height: 60 });
+    const shape = drawWithStyle({ ...badgeStyle, ...box3d, lineColor: '#333333' }, { width: 130, height: 60 });
     const [body, details] = [...shape.children];
     expect(body!.getAttribute('class')).toBe(RENDER_CLASSES.body);
     expect(details!.getAttribute('class')).toBe(RENDER_CLASSES.details);
@@ -327,7 +319,7 @@ describe('shape types through the renderer', () => {
   });
 
   it('dashes the outline and the inner lines for a dashed borderStyle', () => {
-    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'Folder', borderStyle: 'DashedLine' });
+    const shape = drawWithStyle({ ...badgeStyle, ...folder, borderStyle: 'DashedLine' });
     const dashes = [RENDER_CLASSES.body, RENDER_CLASSES.details].map((name) =>
       shape.querySelector(`.${name}`)!.getAttribute('stroke-dasharray'),
     );
@@ -335,12 +327,12 @@ describe('shape types through the renderer', () => {
     harness?.destroy();
     harness = undefined;
 
-    const solid = drawWithStyle({ ...badgeStyle, shapeType: 'Folder' });
+    const solid = drawWithStyle({ ...badgeStyle, ...folder });
     expect(solid.querySelector(`.${RENDER_CLASSES.body}`)!.getAttribute('stroke-dasharray')).toBeNull();
   });
 
   it('puts the badge and label on a 3D box\'s front face', () => {
-    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'Box3D' }, { width: 130, height: 60, label: 'Server' });
+    const shape = drawWithStyle({ ...badgeStyle, ...box3d }, { width: 130, height: 60, label: 'Server' });
     const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
     // Front face: x 0–118, y 12–60; the badge in its top-right corner.
     expect([badge.getAttribute('x'), badge.getAttribute('y')]).toEqual(['94', '16']);
@@ -351,7 +343,7 @@ describe('shape types through the renderer', () => {
 
   it('puts a Folder\'s label in its tab, on one line, and its badge in the body', () => {
     const shape = drawWithStyle(
-      { ...badgeStyle, shapeType: 'Folder' },
+      { ...badgeStyle, ...folder },
       { width: 130, height: 60, label: 'A grouping with a name too long for one line' },
     );
     const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
@@ -370,9 +362,9 @@ describe('shape types through the renderer', () => {
       return shape.querySelector(`.${RENDER_CLASSES.label}`)!.getAttribute('fill');
     };
     // EDGY's facets: white border, black name.
-    expect(labelFill({ shapeType: 'RightArrow', fillColor: '#75F0A5', lineColor: '#FFFFFF', fontColor: '#000000', renderingMode: 'ShapeOnly' })).toBe('#000000');
+    expect(labelFill({ shapeType: 'Rectangle', fillColor: '#75F0A5', lineColor: '#FFFFFF', fontColor: '#000000', renderingMode: 'ShapeOnly' })).toBe('#000000');
     // Its tag: a black pill with the name in white, inside.
-    expect(labelFill({ shapeType: 'Stadium', fillColor: '#000000', lineColor: '#000000', fontColor: '#FFFFFF', renderingMode: 'ShapeOnly' })).toBe('#FFFFFF');
+    expect(labelFill({ shapeType: 'RoundedRectangle', fillColor: '#000000', lineColor: '#000000', fontColor: '#FFFFFF', renderingMode: 'ShapeOnly' })).toBe('#FFFFFF');
     // No fontColor: the line colour, as before.
     expect(labelFill({ shapeType: 'Rectangle', lineColor: '#1565C0', renderingMode: 'ShapeOnly' })).toBe('#1565C0');
     // Under an IconCentric icon the label is on the canvas: black unless fontColor says otherwise.
@@ -381,7 +373,7 @@ describe('shape types through the renderer', () => {
   });
 
   it('keeps the label below a band', () => {
-    const shape = drawWithStyle({ ...badgeStyle, shapeType: 'BandedRectangle', renderingMode: 'ShapeOnly' }, { width: 130, height: 60, label: 'Order' });
+    const shape = drawWithStyle({ ...badgeStyle, ...banded, renderingMode: 'ShapeOnly' }, { width: 130, height: 60, label: 'Order' });
     const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
     // Centred in the 49.6 below the band rather than in the whole 60.
     const centred = Number(label.getAttribute('y'));

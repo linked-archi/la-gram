@@ -183,28 +183,25 @@ starts loading its symbol; until it arrives that marker uses built-in
 geometry, and is then replaced in place (same id, so every line using it
 follows). A symbol that cannot be loaded leaves the built-in marker.
 
-**Element shapes** (Req 2.18). `notation-shapes.ts` turns a `ShapeType` into one
+**Element shapes** (Req 2.18). `notation-shapes.ts` turns a shape into one
 geometry with two encodings: the drawn body (`shapeGeometry`: a `rect`,
 `ellipse`, `circle`, `polygon` or `path`, plus `details`, a path of inner lines)
 and the outline in absolute coordinates that connection docking crops against
-(`shapePath`). `Box3D` and `Folder` are polygons; the wavy shapes, `Cloud` and
-`Cylinder` are paths (the wave a cubic, the cloud the published picture's six
-quadratic lobes scaled to the shape, the cylinder's ends arcs) — all of which
-`path-intersection` takes as they stand. The banded and tabbed rectangles dock
-as rectangles and the wavy banded one as the wavy one: inner lines are not
-outline. `shapeLayout` gives the box the badge goes in and the box the label is
-centred in (a `Folder`'s tab, one line). The proportions are those the
-vocabulary states: a band of h × 0.173 (at most 14), a 3D depth of h × 0.2 (at
-most 12), a tab of h × 0.35 (at most 21) by w × 0.8 (at most 200 or w / 2), a rim
-of h × 0.2 (at most 16); at 130 × 60 the shapes reproduce the published
-pictures, which a unit test checks against the bundled picture files.
-`RightArrow` is a polygon (its point h × 0.3 deep, as EDGY's official shape) and
-`Stadium` a rect with corner radius half the smaller side. The label is drawn in
-`arch-vis:fontColor`, else the line colour; under an IconCentric icon, where it
-sits on the canvas, black unless `fontColor` is given.
-`Person`, `MobileDevice` and `WebBrowser` are paths drawn from C4's pictures (the
-person's head and body as two closed parts), with their screen, title bar and
-content area as the layout box.
+(`shapePath`). The eight core shapes are coded. A notation's own shape is a
+`CustomShape` that `notation.ts` reads from the notation data (`readCustomShape`:
+the fallback and the path templates); `drawCustomShape` evaluates its
+`shapeVariables` and fills each `{expression}` with a small parser of its own —
+numbers, `w`, `h`, the variables, `+ - * /`, parentheses, `min`, `max`; never
+`eval` — into the compact path form the core shapes use, and `translatePath`
+moves the outline for docking. Templates are absolute SVG path commands, so
+arcs and curves reach `path-intersection` as they stand. `shapeLayout` takes the
+content and label boxes from the templates (a label box's height decides how
+many lines the label gets). A template that cannot be evaluated is reported once
+and the shape drawn as its fallback. The ArchiMate shapes come from the bundled
+notation files, and their tests check them against the published pictures; the
+C4 and EDGY ones are tested from fixtures mirroring linked-archi-meta. The label
+is drawn in `arch-vis:fontColor`, else the line colour; under an IconCentric
+icon, where it sits on the canvas, black unless `fontColor` is given.
 
 `arch-vis:borderStyle` takes the relationship dash patterns. Badges stay
 `<image href>`: the published glyphs are transparent where the element's fill

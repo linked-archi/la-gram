@@ -28,7 +28,7 @@ and relationships. Defines the standard visual appearance (shape, color, icon,
 line style) for each model concept, enabling palette generation and diagram
 rendering from structured metadata.'''@en ;
     dcterms:created               "2026-05-16"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/notation/4.0#> ;
@@ -44,6 +44,80 @@ rendering from structured metadata.'''@en ;
     a               arch-vis:NotationSet ;
     skos:prefLabel  "ArchiMate 4.0 Standard Notation"@en ;
     skos:definition "The standard visual notation defined by the ArchiMate 4.0 specification."@en ;
+.
+
+
+#################################################################
+# Shapes this notation draws beyond the core ones
+#
+# Declared here, in the notation's namespace, rather than in core-vis: each has a
+# core fallback for renderers that cannot draw it, and its geometry as path
+# templates (see arch-vis:fallbackShape). Proportions match the published pictures.
+#################################################################
+
+:BandedRectangle
+    a                      arch-vis:ShapeType ;
+    skos:prefLabel         "Banded Rectangle"@en ;
+    skos:definition        "A rectangle with a band across the top, one band (h x 0.173, at most 14) deep. ArchiMate's passive structure objects: business object, data object."@en ;
+    arch-vis:fallbackShape arch-vis:Rectangle ;
+    arch-vis:shapeVariables "b = min(h * 10.4 / 60, 14)" ;
+    arch-vis:outlinePath   "M0,0 L{w},0 L{w},{h} L0,{h} Z" ;
+    arch-vis:detailPath    "M0,{b} L{w},{b}" ;
+    arch-vis:contentBox    "0 {b} {w} {h - b}" ;
+.
+
+:TabbedRectangle
+    a                      arch-vis:ShapeType ;
+    skos:prefLabel         "Tabbed Rectangle"@en ;
+    skos:definition        "A rectangle with a tab, one band deep, in the left half of its top. ArchiMate's product."@en ;
+    arch-vis:fallbackShape arch-vis:Rectangle ;
+    arch-vis:shapeVariables "b = min(h * 10.4 / 60, 14)" ;
+    arch-vis:outlinePath   "M0,0 L{w},0 L{w},{h} L0,{h} Z" ;
+    arch-vis:detailPath    "M0,{b} L{w / 2},{b} L{w / 2},0" ;
+    arch-vis:contentBox    "0 {b} {w} {h - b}" ;
+.
+
+:Box3D
+    a                      arch-vis:ShapeType ;
+    skos:prefLabel         "3D Box"@en ;
+    skos:definition        "A front face with a top face and a right-hand side face behind it, h x 0.2 deep (12 in the 130 x 60 picture), at most 12. ArchiMate's device, equipment, facility and plateau."@en ;
+    arch-vis:fallbackShape arch-vis:Rectangle ;
+    arch-vis:shapeVariables "d = min(h * 0.2, w * 0.2, 12)" ;
+    arch-vis:outlinePath   "M0,{d} L{d},0 L{w},0 L{w},{h - d} L{w - d},{h} L0,{h} Z" ;
+    arch-vis:detailPath    "M0,{d} L{w - d},{d} L{w - d},{h} M{w - d},{d} L{w},0" ;
+    arch-vis:contentBox    "0 {d} {w - d} {h - d}" ;
+.
+
+:WavyRectangle
+    a                      arch-vis:ShapeType ;
+    skos:prefLabel         "Wavy Rectangle"@en ;
+    skos:definition        "A rectangle whose bottom edge is one wave, its ends one band above the bottom. ArchiMate's deliverable and gap."@en ;
+    arch-vis:fallbackShape arch-vis:Rectangle ;
+    arch-vis:shapeVariables "b = min(h * 10.4 / 60, 14)" ;
+    arch-vis:outlinePath   "M0,0 L{w},0 L{w},{h - b} C{w / 2},{h - 4 * b} {w / 2},{h + 2 * b} 0,{h - b} Z" ;
+    arch-vis:contentBox    "0 0 {w} {h - b}" ;
+.
+
+:Cloud
+    a                      arch-vis:ShapeType ;
+    skos:prefLabel         "Cloud"@en ;
+    skos:definition        "A cloud of six lobes, the published 130 x 60 picture's scaled to the shape. ArchiMate's meaning."@en ;
+    arch-vis:fallbackShape arch-vis:Ellipse ;
+    arch-vis:shapeVariables "sx = w / 130; sy = h / 60" ;
+    arch-vis:outlinePath   "M{28.6 * sx},{9.6 * sy} Q{46.8 * sx},{-7.2 * sy} {74.1 * sx},{9.6 * sy} Q{113.1 * sx},{-2.4 * sy} {119.6 * sx},{22.2 * sy} Q{145.6 * sx},{43.8 * sy} {100.1 * sx},{52.2 * sy} Q{67.6 * sx},{69 * sy} {35.1 * sx},{47.4 * sy} Q{-5.2 * sx},{52.2 * sy} {7.8 * sx},{30.6 * sy} Q{-10.4 * sx},{9.6 * sy} {28.6 * sx},{9.6 * sy} Z" ;
+    arch-vis:contentBox    "{w * 0.1} {h * 0.15} {w * 0.8} {h * 0.7}" ;
+.
+
+:Folder
+    a                      arch-vis:ShapeType ;
+    skos:prefLabel         "Folder"@en ;
+    skos:definition        "A rectangle with a name tab on the left of its top (h x 0.35 high, at most 21; w x 0.8 wide, at most 200 or w / 2); the label goes in the tab. ArchiMate's grouping, with a dashed border."@en ;
+    arch-vis:fallbackShape arch-vis:Rectangle ;
+    arch-vis:shapeVariables "th = min(h * 0.35, 21); tw = min(w * 0.8, max(200, w / 2))" ;
+    arch-vis:outlinePath   "M0,0 L{tw},0 L{tw},{th} L{w},{th} L{w},{h} L0,{h} Z" ;
+    arch-vis:detailPath    "M0,{th} L{tw},{th}" ;
+    arch-vis:contentBox    "0 {th} {w} {h - th}" ;
+    arch-vis:labelBox      "0 0 {tw} {th}" ;
 .
 
 ## ─────────────────────────────────────────────────────────────────
@@ -192,7 +266,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/grouping.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Folder ;
+        arch-vis:shapeType     :Folder ;
         arch-vis:borderStyle   arch-vis:DashedLine ;
         arch-vis:fillColor     "#E5DFD3" ;
         arch-vis:lineColor     "#000000" ;
@@ -265,7 +339,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/business-object.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:BandedRectangle ;
+        arch-vis:shapeType     :BandedRectangle ;
         arch-vis:fillColor     "#FFFFB5" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
@@ -283,7 +357,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/product.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:TabbedRectangle ;
+        arch-vis:shapeType     :TabbedRectangle ;
         arch-vis:fillColor     "#FFFFB5" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
@@ -337,7 +411,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/data-object.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:BandedRectangle ;
+        arch-vis:shapeType     :BandedRectangle ;
         arch-vis:fillColor     "#AFFFFF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
@@ -373,7 +447,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/device.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Box3D ;
+        arch-vis:shapeType     :Box3D ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -463,7 +537,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/equipment.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Box3D ;
+        arch-vis:shapeType     :Box3D ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -481,7 +555,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/facility.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Box3D ;
+        arch-vis:shapeType     :Box3D ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -733,7 +807,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/meaning.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Cloud ;
+        arch-vis:shapeType     :Cloud ;
         arch-vis:fillColor     "#CBCBFF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
@@ -787,7 +861,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/deliverable.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:WavyRectangle ;
+        arch-vis:shapeType     :WavyRectangle ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeOnly ;
@@ -805,7 +879,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/plateau.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Box3D ;
+        arch-vis:shapeType     :Box3D ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;

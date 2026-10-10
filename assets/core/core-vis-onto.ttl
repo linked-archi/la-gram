@@ -30,11 +30,11 @@ at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
     owl:versionInfo "0.4"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.4: Added the shape types the ArchiMate pictures use beyond plain outlines —
-BandedRectangle, DoubleBandedRectangle, TabbedRectangle, Box3D, WavyRectangle,
-WavyBandedRectangle, Cloud and Folder — RightArrow and Stadium, which EDGY's notation declared
-as its own shape types, and Cylinder, Person, MobileDevice and WebBrowser for C4's pictures.
-Each comment gives its geometry. Added arch-vis:borderStyle (a Style's outline LineStyle) for
+    skos:historyNote '''0.4: A notation declares the shapes it needs beyond the core ones in its own
+namespace, with arch-vis:fallbackShape (a core shape for renderers that cannot draw it) and its
+geometry as path templates: arch-vis:shapeVariables, arch-vis:outlinePath, arch-vis:detailPath,
+arch-vis:contentBox and arch-vis:labelBox. The ArchiMate, EDGY and C4 notations declare theirs
+that way. Added arch-vis:borderStyle (a Style's outline LineStyle) for
 dashed outlines such as ArchiMate's grouping. Documented arch-vis:fontColor as the label colour,
 the line colour when absent. Documented the arch-vis:decorSymbol drawing
 convention, and that an arch-vis:iconSymbol glyph is transparent where the element's fill shows
@@ -408,7 +408,9 @@ arch-vis:borderStyle
 arch-vis:ShapeType
     a            owl:Class ;
     rdfs:label   "ShapeType"@en ;
-    rdfs:comment "Enumeration of geometric shapes used for element rendering."@en ;
+    rdfs:comment '''Geometric shapes used for element rendering. The individuals below are drawn by every
+renderer; a notation declares any other shape it needs in its own namespace, with a fallback and
+its geometry (see arch-vis:fallbackShape).'''@en ;
 .
 
 arch-vis:RoundedRectangle
@@ -459,124 +461,82 @@ arch-vis:Parallelogram
     rdfs:comment "Slanted rectangle — used for interfaces in some notations."@en ;
 .
 
-# Shapes with inner lines or curved edges. Proportions are given against the
-# shape's width w and height h, with the 130 x 60 picture size in brackets;
-# the "band" b is h x 0.173 (10.4), at most 14.
+# A notation's own shapes
+#
+# The individuals above are the shapes every renderer draws natively. A notation
+# that needs another shape declares it in its own notation file: an
+# arch-vis:ShapeType individual in its namespace with an arch-vis:fallbackShape
+# (one of the shapes above, drawn by a renderer that cannot draw this one) and
+# its geometry as path templates, so any renderer can draw it from the data.
+#
+# A template is SVG path data in absolute commands (M L H V C S Q T A Z), in the
+# shape's own coordinates — (0,0) top left, (w,h) bottom right — where any number
+# may be written as {expression}. An expression uses numbers, w, h and the
+# shape's variables, + - * / and parentheses, and the functions min() and max().
+# Example: M0,{d} L{d},0 L{w},0 with the variable d = min(h * 0.2, 12).
 
-arch-vis:BandedRectangle
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Banded Rectangle"@en ;
-    rdfs:comment '''Sharp-cornered rectangle with a line across its full width one band (b) below the
-top edge. The label and badge sit below the band. ArchiMate's passive structure objects:
-business object, data object.'''@en ;
+arch-vis:fallbackShape
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fallbackShape"@en ;
+    rdfs:comment '''The core shape (RoundedRectangle, Rectangle, Octagon, Ellipse, Circle, Hexagon, Diamond or
+Parallelogram) a renderer draws in place of a notation's own shape when it cannot draw that one.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   arch-vis:ShapeType ;
 .
 
-arch-vis:DoubleBandedRectangle
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Double Banded Rectangle"@en ;
-    rdfs:comment '''Banded rectangle with a second line one band (b) above the bottom edge.
-ArchiMate's contract.'''@en ;
+arch-vis:shapeVariables
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "shapeVariables"@en ;
+    rdfs:comment '''Named values a shape's templates use, as assignments separated by semicolons and evaluated
+in order, each able to use the ones before it: "b = min(h * 0.173, 14); t = 2 * b".'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
 .
 
-arch-vis:TabbedRectangle
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Tabbed Rectangle"@en ;
-    rdfs:comment '''Sharp-cornered rectangle with a tab in the left half of its top: a line one band (b)
-below the top edge from the left edge to the middle, then up to the top edge. ArchiMate's
-product.'''@en ;
+arch-vis:outlinePath
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "outlinePath"@en ;
+    rdfs:comment '''The shape's outline, as a path template: filled with the element's fill colour, stroked with
+its line colour, and what connectors meet. It may have several closed parts (a person's head and
+body).'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
 .
 
-arch-vis:Box3D
-    a            arch-vis:ShapeType ;
-    rdfs:label   "3D Box"@en ;
-    rdfs:comment '''Three-dimensional box: a front rectangle with a top face and a right-hand side face
-behind it, at a depth of h x 0.2 (12), at most 12. Both faces take the fill colour; the label
-and badge sit on the front face. ArchiMate's device, equipment, facility and plateau.'''@en ;
+arch-vis:detailPath
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "detailPath"@en ;
+    rdfs:comment '''Lines drawn over the outline, as a path template — a band, a tab, a 3D box's front edges, a
+cylinder's rim: stroked with the line colour, not filled, and not part of the outline connectors
+meet.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
 .
 
-arch-vis:WavyRectangle
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Wavy Rectangle"@en ;
-    rdfs:comment '''Rectangle whose bottom edge is one wave: a cubic curve from the right end to the
-left end, both one band (b) above the bottom, with control points at the middle of the width,
-3b above and 3b below those ends (130 x 60: M0,0 H130 V49.6 C65,18.4 65,80.8 0,49.6 Z). The label
-and badge sit above the wave. ArchiMate's deliverable and gap; the document shape of
-flowcharts.'''@en ;
+arch-vis:contentBox
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "contentBox"@en ;
+    rdfs:comment '''Where the badge and the label go: "x y width height", each a number or an {expression}
+(below a band, on a 3D box's front face). The whole shape when absent.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
 .
 
-arch-vis:WavyBandedRectangle
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Wavy Banded Rectangle"@en ;
-    rdfs:comment '''Wavy rectangle with a band line across the top, as in a banded rectangle.
-ArchiMate's representation.'''@en ;
+arch-vis:labelBox
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "labelBox"@en ;
+    rdfs:comment '''Where the label goes when that is not the content box, as "x y width height": a folder's
+name in its tab. The label takes as many lines as the box is tall enough for.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
 .
 
-arch-vis:Cloud
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Cloud"@en ;
-    rdfs:comment '''Cloud of six lobes that stays within the bounds (130 x 60: M28.6,9.6 Q46.8,-7.2 74.1,9.6
-Q113.1,-2.4 119.6,22.2 Q145.6,43.8 100.1,52.2 Q67.6,69 35.1,47.4 Q-5.2,52.2 7.8,30.6
-Q-10.4,9.6 28.6,9.6 Z, scaled to the shape). ArchiMate's meaning.'''@en ;
-.
-
-arch-vis:Folder
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Folder"@en ;
-    rdfs:comment '''Rectangle with a name tab on the left of its top edge. The tab is h x 0.35 high (21),
-at most 21, and w x 0.8 wide (104), but no wider than 200 or half the width, whichever is
-larger. The label goes in the tab, which leaves the body free for what the shape contains.
-ArchiMate's grouping (with a dashed arch-vis:borderStyle); UML's package.'''@en ;
-.
-
-arch-vis:RightArrow
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Right Arrow"@en ;
-    rdfs:comment '''Rectangle whose right side comes to a point at mid-height, h x 0.3 deep (24 in
-EDGY's 123 x 80 shape), at most half the width. The label and badge sit left of the point.
-EDGY's activity, story, process and journey.'''@en ;
-.
-
-arch-vis:Stadium
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Stadium"@en ;
-    rdfs:comment '''Pill: a rectangle whose short ends are semicircles, the corner radius half the
-smaller side. EDGY's tags and metrics.'''@en ;
-.
-
-arch-vis:Cylinder
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Cylinder"@en ;
-    rdfs:comment '''Upright cylinder: an elliptical top rim, drawn whole, over a body with a rounded
-bottom. The rim is h x 0.27 high (30 in C4's 160 x 110 database picture), at most 30. The label and
-badge sit below the rim. A database or other data store, as in C4.'''@en ;
-.
-
-arch-vis:Person
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Person"@en ;
-    rdfs:comment '''A head over a body: a circle of radius h x 0.15 (at most w x 0.3), centred on the
-middle of the width at h x 0.165, over a rectangle from h x 0.35 to the bottom with corners of radius
-h x 0.15. The label and badge sit in the body. C4's person (120 x 120: the head at 60,20 with radius 18,
-the body from 42 with corner radius 18).'''@en ;
-.
-
-arch-vis:MobileDevice
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Mobile Device"@en ;
-    rdfs:comment '''A device frame around a screen: a rectangle with corners of radius h x 0.055, the
-screen inset h x 0.09 at the sides, h x 0.13 at the top and h x 0.055 at the bottom, and a dot of
-radius h x 0.027 for the home button, centred above the screen. The label and badge sit on the screen.
-C4's mobile app (160 x 110).'''@en ;
-.
-
-arch-vis:WebBrowser
-    a            arch-vis:ShapeType ;
-    rdfs:label   "Web Browser"@en ;
-    rdfs:comment '''A browser window: a rectangle with a title bar t = h x 0.155 high (17 in C4's
-160 x 110 picture), at most 20, holding three dots of radius t x 0.18 at t x 0.6, 1.2 and 1.8 from the
-left and an address bar from t x 2.25 to 7 short of the right edge; under it a content area inset by 3.
-The label and badge sit in the content area. C4's web browser.'''@en ;
-.
 
 
 #################################################################

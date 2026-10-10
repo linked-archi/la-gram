@@ -170,7 +170,7 @@ export class RdfRenderer extends BaseRenderer {
       this.drawIconCentric(group, width, height, label, href as string, style?.fontColor);
     } else {
       this.drawShapeBody(group, style, width, height);
-      const layout = shapeLayout(style?.shapeType, width, height);
+      const layout = shapeLayout(style?.customShape ?? style?.shapeType, width, height);
       // Present exactly when a badge is drawn — ShapeOnly reserves no room.
       const badgePlacement =
         mode === 'ShapeWithBadge' && href ? (style?.iconPlacement ?? 'TopRight') : undefined;
@@ -210,7 +210,7 @@ export class RdfRenderer extends BaseRenderer {
     width: number,
     height: number,
   ): SVGElement {
-    const geometry = shapeGeometry(style?.shapeType, width, height);
+    const geometry = shapeGeometry(style?.customShape ?? style?.shapeType, width, height);
     const lineColor = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
     const dash = strokeDashArray(style?.borderStyle);
     const stroke = (element: SVGElement) => {
@@ -491,9 +491,9 @@ export class RdfRenderer extends BaseRenderer {
     const height = shape.height ?? style?.defaultHeight ?? NOTATION_DEFAULTS.height;
 
     const mode = this.effectiveMode(typeIri, iconHref(style?.iconSymbol, assetUrl));
-    const shapeType = mode === 'IconCentric' ? 'Rectangle' : style?.shapeType;
+    const outline = mode === 'IconCentric' ? 'Rectangle' : (style?.customShape ?? style?.shapeType);
 
-    return shapePath(shapeType, x, y, width, height);
+    return shapePath(outline, x, y, width, height);
   }
 
   /**

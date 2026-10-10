@@ -52,6 +52,12 @@ const T = {
   defaultWidth: `${ARCH_VIS}defaultWidth`,
   defaultHeight: `${ARCH_VIS}defaultHeight`,
   borderStyle: `${ARCH_VIS}borderStyle`,
+  fallbackShape: `${ARCH_VIS}fallbackShape`,
+  shapeVariables: `${ARCH_VIS}shapeVariables`,
+  outlinePath: `${ARCH_VIS}outlinePath`,
+  detailPath: `${ARCH_VIS}detailPath`,
+  contentBox: `${ARCH_VIS}contentBox`,
+  labelBox: `${ARCH_VIS}labelBox`,
   lineStyle: `${ARCH_VIS}lineStyle`,
   sourceDecor: `${ARCH_VIS}sourceDecor`,
   targetDecor: `${ARCH_VIS}targetDecor`,
@@ -67,8 +73,9 @@ const T = {
 export type RenderingMode = 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly';
 
 /**
- * Geometric shape for element visual notation. The vocabulary's comments
- * (`core-vis-onto.ttl`) give each one's geometry; `notation-shapes.ts` draws them.
+ * The core shapes (`core-vis`), which every renderer draws natively. A
+ * notation's own shapes are {@link CustomShape}s: declared in its namespace with
+ * a core fallback and their geometry as path templates.
  */
 export type ShapeType =
   | 'RoundedRectangle'
@@ -78,21 +85,29 @@ export type ShapeType =
   | 'Circle'
   | 'Hexagon'
   | 'Diamond'
-  | 'Parallelogram'
-  | 'BandedRectangle'
-  | 'DoubleBandedRectangle'
-  | 'TabbedRectangle'
-  | 'Box3D'
-  | 'WavyRectangle'
-  | 'WavyBandedRectangle'
-  | 'Cloud'
-  | 'Folder'
-  | 'RightArrow'
-  | 'Stadium'
-  | 'Cylinder'
-  | 'Person'
-  | 'MobileDevice'
-  | 'WebBrowser';
+  | 'Parallelogram';
+
+/**
+ * A shape a notation declares itself (an `arch-vis:ShapeType` outside core-vis),
+ * read from its data: the core shape to fall back to and its geometry as path
+ * templates — SVG path data whose numbers may be `{expressions}` over `w`, `h`
+ * and the variables. `notation-shapes.ts` evaluates them.
+ */
+export interface CustomShape {
+  iri: string;
+  /** `arch-vis:fallbackShape`: drawn when the templates cannot be. */
+  fallback?: ShapeType;
+  /** `arch-vis:shapeVariables`: `name = expression` assignments, `;`-separated. */
+  variables?: string;
+  /** `arch-vis:outlinePath`: filled, stroked, docked against. */
+  outline: string;
+  /** `arch-vis:detailPath`: inner lines, stroked only. */
+  details?: string;
+  /** `arch-vis:contentBox`: `x y width height` for the badge and label. */
+  contentBox?: string;
+  /** `arch-vis:labelBox`: `x y width height` for the label, when elsewhere. */
+  labelBox?: string;
+}
 
 /** Icon position within (or relative to) the shape. */
 export type IconPlacement = 'TopRight' | 'TopLeft' | 'TopCenter' | 'Center' | 'BottomCenter';
@@ -113,7 +128,10 @@ export type Decoration =
 
 /** Visual style for an element type — the construction recipe. */
 export interface VisualStyle {
+  /** A core shape — for a notation's own shape, its fallback. */
   shapeType?: ShapeType;
+  /** A notation's own shape, drawn from its templates in place of {@link shapeType}. */
+  customShape?: CustomShape;
   fillColor?: string;
   lineColor?: string;
   /** Colour of the label (`arch-vis:fontColor`); the line colour when absent. */
@@ -167,21 +185,51 @@ const SHAPE_TYPES: ReadonlySet<string> = new Set<ShapeType>([
   'Hexagon',
   'Diamond',
   'Parallelogram',
-  'BandedRectangle',
-  'DoubleBandedRectangle',
-  'TabbedRectangle',
-  'Box3D',
-  'WavyRectangle',
-  'WavyBandedRectangle',
-  'Cloud',
-  'Folder',
-  'RightArrow',
-  'Stadium',
-  'Cylinder',
-  'Person',
-  'MobileDevice',
-  'WebBrowser',
 ]);
+
+/** A core shape by IRI: only core-vis's own names count, not a namesake in another namespace. */
+function coreShape(iri: string | undefined): ShapeType | undefined {
+  if (!iri?.startsWith(ARCH_VIS)) return undefined;
+  const name = iri.slice(ARCH_VIS.length);
+  return SHAPE_TYPES.has(name) ? (name as ShapeType) : undefined;
+}
+
+/**
+ * A style's shape: a core shape, or a notation's own with its templates (and
+ * its fallback as the core shape). An own shape without an outline draws as its
+ * fallback; one without either, as the default.
+ */
+function readShape(store: Store, styleTerm: Term): { shapeType?: ShapeType; customShape?: CustomShape } {
+  const term = store.getObjects(styleTerm, namedNode(T.shapeType), null).find((o) => o.termType === 'NamedNode');
+  if (!term) return {};
+  const core = coreShape(term.value);
+  if (core) return { shapeType: core };
+  const customShape = readCustomShape(store, term.value);
+  const fallback = customShape?.fallback ?? coreShape(objectValue(store, term, T.fallbackShape) ?? undefined);
+  return { ...(fallback ? { shapeType: fallback } : {}), ...(customShape ? { customShape } : {}) };
+}
+
+/**
+ * A notation's own shape as the store describes it: its fallback and its
+ * templates. `undefined` for a core shape, or one with no outline to draw.
+ */
+export function readCustomShape(store: Store, iri: string): CustomShape | undefined {
+  if (coreShape(iri)) return undefined;
+  const subject = namedNode(iri);
+  const outline = objectValue(store, subject, T.outlinePath);
+  if (!outline) return undefined;
+  const fallback = coreShape(objectValue(store, subject, T.fallbackShape) ?? undefined);
+  const optional = (predicate: string) => objectValue(store, subject, predicate) ?? undefined;
+  return {
+    iri,
+    outline,
+    ...(fallback ? { fallback } : {}),
+    ...(optional(T.shapeVariables) ? { variables: optional(T.shapeVariables) } : {}),
+    ...(optional(T.detailPath) ? { details: optional(T.detailPath) } : {}),
+    ...(optional(T.contentBox) ? { contentBox: optional(T.contentBox) } : {}),
+    ...(optional(T.labelBox) ? { labelBox: optional(T.labelBox) } : {}),
+  };
+}
 
 const ICON_PLACEMENTS: ReadonlySet<string> = new Set<IconPlacement>([
   'TopRight',
@@ -355,7 +403,7 @@ function resolveDefaultNotationSet(store: Store): string | null {
 // ---------------------------------------------------------------------------
 
 function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undefined {
-  const shapeType = parseEnum<ShapeType>(objectValue(store, styleTerm, T.shapeType), SHAPE_TYPES);
+  const { shapeType, customShape } = readShape(store, styleTerm);
   const fillColor = objectValue(store, styleTerm, T.fillColor) ?? undefined;
   const lineColor = objectValue(store, styleTerm, T.lineColor) ?? undefined;
   const fontColor = objectValue(store, styleTerm, T.fontColor) ?? undefined;
@@ -384,10 +432,12 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
     defaultWidth !== undefined ||
     defaultHeight !== undefined ||
     borderStyle !== undefined ||
-    fontColor !== undefined;
+    fontColor !== undefined ||
+    customShape !== undefined;
   if (!hasAny) return undefined;
 
   const style: VisualStyle = { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
+  if (customShape) style.customShape = customShape;
   if (borderStyle) style.borderStyle = borderStyle;
   if (fontColor) style.fontColor = fontColor;
   return style;

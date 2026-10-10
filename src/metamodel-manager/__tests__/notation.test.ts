@@ -126,49 +126,68 @@ describe('buildVisualNotations — element notation', () => {
     );
   });
 
-  it('reads the shapes with inner lines and curves, and a dashed borderStyle', () => {
+  it('reads a notation\'s own shape — its fallback and its templates — and a dashed borderStyle', () => {
     const set = buildVisualNotations(
       storeFromTurtle(`${PREFIXES}
 :ArchiMate40StandardNotation a arch-vis:NotationSet .
+:Folder
+    a                       arch-vis:ShapeType ;
+    arch-vis:fallbackShape  arch-vis:Rectangle ;
+    arch-vis:shapeVariables "th = min(h * 0.35, 21); tw = min(w * 0.8, max(200, w / 2))" ;
+    arch-vis:outlinePath    "M0,0 L{tw},0 L{tw},{th} L{w},{th} L{w},{h} L0,{h} Z" ;
+    arch-vis:detailPath     "M0,{th} L{tw},{th}" ;
+    arch-vis:contentBox     "0 {th} {w} {h - th}" ;
+    arch-vis:labelBox       "0 0 {tw} {th}" .
+:Sketchy a arch-vis:ShapeType ; arch-vis:fallbackShape arch-vis:Hexagon .
 :GroupingNotation
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am4:Grouping ;
     arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Folder ; arch-vis:borderStyle arch-vis:DashedLine ] .
-:DeviceNotation
+    arch-vis:defaultStyle [ arch-vis:shapeType :Folder ; arch-vis:borderStyle arch-vis:DashedLine ] .
+:NodeNotation
     a                    arch-vis:VisualNotation ;
-    arch-vis:notationFor am4:Device ;
+    arch-vis:notationFor am4:Node ;
     arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Box3D ] .
+    arch-vis:defaultStyle [ arch-vis:shapeType :Sketchy ] .
 :OtherNotation
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am4:Other ;
     arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:defaultStyle [ arch-vis:shapeType <https://example.org/notation#Starburst> ; arch-vis:fillColor "#FFFFFF" ] .
+    arch-vis:defaultStyle [ arch-vis:shapeType <https://example.org/notation#Rectangle> ; arch-vis:fillColor "#FFFFFF" ] .
 `),
     );
     const style = (local: string) => set!.notations.get(`https://meta.linked.archi/archimate4/onto#${local}`)!.style;
-    expect(style('Grouping')).toMatchObject({ shapeType: 'Folder', borderStyle: 'DashedLine' });
-    expect(style('Device')).toMatchObject({ shapeType: 'Box3D' });
-    expect(style('Device')!.borderStyle).toBeUndefined();
-    // A shape type a notation declares for itself is not one la-gram draws: the default applies.
+    // The shape's own templates, and its fallback as the core shape.
+    expect(style('Grouping')).toMatchObject({
+      shapeType: 'Rectangle',
+      borderStyle: 'DashedLine',
+      customShape: {
+        iri: 'https://meta.linked.archi/archimate4/notation#Folder',
+        fallback: 'Rectangle',
+        outline: 'M0,0 L{tw},0 L{tw},{th} L{w},{th} L{w},{h} L0,{h} Z',
+        details: 'M0,{th} L{tw},{th}',
+        contentBox: '0 {th} {w} {h - th}',
+        labelBox: '0 0 {tw} {th}',
+      },
+    });
+    // A shape with a fallback but no outline draws as its fallback.
+    expect(style('Node')).toMatchObject({ shapeType: 'Hexagon' });
+    expect(style('Node')!.customShape).toBeUndefined();
+    // Only core-vis's own names are core shapes: a namesake elsewhere is not.
     expect(style('Other')!.shapeType).toBeUndefined();
   });
 
-  it('reads EDGY\'s arrow and pill and the label colour (arch-vis:fontColor)', () => {
+  it('reads the label colour (arch-vis:fontColor)', () => {
     const set = buildVisualNotations(
       storeFromTurtle(`${PREFIXES}
 @prefix edgy: <https://meta.linked.archi/edgy/onto#> .
 :ArchiMate40StandardNotation a arch-vis:NotationSet .
 :StoryNotation a arch-vis:VisualNotation ; arch-vis:notationFor edgy:Story ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:RightArrow ; arch-vis:fillColor "#75F0A5" ; arch-vis:lineColor "#FFFFFF" ; arch-vis:fontColor "#000000" ] .
-:TaggingNotation a arch-vis:VisualNotation ; arch-vis:notationFor edgy:Tagging ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Stadium ; arch-vis:fillColor "#000000" ; arch-vis:fontColor "#FFFFFF" ] .
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Rectangle ; arch-vis:fillColor "#75F0A5" ; arch-vis:lineColor "#FFFFFF" ; arch-vis:fontColor "#000000" ] .
 `),
     );
-    const style = (local: string) => set!.notations.get(`https://meta.linked.archi/edgy/onto#${local}`)!.style;
-    expect(style('Story')).toMatchObject({ shapeType: 'RightArrow', lineColor: '#FFFFFF', fontColor: '#000000' });
-    expect(style('Tagging')).toMatchObject({ shapeType: 'Stadium', fontColor: '#FFFFFF' });
+    const style = set!.notations.get('https://meta.linked.archi/edgy/onto#Story')!.style;
+    expect(style).toMatchObject({ shapeType: 'Rectangle', lineColor: '#FFFFFF', fontColor: '#000000' });
   });
 });
 
@@ -434,8 +453,18 @@ describe('real published ArchiMate 4.0 notation file', () => {
       [am3, 'Meaning', 'Cloud'],
       [am3, 'Grouping', 'Folder'],
     ];
-    for (const [shapesOf, local, shapeType] of expected) {
-      expect(shapesOf(local)?.shapeType, local).toBe(shapeType);
+    // ArchiMate's own shapes are declared in its notation file, with a core fallback.
+    const core = new Set(['Rectangle', 'RoundedRectangle']);
+    for (const [shapesOf, local, shape] of expected) {
+      const style = shapesOf(local)!;
+      if (core.has(shape)) {
+        expect(style.shapeType, local).toBe(shape);
+        expect(style.customShape, local).toBeUndefined();
+      } else {
+        expect(style.customShape?.iri.split('#')[1], local).toBe(shape);
+        expect(style.customShape?.iri, local).toMatch(/^https:\/\/meta\.linked\.archi\/archimate[34]\/notation#/);
+        expect(style.shapeType, local).toBe(shape === 'Cloud' ? 'Ellipse' : 'Rectangle');
+      }
     }
     expect(am4('Grouping')?.borderStyle).toBe('DashedLine');
     expect(am3('Grouping')?.borderStyle).toBe('DashedLine');
