@@ -516,6 +516,8 @@ describe('NotationResolver — Basic active beside ArchiMate 4.0', () => {
       lineStyle: 'SolidLine',
       sourceDecor: 'FilledDiamond',
       targetDecor: 'NoDecoration',
+      // Nesting may draw it: the part inside the whole.
+      nestedEnds: ['target'],
     });
     expect(resolved.notation?.relationshipStyle?.lineColor).toBeUndefined();
   });

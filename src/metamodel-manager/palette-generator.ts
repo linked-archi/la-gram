@@ -116,6 +116,7 @@ const RDF_TYPE = `${NAMESPACES.rdf}type`;
 const RDFS_LABEL = `${NAMESPACES.rdfs}label`;
 const RDFS_COMMENT = `${NAMESPACES.rdfs}comment`;
 const RDFS_SEE_ALSO = `${NAMESPACES.rdfs}seeAlso`;
+const RDFS_SUBCLASS_OF = `${NAMESPACES.rdfs}subClassOf`;
 const SKOS_PREF_LABEL = `${NAMESPACES.skos}prefLabel`;
 const SKOS_DEFINITION = `${NAMESPACES.skos}definition`;
 
@@ -438,7 +439,8 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
   // ── Viewpoints ───────────────────────────────────────────────────────
 
   /**
-   * The concept IRIs a viewpoint names.
+   * The concept IRIs a viewpoint names, and their subclasses — a viewpoint
+   * naming a class includes its subclasses, as `ViewpointManager` reads it.
    *
    * Read straight off the store rather than through SPARQL so the IRI never has
    * to be interpolated into a query string.
@@ -453,6 +455,12 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     ]) {
       for (const q of this.store.getQuads(subject, namedNode(predicate), null, null)) {
         if (q.object.termType === 'NamedNode') concepts.add(q.object.value);
+      }
+    }
+    // A Set visits what is added during iteration, so this walks the closure.
+    for (const iri of concepts) {
+      for (const q of this.store.getQuads(null, namedNode(RDFS_SUBCLASS_OF), namedNode(iri), null)) {
+        if (q.subject.termType === 'NamedNode') concepts.add(q.subject.value);
       }
     }
     return concepts;

@@ -24,7 +24,7 @@
  */
 
 import { DataFactory } from 'n3';
-import type { NamedNode, Quad } from '@rdfjs/types';
+import type { NamedNode, Quad, Term } from '@rdfjs/types';
 
 import type { App } from '../app.js';
 import type { PaletteDefinition, ViewpointInfo } from '../metamodel-manager/interfaces.js';
@@ -34,7 +34,9 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
 import { METAMODEL_CATALOGUE } from '../metamodel-manager/catalogue.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
-import { labelOf, modelQuads, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { VersionHistory } from '../model-manager/version-history.js';
+import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
+import { hasLabel, labelOf, modelQuads, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
@@ -54,6 +56,7 @@ import './views/catalog-view.js';
 import './views/matrix-view.js';
 import './panels/rdf-panel.js';
 import './panels/graph-panel.js';
+import './panels/history-panel.js';
 import './panels/type-guide-panel.js';
 
 import type { AppShell, BottomTab } from './app-shell.js';
@@ -147,6 +150,8 @@ export interface MountedUi {
   rdfPanel: RdfPanel;
   /** The relationships around the selected element, as a graph (the Graph tab). */
   graphPanel: GraphPanel;
+  /** The model's commits (the History tab). */
+  historyPanel: HistoryPanel;
   /** What the metamodel says about the selected type, under the model tree. */
   typeGuidePanel: TypeGuidePanel;
   /** Show or hide the RDF panel. */
@@ -267,7 +272,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const describe = (iri: string): ConceptDescription | undefined => {
     const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     if (types.length === 0) return undefined;
-    return { typeIri: mainType(types, closure), label: labelOf(store, iri) };
+    return { typeIri: mainType(types, closure), label: labelOf(store, iri), named: hasLabel(store, iri) };
   };
 
   // ── Top: app toolbar ─────────────────────────────────────────────────
@@ -290,6 +295,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const propertyPanel = document.createElement('property-panel');
   propertyPanel.slot = 'properties';
   propertyPanel.rdfStore = store;
+  propertyPanel.nameOf = (iri) => (hasLabel(store, iri) ? labelOf(store, iri) : undefined);
   propertyPanel.shapesGraph = app.shapesGraph();
 
   // ── Centre: diagram host + alternative catalog/matrix views ──────────
@@ -365,6 +371,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const graphPanel = document.createElement('graph-panel');
   graphPanel.slot = 'graph';
+
+  // ── Bottom, "History" tab: the model's commits ───────────────────────
+  const historyPanel = document.createElement('history-panel');
+  historyPanel.slot = 'history';
+  const versionHistory = new VersionHistory(store);
   const typeGuidePanel = document.createElement('type-guide-panel');
   typeGuidePanel.slot = 'guide';
 
@@ -386,7 +397,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   // ── Attach to the document ───────────────────────────────────────────
-  shell.append(appToolbar, modelExplorer, typeGuidePanel, canvasArea, propertyPanel, validationPanel, sparqlEditor, graphPanel, palettePanel, rdfPanel);
+  shell.append(appToolbar, modelExplorer, typeGuidePanel, canvasArea, propertyPanel, validationPanel, sparqlEditor, graphPanel, historyPanel, palettePanel, rdfPanel);
   root.appendChild(shell);
 
   // ── Model tree data ──────────────────────────────────────────────────
@@ -577,36 +588,66 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   // ── Property panel → model ───────────────────────────────────────────
-  const onPropertyEdit = (e: Event): void => {
-    const detail = (e as CustomEvent<PropertyEditDetail>).detail;
-    eventBus.emit('property-edited', {
-      elementIri: detail.elementIri,
-      // App's handler uses `property`; the panel emits it as `predicate`.
-      property: detail.predicate,
-      value: detail.value,
-      ...(detail.language ? { language: detail.language } : {}),
-    });
+  // Each edit is one step on the open view's undo stack (`recordChange`); with
+  // no view open it is made as it is.
+
+  /** Make a property change; tell the app when the canvas did not record it (it does when it did). */
+  const changeProperties = (elementIri: string, apply: () => void): void => {
+    if (!diagramCanvas.recordChange(apply)) eventBus.emit('model-changed', { origin: 'properties', iri: elementIri });
   };
-  const onPropertyAdd = (e: Event): void => {
-    const d = (e as CustomEvent<PropertyChangeDetail>).detail;
-    // A value chosen from the shape's list is an IRI; a value of a property whose
-    // shape names a datatype is a literal of it (bs:orphan → xsd:boolean).
-    const value =
-      d.isIri || (!d.datatype && /^(https?|urn):/.test(d.value))
-        ? DataFactory.namedNode(d.value)
+
+  /**
+   * The term a value from the panel stands for: an IRI chosen from the shape's
+   * list, a literal of the shape's datatype (bs:orphan → xsd:boolean), text in
+   * its language, or — typed — an IRI when it looks like one.
+   */
+  const termFor = (d: { predicate: string; value: string; isIri?: boolean; datatype?: string; language?: string }): Term =>
+    (d.isIri || (!d.datatype && !d.language && /^(https?|urn):/.test(d.value))
+      ? DataFactory.namedNode(d.value)
+      : d.language
+        ? DataFactory.literal(d.value, d.language)
         : d.datatype
           ? DataFactory.literal(d.value, DataFactory.namedNode(d.datatype))
-          : DataFactory.literal(d.value, d.predicate.startsWith(NAMESPACES.skos) || d.predicate.startsWith(NAMESPACES.dcterms) ? 'en' : undefined);
-    store.addQuads([DataFactory.quad(DataFactory.namedNode(d.elementIri), DataFactory.namedNode(d.predicate), value) as unknown as Quad]);
-    eventBus.emit('model-changed', { origin: 'properties', iri: d.elementIri });
+          : DataFactory.literal(
+              d.value,
+              d.predicate.startsWith(NAMESPACES.skos) || d.predicate.startsWith(NAMESPACES.dcterms) ? 'en' : undefined,
+            )) as unknown as Term;
+
+  /** The element's own values of a property (not the metamodel's), matching `value` and, when given, `language`. */
+  const valuesOf = (elementIri: string, predicate: string, value: string, language?: string): Quad[] =>
+    store
+      .getQuads(namedNode(elementIri) as unknown as NamedNode, namedNode(predicate) as unknown as NamedNode)
+      .filter(
+        (q) =>
+          q.graph.termType === 'DefaultGraph' &&
+          q.object.value === value &&
+          (language === undefined || ((q.object as { language?: string }).language ?? '') === language),
+      );
+
+  /** Replace one value of a property — only it: the name in another language stays. */
+  const editProperty = (d: PropertyEditDetail): void => {
+    const value = termFor(d);
+    changeProperties(d.elementIri, () => {
+      const replaced = d.previous ? valuesOf(d.elementIri, d.predicate, d.previous, d.previousLanguage) : [];
+      if (replaced.length > 0) store.removeQuads(replaced);
+      store.addQuads([DataFactory.quad(DataFactory.namedNode(d.elementIri), DataFactory.namedNode(d.predicate), value as never) as unknown as Quad]);
+    });
+  };
+
+  const onPropertyEdit = (e: Event): void => editProperty((e as CustomEvent<PropertyEditDetail>).detail);
+  const onPropertyAdd = (e: Event): void => {
+    const d = (e as CustomEvent<PropertyChangeDetail>).detail;
+    const value = termFor(d);
+    changeProperties(d.elementIri, () => {
+      store.addQuads([DataFactory.quad(DataFactory.namedNode(d.elementIri), DataFactory.namedNode(d.predicate), value as never) as unknown as Quad]);
+    });
   };
   const onPropertyRemove = (e: Event): void => {
     const d = (e as CustomEvent<PropertyChangeDetail>).detail;
-    const stale = store
-      .getQuads(namedNode(d.elementIri) as unknown as NamedNode, namedNode(d.predicate) as unknown as NamedNode)
-      .filter((q) => q.object.value === d.value && q.graph.termType === 'DefaultGraph');
-    if (stale.length > 0) store.removeQuads(stale);
-    eventBus.emit('model-changed', { origin: 'properties', iri: d.elementIri });
+    changeProperties(d.elementIri, () => {
+      const stale = valuesOf(d.elementIri, d.predicate, d.value);
+      if (stale.length > 0) store.removeQuads(stale);
+    });
   };
   const onPanelNavigate = (e: Event): void => {
     void revealAnywhere((e as CustomEvent<{ iri: string }>).detail.iri);
@@ -669,9 +710,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   modelExplorer.addEventListener('explorer-action', onExplorerAction);
 
   const renameConcept = async (iri: string): Promise<void> => {
-    const name = await dialogs.prompt('Rename', 'Name', labelOf(store, iri));
+    const current = labelOf(store, iri);
+    const name = await dialogs.prompt('Rename', 'Name', current);
     if (!name) return;
-    eventBus.emit('property-edited', { elementIri: iri, property: NAMESPACES.skos + 'prefLabel', value: name });
+    editProperty({
+      elementIri: iri,
+      predicate: NAMESPACES.skos + 'prefLabel',
+      value: name,
+      language: 'en',
+      ...(hasLabel(store, iri) ? { previous: current } : {}),
+    });
   };
 
   const handleExplorerAction = async (detail: ExplorerActionDetail): Promise<void> => {
@@ -948,7 +996,59 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   const onBottomPanelChanged = (): void => {
     graphPanel.active = shell.visibleBottomTab === 'graph';
+    const shown = shell.visibleBottomTab === 'history';
+    if (shown !== historyShown) {
+      historyShown = shown;
+      void refreshHistory();
+    }
   };
+
+  // ── History: commit, compare, restore ────────────────────────────────
+  let historyShown = false;
+  /** The open model's commits, and — while the tab is shown — its working state to compare with. */
+  const refreshHistory = async (): Promise<void> => {
+    const modelIri = session.modelIri;
+    historyPanel.canCommit = Boolean(modelIri);
+    historyPanel.prefixes = app.modelIO.collectPrefixes(modelIri);
+    try {
+      historyPanel.commits = modelIri ? await versionHistory.list(modelIri) : [];
+    } catch (err: unknown) {
+      report(`History unavailable: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      historyPanel.commits = [];
+    }
+    historyPanel.working = historyShown && modelIri ? versionHistory.workingSnapshot() : undefined;
+  };
+  const onHistoryCommit = async (e: Event): Promise<void> => {
+    const modelIri = session.modelIri;
+    if (!modelIri) return;
+    const { message } = (e as CustomEvent<HistoryCommitDetail>).detail;
+    try {
+      await versionHistory.commit(modelIri, message, app.collaborationUser);
+      dialogs.toast('Committed');
+    } catch (err: unknown) {
+      report(`Commit failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+    }
+    await refreshHistory();
+  };
+  const onHistoryRestore = async (e: Event): Promise<void> => {
+    const { id } = (e as CustomEvent<HistoryRestoreDetail>).detail;
+    const commit = historyPanel.commits.find((c) => c.id === id);
+    if (!commit) return;
+    const go = await dialogs.confirm(
+      'Restore this version',
+      `The model becomes the version committed ${new Date(commit.timestamp).toLocaleString()}${commit.message ? ` ("${commit.message}")` : ''}. ` +
+        'Changes not committed are replaced — commit first to keep them. Undo takes the restore back while this view stays open.',
+      { confirmLabel: 'Restore', ...(app.collaborationRoom ? { details: [`It is restored for everyone in room "${app.collaborationRoom}".`] } : {}) },
+    );
+    if (!go) return;
+    if (!diagramCanvas.recordChange(versionHistory.restorer(commit))) {
+      eventBus.emit('model-changed', { origin: 'history' });
+    }
+    eventBus.emit('views-changed', {});
+    await refreshHistory();
+  };
+  historyPanel.addEventListener('history-commit', onHistoryCommit);
+  historyPanel.addEventListener('history-restore', onHistoryRestore);
   shell.addEventListener('bottom-panel-changed', onBottomPanelChanged);
   // The Graph tab may be the one left open last time.
   queueMicrotask(onBottomPanelChanged);
@@ -1399,6 +1499,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const onModelLoaded: ModelEventHandler = () => {
+    void refreshHistory();
     guides.clear();
     diagramCanvas.setModelIri(session.modelIri ?? DEFAULT_MODEL_IRI);
     selectConcept(undefined);
@@ -1422,6 +1523,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onModelChanged: ModelEventHandler = (event) => {
     if (event.detail?.origin !== 'canvas') diagramCanvas.syncFromStore();
     propertyPanel.reload();
+    // What is not committed yet, while the History tab shows it.
+    if (historyShown && session.modelIri) historyPanel.working = versionHistory.workingSnapshot();
     if (propertyPanel.selectedIri) {
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
@@ -1517,6 +1620,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);
     shell.removeEventListener('bottom-panel-changed', onBottomPanelChanged);
+    historyPanel.removeEventListener('history-commit', onHistoryCommit);
+    historyPanel.removeEventListener('history-restore', onHistoryRestore);
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
@@ -1552,6 +1657,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     diagramCanvas,
     rdfPanel,
     graphPanel,
+    historyPanel,
     typeGuidePanel,
     setRdfPanelOpen,
     isRdfPanelOpen: () => shell.rdfOpen,

@@ -106,15 +106,19 @@ export default (_env, argv) => {
     devtool,
   };
 
-  /** Electron main process (Node.js context) */
+  /**
+   * Electron main process (Node.js context). CommonJS, so `.cjs`: the package is
+   * `"type": "module"`, and Node reads a `.js` file in it as ESM. Cleaning keeps
+   * the renderer, which the other config writes under this directory.
+   */
   const electronMainConfig = {
     name: 'electron-main',
     target: 'electron-main',
     entry: './src/electron-main.ts',
     output: {
-      filename: 'main.js',
+      filename: 'main.cjs',
       path: path.resolve(__dirname, 'dist/electron'),
-      clean: true,
+      clean: { keep: /^renderer\// },
     },
     resolve: { ...sharedResolve },
     module: { rules: [...sharedModuleRules] },

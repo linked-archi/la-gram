@@ -40,7 +40,7 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
 export type SidePanel = 'explorer' | 'palette' | 'rdf';
 
 /** A tab of the bottom panel. */
-export type BottomTab = 'properties' | 'validation' | 'sparql' | 'graph';
+export type BottomTab = 'properties' | 'validation' | 'sparql' | 'graph' | 'history';
 
 /** The bottom panel's tabs, in order. */
 export const BOTTOM_TABS: ReadonlyArray<{ id: BottomTab; label: string }> = [
@@ -48,6 +48,7 @@ export const BOTTOM_TABS: ReadonlyArray<{ id: BottomTab; label: string }> = [
   { id: 'validation', label: 'Validation' },
   { id: 'sparql', label: 'SPARQL Query' },
   { id: 'graph', label: 'Graph' },
+  { id: 'history', label: 'History' },
 ];
 
 /** Width limits, the localStorage key and the side of each side panel. */

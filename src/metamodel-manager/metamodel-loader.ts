@@ -143,11 +143,11 @@ function documentIriFor(iri: string): string {
 /**
  * Manifest properties whose targets the editor never reads. They are recorded
  * with outcome `skipped` instead of being fetched: derivation rules need a
- * SHACL-AF engine, and the rest feed document generation and reference data.
+ * SHACL-AF engine, and the rest feed document generation. Reference data is
+ * loaded: its concepts name the values a property may take.
  */
 const SKIPPED_VIA: readonly string[] = [
   'derivationRules',
-  'referenceData',
   'referenceModels',
   'hasDeliverableTemplate',
   'basedOnFramework',
@@ -173,6 +173,8 @@ function roleFromVia(via: string): BundledAssetRole | undefined {
       return 'presentationContexts';
     case 'arch:derivationRules':
       return 'derivationRules';
+    case 'arch:referenceData':
+      return 'referenceData';
     default:
       return undefined;
   }

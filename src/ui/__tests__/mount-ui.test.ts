@@ -70,6 +70,8 @@ const SAMPLE_PALETTE: PaletteDefinition = {
   relationshipTypes: [],
 };
 
+const SKOS_PREF_LABEL = 'http://www.w3.org/2004/02/skos/core#prefLabel';
+
 // ── Stubs ─────────────────────────────────────────────────────────────
 
 function stubStore(seed: Quad[] = []): RdfStore {
@@ -386,18 +388,35 @@ describe('mountUi', () => {
       expect(seen).toContain('urn:e:42');
     });
 
-    it('translates a property-panel edit into a property-edited bus event', () => {
+    it('writes a property-panel edit to the store, replacing only the value edited', () => {
+      const store = app.components.store;
+      const label = (value: string, language: string) =>
+        DataFactory.quad(DataFactory.namedNode('urn:e:1'), DataFactory.namedNode(SKOS_PREF_LABEL), DataFactory.literal(value, language)) as unknown as Quad;
+      store.addQuads([label('Old', 'en'), label('Alt', 'de')]);
+
       ui.propertyPanel.dispatchEvent(
         new CustomEvent('property-edit', {
-          detail: { elementIri: 'urn:e:1', predicate: 'urn:p:label', value: 'Hello' },
+          detail: { elementIri: 'urn:e:1', predicate: SKOS_PREF_LABEL, value: 'Hello', language: 'en', previous: 'Old', previousLanguage: 'en' },
         }),
       );
 
-      expect(app.components.elementManager.updateProperty).toHaveBeenCalledWith(
-        'urn:e:1',
-        'urn:p:label',
-        expect.objectContaining({ value: 'Hello' }),
-      );
+      const removed = (store.removeQuads as ReturnType<typeof vi.fn>).mock.calls.flat(2) as Quad[];
+      expect(removed.map((q) => q.object.value)).toEqual(['Old']);
+      const added = (store.addQuads as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as Quad[];
+      expect(added.map((q) => [q.object.value, (q.object as { language?: string }).language])).toEqual([['Hello', 'en']]);
+    });
+
+    it('writes a value chosen from a list as the IRI it is, and a datatype\'s value typed', () => {
+      const store = app.components.store;
+      for (const detail of [
+        { elementIri: 'urn:e:1', predicate: 'urn:p:state', value: 'urn:v:Production', isIri: true },
+        { elementIri: 'urn:e:1', predicate: 'urn:p:orphan', value: 'true', datatype: 'http://www.w3.org/2001/XMLSchema#boolean' },
+      ]) {
+        ui.propertyPanel.dispatchEvent(new CustomEvent('property-edit', { detail }));
+      }
+      const added = (store.addQuads as ReturnType<typeof vi.fn>).mock.calls.slice(-2).map((call) => (call[0] as Quad[])[0].object);
+      expect(added[0].termType).toBe('NamedNode');
+      expect(added[1]).toMatchObject({ termType: 'Literal', value: 'true', datatype: { value: 'http://www.w3.org/2001/XMLSchema#boolean' } });
     });
 
     /**

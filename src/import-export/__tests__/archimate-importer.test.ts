@@ -201,6 +201,41 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     expect(modelQuads(store).every((x) => x.subject.termType === 'NamedNode')).toBe(true);
   });
 
+  it('draws a node nested in another inside its nearest element ancestor', () => {
+    const NESTED = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
+  <name xml:lang="en">Nested</name>
+  <elements>
+    <element identifier="id-node" xsi:type="Node"><name xml:lang="en">Server</name></element>
+    <element identifier="id-os" xsi:type="SystemSoftware"><name xml:lang="en">Linux</name></element>
+  </elements>
+  <views><diagrams>
+    <view identifier="id-v" xsi:type="Diagram"><name xml:lang="en">Deployment</name>
+      <node identifier="n-node" elementRef="id-node" xsi:type="Element" x="10" y="10" w="400" h="300">
+        <node identifier="n-group" xsi:type="Container" x="20" y="40" w="300" h="200">
+          <node identifier="n-os" elementRef="id-os" xsi:type="Element" x="40" y="80" w="120" h="55"/>
+        </node>
+      </node>
+    </view>
+  </diagrams></views>
+</model>`;
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/nested/';
+    applyExchangeModel(parseArchiMateExchange(NESTED), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    const viewIri = views.getViews().find((v) => v.label === 'Deployment')!.iri;
+    expect(views.getNode(viewIri, `${ns}element-id-os`)).toMatchObject({
+      parentElementIri: `${ns}element-id-node`,
+      bounds: { x: 40, y: 80, width: 120, height: 55 },
+    });
+    expect(views.getNode(viewIri, `${ns}element-id-node`)?.parentElementIri).toBeUndefined();
+  });
+
   it('writes each kind of access and association as its class, with the shared predicate', () => {
     const ns = 'https://example.org/archimate/kinds/';
     const knownClass = (iri: string) =>

@@ -71,6 +71,7 @@ export type BundledAssetRole =
   | 'presentationContexts'
   | 'viewpoints'
   | 'derivationRules'
+  | 'referenceData'
   | 'coreOntology'
   | 'coreVisOntology'
   | 'coreShapes';
@@ -197,6 +198,7 @@ function languageAssets(
       metamodel: id,
     },
     { role: 'viewpoints', ontologyIri: doc('viewpoints'), path: path('viewpoints'), metamodel: id },
+    { role: 'referenceData', ontologyIri: doc('reference-data'), path: path('reference-data'), metamodel: id },
   ];
 }
 

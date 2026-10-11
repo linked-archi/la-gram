@@ -345,6 +345,8 @@ export interface ShapeLayout {
   label: Box;
   /** The most label lines {@link label} holds, when that is fewer than the default. */
   maxLabelLines?: number;
+  /** The label shares the content box with the badge — a band of it — so keeps clear of it. */
+  labelBesideBadge?: boolean;
 }
 
 /**
@@ -692,6 +694,19 @@ export function wrapLabel(
 }
 
 /**
+ * Whether a shape this size holds one line of its label — a few characters'
+ * width and a line's height. A junction's circle does not, so its name goes
+ * under it.
+ */
+export function labelFitsInside(
+  width: number,
+  height: number,
+  fontSize: number = NOTATION_DEFAULTS.fontSize,
+): boolean {
+  return width >= fontSize * 3 && height >= round(fontSize * 1.2);
+}
+
+/**
  * Vertical band the label occupies, given the badge that shares the shape.
  *
  * `ShapeWithBadge` centres the label, except where the badge would sit on top
@@ -711,6 +726,8 @@ export function labelLayout(
     fontSize?: number;
     /** Reserve the bottom band and put the label in it (IconCentric). */
     below?: boolean;
+    /** Under the shape, outside it — for a shape too small to hold its name. */
+    outside?: boolean;
     /** At most this many lines; {@link NOTATION_DEFAULTS.maxLabelLines} when absent. */
     maxLines?: number;
   } = {},
@@ -722,13 +739,20 @@ export function labelLayout(
   const pad = NOTATION_DEFAULTS.badgePadding;
 
   // With a badge in a corner, give up its width so the two do not overlap.
-  const available = options.below
+  const available = options.outside
+    ? Math.max(w, NOTATION_DEFAULTS.width)
+    : options.below
     ? w
     : options.badgePlacement
       ? Math.max(w - NOTATION_DEFAULTS.badgeSize - 2 * pad, w * 0.5)
       : Math.max(w - 2 * pad, w * 0.5);
   const lines = wrapLabel(label, available, fontSize, options.maxLines);
   const block = lines.length * lineHeight;
+
+  if (options.outside) {
+    // First baseline just under the shape's bottom edge.
+    return { lines, x: round(w / 2), y: round(h + NOTATION_DEFAULTS.badgePadding + fontSize * 0.85), lineHeight };
+  }
 
   let centreY: number;
   if (options.below) {

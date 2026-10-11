@@ -170,8 +170,12 @@ export class OxigraphViewManager implements ViewManager {
       label: label ?? `${source.label || 'View'} (copy)`,
       ...(source.modelIri ? { modelIri: source.modelIri } : {}),
     });
-    for (const node of this.getNodes(viewIri)) {
+    const nodes = this.getNodes(viewIri);
+    for (const node of nodes) {
       this.addElementToView(copy.value, node.elementIri, node.bounds);
+    }
+    for (const node of nodes) {
+      if (node.parentElementIri) this.setNodeParent(copy.value, node.elementIri, node.parentElementIri);
     }
     for (const link of this.getLinks(viewIri)) {
       this.addRelationshipToView(copy.value, link.relationshipIri, link.waypoints);
@@ -214,6 +218,8 @@ export class OxigraphViewManager implements ViewManager {
     for (const nodeIri of nodeIris) {
       const node = nn(nodeIri);
       quads.push(...this.subjectQuads(node));
+      // What was drawn inside it is no longer inside anything.
+      quads.push(...this.store.getQuads(null, T.inNode, node));
       // Links ending at this node cannot outlive it.
       for (const end of [T.visSource, T.visTarget]) {
         for (const link of this.store.getQuads(null, end, node)) {
@@ -239,6 +245,17 @@ export class OxigraphViewManager implements ViewManager {
   getNode(viewIri: string, elementIri: string): NodeInfo | undefined {
     const [nodeIri] = this.nodeIrisFor(viewIri, elementIri);
     return nodeIri ? this.readNode(nn(nodeIri)) : undefined;
+  }
+
+  setNodeParent(viewIri: string, elementIri: string, parentElementIri: string | undefined): void {
+    const [nodeIri] = this.nodeIrisFor(viewIri, elementIri);
+    if (!nodeIri) return;
+    const node = nn(nodeIri);
+    const [parentIri] = parentElementIri ? this.nodeIrisFor(viewIri, parentElementIri) : [];
+    const current = this.store.getQuads(node, T.inNode);
+    if (current.length === 1 && current[0].object.value === parentIri) return;
+    this.remove(current);
+    if (parentIri && parentIri !== nodeIri) this.store.addQuads([triple(node, T.inNode, nn(parentIri))]);
   }
 
   updateNodeBounds(viewIri: string, elementIri: string, bounds: Bounds): void {
@@ -364,9 +381,12 @@ export class OxigraphViewManager implements ViewManager {
     if (!elementIri) return undefined;
     const bound = (predicate: string, fallback: number) =>
       numberOf(this.store.getQuads(node as NamedNode, nn(predicate))[0]?.object) ?? fallback;
+    const parentNode = this.store.getQuads(node as NamedNode, T.inNode)[0]?.object;
+    const parentElementIri = parentNode ? this.objects(parentNode, T.archElement)[0] : undefined;
     return {
       nodeIri: node.value,
       elementIri,
+      ...(parentElementIri ? { parentElementIri } : {}),
       bounds: {
         x: bound(IRI.boundsX, DEFAULT_BOUNDS.x),
         y: bound(IRI.boundsY, DEFAULT_BOUNDS.y),

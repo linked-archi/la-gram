@@ -18,9 +18,9 @@ import {
 
 describe('bundled asset registry', () => {
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    // Four core files, ten per bundled language (ArchiMate 4.0 and 3.2), and the
+    // Four core files, eleven per bundled language (ArchiMate 4.0 and 3.2), and the
     // core metamodel's manifest and taxonomy.
-    expect(BUNDLED_ASSETS).toHaveLength(26);
+    expect(BUNDLED_ASSETS).toHaveLength(28);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);
@@ -36,6 +36,7 @@ describe('bundled asset registry', () => {
       'notation',
       'presentationContexts',
       'viewpoints',
+      'referenceData',
     ];
     for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'core')) {
       for (const role of roles) {

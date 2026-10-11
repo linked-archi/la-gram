@@ -101,4 +101,49 @@ describe('SparqlViewpointManager', () => {
       expect(result.relationships).toHaveLength(0);
     });
   });
+
+  describe('subclasses', () => {
+    const HIERARCHY = `
+      @prefix rdf:  <${NAMESPACES.rdf}> .
+      @prefix rdfs: <${NAMESPACES.rdfs}> .
+      @prefix arch: <${NAMESPACES.arch}> .
+      @prefix skos: <${NAMESPACES.skos}> .
+      @prefix ex:   <${EX}> .
+
+      ex:Database rdfs:subClassOf ex:Container .
+      ex:Queue rdfs:subClassOf ex:Container .
+      ex:ManagedDatabase rdfs:subClassOf ex:Database .
+      ex:ReadAccess rdfs:subClassOf ex:Access .
+      ex:ApplicationComponent rdfs:subClassOf ex:Element .
+
+      ex:ContainerViewpoint
+        rdf:type arch:Viewpoint ;
+        skos:prefLabel "Container Viewpoint" ;
+        arch:includesConcept ex:Container ;
+        arch:permitsRelationship ex:Access .
+    `;
+
+    beforeEach(() => {
+      const result = new N3TtlParser().parse(HIERARCHY);
+      if (result.ok) store.addQuads(result.quads);
+    });
+
+    it('a viewpoint naming a class offers its subclasses, named class first', () => {
+      const { elements } = manager.getPermittedTypes(`${EX}ContainerViewpoint`);
+      expect(elements[0]).toBe(`${EX}Container`);
+      expect([...elements].sort()).toEqual(
+        [`${EX}Container`, `${EX}Database`, `${EX}ManagedDatabase`, `${EX}Queue`].sort(),
+      );
+    });
+
+    it('a relationship type named by a viewpoint brings its subclasses', () => {
+      const { relationships } = manager.getPermittedTypes(`${EX}ContainerViewpoint`);
+      expect(relationships).toEqual([`${EX}Access`, `${EX}ReadAccess`]);
+    });
+
+    it('a superclass of a named class is not offered', () => {
+      const { elements } = manager.getPermittedTypes(`${EX}TechViewpoint`);
+      expect(elements).toEqual([`${EX}ApplicationComponent`]);
+    });
+  });
 });

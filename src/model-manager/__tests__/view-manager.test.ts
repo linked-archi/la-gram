@@ -121,6 +121,37 @@ describe('OxigraphViewManager', () => {
       ]);
     });
 
+    it('nests a node inside another (arch-vis:inNode), un-nests it, and un-nests what a removed node held', () => {
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      const [outer, inner] = [elements.createElement(typeIri, modelIri).value, elements.createElement(typeIri, modelIri).value];
+      const outerNode = views.addElementToView(v, outer, { x: 0, y: 0, width: 300, height: 200 });
+      const innerNode = views.addElementToView(v, inner, { x: 20, y: 40, width: 120, height: 55 });
+
+      views.setNodeParent(v, inner, outer);
+      expect(objects(store, innerNode, VIS + 'inNode')).toEqual([outerNode]);
+      expect(views.getNode(v, inner)?.parentElementIri).toBe(outer);
+      views.setNodeParent(v, inner, inner); // never inside itself
+      expect(objects(store, innerNode, VIS + 'inNode')).toEqual([]);
+
+      views.setNodeParent(v, inner, outer);
+      views.removeElementFromView(v, outer);
+      expect(objects(store, innerNode, VIS + 'inNode')).toEqual([]);
+      expect(views.getNode(v, inner)?.bounds).toEqual({ x: 20, y: 40, width: 120, height: 55 });
+    });
+
+    it('a duplicated view keeps its nesting, between its own nodes', () => {
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      const [outer, inner] = [elements.createElement(typeIri, modelIri).value, elements.createElement(typeIri, modelIri).value];
+      views.addElementToView(v, outer, { x: 0, y: 0, width: 300, height: 200 });
+      views.addElementToView(v, inner, { x: 20, y: 40, width: 120, height: 55 });
+      views.setNodeParent(v, inner, outer);
+
+      const copy = views.duplicateView(v).value;
+      const copied = views.getNode(copy, inner)!;
+      expect(copied.parentElementIri).toBe(outer);
+      expect(objects(store, copied.nodeIri, VIS + 'inNode')).toEqual([views.getNode(copy, outer)!.nodeIri]);
+    });
+
     it('keeps one node per element per view, and one element resource across views', () => {
       const a = elements.createElement(typeIri, modelIri);
       const v1 = views.createView('Diagram', undefined, { modelIri }).value;

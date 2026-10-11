@@ -28,6 +28,9 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import type { ViewInfo } from './interfaces.js';
 import { IRI, T, humanize, localName, nn } from './vocabulary.js';
 
+/** What names a concept, in the order {@link labelOf} prefers them. */
+const NAMING_PREDICATES = [T.prefLabel, T.rdfsLabel, nn(IRI.dctermsTitle)];
+
 /** `rdfs:subClassOf*` closure of a type, the type included. */
 export type TypeClosure = (typeIri: string) => string[];
 
@@ -120,7 +123,7 @@ export function classify(types: readonly string[], closure: TypeClosure, hasInMo
 /** Human label for a class or concept: `skos:prefLabel`, then `rdfs:label`, then the local name. */
 export function labelOf(store: RdfStore, iri: string, preferredLanguage = 'en'): string {
   const subject = nn(iri);
-  for (const predicate of [T.prefLabel, T.rdfsLabel, nn(IRI.dctermsTitle)]) {
+  for (const predicate of NAMING_PREDICATES) {
     const literals = store.getQuads(subject, predicate).map((q) => q.object);
     if (literals.length === 0) continue;
     const preferred =
@@ -130,6 +133,12 @@ export function labelOf(store: RdfStore, iri: string, preferredLanguage = 'en'):
     return preferred.value;
   }
   return humanize(localName(iri));
+}
+
+/** Whether `iri` has a name of its own, rather than one {@link labelOf} makes from its IRI. */
+export function hasLabel(store: RdfStore, iri: string): boolean {
+  const subject = nn(iri);
+  return NAMING_PREDICATES.some((predicate) => store.getQuads(subject, predicate).length > 0);
 }
 
 /** The model's `arch:Model` resource, if the data declares one. */

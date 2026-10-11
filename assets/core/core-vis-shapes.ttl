@@ -40,12 +40,16 @@ clean. The two load-bearing rules here are ArchNodeShape (a diagram node that cl
 stand for a model element must say which one) and PlacedDiagElementShape (a shape or edge
 must belong to exactly one view); the remainder is cardinality and datatype hygiene.'''@en ;
     dcterms:created               "2026-08-13"^^xsd:date ;
-    dcterms:modified              "2026-08-13"^^xsd:date ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.1.0#> ;
     owl:versionInfo               "0.1.0"@en ;
+    sh:declare [
+        sh:prefix    "arch-vis" ;
+        sh:namespace "https://meta.linked.archi/core-vis#"^^xsd:anyURI ;
+    ] ;
     dcterms:source                <https://meta.linked.archi/core-vis#> ;
     prov:wasDerivedFrom           <https://meta.linked.archi/core-vis#> ;
     rdfs:seeAlso                  <https://meta.linked.archi/core-vis#>,
@@ -206,6 +210,37 @@ edges may be labelled — the domain is DiagElement since core-vis 0.3.'''@en ;
         sh:maxCount 1 ;
         sh:datatype xsd:double ;
         sh:message  "bounds-h must be a single xsd:double."@en ;
+    ] ;
+.
+
+
+#################################################################
+# Nested node — inside one other node, on the same view
+#################################################################
+
+:NestedNodeShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf arch-vis:inNode ;
+    rdfs:label          "Nested node shape"@en ;
+    sh:property [
+        sh:path     arch-vis:inNode ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:Node ;
+        sh:message  "A node is drawn inside at most one other node (arch-vis:inNode), named by IRI."@en ;
+    ] ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-vis-shapes#> ;
+        sh:message  "A node is drawn inside a node of its own view, and never inside itself or a node it contains."@en ;
+        sh:select """
+            SELECT $this ?value
+            WHERE {
+                $this arch-vis:inNode ?value .
+                { $this arch-vis:view ?view . ?value arch-vis:view ?other . FILTER(?view != ?other) }
+                UNION
+                { $this arch-vis:inNode+ $this . }
+            }
+        """ ;
     ] ;
 .
 
@@ -442,6 +477,12 @@ it.'''@en ;
         sh:maxCount 1 ;
         sh:class    arch-vis:Style ;
         sh:message  "arch-vis:defaultStyle points to at most one arch-vis:Style."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:nestedEnd ;
+        sh:maxCount 2 ;
+        sh:in       ( arch-vis:SourceEnd arch-vis:TargetEnd ) ;
+        sh:message  "arch-vis:nestedEnd names the end drawn inside: arch-vis:SourceEnd, arch-vis:TargetEnd, or both."@en ;
     ] ;
 .
 

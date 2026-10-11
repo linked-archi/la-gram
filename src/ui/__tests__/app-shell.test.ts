@@ -37,7 +37,7 @@ describe('AppShell', () => {
       document.body.innerHTML = '';
     });
 
-    it('has the model tree on the left, the palette and RDF on the right, four tabs under the canvas', async () => {
+    it('has the model tree on the left, the palette and RDF on the right, five tabs under the canvas', async () => {
       const { root } = await mount();
       expect([...root.querySelectorAll('slot')].map((s) => s.getAttribute('name'))).toEqual([
         'toolbar',
@@ -48,6 +48,7 @@ describe('AppShell', () => {
         'validation',
         'sparql',
         'graph',
+        'history',
         'palette',
         'rdf',
       ]);
@@ -56,6 +57,7 @@ describe('AppShell', () => {
         'Validation',
         'SPARQL Query',
         'Graph',
+        'History',
       ]);
       // Resize handles: the tree's right edge, the guide's and the bottom panel's top edges, the right panels' left edges.
       expect([...root.querySelectorAll('.resizer')].map((r) => `${r.getAttribute('data-panel')} ${r.className}`)).toEqual([

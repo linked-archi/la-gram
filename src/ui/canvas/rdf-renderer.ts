@@ -57,6 +57,7 @@ import {
   NOTATION_DEFAULTS,
   badgeBox,
   iconHref,
+  labelFitsInside,
   labelLayout,
   markerDefinition,
   markerId,
@@ -83,6 +84,12 @@ export interface RdfBusinessObject {
   typeIri: string;
   /** Display label. */
   label?: string;
+  /**
+   * The label is the element's own name. Absent, `label` shows its type — a
+   * shape too small to hold its label then draws none rather than repeat the
+   * type under every junction.
+   */
+  named?: boolean;
   /** `element` for shapes, `relationship` for connections. */
   kind?: 'element' | 'relationship';
   /**
@@ -170,7 +177,14 @@ export class RdfRenderer extends BaseRenderer {
       this.drawIconCentric(group, width, height, label, href as string, style?.fontColor);
     } else {
       this.drawShapeBody(group, style, width, height);
-      const layout = shapeLayout(style?.customShape ?? style?.shapeType, width, height);
+      const color = style?.fontColor ?? style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+      if (!labelFitsInside(width, height)) {
+        // A junction: no room for a badge, and its name, if it has one, under it.
+        if (businessObject?.named) this.appendLabel(group, label, { x: 0, y: 0, width, height }, { outside: true, color });
+        parentGfx.appendChild(group);
+        return group;
+      }
+      const layout = containerLayout(shapeLayout(style?.customShape ?? style?.shapeType, width, height), element);
       // Present exactly when a badge is drawn — ShapeOnly reserves no room.
       const badgePlacement =
         mode === 'ShapeWithBadge' && href ? (style?.iconPlacement ?? 'TopRight') : undefined;
@@ -179,10 +193,10 @@ export class RdfRenderer extends BaseRenderer {
       }
       this.appendLabel(group, label, layout.label, {
         // The label makes room for the badge only when the two share a box.
-        badgePlacement: layout.label === layout.content ? badgePlacement : undefined,
+        badgePlacement: layout.label === layout.content || layout.labelBesideBadge ? badgePlacement : undefined,
         maxLines: layout.maxLabelLines,
         // The label's own colour, else the line colour, as the vocabulary says.
-        color: style?.fontColor ?? style?.lineColor ?? NOTATION_DEFAULTS.lineColor,
+        color,
       });
     }
 
@@ -302,7 +316,7 @@ export class RdfRenderer extends BaseRenderer {
     });
   }
 
-  /** Multi-line label, centred in `area` (or below the icon). */
+  /** Multi-line label, centred in `area` (or below the icon, or under the shape). */
   private appendLabel(
     group: SVGElement,
     label: string,
@@ -310,6 +324,7 @@ export class RdfRenderer extends BaseRenderer {
     options: {
       badgePlacement?: VisualStyle['iconPlacement'];
       below?: boolean;
+      outside?: boolean;
       maxLines?: number;
       color: string;
     },
@@ -317,6 +332,7 @@ export class RdfRenderer extends BaseRenderer {
     const local = labelLayout(label, area.width, area.height, {
       badgePlacement: options.badgePlacement,
       below: options.below,
+      outside: options.outside,
       maxLines: options.maxLines,
     });
     if (local.lines.length === 0) return null;
@@ -566,4 +582,17 @@ export function rdfRendererModule(notationStyles: NotationStyleRegistry): Record
     rdfRenderer: ['type', RdfRenderer],
     notationStyles: ['value', notationStyles],
   };
+}
+
+/**
+ * A container's layout: once something is drawn inside it, its name goes to
+ * the top of its content box, on at most two lines, where what is inside does
+ * not cover it. A label box of its own (a folder's tab) stays as it is.
+ */
+function containerLayout(layout: ReturnType<typeof shapeLayout>, element: RenderableElement): ReturnType<typeof shapeLayout> {
+  const children = (element as { children?: Array<{ waypoints?: unknown }> }).children ?? [];
+  if (!children.some((child) => !child.waypoints) || layout.label !== layout.content) return layout;
+  const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
+  const band = Math.min(layout.content.height, 2 * lineHeight + 2 * NOTATION_DEFAULTS.badgePadding);
+  return { ...layout, label: { ...layout.content, height: band }, maxLabelLines: 2, labelBesideBadge: true };
 }

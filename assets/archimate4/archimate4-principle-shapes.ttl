@@ -164,13 +164,26 @@ domain-based structure.'''@en ;
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Data object {$this} is written by multiple application components ({?app1} and {?app2}). Designate a single authoritative source."@en ;
         sh:select """
-            SELECT $this ?app1 ?app2
+            SELECT DISTINCT $this ?app1 ?app2
             WHERE {
                 $this a am4:DataObject .
-                ?app1 a am4:ApplicationComponent ;
-                      am4:accesses $this .
-                ?app2 a am4:ApplicationComponent ;
-                      am4:accesses $this .
+                # A writer: write or read/write access, or an access not stated to be a read.
+                ?app1 a am4:ApplicationComponent .
+                {
+                    ?app1 am4:accesses $this .
+                    FILTER NOT EXISTS { ?read1 a am4:ReadAccess ; arch:source ?app1 ; arch:target $this . }
+                } UNION {
+                    ?write1 a ?kind1 ; arch:source ?app1 ; arch:target $this .
+                    FILTER(?kind1 IN (am4:WriteAccess, am4:ReadWriteAccess))
+                }
+                ?app2 a am4:ApplicationComponent .
+                {
+                    ?app2 am4:accesses $this .
+                    FILTER NOT EXISTS { ?read2 a am4:ReadAccess ; arch:source ?app2 ; arch:target $this . }
+                } UNION {
+                    ?write2 a ?kind2 ; arch:source ?app2 ; arch:target $this .
+                    FILTER(?kind2 IN (am4:WriteAccess, am4:ReadWriteAccess))
+                }
                 FILTER(STR(?app1) < STR(?app2))
             }
         """ ;
@@ -226,23 +239,23 @@ domain-based structure.'''@en ;
     sh:severity    sh:Warning ;
     skos:prefLabel "Application Component Ownership"@en ;
     skos:definition
-        '''Every application component should be assigned to at least
-        one business actor or role that owns or operates it.'''@en ;
+        '''Every application component should have a business actor or
+        role that owns it, associated with the component.'''@en ;
+    skos:scopeNote
+        '''ArchiMate has no ownership relationship, and its relationship
+        tables do not let a business actor or role be assigned to an
+        application component; an association between the two, in
+        either direction, is read as ownership.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
-        sh:message  "Application component {$this} has no assigned business actor or role. Assign ownership."@en ;
+        sh:message  "Application component {$this} has no business actor or role associated with it as its owner."@en ;
         sh:select """
             SELECT $this
             WHERE {
                 $this a am4:ApplicationComponent .
                 FILTER NOT EXISTS {
-                    {
-                        ?actor am4:assignedTo $this .
-                        { ?actor a am4:BusinessActor . } UNION { ?actor a am4:Role . }
-                    } UNION {
-                        $this am4:assignedTo ?actor .
-                        { ?actor a am4:BusinessActor . } UNION { ?actor a am4:Role . }
-                    }
+                    { ?owner am4:associatedWith $this . } UNION { $this am4:associatedWith ?owner . }
+                    { ?owner a am4:BusinessActor . } UNION { ?owner a am4:Role . }
                 }
             }
         """ ;

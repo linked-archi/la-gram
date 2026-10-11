@@ -154,7 +154,7 @@ describe('1. page health', () => {
     expect(badResponses, JSON.stringify(badResponses)).toEqual([]);
   });
 
-  it('mounts the shell, all ten slots and the diagram-js canvas', async () => {
+  it('mounts the shell, all eleven slots and the diagram-js canvas', async () => {
     const slots = await page.evaluate(() => {
       const shell = document.querySelector('app-shell');
       if (!shell) return null;
@@ -163,7 +163,7 @@ describe('1. page health', () => {
 
     expect(slots).not.toBeNull();
     expect(new Set(slots ?? [])).toEqual(
-      new Set(['toolbar', 'explorer', 'guide', 'canvas', 'properties', 'validation', 'sparql', 'graph', 'palette', 'rdf']),
+      new Set(['toolbar', 'explorer', 'guide', 'canvas', 'properties', 'validation', 'sparql', 'graph', 'history', 'palette', 'rdf']),
     );
 
     // diagram-js names the root layer `layer-root-<n>` after the root element's

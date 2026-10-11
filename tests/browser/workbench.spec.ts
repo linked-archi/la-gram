@@ -330,6 +330,7 @@ describe('the layout and the property panel', () => {
       expect.stringMatching(/^Validation/),
       expect.stringMatching(/^SPARQL Query/),
       expect.stringMatching(/^Graph/),
+      expect.stringMatching(/^History/),
     ]);
 
     // Validation: its own tab. The new model's view has no viewpoint — a Warning, listed, not counted.
@@ -765,6 +766,46 @@ describe('appending from the context pad', () => {
   });
 });
 
+describe('nesting', () => {
+  it('drops an element into another: drawn inside, stored inside, and the relationship asked for', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const team = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const iri = app.components.elementManager
+        .createElement('https://meta.linked.archi/archimate4/onto#Collaboration', app.session.modelIri, { label: 'Sales team' }).value;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, iri, { x: 150, y: 100, width: 400, height: 250 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return iri as string;
+    });
+    await dropActor(page, 350, 240);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const [actor] = (await model(page)).actors;
+    const parentOf = () =>
+      page.evaluate((iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getNode(app.session.activeViewIri, iri)?.parentElementIri as string | undefined;
+      }, actor);
+    expect(await parentOf()).toBe(team);
+
+    // Which relationship the nesting stands for: what the notation lets nesting draw and the metamodel permits.
+    const entries = page.locator('.djs-popup .entry');
+    await entries.first().waitFor({ state: 'visible' });
+    const labels = (await entries.allInnerTexts()).map((s) => s.split('\n')[0].trim());
+    expect(labels).toContain('Aggregation');
+    expect(labels.at(-1)).toBe('None');
+    await session.screenshot('workbench-nesting-offer');
+    await entries.filter({ hasText: 'Aggregation' }).first().click();
+    const related = await page.evaluate(
+      ([a, b]) => (window as any).__LA_GRAM_APP__.components.relationshipManager.getRelationshipsOf(b)
+        .filter((r: any) => r.sourceIri === a).map((r: any) => r.classIri.split('#')[1]) as string[],
+      [team, actor],
+    );
+    expect(related).toEqual(['Aggregation']);
+    findings.push(`nesting: offered ${labels.join(', ')}`);
+  }, 60_000);
+});
+
 describe('renaming on the canvas', () => {
   it('edits an element’s name in its box: double-click or F2, Enter keeps, Esc drops, undo restores', async () => {
     const { page, session } = await openPage();
@@ -1044,6 +1085,38 @@ describe('metamodels from the network', () => {
     );
     expect(assets).toContain('loaded:remote');
     findings.push(`network metamodel C4: ${assets.filter((a: string) => a === 'loaded:remote').length} documents fetched live`);
+  }, 60_000);
+});
+
+describe('version history', () => {
+  it('commits the model from the History tab and keeps the commit in IndexedDB', async () => {
+    const { page } = await openPage();
+    await page.locator('app-shell .tab[data-tab="history"]').click();
+    await page.locator('history-panel input.commit-message').fill('First version');
+    await page.locator('history-panel button.commit').click();
+    await until(async () => (await page.locator('history-panel li[data-commit]').count()) === 1, 'the commit listed');
+    expect(await page.locator('history-panel li[data-commit] .message').innerText()).toBe('First version');
+    // Nothing changed since: the button waits for a change.
+    expect(await page.locator('history-panel button.commit').isDisabled()).toBe(true);
+
+    const stored = await page.evaluate(async () => {
+      const modelIri = (window as any).__LA_GRAM_APP__.session.modelIri as string;
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('la-gram-history');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const all = await new Promise<any[]>((resolve, reject) => {
+        const request = db.transaction('commits').objectStore('commits').getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      return all.filter((c) => c.modelIri === modelIri).map((c) => ({ message: c.message, triples: c.triples.length }));
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0].message).toBe('First version');
+    expect(stored[0].triples).toBeGreaterThan(0);
+    findings.push(`history: a commit of ${stored[0].triples} triples kept in IndexedDB`);
   }, 60_000);
 });
 

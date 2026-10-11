@@ -19,6 +19,7 @@ import RuleProvider from 'diagram-js/lib/features/rules/RuleProvider.js';
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
+import { labelFitsInside } from './notation-shapes.js';
 
 /**
  * What a permitted connection *is*, not merely that it is permitted.
@@ -173,6 +174,10 @@ export class RdfRuleProvider {
 interface RuleTarget {
   businessObject?: RdfBusinessObject;
   waypoints?: unknown;
+  width?: number;
+  height?: number;
+  /** The container: another shape, or the diagram root. */
+  parent?: RuleTarget;
 }
 
 /** Context diagram-js passes to the `connection.*` rules. */
@@ -191,6 +196,12 @@ interface ConnectContext {
 interface CreateContext {
   shape?: RuleTarget;
   source?: RuleTarget;
+  target?: RuleTarget;
+}
+
+/** Context diagram-js passes to the `elements.move` rule: the shapes moved, and where to. */
+interface MoveContext {
+  shapes?: RuleTarget[];
   target?: RuleTarget;
 }
 
@@ -234,13 +245,18 @@ export class RdfRules extends RuleProvider {
     this.addRule('connection.start', (context: ConnectContext) => this.checkConnectStart(context));
 
     // Creating a shape is unconstrained *unless* it is an append, in which case
-    // the relationship has to be possible for the gesture to mean anything.
+    // the relationship has to be possible for the gesture to mean anything — or
+    // it is dropped into something that cannot hold it.
     this.addRule('shape.create', (context: CreateContext) => this.checkCreate(context));
 
-    // Shapes are freely movable and resizable; the metamodel constrains
+    // Shapes are freely movable and resizable — on the diagram, or into an
+    // element that can hold them (nesting); the metamodel constrains
     // relationships, not layout.
     this.addRule('shape.resize', () => true);
-    this.addRule('elements.move', () => true);
+    this.addRule('elements.move', (context: MoveContext) => canContain(context.target, context.shapes));
+
+    // An element grows to hold what is dropped, moved or resized inside it.
+    this.addRule('element.autoResize', (context: { target?: RuleTarget }) => isElementShape(context.target));
   }
 
   /**
@@ -293,6 +309,7 @@ export class RdfRules extends RuleProvider {
    * `source` is absent for an ordinary palette create, which stays unconstrained.
    */
   private checkCreate(context: CreateContext): boolean {
+    if (!canContain(context.target)) return false;
     const source = context.source;
     if (!source) return true;
     const allowed = this.checkConnect({ source, target: context.shape });
@@ -300,6 +317,27 @@ export class RdfRules extends RuleProvider {
     // that into a refusal.
     return allowed === undefined ? true : !!allowed;
   }
+}
+
+/** A shape standing for an element (not the diagram, not a relationship). */
+function isElementShape(target: RuleTarget | undefined): boolean {
+  return Boolean(target && !target.waypoints && target.businessObject?.typeIri && target.parent);
+}
+
+/**
+ * Whether shapes may be dropped into `target`: the diagram, or an element big
+ * enough to hold them — not a relationship, not a junction, and not one of the
+ * shapes moved or anything inside them.
+ */
+function canContain(target: RuleTarget | undefined, moved: readonly RuleTarget[] = []): boolean {
+  if (!target) return true;
+  if (target.waypoints) return false;
+  if (!isElementShape(target)) return true;
+  if (!labelFitsInside(target.width ?? 0, target.height ?? 0)) return false;
+  for (let at: RuleTarget | undefined = target; at; at = at.parent) {
+    if (moved.includes(at)) return false;
+  }
+  return true;
 }
 
 /**

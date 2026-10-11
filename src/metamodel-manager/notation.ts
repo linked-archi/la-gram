@@ -61,6 +61,7 @@ const T = {
   lineStyle: `${ARCH_VIS}lineStyle`,
   sourceDecor: `${ARCH_VIS}sourceDecor`,
   targetDecor: `${ARCH_VIS}targetDecor`,
+  nestedEnd: `${ARCH_VIS}nestedEnd`,
   prefLabel: `${SKOS}prefLabel`,
   rdfsLabel: `${RDFS}label`,
 } as const;
@@ -152,6 +153,12 @@ export interface RelationshipVisualStyle {
   sourceDecor?: Decoration;
   targetDecor?: Decoration;
   lineColor?: string;
+  /**
+   * The ends nesting may draw inside the other instead of a line
+   * (`arch-vis:nestedEnd`): `target` for a part inside its whole, `source` for
+   * ArchiMate's specialized element inside the generic one.
+   */
+  nestedEnds?: Array<'source' | 'target'>;
 }
 
 /** Visual notation for a single concept (element or relationship class). */
@@ -447,9 +454,14 @@ function extractRelationshipStyle(store: Store, subject: Term): RelationshipVisu
   const lineStyle = parseEnum<LineStyle>(objectValue(store, subject, T.lineStyle), LINE_STYLES);
   const sourceDecor = parseEnum<Decoration>(objectValue(store, subject, T.sourceDecor), DECORATIONS);
   const targetDecor = parseEnum<Decoration>(objectValue(store, subject, T.targetDecor), DECORATIONS);
-  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined) return undefined;
+  const nestedEnds = store
+    .getObjects(subject, namedNode(T.nestedEnd), null)
+    .map((end) => (end.value === `${ARCH_VIS}SourceEnd` ? 'source' : end.value === `${ARCH_VIS}TargetEnd` ? 'target' : undefined))
+    .filter((end): end is 'source' | 'target' => end !== undefined)
+    .sort();
+  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0) return undefined;
   const lineColor = objectValue(store, subject, T.lineColor) ?? undefined;
-  return { lineStyle, sourceDecor, targetDecor, lineColor };
+  return { lineStyle, sourceDecor, targetDecor, lineColor, ...(nestedEnds.length > 0 ? { nestedEnds } : {}) };
 }
 
 /**

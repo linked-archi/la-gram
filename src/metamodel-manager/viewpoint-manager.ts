@@ -18,7 +18,7 @@
 
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { graphScope, type GraphScope } from '../rdf-engine/graph-scope.js';
+import { graphScope, type GraphScope, type SparqlBindings } from '../rdf-engine/graph-scope.js';
 import type { ViewpointManager, ViewpointInfo } from './interfaces.js';
 
 /**
@@ -80,6 +80,11 @@ export class SparqlViewpointManager implements ViewpointManager {
    * values are reported under `elements`. Relationship types only reach
    * `relationships` when the data uses the legacy `arch:permitsRelationship`.
    *
+   * A viewpoint that names a class includes its subclasses (`rdfs:subClassOf*`):
+   * one naming `c4:Container` offers `c4:Database`, one naming `am4:Access` its
+   * kinds of access, and a class an extension adds under an ArchiMate element
+   * appears wherever that element does. The named classes come first.
+   *
    * @param scope Dataset to query. Supplied by {@link getViewpoints} so the
    *   named-graph list is enumerated once per listing rather than per viewpoint;
    *   omit it and one is built here.
@@ -91,20 +96,26 @@ export class SparqlViewpointManager implements ViewpointManager {
     const rows = scope.select(
       (from) => `
       PREFIX arch: <${NAMESPACES.arch}>
+      PREFIX rdfs: <${NAMESPACES.rdfs}>
 
-      SELECT ?element ?relationship
+      SELECT ?element ?relationship ?named
       ${from}
       WHERE {
         {
-          <${viewpointIri}> arch:includesConcept ?element .
+          { <${viewpointIri}> arch:includesConcept ?named . }
+          UNION
+          { <${viewpointIri}> arch:permitsElement ?named . }
+          ?element rdfs:subClassOf* ?named .
         } UNION {
-          <${viewpointIri}> arch:permitsElement ?element .
-        } UNION {
-          <${viewpointIri}> arch:permitsRelationship ?relationship .
+          <${viewpointIri}> arch:permitsRelationship ?named .
+          ?relationship rdfs:subClassOf* ?named .
         }
       }
     `,
     );
+    // Named classes before their subclasses, so the list reads as the viewpoint
+    // states it.
+    rows.sort((a, b) => Number(isSubclassRow(a)) - Number(isSubclassRow(b)));
 
     const elements: string[] = [];
     const relationships: string[] = [];
@@ -120,4 +131,10 @@ export class SparqlViewpointManager implements ViewpointManager {
 
     return { elements, relationships };
   }
+}
+
+/** A row a subclass of a named class contributed, rather than the named class itself. */
+function isSubclassRow(row: SparqlBindings): boolean {
+  const named = row['named']?.value;
+  return (row['element'] ?? row['relationship'])?.value !== named;
 }

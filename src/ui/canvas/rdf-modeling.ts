@@ -111,6 +111,13 @@ export const CREATE_ELEMENT_COMMAND = 'rdf.element.create';
 /** A recorded, undoable model change; see {@link RdfChangeHandler}. */
 export const RDF_CHANGE_COMMAND = 'rdf.store.change';
 
+/**
+ * The same, for a change made outside the canvas — a property edited in the
+ * panel. Its own name so the canvas knows to redraw from the store when it is
+ * undone or redone: no shape command carries the change back.
+ */
+export const RDF_STORE_EDIT_COMMAND = 'rdf.store.edit';
+
 /** Delete a concept from the model, shapes and all; see {@link ModelDeleteHandler}. */
 export const RDF_MODEL_DELETE_COMMAND = 'rdf.model.delete';
 
@@ -361,7 +368,8 @@ export class RdfElementBehavior {
           request: {
             typeIri: businessObject.typeIri,
             bounds: plannedBounds(shape, context?.position),
-            ...(businessObject.label ? { label: businessObject.label } : {}),
+            // Unnamed when the shape cannot show a name (a junction).
+            ...(businessObject.label && businessObject.named !== false ? { label: businessObject.label } : {}),
           },
         });
       },
@@ -711,6 +719,7 @@ export class RdfModeling extends ModelingBase {
       [RETYPE_RELATIONSHIP_COMMAND]: RetypeRelationshipHandler,
       [CREATE_ELEMENT_COMMAND]: CreateElementHandler,
       [RDF_CHANGE_COMMAND]: RdfChangeHandler,
+      [RDF_STORE_EDIT_COMMAND]: RdfChangeHandler,
       [RDF_MODEL_DELETE_COMMAND]: ModelDeleteHandler,
     };
   }

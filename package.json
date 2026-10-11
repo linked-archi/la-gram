@@ -2,6 +2,8 @@
   "name": "la-gram",
   "version": "0.1.0",
   "description": "RDF Architecture Modeler — RDF-native architecture modeling tool",
+  "productName": "la-gram",
+  "main": "dist/electron/main.cjs",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +13,7 @@
     "build:dev": "webpack --mode development",
     "serve": "python3 -m http.server 8080 --directory dist/web",
     "start": "npm run build:dev -- --config-name web && npm run serve",
-    "electron": "electron dist/electron/main.js",
+    "electron": "electron dist/electron/main.cjs",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:coverage": "vitest --run --coverage",
@@ -20,7 +22,8 @@
     "collab": "node server/collab-server.mjs",
     "dev": "npm run build:dev -- --config-name web && npm run serve",
     "typecheck": "tsc --noEmit",
-    "sync-assets": "node scripts/sync-assets.mjs"
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "package": "npm run build:electron && node scripts/package-electron.mjs"
   },
   "dependencies": {
     "@codemirror/language": "^6.10.0",
@@ -31,7 +34,6 @@
     "cytoscape": "^3.34.3",
     "diagram-js": "^14.0.0",
     "diagram-js-direct-editing": "^3.5.1",
-    "electron": "^28.0.0",
     "lit": "^3.1.0",
     "n3": "^1.17.0",
     "oxigraph": "^0.4.0",
@@ -40,10 +42,12 @@
     "yjs": "^13.6.33"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "@types/n3": "^1.26.1",
     "@types/rdf-validate-shacl": "^0.5.7",
     "@vitest/coverage-v8": "^1.6.0",
     "copy-webpack-plugin": "14.0.0",
+    "electron": "^28.0.0",
     "fast-check": "^3.17.0",
     "html-webpack-plugin": "^5.6.0",
     "jsdom": "^28.1.0",

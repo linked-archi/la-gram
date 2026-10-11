@@ -168,7 +168,9 @@ uses that repository's own publishing scripts for the mapping. Every discovered 
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
-templates, reference data and the framework document are skipped.
+templates, reference models and the framework document are skipped. Reference
+data is loaded (and bundled for both ArchiMate versions): its `skos:prefLabel`s
+label the `sh:in` choices in the property panel.
 
 **Relationship ends** (Req 2.17). The palette carries each decoration's
 published symbol (`decorationSymbols`: `arch-vis:decorSymbol` on the core-vis
@@ -283,6 +285,8 @@ model runs its model operation inside a nested command:
 | Reconnect end | `connection.reconnect` | `rdf.store.change` → ends, triple, links in other views |
 | Delete (key, pad ×) | `shape.delete` / `connection.delete` | `rdf.store.change` → remove from **view** |
 | Delete from model (pad ✖, tree) | `rdf.model.delete` | removes shapes, then the concept everywhere |
+| Property edit, add, remove (property panel); rename from the tree; restore a version | `rdf.store.edit` (`DiagramCanvas.recordChange`) | the change itself, recorded; undo and redo redraw the canvas from the store |
+| Drop or move into an element (nesting) | `shape.create` / `shape.move` with an element as parent | `rdf.store.change` → the node's `arch-vis:inNode`; `AutoResize` grows the containers (nested `shape.resize`); then the "which relationship?" menu — the one picked as `rdf.store.edit`, not drawn |
 
 `rdf.store.change` runs its operation once inside `ObservableRdfStore.record`;
 undo applies the inverse diff, redo re-applies it. Re-running logic on redo
@@ -649,6 +653,42 @@ Oxigraph. `ModelSession.adopt` runs after every load: migrate retired
 vocabulary, ensure `arch:Model` and `arch:inModel`, ensure a view, and lay the
 elements out in a grid when the data has no geometry.
 
+### Nesting
+
+A node drawn inside another says so with `arch-vis:inNode` (core-vis 0.5);
+bounds stay in diagram coordinates, so a renderer that ignores nesting still
+draws everything in place. On the canvas the container is the shape's
+diagram-js parent: moving it moves what is inside, `RdfAutoResize` (diagram-js
+`AutoResize`, margins for the name) grows it to fit, and its name moves to the
+top of its content box once it holds something. Any element can hold others
+(`RdfRules`: not a relationship, not a junction, not itself or what it holds).
+`syncFromStore` draws containers first and re-parents a shape whose container
+changed in the store (`reparentDirect`, as diagram-js's own commands do); a
+removed container leaves what it held drawn.
+
+What a nesting means is a relationship of its own. The notation says which
+relationships nesting may draw and which end goes inside (`arch-vis:nestedEnd`
+on the relationship's `VisualNotation`); after a drop, `nestingOffers`
+(`canvas/nesting.ts`) lists those the metamodel permits between the two and the
+model does not already have, and the menu creates the one picked — or none.
+
+### Version history
+
+A commit (`model-manager/version-history.ts`) is a snapshot of the default
+graph — model and view geometry — as canonical N-Triples: sorted, one triple
+per line, so snapshots compare line by line and the same model gives the same
+commit. Snapshots, not deltas: restore and diff need no other commit. They are
+kept per model IRI in IndexedDB (Chromium in the browser and Electron alike),
+in memory where there is none; a saved file does not carry them. Each commit
+records its time (strictly after the model's previous one), message, author
+(the collaboration name, when in a room) and parent. The History tab lists
+them with +/− triple counts against the parent, shows a commit's triples added
+and removed — against its parent or against the model now — with prefixed
+names, and restores one: the default graph is replaced as one `rdf.store.edit`
+step, so undo takes it back while the view is open; in a room, collaborators
+receive it like any other change. Blank-node labels are not stable across
+sessions, so a triple about a blank node may show as removed and added again.
+
 ---
 
 ## Key design decisions
@@ -749,4 +789,4 @@ elements out in a grid when the data has no geometry.
 | Unit tests | `npm test` |
 | Browser tests (builds first) | `npm run test:browser:build` |
 | Type-check | `npm run typecheck` |
-| Desktop | `npm run build:electron && npm run electron` |
+| Desktop | `npm run build:electron && npm run electron`; package the app with `npm run package` (`scripts/package-electron.mjs`: `@electron/packager`, `dist/electron` and `package.json` only, in an asar; `dist/packages/`) |

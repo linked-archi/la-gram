@@ -156,6 +156,8 @@ export class App {
    * (New, Open, Import) then replaces it for everyone, so the UI asks first.
    */
   collaborationRoom: string | undefined;
+  /** The name this user goes by in the room — the author of the commits they make. */
+  collaborationUser: string | undefined;
 
   private metamodels: LoadedMetamodel[] = [];
   private coreGraphs: Partial<Record<BundledAssetRole, string[]>>;

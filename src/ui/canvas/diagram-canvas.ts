@@ -134,7 +134,7 @@ import type {
 import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
 import type { EventBus } from '../event-bus.js';
 import { NotationStyleRegistry } from './notation-styles.js';
-import { NOTATION_DEFAULTS } from './notation-shapes.js';
+import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
 import { RdfRenderer, rdfRendererModule, type RdfBusinessObject } from './rdf-renderer.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
@@ -146,6 +146,7 @@ import { RdfContextMenuProvider, CONTEXT_MENU_ID, type ContextMenuAction } from 
 import {
   rdfModelingModule,
   RDF_CHANGE_COMMAND,
+  RDF_STORE_EDIT_COMMAND,
   RDF_EXISTING_RELATIONSHIP_HINT,
   RDF_MODEL_DELETE_COMMAND,
   RETYPE_RELATIONSHIP_COMMAND,
@@ -172,6 +173,8 @@ import {
   type AppendMenuContext,
   type ExistingRelationship,
 } from './rdf-append-menu-provider.js';
+import { NEST_MENU_ID, RdfNestMenuProvider, nestingOffers, nestingShownBy, type NestingOffer } from './nesting.js';
+import { rdfAutoResizeModule } from './rdf-auto-resize.js';
 import {
   appendableTargetTypes,
   shapesOf,
@@ -304,6 +307,8 @@ export interface RetypeElementRequest {
 export interface ConceptDescription {
   typeIri?: string;
   label?: string;
+  /** The label is a name the concept has, not one made from its IRI. */
+  named?: boolean;
   iconUrl?: string;
 }
 
@@ -414,6 +419,7 @@ interface DjsShape {
   businessObject?: RdfBusinessObject;
   waypoints?: Array<{ x: number; y: number }>;
   parent?: unknown;
+  children?: DjsShape[];
   source?: DjsShape;
   target?: DjsShape;
   incoming?: DjsShape[];
@@ -456,6 +462,7 @@ interface DjsServices {
   elementRegistry: {
     get(id: string): DjsShape | undefined;
     getAll(): DjsShape[];
+    getGraphics(element: unknown): SVGElement | undefined;
   };
   modeling: {
     createConnection(
@@ -600,6 +607,8 @@ export class DiagramCanvas {
   readonly appendMenuProvider: RdfAppendMenuProvider;
   /** The append's second step: which relationship, when several are permitted. */
   readonly appendRelationshipMenuProvider: RdfAppendRelationshipMenuProvider;
+  /** After a drop into a container: which relationship the nesting stands for. */
+  readonly nestMenuProvider: RdfNestMenuProvider;
   readonly notationStyles: NotationStyleRegistry;
 
   /** The diagram-js instance, or `null` once destroyed. */
@@ -716,6 +725,10 @@ export class DiagramCanvas {
       },
       (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
+    this.nestMenuProvider = new RdfNestMenuProvider(
+      (offer) => this.nestAs(offer),
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
+    );
 
     const keyboardBindTo =
       options.keyboardBindTo === undefined
@@ -752,6 +765,7 @@ export class DiagramCanvas {
         ZoomScrollModule,
         rdfRendererModule(this.notationStyles),
         rdfRulesModule(this.ruleProvider),
+        rdfAutoResizeModule,
         // Last, so its `modeling` binding replaces the one ModelingModule made.
         rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null),
         // Renaming on the canvas: double-click or F2 (needs `rdfChangeStore` from the line above).
@@ -868,9 +882,12 @@ export class DiagramCanvas {
       this.removingFromStore = false;
     }
 
-    for (const node of nodes) {
+    // Containers before what is drawn inside them.
+    for (const node of containersFirst(nodes)) {
       const description = this.describeElement?.(node.elementIri);
       const existing = services.elementRegistry.get(node.elementIri);
+      const container = this.containerFor(node.parentElementIri);
+      if (existing && existing.parent !== container) this.reparentDirect(existing, container);
       if (existing) {
         const b = existing;
         const moved =
@@ -880,7 +897,7 @@ export class DiagramCanvas {
         if (retyped && b.businessObject && description?.typeIri) b.businessObject.typeIri = description.typeIri;
         if (moved || relabelled || retyped) {
           this.updateElement(node.elementIri, {
-            ...(relabelled ? { label: description?.label } : {}),
+            ...(relabelled ? { label: description?.label, named: description?.named ?? true } : {}),
             ...(moved ? { bounds: node.bounds } : {}),
           });
         }
@@ -891,6 +908,8 @@ export class DiagramCanvas {
           node.bounds,
           description?.label,
           description?.iconUrl,
+          description?.named,
+          node.parentElementIri,
         );
       }
     }
@@ -1101,7 +1120,15 @@ export class DiagramCanvas {
    * Idempotent by IRI: a repeat call updates the existing shape rather than
    * failing on diagram-js's duplicate-id check.
    */
-  addElement(iri: string, typeIri: string, bounds: Bounds, label?: string, iconUrl?: string): void {
+  addElement(
+    iri: string,
+    typeIri: string,
+    bounds: Bounds,
+    label?: string,
+    iconUrl?: string,
+    named: boolean = label !== undefined,
+    parentIri?: string,
+  ): void {
     const services = this.services();
     if (!services) return;
 
@@ -1116,6 +1143,7 @@ export class DiagramCanvas {
       iri,
       typeIri,
       label: label ?? this.notationStyles.labelFor(typeIri) ?? localName(iri),
+      named: label !== undefined && named,
       kind: 'element',
       iconUrl,
     };
@@ -1129,7 +1157,7 @@ export class DiagramCanvas {
       businessObject,
     });
 
-    services.canvas.addShape(shape, services.canvas.getRootElement());
+    services.canvas.addShape(shape, this.containerFor(parentIri));
     if (this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri)) {
       services.canvas.addMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
     }
@@ -1206,7 +1234,7 @@ export class DiagramCanvas {
    */
   updateElement(
     iri: string,
-    updates: Partial<Pick<CanvasElement, 'label' | 'iconUrl' | 'bounds'>>,
+    updates: Partial<Pick<CanvasElement, 'label' | 'iconUrl' | 'bounds'>> & { named?: boolean },
   ): void {
     const services = this.services();
     if (!services) return;
@@ -1215,7 +1243,10 @@ export class DiagramCanvas {
     if (!shape) return;
 
     const businessObject: RdfBusinessObject = shape.businessObject ?? { iri, typeIri: '' };
-    if (updates.label !== undefined) businessObject.label = updates.label;
+    if (updates.label !== undefined) {
+      businessObject.label = updates.label;
+      businessObject.named = updates.named ?? true;
+    }
     if (updates.iconUrl !== undefined) businessObject.iconUrl = updates.iconUrl;
     shape.businessObject = businessObject;
 
@@ -1695,19 +1726,20 @@ export class DiagramCanvas {
 
     const style = this.notationStyles.styleFor(typeIri);
     const declared = this.elementTypeInfo(typeIri);
+    const width = style?.defaultWidth ?? NOTATION_DEFAULTS.width;
+    const height = style?.defaultHeight ?? NOTATION_DEFAULTS.height;
     const businessObject: RdfBusinessObject = {
       iri: '',
       typeIri,
       label: declared?.label ?? this.notationStyles.labelFor(typeIri) ?? localName(typeIri),
+      // A new element is named after its type — except one too small to show a
+      // name (a junction), which would otherwise carry its type under it.
+      named: labelFitsInside(width, height),
       kind: 'element',
       ...(declared?.iconUrl !== undefined ? { iconUrl: declared.iconUrl } : {}),
     };
 
-    return services.elementFactory.createShape({
-      width: style?.defaultWidth ?? NOTATION_DEFAULTS.width,
-      height: style?.defaultHeight ?? NOTATION_DEFAULTS.height,
-      businessObject,
-    });
+    return services.elementFactory.createShape({ width, height, businessObject });
   }
 
   /** The palette's entry for an element type, when it publishes one. */
@@ -2215,14 +2247,43 @@ export class DiagramCanvas {
     this.relationships.delete(connection.id);
   }
 
-  /** Remove a shape and every connection touching it, without a command (store-led). */
+  /**
+   * Remove a shape and every connection touching it, without a command
+   * (store-led). What was drawn inside it moves out to its container first:
+   * removing a shape takes the graphics of its children with it.
+   */
   private removeShapeDirect(shape: DjsShape): void {
     const services = this.services();
     if (!services || !services.elementRegistry.get(shape.id)) return;
     for (const connection of [...(shape.incoming ?? []), ...(shape.outgoing ?? [])]) {
       this.removeConnectionDirect(connection);
     }
+    const container = (shape.parent as DjsShape | undefined) ?? (services.canvas.getRootElement() as DjsShape);
+    for (const child of [...(shape.children ?? [])].filter((c) => !c.waypoints)) this.reparentDirect(child, container);
     services.canvas.removeShape(shape);
+  }
+
+  /** The shape an element is drawn inside — the element's, when drawn — else the diagram. */
+  private containerFor(parentIri: string | undefined): DjsShape {
+    const services = this.services()!;
+    const parent = parentIri ? (services.elementRegistry.get(parentIri) as DjsShape | undefined) : undefined;
+    return parent && !parent.waypoints ? parent : (services.canvas.getRootElement() as DjsShape);
+  }
+
+  /**
+   * Move a shape into another container without a command (store-led: a
+   * collaborator's nesting, an import). diagram-js moves the graphics on
+   * `elements.changed`, as its own commands have it do.
+   */
+  private reparentDirect(shape: DjsShape, container: DjsShape): void {
+    const services = this.services();
+    const previous = shape.parent as DjsShape | undefined;
+    if (!services || previous === container) return;
+    const at = previous?.children?.indexOf(shape) ?? -1;
+    if (at >= 0) previous!.children!.splice(at, 1);
+    (container.children ??= []).push(shape);
+    shape.parent = container;
+    services.eventBus.fire('elements.changed', { elements: [shape, ...(previous ? [previous] : []), container] });
   }
 
   /** Remove everything drawn, without commands. */
@@ -2268,6 +2329,7 @@ export class DiagramCanvas {
       iri,
       typeIri: description.typeIri,
       label: description.label ?? localName(iri),
+      named: description.named ?? description.label !== undefined,
       kind: 'element',
       placeExisting: true,
       ...(description.iconUrl ? { iconUrl: description.iconUrl } : {}),
@@ -2278,6 +2340,77 @@ export class DiagramCanvas {
       height: style?.defaultHeight ?? NOTATION_DEFAULTS.height,
       businessObject,
     });
+  }
+
+  /**
+   * After a drop into a container: ask which relationship the nesting stands
+   * for — of those the notation lets nesting draw and the metamodel permits
+   * between the two — unless the model already relates them so, or none fits.
+   */
+  private offerNesting(inner: DjsShape, outer: DjsShape): void {
+    const services = this.services();
+    const innerObject = inner.businessObject;
+    const outerObject = outer.businessObject;
+    if (!services || !innerObject?.iri || !outerObject?.iri || inner.parent !== outer) return;
+    const innerEnd = { iri: innerObject.iri, typeIri: innerObject.typeIri };
+    const outerEnd = { iri: outerObject.iri, typeIri: outerObject.typeIri };
+    const existing = (this.relationshipManager.getRelationshipsOf?.(innerEnd.iri) ?? []).filter(
+      (r) => r.sourceIri === outerEnd.iri || r.targetIri === outerEnd.iri,
+    );
+    const types = this.paletteDefinition.relationshipTypes;
+    if (nestingShownBy(outerEnd, innerEnd, types, existing)) return;
+    const offers = nestingOffers(
+      outerEnd,
+      innerEnd,
+      types,
+      (source, target) => this.relationshipManager.getValidRelationships(source, target),
+      existing,
+    );
+    if (offers.length === 0) return;
+    const outerLabel = outerObject.label ?? localName(outerEnd.iri);
+    this.nestMenuProvider.pending = { outerLabel, innerLabel: innerObject.label ?? localName(innerEnd.iri), offers };
+    const box = services.elementRegistry.getGraphics(inner)?.getBoundingClientRect?.();
+    services.popupMenu.open(inner, NEST_MENU_ID, box ? { x: box.left, y: box.bottom + 4 } : { x: 0, y: 0 }, {
+      title: 'Which relationship?',
+      width: 300,
+    });
+  }
+
+  /** The relationship picked for a nesting, created in the model — undoably, and not drawn: the nesting shows it. */
+  private nestAs(offer: NestingOffer | undefined): void {
+    this.services()?.popupMenu.close();
+    this.nestMenuProvider.pending = undefined;
+    const create = this.relationshipManager.createQualifiedRelationship?.bind(this.relationshipManager);
+    if (!offer || !create) return;
+    const modelIri = this.modelIri;
+    this.recordChange(() => {
+      create({
+        typeIri: offer.type.iri,
+        ...(offer.type.unqualifiedPredicateIri && offer.type.unqualifiedPredicateIri !== offer.type.iri
+          ? { predicateIri: offer.type.unqualifiedPredicateIri }
+          : {}),
+        sourceIri: offer.sourceIri,
+        targetIri: offer.targetIri,
+        ...(modelIri ? { modelIri } : {}),
+      });
+    });
+  }
+
+  /**
+   * Run a change made outside the canvas — a property edited in the panel — as
+   * one undoable step on the canvas's command stack, so undo and redo take it
+   * back with the rest. False when there is no open view to record it on: the
+   * change is then made as it is, and is not undoable.
+   */
+  recordChange(apply: () => void): boolean {
+    const services = this.services();
+    if (!services || !this.viewIri || !this.changeStore) {
+      apply();
+      return false;
+    }
+    const context: RdfChangeContext = { apply };
+    services.commandStack.execute(RDF_STORE_EDIT_COMMAND, context);
+    return true;
   }
 
   /**
@@ -2369,6 +2502,7 @@ export class DiagramCanvas {
     services.commandStack.registerHandler(RETYPE_ELEMENT_COMMAND, RetypeElementHandler);
     services.popupMenu.registerProvider(APPEND_TARGET_MENU_ID, this.appendMenuProvider);
     services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
+    services.popupMenu.registerProvider(NEST_MENU_ID, this.nestMenuProvider);
   }
 
   /**
@@ -2600,9 +2734,65 @@ export class DiagramCanvas {
       },
     );
 
+    // A change made outside the canvas, undone or redone: no shape command
+    // carries it back, so the canvas redraws from the store once it settles.
+    let storeEdited = false;
+    djs.on([`commandStack.${RDF_STORE_EDIT_COMMAND}.executed`, `commandStack.${RDF_STORE_EDIT_COMMAND}.reverted`], () => {
+      storeEdited = true;
+    });
+
     // Every command changes the model; tell the rest of the app once it settles.
-    djs.on('commandStack.changed', () => {
+    // Clearing the stack (a view opened) changes nothing.
+    djs.on('commandStack.changed', (event: { trigger?: string }) => {
+      if (event.trigger === 'clear') return;
+      if (storeEdited) {
+        storeEdited = false;
+        this.syncFromStore();
+      }
       this.eventBus.emit('model-changed', { origin: 'canvas', viewIri: this.viewIri });
+    });
+
+    // Nesting. The container an element is created in is written with it — after
+    // the element's own node (`rdf.element.create`, at the default priority); a
+    // move writes its container with its bounds (`writeLayout`).
+    djs.on('commandStack.shape.create.postExecute', 500, (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      if (shape && this.hasViewContext() && containerIri(shape)) this.writeLayout(shape);
+    });
+    // The containers on both sides are redrawn — a container's name moves to its
+    // top once something is inside it — and a drop into an element asks which
+    // relationship the nesting stands for, once the command has settled.
+    let nested: { inner: DjsShape; outer: DjsShape } | undefined;
+    const redraw = (...containers: Array<DjsShape | undefined>) => {
+      const elements = containers.filter((c): c is DjsShape => c?.businessObject?.kind === 'element');
+      if (elements.length > 0) djs.fire('elements.changed', { elements });
+    };
+    djs.on('commandStack.shape.create.postExecuted', (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      const outer = shape?.parent as DjsShape | undefined;
+      redraw(outer);
+      if (shape && outer?.businessObject?.kind === 'element') nested = { inner: shape, outer };
+    });
+    djs.on(
+      'commandStack.shape.move.postExecuted',
+      (event: { context?: { shape?: DjsShape; oldParent?: DjsShape; newParent?: DjsShape } }) => {
+        const { shape, oldParent, newParent } = event.context ?? {};
+        if (!shape || !newParent || newParent === oldParent) return;
+        redraw(oldParent, newParent);
+        if (newParent.businessObject?.kind === 'element') nested = { inner: shape, outer: newParent };
+      },
+    );
+    djs.on(
+      ['commandStack.shape.create.reverted', 'commandStack.shape.move.reverted'],
+      (event: { context?: { parent?: DjsShape; oldParent?: DjsShape; newParent?: DjsShape } }) => {
+        const context = event.context ?? {};
+        redraw(context.parent, context.oldParent, context.newParent);
+      },
+    );
+    djs.on('commandStack.changed', (event: { trigger?: string }) => {
+      const pending = nested;
+      nested = undefined;
+      if (pending && event.trigger === 'execute') queueMicrotask(() => this.offerNesting(pending.inner, pending.outer));
     });
 
     // A shape created *on the canvas* (a palette drag, an append) already has its
@@ -2688,7 +2878,11 @@ export class DiagramCanvas {
     const viewIri = this.viewIri;
     const viewManager = this.viewManager;
     if (viewIri && viewManager) {
-      this.change(() => viewManager.updateNodeBounds(viewIri, iri, bounds));
+      const parentIri = containerIri(shape);
+      this.change(() => {
+        viewManager.updateNodeBounds(viewIri, iri, bounds);
+        viewManager.setNodeParent?.(viewIri, iri, parentIri);
+      });
       return;
     }
     this.elementManager.updateLayout?.(iri, bounds);
@@ -3081,4 +3275,25 @@ function localName(iri: string): string {
   if (iri.includes('#')) return iri.slice(iri.lastIndexOf('#') + 1);
   const trimmed = iri.replace(/\/$/, '');
   return trimmed.slice(trimmed.lastIndexOf('/') + 1) || iri;
+}
+
+/** The element a shape is drawn inside, when it is inside one rather than on the diagram. */
+function containerIri(shape: DjsShape): string | undefined {
+  const parent = shape.parent as DjsShape | undefined;
+  return parent?.businessObject?.kind === 'element' ? parent.businessObject.iri : undefined;
+}
+
+/** Nodes ordered so every container comes before what is drawn inside it. */
+function containersFirst<T extends { elementIri: string; parentElementIri?: string }>(nodes: readonly T[]): T[] {
+  const byIri = new Map(nodes.map((n) => [n.elementIri, n]));
+  const depth = (node: T): number => {
+    let d = 0;
+    const seen = new Set<string>();
+    for (let p = node.parentElementIri; p && byIri.has(p) && !seen.has(p); p = byIri.get(p)!.parentElementIri) {
+      seen.add(p);
+      d++;
+    }
+    return d;
+  };
+  return [...nodes].map((node) => [depth(node), node] as const).sort((a, b) => a[0] - b[0]).map(([, node]) => node);
 }

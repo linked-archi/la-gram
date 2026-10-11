@@ -28,7 +28,7 @@ and relationships. Defines the standard visual appearance (shape, color, icon,
 line style) for each model concept, enabling palette generation and diagram
 rendering from structured metadata.'''@en ;
     dcterms:created               "2026-05-16"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/notation/3.2#> ;
@@ -1246,9 +1246,9 @@ rendering from structured metadata.'''@en ;
         arch-vis:shapeType     arch-vis:Circle ;
         arch-vis:fillColor     "#000000" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
-        arch-vis:defaultWidth  "120.0"^^xsd:double ;
-        arch-vis:defaultHeight "55.0"^^xsd:double ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:defaultWidth  "15.0"^^xsd:double ;
+        arch-vis:defaultHeight "15.0"^^xsd:double ;
     ] ;
 .
 
@@ -1262,9 +1262,9 @@ rendering from structured metadata.'''@en ;
         arch-vis:shapeType     arch-vis:Circle ;
         arch-vis:fillColor     "#FFFFFF" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
-        arch-vis:defaultWidth  "120.0"^^xsd:double ;
-        arch-vis:defaultHeight "55.0"^^xsd:double ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:defaultWidth  "15.0"^^xsd:double ;
+        arch-vis:defaultHeight "15.0"^^xsd:double ;
     ] ;
 .
 
@@ -1273,6 +1273,10 @@ rendering from structured metadata.'''@en ;
 # Relationship Visual Notations
 #################################################################
 
+## Nesting may draw the structural relationships, access and specialization instead of a
+## line (arch-vis:nestedEnd: the end drawn inside).
+## https://pubs.opengroup.org/architecture/archimate3-doc/ch-relationships-Normative.html
+
 :CompositionNotation
     a                    arch-vis:VisualNotation ;
     arch-vis:notationFor am:Composition ;
@@ -1280,6 +1284,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:SolidLine ;
     arch-vis:sourceDecor  arch-vis:FilledDiamond ;
     arch-vis:targetDecor  arch-vis:NoDecoration ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :AggregationNotation
@@ -1289,6 +1294,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:SolidLine ;
     arch-vis:sourceDecor  arch-vis:HollowDiamond ;
     arch-vis:targetDecor  arch-vis:NoDecoration ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :AssignmentNotation
@@ -1298,6 +1304,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:SolidLine ;
     arch-vis:sourceDecor  arch-vis:CircleDot ;
     arch-vis:targetDecor  arch-vis:ClosedArrowhead ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :RealizationNotation
@@ -1307,6 +1314,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
     arch-vis:targetDecor  arch-vis:HollowArrowhead ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :ServingNotation
@@ -1325,6 +1333,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
     arch-vis:targetDecor  arch-vis:NoDecoration ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :ReadAccessNotation
@@ -1334,6 +1343,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:OpenArrowhead ;
     arch-vis:targetDecor  arch-vis:NoDecoration ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :WriteAccessNotation
@@ -1343,6 +1353,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
     arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :ReadWriteAccessNotation
@@ -1352,6 +1363,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:DottedLine ;
     arch-vis:sourceDecor  arch-vis:OpenArrowhead ;
     arch-vis:targetDecor  arch-vis:OpenArrowhead ;
+    arch-vis:nestedEnd    arch-vis:TargetEnd ;
 .
 
 :InfluenceNotation
@@ -1388,6 +1400,7 @@ rendering from structured metadata.'''@en ;
     arch-vis:lineStyle    arch-vis:SolidLine ;
     arch-vis:sourceDecor  arch-vis:NoDecoration ;
     arch-vis:targetDecor  arch-vis:HollowArrowhead ;
+    arch-vis:nestedEnd    arch-vis:SourceEnd ;
 .
 
 :AssociationNotation

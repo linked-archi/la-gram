@@ -217,6 +217,46 @@ describe('ShapeOnly', () => {
   });
 });
 
+describe('a shape too small for its label (a junction)', () => {
+  const junction: VisualStyle = {
+    shapeType: 'Circle',
+    fillColor: '#000000',
+    lineColor: '#000000',
+    renderingMode: 'ShapeWithBadge',
+    iconSymbol: BUNDLED_GLYPH,
+    defaultWidth: 15,
+    defaultHeight: 15,
+  };
+
+  it('draws its own name under it, on lines as wide as an element', () => {
+    harness = createRenderHarness(paletteWith([elementType(junction, 'And Junction')]));
+    const shape = harness.drawShape(
+      { iri: 'https://example.org/model/j1', typeIri: TYPE_IRI, kind: 'element', label: 'Approval split', named: true },
+      { width: 15, height: 15 },
+    );
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.textContent).toBe('Approval split');
+    expect(label.querySelectorAll('tspan')).toHaveLength(1);
+    expect(Number(label.getAttribute('y'))).toBeGreaterThan(15);
+    expect(Number(label.getAttribute('x'))).toBe(7.5);
+  });
+
+  it('draws no badge, even when its style declares one', () => {
+    harness = createRenderHarness(paletteWith([elementType(junction, 'And Junction')]));
+    const shape = harness.drawShape(
+      { iri: 'https://example.org/model/j1', typeIri: TYPE_IRI, kind: 'element', label: 'Split', named: true },
+      { width: 15, height: 15 },
+    );
+    expect(shape.querySelector(`.${RENDER_CLASSES.badge}`)).toBeNull();
+    expect(shape.querySelector(`.${RENDER_CLASSES.body}`)!.tagName).toBe('circle');
+  });
+
+  it('draws nothing under it without a name of its own — not its type', () => {
+    const shape = drawWithStyle(junction, { label: 'And Junction', width: 15, height: 15 });
+    expect(shape.querySelector(`.${RENDER_CLASSES.label}`)).toBeNull();
+  });
+});
+
 describe('degradation when the icon cannot be drawn', () => {
   it('falls back to ShapeOnly for a ShapeWithBadge style with no iconSymbol', () => {
     const shape = drawWithStyle({

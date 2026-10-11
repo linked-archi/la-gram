@@ -24,13 +24,19 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-10-08"^^xsd:date ;
+    dcterms:modified     "2026-10-11"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.4"@en ;
+    owl:versionInfo "0.5"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.4: A notation declares the shapes it needs beyond the core ones in its own
+    skos:historyNote '''0.5: Nesting. arch-vis:inNode places a node inside another on the same
+diagram — a grouping around its members, a node around the system software it hosts. And
+arch-vis:nestedEnd says, on a relationship's notation, that nesting may draw the relationship
+and which end goes inside the other (arch-vis:SourceEnd, arch-vis:TargetEnd): an editor that
+nests one element in another can then offer the relationships the nesting may stand for.
+
+0.4: A notation declares the shapes it needs beyond the core ones in its own
 namespace, with arch-vis:fallbackShape (a core shape for renderers that cannot draw it) and its
 geometry as path templates: arch-vis:shapeVariables, arch-vis:outlinePath, arch-vis:detailPath,
 arch-vis:contentBox and arch-vis:labelBox. The ArchiMate, EDGY and C4 notations declare theirs
@@ -259,6 +265,19 @@ arch-vis:view
     rdfs:comment "The arch:View this diagram element belongs to. Every DiagElement has exactly one."@en ;
     rdfs:domain  arch-vis:DiagElement ;
     rdfs:range   arch:View ;
+.
+
+arch-vis:inNode
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "inNode"@en ;
+    rdfs:comment '''The node this one is drawn inside, on the same diagram: a container. Moving the
+container moves what is in it, and it stays large enough to hold it. Stated by the nested
+node, as membership is (arch:inView). Bounds stay in the diagram's coordinates, not the
+container's. Nesting is drawing: what it means in the model, if anything, is a relationship of
+its own (see arch-vis:nestedEnd).'''@en ;
+    rdfs:domain  arch-vis:Node ;
+    rdfs:range   arch-vis:Node ;
 .
 
 # Style
@@ -832,6 +851,36 @@ arch-vis:inNotationSet
     rdfs:comment "Links a VisualNotation to the NotationSet it belongs to."@en ;
     rdfs:domain  arch-vis:VisualNotation ;
     rdfs:range   arch-vis:NotationSet ;
+.
+
+arch-vis:nestedEnd
+    a            owl:ObjectProperty ;
+    rdfs:label   "nestedEnd"@en ;
+    rdfs:comment '''On a relationship's notation: the relationship may be drawn by nesting one end
+inside the other (arch-vis:inNode) instead of a line, and this is the end drawn inside. A
+composition's part inside its whole is arch-vis:TargetEnd; ArchiMate's specialized element
+inside the generic one is arch-vis:SourceEnd; a relationship nesting may draw either way has
+both. Absent, nesting does not draw the relationship.'''@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch-vis:RelationshipEnd ;
+.
+
+arch-vis:RelationshipEnd
+    a            owl:Class ;
+    rdfs:label   "RelationshipEnd"@en ;
+    rdfs:comment "Enumeration of the two ends of a relationship: its source and its target."@en ;
+.
+
+arch-vis:SourceEnd
+    a            arch-vis:RelationshipEnd ;
+    rdfs:label   "SourceEnd"@en ;
+    rdfs:comment "The end a relationship goes from (arch:source)."@en ;
+.
+
+arch-vis:TargetEnd
+    a            arch-vis:RelationshipEnd ;
+    rdfs:label   "TargetEnd"@en ;
+    rdfs:comment "The end a relationship goes to (arch:target)."@en ;
 .
 
 arch-vis:defaultStyle

@@ -18,14 +18,16 @@ rules, the notation and the validation all come from data.
 - **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes; the Validation tab counts the violations.
 - **Change an element's type** — in the property panel, the *type* field lists every element type of the loaded metamodels (or right-click › Change type…); the element keeps its identity, name, properties and placements, and relationships the new type does not permit are named before and kept after (validation flags them).
 - **Right-click menu** — on an element or a relationship: rename, change type, append; show its properties, its place in the model tree or its relationship graph; copy its IRI; delete it from the view or the model.
+- **Nesting** — drop or move an element onto another to draw it inside: it moves with its container, which grows to hold it; the drop asks which relationship the nesting stands for (composition, assignment, … — what the notation says nesting may draw and the metamodel permits), or none. Nested ArchiMate Exchange diagrams import nested.
 - **Rename in place** — double-click an element's box (or select it and press F2) and type its name; Enter keeps it, Esc drops it, undo brings the old one back.
 - **About ‹type›** — under the model tree, what the loaded ontology and taxonomy say about the selected type (for a view, its viewpoint) or the type picked in the palette: definition, guidance, other names, classification and the other types in its group, superclasses, changes, the specification section. Folds to its header; resizes by its top edge.
 - **Properties** — the selected concept in vertical tabs (information, properties, analysis, views); adding a property offers what applies to its type (by the vocabularies' `rdfs:domain` and SHACL shapes), what the model already uses and documentation properties — or any name, prefixed name or IRI. A property whose shape lists its values is a choice of them; a boolean is a checkbox.
 - **Files** — Turtle, TriG (per-layer graphs), JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG export.
 - **Collaboration** — real-time rooms (Yjs over Hocuspocus) that share the model's triples; presence and soft locks.
-- **Undo everywhere** — every canvas change, including placements and model-level deletes.
+- **Undo everywhere** — every canvas change, including placements and model-level deletes, and every property edit.
+- **History** — the History tab commits the model with a message, lists the commits with what each changed, shows a commit's triples added and removed — or how the model differs from it now — and restores one (undoably). Commits are kept on this machine (IndexedDB), per model.
 - **See the RDF** — the "{ } RDF" toggle opens a panel on the right with the live model as Turtle (or any other format), exactly as it would be saved.
-- **Layout** — the model tree on the left; the palette on the right; under the canvas, tabs for **Properties**, **Validation** (with the violation count), **SPARQL Query** and **Graph**. The tree, the palette and the RDF panel hide from the toolbar ("☰ Model", "▦ Palette", "{ } RDF") and resize by their inner edge; the bottom panel resizes by its top edge, folds to its tabs (click the open tab) and maximizes over the workspace (⤢; Esc restores). Sizes are remembered.
+- **Layout** — the model tree on the left; the palette on the right; under the canvas, tabs for **Properties**, **Validation** (with the violation count), **SPARQL Query**, **Graph** and **History**. The tree, the palette and the RDF panel hide from the toolbar ("☰ Model", "▦ Palette", "{ } RDF") and resize by their inner edge; the bottom panel resizes by its top edge, folds to its tabs (click the open tab) and maximizes over the workspace (⤢; Esc restores). Sizes are remembered.
 - **Your namespace** — every IRI is an HTTP URI in the model's namespace, written as `m:element-…`, `m:view-…`. New models start under the placeholder `https://example.org/`; **Model settings** (click the model name) sets your own namespace and prefix and moves the model into it.
 
 ## Run
@@ -49,7 +51,7 @@ Then open http://localhost:8080. Useful URL parameters:
 | `rdf` | `?rdf=1` | start with the RDF panel open |
 | `base` | `?base=https://acme.com/ea/` | base for new models' namespaces (`{base}{notation}/{uuid}/`), `https://example.org/` by default |
 
-Desktop: `npm run build:electron && npm run electron`.
+Desktop: `npm run build:electron && npm run electron` runs it; `npm run package` builds the app for this machine into `dist/packages/la-gram-<platform>-<arch>/` (`-- --platform win32 --arch x64` for another). The app carries only the desktop build — the bundled metamodels included, so it works offline — and is not signed: on macOS, open it with right-click › Open the first time. In a terminal inside VS Code, run it with `ELECTRON_RUN_AS_NODE` unset (`env -u ELECTRON_RUN_AS_NODE npm run electron`): VS Code sets it, and Electron then starts as plain Node.
 
 ### Bundled metamodels, and refreshing them
 

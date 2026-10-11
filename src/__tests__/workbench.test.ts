@@ -396,6 +396,77 @@ describe('the workbench', () => {
     for (const iri of [clerk, role, shop]) els.deleteElement(iri);
   });
 
+  it('undoes and redoes a property edit, and the canvas follows', async () => {
+    const els = app.components.elementManager;
+    const store = app.components.store;
+    const view = app.session.activeViewIri!;
+    const PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+    const placed = els.createElement(`${AM4}BusinessActor`, app.session.modelIri!, { label: 'Clerk' }).value;
+    app.components.viewManager.addElementToView(view, placed, { x: 100, y: 300, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const edit = (detail: Record<string, unknown>, name = 'property-edit') =>
+      ui.propertyPanel.dispatchEvent(new CustomEvent(name, { detail: { elementIri: placed, ...detail } }));
+
+    edit({ predicate: PREF_LABEL, value: 'Cashier', language: 'en', previous: 'Clerk', previousLanguage: 'en' });
+    expect([labelOf(store, placed), ui.diagramCanvas.getElement(placed)?.label]).toEqual(['Cashier', 'Cashier']);
+    await ui.runCommand({ command: 'undo' });
+    expect([labelOf(store, placed), ui.diagramCanvas.getElement(placed)?.label]).toEqual(['Clerk', 'Clerk']);
+    await ui.runCommand({ command: 'redo' });
+    expect([labelOf(store, placed), ui.diagramCanvas.getElement(placed)?.label]).toEqual(['Cashier', 'Cashier']);
+
+    // Adding and removing a value are steps too.
+    const notes = () => store.getQuads(nn(placed), nn(NAMESPACES.skos + 'note')).map((q) => q.object.value);
+    edit({ predicate: NAMESPACES.skos + 'note', value: 'Counter staff' }, 'property-add');
+    expect(notes()).toEqual(['Counter staff']);
+    edit({ predicate: NAMESPACES.skos + 'note', value: 'Counter staff' }, 'property-remove');
+    expect(notes()).toEqual([]);
+    await ui.runCommand({ command: 'undo' });
+    expect(notes()).toEqual(['Counter staff']);
+    await ui.runCommand({ command: 'undo' });
+    expect(notes()).toEqual([]);
+    els.deleteElement(placed);
+  });
+
+  it('commits versions, compares them and restores one, undoably', async () => {
+    const els = app.components.elementManager;
+    const store = app.components.store;
+    const history = ui.historyPanel;
+    const placed = els.createElement(`${AM4}BusinessActor`, app.session.modelIri!, { label: 'Teller' }).value;
+    app.components.viewManager.addElementToView(app.session.activeViewIri!, placed, { x: 100, y: 420, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.shell.showTab('history');
+    const commit = async (message: string) => {
+      const before = history.commits.length;
+      history.dispatchEvent(new CustomEvent('history-commit', { detail: { message } }));
+      await vi.waitFor(() => expect(history.commits.length).toBe(before + 1));
+    };
+
+    await commit('Teller added');
+    const PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+    ui.propertyPanel.dispatchEvent(new CustomEvent('property-edit', {
+      detail: { elementIri: placed, predicate: PREF_LABEL, value: 'Cashier', language: 'en', previous: 'Teller', previousLanguage: 'en' },
+    }));
+    await vi.waitFor(() => expect(history.working?.some((line) => line.includes('"Cashier"@en'))).toBe(true));
+    await commit('Renamed');
+    expect(history.commits.map((c) => c.message)).toEqual(['Renamed', 'Teller added']);
+
+    // The second commit's changes are the rename: one name out, one in.
+    await history.updateComplete;
+    history.shadowRoot!.querySelector<HTMLElement>(`[data-commit="${history.commits[0].id}"]`)!.click();
+    await history.updateComplete;
+    expect(history.shadowRoot!.querySelector('pre.added')!.textContent).toContain('"Cashier"@en');
+    expect(history.shadowRoot!.querySelector('pre.removed')!.textContent).toContain('"Teller"@en');
+
+    // Restoring the first puts the old name back — on the canvas too — and undo takes it back.
+    history.dispatchEvent(new CustomEvent('history-restore', { detail: { id: history.commits[1].id } }));
+    await vi.waitFor(() => expect(labelOf(store, placed)).toBe('Teller'));
+    expect(script.confirms.at(-1)).toBe('Restore this version');
+    expect(ui.diagramCanvas.getElement(placed)?.label).toBe('Teller');
+    await ui.runCommand({ command: 'undo' });
+    expect(labelOf(store, placed)).toBe('Cashier');
+    els.deleteElement(placed);
+  });
+
   it('hides and shows the model tree from the toolbar', async () => {
     const toggle = () => ui.appToolbar.shadowRoot!.querySelector<HTMLButtonElement>('[data-command="toggle-explorer"]')!;
     await ui.appToolbar.updateComplete;
@@ -495,6 +566,13 @@ describe('the workbench', () => {
     expect(file.content as string).not.toContain('owl:Ontology');
     expect(app.isDirty()).toBe(false);
     expect(store.getQuads(nn(el)).length).toBeGreaterThan(0);
+
+    // Opening a view clears the canvas's undo history; that is not a change.
+    const first = app.session.activeViewIri!;
+    const other = app.components.viewManager.getViews().find((v) => v.iri !== first)!;
+    app.session.openView(other.iri);
+    app.session.openView(first);
+    expect(app.isDirty()).toBe(false);
   });
 
   it('opens a saved model again: same elements, views and geometry', async () => {

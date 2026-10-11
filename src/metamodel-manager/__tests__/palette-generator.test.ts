@@ -187,6 +187,12 @@ const TEST_METAMODEL = `
   ex:EmptyViewpoint
     rdf:type arch:Viewpoint ;
     skos:prefLabel "Empty Viewpoint"@en .
+
+  # Names a superclass only: its subclasses are what it includes.
+  ex:AnyElementViewpoint
+    rdf:type arch:Viewpoint ;
+    skos:prefLabel "Any Element Viewpoint"@en ;
+    arch:includesConcept ex:Element .
 `;
 
 const BY_LAYER = `${EX}ByLayer`;
@@ -375,6 +381,12 @@ describe('SparqlPaletteGenerator', () => {
       const filtered = generator.filterByViewpoint(palette, `${EX}BusinessViewpoint`);
       const iris = allElements(filtered).map((e) => e.iri).sort();
       expect(iris).toEqual([`${EX}Actor`, `${EX}Process`]);
+    });
+
+    it('includes the subclasses of a class the viewpoint names', () => {
+      const filtered = generator.filterByViewpoint(palette, `${EX}AnyElementViewpoint`);
+      const iris = allElements(filtered).map((e) => e.iri).sort();
+      expect(iris).toEqual([`${EX}Actor`, `${EX}Component`, `${EX}Process`]);
     });
 
     it('drops groups left empty by filtering', () => {
@@ -689,6 +701,8 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(loaded.graphsByRole.presentationContexts).toEqual([
       'https://meta.linked.archi/archimate4/presentation-contexts#',
     ]);
+    // Reference data names the values properties take: loaded, so choices are labelled.
+    expect(loaded.graphsByRole.referenceData).toEqual(['https://meta.linked.archi/archimate4/reference-data#']);
     // core# and core-vis# arrive through owl:imports, not through the manifest.
     expect(loaded.graphsByRole.coreOntology).toEqual(['https://meta.linked.archi/core#']);
     expect(loaded.graphsByRole.coreVisOntology).toEqual(['https://meta.linked.archi/core-vis#']);

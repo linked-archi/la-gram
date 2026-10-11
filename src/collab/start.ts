@@ -120,6 +120,7 @@ export function startCollaboration(app: App, ui: MountedUi, options: Collaborati
     leave();
     currentRoom = room;
     app.collaborationRoom = room;
+    app.collaborationUser = userName;
     status = 'connecting';
     setIndicator();
     doc = new Y.Doc();
@@ -167,6 +168,7 @@ export function startCollaboration(app: App, ui: MountedUi, options: Collaborati
     doc = null;
     currentRoom = undefined;
     app.collaborationRoom = undefined;
+    app.collaborationUser = undefined;
     status = 'off';
     ui.diagramCanvas.setLockedIris(new Set());
     ui.diagramCanvas.setMarkers(REMOTE_SELECTION_MARKER, new Set());

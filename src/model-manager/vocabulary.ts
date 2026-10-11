@@ -104,6 +104,7 @@ export const IRI = {
   Point: VIS + 'Point',
   visView: VIS + 'view',
   archElement: VIS + 'archElement',
+  inNode: VIS + 'inNode',
   archRelationship: VIS + 'archRelationship',
   visSource: VIS + 'source',
   visTarget: VIS + 'target',

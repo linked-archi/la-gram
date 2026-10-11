@@ -218,7 +218,7 @@ interface RelationshipCandidate {
 }
 ```
 
-**Notes.** Validity **MUST** combine `arch:domainIncludes` / `arch:rangeIncludes` from ontologies with SHACL relationship-validity shapes; where shapes exist they decide what is offered, not only what validation reports afterwards (a shape on a relationship superclass applies to its subclasses, as in validation). When more than one candidate is valid, the tool **SHOULD** present a choice rather than auto-selecting; a relationship permitted between any two elements (ArchiMate's Association) need not count towards the choice.
+**Notes.** Validity **MUST** combine `arch:domainIncludes` / `arch:rangeIncludes` from ontologies with SHACL relationship-validity shapes; where shapes exist they decide what is offered, not only what validation reports afterwards (a shape on a relationship superclass applies to its subclasses, as in validation). When more than one candidate is valid, the tool **SHOULD** present a choice rather than auto-selecting; a relationship permitted between any two elements (ArchiMate's Association) need not count towards the choice. Nesting one element inside another is drawing, stored as `arch-vis:inNode`: a tool **MAY** offer the relationships it may stand for — those whose notation names the nested end (`arch-vis:nestedEnd`) and the validity rules permit — and **MUST NOT** create one unasked.
 
 ### 5.4 Property editing
 
@@ -300,7 +300,7 @@ interface FilteredView {
 }
 ```
 
-**Notes.** A viewpoint **SHOULD NOT** be a destructive filter — hidden elements remain in the underlying graph and become visible again when the viewpoint is cleared.
+**Notes.** A viewpoint **SHOULD NOT** be a destructive filter — hidden elements remain in the underlying graph and become visible again when the viewpoint is cleared. A viewpoint that names a class **MUST** be read as including its subclasses (`rdfs:subClassOf*`), as the viewpoint conformance shapes do: a viewpoint naming `c4:Container` admits `c4:Database`.
 
 ### 5.7 Deliverable generation
 
@@ -820,15 +820,15 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §1.2 (6) CRDT truth at runtime | differs | The RDF store is the model of record; the Y.Doc mirrors it as a triple set (§8.3 alternative) |
 | §5.1 Metamodel loading | ✓ | Manifest discovery, parallel levels, `Accept: text/turtle`, catalogue, load by IRI, uploads, several at once, switching; the core ontology as a metamodel (generic element and relationship) |
 | §5.2 Palette generation | ✓ | SKOS + OWL dual classification, axes, notation sets, presentation contexts; elements drawn as the notation describes them — the core shapes natively, a notation's own shapes from their path templates (else their fallback), relationship ends from the published marker symbols, badges as published, labels in `arch-vis:fontColor` |
-| §5.3 Relationship validity | ✓ mostly | Offers exactly what the relationship shapes permit (hints only where no shape exists). Append asks which relationship when several specific ones are permitted, and has a second tab for the element's existing relationships (bringing the other end into the view); connect takes the one picked in the palette, else the best-ranked, changeable in place afterwards — not a choice up front as §5.3 asks; no suggestion popup for two selected elements yet |
-| §5.4 Property editing | ✓ | SHACL-derived fields — `sh:in` values as a choice, booleans as a checkbox, added values typed by their shape; identity first; adding by applicability; custom names in the model namespace; an element's type as a choice of the loaded types. Property edits are store changes, not canvas commands — not undoable from the canvas yet |
+| §5.3 Relationship validity | ✓ mostly | Offers exactly what the relationship shapes permit (hints only where no shape exists). Nesting offers what the notation lets it draw and the shapes permit, or none. Append asks which relationship when several specific ones are permitted, and has a second tab for the element's existing relationships (bringing the other end into the view); connect takes the one picked in the palette, else the best-ranked, changeable in place afterwards — not a choice up front as §5.3 asks; no suggestion popup for two selected elements yet |
+| §5.4 Property editing | ✓ | SHACL-derived fields — `sh:in` values as a choice, labelled from the metamodel's reference data, booleans as a checkbox, added values typed by their shape; identity first; adding by applicability; custom names in the model namespace; an element's type as a choice of the loaded types. Property edits are undoable steps on the open view's stack |
 | §5.5 Live SHACL validation | ✓ | Debounced 300 ms (spec: ≤ 250 ms); `sh:sparql` left to a server that does not exist yet; violations marked on the canvas and counted on the Validation tab |
 | §5.6 Viewpoint filtering | ✓ | Palette filtered, outside-viewpoint shapes greyed, never removed |
 | §5.7 Deliverable generation | ✗ | |
 | §5.8 Freehand sketch layer | ✗ | |
 | §5.9 Progressive typing | ✗ | |
 | §5.10 Real-time collaboration | ✓ mostly | Yjs over Hocuspocus; presence, remote selection, soft locks; no remote cursors; awareness not persisted |
-| §5.11 Persistence & versioning | partly | Files in six formats; rooms persisted by the server (`.nt` + `.ttl`); no commits, history or diff yet |
+| §5.11 Persistence & versioning | partly | Files in six formats; rooms persisted by the server (`.nt` + `.ttl`); commits as N-Triples snapshots per model in IndexedDB, with history, diff (added/removed triples) and restore — on this machine, not yet in a shared store (Git or a triplestore) |
 | §5.12 AI assistance | ✗ | |
 | §5.13 Import / export | ✓ | Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG; no-geometry profile; live RDF panel |
 | (beyond this spec) Relationship graph | ✓ | The relationships around an element to a chosen depth, filterable by type; its query as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported; the graph as a new view or Turtle; SPARQL results render as a new view |

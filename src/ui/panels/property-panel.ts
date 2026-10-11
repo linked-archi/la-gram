@@ -86,6 +86,14 @@ export interface PropertyEditDetail {
   value: string;
   /** Language tag to keep on the new value. */
   language?: string;
+  /** The new value is an IRI (chosen from the shape's `sh:in`), not text. */
+  isIri?: boolean;
+  /** The new literal's datatype, from the property's SHACL shape. */
+  datatype?: string;
+  /** The value it replaces, as shown; absent or empty when there was none. */
+  previous?: string;
+  /** That value's language tag, so a name in another language stays. */
+  previousLanguage?: string;
 }
 
 /** Detail of `property-add` and `property-remove`. */
@@ -244,18 +252,26 @@ export function extractShaclShapes(
   return shapes;
 }
 
-/** An allowed value's label: its local name in words (`SinglePageApp` → `Single Page App`). */
-function choiceLabel(value: string, isIri: boolean): string {
+/** The name an IRI has in the loaded data, if it has one (reference data's `skos:prefLabel`). */
+export type NameOf = (iri: string) => string | undefined;
+
+/**
+ * An allowed value's label: its name in the loaded data — reference data names
+ * its values — else its local name in words (`SinglePageApp` → `Single Page App`).
+ */
+function choiceLabel(value: string, isIri: boolean, nameOf?: NameOf): string {
   if (!isIri) return value;
+  const named = nameOf?.(value);
+  if (named) return named;
   return iriLabel(value)
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
 }
 
 /** The choice a shape's `sh:in` gives, labelled. */
-function choicesOf(shape: ShaclPropertyShape | undefined): PropertyChoice[] | undefined {
+function choicesOf(shape: ShaclPropertyShape | undefined, nameOf?: NameOf): PropertyChoice[] | undefined {
   if (!shape?.in || shape.in.length === 0) return undefined;
-  return shape.in.map((member) => ({ ...member, label: choiceLabel(member.value, member.isIri) }));
+  return shape.in.map((member) => ({ ...member, label: choiceLabel(member.value, member.isIri, nameOf) }));
 }
 
 /**
@@ -281,7 +297,11 @@ function iriLabel(iri: string): string {
  * `arch:inView` is left out ({@link HIDDEN_FIELDS}). The panel shows the ID
  * (the IRI) above them all.
  */
-export function buildPropertyEntries(quads: Quad[], shaclShapes: ShaclPropertyShape[]): PropertyEntry[] {
+export function buildPropertyEntries(
+  quads: Quad[],
+  shaclShapes: ShaclPropertyShape[],
+  nameOf?: NameOf,
+): PropertyEntry[] {
   const shapeMap = new Map<string, ShaclPropertyShape>();
   for (const s of shaclShapes) shapeMap.set(s.path, s);
 
@@ -297,7 +317,7 @@ export function buildPropertyEntries(quads: Quad[], shaclShapes: ShaclPropertySh
     const isIri = q.object.termType === 'NamedNode';
     const language = (q.object as { language?: string }).language || undefined;
     const custom = !LEADING_FIELDS.includes(predicate);
-    const choices = isType ? undefined : choicesOf(shape);
+    const choices = isType ? undefined : choicesOf(shape, nameOf);
     entries.push({
       predicate,
       label: shape?.name ?? iriLabel(predicate),
@@ -666,6 +686,10 @@ export class PropertyPanel extends LitElement {
   @property({ attribute: false })
   typeChoices?: readonly ElementGroup[];
 
+  /** Names values in the loaded data, for labelling choices; absent, choices are labelled by their IRIs. */
+  @property({ attribute: false })
+  nameOf?: NameOf;
+
   @state() private _newValue = '';
 
   /** The open vertical tab; remembered per browser. */
@@ -721,7 +745,7 @@ export class PropertyPanel extends LitElement {
       : [];
     this._shapes = new Map(shaclShapes.map((s) => [s.path, s]));
 
-    this._entries = buildPropertyEntries(quads, shaclShapes);
+    this._entries = buildPropertyEntries(quads, shaclShapes, this.nameOf);
   }
 
   /** Handle input change and propagate to ElementManager. */
@@ -740,9 +764,9 @@ export class PropertyPanel extends LitElement {
     // Linked.Archi shapes expect of labels and definitions.
     const language = entry.language ?? (TEXT_PREDICATES.has(entry.predicate) ? 'en' : undefined);
 
+    const chosen = entry.choices?.find((c) => c.value === newValue);
     // Propagate through ElementManager if available
     if (this.elementManager) {
-      const chosen = entry.choices?.find((c) => c.value === newValue);
       const valueTerm = (
         chosen?.isIri
           ? DataFactory.namedNode(newValue)
@@ -763,6 +787,9 @@ export class PropertyPanel extends LitElement {
           predicate: entry.predicate,
           value: newValue,
           ...(language ? { language } : {}),
+          ...(chosen?.isIri ? { isIri: true } : !language && entry.datatype ? { datatype: entry.datatype } : {}),
+          ...(entry.value !== '' ? { previous: entry.value } : {}),
+          ...(entry.language ? { previousLanguage: entry.language } : {}),
         },
         bubbles: true,
         composed: true,
@@ -818,7 +845,7 @@ export class PropertyPanel extends LitElement {
     }
     // The value takes the property's shape: a chosen IRI, or a literal of its datatype.
     const shape = this._shapes.get(predicate);
-    const chosen = choicesOf(shape)?.find((c) => c.value === value);
+    const chosen = choicesOf(shape, this.nameOf)?.find((c) => c.value === value);
     this._emit<PropertyChangeDetail>('property-add', {
       elementIri: this.selectedIri,
       predicate,
@@ -872,7 +899,7 @@ export class PropertyPanel extends LitElement {
   private _renderNewValue() {
     const shape = this._shapes.get(this._pickedPredicate);
     const choices =
-      choicesOf(shape) ??
+      choicesOf(shape, this.nameOf) ??
       (shape?.datatype === XSD_BOOLEAN
         ? [
             { value: 'true', label: 'true', isIri: false },

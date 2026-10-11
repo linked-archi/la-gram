@@ -49,6 +49,8 @@ export interface NodeInfo {
   nodeIri: string;
   elementIri: string;
   bounds: Bounds;
+  /** The element whose node this one is drawn inside (`arch-vis:inNode`), if any. */
+  parentElementIri?: string;
 }
 
 /** One relationship drawn in a diagram view (`arch-vis:Link`). */
@@ -189,6 +191,11 @@ export interface ViewManager {
   addElementToView(viewIri: string, elementIri: string, bounds?: Bounds): string;
   /** Remove the element's node, its links, and its `arch:inView` for this view. */
   removeElementFromView(viewIri: string, elementIri: string): void;
+  /**
+   * Draw an element's node inside another's in the view (`arch-vis:inNode`), or
+   * — `undefined` — inside nothing. Bounds are not changed.
+   */
+  setNodeParent?(viewIri: string, elementIri: string, parentElementIri: string | undefined): void;
   collectNodeQuads(viewIri: string, elementIri: string): Quad[];
   getNodes(viewIri: string): NodeInfo[];
   getNode(viewIri: string, elementIri: string): NodeInfo | undefined;

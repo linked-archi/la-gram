@@ -641,6 +641,17 @@ describe('a property whose shape lists its values (sh:in), and a boolean', () =>
     expect(other.find((e) => e.predicate === 'https://example.org/dependsOn')!.readonly).toBe(true);
   });
 
+  it('labels a choice by its name in the loaded data, else in words', () => {
+    const names: Record<string, string> = { [`${BS}DeprecatedState`]: 'Deprecated (sunset)' };
+    const entries = buildPropertyEntries(
+      [iriQuad(DB, `${BS}lifecycleState`, `${BS}Production`)],
+      extractShaclShapes(SHAPES, `${BS}Component`),
+      (iri) => names[iri],
+    );
+    const entry = entries.find((e) => e.predicate === `${BS}lifecycleState`)!;
+    expect(entry.choices?.map((c) => c.label)).toEqual(['Production', 'Deprecated (sunset)']);
+  });
+
   it('saves a chosen value as the IRI it is, and a ticked box as true', () => {
     const elementManager = mockElementManager();
     const ctx: any = { selectedIri: DB, elementManager, dispatchEvent: vi.fn(), requestUpdate: vi.fn(), _loadProperties: vi.fn() };

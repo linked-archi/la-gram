@@ -16,6 +16,7 @@ import {
   SHAPE_TYPES,
   badgeBox,
   iconHref,
+  labelFitsInside,
   labelLayout,
   markerDefinition,
   markerId,
@@ -345,7 +346,23 @@ describe('wrapLabel', () => {
   });
 });
 
+describe('labelFitsInside', () => {
+  it('a junction\'s circle does not hold a line; an element does', () => {
+    expect(labelFitsInside(15, 15)).toBe(false);
+    expect(labelFitsInside(120, 55)).toBe(true);
+    expect(labelFitsInside(120, 8)).toBe(false);
+  });
+});
+
 describe('labelLayout', () => {
+  it('outside: under the shape, wrapped as wide as an element', () => {
+    const layout = labelLayout('Approval of the customer order', 15, 15, { outside: true });
+    expect(layout.x).toBe(7.5);
+    expect(layout.y).toBeGreaterThan(15);
+    expect(layout.lines.length).toBeGreaterThan(1);
+    expect(layout.lines.every((line) => line.length < 'Approval of the customer order'.length)).toBe(true);
+  });
+
   it('centres the label when no badge is drawn', () => {
     const layout = labelLayout('Actor', 120, 60);
     expect(layout.x).toBe(60);

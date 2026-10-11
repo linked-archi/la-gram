@@ -366,3 +366,118 @@ describe('the canvas in view mode', () => {
     expect(canvas.hasMarker(registry.get(b), OUTSIDE_VIEWPOINT_MARKER)).toBe(true);
   });
 });
+
+describe('nesting', () => {
+  const NODE = `${AM4}Node`;
+  const SOFTWARE = `${AM4}SystemSoftware`;
+  type Shape = { id: string; x: number; y: number; width: number; height: number; parent?: { id: string } };
+
+  /** Draw an element from the store, at the given bounds. */
+  const place = (f: ReturnType<typeof mount>, typeIri: string, label: string, bounds: { x: number; y: number; width: number; height: number }) => {
+    const iri = f.elements.createElement(typeIri, f.modelIri, { label }).value;
+    f.views.addElementToView(f.viewIri, iri, bounds);
+    return iri;
+  };
+  const shapeOf = (f: ReturnType<typeof mount>, iri: string) => f.service<{ get(id: string): Shape }>('elementRegistry').get(iri);
+  const contains = (outer: Shape, inner: Shape) =>
+    inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
+
+  it('an element created inside another is drawn and stored inside it; the container grows to hold it; undo takes both back', () => {
+    const f = mount();
+    const server = f.createOnCanvas(NODE, 'Server', { x: 300, y: 200 });
+    const before = f.views.getNode(f.viewIri, server)!.bounds;
+    const factory = f.service<{ createShape(a: Record<string, unknown>): Shape }>('elementFactory');
+    const shape = factory.createShape({ width: 120, height: 55, businessObject: { iri: '', typeIri: SOFTWARE, label: 'Linux', kind: 'element' } });
+    f.service<{ createShape(s: unknown, p: unknown, parent: unknown): unknown }>('modeling').createShape(shape, { x: 300, y: 205 }, shapeOf(f, server));
+    const linux = shape.id;
+
+    expect(f.views.getNode(f.viewIri, linux)?.parentElementIri).toBe(server);
+    expect(shapeOf(f, linux).parent?.id).toBe(server);
+    expect(contains(shapeOf(f, server), shapeOf(f, linux))).toBe(true);
+    expect(f.views.getNode(f.viewIri, server)!.bounds).toEqual(f.canvas.getElement(server)?.bounds);
+
+    f.commandStack.undo();
+    expect(f.views.getNode(f.viewIri, linux)).toBeUndefined();
+    expect(f.views.getNode(f.viewIri, server)!.bounds).toEqual(before);
+  });
+
+  it('moving an element into another nests it, the container carries it, and moving it out un-nests it', () => {
+    const f = mount();
+    const server = place(f, NODE, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const linux = place(f, SOFTWARE, 'Linux', { x: 600, y: 100, width: 120, height: 55 });
+    f.canvas.showView(f.viewIri);
+    const modeling = f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void }>('modeling');
+
+    modeling.moveElements([shapeOf(f, linux)], { x: -450, y: 60 }, shapeOf(f, server));
+    expect(f.views.getNode(f.viewIri, linux)?.parentElementIri).toBe(server);
+
+    modeling.moveElements([shapeOf(f, server)], { x: 40, y: 0 });
+    expect(f.views.getNode(f.viewIri, linux)!.bounds.x).toBe(190);
+
+    const root = f.service<{ getRootElement(): unknown }>('canvas').getRootElement();
+    modeling.moveElements([shapeOf(f, linux)], { x: 500, y: 0 }, root);
+    expect(f.views.getNode(f.viewIri, linux)?.parentElementIri).toBeUndefined();
+
+    f.commandStack.undo();
+    expect(f.views.getNode(f.viewIri, linux)?.parentElementIri).toBe(server);
+  });
+
+  it('a drop into an element offers what the nesting may stand for; the one picked is created, not drawn, undoably', async () => {
+    const f = mount();
+    const server = place(f, NODE, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const linux = place(f, SOFTWARE, 'Linux', { x: 600, y: 100, width: 120, height: 55 });
+    f.canvas.showView(f.viewIri);
+    f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void }>('modeling').moveElements(
+      [shapeOf(f, linux)],
+      { x: -450, y: 60 },
+      shapeOf(f, server),
+    );
+    await Promise.resolve();
+
+    const entries = f.canvas.nestMenuProvider.getPopupMenuEntries(undefined) as Record<string, { label: string; description: string; action(): void }>;
+    const labels = Object.values(entries).map((e) => e.label);
+    expect(labels).toContain('Composition');
+    expect(labels).not.toContain('Serving');
+    expect(labels.at(-1)).toBe('None');
+    const composition = Object.values(entries).find((e) => e.label === 'Composition')!;
+    expect(composition.description).toBe('Server → Linux');
+
+    composition.action();
+    const related = f.relationships.getRelationshipsOf!(linux);
+    expect(related.map((r) => [r.classIri, r.sourceIri, r.targetIri])).toEqual([[`${AM4}Composition`, server, linux]]);
+    expect(f.views.getLinks(f.viewIri)).toHaveLength(0);
+
+    f.commandStack.undo();
+    expect(f.relationships.getRelationshipsOf!(linux)).toHaveLength(0);
+  });
+
+  it('draws nodes inside their containers from the store, and follows when the store moves one out', () => {
+    const f = mount();
+    const server = place(f, NODE, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const linux = place(f, SOFTWARE, 'Linux', { x: 150, y: 160, width: 120, height: 55 });
+    f.views.setNodeParent(f.viewIri, linux, server);
+    f.canvas.showView(f.viewIri);
+    expect(shapeOf(f, linux).parent?.id).toBe(server);
+
+    f.views.setNodeParent(f.viewIri, linux, undefined);
+    f.canvas.syncFromStore();
+    expect(shapeOf(f, linux).parent?.id).not.toBe(server);
+
+    // Removing a container from the view leaves what was inside it drawn.
+    f.views.setNodeParent(f.viewIri, linux, server);
+    f.canvas.syncFromStore();
+    f.views.removeElementFromView(f.viewIri, server);
+    f.canvas.syncFromStore();
+    expect(shapeOf(f, linux)).toBeDefined();
+    expect(f.views.getNode(f.viewIri, linux)?.parentElementIri).toBeUndefined();
+  });
+
+  it('a junction holds nothing', () => {
+    const f = mount();
+    const junction = place(f, `${AM4}AndJunction`, 'J', { x: 100, y: 100, width: 15, height: 15 });
+    const linux = place(f, SOFTWARE, 'Linux', { x: 300, y: 100, width: 120, height: 55 });
+    f.canvas.showView(f.viewIri);
+    const rules = f.service<{ allowed(action: string, context: unknown): unknown }>('rules');
+    expect(rules.allowed('elements.move', { shapes: [shapeOf(f, linux)], target: shapeOf(f, junction) })).toBe(false);
+  });
+});

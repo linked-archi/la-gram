@@ -31,6 +31,7 @@
  * | `<property propertyDefinitionRef>`    | `<model>/property/<slug>` with the value       |
  * | `<view xsi:type="Diagram">`           | `arch:Diagram` (+ viewpoint when it resolves)   |
  * | `<node elementRef x y w h>`           | `arch-vis:ArchNode` with bounds                 |
+ * | a `<node>` inside another             | `arch-vis:inNode` to its nearest element ancestor |
  * | `<connection relationshipRef>`        | `arch-vis:Link`, bendpoints as its route        |
  *
  * Types the loaded ontology does not define are reported, not invented.
@@ -106,6 +107,8 @@ export interface ExchangeNode {
   /** The `xsi:type` of the node — `Element`, `Container`, `Label`. */
   kind: string;
   elementRef?: string;
+  /** The node it is drawn inside, when nested. */
+  parentId?: string;
   x: number;
   y: number;
   w: number;
@@ -258,18 +261,20 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
         const viewpoint = viewEl.getAttribute('viewpoint');
         if (viewpoint) view.viewpoint = viewpoint;
 
-        const walk = (parent: Element): void => {
+        const walk = (parent: Element, parentId?: string): void => {
           for (const nodeEl of getChildElements(parent, 'node')) {
+            const id = nodeEl.getAttribute('identifier') ?? '';
             view.nodes.push({
-              id: nodeEl.getAttribute('identifier') ?? '',
+              id,
               kind: getXsiType(nodeEl) ?? 'Element',
+              ...(parentId ? { parentId } : {}),
               ...(nodeEl.getAttribute('elementRef') ? { elementRef: nodeEl.getAttribute('elementRef') as string } : {}),
               x: num(nodeEl, 'x'),
               y: num(nodeEl, 'y'),
               w: num(nodeEl, 'w'),
               h: num(nodeEl, 'h'),
             });
-            walk(nodeEl);
+            walk(nodeEl, id);
           }
         };
         walk(viewEl);
@@ -487,6 +492,15 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       nodeRect.set(node.id, node);
       nodeElement.set(node.id, elementIri);
       report.nodeCount += 1;
+    }
+
+    // Nested nodes: inside their nearest ancestor that stands for an element (a
+    // visual group in between is not drawn).
+    const byId = new Map(view.nodes.map((node) => [node.id, node]));
+    for (const [nodeId, elementIri] of nodeElement) {
+      let ancestor = byId.get(nodeId)?.parentId;
+      while (ancestor && !nodeElement.has(ancestor)) ancestor = byId.get(ancestor)?.parentId;
+      if (ancestor) deps.views.setNodeParent?.(viewIri, elementIri, nodeElement.get(ancestor));
     }
 
     for (const conn of view.connections) {

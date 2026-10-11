@@ -4,7 +4,7 @@
  * Creates a BrowserWindow that loads the renderer bundle and
  * handles standard app lifecycle events (ready, window-all-closed, activate).
  */
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import path from 'path';
 
 function createWindow(): BrowserWindow {
@@ -31,6 +31,22 @@ function createWindow(): BrowserWindow {
     if (url === win.webContents.getURL()) return;
     event.preventDefault();
     if (/^https?:/.test(url)) void shell.openExternal(url);
+  });
+
+  // The renderer guards unsaved changes with `beforeunload`. A browser asks the
+  // user; Electron cancels the close without a word, so the window would not
+  // close at all. Ask here, and close when told to.
+  win.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['Close without saving', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Unsaved changes',
+      message: 'The model has changes that are not saved.',
+      detail: 'Closing the window discards them.',
+    });
+    if (choice === 0) event.preventDefault();
   });
 
   return win;

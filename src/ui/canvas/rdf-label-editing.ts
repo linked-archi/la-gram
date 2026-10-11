@@ -19,7 +19,7 @@
 
 import DirectEditing, { type DirectEditingContext } from 'diagram-js-direct-editing/lib/DirectEditing.js';
 import InteractionEventsModule from 'diagram-js/lib/features/interaction-events/index.js';
-import { NOTATION_DEFAULTS } from './notation-shapes.js';
+import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { RdfChangeHandler, type RdfChangeContext } from './rdf-modeling.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
@@ -33,6 +33,8 @@ export type LabelWriter = (elementIri: string, label: string) => void;
 /** A shape, as far as a rename reads it. */
 interface LabelledShape {
   id: string;
+  width?: number;
+  height?: number;
   businessObject?: RdfBusinessObject;
   waypoints?: unknown;
   labelTarget?: unknown;
@@ -45,6 +47,8 @@ export interface RelabelContext extends Partial<RdfChangeContext> {
   label: string;
   /** Filled in on first execute: the name before. */
   previous?: string;
+  /** Filled in on first execute: whether that was the element's own name. */
+  previousNamed?: boolean;
 }
 
 /**
@@ -82,16 +86,21 @@ export class RelabelElementHandler extends RdfChangeHandler {
     const relabel = context as RdfChangeContext & RelabelContext;
     const businessObject = relabel.element.businessObject!;
     relabel.previous ??= businessObject.label;
+    relabel.previousNamed ??= businessObject.named;
     relabel.apply ??= () => this.writer(businessObject.iri, relabel.label);
     super.execute(relabel);
     businessObject.label = relabel.label;
+    businessObject.named = true;
     return [relabel.element];
   }
 
   override revert(context: RdfChangeContext): unknown[] {
     const relabel = context as RdfChangeContext & RelabelContext;
     super.revert(relabel);
-    if (relabel.element.businessObject) relabel.element.businessObject.label = relabel.previous;
+    if (relabel.element.businessObject) {
+      relabel.element.businessObject.label = relabel.previous;
+      relabel.element.businessObject.named = relabel.previousNamed;
+    }
     return [relabel.element];
   }
 }
@@ -200,6 +209,29 @@ export class RdfLabelEditingProvider {
     const zoom = this.canvas.zoom();
     const box = this.canvas.getAbsoluteBBox(shape);
     const px = (n: number) => `${Math.round(n * zoom * 100) / 100}px`;
+    if (!labelFitsInside(shape.width ?? box.width, shape.height ?? box.height)) {
+      // A junction: its name is typed where it is drawn, under it.
+      const width = Math.max(box.width, NOTATION_DEFAULTS.width * zoom);
+      return {
+        text: shape.businessObject?.named ? (shape.businessObject.label ?? '') : '',
+        bounds: {
+          x: box.x + box.width / 2 - width / 2,
+          y: box.y + box.height + NOTATION_DEFAULTS.badgePadding * zoom,
+          width,
+          height: (NOTATION_DEFAULTS.fontSize * 1.2 + 8) * zoom,
+        },
+        style: {
+          fontFamily: NOTATION_DEFAULTS.fontFamily,
+          fontSize: px(NOTATION_DEFAULTS.fontSize),
+          lineHeight: '1.2',
+          paddingTop: px(4),
+          paddingBottom: px(4),
+          textAlign: 'center',
+          backgroundColor: 'transparent',
+        },
+        options: { centerVertically: true, autoResize: false, resizable: false },
+      };
+    }
     return {
       text: shape.businessObject?.label ?? '',
       bounds: { x: box.x, y: box.y, width: box.width, height: box.height },
