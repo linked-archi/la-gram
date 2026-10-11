@@ -120,8 +120,6 @@ domain-based structure.'''@en ;
     skos:definition
         '''Detects functions served by more than one application
         component. Consolidation candidates for application rationalization.'''@en ;
-    skos:historyNote '''2026-10-11: ArchiMate 4.0 has no business or application process, function or service — behaviour is
-        common to every domain — so the restriction to the business domain, which no element could meet, is gone.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Function {$this} is served by multiple application components ({?app1} and {?app2})."@en ;
@@ -251,7 +249,7 @@ domain-based structure.'''@en ;
     ] ;
 .
 
-:BusinessProcessOwnershipShape
+:ProcessPerformerShape
     a              sh:NodeShape ;
     sh:targetClass am4:Process ;
     sh:severity    sh:Warning ;
@@ -259,8 +257,6 @@ domain-based structure.'''@en ;
     skos:definition
         '''Every process should have something assigned to perform it — a business actor, a role,
         an application component, a node, … — that is responsible for it.'''@en ;
-    skos:historyNote '''2026-10-11: ArchiMate 4.0 has no business or application process, function or service — behaviour is
-        common to every domain — so the restriction to the business domain, which no element could meet, is gone. Any active structure element assigned to the process counts as its performer.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Process {$this} has nothing assigned to perform it (an actor, a role or a component)."@en ;
@@ -286,8 +282,6 @@ domain-based structure.'''@en ;
         '''Critical data objects should have at least one application
         component assigned to them (their system of record) or accessing
         them.'''@en ;
-    skos:historyNote '''2026-10-11: ArchiMate 4.0 expresses a system of record by assigning the application component to the data object
-        (it does not let a component realize one).'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Data object {$this} has no application component assigned to it or accessing it. Assign a system of record."@en ;
@@ -333,7 +327,6 @@ domain-based structure.'''@en ;
         '''Business processes — processes a business actor performs, directly or through a role —
         should not directly depend on technology domain elements. An application domain should
         mediate between business and technology.'''@en ;
-    skos:historyNote '''2026-10-11: ArchiMate 4.0 has no business process; a business process is one a business actor performs, directly or through a role (the restriction to the business domain could not be met).'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Business process {$this} has a direct serving/realization dependency on technology element {?tech}. Introduce an application domain mediator."@en ;
@@ -464,8 +457,6 @@ domain-based structure.'''@en ;
         '''Services realized by components deployed on many different
         technology nodes may indicate excessive technology
         diversity.'''@en ;
-    skos:historyNote '''2026-10-11: technology was found by a node assigned to the component, which ArchiMate 4.0 does not permit;
-        it serves or realizes the component, or hosts an artifact or system software that realizes it.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Service {$this} depends on {?nodeCount} distinct technology nodes. Consider standardizing."@en ;
@@ -510,8 +501,6 @@ domain-based structure.'''@en ;
         '''Services realized by exactly one application
         component with no redundancy may represent a single point
         of failure.'''@en ;
-    skos:historyNote '''2026-10-11: ArchiMate 4.0 has no business or application process, function or service — behaviour is
-        common to every domain — so the restriction to the business domain, which no element could meet, is gone.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Service {$this} is realized by only one application component ({?app}). Consider redundancy for critical services."@en ;
@@ -540,8 +529,6 @@ domain-based structure.'''@en ;
         '''Application components deployed on only one technology node
         may lack resilience. Critical components should be deployed
         across multiple nodes.'''@en ;
-    skos:historyNote '''2026-10-11: deployment was found by a node assigned to the component, which ArchiMate 4.0 does not permit;
-        the node realizes it, or is assigned to an artifact or system software that does.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Application component {$this} is deployed on only one node ({?node}). Consider multi-node deployment for resilience."@en ;
@@ -579,7 +566,7 @@ domain-based structure.'''@en ;
 #
 #################################################################
 
-:BusinessServiceWithoutRealizationShape
+:ServiceWithoutRealizationShape
     a              sh:NodeShape ;
     sh:targetClass am4:Service ;
     sh:severity    sh:Warning ;
@@ -587,8 +574,6 @@ domain-based structure.'''@en ;
     skos:definition
         '''Every service should be realized by something — a process, a function, an application
         component, … Unrealized services indicate incomplete modelling.'''@en ;
-    skos:historyNote '''2026-10-11: ArchiMate 4.0 has no business or application process, function or service — behaviour is
-        common to every domain — so the restriction to the business domain, which no element could meet, is gone. It also covers what ApplicationServiceWithoutRealizationShape checked.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Service {$this} is not realized by anything."@en ;
@@ -598,34 +583,6 @@ domain-based structure.'''@en ;
                 $this a am4:Service .
                 FILTER NOT EXISTS {
                     ?realizer am4:realizes $this .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-:ApplicationServiceWithoutRealizationShape
-    a              sh:NodeShape ;
-    sh:targetClass am4:Service ;
-    sh:severity    sh:Warning ;
-    sh:deactivated true ;
-    skos:prefLabel "Application Service Without Realization"@en ;
-    skos:definition
-        '''Every application-domain service should be realized by at
-        least one application component. Unrealized services indicate
-        incomplete modeling or orphaned service definitions.'''@en ;
-    skos:historyNote '''2026-10-11: deactivated. ArchiMate 4.0 has no application service, so the restriction to the application domain could never be met; BusinessServiceWithoutRealizationShape now checks every service.'''@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
-        sh:message  "Application-domain service {$this} is not realized by any application component."@en ;
-        sh:select """
-            SELECT $this
-            WHERE {
-                $this a am4:Service .
-                $this rdf:type/rdfs:subClassOf* am4:ApplicationDomainElement .
-                FILTER NOT EXISTS {
-                    ?app am4:realizes $this .
-                    ?app a am4:ApplicationComponent .
                 }
             }
         """ ;
@@ -642,7 +599,6 @@ domain-based structure.'''@en ;
         element (process, function, or interaction). A
         capability without realization is aspirational only and
         cannot be assessed for operational readiness.'''@en ;
-    skos:historyNote '''2026-10-11: the realizing behaviour had to be in the business domain, which no 4.0 behaviour is, so the rule flagged every capability; any behaviour now counts.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Capability {$this} is not realized by any process, function, or interaction."@en ;
@@ -659,7 +615,7 @@ domain-based structure.'''@en ;
     ] ;
 .
 
-:BusinessBehaviorRedundantApplicationRealizationShape
+:ProcessAutomatedByMultipleApplicationsShape
     a              sh:NodeShape ;
     sh:targetClass am4:Process ;
     sh:severity    sh:Warning ;
@@ -668,8 +624,6 @@ domain-based structure.'''@en ;
         '''Detects processes assigned to more than one application component. Several
         components automating the same process may indicate redundant automation or unclear
         application ownership of it.'''@en ;
-    skos:historyNote '''2026-10-11: an application component automating a process is assigned to it — ArchiMate 4.0 does not let it
-        realize one — and there is no business process to restrict to.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Process {$this} is automated by multiple application components ({?app1} and {?app2}). Clarify which component is authoritative."@en ;
@@ -687,7 +641,7 @@ domain-based structure.'''@en ;
     ] ;
 .
 
-:BusinessFunctionRedundantApplicationRealizationShape
+:FunctionAutomatedByMultipleApplicationsShape
     a              sh:NodeShape ;
     sh:targetClass am4:Function ;
     sh:severity    sh:Warning ;
@@ -696,8 +650,6 @@ domain-based structure.'''@en ;
         '''Detects functions assigned to more than one application component. Several
         components automating the same function may indicate redundant automation or unclear
         application ownership of it.'''@en ;
-    skos:historyNote '''2026-10-11: an application component automating a function is assigned to it — ArchiMate 4.0 does not let it
-        realize one — and there is no business function to restrict to.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate4/principle-shapes#> ;
         sh:message  "Function {$this} is automated by multiple application components ({?app1} and {?app2}). Clarify which component is authoritative."@en ;

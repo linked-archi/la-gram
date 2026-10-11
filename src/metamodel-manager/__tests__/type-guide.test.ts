@@ -55,13 +55,19 @@ describe('readTypeGuide on the ArchiMate 4.0 metamodel', () => {
     expect(serving.definition).toMatch(/^A serving relationship represents/);
     expect(serving.facts).toEqual([{ label: 'Unqualified form', values: [{ iri: AM4 + 'serves', label: 'Serves' }] }]);
 
-    const organization = readTypeGuide(store, VP + 'Organization')!;
+    const organization = readTypeGuide(store, VP + 'OrganizationViewpoint')!;
     expect(organization.label).toBe('Organization Viewpoint');
-    expect(organization.definition).toMatch(/^Shows the structure of the enterprise in terms of its business actors, roles,/);
-    expect(organization.facts.map((f) => f.label)).toEqual(['Shows', 'For', 'Purpose']);
+    expect(organization.definition).toMatch(/^The structure of an organization: its actors, roles and collaborations/);
+    expect(organization.facts.map((f) => f.label)).toEqual(['Shows', 'For', 'Concerns', 'Purpose']);
     expect(organization.facts[0]!.values.map((v) => v.label)).toContain('Business Actor');
-    expect(organization.classifications.map((c) => c.group.label)).toEqual(['Structure Viewpoints']);
-    expect(organization.classifications[0]!.members.map((m) => m.label)).toContain('Application Structure Viewpoint');
+    expect(organization.facts[2]!.values.map((v) => v.label)).toEqual(['Competencies, authority and responsibilities']);
+    // Grouped twice, as the catalogue groups it: by Appendix C's category and by scope.
+    expect(organization.classifications.map((c) => c.group.label).sort()).toEqual([
+      'Composition',
+      'Single domain, single aspect',
+    ]);
+    const composition = organization.classifications.find((c) => c.group.label === 'Composition')!;
+    expect(composition.members.map((m) => m.label)).toContain('Application Structure Viewpoint');
   });
 
   it('knows nothing of what no metamodel describes', () => {

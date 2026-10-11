@@ -31,11 +31,6 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/shapes/3.2.0#> ;
     owl:versionInfo               "3.2.0"@en ;
-    skos:historyNote              '''2026-10-11: the matrix letters f and v are flow and serving, as the
-specification's tables and Archi's key spell them; they had been read the other way round, so between
-work packages, plateaus and implementation events serving was allowed and flow refused. A direct triple
-whose predicate the matrix never permits from its subject (a data object assigned to a process) was
-unconstrained; it is now refused.'''@en ;
 .
 
 #################################################################

@@ -53,24 +53,13 @@ the data: the shapes target arch:View and arch:Viewpoint, and RDF4J resolves the
 rdfs:subClassOf closure for sh:targetClass and sh:class from the shapes graph.
 Without it nothing fires on an arch:Diagram instance.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
-    dcterms:modified              "2026-09-25"^^xsd:date ;
-    skos:historyNote              '''ViewElementConformanceShape was rewritten onto arch:inView in core
-0.4.0. It previously read `$this arch:contains ?element`, which violated both the declared domain
-(arch:Model) and range (arch:View) of that property, and disagreed with the 3.2 shapes, which used
-arch:exposedInView. See DD-30.
-
-Brought to parity with the 3.2 shapes at the same time. This document had two shapes against 3.2's
-five, and both targeted arch:Diagram, so an arch:Catalog or arch:Matrix escaped every rule here. All
-five now target arch:View, and view-type, relationship-endpoint and completeness checks were added.
-The completeness shape omits the arch:viewpointFramesConcern constraint its 3.2 counterpart carries,
-because no 4.0 viewpoint declares a concern — see the note on that shape.
-
-sh:severity was subsequently added to the property shapes of :ViewDeclaresViewpointShape and
-:ViewpointCompletenessShape. Both stated it on the node shape only, and SHACL assigns a result the
-severity of the shape carrying the violated constraint — a property shape, not its parent — so all
-three reported sh:Violation while this file documented sh:Warning and sh:Info. The SPARQL-based
-shapes were never affected: sh:sparql is stated on the node shape, so it took the node severity
-already.'''@en ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
+    skos:editorialNote '''ViewElementConformanceShape keys on arch:inView (core 0.4.0, DD-30). The five
+shapes match the 3.2 ones and target arch:View, so catalogues and matrices are checked as well as diagrams.
+sh:severity is stated on the
+property shapes of :ViewDeclaresViewpointShape and :ViewpointCompletenessShape, not only on the node
+shapes: SHACL gives a result the severity of the shape carrying the violated constraint. The SPARQL-based
+shapes state sh:sparql on the node shape, so they take its severity.'''@en ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/viewpoint-shapes/4.0#> ;
@@ -272,15 +261,9 @@ already.'''@en ;
 #  of view realise it. Not errors — an incomplete viewpoint
 #  definition, which is why this is sh:Info.
 #
-#  DELIBERATELY NARROWER THAN THE 3.2 EQUIVALENT. That shape also
-#  requires arch:viewpointFramesConcern, and none of the seventeen
-#  ArchiMate 4.0 viewpoints declares one, where all twenty-three
-#  3.2 viewpoints do. Adding the constraint here would report
-#  seventeen times and say nothing a reader could act on from this
-#  file — the gap is in archimate4-viewpoints.ttl, not in the
-#  models it validates. Restore the constraint once that catalogue
-#  declares concerns; a viewpoint that frames none is not a
-#  viewpoint in the ISO 42010 sense.
+#  It also asks for the concerns a viewpoint frames
+#  (arch:viewpointFramesConcern): a viewpoint that frames none is not
+#  a viewpoint in the ISO 42010 sense.
 #
 #  Each property shape repeats sh:severity sh:Info, for the reason
 #  given on :ViewDeclaresViewpointShape above.
@@ -295,6 +278,12 @@ already.'''@en ;
         sh:path     arch:includesConcept ;
         sh:minCount 1 ;
         sh:message  "Viewpoint should declare at least one arch:includesConcept."@en ;
+        sh:severity sh:Info ;
+    ] ;
+    sh:property [
+        sh:path     arch:viewpointFramesConcern ;
+        sh:minCount 1 ;
+        sh:message  "Viewpoint should declare at least one arch:viewpointFramesConcern."@en ;
         sh:severity sh:Info ;
     ] ;
     sh:property [

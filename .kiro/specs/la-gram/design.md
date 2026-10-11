@@ -451,7 +451,7 @@ hard-wrapped, so a line break starts a paragraph only after a sentence ends),
 links that are web pages rather than resources of the metamodels, and facts by
 kind — `arch:domainIncludes` / `rangeIncludes` / `unqualifiedForm` for a
 relationship, `arch:includesConcept` / `targetsStakeholder` /
-`viewpointHasPurpose` for a viewpoint. From the taxonomy: every SKOS concept
+`viewpointFramesConcern` / `viewpointHasPurpose` for a viewpoint. From the taxonomy: every SKOS concept
 that holds the type (`skos:narrower`, or the type's `skos:broader`), with the
 path up to its top concept (the axis), the concept's definition, notes and
 changes, and its other members. The host caches a guide per type until a

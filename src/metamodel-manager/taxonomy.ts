@@ -49,6 +49,8 @@ const SKOS_DEFINITION = `${SKOS_NS}definition`;
 const SKOS_NARROWER = `${SKOS_NS}narrower`;
 const SKOS_BROADER = `${SKOS_NS}broader`;
 const SKOS_IN_SCHEME = `${SKOS_NS}inScheme`;
+const SKOS_TOP_CONCEPT_OF = `${SKOS_NS}topConceptOf`;
+const SKOS_HAS_TOP_CONCEPT = `${SKOS_NS}hasTopConcept`;
 const SKOS_CONCEPT = `${SKOS_NS}Concept`;
 const SKOS_CONCEPT_SCHEME = `${SKOS_NS}ConceptScheme`;
 
@@ -174,7 +176,8 @@ export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
   for (const quad of store.getQuads(null, namedNode(ARCH_CONCEPT_CLASSIFICATION), null, null)) {
     if (quad.object.termType === 'NamedNode') schemes.add(quad.object.value);
   }
-  if (schemes.size === 0) {
+  const named = schemes.size > 0;
+  if (!named) {
     for (const quad of store.getQuads(null, namedNode(RDF_TYPE), namedNode(SKOS_CONCEPT_SCHEME), null)) {
       if (quad.subject.termType === 'NamedNode') schemes.add(quad.subject.value);
     }
@@ -186,10 +189,36 @@ export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
     for (const term of store.getSubjects(namedNode(SKOS_IN_SCHEME), namedNode(schemeIri), null)) {
       addNamed(schemeConcepts, term);
     }
+    for (const term of store.getSubjects(namedNode(SKOS_TOP_CONCEPT_OF), namedNode(schemeIri), null)) {
+      addNamed(schemeConcepts, term);
+    }
+    for (const term of store.getObjects(namedNode(schemeIri), namedNode(SKOS_HAS_TOP_CONCEPT), null)) {
+      addNamed(schemeConcepts, term);
+    }
   }
   // Anything typed skos:Concept counts too — some data omits inScheme on intermediate nodes.
+  // When the manifest names its classification schemes, only a concept beneath one of theirs:
+  // a concept of another scheme (a viewpoint catalogue, a scope scheme) is no axis of the palette.
+  const typedConcepts = new Set<string>();
   for (const term of store.getSubjects(namedNode(RDF_TYPE), namedNode(SKOS_CONCEPT), null)) {
-    addNamed(schemeConcepts, term);
+    addNamed(typedConcepts, term);
+  }
+  if (!named) {
+    for (const iri of typedConcepts) schemeConcepts.add(iri);
+  } else {
+    const queue = [...schemeConcepts];
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      const below = [
+        ...store.getObjects(namedNode(current), namedNode(SKOS_NARROWER), null),
+        ...store.getSubjects(namedNode(SKOS_BROADER), namedNode(current), null),
+      ];
+      for (const term of below) {
+        if (term.termType !== 'NamedNode' || !typedConcepts.has(term.value) || schemeConcepts.has(term.value)) continue;
+        schemeConcepts.add(term.value);
+        queue.push(term.value);
+      }
+    }
   }
 
   const isConcept = (iri: string): boolean => schemeConcepts.has(iri);

@@ -38,19 +38,13 @@ that way. Added arch-vis:borderStyle (a Style's outline LineStyle) for
 dashed outlines such as ArchiMate's grouping. Documented arch-vis:fontColor as the label colour,
 the line colour when absent. Documented the arch-vis:decorSymbol drawing
 convention, and that an arch-vis:iconSymbol glyph is transparent where the element's fill shows
-through (the ArchiMate glyphs were solid there). arch-vis:CircleDot is a filled dot, as ArchiMate's assignment
-draws it; its symbol was a hollow ring with a dot, and its comment wrongly named access.
+through. arch-vis:CircleDot is a filled dot, as ArchiMate's assignment draws it.
 
-0.3: Widened arch-vis:label from rdfs:domain arch-vis:Node to
+0.3: Widened arch-vis:label's domain from arch-vis:Node to
 arch-vis:DiagElement — an edge's label is the ordinary case (BPMN BPMNEdge-label, a named
-sequence flow) and the narrow domain entailed that every labelled edge was also a Node.
-Declared Node, Link and Point mutually disjoint (arch-vis:NodeLinkPointDisjoint), which is
-what makes a wrong domain detectable rather than silently type-adding. Corrected
-arch-vis:label's rdfs:label and rdfs:comment, which were copy-pasted from arch-vis:points
-and made the property unfindable in the generated documentation; same correction on
-arch-vis:view, whose rdfs:label read "target". Filled in the empty rdfs:comments on
-DiagElement, Node, Link and Point. Companion SHACL shapes now published as
-core-vis-shapes; the diagram layer was previously unvalidated.
+sequence flow). Declared Node, Link and Point mutually disjoint (arch-vis:NodeLinkPointDisjoint),
+which makes a wrong domain detectable rather than silently type-adding. Companion SHACL shapes
+published as core-vis-shapes.
 
 0.2: Extended Style with structural properties (shapeType, iconSymbol,
 iconPlacement, defaultWidth, defaultHeight). Added ShapeType, IconPlacement, LineStyle,

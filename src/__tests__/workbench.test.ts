@@ -197,7 +197,7 @@ describe('the workbench', () => {
     expect(relationshipAbout.querySelector('.definition')!.textContent).toMatch(/assignment/i);
 
     // A view: its viewpoint, when it has one.
-    const view = app.session.createView('Diagram', { label: 'Org', viewpointIri: 'https://meta.linked.archi/archimate4/viewpoints#Organization', open: false });
+    const view = app.session.createView('Diagram', { label: 'Org', viewpointIri: 'https://meta.linked.archi/archimate4/viewpoints#OrganizationViewpoint', open: false });
     const viewAbout = await about(view);
     expect(root.querySelector('.header .title')!.textContent).toBe('About Organization Viewpoint');
     expect(viewAbout.querySelector('details[data-section="facts"]')!.textContent).toMatch(/Shows[\s\S]*Business Actor/);

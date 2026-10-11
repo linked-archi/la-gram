@@ -32,13 +32,6 @@ unqualified direct triples. Pure SHACL core.'''@en ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/shapes/4.0#> ;
     owl:versionInfo               "4.0"@en ;
-    skos:historyNote              '''2026-10-10: generated from the specification's relationship tables
-read the right way round — the source along the top, the target down the side. The matrix used before
-was transposed and partly guessed, so active structure could be neither assigned to behaviour nor
-realize a service (an application component realizing a service, a node assigned to a function), and
-pairs such as a process realizing a node were allowed. 2026-10-11: a direct triple whose predicate
-the tables never permit from its subject (a data object assigned to a process) was unconstrained, and
-am4:composedOf was not checked at all; the first is refused, the second goes where am4:aggregates does.'''@en ;
 .
 
 # ── Access (qualified) — 120 valid pairs ──

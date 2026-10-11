@@ -11,7 +11,7 @@
  * m:view-…  a arch:View, arch:Diagram ;
  *         arch:inModel m:model ;
  *         skos:prefLabel "Application Cooperation"@en ;
- *         arch:viewConformsToViewpoint am4vp:ApplicationCooperation .
+ *         arch:viewConformsToViewpoint am4vp:ApplicationCooperationViewpoint .
  *
  * m:element-…  arch:inView m:view-… .                 # membership, survives geometry loss
  *

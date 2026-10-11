@@ -97,6 +97,7 @@ const FACTS: ReadonlyArray<[string, string]> = [
   [ARCH + 'unqualifiedForm', 'Unqualified form'],
   [ARCH + 'includesConcept', 'Shows'],
   [ARCH + 'targetsStakeholder', 'For'],
+  [ARCH + 'viewpointFramesConcern', 'Concerns'],
   [ARCH + 'viewpointHasPurpose', 'Purpose'],
 ];
 

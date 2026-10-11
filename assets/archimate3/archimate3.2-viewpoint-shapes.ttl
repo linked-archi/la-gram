@@ -55,17 +55,11 @@ Or load manually:
 '''@en ;
     dcterms:created               "2022-11-14"^^xsd:date ;
     dcterms:modified              "2026-09-25"^^xsd:date ;
-    skos:historyNote              '''The element and relationship conformance constraints were rewritten
-onto arch:inView in core 0.4.0. They previously keyed on arch:exposedInView, which nothing emitted, so both
-SPARQL constraints returned zero rows and every view was reported conformant regardless of its contents. See
-DD-30.
-
-sh:severity was subsequently added to the property shapes of :ViewMustDeclareViewpointShape and
-:ViewpointCompletenessShape. Both stated it on the node shape only, and SHACL assigns a result the severity
-of the shape carrying the violated constraint — a property shape, not its parent — so all four reported
-sh:Violation while this file documented sh:Warning and sh:Info. A view drawn before its viewpoint was chosen
-therefore surfaced as an error in editors that colour results by severity. The SPARQL-based shapes in this
-file were never affected: sh:sparql is stated on the node shape, so it took the node severity already.'''@en ;
+    skos:editorialNote '''The element and relationship conformance constraints key on arch:inView
+(core 0.4.0, DD-30). sh:severity is stated on the property shapes of :ViewMustDeclareViewpointShape and
+:ViewpointCompletenessShape, not only on the node shapes: SHACL gives a result the severity of the shape
+carrying the violated constraint. The SPARQL-based shapes state sh:sparql on the node shape, so they take
+its severity.'''@en ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/viewpoint-shapes/3.2#> ;

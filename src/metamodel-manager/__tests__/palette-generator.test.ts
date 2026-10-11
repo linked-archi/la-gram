@@ -846,17 +846,20 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   it('filters by a real viewpoint through arch:includesConcept', () => {
     const filtered = generator.filterByViewpoint(
       palette,
-      'https://meta.linked.archi/archimate4/viewpoints#Organization',
+      'https://meta.linked.archi/archimate4/viewpoints#OrganizationViewpoint',
     );
     const labels = filtered.elementGroups.flatMap((g) => g.elements).map((e) => e.label).sort();
     // The Organization viewpoint includes BusinessActor, Role, Collaboration,
-    // BusinessInterface and Location.
-    expect(labels).toEqual([
+    // BusinessInterface and Location — and Grouping and the junctions, which
+    // Appendix C admits in every viewpoint.
+    expect(labels).toEqual(expect.arrayContaining([
       'Business Actor',
       'Business Interface',
       'Collaboration',
+      'Grouping',
       'Location',
       'Role',
-    ]);
+    ]));
+    expect(labels).not.toContain('Process');
   });
 });
