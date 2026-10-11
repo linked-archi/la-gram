@@ -27,7 +27,7 @@ ArchiMate 4.0 uses domain-based organization; viewpoints reference the merged
 cross-domain elements (Process, Function, Event, Service) from the Common Domain.
 Organizations may define additional custom viewpoints.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
-    dcterms:modified              "2026-04-29"^^xsd:date ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
@@ -74,7 +74,7 @@ ISO/IEC/IEEE 42010 does not prescribe a specific grouping.'''@en ;
     skos:definition   "Viewpoints showing dynamic behavior — processes, cooperation, and service realization."@en ;
     skos:topConceptOf :ViewpointCatalog ;
     skos:inScheme     :ViewpointCatalog ;
-    skos:narrower     :ProcessCooperationVP, :ServiceRealizationVP ;
+    skos:narrower     :ProcessCooperationVP, :ApplicationCooperationVP, :ServiceRealizationVP ;
 .
 
 :MotivationViewpoints
@@ -233,6 +233,24 @@ Common Domain elements.'''@en ;
     skos:inScheme           :ViewpointCatalog ;
     skos:broader            :BehaviorViewpoints ;
     arch:viewType           arch:Diagram ;
+.
+
+:ApplicationCooperationVP
+    a                       arch:Viewpoint ;
+    skos:prefLabel          "Application Cooperation Viewpoint"@en ;
+    skos:definition         '''Shows how application components cooperate: the information flowing between
+them, the services they offer and use, and the orchestration of services that together support
+a process. Application Domain, multiple aspects.'''@en ;
+    arch:includesConcept    am4:Location, am4:ApplicationComponent, am4:Collaboration,
+                            am4:ApplicationInterface, am4:Process, am4:Function,
+                            am4:Event, am4:Service, am4:DataObject ;
+    arch:targetsStakeholder :EnterpriseArchitect, :ApplicationArchitect ;
+    arch:viewpointHasPurpose :Designing ;
+    skos:inScheme           :ViewpointCatalog ;
+    skos:broader            :BehaviorViewpoints ;
+    arch:viewType           arch:Diagram ;
+    dcterms:source          <https://pubs.opengroup.org/architecture/archimate4-doc/appendixc.html> ;
+    skos:historyNote        "2026-10-11: added from the specification's Table C-12; the catalogue lacked it."@en ;
 .
 
 :ServiceRealizationVP

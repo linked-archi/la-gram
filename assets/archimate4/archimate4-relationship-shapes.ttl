@@ -27,7 +27,7 @@ ArchiMate 4.0 relationship validity matrix (Appendix B), including the relations
 between relationships of Table B-1. Validates qualified relationship instances and
 unqualified direct triples. Pure SHACL core.'''@en ;
     dcterms:created               "2026-04-28"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/shapes/4.0#> ;
@@ -36,7 +36,9 @@ unqualified direct triples. Pure SHACL core.'''@en ;
 read the right way round — the source along the top, the target down the side. The matrix used before
 was transposed and partly guessed, so active structure could be neither assigned to behaviour nor
 realize a service (an application component realizing a service, a node assigned to a function), and
-pairs such as a process realizing a node were allowed.'''@en ;
+pairs such as a process realizing a node were allowed. 2026-10-11: a direct triple whose predicate
+the tables never permit from its subject (a data object assigned to a process) was unconstrained, and
+am4:composedOf was not checked at all; the first is refused, the second goes where am4:aggregates does.'''@en ;
 .
 
 # ── Access (qualified) — 120 valid pairs ──
@@ -7563,6 +7565,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "ApplicationComponent cannot have composition to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "ApplicationComponent cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -7780,6 +7791,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "ApplicationInterface cannot have composition to {$value} — permitted targets: ApplicationInterface, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "ApplicationInterface cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -7977,6 +7996,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Artifact cannot have composition to {$value} — permitted targets: Artifact, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Artifact cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -8033,6 +8060,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Material ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -8106,6 +8158,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Assessment cannot have composition to {$value} — permitted targets: Assessment, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Assessment ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Assessment cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -8128,6 +8188,36 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Assessment ]
                 [ sh:class am4:Grouping ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -8228,6 +8318,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "BusinessActor cannot have composition to {$value} — permitted targets: BusinessActor, BusinessInterface, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:Grouping ]
         ) ;
     ] ;
     sh:property [
@@ -8448,6 +8547,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "BusinessInterface cannot have composition to {$value} — permitted targets: BusinessInterface, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "BusinessInterface cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -8643,6 +8750,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "BusinessObject cannot have composition to {$value} — permitted targets: BusinessObject, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "BusinessObject cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -8681,6 +8796,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Deliverable ]
                 [ sh:class am4:Grouping ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -8754,6 +8894,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Capability cannot have composition to {$value} — permitted targets: Capability, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Capability ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Capability cannot have flow to {$value} — permitted targets: Capability, CourseOfAction, Grouping, Resource, ValueStream."@en ;
         sh:or (
@@ -8821,6 +8969,16 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Resource ]
                 [ sh:class am4:ValueStream ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Capability cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Capability cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -8940,6 +9098,25 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Collaboration cannot have composition to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, Device, Equipment, Facility, Grouping, Node, Role, SystemSoftware, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:Collaboration ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -9182,6 +9359,17 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "CommunicationNetwork cannot have composition to {$value} — permitted targets: CommunicationNetwork, Device, Grouping, SystemSoftware, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:CommunicationNetwork ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "CommunicationNetwork cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -9388,6 +9576,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "CourseOfAction cannot have composition to {$value} — permitted targets: CourseOfAction, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:CourseOfAction ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "CourseOfAction cannot have flow to {$value} — permitted targets: Capability, CourseOfAction, Grouping, Resource, ValueStream."@en ;
         sh:or (
@@ -9454,6 +9650,16 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Resource ]
                 [ sh:class am4:ValueStream ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "CourseOfAction cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "CourseOfAction cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -9527,6 +9733,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "DataObject cannot have composition to {$value} — permitted targets: DataObject, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "DataObject cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -9566,6 +9780,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Deliverable ]
                 [ sh:class am4:Grouping ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -9639,6 +9878,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Deliverable cannot have composition to {$value} — permitted targets: Deliverable, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Deliverable ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Deliverable cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -9703,6 +9950,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Deliverable ]
                 [ sh:class am4:Grouping ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -9803,6 +10075,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Device cannot have composition to {$value} — permitted targets: Device, Grouping, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:Device ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -10057,6 +10338,22 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "DistributionNetwork cannot have composition to {$value} — permitted targets: BusinessActor, BusinessInterface, Device, DistributionNetwork, Equipment, Facility, Grouping, Node, SystemSoftware, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:DistributionNetwork ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "DistributionNetwork cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -10264,6 +10561,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Driver cannot have composition to {$value} — permitted targets: Driver, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Driver ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Driver cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -10286,6 +10591,36 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Driver ]
                 [ sh:class am4:Grouping ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -10388,6 +10723,16 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Equipment cannot have composition to {$value} — permitted targets: Device, Equipment, Grouping, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:Device ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -10610,6 +10955,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Event cannot have composition to {$value} — permitted targets: Event, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Event ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Event cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface, WorkPackage."@en ;
         sh:or (
@@ -10731,6 +11084,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:WorkPackage ]
         ) ;
     ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Event cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
 .
 
 :FacilityUnqualifiedShape
@@ -10842,6 +11200,19 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Facility cannot have composition to {$value} — permitted targets: Device, Equipment, Facility, Grouping, Node, SystemSoftware, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:Device ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -11064,6 +11435,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Function cannot have composition to {$value} — permitted targets: Function, Grouping, Process."@en ;
+        sh:or (
+                [ sh:class am4:Function ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Process ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Function cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -11186,6 +11566,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Function cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
 .
 
 :GoalUnqualifiedShape
@@ -11258,6 +11643,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Goal cannot have composition to {$value} — permitted targets: Goal, Grouping."@en ;
+        sh:or (
+                [ sh:class am4:Goal ]
+                [ sh:class am4:Grouping ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Goal cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -11280,6 +11673,36 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Goal ]
                 [ sh:class am4:Grouping ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -11432,6 +11855,54 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Serving ]
                 [ sh:class am4:Specialization ]
                 [ sh:class am4:Triggering ]
+                [ sh:class am4:Requirement ]
+                [ sh:class am4:Resource ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:Service ]
+                [ sh:class am4:Stakeholder ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+                [ sh:class am4:Value ]
+                [ sh:class am4:ValueStream ]
+                [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Grouping cannot have composition to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:Assessment ]
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:Capability ]
+                [ sh:class am4:Collaboration ]
+                [ sh:class am4:CommunicationNetwork ]
+                [ sh:class am4:CourseOfAction ]
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Deliverable ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:DistributionNetwork ]
+                [ sh:class am4:Driver ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Event ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Function ]
+                [ sh:class am4:Goal ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Location ]
+                [ sh:class am4:Material ]
+                [ sh:class am4:Meaning ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:Outcome ]
+                [ sh:class am4:Path ]
+                [ sh:class am4:Plateau ]
+                [ sh:class am4:Principle ]
+                [ sh:class am4:Process ]
+                [ sh:class am4:Product ]
                 [ sh:class am4:Requirement ]
                 [ sh:class am4:Resource ]
                 [ sh:class am4:Role ]
@@ -11811,6 +12282,54 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Location cannot have composition to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, Assessment, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Deliverable, Device, DistributionNetwork, Driver, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Meaning, Node, Outcome, Path, Plateau, Principle, Process, Product, Requirement, Resource, Role, Service, Stakeholder, SystemSoftware, TechnologyInterface, Value, ValueStream, WorkPackage."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:Assessment ]
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:Capability ]
+                [ sh:class am4:Collaboration ]
+                [ sh:class am4:CommunicationNetwork ]
+                [ sh:class am4:CourseOfAction ]
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Deliverable ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:DistributionNetwork ]
+                [ sh:class am4:Driver ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Event ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Function ]
+                [ sh:class am4:Goal ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Location ]
+                [ sh:class am4:Material ]
+                [ sh:class am4:Meaning ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:Outcome ]
+                [ sh:class am4:Path ]
+                [ sh:class am4:Plateau ]
+                [ sh:class am4:Principle ]
+                [ sh:class am4:Process ]
+                [ sh:class am4:Product ]
+                [ sh:class am4:Requirement ]
+                [ sh:class am4:Resource ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:Service ]
+                [ sh:class am4:Stakeholder ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+                [ sh:class am4:Value ]
+                [ sh:class am4:ValueStream ]
+                [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Location cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -12018,6 +12537,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Material cannot have composition to {$value} — permitted targets: Grouping, Material."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Material ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Material cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -12076,6 +12603,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Material ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -12149,6 +12701,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Meaning cannot have composition to {$value} — permitted targets: Grouping, Meaning."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Meaning ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Meaning cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -12171,6 +12731,36 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Meaning ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -12283,6 +12873,19 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Node cannot have composition to {$value} — permitted targets: Device, Equipment, Facility, Grouping, Node, SystemSoftware, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:Device ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -12493,6 +13096,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Outcome cannot have composition to {$value} — permitted targets: Grouping, Outcome."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Outcome ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Outcome cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -12523,6 +13134,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Outcome ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -12604,6 +13240,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Path cannot have composition to {$value} — permitted targets: Grouping, Path."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Path ]
         ) ;
     ] ;
     sh:property [
@@ -12729,6 +13373,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:SystemSoftware ]
                 [ sh:class am4:TechnologyInterface ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Path cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -12860,6 +13509,46 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Plateau cannot have composition to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, Artifact, BusinessActor, BusinessInterface, BusinessObject, Capability, Collaboration, CommunicationNetwork, CourseOfAction, DataObject, Device, DistributionNetwork, Equipment, Event, Facility, Function, Goal, Grouping, Location, Material, Node, Outcome, Path, Plateau, Process, Product, Requirement, Resource, Role, Service, SystemSoftware, TechnologyInterface, ValueStream."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationComponent ]
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:BusinessActor ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:Capability ]
+                [ sh:class am4:Collaboration ]
+                [ sh:class am4:CommunicationNetwork ]
+                [ sh:class am4:CourseOfAction ]
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Device ]
+                [ sh:class am4:DistributionNetwork ]
+                [ sh:class am4:Equipment ]
+                [ sh:class am4:Event ]
+                [ sh:class am4:Facility ]
+                [ sh:class am4:Function ]
+                [ sh:class am4:Goal ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Location ]
+                [ sh:class am4:Material ]
+                [ sh:class am4:Node ]
+                [ sh:class am4:Outcome ]
+                [ sh:class am4:Path ]
+                [ sh:class am4:Plateau ]
+                [ sh:class am4:Process ]
+                [ sh:class am4:Product ]
+                [ sh:class am4:Requirement ]
+                [ sh:class am4:Resource ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:Service ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
+                [ sh:class am4:ValueStream ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Plateau cannot have flow to {$value} — permitted targets: Grouping, Plateau, WorkPackage."@en ;
         sh:or (
@@ -12943,6 +13632,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:WorkPackage ]
         ) ;
     ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Plateau cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
 .
 
 :PrincipleUnqualifiedShape
@@ -13015,6 +13709,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Principle cannot have composition to {$value} — permitted targets: Grouping, Principle."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Principle ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Principle cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -13046,6 +13748,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Principle ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -13128,6 +13855,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Process cannot have composition to {$value} — permitted targets: Function, Grouping, Process."@en ;
+        sh:or (
+                [ sh:class am4:Function ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Process ]
         ) ;
     ] ;
     sh:property [
@@ -13253,6 +13989,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Process cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
 .
 
 :ProductUnqualifiedShape
@@ -13338,6 +14079,19 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Product cannot have composition to {$value} — permitted targets: Artifact, BusinessObject, DataObject, Grouping, Material, Product, Service."@en ;
+        sh:or (
+                [ sh:class am4:Artifact ]
+                [ sh:class am4:BusinessObject ]
+                [ sh:class am4:DataObject ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Material ]
+                [ sh:class am4:Product ]
+                [ sh:class am4:Service ]
         ) ;
     ] ;
     sh:property [
@@ -13476,6 +14230,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Product cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
 .
 
 :RelationshipUnqualifiedShape
@@ -13537,6 +14296,56 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:aggregates ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have aggregation to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have composition to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:influences ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have influence to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:specializes ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have specialization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -13610,6 +14419,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Requirement cannot have composition to {$value} — permitted targets: Grouping, Requirement."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Requirement ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Requirement cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -13642,6 +14459,31 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Requirement ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -13725,6 +14567,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Resource cannot have composition to {$value} — permitted targets: Grouping, Resource."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Resource ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Resource cannot have flow to {$value} — permitted targets: Capability, CourseOfAction, Grouping, Resource, ValueStream."@en ;
         sh:or (
@@ -13792,6 +14642,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Resource ]
                 [ sh:class am4:ValueStream ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Resource cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -13892,6 +14747,17 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Role cannot have composition to {$value} — permitted targets: ApplicationInterface, BusinessInterface, Grouping, Role, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:ApplicationInterface ]
+                [ sh:class am4:BusinessInterface ]
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Role ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -14104,6 +14970,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Service cannot have composition to {$value} — permitted targets: Grouping, Service."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Service ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "Service cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -14225,6 +15099,11 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Service cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
 .
 
 :StakeholderUnqualifiedShape
@@ -14297,6 +15176,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Stakeholder cannot have composition to {$value} — permitted targets: Grouping, Stakeholder."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Stakeholder ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Stakeholder cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -14319,6 +15206,36 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Stakeholder ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -14419,6 +15336,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
                 [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "SystemSoftware cannot have composition to {$value} — permitted targets: Grouping, SystemSoftware, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:SystemSoftware ]
+                [ sh:class am4:TechnologyInterface ]
         ) ;
     ] ;
     sh:property [
@@ -14647,6 +15573,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "TechnologyInterface cannot have composition to {$value} — permitted targets: Grouping, TechnologyInterface."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:TechnologyInterface ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "TechnologyInterface cannot have flow to {$value} — permitted targets: ApplicationComponent, ApplicationInterface, BusinessActor, BusinessInterface, Collaboration, CommunicationNetwork, Device, DistributionNetwork, Equipment, Event, Facility, Function, Grouping, Location, Node, Path, Process, Product, Role, Service, SystemSoftware, TechnologyInterface."@en ;
         sh:or (
@@ -14845,6 +15779,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "Value cannot have composition to {$value} — permitted targets: Grouping, Value."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:Value ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:influences ;
         sh:message "Value cannot have influence to {$value} — permitted targets: Assessment, Driver, Goal, Grouping, Meaning, Outcome, Principle, Requirement, Stakeholder, Value."@en ;
         sh:or (
@@ -14867,6 +15809,36 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Grouping ]
                 [ sh:class am4:Value ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot have flow to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot have realization to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot have triggering to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -14940,6 +15912,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
         ) ;
     ] ;
     sh:property [
+        sh:path am4:composedOf ;
+        sh:message "ValueStream cannot have composition to {$value} — permitted targets: Grouping, ValueStream."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
+                [ sh:class am4:ValueStream ]
+        ) ;
+    ] ;
+    sh:property [
         sh:path am4:flowsTo ;
         sh:message "ValueStream cannot have flow to {$value} — permitted targets: Capability, CourseOfAction, Grouping, Resource, ValueStream."@en ;
         sh:or (
@@ -15007,6 +15987,16 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Resource ]
                 [ sh:class am4:ValueStream ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:accesses ;
+        sh:maxCount 0 ;
+        sh:message "ValueStream cannot have access to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ValueStream cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .
 
@@ -15084,6 +16074,14 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:TechnologyInterface ]
                 [ sh:class am4:Value ]
                 [ sh:class am4:ValueStream ]
+                [ sh:class am4:WorkPackage ]
+        ) ;
+    ] ;
+    sh:property [
+        sh:path am4:composedOf ;
+        sh:message "WorkPackage cannot have composition to {$value} — permitted targets: Grouping, WorkPackage."@en ;
+        sh:or (
+                [ sh:class am4:Grouping ]
                 [ sh:class am4:WorkPackage ]
         ) ;
     ] ;
@@ -15173,5 +16171,15 @@ pairs such as a process realizing a node were allowed.'''@en ;
                 [ sh:class am4:Plateau ]
                 [ sh:class am4:WorkPackage ]
         ) ;
+    ] ;
+    sh:property [
+        sh:path am4:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "WorkPackage cannot have assignment to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
+    ] ;
+    sh:property [
+        sh:path am4:serves ;
+        sh:maxCount 0 ;
+        sh:message "WorkPackage cannot have serving to anything — the ArchiMate 4.0 relationship tables permit none."@en ;
     ] ;
 .

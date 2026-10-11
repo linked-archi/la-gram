@@ -26,11 +26,16 @@
 ArchiMate relationship validity matrix (Archi tool, MIT license). Validates both qualified
 relationship instances and unqualified direct triples. Pure SHACL core — no SPARQL.'''@en ;
     dcterms:created               "2019-03-17"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-10-11"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/shapes/3.2.0#> ;
     owl:versionInfo               "3.2.0"@en ;
+    skos:historyNote              '''2026-10-11: the matrix letters f and v are flow and serving, as the
+specification's tables and Archi's key spell them; they had been read the other way round, so between
+work packages, plateaus and implementation events serving was allowed and flow refused. A direct triple
+whose predicate the matrix never permits from its subject (a data object assigned to a process) was
+unconstrained; it is now refused.'''@en ;
 .
 
 #################################################################
@@ -1201,11 +1206,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
     sh:message "Invalid Composition: this source-target pair is not permitted by the ArchiMate specification."@en ;
 .
 
-# ── Serving (qualified) — 1268 valid pairs ──
+# ── Flow (qualified) — 1268 valid pairs ──
 
-:ServingShape
+:FlowShape
     a              sh:NodeShape ;
-    sh:targetClass am:Serving ;
+    sh:targetClass am:Flow ;
     sh:or (
         [ sh:and (
             [ sh:property [ sh:path arch:source ; sh:class am:ApplicationCollaboration ] ]
@@ -2698,7 +2703,7 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:property [ sh:path arch:target ; sh:class am:Junction_Or ] ]
         ) ]
     ) ;
-    sh:message "Invalid Serving: this source-target pair is not permitted by the ArchiMate specification."@en ;
+    sh:message "Invalid Flow: this source-target pair is not permitted by the ArchiMate specification."@en ;
 .
 
 # ── Aggregation (qualified) — 368 valid pairs ──
@@ -12793,11 +12798,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
     sh:message "Invalid Triggering: this source-target pair is not permitted by the ArchiMate specification."@en ;
 .
 
-# ── Flow (qualified) — 1253 valid pairs ──
+# ── Serving (qualified) — 1253 valid pairs ──
 
-:FlowShape
+:ServingShape
     a              sh:NodeShape ;
-    sh:targetClass am:Flow ;
+    sh:targetClass am:Serving ;
     sh:or (
         [ sh:and (
             [ sh:property [ sh:path arch:source ; sh:class am:ApplicationCollaboration ] ]
@@ -14260,7 +14265,7 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:property [ sh:path arch:target ; sh:class am:Junction_Or ] ]
         ) ]
     ) ;
-    sh:message "Invalid Flow: this source-target pair is not permitted by the ArchiMate specification."@en ;
+    sh:message "Invalid Serving: this source-target pair is not permitted by the ArchiMate specification."@en ;
 .
 
 #################################################################
@@ -15148,6 +15153,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "ApplicationEvent cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ApplicationEvent cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── ApplicationFunction (unqualified predicates) ──
@@ -15433,6 +15443,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "ApplicationFunction cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ApplicationFunction cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── ApplicationInteraction (unqualified predicates) ──
@@ -15717,6 +15732,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:TechnologyService ]
         ) ;
         sh:message "ApplicationInteraction cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ApplicationInteraction cannot use am:assignedTo at all."@en ;
     ] ;
 .
 
@@ -16290,6 +16310,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "ApplicationProcess cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ApplicationProcess cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── ApplicationService (unqualified predicates) ──
@@ -16567,6 +16592,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "ApplicationService cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ApplicationService cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── Artifact (unqualified predicates) ──
@@ -16733,6 +16763,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Artifact cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Artifact cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── Assessment (unqualified predicates) ──
@@ -16857,6 +16912,36 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Grouping ]
         ) ;
         sh:message "Assessment cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Assessment cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -17727,6 +17812,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "BusinessEvent cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessEvent cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── BusinessFunction (unqualified predicates) ──
@@ -18008,6 +18098,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "BusinessFunction cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessFunction cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── BusinessInteraction (unqualified predicates) ──
@@ -18288,6 +18383,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:TechnologyService ]
         ) ;
         sh:message "BusinessInteraction cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessInteraction cannot use am:assignedTo at all."@en ;
     ] ;
 .
 
@@ -18718,6 +18818,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "BusinessObject cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "BusinessObject cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── BusinessProcess (unqualified predicates) ──
@@ -18998,6 +19123,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:TechnologyService ]
         ) ;
         sh:message "BusinessProcess cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessProcess cannot use am:assignedTo at all."@en ;
     ] ;
 .
 
@@ -19570,6 +19700,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "BusinessService cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "BusinessService cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── Capability (unqualified predicates) ──
@@ -19740,6 +19875,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:ValueStream ]
         ) ;
         sh:message "Capability cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Capability cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Capability cannot use am:assignedTo at all."@en ;
     ] ;
 .
 
@@ -20205,6 +20350,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Constraint cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Constraint cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Constraint cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Constraint cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Constraint cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Constraint cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── Contract (unqualified predicates) ──
@@ -20348,6 +20518,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Grouping ]
         ) ;
         sh:message "Contract cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Contract cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Contract cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Contract cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Contract cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Contract cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -20519,6 +20714,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "CourseOfAction cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "CourseOfAction cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "CourseOfAction cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── DataObject (unqualified predicates) ──
@@ -20661,6 +20866,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Grouping ]
         ) ;
         sh:message "DataObject cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "DataObject cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -20844,6 +21074,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Grouping ]
         ) ;
         sh:message "Deliverable cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Deliverable cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -21633,6 +21888,36 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Driver cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Driver cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── Equipment (unqualified predicates) ──
@@ -22405,6 +22690,41 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Gap cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:influences ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:influences at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Gap cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── Goal (unqualified predicates) ──
@@ -22529,6 +22849,36 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Grouping ]
         ) ;
         sh:message "Goal cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Goal cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -22849,9 +23199,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Equipment ]
             [ sh:class am:Facility ]
             [ sh:class am:Grouping ]
+            [ sh:class am:ImplementationEvent ]
             [ sh:class am:Location ]
             [ sh:class am:Node ]
             [ sh:class am:Path ]
+            [ sh:class am:Plateau ]
             [ sh:class am:Product ]
             [ sh:class am:Resource ]
             [ sh:class am:SystemSoftware ]
@@ -22863,6 +23215,7 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:TechnologyProcess ]
             [ sh:class am:TechnologyService ]
             [ sh:class am:ValueStream ]
+            [ sh:class am:WorkPackage ]
         ) ;
         sh:message "Grouping cannot use am:flowsTo to connect to this target element type."@en ;
     ] ;
@@ -22970,11 +23323,9 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Equipment ]
             [ sh:class am:Facility ]
             [ sh:class am:Grouping ]
-            [ sh:class am:ImplementationEvent ]
             [ sh:class am:Location ]
             [ sh:class am:Node ]
             [ sh:class am:Path ]
-            [ sh:class am:Plateau ]
             [ sh:class am:Product ]
             [ sh:class am:Resource ]
             [ sh:class am:SystemSoftware ]
@@ -22986,7 +23337,6 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:TechnologyProcess ]
             [ sh:class am:TechnologyService ]
             [ sh:class am:ValueStream ]
-            [ sh:class am:WorkPackage ]
         ) ;
         sh:message "Grouping cannot use am:serves to connect to this target element type."@en ;
     ] ;
@@ -23213,6 +23563,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         sh:message "ImplementationEvent cannot use am:composedOf to connect to this target element type."@en ;
     ] ;
     sh:property [
+        sh:path am:flowsTo ;
+        sh:or (
+            [ sh:class am:Grouping ]
+            [ sh:class am:ImplementationEvent ]
+            [ sh:class am:Plateau ]
+            [ sh:class am:WorkPackage ]
+        ) ;
+        sh:message "ImplementationEvent cannot use am:flowsTo to connect to this target element type."@en ;
+    ] ;
+    sh:property [
         sh:path am:influences ;
         sh:or (
             [ sh:class am:Assessment ]
@@ -23228,16 +23588,6 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Value ]
         ) ;
         sh:message "ImplementationEvent cannot use am:influences to connect to this target element type."@en ;
-    ] ;
-    sh:property [
-        sh:path am:serves ;
-        sh:or (
-            [ sh:class am:Grouping ]
-            [ sh:class am:ImplementationEvent ]
-            [ sh:class am:Plateau ]
-            [ sh:class am:WorkPackage ]
-        ) ;
-        sh:message "ImplementationEvent cannot use am:serves to connect to this target element type."@en ;
     ] ;
     sh:property [
         sh:path am:specializes ;
@@ -23256,6 +23606,21 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:WorkPackage ]
         ) ;
         sh:message "ImplementationEvent cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ImplementationEvent cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "ImplementationEvent cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "ImplementationEvent cannot use am:serves at all."@en ;
     ] ;
 .
 
@@ -23909,6 +24274,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Material cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Material cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── Meaning (unqualified predicates) ──
@@ -24033,6 +24423,36 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Meaning ]
         ) ;
         sh:message "Meaning cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Meaning cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -24508,6 +24928,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Outcome ]
         ) ;
         sh:message "Outcome cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Outcome cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -25083,6 +25528,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         sh:message "Plateau cannot use am:composedOf to connect to this target element type."@en ;
     ] ;
     sh:property [
+        sh:path am:flowsTo ;
+        sh:or (
+            [ sh:class am:Grouping ]
+            [ sh:class am:ImplementationEvent ]
+            [ sh:class am:Plateau ]
+            [ sh:class am:WorkPackage ]
+        ) ;
+        sh:message "Plateau cannot use am:flowsTo to connect to this target element type."@en ;
+    ] ;
+    sh:property [
         sh:path am:influences ;
         sh:or (
             [ sh:class am:Assessment ]
@@ -25157,16 +25612,6 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         sh:message "Plateau cannot use am:realizes to connect to this target element type."@en ;
     ] ;
     sh:property [
-        sh:path am:serves ;
-        sh:or (
-            [ sh:class am:Grouping ]
-            [ sh:class am:ImplementationEvent ]
-            [ sh:class am:Plateau ]
-            [ sh:class am:WorkPackage ]
-        ) ;
-        sh:message "Plateau cannot use am:serves to connect to this target element type."@en ;
-    ] ;
-    sh:property [
         sh:path am:specializes ;
         sh:or (
             [ sh:class am:Grouping ]
@@ -25183,6 +25628,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:WorkPackage ]
         ) ;
         sh:message "Plateau cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Plateau cannot use am:serves at all."@en ;
     ] ;
 .
 
@@ -25317,6 +25767,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Principle ]
         ) ;
         sh:message "Principle cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Principle cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -25636,6 +26111,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Product cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Product cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── Relationship (unqualified predicates) ──
@@ -25718,6 +26198,56 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:WorkPackage ]
         ) ;
         sh:message "Relationship cannot use am:associatedWith to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:aggregates ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:aggregates at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:composedOf ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:composedOf at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:influences ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:influences at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:specializes ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:specializes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Relationship cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -25862,6 +26392,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Representation cannot use am:specializes to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Representation cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Representation cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Representation cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Representation cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Representation cannot use am:triggers at all."@en ;
+    ] ;
 .
 
 # ── Requirement (unqualified predicates) ──
@@ -25999,6 +26554,31 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Requirement ]
         ) ;
         sh:message "Requirement cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Requirement cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -26180,6 +26760,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "Resource cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Resource cannot use am:accesses at all."@en ;
+    ] ;
 .
 
 # ── Stakeholder (unqualified predicates) ──
@@ -26304,6 +26889,36 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Stakeholder ]
         ) ;
         sh:message "Stakeholder cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Stakeholder cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -27234,6 +27849,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "TechnologyEvent cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "TechnologyEvent cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── TechnologyFunction (unqualified predicates) ──
@@ -27523,6 +28143,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "TechnologyFunction cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "TechnologyFunction cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── TechnologyInteraction (unqualified predicates) ──
@@ -27811,6 +28436,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:TechnologyService ]
         ) ;
         sh:message "TechnologyInteraction cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "TechnologyInteraction cannot use am:assignedTo at all."@en ;
     ] ;
 .
 
@@ -28390,6 +29020,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "TechnologyProcess cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "TechnologyProcess cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── TechnologyService (unqualified predicates) ──
@@ -28668,6 +29303,11 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "TechnologyService cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "TechnologyService cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── Value (unqualified predicates) ──
@@ -28792,6 +29432,36 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:Value ]
         ) ;
         sh:message "Value cannot use am:specializes to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:flowsTo ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot use am:flowsTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:realizes ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot use am:realizes at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot use am:serves at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:triggers ;
+        sh:maxCount 0 ;
+        sh:message "Value cannot use am:triggers at all."@en ;
     ] ;
 .
 
@@ -28964,6 +29634,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         ) ;
         sh:message "ValueStream cannot use am:triggers to connect to this target element type."@en ;
     ] ;
+    sh:property [
+        sh:path am:accesses ;
+        sh:maxCount 0 ;
+        sh:message "ValueStream cannot use am:accesses at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "ValueStream cannot use am:assignedTo at all."@en ;
+    ] ;
 .
 
 # ── WorkPackage (unqualified predicates) ──
@@ -29073,6 +29753,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         sh:message "WorkPackage cannot use am:composedOf to connect to this target element type."@en ;
     ] ;
     sh:property [
+        sh:path am:flowsTo ;
+        sh:or (
+            [ sh:class am:Grouping ]
+            [ sh:class am:ImplementationEvent ]
+            [ sh:class am:Plateau ]
+            [ sh:class am:WorkPackage ]
+        ) ;
+        sh:message "WorkPackage cannot use am:flowsTo to connect to this target element type."@en ;
+    ] ;
+    sh:property [
         sh:path am:influences ;
         sh:or (
             [ sh:class am:Assessment ]
@@ -29149,16 +29839,6 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
         sh:message "WorkPackage cannot use am:realizes to connect to this target element type."@en ;
     ] ;
     sh:property [
-        sh:path am:serves ;
-        sh:or (
-            [ sh:class am:Grouping ]
-            [ sh:class am:ImplementationEvent ]
-            [ sh:class am:Plateau ]
-            [ sh:class am:WorkPackage ]
-        ) ;
-        sh:message "WorkPackage cannot use am:serves to connect to this target element type."@en ;
-    ] ;
-    sh:property [
         sh:path am:specializes ;
         sh:or (
             [ sh:class am:Grouping ]
@@ -29175,6 +29855,16 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
             [ sh:class am:WorkPackage ]
         ) ;
         sh:message "WorkPackage cannot use am:triggers to connect to this target element type."@en ;
+    ] ;
+    sh:property [
+        sh:path am:assignedTo ;
+        sh:maxCount 0 ;
+        sh:message "WorkPackage cannot use am:assignedTo at all."@en ;
+    ] ;
+    sh:property [
+        sh:path am:serves ;
+        sh:maxCount 0 ;
+        sh:message "WorkPackage cannot use am:serves at all."@en ;
     ] ;
 .
 # ── Attribute constraints ──
