@@ -419,9 +419,9 @@ describe('the connect tool', () => {
 });
 
 describe('a preselected relationship type', () => {
-  it('wins over the metamodel ranking, but only among types it permits', () => {
-    // Picking a relationship type in the palette records it here. It reorders
-    // the metamodel's answer; it cannot add to it.
+  it('is the one created, and only where the metamodel permits it', () => {
+    // Picking a relationship type in the palette records it here. It wins over
+    // the metamodel's ranking; it cannot add to the metamodel's answer.
     const { canvas } = fixture();
     const ranked = canvas.relationshipCandidates(BUSINESS_ACTOR, BUSINESS_ROLE);
     expect(ranked.length).toBeGreaterThan(1);
@@ -431,12 +431,31 @@ describe('a preselected relationship type', () => {
     expect(canvas.ruleProvider.canConnect(BUSINESS_ACTOR, BUSINESS_ROLE)).toMatchObject({
       typeIri: second.iri,
     });
+    expect(canvas.ruleProvider.refusal(BUSINESS_ACTOR, BUSINESS_ROLE)).toBeUndefined();
 
-    // A type the metamodel forbids for the pair is ignored, not honoured.
-    canvas.setPreferredRelationshipType('urn:not:a:permitted:type');
-    expect(canvas.ruleProvider.canConnect(BUSINESS_ACTOR, BUSINESS_ROLE)).toMatchObject({
-      typeIri: ranked[0].iri,
+    // A type the metamodel forbids for the pair is refused — not swapped for
+    // the best permitted one, which would hide the rule.
+    const forbidden = `${MM}Realization`;
+    canvas.setPreferredRelationshipType(forbidden);
+    expect(canvas.ruleProvider.canConnect(BUSINESS_ACTOR, BUSINESS_ROLE)).toBe(false);
+    expect(canvas.ruleProvider.refusal(BUSINESS_ACTOR, BUSINESS_ROLE)).toEqual({
+      typeIri: forbidden,
+      permitted: ranked,
     });
+  });
+
+  it('released on a pair that does not permit it, creates nothing and says why', () => {
+    const notices: string[] = [];
+    const f = fixture({ overrides: { onNotice: (message) => notices.push(message) } });
+    const before = f.triples().length;
+    f.canvas.setPreferredRelationshipType(`${MM}Realization`);
+    completeConnect(f.canvas);
+
+    expect(f.triples()).toHaveLength(before);
+    const permitted = f.canvas.relationshipCandidates(BUSINESS_ACTOR, BUSINESS_ROLE).map((r) => r.label);
+    expect(notices).toEqual([
+      `Realization is not permitted from Business Actor to Business Role. Permitted: ${permitted.join(', ')}.`,
+    ]);
   });
 
   it('is dropped when diagram-js drops the connect tool', () => {

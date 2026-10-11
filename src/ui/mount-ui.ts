@@ -348,6 +348,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     onToolChanged: (tool) => {
       canvasToolbar.activeTool = tool ?? undefined;
     },
+    onNotice: (message, level) => dialogs.toast(message, level),
   });
 
   // ── Bottom, "Validation" and "SPARQL Query" tabs ─────────────────────

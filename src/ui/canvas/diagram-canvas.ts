@@ -137,7 +137,8 @@ import { NotationStyleRegistry } from './notation-styles.js';
 import { NOTATION_DEFAULTS } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
 import { RdfRenderer, rdfRendererModule, type RdfBusinessObject } from './rdf-renderer.js';
-import { RdfRuleProvider, rdfRulesModule } from './rdf-rule-provider.js';
+import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
+import { humanize } from '../../model-manager/vocabulary.js';
 import { rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
 import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
@@ -247,6 +248,11 @@ export interface DiagramCanvasOptions {
    * again toggles it off inside `ToolManager`. `null` means no tool is armed.
    */
   onToolChanged?: (tool: CanvasTool | null) => void;
+  /**
+   * Something the user should be told, briefly — e.g. why a connection was
+   * refused. The host shows it (a toast in the app).
+   */
+  onNotice?: (message: string, level: 'info' | 'warning') => void;
   /**
    * The views and their geometry. With it, the canvas draws one `arch:View`
    * at a time ({@link DiagramCanvas.showView}), writes layout to that view's
@@ -414,6 +420,18 @@ interface DjsShape {
   outgoing?: DjsShape[];
 }
 
+/** What `Connect` holds when a drag ends over a pair it refused. */
+interface RefusedConnectContext {
+  canExecute?: unknown;
+  start?: DjsShape;
+  hover?: DjsShape;
+}
+
+/** A type's name from its IRI, when the palette has none: `ApplicationComponent` → `Application Component`. */
+function fragmentLabel(iri: string): string {
+  return humanize(localName(iri));
+}
+
 /** The diagram-js services this class resolves. Structural, not nominal. */
 interface DjsServices {
   canvas: {
@@ -544,6 +562,7 @@ export class DiagramCanvas {
   private classClosure: ClassClosure;
   private rdfStore?: RelationshipTripleStore;
   private onToolChanged?: (tool: CanvasTool | null) => void;
+  private onNotice?: (message: string, level: 'info' | 'warning') => void;
   private viewManager?: ViewManager;
   private changeStore?: ObservableRdfStore;
   private describeElement?: (iri: string) => ConceptDescription | undefined;
@@ -624,6 +643,7 @@ export class DiagramCanvas {
     this.classClosure = options.classClosure ?? identityClosure;
     this.rdfStore = options.rdfStore;
     this.onToolChanged = options.onToolChanged;
+    this.onNotice = options.onNotice;
     this.viewManager = options.viewManager;
     this.changeStore = options.changeStore;
     this.describeElement = options.describeElement;
@@ -1420,6 +1440,25 @@ export class DiagramCanvas {
   /** The relationship type currently preferred over the metamodel's ranking. */
   preferredRelationshipType(): string | undefined {
     return this.ruleProvider.getPreferredType();
+  }
+
+  /**
+   * "Realization is not permitted from Application Component to Application
+   * Component. Permitted: Aggregation, …" — in the palette's words.
+   */
+  refusalMessage(refusal: RelationshipRefusal, sourceTypeIri: string, targetTypeIri: string): string {
+    const palette = this.paletteDefinition;
+    const elementLabel = (iri: string) =>
+      palette.elementGroups.flatMap((group) => group.elements).find((element) => element.iri === iri)?.label ??
+      fragmentLabel(iri);
+    const relationshipLabel = (iri: string) =>
+      palette.relationshipTypes.find((type) => type.iri === iri)?.label ?? fragmentLabel(iri);
+    const what =
+      `${relationshipLabel(refusal.typeIri)} is not permitted from ${elementLabel(sourceTypeIri)} ` +
+      `to ${elementLabel(targetTypeIri)}.`;
+    return refusal.permitted.length === 0
+      ? `${what} No relationship is.`
+      : `${what} Permitted: ${refusal.permitted.map((type) => type.label ?? relationshipLabel(type.iri)).join(', ')}.`;
   }
 
   /** Activate one of the canvas's global tools. */
@@ -2428,6 +2467,21 @@ export class DiagramCanvas {
       // the rules are consulted, and gone by the next gesture.
       if (tool !== 'connect') this.ruleProvider.setPreferredType(undefined);
       this.onToolChanged?.(tool);
+    });
+
+    // A relationship type picked in the palette is required (RdfRuleProvider):
+    // released on an element the pair does not permit it for, the drag creates
+    // nothing — so say why, and what the pair does permit. Ahead of `Connect`'s
+    // own handler, while the preference is still in force; diagram-js keeps the
+    // ends of a refused pair in `start` and `hover`.
+    djs.on('connect.end', 1500, (event: { context?: RefusedConnectContext }) => {
+      const context = event.context;
+      if (!context || context.canExecute) return;
+      const sourceType = context.start?.businessObject?.typeIri;
+      const targetType = context.hover?.businessObject?.typeIri;
+      if (!sourceType || !targetType || context.hover?.waypoints) return;
+      const refusal = this.ruleProvider.refusal(sourceType, targetType);
+      if (refusal) this.onNotice?.(this.refusalMessage(refusal, sourceType, targetType), 'warning');
     });
 
     // Layout is the canvas's own state, so it is the one thing written back.

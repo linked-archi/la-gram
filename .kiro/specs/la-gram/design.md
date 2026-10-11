@@ -350,8 +350,16 @@ permitted to, with the palette's icons. Association is permitted between any two
 elements, so a silent default would always hide a choice: the entry decides
 alone only when one *specific* relationship is permitted (or Association alone);
 otherwise a second menu lists them, best-ranked first, Association last, and the
-pick is preferred for that one append. A drag from the menu cannot pause to ask
+pick is required for that one append. A drag from the menu cannot pause to ask
 and takes the best-ranked one.
+
+**A relationship type from the palette.** Picking one arms the connect tool with
+that type *required* (`RdfRuleProvider.setPreferredType`): `canConnect` answers
+it or nothing, so a pair that does not permit it shows the not-allowed cursor,
+and releasing on one creates nothing and tells the user why
+(`RdfRuleProvider.refusal` → `DiagramCanvas` `onNotice` → a toast listing what
+the pair permits). It used to be a mere preference, quietly replaced by the
+best-ranked type where forbidden — which hid the rule.
 
 **Existing relationships.** The same menu's header carries two tabs (diagram-js
 header entries in their own group, styled as a tab strip): *New element* and

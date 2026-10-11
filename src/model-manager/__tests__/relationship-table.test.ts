@@ -85,6 +85,27 @@ describe('getValidRelationships against the relationship shapes', () => {
     for (const kind of kinds) expect(labels('BusinessActor', 'ApplicationComponent')).not.toContain(kind);
   });
 
+  it('reads the specification\'s tables the right way round: columns are the source, rows the target', () => {
+    // Active structure is assigned to behaviour and realizes services — not the reverse.
+    expect(labels('ApplicationComponent', 'Function')).toContain('Assignment');
+    expect(labels('Function', 'ApplicationComponent')).not.toContain('Assignment');
+    expect(labels('BusinessActor', 'Role')).toContain('Assignment');
+    for (const active of ['ApplicationComponent', 'Node', 'SystemSoftware', 'BusinessActor', 'Role']) {
+      expect(labels(active, 'Service')).toEqual(expect.arrayContaining(['Realization', 'Assignment']));
+      expect(labels('Service', active)).not.toContain('Realization');
+    }
+    expect(labels('Process', 'Service')).toContain('Realization');
+    expect(labels('Process', 'Node')).not.toContain('Realization');
+    expect(labels('Process', 'Node')).not.toContain('Assignment');
+    // Technology realizes application: system software and artifacts realize components.
+    expect(labels('SystemSoftware', 'ApplicationComponent')).toContain('Realization');
+    expect(labels('ApplicationComponent', 'SystemSoftware')).not.toContain('Realization');
+    expect(labels('Artifact', 'ApplicationComponent')).toContain('Realization');
+    // Components realize capabilities; nothing serves one.
+    expect(labels('ApplicationComponent', 'Capability')).toContain('Realization');
+    expect(labels('ApplicationComponent', 'Capability')).not.toContain('Serving');
+  });
+
   it('allows Composition exactly where Aggregation is allowed', () => {
     expect(labels('ApplicationComponent', 'ApplicationComponent')).toEqual(
       expect.arrayContaining(['Aggregation', 'Composition']),

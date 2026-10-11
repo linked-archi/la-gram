@@ -60,6 +60,12 @@ export interface RdfConnectionAttrs {
   candidates: RelationshipTypeInfo[];
 }
 
+/** A required relationship type the pair does not permit, and what it does permit. */
+export interface RelationshipRefusal {
+  typeIri: string;
+  permitted: RelationshipTypeInfo[];
+}
+
 /**
  * Validates whether canvas operations (especially connections) are
  * permitted according to the metamodel's domain/range constraints.
@@ -70,9 +76,12 @@ export class RdfRuleProvider {
   /**
    * Relationship type the user asked for, when they asked for one.
    *
-   * Set by picking a relationship type in the palette. It only ever *reorders*
-   * the metamodel's own answer — a type the metamodel forbids for the pair is
-   * still forbidden — so this cannot be used to draw an invalid relationship.
+   * Set by picking a relationship type in the palette (and by the append menu,
+   * for one append). It is *required*, not just preferred: a pair the metamodel
+   * does not permit it for cannot be connected. Creating the best permitted type
+   * instead would hide the rule that forbade the one asked for — Realization
+   * between two application components quietly became something else. The
+   * canvas says why a release is refused ({@link refusal}).
    */
   private preferredTypeIri?: string;
 
@@ -81,8 +90,8 @@ export class RdfRuleProvider {
   }
 
   /**
-   * Prefer `typeIri` whenever the metamodel permits it for the pair being
-   * connected. `undefined` goes back to the metamodel's own ranking.
+   * Require `typeIri` for the pair being connected. `undefined` goes back to
+   * the metamodel's own ranking.
    */
   setPreferredType(typeIri: string | undefined): void {
     this.preferredTypeIri = typeIri;
@@ -111,10 +120,10 @@ export class RdfRuleProvider {
       targetTypeIri,
     );
 
-    const preferred = this.preferredTypeIri
+    // A type the user asked for is required: the pair permits it, or nothing.
+    const winner = this.preferredTypeIri
       ? candidates.find((candidate) => candidate.iri === this.preferredTypeIri)
-      : undefined;
-    const winner = preferred ?? candidates[0];
+      : candidates[0];
     if (!winner) return false;
 
     return {
@@ -123,6 +132,19 @@ export class RdfRuleProvider {
       typeLabel: winner.label,
       candidates,
     };
+  }
+
+  /**
+   * Why {@link canConnect} refuses the pair while a type is required: that type,
+   * and the types the pair does permit. `undefined` when no type is required or
+   * the pair permits it.
+   */
+  refusal(sourceTypeIri: string, targetTypeIri: string): RelationshipRefusal | undefined {
+    const required = this.preferredTypeIri;
+    if (!required) return undefined;
+    const permitted = this.relationshipManager.getValidRelationships(sourceTypeIri, targetTypeIri);
+    if (permitted.some((candidate) => candidate.iri === required)) return undefined;
+    return { typeIri: required, permitted };
   }
 
   /**
