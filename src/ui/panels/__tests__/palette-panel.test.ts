@@ -120,6 +120,15 @@ afterEach(() => {
 });
 
 describe('PalettePanel', () => {
+  it('says when the types are grouped by the OWL-only fallback, and not otherwise', async () => {
+    await mount({ ...testPalette(), grouping: 'owl' });
+    expect(root().querySelector('.palette-notice')?.textContent).toContain('No classification loaded');
+    panel.remove();
+    await mount({ ...testPalette(), grouping: 'taxonomy' });
+    expect(root().querySelector('.palette-notice')).toBeNull();
+    panel.remove();
+  });
+
   it('is registered as a custom element', () => {
     expect(customElements.get('palette-panel')).toBe(PalettePanel);
   });

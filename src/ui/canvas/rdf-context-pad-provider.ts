@@ -16,6 +16,11 @@
  * therefore knows nothing about metamodels: it asks the menu whether the menu
  * has anything to say.
  *
+ * A selection of exactly two elements gets one entry, "Connect these two…",
+ * opening the menu of the relationships they may have in either direction
+ * (`rdf-pair-connect-menu-provider.ts`) — gated the same way, on the menu having
+ * something to offer.
+ *
  * The shape matches diagram-js's `ContextPadProvider` contract, so the instance
  * can be handed to `contextPad.registerProvider(...)`. diagram-js passes its own
  * element objects (which carry the RDF identity on `businessObject`);
@@ -123,6 +128,14 @@ export interface PadMenuSupport {
   open(element: ContextPadElement, event: unknown): void;
 }
 
+/** The pad's way to the menu for a selected pair: the two diagram elements, as diagram-js hands them. */
+export interface PairMenuSupport {
+  /** Whether the menu has anything to offer for this pair. */
+  isAvailable(elements: unknown[]): boolean;
+  /** Open the menu on the pair, positioned off the triggering event. */
+  open(elements: unknown[], event: unknown): void;
+}
+
 /** Historical name for {@link PadMenuSupport}, kept for the replace entry. */
 export type RelationshipReplaceSupport = PadMenuSupport;
 
@@ -136,6 +149,7 @@ export class RdfContextPadProvider {
   private classClosure: ClassClosure;
   private replaceSupport?: PadMenuSupport;
   private appendSupport?: PadMenuSupport;
+  private pairSupport?: PairMenuSupport;
 
   constructor(
     elementManager: ElementManager,
@@ -263,6 +277,30 @@ export class RdfContextPadProvider {
    */
   setDeleteFromModelHandler(onDeleteFromModel: ((element: ContextPadElement) => void) | undefined): void {
     this.onDeleteFromModel = onDeleteFromModel;
+  }
+
+  /** How the pad reaches the menu of relationships for a selected pair. */
+  setPairSupport(pairSupport: PairMenuSupport | undefined): void {
+    this.pairSupport = pairSupport;
+  }
+
+  /**
+   * Entries for a selection of several elements (diagram-js asks this instead of
+   * `getContextPadEntries`). Exactly two elements, and the menu has something:
+   * "Connect these two…", which opens the relationships they may have.
+   */
+  getMultiElementContextPadEntries(targets: Array<ContextPadElement | DiagramTarget>): Record<string, ContextPadEntry> {
+    if (!this.pairSupport || targets.length !== 2) return {};
+    if (targets.some((target) => toContextPadElement(target).kind !== 'element')) return {};
+    if (!this.pairSupport.isAvailable(targets)) return {};
+    return {
+      'connect-pair': {
+        group: 'connect',
+        title: 'Connect these two…',
+        className: 'context-pad-connect',
+        action: (event: unknown) => this.pairSupport?.open(targets, event),
+      },
+    };
   }
 
   setDeleteHandler(onDelete: ((element: ContextPadElement) => void) | undefined): void {

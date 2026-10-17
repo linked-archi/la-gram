@@ -1226,3 +1226,60 @@ describe('collaboration: two pages, one room', () => {
     findings.push('collab server persistence + HTTP /rooms/e2e.ttl: ok');
   });
 });
+
+describe('two selected elements, and catalog and matrix views', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    ({ page } = await openPage());
+  }, 120_000);
+
+  it('a two-element selection offers "Connect these two…", which creates the relationship picked', async () => {
+    await dropActor(page, 250, 200);
+    await dropActor(page, 550, 200);
+    await until(async () => (await model(page)).actors.length === 2, 'two actors');
+    const shapes = page.locator(SHAPE);
+    const first = (await shapes.nth(0).boundingBox())!;
+    // Clear the selection, then select both: a click, and a shift-click.
+    await page.mouse.click(first.x + first.width + 120, first.y + first.height + 200);
+    await shapes.nth(0).click();
+    await shapes.nth(1).click({ modifiers: ['Shift'] });
+
+    const entry = page.locator('.djs-context-pad [data-action="connect-pair"]');
+    await entry.waitFor({ state: 'visible' });
+    await entry.click();
+    const menu = page.locator('.djs-popup');
+    await menu.waitFor({ state: 'visible' });
+    // Both directions; the derived-only ones say so.
+    expect(await menu.locator('.entry').count()).toBeGreaterThan(4);
+    expect(await menu.innerText()).toContain('only by derivation');
+    await menu.locator('.entry', { hasText: 'Aggregation' }).first().click();
+
+    await until(
+      async () =>
+        page.evaluate(() => {
+          const store = (window as any).__LA_GRAM_APP__.components.store;
+          return store.getQuads(null, { termType: 'NamedNode', value: 'https://meta.linked.archi/core#source' }).length === 1;
+        }),
+      'the relationship',
+    );
+    expect(await page.locator('.djs-container .djs-connection').count()).toBe(1);
+    findings.push('two selected → Connect these two… → relationship: ok');
+  });
+
+  it('a catalog lists the elements added to it, by type', async () => {
+    await page.locator('app-toolbar button[data-menu="new-view"]').click();
+    await page.locator('app-toolbar button[data-command="new-view"][data-value="Catalog"]').click();
+    await answerPrompt(page, 'People');
+    const chooser = page.locator('.la-dialog .la-choice-list');
+    if (await chooser.isVisible().catch(() => false)) await page.locator('.la-dialog .la-button.primary').click();
+
+    const catalog = page.locator('catalog-view');
+    await catalog.waitFor({ state: 'visible' });
+    expect(await catalog.locator('.empty-message').innerText()).toContain('lists no elements yet');
+    await catalog.locator('.view-add select').selectOption({ label: 'Business Actor (2)' });
+    await until(async () => (await catalog.locator('tbody tr').count()) === 2, 'two rows');
+    expect(await catalog.locator('.type-header').innerText()).toBe('Business Actor (2)');
+    findings.push('catalog: lists its members by type, adds from the picker: ok');
+  });
+});

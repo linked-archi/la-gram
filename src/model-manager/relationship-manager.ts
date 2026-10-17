@@ -91,7 +91,7 @@ import {
   relationshipsTouching,
   unqualifiedFormOf,
 } from './cascade.js';
-import { IRI, T, langLiteral, nn, triple } from './vocabulary.js';
+import { IRI, T, langLiteral, nn, triple, tripleTerm } from './vocabulary.js';
 
 const { namedNode, quad } = DataFactory;
 
@@ -577,9 +577,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * Create a relationship the Linked.Archi way: a qualified resource typed
    * with its relationship class, carrying `arch:source` / `arch:target` and
    * `arch:inModel`, *plus* the unqualified triple the class maps to through
-   * `arch:unqualifiedForm` (DD-10). The resource is what views draw, what
-   * properties hang off, and what has a stable IRI; the triple is what makes
-   * `?a am4:serves ?b` work in SPARQL.
+   * `arch:unqualifiedForm` (DD-10), which the resource `rdf:reifies` (RDF 1.2,
+   * `<<( s p o )>>`). The resource is what views draw, what properties hang off,
+   * and what has a stable IRI; the triple is what makes `?a am4:serves ?b` work
+   * in SPARQL; `rdf:reifies` says which triple the resource is about.
    *
    * `typeIri` may name either the class (`am4:Serving`, what the palette
    * offers) or the predicate (`am4:serves`); the other is resolved from the
@@ -611,7 +612,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     ];
     if (request.modelIri) quads.push(triple(rel, T.inModel, nn(request.modelIri)));
     if (request.label?.trim()) quads.push(triple(rel, T.prefLabel, langLiteral(request.label.trim())));
-    if (predicateIri) quads.push(triple(nn(sourceIri), nn(predicateIri), nn(targetIri)));
+    if (predicateIri) {
+      quads.push(
+        triple(nn(sourceIri), nn(predicateIri), nn(targetIri)),
+        triple(rel, T.reifies, tripleTerm(nn(sourceIri), nn(predicateIri), nn(targetIri))),
+      );
+    }
     this.store.addQuads(quads);
 
     return {
@@ -637,7 +643,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     if (newClass === current.classIri) return current;
     const newPredicate = unqualifiedFormOf(this.store, newClass) ?? (newClass === typeIri ? undefined : typeIri);
 
-    const remove: Quad[] = [...this.store.getQuads(rel, T.rdfType, nn(current.classIri))];
+    const remove: Quad[] = [...this.store.getQuads(rel, T.rdfType, nn(current.classIri)), ...this.store.getQuads(rel, T.reifies)];
     if (current.predicateIri) {
       const siblings = this.getRelationshipsOf(current.sourceIri).filter(
         (r) => r.iri !== relationshipIri && r.targetIri === current.targetIri && r.classIri === current.classIri,
@@ -648,7 +654,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     }
     if (remove.length > 0) this.store.removeQuads(remove);
     const add: Quad[] = [triple(rel, T.rdfType, nn(newClass))];
-    if (newPredicate) add.push(triple(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri)));
+    if (newPredicate) {
+      add.push(
+        triple(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri)),
+        triple(rel, T.reifies, tripleTerm(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri))),
+      );
+    }
     this.store.addQuads(add);
     return this.getRelationship(relationshipIri);
   }
@@ -665,6 +676,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     const remove: Quad[] = [
       ...this.store.getQuads(rel, T.source),
       ...this.store.getQuads(rel, T.target),
+      ...this.store.getQuads(rel, T.reifies),
     ];
     if (current.predicateIri) {
       const siblings = this.getRelationshipsOf(current.sourceIri).filter(
@@ -676,7 +688,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     }
     this.store.removeQuads(remove);
     const add: Quad[] = [triple(rel, T.source, nn(sourceIri)), triple(rel, T.target, nn(targetIri))];
-    if (current.predicateIri) add.push(triple(nn(sourceIri), nn(current.predicateIri), nn(targetIri)));
+    if (current.predicateIri) {
+      add.push(
+        triple(nn(sourceIri), nn(current.predicateIri), nn(targetIri)),
+        triple(rel, T.reifies, tripleTerm(nn(sourceIri), nn(current.predicateIri), nn(targetIri))),
+      );
+    }
     this.store.addQuads(add);
     return this.getRelationship(relationshipIri);
   }

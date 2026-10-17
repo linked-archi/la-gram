@@ -215,6 +215,27 @@ describe('SparqlPaletteGenerator', () => {
   const allElements = (p: PaletteDefinition = palette) => p.elementGroups.flatMap((g) => g.elements);
 
   describe('element discovery', () => {
+    it('says the palette is grouped by the taxonomy', () => {
+      expect(palette.grouping).toBe('taxonomy');
+    });
+
+    it('says when it falls back to the OWL classes alone: no classification loaded', async () => {
+      const bare = new OxigraphRdfStore();
+      await new N3MetamodelLoader(new N3TtlParser(), bare).loadMetamodel(`
+        @prefix owl:  <${NAMESPACES.owl}> .
+        @prefix rdf:  <${NAMESPACES.rdf}> .
+        @prefix rdfs: <${NAMESPACES.rdfs}> .
+        @prefix arch: <${NAMESPACES.arch}> .
+        @prefix ex:   <${EX}> .
+        <${ONTOLOGY_IRI}> rdf:type owl:Ontology .
+        ex:Widget rdf:type owl:Class ; rdfs:subClassOf arch:Element .
+      `);
+      const owlOnly = new SparqlPaletteGenerator(bare).generatePalette(ONTOLOGY_IRI);
+      expect(owlOnly.grouping).toBe('owl');
+      expect(allElements(owlOnly).map((e) => e.iri)).toContain(`${EX}Widget`);
+      bare.dispose();
+    });
+
     it('discovers the instantiable classes from the taxonomy', () => {
       const iris = allElements().map((e) => e.iri).sort();
       expect(iris).toEqual([`${EX}Actor`, `${EX}Component`, `${EX}Process`]);

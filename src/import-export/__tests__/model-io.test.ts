@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { Parser as N3Parser } from 'n3';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
@@ -112,12 +113,17 @@ describe('ModelIO', () => {
 
   it.each(MODEL_FORMATS.map((f) => f.id))('round-trips through %s', (format) => {
     const before = modelQuads(ctx.store).length;
+    // JSON-LD cannot carry the relationships' rdf:reifies (an RDF 1.2 triple
+    // term); everything else does. Loading the model in the app puts it back.
+    const reifies = modelQuads(ctx.store).filter((q) => q.predicate.value === NAMESPACES.rdf + 'reifies').length;
+    expect(reifies).toBeGreaterThan(0);
+    const expected = format === 'json-ld' ? before - reifies : before;
     const text = ctx.io.serialize(ctx.modelIri, { format });
     const info = MODEL_FORMATS.find((f) => f.id === format)!;
     const result = ctx.io.load(text, `model.${info.extension}`);
-    expect(result.quadCount).toBe(before);
+    expect(result.quadCount).toBe(expected);
     // Everything lands back in the default graph, and the view is intact.
-    expect(modelQuads(ctx.store).length).toBe(before);
+    expect(modelQuads(ctx.store).length).toBe(expected);
     expect(ctx.views.getLinks(ctx.viewIri)[0].waypoints).toHaveLength(2);
   });
 

@@ -166,7 +166,7 @@ const DEFAULT_FIELD_PLACEHOLDER: Record<string, string> = {
  * Not listed: the views a concept is in are in the toolbar and under
  * "Appears in views", so an `arch:inView` row per view repeats them.
  */
-const HIDDEN_FIELDS = new Set([NAMESPACES.arch + 'inView']);
+const HIDDEN_FIELDS = new Set([NAMESPACES.arch + 'inView', NAMESPACES.rdf + 'reifies']);
 
 /** SHACL property constraint extracted from a shapes graph. */
 export interface ShaclPropertyShape {
@@ -294,7 +294,8 @@ function iriLabel(iri: string): string {
  * every other property by label — so a property the modeller adds appears under
  * them. The name and the definition are listed even without a value
  * ({@link DEFAULT_FIELDS}), empty, so they can be filled in.
- * `arch:inView` is left out ({@link HIDDEN_FIELDS}). The panel shows the ID
+ * `arch:inView` and a relationship's `rdf:reifies` — which la-gram keeps in step
+ * with its ends and type — are left out ({@link HIDDEN_FIELDS}). The panel shows the ID
  * (the IRI) above them all.
  */
 export function buildPropertyEntries(

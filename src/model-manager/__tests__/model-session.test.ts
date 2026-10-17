@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { DataFactory } from 'n3';
-import type { NamedNode, Literal } from '@rdfjs/types';
+import type { NamedNode, Literal, Term } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
 import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
@@ -16,6 +16,8 @@ const ARCH = NAMESPACES.arch;
 const VIS = NAMESPACES['arch-vis'];
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 const RDF_TYPE = NAMESPACES.rdf + 'type';
+
+const RDF_REIFIES = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies';
 
 function nn(value: string): NamedNode {
   return namedNode(value) as unknown as NamedNode;
@@ -83,6 +85,30 @@ describe('qualified relationships against the real ArchiMate 4.0 ontology', () =
     rels.deleteRelationship(r2.iri);
     expect(store.getQuads(nn(a), nn(AM4 + 'serves'), nn(b))).toHaveLength(0);
   });
+
+  /** What a relationship rdf:reifies, as [subject, predicate, object] — RDF 1.2's <<( s p o )>>. */
+  const reified = (iri: string) =>
+    store.getQuads(nn(iri), nn(RDF_REIFIES)).map((q) => {
+      const t = q.object as unknown as { termType: string; subject: Term; predicate: Term; object: Term };
+      return t.termType === 'Quad' ? [t.subject.value, t.predicate.value, t.object.value] : t.termType;
+    });
+
+  it('reifies the unqualified triple, and keeps it in step through retype, reconnect and delete', () => {
+    const a = elements.createElement(AM4 + 'ApplicationComponent', model).value;
+    const b = elements.createElement(AM4 + 'ApplicationComponent', model).value;
+    const c = elements.createElement(AM4 + 'ApplicationComponent', model).value;
+    const rel = rels.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: a, targetIri: b, modelIri: model });
+    expect(reified(rel.iri)).toEqual([[a, AM4 + 'serves', b]]);
+
+    rels.retypeRelationship(rel.iri, AM4 + 'Flow');
+    expect(reified(rel.iri)).toEqual([[a, AM4 + 'flowsTo', b]]);
+
+    rels.reconnectRelationship(rel.iri, a, c);
+    expect(reified(rel.iri)).toEqual([[a, AM4 + 'flowsTo', c]]);
+
+    rels.deleteRelationship(rel.iri);
+    expect(store.getQuads(nn(rel.iri))).toHaveLength(0);
+  });
 });
 
 describe('ModelSession', () => {
@@ -147,6 +173,26 @@ describe('ModelSession', () => {
     expect(contents.elements.map((e) => e.label).sort()).toEqual(['A', 'b']);
     expect(contents.elements[0].typeLabel).toBe('Application Component');
     expect(contents.relationships.map((r) => r.typeLabel)).toEqual(['Serving']);
+  });
+
+  it('gives a relationship of an older model the rdf:reifies of its triple on adopt', () => {
+    store.addQuads([
+      quad(namedNode('urn:y:a'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(namedNode('urn:y:b'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(namedNode('urn:y:r'), namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(namedNode('urn:y:r'), namedNode(ARCH + 'source'), namedNode('urn:y:a')),
+      quad(namedNode('urn:y:r'), namedNode(ARCH + 'target'), namedNode('urn:y:b')),
+    ] as never);
+
+    session.adopt({ fallbackLabel: 'Older' });
+
+    const objects = store.getQuads(nn('urn:y:r'), nn(RDF_REIFIES)).map((q) => q.object as unknown as { termType: string; subject: Term; predicate: Term; object: Term });
+    expect(objects).toHaveLength(1);
+    expect(objects[0].termType).toBe('Quad');
+    expect([objects[0].subject.value, objects[0].predicate.value, objects[0].object.value]).toEqual(['urn:y:a', AM4 + 'serves', 'urn:y:b']);
+    // Adopting again adds nothing.
+    session.adopt();
+    expect(store.getQuads(nn('urn:y:r'), nn(RDF_REIFIES))).toHaveLength(1);
   });
 
   it('migrates retired vocabulary and element-level geometry on adopt', () => {

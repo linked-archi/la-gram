@@ -166,6 +166,10 @@ export function extractColumns(results: Record<string, any>[]): string[] {
 export function termValue(term: any): string {
   if (!term) return '';
   if (typeof term === 'string') return term;
+  // An RDF 1.2 triple term (what a relationship rdf:reifies), as Turtle writes it.
+  if (term.termType === 'Quad') {
+    return `<<( ${termValue(term.subject)} ${termValue(term.predicate)} ${termValue(term.object)} )>>`;
+  }
   return term.value ?? String(term);
 }
 

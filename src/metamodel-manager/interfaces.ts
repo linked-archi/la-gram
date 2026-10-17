@@ -262,6 +262,14 @@ export interface PaletteDefinition {
   axes?: PaletteAxis[];
   /** IRI of the axis the `elementGroups` are grouped by. */
   activeAxisIri?: string;
+  /**
+   * How the element types were found and grouped: `taxonomy` from the
+   * metamodel's classification (`arch:conceptClassification`, SKOS), `owl` by
+   * the OWL-only fallback — every non-abstract `arch:Element` subclass, grouped
+   * by a heuristic on its name — when no classification is loaded. The palette
+   * says so in the second case.
+   */
+  grouping?: 'taxonomy' | 'owl';
   /** IRI of the active notation set: the one consulted first. */
   notationSetIri?: string;
   /** Label of that notation set. */

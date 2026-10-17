@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { DataFactory } from 'n3';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import type { RdfStore } from '../../../rdf-engine/interfaces.js';
 import type { ElementManager } from '../../../model-manager/interfaces.js';
@@ -123,6 +124,17 @@ describe('buildPropertyEntries', () => {
   it('builds entries from quads', () => {
     const entries = buildPropertyEntries(sampleQuads(iri), []);
     expect(entries.length).toBe(4);
+  });
+
+  it('leaves out a relationship’s rdf:reifies: la-gram keeps it in step with the ends and type', () => {
+    const { namedNode, quad } = DataFactory;
+    const reifies = quad(
+      namedNode(iri),
+      namedNode(NAMESPACES.rdf + 'reifies'),
+      quad(namedNode('urn:a'), namedNode('urn:p'), namedNode('urn:b')) as never,
+    ) as unknown as Quad;
+    const entries = buildPropertyEntries([...sampleQuads(iri), reifies], []);
+    expect(entries.map((e) => e.predicate)).not.toContain(NAMESPACES.rdf + 'reifies');
   });
 
   it('marks rdf:type as readonly', () => {

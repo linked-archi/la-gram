@@ -249,6 +249,12 @@ describe('termValue', () => {
   it('falls back to String() for other types', () => {
     expect(termValue(42)).toBe('42');
   });
+
+  it('writes an RDF 1.2 triple term (what a relationship rdf:reifies) as <<( s p o )>>', () => {
+    const iri = (value: string) => ({ termType: 'NamedNode', value });
+    const triple = { termType: 'Quad', value: '', subject: iri('urn:a'), predicate: iri('urn:p'), object: iri('urn:b') };
+    expect(termValue(triple)).toBe('<<( urn:a urn:p urn:b )>>');
+  });
 });
 
 describe('executeQuery', () => {

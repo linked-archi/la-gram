@@ -247,9 +247,13 @@ export class ModelIO {
       return output;
     }
     // The rest through Oxigraph's serializers, which cover JSON-LD and RDF/XML.
+    // JSON-LD has no RDF 1.2 triple terms: the `rdf:reifies` a qualified
+    // relationship carries is left out of it — it follows from the relationship's
+    // ends and class, and loading the model puts it back (`ModelSession.adopt`).
+    const expressible = format.id === 'json-ld' ? sorted.filter((q) => q.object.termType !== 'Quad') : sorted;
     const scratch = new oxigraph.Store();
     const nquads = new N3Writer({ format: 'application/n-quads' });
-    for (const q of sorted) nquads.addQuad(q as never);
+    for (const q of expressible) nquads.addQuad(q as never);
     let text = '';
     nquads.end((_err: Error | null, result: string) => {
       text = result ?? '';

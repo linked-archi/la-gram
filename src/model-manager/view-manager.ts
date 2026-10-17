@@ -357,6 +357,28 @@ export class OxigraphViewManager implements ViewManager {
     }
   }
 
+  // ── Membership without geometry (catalogs and matrices) ────────────────
+
+  /** The concepts a view presents (`arch:inView`). */
+  getMembers(viewIri: string): string[] {
+    return this.store.getQuads(null, T.inView, nn(viewIri)).map((q) => q.subject.value);
+  }
+
+  /**
+   * Present a concept in a view without placing it — `arch:inView` alone, which
+   * is all a catalog or a matrix holds (idempotent).
+   */
+  addMember(viewIri: string, conceptIri: string): void {
+    if (this.store.getQuads(nn(conceptIri), T.inView, nn(viewIri)).length > 0) return;
+    this.store.addQuads([triple(nn(conceptIri), T.inView, nn(viewIri))]);
+  }
+
+  /** Stop presenting a concept in a catalog or matrix: its `arch:inView`. */
+  removeMember(viewIri: string, conceptIri: string): void {
+    const quads = this.store.getQuads(nn(conceptIri), T.inView, nn(viewIri));
+    if (quads.length > 0) this.store.removeQuads(quads);
+  }
+
   // ── Queries across views ───────────────────────────────────────────────
 
   viewsContaining(conceptIri: string): string[] {

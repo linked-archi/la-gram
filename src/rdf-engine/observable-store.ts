@@ -236,6 +236,11 @@ function termKey(term: Quad['object']): string {
       const dt = lit.datatype?.value;
       return dt && dt !== 'http://www.w3.org/2001/XMLSchema#string' ? `${escaped}^^<${dt}>` : escaped;
     }
+    case 'Quad': {
+      // An RDF 1.2 triple term, as N-Triples 1.2 writes it: `<<( s p o )>>`.
+      const triple = term as Quad;
+      return `<<( ${termKey(triple.subject)} ${termKey(triple.predicate)} ${termKey(triple.object)} )>>`;
+    }
     default:
       return `?${term.value}`;
   }

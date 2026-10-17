@@ -50,6 +50,10 @@ export function formatTriple(line: string, prefixes: Record<string, string>): st
       if (t.language) return `${text}@${t.language}`;
       return t.datatype && t.datatype.value !== XSD_STRING ? `${text}^^${curieOf(t.datatype.value, prefixes)}` : text;
     }
+    if (t.termType === 'Quad') {
+      // An RDF 1.2 triple term: what a relationship rdf:reifies.
+      return `<<( ${term(t.subject as Term)} ${term(t.predicate as Term)} ${term(t.object as Term)} )>>`;
+    }
     return t.value;
   };
   return `${term(parsed.subject as Term)} ${term(parsed.predicate as Term)} ${term(parsed.object as Term)}`;

@@ -36,7 +36,8 @@ import {
   readModelNamespace,
   type ModelNamespace,
 } from './model-namespace.js';
-import { IRI, T, dateTimeLiteral, langLiteral, nn, triple } from './vocabulary.js';
+import { IRI, T, dateTimeLiteral, langLiteral, nn, triple, tripleTerm } from './vocabulary.js';
+import { relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -192,6 +193,7 @@ export class ModelSession {
 
     const migration = migrateLegacyModel(this.store, { viewManager: this.views, defaultView: ensureDefaultView });
     this.ensureMembership(modelIri);
+    this.ensureReifies();
 
     // A view to open: the first diagram, else a new one.
     const viewIri = ensureDefaultView();
@@ -430,6 +432,28 @@ export class ModelSession {
       if (kind === 'element' || kind === 'relationship' || kind === 'view' || kind === 'unclassified') {
         add.push(triple(nn(iri), T.inModel, model));
       }
+    }
+    if (add.length > 0) this.store.addQuads(add);
+  }
+
+  /**
+   * Give every qualified relationship the `rdf:reifies` of the unqualified
+   * triple its class maps to (the core's pattern, RDF 1.2), where it has none —
+   * a model saved before la-gram wrote it, or made by another tool. A
+   * relationship whose class has no `arch:unqualifiedForm` stands for no triple
+   * and gets none.
+   */
+  private ensureReifies(): void {
+    const add: Quad[] = [];
+    for (const q of modelQuads(this.store)) {
+      if (q.predicate.value !== IRI.source || q.subject.termType !== 'NamedNode') continue;
+      const rel = q.subject.value;
+      if (this.store.getQuads(nn(rel), T.reifies).length > 0) continue;
+      const target = this.store.getQuads(nn(rel), T.target)[0]?.object;
+      const classIri = relationshipClassOf(this.store, rel);
+      const predicate = classIri ? unqualifiedFormOf(this.store, classIri) : undefined;
+      if (!target || target.termType !== 'NamedNode' || q.object.termType !== 'NamedNode' || !predicate) continue;
+      add.push(triple(nn(rel), T.reifies, tripleTerm(nn(q.object.value), nn(predicate), nn(target.value))));
     }
     if (add.length > 0) this.store.addQuads(add);
   }

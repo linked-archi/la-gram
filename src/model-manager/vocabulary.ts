@@ -42,6 +42,14 @@ export function triple(subject: Term, predicate: Term, object: Term): Quad {
   ) as unknown as Quad;
 }
 
+/**
+ * An RDF 1.2 triple term, `<<( s p o )>>` — what a qualified relationship
+ * `rdf:reifies`: the unqualified triple it stands for (the core's pattern).
+ */
+export function tripleTerm(subject: Term, predicate: Term, object: Term): Term {
+  return factory.quad(subject as never, predicate as never, object as never) as unknown as Term;
+}
+
 /** A language-tagged literal — the form the Linked.Archi shapes require for labels. */
 export function langLiteral(value: string, language = 'en'): Literal {
   return factory.literal(value, language) as unknown as Literal;
@@ -71,6 +79,7 @@ const VIS = NAMESPACES['arch-vis'];
 /** IRIs, as strings, for comparisons. */
 export const IRI = {
   rdfType: NAMESPACES.rdf + 'type',
+  reifies: NAMESPACES.rdf + 'reifies',
   rdfFirst: NAMESPACES.rdf + 'first',
   rdfRest: NAMESPACES.rdf + 'rest',
   rdfNil: NAMESPACES.rdf + 'nil',

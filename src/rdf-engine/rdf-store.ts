@@ -48,6 +48,11 @@ function toOxTerm(term: Term): oxigraph.Term {
     }
     case 'DefaultGraph':
       return oxigraph.defaultGraph();
+    case 'Quad': {
+      // An RDF 1.2 triple term (`<<( s p o )>>` — the object of rdf:reifies).
+      const triple = term as Quad;
+      return oxigraph.triple(toOxTerm(triple.subject), toOxTerm(triple.predicate), toOxTerm(triple.object));
+    }
     default:
       throw new Error(`Unsupported term type: ${term.termType}`);
   }
@@ -79,6 +84,15 @@ function fromOxTerm(term: oxigraph.Term): Term {
     }
     case 'DefaultGraph':
       return defaultGraph() as unknown as Term;
+    case 'Quad': {
+      // An RDF 1.2 triple term: n3 represents it as a quad in the default graph.
+      const triple = term as oxigraph.Quad;
+      return n3Quad(
+        fromOxTerm(triple.subject) as Quad['subject'],
+        fromOxTerm(triple.predicate) as Quad['predicate'],
+        fromOxTerm(triple.object) as Quad['object'],
+      ) as unknown as Term;
+    }
     default:
       throw new Error(`Unsupported Oxigraph term type: ${(term as { termType: string }).termType}`);
   }

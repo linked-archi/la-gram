@@ -313,10 +313,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const catalogView = document.createElement('catalog-view');
   catalogView.rdfStore = store;
   catalogView.elementManager = elementManager;
+  catalogView.viewManager = viewManager;
   catalogView.hidden = true;
 
   const matrixView = document.createElement('matrix-view');
   matrixView.rdfStore = store;
+  matrixView.viewManager = viewManager;
   matrixView.hidden = true;
 
   canvasArea.append(canvasToolbar, canvasHost, catalogView, matrixView);
@@ -328,6 +330,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // read the way the canvas reads it: the palette entry, else the palette's
   // notation index (Req 2.16). Updated wherever `currentPalette` is.
   const lookStyles = new NotationStyleRegistry(currentPalette);
+  // A type's label in the catalog and matrix views, as the palette shows it.
+  const typeLabelOf = (typeIri: string): string => lookStyles.labelFor(typeIri) ?? labelOf(store, typeIri);
+  catalogView.typeLabelOf = typeLabelOf;
+  matrixView.typeLabelOf = typeLabelOf;
+  // Their membership changed (an element added to or taken out of the view).
+  const onViewMembersChange = (e: Event): void => {
+    eventBus.emit('views-changed', { viewIri: (e as CustomEvent<{ viewIri: string }>).detail.viewIri });
+  };
+  catalogView.addEventListener('view-members-change', onViewMembersChange);
+  matrixView.addEventListener('view-members-change', onViewMembersChange);
 
   const diagramCanvas = new DiagramCanvas({
     container: canvasHost,
@@ -884,6 +896,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const kind: CanvasViewKind = info?.type === 'Catalog' ? 'catalog' : info?.type === 'Matrix' ? 'matrix' : 'diagram';
     setActiveCanvasView(kind);
     diagramCanvas.showView(kind === 'diagram' ? viewIri : undefined);
+    // A catalog lists, and a matrix indexes, the elements the view presents (arch:inView).
+    catalogView.viewIri = kind === 'catalog' && viewIri ? viewIri : '';
+    matrixView.viewIri = kind === 'matrix' && viewIri ? viewIri : '';
+    if (kind === 'catalog') catalogView.refresh();
+    if (kind === 'matrix') matrixView.refresh();
 
     const viewpoint = viewpointOf(viewIri);
     palettePanel.activeViewpoint = viewpoint && viewpoint.permittedElements.length > 0 ? viewpoint : undefined;
@@ -1555,6 +1572,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onAnyModelChange: ModelEventHandler = () => {
     rdfPanel.scheduleRefresh();
     graphPanel.scheduleRefresh();
+    if (!catalogView.hidden) catalogView.refresh();
+    if (!matrixView.hidden) matrixView.refresh();
   };
   const RDF_REFRESH_EVENTS = [
     'model-changed',
@@ -1631,6 +1650,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);
     modelExplorer.removeEventListener('explorer-action', onExplorerAction);
     catalogView.removeEventListener('catalog-select', onCatalogSelect);
+    catalogView.removeEventListener('view-members-change', onViewMembersChange);
+    matrixView.removeEventListener('view-members-change', onViewMembersChange);
     validationPanel.removeEventListener('validation-navigate', onValidationNavigate);
     propertyPanel.removeEventListener('property-edit', onPropertyEdit);
     propertyPanel.removeEventListener('property-add', onPropertyAdd);

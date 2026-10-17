@@ -160,6 +160,7 @@ import {
   type RetypeRelationshipContext,
 } from './rdf-modeling.js';
 import { RdfContextPadProvider, toContextPadElement, type ContextPadElement } from './rdf-context-pad-provider.js';
+import { PAIR_CONNECT_MENU_ID, RdfPairConnectMenuProvider, type PairConnectContext, type PairEnd } from './rdf-pair-connect-menu-provider.js';
 import {
   RdfReplaceMenuProvider,
   RELATIONSHIP_REPLACE_MENU_ID,
@@ -602,6 +603,8 @@ export class DiagramCanvas {
   readonly ruleProvider: RdfRuleProvider;
   readonly contextPadProvider: RdfContextPadProvider;
   readonly replaceMenuProvider: RdfReplaceMenuProvider;
+  /** The relationships two selected elements may have (the pad's "Connect these two…"). */
+  readonly pairConnectMenuProvider: RdfPairConnectMenuProvider;
   readonly elementReplaceMenuProvider: RdfElementReplaceMenuProvider;
   readonly contextMenuProvider: RdfContextMenuProvider;
   readonly appendMenuProvider: RdfAppendMenuProvider;
@@ -691,6 +694,25 @@ export class DiagramCanvas {
       (target) => this.resolveReplaceContext(target),
       (connectionId, typeIri) => this.applyRelationshipTypeChoice(connectionId, typeIri),
     );
+
+    this.pairConnectMenuProvider = new RdfPairConnectMenuProvider(
+      this.relationshipManager,
+      (target) => this.resolvePair(target),
+      (source, target, candidate) => this.connectPair(source, target, candidate),
+    );
+    this.contextPadProvider.setPairSupport({
+      // The gate the other pad menus use: the menu has entries, or no button.
+      isAvailable: (elements) => {
+        const services = this.services();
+        return !!services && !services.popupMenu.isEmpty(elements, PAIR_CONNECT_MENU_ID);
+      },
+      open: (elements, event) =>
+        this.services()?.popupMenu.open(elements, PAIR_CONNECT_MENU_ID, this.padMenuPosition(event), {
+          title: 'Connect these two',
+          width: 320,
+          search: true,
+        }),
+    });
 
     this.elementReplaceMenuProvider = new RdfElementReplaceMenuProvider(
       (target) => {
@@ -2503,6 +2525,36 @@ export class DiagramCanvas {
     services.popupMenu.registerProvider(APPEND_TARGET_MENU_ID, this.appendMenuProvider);
     services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
     services.popupMenu.registerProvider(NEST_MENU_ID, this.nestMenuProvider);
+    services.popupMenu.registerProvider(PAIR_CONNECT_MENU_ID, this.pairConnectMenuProvider);
+  }
+
+  /** The two selected elements a pair menu was opened on, or nothing. */
+  private resolvePair(target: unknown): PairConnectContext | undefined {
+    if (!Array.isArray(target) || target.length !== 2) return undefined;
+    const ends: PairEnd[] = [];
+    for (const shape of target as DjsShape[]) {
+      const shown = shape?.businessObject;
+      if (!shown || shown.kind !== 'element' || !shown.iri || !shown.typeIri) return undefined;
+      ends.push({ shapeId: shape.id, iri: shown.iri, typeIri: shown.typeIri, label: shown.label ?? localName(shown.iri) });
+    }
+    return { a: ends[0], b: ends[1] };
+  }
+
+  /**
+   * Create the relationship picked in the pair menu, and draw it: the same
+   * `modeling.connect` a connect drag ends in, so it is one undoable step and
+   * the RDF is written by the same command.
+   */
+  private connectPair(source: PairEnd, target: PairEnd, candidate: RelationshipTypeInfo): void {
+    const services = this.services();
+    const from = services?.elementRegistry.get(source.shapeId);
+    const to = services?.elementRegistry.get(target.shapeId);
+    if (!services || !from || !to) return;
+    services.modeling.connect(from, to, {
+      typeIri: candidate.iri,
+      ...(candidate.unqualifiedPredicateIri ? { unqualifiedPredicateIri: candidate.unqualifiedPredicateIri } : {}),
+      typeLabel: candidate.label,
+    });
   }
 
   /**

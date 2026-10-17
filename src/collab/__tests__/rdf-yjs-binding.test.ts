@@ -72,6 +72,20 @@ describe('keysToQuads', () => {
     const keys = quads.map((q) => quadKey(q as never));
     expect(keys.map((k) => keysToQuads([k])).map((qs) => quadKey(qs[0]))).toEqual(keys);
   });
+
+  it('round-trips an RDF 1.2 triple term (a relationship’s rdf:reifies), nested ones too', () => {
+    const { namedNode, quad } = DataFactory;
+    const triple = quad(namedNode('urn:a'), namedNode('urn:p'), namedNode('urn:b'));
+    const quads = [
+      quad(namedNode('urn:r'), namedNode(NAMESPACES.rdf + 'reifies'), triple),
+      quad(namedNode('urn:q'), namedNode(NAMESPACES.rdf + 'reifies'), quad(namedNode('urn:r'), namedNode('urn:says'), triple)),
+    ];
+    const keys = quads.map((q) => quadKey(q as never));
+    expect(keys[0]).toBe('<urn:r> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <urn:a> <urn:p> <urn:b> )>>');
+    const back = keysToQuads(keys);
+    expect(back.map((q) => quadKey(q))).toEqual(keys);
+    expect(back[0].object.termType).toBe('Quad');
+  });
 });
 
 describe('RdfYjsBinding', () => {

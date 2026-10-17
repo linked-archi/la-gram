@@ -27,6 +27,7 @@ import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
 import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
+import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
 import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
 import { SparqlPaletteGenerator } from '../../../metamodel-manager/palette-generator.js';
 import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
@@ -327,8 +328,13 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
         `arch:source|${ACTOR_A}`,
         `arch:target|${ACTOR_B}`,
         'arch:inModel|https://example.org/model/test',
+        'rdf:reifies|',
       ].sort(),
     );
+    // …which reifies that unqualified triple (RDF 1.2: rdf:reifies <<( a p b )>>).
+    const reified = store.getQuads(namedNode(relIri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'reifies') as unknown as NamedNode)[0]?.object as unknown as { termType: string; subject: { value: string }; predicate: { value: string }; object: { value: string } };
+    expect(reified?.termType).toBe('Quad');
+    expect([reified.subject.value, reified.predicate.value, reified.object.value]).toEqual([ACTOR_A, chosen.unqualifiedPredicateIri, ACTOR_B]);
     expect(line!.getAttribute('data-type-iri')).toBe(chosen.iri);
   });
 
@@ -506,5 +512,55 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     // Nothing at all is left in the model graph: the two shapes on the canvas
     // were drawn by `addElement`, which writes no triples.
     expect(f.modelTriples()).toEqual([]);
+  });
+});
+
+describe('bundled ArchiMate 4.0 → two selected → "Connect these two…" → RDF', () => {
+  it('offers the relationships either way, ranked and marked, and creates the one picked — one undo', () => {
+    const f = mount();
+    const registry = service<{ get(id: string): unknown }>(f.canvas, 'elementRegistry');
+    const pair = [registry.get(ACTOR_A), registry.get(ACTOR_B)];
+
+    // The pad of a two-element selection: one entry.
+    expect(Object.keys(f.canvas.contextPadProvider.getMultiElementContextPadEntries(pair as never))).toEqual([
+      'connect-pair',
+    ]);
+
+    // Both directions, each ranked: direct, then only by derivation (marked), then the associations.
+    const entries = Object.values(f.canvas.pairConnectMenuProvider.getPopupMenuEntries(pair));
+    expect([...new Set(entries.map((e) => e.group.id))]).toEqual(['forward', 'backward']);
+    const forward = entries.filter((e) => e.group.id === 'forward');
+    expect(forward.map((e) => e.label)).toEqual([
+      'Aggregation',
+      'Composition',
+      'Specialization',
+      'Flow',
+      'Serving',
+      'Triggering',
+      'Association',
+      'Directed Association',
+    ]);
+    const serving = forward.find((e) => e.label === 'Serving')!;
+    expect(serving.description).toMatch(/^only by derivation/);
+
+    // Picking one draws it and asserts the triple, with the qualified resource that reifies it.
+    serving.action({});
+    expect(f.canvas.getRelationships().size).toBe(1);
+    expect(f.modelTriples()).toContain(`${ACTOR_A}|${AM4}serves|${ACTOR_B}`);
+    expect(f.modelTriples().some((t) => t.includes(`|${NAMESPACES.rdf}reifies|`))).toBe(true);
+
+    service<{ undo(): void }>(f.canvas, 'commandStack').undo();
+    expect(f.canvas.getRelationships().size).toBe(0);
+    expect(f.modelTriples().some((t) => t.includes(`${AM4}serves`))).toBe(false);
+  });
+
+  it('offers nothing for one element or three', () => {
+    const f = mount();
+    const registry = service<{ get(id: string): unknown }>(f.canvas, 'elementRegistry');
+    const a = registry.get(ACTOR_A);
+    const b = registry.get(ACTOR_B);
+    expect(f.canvas.contextPadProvider.getMultiElementContextPadEntries([a] as never)).toEqual({});
+    expect(f.canvas.contextPadProvider.getMultiElementContextPadEntries([a, b, a] as never)).toEqual({});
+    expect(f.canvas.pairConnectMenuProvider.getPopupMenuEntries([a])).toEqual({});
   });
 });

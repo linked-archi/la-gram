@@ -22,7 +22,8 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
   store's default graph; at rest a file.
 - **Element / Relationship** — model concepts. A relationship is an
   `arch:QualifiedRelationship` subclass instance with `arch:source`/`arch:target`
-  *and* the unqualified triple its class maps to (`arch:unqualifiedForm`).
+  *and* the unqualified triple its class maps to (`arch:unqualifiedForm`), which
+  the instance `rdf:reifies` (RDF 1.2).
 - **View** — an `arch:View` (`arch:Diagram`, `arch:Catalog` or `arch:Matrix`)
   presenting a subset of the model; conforms to a viewpoint.
 - **Placement / geometry** — `arch-vis:ArchNode` (an element in a view) and
@@ -70,7 +71,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 2. Only concrete (instantiable) element types are offered; `arch:isAbstractClass true` is excluded
 3. Labels: `skos:prefLabel` → `rdfs:label` → local name
 4. Definitions: `skos:definition` → `rdfs:comment`
-5. Grouping derives from the taxonomy scoped by `arch:conceptClassification`, navigating `skos:narrower` and inverse `skos:broader`; group and axis roles are detected structurally
+5. Grouping derives from the taxonomy scoped by `arch:conceptClassification`, navigating `skos:narrower` and inverse `skos:broader`; group and axis roles are detected structurally; with no classification loaded the palette lists the ontology's element classes grouped by a guess from their names, and says so ("No classification loaded — types grouped by name")
 6. Several classification axes are preserved; a "Group by" selector switches between them (structural axes preferred as default); no metamodel-specific special cases
 7. Relationship-only axes are not offered for element grouping
 8. The palette is filtered by the **open view's** viewpoint (`arch:includesConcept`); a viewpoint naming a class includes its subclasses (`rdfs:subClassOf*`), as the published viewpoint conformance shapes read it
@@ -121,7 +122,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 4. Append ("+" on the pad) lists the element types a relationship is permitted to, with their icons, and creates the new element *and* the relationship to it, as one undo step. When one specific relationship is permitted (Association aside, directed or not) it is created directly; when several are, a second step asks which, Association last. A drag from the menu takes the best-ranked one. The menu has two tabs: **New element** (the above, grouped by the palette's categories) and **Existing relationships** (n) — the relationships the element already has in the model, those whose other end is not in the view first; a click brings the other end into the view beside the element (right for outgoing, left for incoming, at a free spot) with the relationship drawn, a drag places it where dropped; nothing new is created in the model
 5. Relationship types are in the palette; picking one arms the connect tool with that type, required: a pair the metamodel does not permit it for cannot be connected, and releasing on one says which relationships the pair permits (never a different type in its place)
 6. Connections are bound to their elements and follow them
-7. Each relationship is a qualified resource (stable IRI, class type, `arch:source`, `arch:target`, `arch:inModel`) *and* the unqualified triple; it is drawn as an `arch-vis:Link` with its route
+7. Each relationship is a qualified resource (stable IRI, class type, `arch:source`, `arch:target`, `arch:inModel`) *and* the unqualified triple, which the resource `rdf:reifies` (RDF 1.2, kept in step through retype and reconnect, added on load where missing); it is drawn as an `arch-vis:Link` with its route
 8. Relationships are first-class: selectable, with properties, in the tree, in the property panel
 9. Relationships support custom properties like elements
 10. Connections cannot exist unattached (diagram-js reconnect rules)
@@ -129,6 +130,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 12. Deletion as for elements: from the view by default, from the model on request
 13. `domainIncludes`/`rangeIncludes` are indicative; SHACL decides validity — the relationship shapes both for what is offered and in validation, so an offered relationship never fails validation
 14. A kind of relationship is a subclass of its relationship class, sharing its predicate (ArchiMate's `ReadAccess`, `WriteAccess`, `ReadWriteAccess` and `DirectedAssociation`): it is offered wherever its class is, drawn with its own ends, and changed by changing the relationship's type. A bare triple with the shared predicate is the most general class
+15. Two selected elements: the context pad offers "Connect these two…", a menu of the relationships they may have in either direction, ranked as connect ranks them (derived-only ones marked); the pick creates the relationship, as one undo step
 
 ---
 
@@ -142,7 +144,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 2. Prefixes derive from the loaded vocabularies' own `vann:preferredNamespacePrefix`/`Uri` declarations plus the standard ones and `m:` (or the prefix the model declares) for the model's namespace; only prefixes used are written. Every IRI la-gram mints is a flat name in the model's namespace, so the model is written as prefixed names (`m:model`, `m:element-…`, `m:view-…`, `m:node-…`, `m:link-…`)
 3. Labels are exported as language-tagged `skos:prefLabel`
 4. Properties are exported as written (`skos:definition` for descriptions)
-5. Relationships are exported in both forms (qualified resource and unqualified triple)
+5. Relationships are exported in both forms (qualified resource and unqualified triple), with the resource's `rdf:reifies` of the triple — in every format but JSON-LD, which has no triple terms; RDF 1.2 Turtle is read as well as written (a model carrying meta's derivations imports)
 6. View geometry is exported as `arch-vis:ArchNode`/`arch-vis:Link` with bounds and routes
 7. An **RDF panel** on the right shows the live model as it would be saved — hidden by default, toggled from the toolbar ("{ } RDF") or opened with `?rdf=1`; format selector (Turtle default), a "geometry" toggle (the no-geometry profile), counts (elements, relationships, views, triples), Copy and Download; syntax-highlighted; the selected concept's statements are highlighted and clicking a subject's statements selects it; it does no work while hidden and refreshes debounced while shown; resizable by its left edge (width remembered per browser)
 8. Save produces a download (browser) or a file (desktop)
@@ -279,6 +281,8 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 1. A view may be a Catalog (tabular listing of elements by type, inline editing) or a Matrix (relationships between two element types)
 2. Opening such a view shows the corresponding component in the centre
 3. The matrix reads relationships in both the current and the retired vocabulary
+4. A catalog lists, and a matrix indexes, the elements the view presents — its `arch:inView` members (the core's "a Catalog that lists it, a Matrix that indexes it"); an "Add" picker adds the model's elements of a type, and a catalog row can be removed (its membership, not the element)
+5. A catalog groups its members by type, with a column for each property they have (structural links left out); a matrix takes its rows and columns from its members of a chosen row type and column type (by default the two most common), the choice kept per view in the browser
 
 ### Requirement 13: Import (la-gram)
 

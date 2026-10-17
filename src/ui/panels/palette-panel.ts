@@ -191,6 +191,14 @@ export class PalettePanel extends LitElement {
       border-top: 1px solid #ddd;
     }
 
+    .palette-notice {
+      padding: 6px 12px;
+      border-bottom: 1px solid #eee;
+      background: #fff8e1;
+      color: #5f4b00;
+      font-size: 12px;
+    }
+
     .axis-selector {
       display: flex;
       align-items: center;
@@ -429,6 +437,23 @@ export class PalettePanel extends LitElement {
     `;
   }
 
+  /**
+   * The OWL-only fallback, said: with no classification loaded the palette lists
+   * every element class of the ontology and groups them by their names, which
+   * is a guess — the metamodel's taxonomy (`arch:conceptClassification`) is what
+   * groups them as the language does.
+   */
+  private _renderOwlOnlyNotice(): unknown {
+    if (this.palette.grouping !== 'owl' || this.palette.elementGroups.length === 0) return nothing;
+    return html`<div
+      class="palette-notice"
+      role="note"
+      title="The metamodel names no classification (arch:conceptClassification), or it did not load: every element class of the ontology is listed, grouped by a guess from its name."
+    >
+      No classification loaded — types grouped by name.
+    </div>`;
+  }
+
   /** "Group by" selector, shown only when the metamodel offers several axes. */
   private _renderAxisSelector(): unknown {
     const axes = this.palette.axes ?? [];
@@ -509,7 +534,7 @@ export class PalettePanel extends LitElement {
     const empty = elementGroups.length === 0 && relationshipTypes.length === 0;
     return html`
       <div class="palette-header">Palette</div>
-      ${this._renderSearch()} ${this._renderAxisSelector()}
+      ${this._renderSearch()} ${this._renderAxisSelector()} ${this._renderOwlOnlyNotice()}
       ${empty
         ? html`<div class="palette-empty">
             ${this._normalisedQuery

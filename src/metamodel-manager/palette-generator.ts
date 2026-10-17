@@ -205,6 +205,8 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       relationshipTypes,
       axes,
       activeAxisIri: activeAxis?.iri,
+      // buildClasses walks the OWL classes when there is no axis to group by.
+      grouping: taxonomyAxes.length > 0 ? 'taxonomy' : 'owl',
       notationSetIri: notationSet?.iri,
       notationSetLabel: notationSet?.label,
       notationIndex,

@@ -1,17 +1,26 @@
 /**
- * Matrix View — grid showing relationships between two sets of element types.
+ * Matrix View — grid showing relationships between two sets of elements.
  *
- * Queries the RDF store for all elements of a row type and a column type,
- * then checks for relationships between each pair. Displays a grid with
- * row headers (element labels), column headers (element labels), and cells
- * showing relationship type labels or empty.
+ * Opened on a matrix view (`viewIri`), its rows and columns are the elements
+ * the view presents — its `arch:inView` members, the core's "a Matrix that
+ * indexes it" — of a row type and a column type chosen above the grid (or all
+ * of them); each cell shows the relationship between the two, if the model has
+ * one. An "Add" picker adds the model's elements of a type. The axis choice is
+ * kept per view in this browser. Given only `rowTypeFilter` and
+ * `columnTypeFilter`, it shows every element of those types in the store, as
+ * before.
  */
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Quad, NamedNode } from '@rdfjs/types';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
+import type { ViewManager } from '../../model-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { addableTypes, elementsOfType, renderAddPicker, viewMembers, type AddableType, type ViewMember } from './view-members.js';
+
+/** The axis value meaning "every member". */
+export const ALL_MEMBERS = '*';
 
 // ── Well-known predicate IRIs ───────────────────────────────────────────
 
@@ -84,10 +93,13 @@ export function iriLabel(iri: string): string {
  * Collects all elements of a given rdf:type from quads, returning
  * MatrixHeader entries sorted by label.
  */
-export function collectHeaders(quads: Quad[], typeIri: string): MatrixHeader[] {
+export function collectHeaders(quads: Quad[], typeIri: string, members?: ReadonlySet<string>): MatrixHeader[] {
   const elementIris = new Set<string>();
+  if (typeIri === ALL_MEMBERS && members) {
+    for (const iri of members) elementIris.add(iri);
+  }
   for (const q of quads) {
-    if (q.predicate.value === RDF_TYPE && q.object.value === typeIri) {
+    if (q.predicate.value === RDF_TYPE && q.object.value === typeIri && (!members || members.has(q.subject.value))) {
       elementIris.add(q.subject.value);
     }
   }
@@ -128,9 +140,10 @@ export function buildMatrixData(
   quads: Quad[],
   rowTypeIri: string,
   colTypeIri: string,
+  members?: ReadonlySet<string>,
 ): MatrixData {
-  const rows = collectHeaders(quads, rowTypeIri);
-  const columns = collectHeaders(quads, colTypeIri);
+  const rows = collectHeaders(quads, rowTypeIri, members);
+  const columns = collectHeaders(quads, colTypeIri, members);
 
   const rowIris = new Set(rows.map((r) => r.iri));
   const colIris = new Set(columns.map((c) => c.iri));
@@ -304,6 +317,17 @@ export class MatrixView extends LitElement {
     td.has-relationship:hover {
       background: #c8e6c9;
     }
+
+    .matrix-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      padding: 6px 12px;
+      border-bottom: 1px solid #eee;
+      font-size: 12px;
+      color: #444;
+    }
   `;
 
   /** Reference to the RDF store for querying elements. */
@@ -318,20 +342,91 @@ export class MatrixView extends LitElement {
   @property({ type: String })
   columnTypeFilter = '';
 
+  /** The matrix view shown: its members are the rows and columns. Without one, the type filters decide. */
+  @property({ type: String })
+  viewIri = '';
+
+  /** Changes the matrix's membership (`arch:inView`). */
+  @property({ attribute: false })
+  viewManager?: ViewManager;
+
+  /** A type's label, as the palette shows it. */
+  @property({ attribute: false })
+  typeLabelOf: (typeIri: string) => string = iriLabel;
+
   @state()
   private _matrixData: MatrixData = { rows: [], columns: [], cells: new Map() };
 
+  /** The member types, most common first, and the chosen axes. */
+  @state()
+  private _memberTypes: string[] = [];
+  @state()
+  private _rowType = ALL_MEMBERS;
+  @state()
+  private _colType = ALL_MEMBERS;
+  @state()
+  private _addable: AddableType[] = [];
+
   override willUpdate(changedProperties: Map<string, unknown>): void {
+    if (changedProperties.has('viewIri')) this._readAxes();
     if (
       changedProperties.has('rdfStore') ||
       changedProperties.has('rowTypeFilter') ||
-      changedProperties.has('columnTypeFilter')
+      changedProperties.has('columnTypeFilter') ||
+      changedProperties.has('viewIri')
     ) {
       this._rebuildMatrix();
     }
   }
 
+  /** Re-read the store: after a change to the model. */
+  refresh(): void {
+    this._rebuildMatrix();
+  }
+
+  private _axesKey(): string {
+    return `la-gram:matrix-axes:${this.viewIri}`;
+  }
+
+  /** The axes chosen for this view before, in this browser (absent, private mode: the defaults). */
+  private _readAxes(): void {
+    this._rowType = '';
+    this._colType = '';
+    try {
+      const saved = JSON.parse(globalThis.localStorage?.getItem(this._axesKey()) ?? 'null') as { rows?: string; columns?: string } | null;
+      if (saved?.rows) this._rowType = saved.rows;
+      if (saved?.columns) this._colType = saved.columns;
+    } catch {
+      // Storage unavailable or unreadable: the defaults.
+    }
+  }
+
+  private _setAxes(rows: string, columns: string): void {
+    this._rowType = rows;
+    this._colType = columns;
+    try {
+      globalThis.localStorage?.setItem(this._axesKey(), JSON.stringify({ rows, columns }));
+    } catch {
+      // Not kept: the choice still applies now.
+    }
+    this._rebuildMatrix();
+  }
+
   private _rebuildMatrix(): void {
+    if (this.rdfStore && this.viewIri) {
+      const quads = this.rdfStore.getQuads();
+      const members: ViewMember[] = viewMembers(quads, this.viewIri);
+      const counts = new Map<string, number>();
+      for (const m of members) counts.set(m.typeIri, (counts.get(m.typeIri) ?? 0) + 1);
+      this._memberTypes = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b));
+      // Defaults, or a remembered type the view no longer holds: the two most common types.
+      const valid = (t: string) => t === ALL_MEMBERS || counts.has(t);
+      if (!this._rowType || !valid(this._rowType)) this._rowType = this._memberTypes[0] ?? ALL_MEMBERS;
+      if (!this._colType || !valid(this._colType)) this._colType = this._memberTypes[1] ?? this._memberTypes[0] ?? ALL_MEMBERS;
+      this._matrixData = buildMatrixData(quads, this._rowType, this._colType, new Set(members.map((m) => m.iri)));
+      this._addable = addableTypes(quads, this.viewIri);
+      return;
+    }
     if (!this.rdfStore || !this.rowTypeFilter || !this.columnTypeFilter) {
       this._matrixData = { rows: [], columns: [], cells: new Map() };
       return;
@@ -354,7 +449,85 @@ export class MatrixView extends LitElement {
     );
   }
 
+  /** Add the model's elements of a type to the matrix. */
+  private _addType(typeIri: string): void {
+    if (!this.rdfStore || !this.viewManager?.addMember) return;
+    for (const iri of elementsOfType(this.rdfStore.getQuads(), typeIri)) this.viewManager.addMember(this.viewIri, iri);
+    this._rebuildMatrix();
+    this.dispatchEvent(
+      new CustomEvent('view-members-change', { detail: { viewIri: this.viewIri }, bubbles: true, composed: true }),
+    );
+  }
+
+  private _axisSelect(label: string, value: string, onChange: (value: string) => void) {
+    return html`<label
+      >${label}
+      <select @change=${(e: Event) => onChange((e.target as HTMLSelectElement).value)}>
+        <option value=${ALL_MEMBERS} ?selected=${value === ALL_MEMBERS}>All elements</option>
+        ${this._memberTypes.map(
+          (t) => html`<option value=${t} ?selected=${value === t}>${this.typeLabelOf(t)}</option>`,
+        )}
+      </select></label
+    >`;
+  }
+
+  private _renderGrid(rows: MatrixHeader[], columns: MatrixHeader[], cells: Map<string, MatrixCell>) {
+    return html`
+      <table>
+        <thead>
+          <tr>
+            <th class="corner"></th>
+            ${columns.map((col) => html`<th class="col-header" title=${col.iri}>${col.label}</th>`)}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(
+            (row) => html`
+              <tr>
+                <th class="row-header" title=${row.iri}>${row.label}</th>
+                ${columns.map((col) => {
+                  const cell = cells.get(cellKey(row.iri, col.iri));
+                  const hasRel = cell ? cell.relationshipType !== '' : false;
+                  return html`
+                    <td
+                      class=${hasRel ? 'has-relationship' : ''}
+                      title=${hasRel && cell ? cell.relationshipLabel : ''}
+                      @click=${() => cell && this._onCellClick(cell)}
+                    >
+                      ${hasRel && cell ? cell.relationshipLabel : ''}
+                    </td>
+                  `;
+                })}
+              </tr>
+            `,
+          )}
+        </tbody>
+      </table>
+    `;
+  }
+
+  private _renderMembers() {
+    const { rows, columns, cells } = this._matrixData;
+    const picker = this.viewManager?.addMember
+      ? renderAddPicker(this._addable, this.typeLabelOf, (typeIri) => this._addType(typeIri))
+      : nothing;
+    return html`
+      <div class="matrix-header">Matrix</div>
+      <div class="matrix-toolbar">
+        ${this._memberTypes.length > 0
+          ? html`${this._axisSelect('Rows', this._rowType, (v) => this._setAxes(v, this._colType))}
+            ${this._axisSelect('Columns', this._colType, (v) => this._setAxes(this._rowType, v))}`
+          : nothing}
+        ${picker}
+      </div>
+      ${rows.length === 0 && columns.length === 0
+        ? html`<div class="empty-message">This matrix indexes no elements yet. Add the elements of a type.</div>`
+        : this._renderGrid(rows, columns, cells)}
+    `;
+  }
+
   override render() {
+    if (this.viewIri) return this._renderMembers();
     if (!this.rowTypeFilter || !this.columnTypeFilter) {
       return html`
         <div class="matrix-header">Matrix</div>

@@ -71,7 +71,7 @@ graph TB
 |---|---|---|---|
 | **Model** | `arch:Model` + `arch:modelConformsToMetamodel` + its namespace (`vann:preferredNamespaceUri` / `…Prefix`) | default graph | yes |
 | **Element** | a metamodel class; `skos:prefLabel`@en; `arch:inModel` | default graph | yes |
-| **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`) | default graph | yes |
+| **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`), which it `rdf:reifies` (RDF 1.2, `<<( s p o )>>`) | default graph | yes |
 | **View** | `arch:View` + `arch:Diagram`/`Catalog`/`Matrix`, `arch:inModel`, `arch:viewConformsToViewpoint` | default graph | yes |
 | **Membership** | `arch:inView` on each concept a view presents | default graph | yes |
 | **Geometry** | `arch-vis:ArchNode` (bounds, `archElement`, `view`), `arch-vis:Link` (`archRelationship`, `source`/`target` nodes, `points` list with IRI cells) | default graph | yes (droppable profile) |
@@ -380,6 +380,14 @@ otherwise a second menu lists them, best-ranked first, Association last, and the
 pick is required for that one append. A drag from the menu cannot pause to ask
 and takes the best-ranked one.
 
+**Two selected elements.** A selection of exactly two elements gets one pad
+entry, "Connect these two…" (`RdfContextPadProvider.getMultiElementContextPadEntries`),
+opening a menu of the relationships they may have in both directions — each
+direction a group, each ranked by `getValidRelationships`, derived-only ones
+marked (`rdf-pair-connect-menu-provider.ts`). The pick goes through the same
+`modeling.connect` a connect drag ends in, so it is one undo step. It is offered,
+not popped up: a menu on every two-element selection would be in the way.
+
 **A relationship type from the palette.** Picking one arms the connect tool with
 that type *required* (`RdfRuleProvider.setPreferredType`): `canConnect` answers
 it or nothing, so a pair that does not permit it shows the not-allowed cursor,
@@ -673,7 +681,9 @@ locked (a rule at priority 3000 denies move/resize/delete/re-route).
 vocabularies' `vann:` declarations and the model's own (`m:` unless it declares
 another), partitioned per DD-15 for graph formats; `no-geometry` drops the views graph. Turtle and
 TriG go through n3's writer; JSON-LD, RDF/XML, N-Quads, N-Triples through
-Oxigraph. `ModelSession.adopt` runs after every load: migrate retired
+Oxigraph. Every format but JSON-LD carries RDF 1.2 triple terms (`rdf:reifies
+<<( s p o )>>`; RDF/XML as `rdf:parseType="Triple"`); JSON-LD has none, so its
+export leaves `rdf:reifies` out — loading the file gives it back. `ModelSession.adopt` runs after every load: migrate retired
 vocabulary, ensure `arch:Model` and `arch:inModel`, ensure a view, and lay the
 elements out in a grid when the data has no geometry.
 
@@ -691,6 +701,27 @@ preload's bridge, `window.laGramDesktop` (`src/electron-preload.ts`,
 or writing a file — one the user chose in a dialog this session, and no other.
 Before, the renderer ran with Node integration and asked Electron for `dialog`,
 which only the main process has, so Open and Save had no native dialog.
+
+### Catalog and matrix views
+
+A catalog lists, and a matrix indexes, the elements the view presents: its
+`arch:inView` members — the core's "a Catalog that lists it, a Matrix that
+indexes it", the same fact a diagram writes beside its geometry
+(`ui/views/view-members.ts`; `ViewManager.getMembers` / `addMember` /
+`removeMember` write `arch:inView` alone). An "Add" picker offers the model's
+element types not yet wholly in the view and adds a type's elements; a catalog
+row's ✕ removes the membership, not the element. The catalog groups its members
+by type, columns from the properties they have, structural links (`arch:inModel`,
+`arch:inView`, `rdf:reifies`) left out; an inline edit writes a language-tagged
+name or definition (it wrote a literal with no datatype, which the store could
+not convert). The matrix takes its rows and columns from its members of a row
+type and a column type (default: the two most common; "All elements" either
+way), each cell the relationship the model has between the two. Before, neither
+view was given anything to show: the catalog's type filter and the matrix's row
+and column types were never set, so both opened empty. The matrix's axis choice
+is kept per view in the browser (`localStorage`); kept in the model, it would
+need vocabulary the core does not have (a view's settings) — a question for
+meta.
 
 ### Nesting
 
@@ -743,7 +774,12 @@ sessions, so a triple about a blank node may show as removed and added again.
    core-vis, validated by `core-shapes` and `core-vis-shapes`. Retired terms are
    migrated on load, never written.
 3. **Both relationship forms** (DD-10): the qualified resource is what views
-   draw and properties hang off; the unqualified triple is what SPARQL walks.
+   draw and properties hang off; the unqualified triple is what SPARQL walks;
+   the resource `rdf:reifies` the triple (RDF 1.2), so a consumer that goes by
+   reification — meta's derivations among them — finds which triple it is about.
+   La-gram writes it on create and keeps it in step through retype and reconnect;
+   loading a model gives it to a relationship that has none (an older file, or
+   another tool's); the properties panel does not offer it for editing.
 4. **Offline first, network when asked.** ArchiMate 4.0 and 3.2 are bundled;
    every other published metamodel is one click away when online.
 5. **Undo = inverse diff.** One mechanism for every model change a gesture
@@ -811,8 +847,8 @@ sessions, so a triple about a blank node may show as removed and added again.
 | Relationship graph | Cytoscape.js 3 (MIT) |
 | Renaming on the canvas | diagram-js-direct-editing 3 (MIT) |
 | UI | Lit 3 web components, CodeMirror 6 (SPARQL) |
-| RDF store / SPARQL | Oxigraph 0.4 (WASM in the browser, native module in Node) |
-| Parsing / writing | n3 (Turtle, TriG, N-Triples, N-Quads), Oxigraph (JSON-LD, RDF/XML) |
+| RDF store / SPARQL | Oxigraph 0.5 (WASM in the browser, native module in Node) — RDF 1.2 and SPARQL 1.2 |
+| Parsing / writing | n3 2 (Turtle, TriG, N-Triples, N-Quads — RDF 1.2), Oxigraph (JSON-LD, RDF/XML) |
 | SHACL | rdf-validate-shacl |
 | Collaboration | Yjs 13 + Hocuspocus 4 (provider and server) |
 | Build | webpack 5 (web, electron-main, electron-preload, electron-renderer — the web build again), TypeScript 5 (strict) |

@@ -210,6 +210,12 @@ export interface ViewManager {
 
   /** Views presenting a concept (by `arch:inView` or by geometry). */
   viewsContaining(conceptIri: string): string[];
+  /** The concepts a view presents (`arch:inView`). */
+  getMembers?(viewIri: string): string[];
+  /** Present a concept in a catalog or matrix: `arch:inView` alone (idempotent). */
+  addMember?(viewIri: string, conceptIri: string): void;
+  /** Stop presenting it there: its `arch:inView`. */
+  removeMember?(viewIri: string, conceptIri: string): void;
   /**
    * After a relationship's ends changed: re-point its links at the nodes of
    * the new ends in every view, and remove the link where an end is not placed.

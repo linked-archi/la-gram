@@ -35,8 +35,8 @@
     "diagram-js": "^14.0.0",
     "diagram-js-direct-editing": "^3.5.1",
     "lit": "^3.1.0",
-    "n3": "^1.17.0",
-    "oxigraph": "^0.4.0",
+    "n3": "^2.13.12",
+    "oxigraph": "^0.5.11",
     "rdf-validate-shacl": "^0.5.0",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.33"
