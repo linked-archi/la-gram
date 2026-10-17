@@ -788,10 +788,10 @@ domain-based structure.'''@en ;
 
 :CompositionMultipleParentWarning
  a sh:NodeShape ;
- sh:targetSubjectsOf am4:composedOf ;
+ sh:targetObjectsOf am4:composedOf ;
+ sh:severity sh:Warning ;
  sh:sparql [
   sh:message "Element {$this} is composed into multiple parents via am4:composedOf. Composition implies existence dependency — a part with multiple composites may indicate a modelling issue (ArchiMate 4 §5.1.2)."@en ;
-  sh:severity sh:Warning ;
   sh:select """
    PREFIX am4: <https://meta.linked.archi/archimate4/onto#>
    SELECT $this (COUNT(?parent) AS ?parentCount)

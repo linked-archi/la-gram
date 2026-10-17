@@ -116,10 +116,12 @@ into a single discoverable resource.'''@en ;
     ## File: archimate4-viewpoints.ttl
     arch:viewpointLibrary         am4vp:ViewpointCatalog ;
 
-    ## Formal rules — SHACL shapes for validation
-    ## Files: archimate4-relationship-shapes.ttl, archimate4-element-shapes.ttl,
-    ##        archimate4-principle-shapes.ttl
+    ## Formal rules — SHACL shapes for validation, and the relationship tables: the
+    ## relationship shapes' rules as lookups, which the derivation rules read as data
+    ## Files: archimate4-relationship-shapes.ttl, archimate4-relationship-tables.ttl,
+    ##        archimate4-element-shapes.ttl, archimate4-principle-shapes.ttl
     arch:formalRules              <https://meta.linked.archi/archimate4/shapes#>,
+                                  <https://meta.linked.archi/archimate4/relationship-tables#>,
                                   <https://meta.linked.archi/archimate4/element-shapes#>,
                                   <https://meta.linked.archi/archimate4/principle-shapes#> ;
 

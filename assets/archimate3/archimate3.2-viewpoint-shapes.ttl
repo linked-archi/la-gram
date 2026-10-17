@@ -46,10 +46,7 @@ the property shapes as well as the node shape, because SHACL does not
 propagate sh:severity from a node shape to the property shapes nested
 under it.
 
-Usage:
-  .scripts/validate.sh --shacl archimate-viewpoints
-
-Or load manually:
+Usage: load
   core-shapes.ttl + archimate3.2-viewpoint-shapes.ttl +
   archimate3.2-viewpoints.ttl + your-model-data.ttl
 '''@en ;

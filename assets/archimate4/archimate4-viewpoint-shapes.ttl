@@ -45,10 +45,7 @@ Where a shape states its constraints as sh:property, the severity is declared on
 the property shapes as well as the node shape, because SHACL does not propagate
 sh:severity from a node shape to the property shapes nested under it.
 
-Usage:
-  .scripts/validate.sh --shacl archimate4-viewpoints
-
-Loading manually, core-onto.ttl must be among the SHAPES documents as well as
+Usage: core-onto.ttl must be among the SHAPES documents as well as
 the data: the shapes target arch:View and arch:Viewpoint, and RDF4J resolves the
 rdfs:subClassOf closure for sh:targetClass and sh:class from the shapes graph.
 Without it nothing fires on an arch:Diagram instance.'''@en ;

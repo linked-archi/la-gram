@@ -584,8 +584,8 @@ Models instantiate them via arch:deliverableTemplateUsed.
 
 Example:
   archvp:ArchitectureDefinitionDocument a arch:DeliverableTemplate ;
-      arch:templateRequiresViewpoint amvp:Organization, amvp:ApplicationCooperation,
-                                     amvp:ImplementationDeployment ;
+      arch:templateRequiresViewpoint amvp:OrganizationViewpoint, amvp:ApplicationCooperationViewpoint,
+                                     amvp:ImplementationAndDeploymentViewpoint ;
       arch:templateHasFormat archdt:MarkdownFormat, archdt:PDFFormat ;
       arch:templateTargetsPurpose archvp:Designing .
 
@@ -595,10 +595,10 @@ member, not the container. See arch:inModel.
       arch:deliverableTemplateUsed archvp:ArchitectureDefinitionDocument .
   ex:OrgView a arch:Diagram ;
       arch:inModel ex:MyADD ;
-      arch:viewConformsToViewpoint amvp:Organization .
+      arch:viewConformsToViewpoint amvp:OrganizationViewpoint .
   ex:AppCoopView a arch:Diagram ;
       arch:inModel ex:MyADD ;
-      arch:viewConformsToViewpoint amvp:ApplicationCooperation .
+      arch:viewConformsToViewpoint amvp:ApplicationCooperationViewpoint .
 '''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html>,
                     <https://pubs.opengroup.org/togaf-standard/architecture-content/chap03.html> ;
@@ -614,7 +614,7 @@ and optional guidance text.'''@en ;
     skos:example    '''
 archvp:ADDSection1 a arch:TemplateSection ;
     arch:sectionOrder 1 ;
-    arch:sectionViewpoint amvp:Organization ;
+    arch:sectionViewpoint amvp:OrganizationViewpoint ;
     skos:prefLabel "1. Organizational Structure"@en ;
     skos:definition "Document the organizational structure using the Organization Viewpoint."@en .
 '''@en ;

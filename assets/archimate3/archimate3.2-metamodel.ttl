@@ -111,10 +111,12 @@ contexts into a single discoverable resource.'''@en ;
     ## File: archimate3.2-viewpoints.ttl
     arch:architectureViewpoints   <https://meta.linked.archi/archimate3/viewpoints#> ;
 
-    ## Formal rules — SHACL shapes for validation
-    ## Files: archimate3.2-relationship-shapes.ttl, archimate3.2-element-shapes.ttl,
-    ##        archimate3.2-principle-shapes.ttl
+    ## Formal rules — SHACL shapes for validation, and the relationship tables: the
+    ## relationship shapes' rules as lookups, which the derivation rules read as data
+    ## Files: archimate3.2-relationship-shapes.ttl, archimate3.2-relationship-tables.ttl,
+    ##        archimate3.2-element-shapes.ttl, archimate3.2-principle-shapes.ttl
     arch:formalRules              <https://meta.linked.archi/archimate3/shapes#>,
+                                  <https://meta.linked.archi/archimate3/relationship-tables#>,
                                   <https://meta.linked.archi/archimate3/element-shapes#>,
                                   <https://meta.linked.archi/archimate3/principle-shapes#> ;
 
@@ -159,27 +161,24 @@ contexts into a single discoverable resource.'''@en ;
 
     ## Stakeholders identified by this metamodel
     arch:metamodelIdentifiesStakeholder
-        amvp:EnterpriseArchitect, amvp:SolutionArchitect,
-        amvp:BusinessArchitect, amvp:ApplicationArchitect,
-        amvp:InfrastructureArchitect, amvp:SecurityArchitect,
-        amvp:DataArchitect, amvp:BusinessManager,
-        amvp:ProductManager, amvp:ProcessOwner,
-        amvp:SoftwareDeveloper, amvp:OperationsManager,
-        amvp:ProjectManager, amvp:CIO, amvp:CEO ;
+        amvp:EnterpriseArchitect, amvp:ProcessArchitect, amvp:DomainArchitect,
+        amvp:ApplicationArchitect, amvp:SolutionArchitect, amvp:InformationArchitect,
+        amvp:InfrastructureArchitect, amvp:BusinessArchitect, amvp:ICTArchitect,
+        amvp:Manager, amvp:OperationalManager, amvp:BusinessManager,
+        amvp:ProductManager, amvp:RequirementsManager, amvp:ProductDeveloper,
+        amvp:BusinessAnalyst, amvp:CxO, amvp:Employee,
+        amvp:Shareholder, amvp:Stakeholders ;
 
     ## Concerns identified by this metamodel
     arch:metamodelIdentifiesConsideration
-        amvp:OrganizationalStructure, amvp:InformationStructure,
-        amvp:InfrastructureStability, amvp:PhysicalEnvironment,
-        amvp:DeploymentStructure, amvp:ProcessCooperation,
-        amvp:ApplicationIntegration, amvp:ServiceRealization,
-        amvp:ApplicationSupport, amvp:TechnologySupport,
-        amvp:StakeholderAlignment, amvp:GoalDecomposition,
-        amvp:RequirementsTraceability, amvp:MotivationLandscape,
-        amvp:ProductOffering, amvp:StrategicDirection,
-        amvp:CapabilityLandscape, amvp:OutcomeDelivery,
-        amvp:ResourceAllocation, amvp:ProjectDelivery,
-        amvp:ArchitectureMigration, amvp:ChangeManagement,
-        amvp:ImpactOfChange, amvp:CostOptimization,
-        amvp:ArchitectureOverview ;
+        amvp:CompetenciesAuthorityResponsibilities, amvp:ApplicationStructure, amvp:Consistency,
+        amvp:Completeness, amvp:ReductionOfComplexity, amvp:InformationStructure,
+        amvp:InfrastructureQuality, amvp:ImpactOfChange, amvp:Flexibility,
+        amvp:PhysicalEnvironment, amvp:ProductDevelopment, amvp:ProductValue,
+        amvp:Dependencies, amvp:Performance, amvp:Scalability,
+        amvp:ProcessDependencies, amvp:Responsibilities, amvp:ApplicationDependencies,
+        amvp:ServiceOrchestration, amvp:AddedValueOfProcesses, amvp:ApplicationPlatforms,
+        amvp:ArchitectureMission, amvp:ArchitectureStrategy, amvp:ArchitectureTactics,
+        amvp:Motivation, amvp:StrategyDevelopment, amvp:BusinessResults,
+        amvp:ArchitectureVision, amvp:ArchitecturePolicies, amvp:ModelHistory ;
 .

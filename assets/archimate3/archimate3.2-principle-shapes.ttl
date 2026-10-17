@@ -186,13 +186,26 @@ Or load manually alongside other shapes:
         sh:prefixes <https://meta.linked.archi/archimate3/principle-shapes#> ;
         sh:message  "Data object {$this} is written by multiple application components ({?app1} and {?app2}). Designate a single authoritative source."@en ;
         sh:select """
-            SELECT $this ?app1 ?app2
+            SELECT DISTINCT $this ?app1 ?app2
             WHERE {
                 $this a am:DataObject .
-                ?app1 a am:ApplicationComponent ;
-                      am:accesses $this .
-                ?app2 a am:ApplicationComponent ;
-                      am:accesses $this .
+                # A writer: write or read/write access, or an access not stated to be a read.
+                ?app1 a am:ApplicationComponent .
+                {
+                    ?app1 am:accesses $this .
+                    FILTER NOT EXISTS { ?read1 a am:ReadAccess ; arch:source ?app1 ; arch:target $this . }
+                } UNION {
+                    ?write1 a ?kind1 ; arch:source ?app1 ; arch:target $this .
+                    FILTER(?kind1 IN (am:WriteAccess, am:ReadWriteAccess))
+                }
+                ?app2 a am:ApplicationComponent .
+                {
+                    ?app2 am:accesses $this .
+                    FILTER NOT EXISTS { ?read2 a am:ReadAccess ; arch:source ?app2 ; arch:target $this . }
+                } UNION {
+                    ?write2 a ?kind2 ; arch:source ?app2 ; arch:target $this .
+                    FILTER(?kind2 IN (am:WriteAccess, am:ReadWriteAccess))
+                }
                 FILTER(STR(?app1) < STR(?app2))
             }
         """ ;
@@ -245,25 +258,23 @@ Or load manually alongside other shapes:
     sh:severity    sh:Warning ;
     skos:prefLabel "Application Component Ownership"@en ;
     skos:definition
-        '''Every application component should be assigned to at least
-        one business actor or role that owns or operates it.'''@en ;
+        '''Every application component should have a business actor or
+        role that owns it, associated with the component.'''@en ;
+    skos:scopeNote
+        '''ArchiMate has no ownership relationship, and its relationship
+        tables do not let a business actor or role be assigned to an
+        application component; an association between the two, in
+        either direction, is read as ownership.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate3/principle-shapes#> ;
-        sh:message  "Application component {$this} has no assigned business actor or role. Assign ownership."@en ;
+        sh:message  "Application component {$this} has no business actor or role associated with it as its owner."@en ;
         sh:select """
             SELECT $this
             WHERE {
                 $this a am:ApplicationComponent .
                 FILTER NOT EXISTS {
-                    {
-                        ?actor am:assignedTo $this .
-                        ?actor rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                        ?actor rdf:type/rdfs:subClassOf* am:BusinessLayerElement .
-                    } UNION {
-                        $this am:assignedTo ?actor .
-                        ?actor rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                        ?actor rdf:type/rdfs:subClassOf* am:BusinessLayerElement .
-                    }
+                    { ?owner am:associatedWith $this . } UNION { $this am:associatedWith ?owner . }
+                    { ?owner a am:BusinessActor . } UNION { ?owner a am:BusinessRole . }
                 }
             }
         """ ;
@@ -472,8 +483,11 @@ Or load manually alongside other shapes:
                 $this a am:ApplicationService .
                 ?app am:realizes $this .
                 ?app a am:ApplicationComponent .
-                ?node am:assignedTo ?app .
-                ?node rdf:type/rdfs:subClassOf* am:TechnologyLayerElement .
+                # Technology it depends on: serving or realizing the component, or hosting
+                # what realizes it (a node assigned to an artifact or system software).
+                ?node (am:serves|am:realizes|am:assignedTo/am:realizes) ?app .
+                ?node rdf:type/rdfs:subClassOf* am:TechnologyLayerElement ,
+                                                am:ActiveStructureElement .
             }
             GROUP BY $this
             HAVING (COUNT(DISTINCT ?node) > 3)
@@ -536,10 +550,12 @@ Or load manually alongside other shapes:
             SELECT $this ?node
             WHERE {
                 $this a am:ApplicationComponent .
-                ?node am:assignedTo $this .
+                # Deployed on a node: the node realizes the component, or is assigned to an
+                # artifact or system software that does.
+                ?node (am:realizes|am:assignedTo/am:realizes) $this .
                 ?node a am:Node .
                 FILTER NOT EXISTS {
-                    ?node2 am:assignedTo $this .
+                    ?node2 (am:realizes|am:assignedTo/am:realizes) $this .
                     ?node2 a am:Node .
                     FILTER(?node2 != ?node)
                 }
@@ -800,10 +816,10 @@ Or load manually alongside other shapes:
 
 :CompositionMultipleParentWarning
  a sh:NodeShape ;
- sh:targetSubjectsOf am:composedOf ;
+ sh:targetObjectsOf am:composedOf ;
+ sh:severity sh:Warning ;
  sh:sparql [
   sh:message "Element {$this} is composed into multiple parents via am:composedOf. Composition implies existence dependency — a part with multiple composites may indicate a modelling issue (ArchiMate 3.2 §5.1.2)."@en ;
-  sh:severity sh:Warning ;
   sh:select """
    PREFIX am: <https://meta.linked.archi/archimate3/onto#>
    SELECT $this (COUNT(?parent) AS ?parentCount)
