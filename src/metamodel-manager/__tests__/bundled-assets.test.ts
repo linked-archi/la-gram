@@ -17,10 +17,22 @@ import {
 } from '../bundled-assets.js';
 
 describe('bundled asset registry', () => {
+  it('finds an ontology by its owl:versionIRI too, as meta’s relationship tables import it', () => {
+    const byVersion = getAssetByIri('https://meta.linked.archi/archimate4/onto/4.0#');
+    expect(byVersion?.ontologyIri).toBe('https://meta.linked.archi/archimate4/onto#');
+    expect(getAssetByIri('https://meta.linked.archi/archimate3/onto/3.2#')?.path).toBe('archimate3/archimate3.2-onto.ttl');
+  });
+
+  it('bundles each language’s relationship tables, outside the shapes graph', () => {
+    for (const id of ['archimate4', 'archimate3']) {
+      expect(getAssetsByRole('relationshipTables', id)).toHaveLength(1);
+    }
+  });
+
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    // Four core files, eleven per bundled language (ArchiMate 4.0 and 3.2), and the
+    // Four core files, twelve per bundled language (ArchiMate 4.0 and 3.2), and the
     // core metamodel's manifest and taxonomy.
-    expect(BUNDLED_ASSETS).toHaveLength(28);
+    expect(BUNDLED_ASSETS).toHaveLength(30);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);

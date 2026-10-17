@@ -1,29 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ElectronPlatformService } from '../electron-platform-service.js';
 
-function createMockDialog() {
+/** The preload's bridge (`window.laGramDesktop`), as the main process would answer it. */
+function createMockBridge() {
   return {
-    showOpenDialogSync: vi.fn(),
-    showSaveDialogSync: vi.fn(),
-  };
-}
-
-function createMockFs() {
-  return {
-    readFileSync: vi.fn(),
-    writeFileSync: vi.fn(),
+    showOpenDialog: vi.fn<(filters?: unknown, defaultPath?: string) => Promise<string | null>>(),
+    showSaveDialog: vi.fn<(filters?: unknown, defaultPath?: string) => Promise<string | null>>(),
+    readFile: vi.fn<(file: string) => Promise<{ content: string; name: string }>>(),
+    writeFile: vi.fn<(file: string, content: string) => Promise<void>>(),
   };
 }
 
 describe('ElectronPlatformService', () => {
-  let dialog: ReturnType<typeof createMockDialog>;
-  let fs: ReturnType<typeof createMockFs>;
+  let bridge: ReturnType<typeof createMockBridge>;
   let service: ElectronPlatformService;
 
   beforeEach(() => {
-    dialog = createMockDialog();
-    fs = createMockFs();
-    service = new ElectronPlatformService(dialog, fs);
+    bridge = createMockBridge();
+    service = new ElectronPlatformService(bridge);
+  });
+
+  it('refuses to start without the desktop bridge', () => {
+    expect(() => new ElectronPlatformService()).toThrow('desktop bridge');
   });
 
   describe('isDesktop', () => {
@@ -33,85 +31,74 @@ describe('ElectronPlatformService', () => {
   });
 
   describe('readFile', () => {
-    it('reads file at the given path', async () => {
-      fs.readFileSync.mockReturnValue('@prefix arch: <urn:arch#> .');
+    it('reads the file at the given path through the bridge', async () => {
+      bridge.readFile.mockResolvedValue({ content: '@prefix arch: <urn:arch#> .', name: 'model.ttl' });
       const result = await service.readFile('/home/user/model.ttl');
-      expect(fs.readFileSync).toHaveBeenCalledWith('/home/user/model.ttl', 'utf-8');
-      expect(result.content).toBe('@prefix arch: <urn:arch#> .');
-      expect(result.name).toBe('model.ttl');
+      expect(bridge.readFile).toHaveBeenCalledWith('/home/user/model.ttl');
+      expect(bridge.showOpenDialog).not.toHaveBeenCalled();
+      expect(result).toEqual({ content: '@prefix arch: <urn:arch#> .', name: 'model.ttl' });
     });
 
-    it('opens a dialog when no path is provided', async () => {
-      dialog.showOpenDialogSync.mockReturnValue(['/tmp/selected.ttl']);
-      fs.readFileSync.mockReturnValue('content');
+    it('opens a dialog when no path is provided, and reads the chosen file', async () => {
+      bridge.showOpenDialog.mockResolvedValue('/tmp/selected.ttl');
+      bridge.readFile.mockResolvedValue({ content: 'content', name: 'selected.ttl' });
 
       const result = await service.readFile();
-      expect(dialog.showOpenDialogSync).toHaveBeenCalled();
-      expect(fs.readFileSync).toHaveBeenCalledWith('/tmp/selected.ttl', 'utf-8');
-      expect(result.content).toBe('content');
-      expect(result.name).toBe('selected.ttl');
+      expect(bridge.showOpenDialog).toHaveBeenCalledWith([{ name: 'Turtle files', extensions: ['ttl'] }]);
+      expect(bridge.readFile).toHaveBeenCalledWith('/tmp/selected.ttl');
+      expect(result).toEqual({ content: 'content', name: 'selected.ttl' });
     });
 
-    it('throws when dialog is cancelled and no path given', async () => {
-      dialog.showOpenDialogSync.mockReturnValue(undefined);
+    it('throws when the dialog is cancelled and no path given', async () => {
+      bridge.showOpenDialog.mockResolvedValue(null);
       await expect(service.readFile()).rejects.toThrow('No file selected');
-    });
-
-    it('extracts filename from Windows-style paths', async () => {
-      fs.readFileSync.mockReturnValue('data');
-      const result = await service.readFile('C:\\Users\\dev\\model.ttl');
-      expect(result.name).toBe('model.ttl');
+      expect(bridge.readFile).not.toHaveBeenCalled();
     });
   });
 
   describe('writeFile', () => {
-    it('writes content to the path chosen in save dialog', async () => {
-      dialog.showSaveDialogSync.mockReturnValue('/tmp/output.ttl');
+    it('writes to the path chosen in the save dialog, which starts at the suggested name', async () => {
+      bridge.showSaveDialog.mockResolvedValue('/tmp/output.ttl');
       await service.writeFile('rdf data', 'output.ttl');
-      expect(dialog.showSaveDialogSync).toHaveBeenCalled();
-      expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/output.ttl', 'rdf data', 'utf-8');
+      expect(bridge.showSaveDialog).toHaveBeenCalledWith([{ name: 'Turtle files', extensions: ['ttl'] }], 'output.ttl');
+      expect(bridge.writeFile).toHaveBeenCalledWith('/tmp/output.ttl', 'rdf data');
     });
 
-    it('throws when save dialog is cancelled', async () => {
-      dialog.showSaveDialogSync.mockReturnValue(undefined);
+    it('throws when the save dialog is cancelled', async () => {
+      bridge.showSaveDialog.mockResolvedValue(null);
       await expect(service.writeFile('data')).rejects.toThrow('Save cancelled');
+      expect(bridge.writeFile).not.toHaveBeenCalled();
     });
   });
 
   describe('showOpenDialog', () => {
     it('returns the selected file path', async () => {
-      dialog.showOpenDialogSync.mockReturnValue(['/home/user/file.ttl']);
-      const result = await service.showOpenDialog();
-      expect(result).toBe('/home/user/file.ttl');
+      bridge.showOpenDialog.mockResolvedValue('/home/user/file.ttl');
+      expect(await service.showOpenDialog()).toBe('/home/user/file.ttl');
     });
 
     it('returns null when cancelled', async () => {
-      dialog.showOpenDialogSync.mockReturnValue(undefined);
-      const result = await service.showOpenDialog();
-      expect(result).toBeNull();
+      bridge.showOpenDialog.mockResolvedValue(null);
+      expect(await service.showOpenDialog()).toBeNull();
     });
 
     it('passes custom filters to the dialog', async () => {
-      dialog.showOpenDialogSync.mockReturnValue(undefined);
+      bridge.showOpenDialog.mockResolvedValue(null);
       const filters = [{ name: 'RDF', extensions: ['ttl', 'rdf'] }];
       await service.showOpenDialog(filters);
-      expect(dialog.showOpenDialogSync).toHaveBeenCalledWith(
-        expect.objectContaining({ filters }),
-      );
+      expect(bridge.showOpenDialog).toHaveBeenCalledWith(filters);
     });
   });
 
   describe('showSaveDialog', () => {
     it('returns the chosen save path', async () => {
-      dialog.showSaveDialogSync.mockReturnValue('/tmp/save.ttl');
-      const result = await service.showSaveDialog();
-      expect(result).toBe('/tmp/save.ttl');
+      bridge.showSaveDialog.mockResolvedValue('/tmp/save.ttl');
+      expect(await service.showSaveDialog()).toBe('/tmp/save.ttl');
     });
 
     it('returns null when cancelled', async () => {
-      dialog.showSaveDialogSync.mockReturnValue(undefined);
-      const result = await service.showSaveDialog();
-      expect(result).toBeNull();
+      bridge.showSaveDialog.mockResolvedValue(null);
+      expect(await service.showSaveDialog()).toBeNull();
     });
   });
 });

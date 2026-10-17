@@ -245,6 +245,13 @@ export interface RelationshipTypeInfo {
    * source/target pair. Undefined outside a pair-specific query.
    */
   reason?: string;
+  /**
+   * For the queried pair: `true` when the metamodel's relationship tables let a
+   * modeller draw this relationship directly, `false` when they permit it only as
+   * the conclusion of a derivation. Undefined when the tables do not say, or
+   * outside a pair-specific query.
+   */
+  direct?: boolean;
 }
 
 /** Complete palette definition generated from a metamodel. */

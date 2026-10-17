@@ -118,7 +118,7 @@ export default (_env, argv) => {
     output: {
       filename: 'main.cjs',
       path: path.resolve(__dirname, 'dist/electron'),
-      clean: { keep: /^renderer\// },
+      clean: { keep: /^(renderer\/|preload\.cjs)/ },
     },
     resolve: { ...sharedResolve },
     module: { rules: [...sharedModuleRules] },
@@ -126,17 +126,46 @@ export default (_env, argv) => {
     devtool,
   };
 
-  /** Electron renderer process (browser-like context with Node integration) */
+  /**
+   * Electron preload: the bridge the sandboxed renderer reaches the desktop
+   * through (`src/electron-preload.ts`). One file — a sandboxed preload can
+   * require only `electron` itself.
+   */
+  const electronPreloadConfig = {
+    name: 'electron-preload',
+    target: 'electron-preload',
+    entry: './src/electron-preload.ts',
+    output: {
+      filename: 'preload.cjs',
+      path: path.resolve(__dirname, 'dist/electron'),
+      clean: false,
+    },
+    resolve: { ...sharedResolve },
+    module: { rules: [...sharedModuleRules] },
+    devtool,
+  };
+
+  /**
+   * Electron renderer: the web build, served to a sandboxed window without Node
+   * from `app://la-gram/` (`src/electron-main.ts`). The desktop reaches it only
+   * through the preload bridge.
+   */
   const electronRendererConfig = {
     name: 'electron-renderer',
-    target: 'electron-renderer',
+    target: 'web',
     entry: './src/index.ts',
     output: {
       filename: 'renderer.js',
       path: path.resolve(__dirname, 'dist/electron/renderer'),
       clean: true,
     },
-    resolve: { ...sharedResolve },
+    resolve: {
+      ...sharedResolve,
+      fallback: {
+        fs: false,
+        path: false,
+      },
+    },
     module: { rules: [...sharedModuleRules] },
     experiments: { ...sharedExperiments },
     plugins: [
@@ -149,5 +178,5 @@ export default (_env, argv) => {
     devtool,
   };
 
-  return [webConfig, electronMainConfig, electronRendererConfig];
+  return [webConfig, electronMainConfig, electronPreloadConfig, electronRendererConfig];
 };

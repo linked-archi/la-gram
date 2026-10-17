@@ -182,6 +182,7 @@ export class RdfReplaceMenuProvider {
     // The metamodel's own score when it has one, else the position the ranking
     // put the candidate in — either way the user can see why this order.
     const notes = [candidate.score === undefined ? `#${index + 1}` : `rank ${candidate.score}`];
+    if (candidate.direct === false) notes.push('only by derivation');
     if (current) notes.push('current');
 
     const description = candidate.reason

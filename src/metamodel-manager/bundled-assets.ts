@@ -61,6 +61,11 @@
  * them (`arch:inModel` cardinality, `arch-vis:ArchNode` must name its element).
  * `derivationRules` is the `arch:derivationRules` document: SHACL-AF rules the
  * browser cannot execute, recorded so a remote load reports where it went.
+ * `relationshipTables` is the relationship tables a manifest lists under
+ * `arch:formalRules` beside the relationship shapes — the same table, as lookups,
+ * which also say which relationships a modeller may draw directly. They hold no
+ * shapes, so they are kept out of the shapes graph; the relationship manager
+ * reads them (`direct-permissions.ts`).
  */
 export type BundledAssetRole =
   | 'manifest'
@@ -71,6 +76,7 @@ export type BundledAssetRole =
   | 'presentationContexts'
   | 'viewpoints'
   | 'derivationRules'
+  | 'relationshipTables'
   | 'referenceData'
   | 'coreOntology'
   | 'coreVisOntology'
@@ -88,6 +94,12 @@ export interface BundledAsset {
   readonly ontologyIri: string;
   /** Path relative to the asset root, always with `/` separators. */
   readonly path: string;
+  /**
+   * The document's `owl:versionIRI`, where another document imports it by its
+   * version (meta's relationship tables and derivation rules import
+   * `…/archimate4/onto/4.0#`): a lookup by either IRI finds the same file.
+   */
+  readonly versionIri?: string;
   /**
    * Id of the {@link BundledMetamodel} the file belongs to, or absent for the
    * core files every metamodel shares.
@@ -179,18 +191,31 @@ function languageAssets(
   id: string,
   published: string,
   filePrefix: string,
+  version: string,
 ): BundledAsset[] {
   const doc = (suffix: string) => `https://meta.linked.archi/${published}/${suffix}#`;
   const path = (suffix: string) => `${id}/${filePrefix}-${suffix}.ttl`;
   return [
     { role: 'manifest', ontologyIri: doc('metamodel'), path: path('metamodel'), metamodel: id },
-    { role: 'ontology', ontologyIri: doc('onto'), path: path('onto'), metamodel: id },
+    {
+      role: 'ontology',
+      ontologyIri: doc('onto'),
+      versionIri: `https://meta.linked.archi/${published}/onto/${version}#`,
+      path: path('onto'),
+      metamodel: id,
+    },
     { role: 'taxonomy', ontologyIri: doc('tax'), path: path('tax'), metamodel: id },
     { role: 'notation', ontologyIri: doc('notation'), path: path('notation'), metamodel: id },
     { role: 'shapes', ontologyIri: doc('element-shapes'), path: path('element-shapes'), metamodel: id },
     { role: 'shapes', ontologyIri: doc('shapes'), path: path('relationship-shapes'), metamodel: id },
     { role: 'shapes', ontologyIri: doc('principle-shapes'), path: path('principle-shapes'), metamodel: id },
     { role: 'shapes', ontologyIri: doc('viewpoint-shapes'), path: path('viewpoint-shapes'), metamodel: id },
+    {
+      role: 'relationshipTables',
+      ontologyIri: doc('relationship-tables'),
+      path: path('relationship-tables'),
+      metamodel: id,
+    },
     {
       role: 'presentationContexts',
       ontologyIri: doc('presentation-contexts'),
@@ -230,8 +255,8 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     ontologyIri: 'https://meta.linked.archi/core-vis-shapes#',
     path: 'core/core-vis-shapes.ttl',
   },
-  ...languageAssets('archimate4', 'archimate4', 'archimate4'),
-  ...languageAssets('archimate3', 'archimate3', 'archimate3.2'),
+  ...languageAssets('archimate4', 'archimate4', 'archimate4', '4.0'),
+  ...languageAssets('archimate3', 'archimate3', 'archimate3.2', '3.2'),
   { role: 'manifest', ontologyIri: 'https://meta.linked.archi/core/metamodel#', path: 'core/core-metamodel.ttl', metamodel: 'core' },
   { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/core/tax#', path: 'core/core-tax.ttl', metamodel: 'core' },
 ];
@@ -254,7 +279,7 @@ export function getAssetsByRole(role: BundledAssetRole, metamodel?: string): Bun
 
 /** The bundled asset defining the given graph IRI, or `undefined`. */
 export function getAssetByIri(ontologyIri: string): BundledAsset | undefined {
-  return BUNDLED_ASSETS.find((asset) => asset.ontologyIri === ontologyIri);
+  return BUNDLED_ASSETS.find((asset) => asset.ontologyIri === ontologyIri || asset.versionIri === ontologyIri);
 }
 
 /**

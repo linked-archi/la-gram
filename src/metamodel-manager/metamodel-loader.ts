@@ -134,7 +134,9 @@ const MANIFEST_ASSET_PROPERTIES: readonly string[] = [
  * `https://…/archimate4/notation#` — everything up to and including the `#`.
  */
 function documentIriFor(iri: string): string {
-  if (getAssetByIri(iri)) return iri;
+  // A bundled document, by its IRI or its owl:versionIRI: the graph is named by the former.
+  const bundled = getAssetByIri(iri);
+  if (bundled) return bundled.ontologyIri;
   const hash = iri.indexOf('#');
   if (hash === -1) return iri;
   return iri.slice(0, hash + 1);

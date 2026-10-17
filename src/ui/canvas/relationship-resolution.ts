@@ -254,9 +254,12 @@ export function appendableTargetTypes(
     }
   }
 
+  // A target reached directly before one reached only by derivation, then by score.
+  const derivedOnly = (t: AppendTarget) => (t.relationships[0]?.direct === false ? 1 : 0);
   targets.sort((a, b) => {
+    const byDirect = derivedOnly(a) - derivedOnly(b);
     const byScore = (b.relationships[0]?.score ?? 0) - (a.relationships[0]?.score ?? 0);
-    return byScore !== 0 ? byScore : a.type.label.localeCompare(b.type.label);
+    return byDirect || byScore || a.type.label.localeCompare(b.type.label);
   });
 
   return targets;

@@ -14,6 +14,16 @@
  * subclasses). The hints below decide only for relationship types no shape
  * covers — metamodels without relationship shapes.
  *
+ * **Direct first, the fallbacks last.** Where the metamodel's relationship
+ * tables say which relationships a modeller may draw directly
+ * (`direct-permissions.ts` — the tables' upper case), a candidate permitted only
+ * as the conclusion of a derivation (lower case) is marked `direct: false`. The
+ * candidates come in three tiers: those a modeller may draw directly, those only
+ * a derivation gives, then the fallbacks — Association and the core's generic
+ * relationship, which every pair admits and which say least. A derived-only
+ * relationship is offered, but is the default only where nothing but a fallback
+ * is direct (a node and a process in ArchiMate 4.0: Assignment, not Association).
+ *
  * `arch:domainIncludes` / `arch:rangeIncludes` are `owl:AnnotationProperty`
  * *hints*, not `rdfs:domain` / `rdfs:range` axioms. The core ontology is
  * explicit: they are "used for guiding modelling but not restricting
@@ -74,6 +84,7 @@ import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scop
 import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
 import { modelNamespace } from './model-namespace.js';
 import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
+import { readDirectPermissions, type DirectPermissions } from './direct-permissions.js';
 import {
   collectRelationshipQuads,
   relationshipClassOf,
@@ -109,6 +120,8 @@ const EXACT_TARGET_BONUS = 5;
 const ASSOCIATION_PENALTY = 4;
 /** Composition and aggregation are valid nearly everywhere; nudge them down. */
 const CONTAINMENT_PENALTY = 1;
+/** Specialization is valid between any two elements of one type; nudge it down too. */
+const SPECIALIZATION_PENALTY = 1;
 /** The core's generic relationship says less than any language's: below Association. */
 const GENERIC_PENALTY = 5;
 
@@ -195,8 +208,11 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     const sourceClosure = this.classClosure(sourceTypeIri, scope);
     const targetClosure = this.classClosure(targetTypeIri, scope);
     const table = this.relationshipTable(scope);
+    const directPermissions = this.directPermissions(scope);
 
     const matches: RelationshipTypeInfo[] = [];
+    /** 0 direct (or not known otherwise), 1 only by derivation, 2 a fallback. */
+    const tier = new Map<RelationshipTypeInfo, number>();
 
     for (const candidate of candidates) {
       const { domainTypes, rangeTypes } = candidate;
@@ -223,14 +239,19 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (domainTypes.includes(sourceTypeIri)) score += EXACT_SOURCE_BONUS;
       if (rangeTypes.includes(targetTypeIri)) score += EXACT_TARGET_BONUS;
       // Association, and a kind of it (a directed association), is the fallback.
-      if (label === 'Association' || relationshipClosure.some((c) => iriFragment(c) === 'Association')) {
-        score -= ASSOCIATION_PENALTY;
-      }
-      if (candidate.iri === NAMESPACES.arch + 'QualifiedRelationship') score -= GENERIC_PENALTY;
+      const association = label === 'Association' || relationshipClosure.some((c) => iriFragment(c) === 'Association');
+      const generic = candidate.iri === NAMESPACES.arch + 'QualifiedRelationship';
+      if (association) score -= ASSOCIATION_PENALTY;
+      if (generic) score -= GENERIC_PENALTY;
       if (label === 'Composition' || label === 'Aggregation') score -= CONTAINMENT_PENALTY;
+      if (label === 'Specialization') score -= SPECIALIZATION_PENALTY;
+
+      const direct = candidate.unqualifiedPredicateIri
+        ? directPermissions.isDirect(candidate.unqualifiedPredicateIri, sourceClosure, targetClosure)
+        : undefined;
 
       const constrained = domainTypes.length > 0 || rangeTypes.length > 0;
-      const reason = shaped
+      const allowed = shaped
         ? `Allowed by the metamodel's relationship shapes: a ${shortLabel(sourceTypeIri)} may have ` +
           `${label} to a ${shortLabel(targetTypeIri)}.`
         : constrained
@@ -238,8 +259,13 @@ export class OxigraphRelationshipManager implements RelationshipManager {
           `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}.`
         : 'Allowed because the metamodel declares no arch:domainIncludes or ' +
           'arch:rangeIncludes for this type, and an absent constraint hint is permissive.';
+      const reason =
+        direct === false
+          ? `${allowed} Only by derivation: the relationship tables permit it as the conclusion of a ` +
+            'derivation, not drawn directly.'
+          : allowed;
 
-      matches.push({
+      const match: RelationshipTypeInfo = {
         iri: candidate.iri,
         label,
         iconUrl: candidate.iconUrl,
@@ -248,14 +274,35 @@ export class OxigraphRelationshipManager implements RelationshipManager {
         unqualifiedPredicateIri: candidate.unqualifiedPredicateIri,
         score,
         reason,
-      });
+        ...(direct === undefined ? {} : { direct }),
+      };
+      matches.push(match);
+      tier.set(match, association || generic ? 2 : direct === false ? 1 : 0);
     }
 
-    return matches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.label.localeCompare(b.label));
+    // Direct, then only by derivation, then the fallbacks; by score within a tier.
+    return matches.sort(
+      (a, b) =>
+        (tier.get(a) ?? 0) - (tier.get(b) ?? 0) || (b.score ?? 0) - (a.score ?? 0) || a.label.localeCompare(b.label),
+    );
   }
 
   /** The relationship table of the loaded shapes, read once per set of loaded graphs. */
   private tableCache: { key: string; table: RelationshipTable } | undefined;
+  /** The direct permissions of the loaded relationship tables, read likewise. */
+  private directCache: { key: string; permissions: DirectPermissions } | undefined;
+
+  /**
+   * Which relationships the loaded relationship tables let a modeller draw
+   * directly (`direct-permissions.ts`), read once per set of loaded graphs.
+   */
+  directPermissions(scope: GraphScope = graphScope(this.store)): DirectPermissions {
+    const key = scope.namedGraphs.join('\n');
+    if (this.directCache?.key !== key) {
+      this.directCache = { key, permissions: readDirectPermissions(this.store) };
+    }
+    return this.directCache.permissions;
+  }
 
   /**
    * The relationship table the loaded relationship shapes encode

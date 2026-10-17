@@ -68,6 +68,27 @@ const ACTOR_A = 'https://example.org/model/actor-a';
 const ACTOR_B = 'https://example.org/model/actor-b';
 
 let palette: PaletteDefinition;
+
+/**
+ * The relationship manager's order: the relationships a modeller may draw
+ * directly, then those only a derivation gives (the relationship tables' lower
+ * case), then the fallbacks — Association and the core's generic relationship —
+ * and within each tier by non-increasing score.
+ */
+function expectRanked(candidates: readonly { label: string; iri: string; direct?: boolean; score?: number }[]): void {
+  const tierOf = (c: (typeof candidates)[number]) =>
+    /Association/.test(c.label) || c.iri === 'https://meta.linked.archi/core#QualifiedRelationship'
+      ? 2
+      : c.direct === false
+        ? 1
+        : 0;
+  const tiers = candidates.map(tierOf);
+  expect([...tiers].sort((a, b) => a - b)).toEqual(tiers);
+  for (const tier of new Set(tiers)) {
+    const scores = candidates.filter((c) => tierOf(c) === tier).map((c) => c.score ?? 0);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+  }
+}
 let store: OxigraphRdfStore;
 
 beforeAll(async () => {
@@ -231,9 +252,9 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     const candidates = canvas.relationshipCandidates(BUSINESS_ACTOR, BUSINESS_ACTOR);
 
     expect(candidates.length).toBeGreaterThan(1);
-    // Ranked: monotonically non-increasing score, every entry explained.
-    const scores = candidates.map((c) => c.score ?? 0);
-    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    // Ranked — direct, then only by derivation, then the fallbacks; by score within
+    // each — and every entry explained.
+    expectRanked(candidates);
     expect(candidates.every((c) => !!c.reason)).toBe(true);
     // Association carries the least meaning, so it must not be the default.
     expect(candidates[0].label).not.toBe('Association');
@@ -259,8 +280,7 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     expect(candidates.length).toBeGreaterThan(1);
     // Ranked, explained, and de-duplicated — one entry per relationship type
     // despite the scope evaluating each query twice.
-    const scores = candidates.map((c) => c.score ?? 0);
-    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    expectRanked(candidates);
     expect(candidates.every((c) => !!c.reason)).toBe(true);
     expect(new Set(candidates.map((c) => c.iri)).size).toBe(candidates.length);
     // Serving is the semantically expected answer for actor → actor, and it is

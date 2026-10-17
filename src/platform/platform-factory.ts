@@ -4,25 +4,22 @@
  */
 import type { PlatformService } from './interfaces.js';
 import { WebPlatformService } from './web-platform-service.js';
+import { desktopBridge } from './desktop-bridge.js';
 
 /**
- * Detect whether we are running inside an Electron renderer process.
+ * Detect whether we are running inside the desktop build's renderer: its preload
+ * exposes the desktop bridge (`window.laGramDesktop`). The renderer has no Node,
+ * so `process.versions.electron` is not there to look at.
  */
 export function isElectronEnvironment(): boolean {
-  if (typeof window === 'undefined') return false;
-  const win = window as unknown as Record<string, unknown>;
-  const proc = win.process as Record<string, unknown> | undefined;
-  if (typeof proc !== 'object' || proc === null) return false;
-  const versions = proc.versions as Record<string, unknown> | undefined;
-  if (typeof versions !== 'object' || versions === null) return false;
-  return typeof versions.electron === 'string';
+  return desktopBridge() !== undefined;
 }
 
 /**
  * Create the appropriate PlatformService for the current runtime.
  *
- * In Electron the `ElectronPlatformService` is loaded dynamically so
- * the web bundle never pulls in Node.js / Electron dependencies.
+ * In Electron the `ElectronPlatformService` is loaded dynamically, so the web
+ * bundle's main chunk does not carry it.
  */
 export async function createPlatformService(): Promise<PlatformService> {
   if (isElectronEnvironment()) {

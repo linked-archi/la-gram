@@ -168,7 +168,9 @@ uses that repository's own publishing scripts for the mapping. Every discovered 
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
-templates, reference models and the framework document are skipped. Reference
+templates, reference models and the framework document are skipped. A document
+imported by its `owl:versionIRI` (meta's relationship tables import
+`…/archimate4/onto/4.0#`) resolves to the bundled document it versions. Reference
 data is loaded (and bundled for both ArchiMate versions): its `skos:prefLabel`s
 label the `sh:in` choices in the property panel.
 
@@ -349,6 +351,27 @@ is allowed exactly where Aggregation is. Relationship classes no shape covers
 pair, and the relationship an append created by default failed the shapes for
 68% of them.
 
+**Direct first.** The shapes say what is permitted, not how: the relationship
+tables meta publishes beside them (`archimate4-relationship-tables.ttl`,
+`archimate3.2-relationship-tables.ttl`, bundled with role `relationshipTables`,
+kept out of the shapes graph) also say which relationships a modeller may draw
+directly — the specification's upper case — and which are permitted only as the
+conclusion of a derivation (`am4:realizes am4rt:permittedDirectlyBy
+am4rt:permitsDirectRealization`). `model-manager/direct-permissions.ts` reads
+them, finding the annotation by its declaration and name
+(`permittedDirectlyBy`) in whatever namespace, and the manager marks each
+candidate `direct: true | false`, or leaves it unmarked where the tables do not
+say (a junction, which they do not list). Candidates come in three tiers —
+direct, only by derivation, the fallbacks (Association and the core's generic
+relationship) — and by score within a tier; Specialization, valid between any
+two elements of one type, is nudged down as Composition and Aggregation are. So
+a derived-only relationship is offered but is the default only where nothing
+except a fallback is direct: between two business actors in 4.0 the default is
+Aggregation (Serving, Flow and Triggering are lower case), between a node and a
+process a derived-only one (Assignment, the first of five at the same score)
+rather than Association. The change-type menu says "only
+by derivation", and so does the candidate's reason.
+
 **Append.** "+" on the pad lists the element types some relationship is
 permitted to, with the palette's icons. Association is permitted between any two
 elements, so a silent default would always hide a choice: the entry decides
@@ -467,7 +490,8 @@ change. The sections are `<details>`, their open state in
 `localStorage` (`la-gram:about-sections`); guidance and classification start
 open, superclasses and changes folded. Source links open in a new browser tab
 — in Electron in the system browser: the main process denies new windows and
-navigation away from the app, since the renderer runs with Node integration.
+navigation away from the app, so nothing but the app's own page loads in its
+window.
 
 ### Adding a property
 
@@ -653,6 +677,21 @@ Oxigraph. `ModelSession.adopt` runs after every load: migrate retired
 vocabulary, ensure `arch:Model` and `arch:inModel`, ensure a view, and lay the
 elements out in a grid when the data has no geometry.
 
+**The desktop build.** Electron 44. The window is sandboxed, with context
+isolation and without Node integration: the renderer is the web build (webpack
+target `web`), served from `app://la-gram/` — a standard, secure scheme the main
+process registers and answers from the build's `renderer/` directory, the
+bundled assets included — so it fetches its assets as the web build does, has an
+origin for IndexedDB, and every response carries a Content-Security-Policy:
+script only from the app itself and WebAssembly (Oxigraph), styles inline too,
+data from `https:`, `ws:`/`wss:` and localhost (remote metamodels, the
+collaboration server). The renderer reaches the desktop only through the
+preload's bridge, `window.laGramDesktop` (`src/electron-preload.ts`,
+`src/platform/desktop-bridge.ts`): the native open and save dialogs, and reading
+or writing a file — one the user chose in a dialog this session, and no other.
+Before, the renderer ran with Node integration and asked Electron for `dialog`,
+which only the main process has, so Open and Save had no native dialog.
+
 ### Nesting
 
 A node drawn inside another says so with `arch-vis:inNode` (core-vis 0.5);
@@ -776,9 +815,9 @@ sessions, so a triple about a blank node may show as removed and added again.
 | Parsing / writing | n3 (Turtle, TriG, N-Triples, N-Quads), Oxigraph (JSON-LD, RDF/XML) |
 | SHACL | rdf-validate-shacl |
 | Collaboration | Yjs 13 + Hocuspocus 4 (provider and server) |
-| Build | webpack 5 (web, electron-main, electron-renderer), TypeScript 5 (strict) |
+| Build | webpack 5 (web, electron-main, electron-preload, electron-renderer — the web build again), TypeScript 5 (strict) |
 | Tests | Vitest (unit, jsdom) + Playwright (browser suite against the production build) |
-| Desktop | Electron |
+| Desktop | Electron 44 — sandboxed renderer without Node, `app://la-gram/`, Content-Security-Policy, preload bridge for files |
 
 ## Running
 
