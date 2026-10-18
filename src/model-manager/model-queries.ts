@@ -60,7 +60,12 @@ export interface ModelContents {
   unclassified: ConceptSummary[];
 }
 
-/** Namespaces whose types are never model concepts. */
+/**
+ * Namespaces whose types are never model concepts: geometry and the RDF
+ * vocabularies, and the provenance and schema.org metadata a converter records
+ * about a conversion — its run, its agent, its source file, its named graphs.
+ * A resource typed with nothing else is not a member of the model.
+ */
 const NON_MODEL_NAMESPACES = [
   NAMESPACES['arch-vis'],
   NAMESPACES.rdf,
@@ -68,6 +73,9 @@ const NON_MODEL_NAMESPACES = [
   NAMESPACES.owl,
   NAMESPACES.sh,
   NAMESPACES.skos,
+  NAMESPACES.prov,
+  'https://schema.org/',
+  'http://schema.org/',
 ];
 
 /** Every quad in the default graph — the model data. */

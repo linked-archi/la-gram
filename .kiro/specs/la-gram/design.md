@@ -704,7 +704,14 @@ Oxigraph. Every format but JSON-LD carries RDF 1.2 triple terms (`rdf:reifies
 <<( s p o )>>`; RDF/XML as `rdf:parseType="Triple"`); JSON-LD has none, so its
 export leaves `rdf:reifies` out — loading the file gives it back. `ModelSession.adopt` runs after every load: migrate retired
 vocabulary, ensure `arch:Model` and `arch:inModel`, ensure a view, and lay the
-elements out in a grid when the data has no geometry.
+elements out in a grid when the data has no geometry. Membership goes to what
+classifies as an element, relationship or view — or as nothing a loaded
+metamodel knows, so a model opened before its metamodel does not look empty —
+but never to a resource typed only from a non-model vocabulary: geometry, the
+RDF vocabularies, and the PROV-O and schema.org metadata the Linked.Archi
+converters record about a conversion (its run, agent, source file and named
+graphs; `model-queries.ts`, *converter-models.test* with the ArchiMate
+converter's own output as fixture).
 
 **The desktop build.** Electron 44. The window is sandboxed, with context
 isolation and without Node integration: the renderer is the web build (webpack
