@@ -24,9 +24,9 @@
  * `.onto-docs/catalog.ttl` — run `.scripts/docgen/generate-docs.sh` there first
  * for a current one. Without it, the bundled copy stays and the run says so.
  *
- * Files the published tree does not have are la-gram's own (the core metamodel
- * manifest and taxonomy, until they are published) and are left alone. After a
- * sync, rebuild (`npm run build`).
+ * A file the published tree does not have would be la-gram's own, and is left
+ * alone; today there is none — everything bundled is meta.linked.archi's. After
+ * a sync, rebuild (`npm run build`).
  */
 
 import { execFileSync } from 'node:child_process';

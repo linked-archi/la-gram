@@ -50,7 +50,7 @@ import {
   type AssetMode,
   type AssetSource,
 } from './metamodel-manager/asset-sources.js';
-import { CORE_ENTRY, loadCatalogue, type CatalogueEntry } from './metamodel-manager/catalogue.js';
+import { loadCatalogue, type CatalogueEntry } from './metamodel-manager/catalogue.js';
 
 // Model Manager
 import type { ElementManager, RelationshipManager, ViewManager } from './model-manager/interfaces.js';
@@ -215,15 +215,15 @@ export class App {
    */
   async loadCatalogue(onEntries: (entries: CatalogueEntry[]) => void): Promise<void> {
     try {
-      onEntries((await loadCatalogue(new BundledAssetSource())) ?? [CORE_ENTRY]);
+      onEntries((await loadCatalogue(new BundledAssetSource())) ?? []);
     } catch (err: unknown) {
       console.warn('[app] The bundled catalogue could not be read', err);
-      onEntries([CORE_ENTRY]);
+      onEntries([]);
     }
     if (!this.catalogueSource) return;
     try {
       const published = await loadCatalogue(this.catalogueSource);
-      if (published && published.length > 1) onEntries(published);
+      if (published && published.length > 0) onEntries(published);
     } catch (err: unknown) {
       console.warn('[app] The published catalogue could not be read; the bundled one stays', err);
     }

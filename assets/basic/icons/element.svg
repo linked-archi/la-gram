@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60" role="img" aria-label="Element">
+  <title>Element</title>
+  <desc>Basic rectangle notation: generic element (arch:Element), a very light grey-green rectangle with no icon</desc>
+  <rect x="1" y="1" width="118" height="58" fill="#E8F0EA" stroke="#424242" stroke-width="2"/>
+</svg>

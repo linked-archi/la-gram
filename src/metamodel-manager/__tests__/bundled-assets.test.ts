@@ -30,9 +30,9 @@ describe('bundled asset registry', () => {
   });
 
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    // Four core files, twelve per bundled language (ArchiMate 4.0 and 3.2), and the
-    // core metamodel's manifest and taxonomy.
-    expect(BUNDLED_ASSETS).toHaveLength(30);
+    // Four core files, twelve per ArchiMate version (4.0 and 3.2), and Basic's six:
+    // manifest, ontology, taxonomy, its two notation sets and its presentation contexts.
+    expect(BUNDLED_ASSETS).toHaveLength(34);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);
@@ -41,26 +41,28 @@ describe('bundled asset registry', () => {
   });
 
   it('covers every single-valued role exactly once per bundled language', () => {
-    const roles: BundledAssetRole[] = [
-      'manifest',
-      'ontology',
-      'taxonomy',
-      'notation',
-      'presentationContexts',
-      'viewpoints',
-      'referenceData',
-    ];
-    for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'core')) {
+    const roles: BundledAssetRole[] = ['manifest', 'ontology', 'taxonomy', 'presentationContexts'];
+    for (const metamodel of BUNDLED_METAMODELS) {
       for (const role of roles) {
         expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
       }
-      // arch:formalRules names four shapes graphs per language.
-      expect(getAssetsByRole('shapes', metamodel.id)).toHaveLength(4);
     }
-    // The core metamodel: its manifest and its classification; its concepts are the core ontology's.
-    expect(getAssetsByRole('manifest', 'core')).toHaveLength(1);
-    expect(getAssetsByRole('taxonomy', 'core')).toHaveLength(1);
-    expect(getAssetsByRole('ontology', 'core')).toHaveLength(0);
+    for (const id of ['archimate4', 'archimate3']) {
+      for (const role of ['notation', 'viewpoints', 'referenceData'] as const) {
+        expect(getAssetsByRole(role, id), `${id}/${role}`).toHaveLength(1);
+      }
+      // arch:formalRules names four shapes graphs per ArchiMate version.
+      expect(getAssetsByRole('shapes', id)).toHaveLength(4);
+    }
+    // Basic: no shapes, viewpoints or reference data; two notation sets, the
+    // default (rectangles) and the bubbles a presentation context selects.
+    expect(getAssetsByRole('shapes', 'basic')).toHaveLength(0);
+    expect(getAssetsByRole('notation', 'basic').map((a) => a.ontologyIri)).toEqual([
+      'https://meta.linked.archi/basic/notation#',
+      'https://meta.linked.archi/basic/notation-bubble#',
+    ]);
+    // No metamodel of la-gram's own: the core is the core ontology, not a metamodel.
+    expect(getBundledMetamodel('https://meta.linked.archi/core/metamodel#Core')).toBeUndefined();
     expect(getAssetsByRole('coreOntology')).toHaveLength(1);
     expect(getAssetsByRole('coreVisOntology')).toHaveLength(1);
     expect(getAssetsByRole('coreShapes')).toHaveLength(2);
@@ -72,6 +74,7 @@ describe('bundled asset registry', () => {
     expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel#')).toBe(am4);
     expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel')).toBe(am4);
     expect(getBundledMetamodel('archimate3')?.label).toBe('ArchiMate 3.2');
+    expect(getBundledMetamodel('https://meta.linked.archi/basic/metamodel#Basic')?.id).toBe('basic');
     expect(getBundledMetamodel('https://example.org/other#')).toBeUndefined();
   });
 
@@ -88,6 +91,8 @@ describe('bundled asset registry', () => {
     const onto = getAssetByIri('https://meta.linked.archi/archimate4/onto#');
     expect(onto?.role).toBe('ontology');
     expect(onto?.path).toBe('archimate4/archimate4-onto.ttl');
+    // Basic's ontology is named without a fragment, as its manifest names it.
+    expect(getAssetByIri('https://meta.linked.archi/basic')?.path).toBe('basic/basic-onto.ttl');
 
     expect(getAssetByIri('https://example.org/not-bundled#')).toBeUndefined();
   });

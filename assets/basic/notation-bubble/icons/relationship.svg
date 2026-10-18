@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="90" viewBox="0 0 220 90" role="img" aria-label="Relationship">
+  <title>Relationship</title>
+  <desc>Basic bubble notation: generic directed relationship (arch:QualifiedRelationship), a solid line from source (left) to target (right) with no source decoration and an open arrowhead at the target</desc>
+  <path d="M35 38H185" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round"/>
+  <path d="M171 31L185 38L171 45" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="110" y="70" text-anchor="middle" dominant-baseline="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="400" fill="#000000">Relationship</text>
+</svg>

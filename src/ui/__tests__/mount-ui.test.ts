@@ -352,7 +352,7 @@ describe('mountUi', () => {
       });
     });
 
-    it("passes the loaded metamodels' default notation sets in load order (Req 2.16)", () => {
+    it("passes the loaded metamodels, and their default notation sets, in load order (Req 2.16)", () => {
       const loaded = (iri: string, notationSetIri?: string): LoadedMetamodel => ({
         metamodelIri: iri,
         manifestGraphIri: iri,
@@ -363,13 +363,14 @@ describe('mountUi', () => {
       });
       vi.spyOn(app, 'loadedMetamodels').mockReturnValue([
         loaded('urn:mm:primary', 'urn:set:primary'),
-        loaded('urn:mm:core'),
+        loaded('urn:mm:without-a-set'),
         loaded('urn:mm:added', 'urn:set:added'),
       ]);
 
       app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm:primary' });
 
       expect(app.components.paletteGenerator.generatePalette).toHaveBeenLastCalledWith('urn:mm:primary', {
+        metamodelIris: ['urn:mm:primary', 'urn:mm:without-a-set', 'urn:mm:added'],
         defaultNotationSetIris: ['urn:set:primary', 'urn:set:added'],
       });
     });

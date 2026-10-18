@@ -17,6 +17,9 @@
  * assets/archimate4/*.ttl                ← the ArchiMate 4.0 language files
  * assets/archimate4/icons/*.svg          ← element icons
  * assets/archimate4/icons/glyphs/*.svg   ← badge glyphs
+ * assets/basic/*.ttl                     ← Basic, the generic language
+ * assets/basic/icons/, basic/notation-bubble/icons/ ← its two notations' icons
+ * assets/catalog.ttl                     ← meta.linked.archi's catalogue
  * ```
  *
  * That is what makes {@link resolveIconUri} a pure prefix rewrite: the visual
@@ -149,13 +152,20 @@ export const BUNDLED_CATALOGUE_PATH = 'catalog.ttl';
 /**
  * Asset-root-relative directories under which icons are actually bundled.
  *
- * Only these are shipped: the two ArchiMate icon sets, and the core-vis
- * decoration markers (`arch-vis:decorSymbol`) the canvas draws relationship
- * ends with. The other language icon sets exist on the published site but are
- * not in this bundle, so {@link resolveIconUri} reports them as unresolvable
- * rather than handing back a path that would 404.
+ * Only these are shipped: the two ArchiMate icon sets, Basic's two (its
+ * rectangle and bubble notations), and the core-vis decoration markers
+ * (`arch-vis:decorSymbol`) the canvas draws relationship ends with. The other
+ * language icon sets exist on the published site but are not in this bundle,
+ * so {@link resolveIconUri} reports them as unresolvable rather than handing
+ * back a path that would 404.
  */
-export const BUNDLED_ICON_PREFIXES: readonly string[] = ['archimate4/icons/', 'archimate3/icons/', 'core-vis/markers/'];
+export const BUNDLED_ICON_PREFIXES: readonly string[] = [
+  'archimate4/icons/',
+  'archimate3/icons/',
+  'basic/icons/',
+  'basic/notation-bubble/icons/',
+  'core-vis/markers/',
+];
 
 /**
  * The metamodels shipped complete, default first.
@@ -163,7 +173,9 @@ export const BUNDLED_ICON_PREFIXES: readonly string[] = ['archimate4/icons/', 'a
  * ArchiMate 4.0 is the default language. ArchiMate 3.2 ships too because the
  * Open Group Exchange Format — the one interchange format every ArchiMate tool
  * writes — is a 3.x format, so importing an exchange file needs the 3.2
- * ontology whether or not the network is up.
+ * ontology whether or not the network is up. Basic ships because it is the
+ * generic language — elements and relationships no other loaded language has,
+ * its Connection relating any two elements — and that has to work offline too.
  */
 export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
   {
@@ -179,12 +191,10 @@ export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
     label: 'ArchiMate 3.2',
   },
   {
-    // The core ontology as a metamodel: a generic element and relationship.
-    // Its manifest and taxonomy are la-gram's own until meta.linked.archi publishes them.
-    id: 'core',
-    metamodelIri: 'https://meta.linked.archi/core/metamodel#Core',
-    manifestIri: 'https://meta.linked.archi/core/metamodel#',
-    label: 'Linked.Archi Core',
+    id: 'basic',
+    metamodelIri: 'https://meta.linked.archi/basic/metamodel#Basic',
+    manifestIri: 'https://meta.linked.archi/basic/metamodel#',
+    label: 'Basic',
   },
 ];
 
@@ -268,8 +278,25 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
   },
   ...languageAssets('archimate4', 'archimate4', 'archimate4', '4.0'),
   ...languageAssets('archimate3', 'archimate3', 'archimate3.2', '3.2'),
-  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/core/metamodel#', path: 'core/core-metamodel.ttl', metamodel: 'core' },
-  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/core/tax#', path: 'core/core-tax.ttl', metamodel: 'core' },
+  // Basic's documents do not follow the per-language pattern: its ontology is
+  // <https://meta.linked.archi/basic> (no fragment), and its bubble notation —
+  // which a presentation context selects — has a folder of its own.
+  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/basic/metamodel#', path: 'basic/basic-metamodel.ttl', metamodel: 'basic' },
+  { role: 'ontology', ontologyIri: 'https://meta.linked.archi/basic', path: 'basic/basic-onto.ttl', metamodel: 'basic' },
+  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/basic/tax#', path: 'basic/basic-tax.ttl', metamodel: 'basic' },
+  { role: 'notation', ontologyIri: 'https://meta.linked.archi/basic/notation#', path: 'basic/basic-notation.ttl', metamodel: 'basic' },
+  {
+    role: 'notation',
+    ontologyIri: 'https://meta.linked.archi/basic/notation-bubble#',
+    path: 'basic/basic-notation-bubble.ttl',
+    metamodel: 'basic',
+  },
+  {
+    role: 'presentationContexts',
+    ontologyIri: 'https://meta.linked.archi/basic/presentation-contexts#',
+    path: 'basic/basic-presentation-contexts.ttl',
+    metamodel: 'basic',
+  },
 ];
 
 // ── Registry lookups ───────────────────────────────────────────────────

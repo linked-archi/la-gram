@@ -7,7 +7,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   CATALOGUE_IRI,
   CATALOGUE_KIND_LABELS,
-  CORE_ENTRY,
   loadCatalogue,
   readCatalogue,
   type CatalogueEntry,
@@ -55,7 +54,7 @@ const answering = (ttl: string) =>
 afterEach(() => vi.restoreAllMocks());
 
 describe('readCatalogue', () => {
-  it('offers the metamodels of the languages, frameworks, extensions and core sections, the core metamodel first', () => {
+  it('offers the metamodels of the languages, frameworks, extensions and core sections, by section', () => {
     const entries = read(
       catalogue(
         ['frameworks', 'https://meta.linked.archi/togaf/metamodel#TOGAF10', 'TOGAF Metamodel'],
@@ -65,7 +64,6 @@ describe('readCatalogue', () => {
       ),
     );
     expect(entries).toEqual<CatalogueEntry[]>([
-      CORE_ENTRY,
       { iri: 'https://meta.linked.archi/c4/metamodel#C4Model', label: 'C4 Model', kind: 'language' },
       { iri: 'https://meta.linked.archi/togaf/metamodel#TOGAF10', label: 'TOGAF', kind: 'framework' },
       { iri: 'https://meta.linked.archi/ml-systems/metamodel#MLEnabledSystems', label: 'ML-Enabled Systems', kind: 'extension' },
@@ -82,7 +80,7 @@ describe('readCatalogue', () => {
         ['languages', 'https://meta.linked.archi/leanix/metamodel#LeanIXv4', 'LeanIX Meta Model v4 Metamodel'],
       ),
     ).map((e) => e.label);
-    expect(labels).toEqual([CORE_ENTRY.label, 'ArchiMate 3.2', 'ArchiMate 4.0', 'LeanIX Meta Model v3', 'LeanIX Meta Model v4', 'UML 2.5.1']);
+    expect(labels).toEqual(['ArchiMate 3.2', 'ArchiMate 4.0', 'LeanIX Meta Model v3', 'LeanIX Meta Model v4', 'UML 2.5.1']);
   });
 
   it('skips datasets that are not metamodel manifests, and lists a metamodel once', () => {
@@ -93,19 +91,24 @@ describe('readCatalogue', () => {
     dcat:theme cat:languages ; foaf:primaryTopic <https://meta.linked.archi/c4/onto#> .
 <https://meta.linked.archi/c4/metamodel-copy> a dcat:Dataset ; dcterms:conformsTo arch:Metamodel ;
     dcat:theme cat:languages ; foaf:primaryTopic <https://meta.linked.archi/c4/metamodel#C4Model> .`;
-    expect(read(ttl).map((e) => e.iri)).toEqual([CORE_ENTRY.iri, 'https://meta.linked.archi/c4/metamodel#C4Model']);
+    expect(read(ttl).map((e) => e.iri)).toEqual(['https://meta.linked.archi/c4/metamodel#C4Model']);
   });
 
   it('takes the section from the theme IRI when the theme has no notation, and names an unlabelled metamodel by its IRI', () => {
     const ttl = `${PREFIXES}
 <https://meta.linked.archi/x/metamodel> a dcat:Dataset ; dcterms:conformsTo arch:Metamodel ;
     dcat:theme cat:frameworks ; foaf:primaryTopic <https://meta.linked.archi/x/metamodel#X> .`;
-    expect(read(ttl)[1]).toEqual({ iri: 'https://meta.linked.archi/x/metamodel#X', label: 'X', kind: 'framework' });
+    expect(read(ttl)[0]).toEqual({ iri: 'https://meta.linked.archi/x/metamodel#X', label: 'X', kind: 'framework' });
   });
 
-  it('keeps the core metamodel first and once when the catalogue lists it too', () => {
-    const entries = read(catalogue(['core', CORE_ENTRY.iri, 'Core Metamodel']));
-    expect(entries).toEqual([CORE_ENTRY]);
+  it('puts a metamodel of the Core section first', () => {
+    const entries = read(
+      catalogue(
+        ['languages', 'https://meta.linked.archi/c4/metamodel#C4Model', 'C4 Model Metamodel'],
+        ['core', 'https://meta.linked.archi/x/metamodel#X', 'X Metamodel'],
+      ),
+    );
+    expect(entries.map((e) => [e.label, e.kind])).toEqual([['X', 'core'], ['C4 Model', 'language']]);
   });
 });
 
@@ -117,11 +120,10 @@ describe('the bundled catalogue', () => {
 
   it('lists the published metamodels — the bundled languages among them — once each, with a section title for every kind', async () => {
     const entries = (await loadCatalogue(new BundledAssetSource()))!;
-    expect(entries[0]).toEqual(CORE_ENTRY);
     const iris = entries.map((e) => e.iri);
     expect(new Set(iris).size).toBe(iris.length);
     for (const entry of entries) expect(CATALOGUE_KIND_LABELS[entry.kind], entry.iri).toBeTruthy();
-    for (const id of ['archimate4', 'archimate3']) {
+    for (const id of ['archimate4', 'archimate3', 'basic']) {
       const bundled = entries.find((e) => getBundledMetamodel(e.iri)?.id === id);
       expect(bundled?.kind, id).toBe('language');
     }
@@ -151,7 +153,7 @@ describe('App.loadCatalogue', () => {
     const calls = await lists(answering(published));
     expect(calls).toHaveLength(2);
     expect(calls[0].length).toBeGreaterThan(20);
-    expect(calls[1].map((e) => e.label)).toEqual([CORE_ENTRY.label, 'New Language']);
+    expect(calls[1].map((e) => e.label)).toEqual(['New Language']);
   });
 
   it('keeps the bundled catalogue offline, when the published one is not there, and when it cannot be read', async () => {

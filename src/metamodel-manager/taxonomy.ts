@@ -58,8 +58,6 @@ const ARCH_CONCEPT_CLASSIFICATION = `${CORE}conceptClassification`;
 /** The abstractness flag actually published in the Linked.Archi ontologies. */
 const ARCH_IS_ABSTRACT_CLASS = `${CORE}isAbstractClass`;
 const CORE_ELEMENT = `${CORE}Element`;
-/** Namespace of the core metamodel's classification of the core's own concepts. */
-const CORE_TAXONOMY = 'https://meta.linked.archi/core/tax#';
 const CORE_MODEL_CONCEPT = `${CORE}ModelConcept`;
 const CORE_QUALIFIED_RELATIONSHIP = `${CORE}QualifiedRelationship`;
 
@@ -164,13 +162,17 @@ export interface SemanticClass {
  * When the taxonomy is flat (groups but no axis wrapper) a single axis labelled "Classification"
  * is synthesised from every group in the scheme.
  *
- * Axes are ordered so structural ones (by Layer, by Domain) precede the orthogonal "by Aspect"
- * axis; the first axis becomes the default classification.
+ * Axes are ordered by the metamodel whose classification they belong to, in load order — so a
+ * language added beside another (Basic beside ArchiMate) never becomes the default grouping of
+ * the first one's palette — then so structural ones (by Layer, by Domain) precede the orthogonal
+ * "by Aspect" axis; the first axis becomes the default classification.
  *
  * @param store n3 store holding the taxonomy (and, optionally, the metamodel manifest).
+ * @param metamodelIris The loaded `arch:Metamodel` subjects, in load order. Without them,
+ *   axes are ordered by label alone after the structural/aspect rule.
  * @returns The discovered axes, ordered by preference. Empty when no concept scheme is present.
  */
-export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
+export function buildClassificationAxes(store: Store, metamodelIris: readonly string[] = []): TaxonomyAxis[] {
   // Prefer the scheme(s) the metamodel manifest points at; otherwise take every declared scheme.
   const schemes = new Set<string>();
   for (const quad of store.getQuads(null, namedNode(ARCH_CONCEPT_CLASSIFICATION), null, null)) {
@@ -373,22 +375,34 @@ export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
     }
   }
 
-  // A language's axes first: the core's classification (the generic element and
-  // relationship) is added alongside a language, and must not become the default
-  // grouping of that language's palette.
+  // The first-loaded language's axes first: a language added beside it must not
+  // become the default grouping of its palette. An axis ranks by the first
+  // loaded metamodel whose arch:conceptClassification is the axis's scheme.
+  const schemeRank = new Map<string, number>();
+  metamodelIris.forEach((metamodelIri, index) => {
+    for (const scheme of store.getObjects(namedNode(metamodelIri), namedNode(ARCH_CONCEPT_CLASSIFICATION), null)) {
+      if (!schemeRank.has(scheme.value)) schemeRank.set(scheme.value, index);
+    }
+  });
+  const rankOf = (axisIri: string): number => {
+    let rank = Number.MAX_SAFE_INTEGER;
+    for (const scheme of [
+      ...store.getObjects(namedNode(axisIri), namedNode(SKOS_IN_SCHEME), null),
+      ...store.getObjects(namedNode(axisIri), namedNode(SKOS_TOP_CONCEPT_OF), null),
+      ...store.getSubjects(namedNode(SKOS_HAS_TOP_CONCEPT), namedNode(axisIri), null),
+    ]) {
+      rank = Math.min(rank, schemeRank.get(scheme.value) ?? Number.MAX_SAFE_INTEGER);
+    }
+    return rank;
+  };
   axes.sort(
     (a, b) =>
-      Number(isCoreAxis(a.iri)) - Number(isCoreAxis(b.iri)) ||
+      rankOf(a.iri) - rankOf(b.iri) ||
       aspectRank(a.label) - aspectRank(b.label) ||
       a.label.localeCompare(b.label),
   );
 
   return axes;
-}
-
-/** An axis of the core metamodel's own classification (`…/core/tax#`). */
-export function isCoreAxis(axisIri: string): boolean {
-  return axisIri.startsWith(CORE_TAXONOMY);
 }
 
 /**
@@ -430,11 +444,6 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
   const isOwlClass = (iri: string): boolean =>
     store.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(OWL_CLASS), null).length > 0;
 
-  /** Whether a taxonomy member names the class itself: it is the class, or points at it. */
-  const namesExplicitly = (memberIri: string, classIri: string): boolean =>
-    memberIri === classIri ||
-    store.getQuads(namedNode(memberIri), namedNode(RDFS_SEE_ALSO), namedNode(classIri), null).length > 0;
-
   /** Resolves a taxonomy member IRI to the instantiable OWL class it stands for. */
   const resolveOwlClass = (memberIri: string): string | null => {
     // 1. The member is itself an owl:Class.
@@ -472,10 +481,10 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
     for (const memberIri of memberIris) {
       const owlClassIri = resolveOwlClass(memberIri);
       if (!owlClassIri || seenOwl.has(owlClassIri)) continue;
-      // A core class is offered only when the core's own classification names it
-      // (the core metamodel's "Generic" group, by rdfs:seeAlso) — not when a
-      // language's taxonomy lists one, nor through the local-name fallback.
-      if (owlClassIri.startsWith(CORE) && !(memberIri.startsWith(CORE_TAXONOMY) && namesExplicitly(memberIri, owlClassIri))) continue;
+      // A core class (arch:Element, arch:QualifiedRelationship) is never a palette
+      // type: languages specialise it — Basic's Node and Connection are the
+      // generic ones — and a taxonomy listing one does not make it one.
+      if (owlClassIri.startsWith(CORE)) continue;
 
       if (isAbstractClass(store, owlClassIri)) continue;
 

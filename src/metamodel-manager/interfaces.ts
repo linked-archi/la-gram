@@ -252,6 +252,13 @@ export interface RelationshipTypeInfo {
    * outside a pair-specific query.
    */
   direct?: boolean;
+  /**
+   * For the queried pair: a generic relationship — one that relates any
+   * elements, which no relationship table restricts (Basic's Connection).
+   * Ranked after every language's own relationships. Undefined outside a
+   * pair-specific query.
+   */
+  generic?: boolean;
 }
 
 /** Complete palette definition generated from a metamodel. */
@@ -317,6 +324,13 @@ export interface PaletteOptions {
    * metamodels are used, in IRI order.
    */
   defaultNotationSetIris?: readonly string[];
+  /**
+   * The loaded metamodels (`arch:Metamodel` subjects), in load order. Their
+   * classifications' axes come in that order, so a language added beside
+   * another never becomes the default grouping. Without it, axes are ordered by
+   * label after the structural/aspect rule.
+   */
+  metamodelIris?: readonly string[];
 }
 
 /** Generates UI palettes from metamodel definitions. */

@@ -359,7 +359,10 @@ export class AppToolbar extends LitElement {
 
   private _metamodelMenu() {
     const loaded = new Set(this.loadedMetamodels.map((m) => m.iri));
-    const kinds = ['core', 'language', 'framework', 'extension'] as const;
+    // The catalogue's sections that offer something, in this order.
+    const kinds = (['core', 'language', 'framework', 'extension'] as const).filter((kind) =>
+      this.catalogue.some((e) => e.kind === kind),
+    );
     return html`<div class="dropdown" role="menu">
       <div class="group">Loaded</div>
       ${this.loadedMetamodels.length === 0

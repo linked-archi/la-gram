@@ -1004,29 +1004,31 @@ describe('changing an element’s type', () => {
   }, 90_000);
 });
 
-describe('the core metamodel: a generic element', () => {
-  it('adds "Linked.Archi Core" from the Metamodels menu and places a generic Element', async () => {
+describe('Basic, the generic language', () => {
+  it('adds Basic from the Metamodels menu — bundled, offline — and places a Node', async () => {
     const { page, session } = await openPage();
     await page.locator('palette-panel .palette-item').first().waitFor({ state: 'attached', timeout: 30_000 });
     await page.locator('app-toolbar button[data-menu="metamodels"]').click();
     const entry = page.locator(
-      'app-toolbar button[data-command="add-metamodel"][data-value="https://meta.linked.archi/core/metamodel#Core"]',
+      'app-toolbar button[data-command="add-metamodel"][data-value="https://meta.linked.archi/basic/metamodel#Basic"]',
     );
-    // Its own section, first; then the catalogue's sections, from meta.linked.archi's catalogue.
+    // The catalogue's sections that offer something, from meta.linked.archi's catalogue.
     await page
       .locator('app-toolbar button[data-command="add-metamodel"][data-value="https://meta.linked.archi/4plus1/metamodel#FourPlusOneMetamodel"]')
       .waitFor({ state: 'attached', timeout: 30_000 });
     const sections = (await page.locator('app-toolbar .dropdown .group').allInnerTexts()).map((t) => t.trim().toLowerCase());
-    expect(sections).toEqual(['loaded', 'core', 'modelling languages', 'frameworks', 'extensions']);
+    expect(sections).toEqual(['loaded', 'modelling languages', 'frameworks', 'extensions']);
     await entry.click();
-    const element = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/core#Element"]');
-    await element.waitFor({ state: 'visible', timeout: 30_000 });
-    expect((await element.innerText()).trim()).toBe('Element');
-    const relationship = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/core#QualifiedRelationship"]');
-    expect((await relationship.innerText()).trim()).toBe('Relationship');
+    const node = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/basic#Node"]');
+    await node.waitFor({ state: 'visible', timeout: 30_000 });
+    expect((await node.innerText()).trim()).toBe('Node');
+    const connection = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/basic#Connection"]');
+    expect((await connection.innerText()).trim()).toBe('Connection');
 
-    // Dropped on the canvas: an element typed arch:Element only, named, in the view.
-    const box = (await element.boundingBox())!;
+    // Dropped on the canvas: an element typed basic:Node, named, in the view. Under
+    // ArchiMate's axis, Basic's types are in "Other", at the foot of the palette.
+    await node.scrollIntoViewIfNeeded();
+    const box = (await node.boundingBox())!;
     const host = (await page.locator('.la-diagram-host').boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -1039,7 +1041,7 @@ describe('the core metamodel: a generic element', () => {
         const store = app.components.store;
         const typed = store.getQuads(null, { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' }, {
           termType: 'NamedNode',
-          value: 'https://meta.linked.archi/core#Element',
+          value: 'https://meta.linked.archi/basic#Node',
         }).filter((q: any) => q.graph.termType === 'DefaultGraph');
         return typed.map((q: any) => ({
           iri: q.subject.value,
@@ -1047,15 +1049,15 @@ describe('the core metamodel: a generic element', () => {
           nodes: app.components.viewManager.getNodes(app.session.activeViewIri).filter((n: any) => n.elementIri === q.subject.value).length,
         }));
       });
-    await until(async () => (await created()).length === 1, 'the generic element');
+    await until(async () => (await created()).length === 1, 'the Node');
     const [made] = await created();
-    expect(made.types).toEqual(['https://meta.linked.archi/core#Element']);
+    expect(made.types).toEqual(['https://meta.linked.archi/basic#Node']);
     expect(made.nodes).toBe(1);
-    // Selected, the guide under the tree says what an Element is.
+    // Selected, the guide under the tree says what a Node is.
     const guide = page.locator('type-guide-panel');
-    await until(async () => (await guide.locator('.header .title').innerText()) === 'About Element', 'the guide');
-    await session.screenshot('workbench-core-element');
-    findings.push('core metamodel: added from the menu, Generic › Element dropped as arch:Element: ok');
+    await until(async () => (await guide.locator('.header .title').innerText()) === 'About Node', 'the guide');
+    await session.screenshot('workbench-basic-node');
+    findings.push('Basic: added from the menu (bundled), Node dropped as basic:Node: ok');
   }, 60_000);
 });
 

@@ -80,7 +80,6 @@
  * know nothing about metamodels.
  */
 
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
@@ -97,16 +96,16 @@ const ASSOCIATIONS = new Set(['Association', 'DirectedAssociation']);
 
 /**
  * A relationship type that holds between almost anything — ArchiMate's
- * Association, directed or not, and the core's generic relationship
- * (`arch:QualifiedRelationship`, offered when the core metamodel is loaded).
+ * Association, directed or not, and a generic relationship whose domain and
+ * range name only core classes (Basic's Connection, `generic`).
  * They are always offered, so they do not make a choice ambiguous; the
  * relationship manager ranks them last for the same reason.
  */
 export function isGenericRelationship(relationship: RelationshipTypeInfo): boolean {
   return (
+    relationship.generic === true ||
     relationship.label === 'Association' ||
-    ASSOCIATIONS.has(relationship.iri.slice(relationship.iri.search(/[^#/]*$/))) ||
-    relationship.iri === NAMESPACES.arch + 'QualifiedRelationship'
+    ASSOCIATIONS.has(relationship.iri.slice(relationship.iri.search(/[^#/]*$/)))
   );
 }
 

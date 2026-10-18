@@ -248,33 +248,36 @@ through a registry of their own, so every path gives the same answer. The
 loader also loads the sets the presentation contexts name
 (`arch:usesNotationSet`).
 
-**The core as a metamodel** ("Linked.Archi Core", bundled:
-`core/core-metamodel.ttl`, `https://meta.linked.archi/core/metamodel#Core`).
-Its `arch:modelConcepts` is the core ontology itself and its
-`arch:conceptClassification` a small scheme (`core/core-tax.ttl`,
-`…/core/tax#`): axis *Core Concepts* › group *Generic* › two concepts that
-`rdfs:seeAlso` `arch:Element` ("Element") and `arch:QualifiedRelationship`
-("Relationship"). Core classes are never palette types otherwise, and a
-language's taxonomy listing one does not make it one: the palette
-(`taxonomy.ts`, `palette-generator.ts`) and the relationship manager's type
-query offer a core class only when the core's own classification names it, by
-`rdfs:seeAlso`, and label it as the classification does. So that adding the
-core does not disturb a language: its axis always sorts after the language's
-(so a language's grouping stays the default), and under a language's axis the
-generic element keeps its "Generic" group instead of falling into "Other". The
-generic relationship has no domain or range, so it connects any two concepts;
-it is scored below Association and, like Association, counts as generic in the
-append menu (`isGenericRelationship`), so it never makes a choice ambiguous.
-The core ontology document loads under its bundled `coreOntology` role, which
-unloading never drops.
+**Basic, the generic language** (Req 1.12; meta.linked.archi's, bundled:
+`assets/basic/`, `https://meta.linked.archi/basic/metamodel#Basic`). Every
+metamodel la-gram offers is meta.linked.archi's; for elements and
+relationships no loaded language has, Basic is the one to add. Its
+Connection's domain and range are `arch:Element`, so it relates any two
+elements, across languages; Association and Aggregation keep Basic's
+restrictions. A relationship is *generic* (`RelationshipTypeInfo.generic`)
+when its domain and range name only core classes and no relationship table
+governs it — ArchiMate names `arch:Element` on Specialization and Composition
+and restricts them in its tables, so they are not (`isGenericRelationshipType`,
+decided in the relationship manager, which knows the tables). A generic
+relationship ranks with the fallbacks, below Association, and counts as
+generic in the append menu (`isGenericRelationship`), so it never makes a
+choice ambiguous. A core class is never a palette type, whatever a taxonomy
+lists. So that adding a language does not disturb the first: the palette's
+axes come in the loaded metamodels' order (`PaletteOptions.metamodelIris`,
+which the UI passes as it passes the notation sets), so the first language's
+grouping stays the default, and under its axis another language's types are
+in "Other". Basic's notation draws `arch:Element` and
+`arch:QualifiedRelationship` generically, so an element typed by a core class
+alone is drawn too. The core ontology document loads under its bundled
+`coreOntology` role, which unloading never drops.
 
 **The Metamodels menu** (Req 1.2) lists meta.linked.archi's DCAT catalogue
 (`https://meta.linked.archi/catalog`, `catalogue.ts`): a metamodel manifest's
 dataset names its `arch:Metamodel` (`foaf:primaryTopic`) with its label, and
 its section of the site's index as `dcat:theme`; the menu lists the sections
 whose notation is `languages`, `frameworks`, `extensions` or `core`, by label,
-with the label's trailing " Metamodel" dropped, and la-gram's own core
-metamodel (which the catalogue does not list) first. `App.loadCatalogue` hands
+with the label's trailing " Metamodel" dropped; a section with nothing to
+offer is not shown. `App.loadCatalogue` hands
 the menu the bundled copy (`assets/catalog.ttl`, through the bundled source by
 the catalogue IRI — not a registry entry, so nothing loads it into the store),
 then — unless offline — the published one, read from meta.linked.archi

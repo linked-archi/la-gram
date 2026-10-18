@@ -63,9 +63,10 @@
     <https://meta.linked.archi/bpmn/infra-shapes>, <https://meta.linked.archi/bpmn/metamodel>,
     <https://meta.linked.archi/bpmn/notation>, <https://meta.linked.archi/bpmn/onto>,
     <https://meta.linked.archi/bpmn/onto-shapes>, <https://meta.linked.archi/bpmn/suite>,
-    <https://meta.linked.archi/bpmn/tax>, <https://meta.linked.archi/bpmn/viewpoints>,
-    <https://meta.linked.archi/c4/deliverable-templates>, <https://meta.linked.archi/c4/metamodel>,
-    <https://meta.linked.archi/c4/notation>, <https://meta.linked.archi/c4/onto>, <https://meta.linked.archi/c4/presentation-contexts>,
+    <https://meta.linked.archi/bpmn/suite-shapes>, <https://meta.linked.archi/bpmn/tax>,
+    <https://meta.linked.archi/bpmn/viewpoints>, <https://meta.linked.archi/c4/deliverable-templates>,
+    <https://meta.linked.archi/c4/metamodel>, <https://meta.linked.archi/c4/notation>,
+    <https://meta.linked.archi/c4/onto>, <https://meta.linked.archi/c4/presentation-contexts>,
     <https://meta.linked.archi/c4/reference-data>, <https://meta.linked.archi/c4/shapes>,
     <https://meta.linked.archi/c4/structurizr>, <https://meta.linked.archi/c4/structurizr-shapes>,
     <https://meta.linked.archi/c4/tax>, <https://meta.linked.archi/c4/viewpoints>, <https://meta.linked.archi/core>,
@@ -2973,11 +2974,14 @@ OMG BPMN 2.0.2 specification."""@en;
 (Core, Infrastructure, BPMNDI, DI, DC) into a single importable unit."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/bpmn/suite#";
+  vann:preferredNamespacePrefix "bpmnsuite";
   owl:versionInfo "2.0.2";
-  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
       foaf:name "Kalin Maldzhanski"
     ];
+  dcat:theme <https://meta.linked.archi/catalog#languages>;
+  dcat:keyword "BPMN 2.0.2"@en;
   dcat:landingPage <https://meta.linked.archi/bpmn/suite/>;
   dcat:distribution [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/bpmn/suite/ontology.jsonld>;
@@ -2994,6 +2998,40 @@ OMG BPMN 2.0.2 specification."""@en;
     ], [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/bpmn/suite/ontology.ttl>;
       dcat:downloadURL <https://meta.linked.archi/bpmn/suite/ontology.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/bpmn/suite-shapes> a dcat:Dataset;
+  dcterms:title "Linked.Archi BPMN Suite Shapes Imports (draft)"@en;
+  dcterms:description """Shape aggregator that pulls together all SHACL shape modules for the
+BPMN suite (Core, Infrastructure, BPMNDI, DI, DC) into a single importable unit."""@en;
+  dcterms:conformsTo owl:Ontology;
+  vann:preferredNamespaceUri "https://meta.linked.archi/bpmn/suite-shapes#";
+  vann:preferredNamespacePrefix "bpmnsuitesh";
+  owl:versionInfo "2.0.2";
+  dcterms:modified "2026-07-25"^^xsd:date;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#languages>;
+  dcat:keyword "BPMN 2.0.2"@en;
+  dcat:landingPage <https://meta.linked.archi/bpmn/suite-shapes/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/bpmn/suite-shapes/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 

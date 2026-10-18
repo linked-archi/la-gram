@@ -32,7 +32,6 @@ import type { ValidationResult } from '../rdf-engine/interfaces.js';
 import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
-import { CORE_ENTRY } from '../metamodel-manager/catalogue.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
@@ -279,7 +278,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const appToolbar = document.createElement('app-toolbar');
   appToolbar.slot = 'toolbar';
   // The bundled catalogue, then the published one (App.loadCatalogue).
-  appToolbar.catalogue = [CORE_ENTRY];
+  appToolbar.catalogue = [];
   void app.loadCatalogue((entries) => {
     appToolbar.catalogue = entries;
   });
@@ -853,7 +852,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const defaultNotationSetIris = app
       .loadedMetamodels()
       .flatMap((m) => (m.notationSetIri ? [m.notationSetIri] : []));
+    // In load order too: the first language's classification stays the default grouping.
+    const metamodelIris = app.loadedMetamodels().map((m) => m.metamodelIri);
     const palette = paletteGenerator.generatePalette(currentMetamodelIri, {
+      ...(metamodelIris.length > 0 ? { metamodelIris } : {}),
       ...(currentAxisIri ? { axisIri: currentAxisIri } : {}),
       ...(context ? { presentationContextIri: context } : {}),
       ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),

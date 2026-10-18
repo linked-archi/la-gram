@@ -15,9 +15,9 @@
  * `assets/catalog.ttl` (refreshed by `npm run sync-assets`), so the menu is
  * complete offline, and `App.loadCatalogue` replaces it with the published one
  * when it arrives — a metamodel meta.linked.archi publishes appears without a
- * new la-gram. The core metamodel (the core ontology's generic element and
- * relationship) is la-gram's own manifest, bundled, which the catalogue does
- * not list, so it is always added, first.
+ * new la-gram. Every metamodel offered is meta.linked.archi's: for elements and
+ * relationships no loaded language has, Basic is the generic language (its
+ * Connection relates any two elements).
  */
 
 import type { Quad } from '@rdfjs/types';
@@ -36,13 +36,6 @@ export interface CatalogueEntry {
   label: string;
   kind: CatalogueKind;
 }
-
-/** la-gram's own core metamodel, bundled; not in meta.linked.archi's catalogue. */
-export const CORE_ENTRY: CatalogueEntry = {
-  iri: 'https://meta.linked.archi/core/metamodel#Core',
-  label: 'Linked.Archi Core — generic element and relationship',
-  kind: 'core',
-};
 
 /** Section titles for {@link CatalogueKind}. */
 export const CATALOGUE_KIND_LABELS: Record<CatalogueKind, string> = {
@@ -70,8 +63,7 @@ const SKOS = 'http://www.w3.org/2004/02/skos/core#';
 const ARCH_METAMODEL = 'https://meta.linked.archi/core#Metamodel';
 
 /**
- * The metamodels a catalogue offers, the core metamodel first, then by section
- * and label. A label loses the " Metamodel" every manifest's label ends in
+ * The metamodels a catalogue offers, by section and label. A label loses the " Metamodel" every manifest's label ends in
  * ("ArchiMate 4.0 Metamodel" → "ArchiMate 4.0"): the menu is all metamodels.
  */
 export function readCatalogue(quads: readonly Quad[]): CatalogueEntry[] {
@@ -92,7 +84,7 @@ export function readCatalogue(quads: readonly Quad[]): CatalogueEntry[] {
   }
   const get = (s: string, p: string) => values.get(s)?.get(p) ?? [];
 
-  const entries = new Map<string, CatalogueEntry>([[CORE_ENTRY.iri, CORE_ENTRY]]);
+  const entries = new Map<string, CatalogueEntry>();
   for (const [dataset, byPredicate] of values) {
     if (!(byPredicate.get(RDF_TYPE) ?? []).includes(DCAT + 'Dataset')) continue;
     if (!(byPredicate.get(DCTERMS_CONFORMS_TO) ?? []).includes(ARCH_METAMODEL)) continue;
@@ -108,7 +100,6 @@ export function readCatalogue(quads: readonly Quad[]): CatalogueEntry[] {
   }
   return [...entries.values()].sort(
     (a, b) =>
-      (a === CORE_ENTRY ? -1 : 0) - (b === CORE_ENTRY ? -1 : 0) ||
       KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
       a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }),
   );
