@@ -3,7 +3,7 @@ import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
 import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
 import { OxigraphRelationshipManager } from '../relationship-manager.js';
-import { NO_DIRECT_PERMISSIONS, readDirectPermissions } from '../direct-permissions.js';
+import { NO_TABLE_PERMISSIONS, readDirectPermissions } from '../direct-permissions.js';
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 const AM = 'https://meta.linked.archi/archimate3/onto#';
@@ -38,15 +38,15 @@ describe('readDirectPermissions', () => {
     const permissions = readDirectPermissions(store4);
     expect(permissions.size).toBeGreaterThanOrEqual(10);
     // 4.0: an artifact realizes a data object directly, a business object only by derivation.
-    expect(permissions.isDirect(AM4 + 'realizes', [AM4 + 'Artifact'], [AM4 + 'DataObject'])).toBe(true);
-    expect(permissions.isDirect(AM4 + 'realizes', [AM4 + 'Artifact'], [AM4 + 'BusinessObject'])).toBe(false);
+    expect(permissions.holds(AM4 + 'realizes', [AM4 + 'Artifact'], [AM4 + 'DataObject'])).toBe(true);
+    expect(permissions.holds(AM4 + 'realizes', [AM4 + 'Artifact'], [AM4 + 'BusinessObject'])).toBe(false);
   });
 
   it('does not say for an end type the tables never mention, nor for a predicate they do not cover', () => {
     const permissions = readDirectPermissions(store4);
-    expect(permissions.isDirect(AM4 + 'assignedTo', [AM4 + 'BusinessActor'], [AM4 + 'AndJunction'])).toBeUndefined();
-    expect(permissions.isDirect('https://example.org/relatesTo', [AM4 + 'Artifact'], [AM4 + 'DataObject'])).toBeUndefined();
-    expect(NO_DIRECT_PERMISSIONS.isDirect(AM4 + 'realizes', [AM4 + 'Artifact'], [AM4 + 'DataObject'])).toBeUndefined();
+    expect(permissions.holds(AM4 + 'assignedTo', [AM4 + 'BusinessActor'], [AM4 + 'AndJunction'])).toBeUndefined();
+    expect(permissions.holds('https://example.org/relatesTo', [AM4 + 'Artifact'], [AM4 + 'DataObject'])).toBeUndefined();
+    expect(NO_TABLE_PERMISSIONS.holds(AM4 + 'realizes', [AM4 + 'Artifact'], [AM4 + 'DataObject'])).toBeUndefined();
   });
 });
 

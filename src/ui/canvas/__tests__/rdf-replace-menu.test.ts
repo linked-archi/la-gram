@@ -113,11 +113,13 @@ function rankedCandidates(): RelationshipTypeInfo[] {
     {
       ...serving,
       score: 10,
+      preference: 'drawn',
       reason: 'Allowed because Type A matches Active Structure Element.',
     },
     {
       ...association,
       score: 6,
+      preference: 'fallback',
       reason: 'Allowed because the metamodel declares no constraint.',
     },
   ];
@@ -201,28 +203,34 @@ describe('RdfReplaceMenuProvider', () => {
     expect(entries[relationshipEntryId(SERVING)].description).toContain('current');
   });
 
-  it('conveys the rank and the metamodel reason on every entry', () => {
+  it('says in words why each entry ranks where it does, with the metamodel reason', () => {
     const { provider } = providerOver(rankedCandidates());
 
     const entries = provider.getPopupMenuEntries({ id: 'connection-1' });
 
+    // Serving is the connection's current type, which the entry says too.
     const serving = entries[relationshipEntryId(SERVING)];
-    expect(serving.description).toContain('rank 10');
+    expect(serving.description).toMatch(/^drawn in the metamodel · current — /);
     expect(serving.description).toContain('Active Structure Element');
-    expect(serving.title).toContain('rank 10');
+    expect(serving.title).toBe('Serving (drawn in the metamodel, current)');
+    expect(entries[relationshipEntryId(ASSOCIATION)].description).toMatch(/^always permitted — /);
     // The search box matches label plus reason, which is the point of `search`.
     expect(serving.search).toContain('Serving');
     expect(serving.search).toContain('Active Structure Element');
   });
 
-  it('falls back to the position in the ranking when a candidate has no score', () => {
-    const unscored = rankedCandidates().map(({ score: _score, ...rest }) => rest);
-    const { provider } = providerOver(unscored);
+  it('gives a relationship the tables simply permit no note, and marks one only a derivation gives', () => {
+    const [serving, association] = rankedCandidates();
+    const { provider } = providerOver([
+      { ...serving, preference: 'derived', direct: false },
+      { ...association, preference: 'direct' },
+    ]);
 
     const entries = provider.getPopupMenuEntries({ id: 'connection-1' });
 
-    expect(entries[relationshipEntryId(SERVING)].description).toContain('#1');
-    expect(entries[relationshipEntryId(ASSOCIATION)].description).toContain('#2');
+    expect(entries[relationshipEntryId(ASSOCIATION)].description).toBe(association.reason);
+    expect(entries[relationshipEntryId(ASSOCIATION)].title).toBe('Association');
+    expect(entries[relationshipEntryId(SERVING)].description).toMatch(/^only by derivation · current — /);
   });
 
   it('triggering an entry asks for the retype and mutates nothing itself', () => {

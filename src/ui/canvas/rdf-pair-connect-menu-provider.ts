@@ -4,8 +4,8 @@
  *
  * Both directions, each under a header naming it ("Order Desk → Order
  * Handling"), each ranked as `RelationshipManager.getValidRelationships` ranks a
- * pair: the relationships a modeller may draw directly, then those only a
- * derivation gives (marked "only by derivation"), then the fallbacks. Picking
+ * pair, each saying why in a few words (`preferenceNotes`: "proposed first",
+ * "drawn in the metamodel", "only by derivation", "always permitted"). Picking
  * one creates the relationship and draws it — one undoable step, through the
  * same `modeling.connect` a connect drag ends in.
  *
@@ -15,7 +15,7 @@
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
-import { ENTRY_CLASS, relationshipEntryId } from './rdf-replace-menu-provider.js';
+import { ENTRY_CLASS, preferenceNotes, relationshipEntryId } from './rdf-replace-menu-provider.js';
 
 export const PAIR_CONNECT_MENU_ID = 'la-pair-connect';
 
@@ -69,7 +69,7 @@ export class RdfPairConnectMenuProvider {
     for (const [id, source, target] of directions) {
       const group = { id, name: `${source.label} → ${target.label}` };
       for (const candidate of this.relationshipManager.getValidRelationships(source.typeIri, target.typeIri)) {
-        const notes = candidate.direct === false ? 'only by derivation' : undefined;
+        const notes = preferenceNotes(candidate).join(' · ') || undefined;
         entries[`${id}-${relationshipEntryId(candidate.iri)}`] = {
           label: candidate.label,
           className: ENTRY_CLASS,

@@ -1696,7 +1696,7 @@ unqualified direct triples. Pure SHACL core."""@en;
 
 <https://meta.linked.archi/archimate4/tax> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Taxonomy"@en;
-  dcterms:description "Classification of ArchiMate 4.0 elements by domain and by aspect."@en;
+  dcterms:description "Classification of ArchiMate 4.0 elements by domain and by aspect, and of its relationships by category, with the order of strength the derivation rules apply."@en;
   dcterms:conformsTo skos:ConceptScheme;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/tax#";
   vann:preferredNamespacePrefix "am4tax";
@@ -2183,9 +2183,11 @@ lifecycle portfolio. Each viewpoint maps to a common Backstage use case."""@en;
 <https://meta.linked.archi/basic> a dcat:Dataset;
   dcterms:title "Linked.Archi Basic Ontology"@en;
   dcterms:description """Concept ontology of the Linked.Archi Basic asset set: three element
-types (Node, SpecialNode, GroupNode) and two qualified relationship types (Association,
-Aggregation), built directly on the core ontology. It is deliberately small, yet enough for
-examples of meaningful restrictions and inference rules. The manifest
+types (Node, SpecialNode, GroupNode) and three qualified relationship types (Association,
+Aggregation, Connection), built directly on the core ontology. It is deliberately small, yet
+enough for examples of meaningful restrictions and inference rules. Connection is the generic
+relationship: it relates any two elements, of any language, so Basic added beside another
+language lets a modeller relate what that language has no relationship for. The manifest
 https://meta.linked.archi/basic/metamodel#Basic ties it to its taxonomy, its presentation
 contexts and its two notation sets. Version 0.1.0 is the initial release of these element and
 relationship patterns."""@en;
@@ -2348,7 +2350,7 @@ through this scheme alone."""@en;
   dcterms:title "Linked.Archi Basic Taxonomy"@en;
   dcterms:description """Classification of the Basic language's concepts. One axis, Basic
 Concepts, groups them into element types (Node, SpecialNode, GroupNode) and relationship types
-(Association, Aggregation). It names every class in https://meta.linked.archi/basic and nothing
+(Association, Aggregation, Connection). It names every class in https://meta.linked.archi/basic and nothing
 else, so palette generators can list Basic's types next to another language's."""@en;
   dcterms:conformsTo skos:ConceptScheme;
   vann:preferredNamespaceUri "https://meta.linked.archi/basic/tax#";

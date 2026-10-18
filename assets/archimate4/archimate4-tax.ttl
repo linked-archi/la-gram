@@ -8,6 +8,7 @@
 @prefix vann:     <http://purl.org/vocab/vann/> .
 @prefix cc:       <http://creativecommons.org/ns#> .
 
+@prefix arch:     <https://meta.linked.archi/core#> .
 @prefix am4:      <https://meta.linked.archi/archimate4/onto#> .
 @prefix :         <https://meta.linked.archi/archimate4/tax#> .
 
@@ -18,8 +19,8 @@
 <https://meta.linked.archi/archimate4/tax#>
     a                skos:ConceptScheme ;
     skos:prefLabel   "ArchiMate 4.0 Concept Scheme"@en ;
-    dcterms:description  "Classification of ArchiMate 4.0 elements by domain and by aspect."@en ;
-    skos:hasTopConcept :ElementByDomain, :ElementByAspect ;
+    dcterms:description  "Classification of ArchiMate 4.0 elements by domain and by aspect, and of its relationships by category, with the order of strength the derivation rules apply and the order in which a modelling tool proposes them."@en ;
+    skos:hasTopConcept :ElementByDomain, :ElementByAspect, :RelationshipByCategory ;
     cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
     vann:preferredNamespaceUri    "https://meta.linked.archi/archimate4/tax#" ;
     vann:preferredNamespacePrefix "am4tax" ;
@@ -301,4 +302,153 @@ to its corresponding OWL class.'''@en ;
     skos:narrower  am4:Stakeholder, am4:Driver, am4:Assessment, am4:Goal,
                    am4:Outcome, am4:Principle, am4:Requirement,
                    am4:Meaning, am4:Value ;
+.
+
+
+#################################################################
+# Relationships by Category
+#################################################################
+
+:RelationshipByCategory
+    a                 skos:Concept ;
+    skos:prefLabel    "Relationship by Category"@en ;
+    skos:definition   "Classification of ArchiMate 4.0 relationship types by the four categories of Chapter 5: structural, dependency, dynamic and other."@en ;
+    skos:editorialNote "Narrower lists reference the qualified relationship classes (am4:Composition), not the unqualified predicates (am4:composedOf). A kind of relationship — am4:ReadAccess, am4:DirectedAssociation — is classified through its superclass. Keep in sync with the relationship type declarations in archimate4-onto.ttl."@en ;
+    skos:topConceptOf <https://meta.linked.archi/archimate4/tax#> ;
+    skos:inScheme     <https://meta.linked.archi/archimate4/tax#> ;
+.
+
+:StructuralRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Structural Relationship"@en ;
+    skos:definition "Relationships that model the static construction or composition of concepts: composition, aggregation, assignment and realization."@en ;
+    skos:scopeNote "Composition is a kind of aggregation that adds existence dependency. Assignment allocates responsibility, performance of behaviour, storage or execution; realization relates a more abstract element to one that implements or creates it. Ordered by strength in :StructuralStrength."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   :StructuralStrength ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Structural-Relationships> ;
+    skos:narrower  am4:Composition, am4:Aggregation, am4:Assignment, am4:Realization ;
+.
+
+:DependencyRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Dependency Relationship"@en ;
+    skos:definition "Relationships that model how elements are used by or depend on other elements: serving, access, influence and association."@en ;
+    skos:scopeNote "Association is a dependency relationship in the specification (5.2.4): the weakest of them, used where no other relationship is appropriate. Ordered by strength in :DependencyStrength."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    rdfs:seeAlso   :DependencyStrength ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#Dependency_Relationships> ;
+    skos:narrower  am4:Serving, am4:Access, am4:Influence, am4:Association ;
+.
+
+:DynamicRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Dynamic Relationship"@en ;
+    skos:definition "Relationships that model behavioural dependencies between elements: triggering and flow."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Dynamic-Relationships> ;
+    skos:narrower  am4:Triggering, am4:Flow ;
+.
+
+:OtherRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Other Relationship"@en ;
+    skos:definition "The relationship that falls in none of the other categories: specialization."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate4/tax#> ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Other-Relationships> ;
+    skos:narrower  am4:Specialization ;
+.
+
+
+#################################################################
+# Order of strength
+#
+# Weakest first. Two relationships of a category in line derive the
+# weaker of the two, which is what the derivation rules
+# (archimate4-derivation-rules.ttl) apply; the CI run checks that
+# their order and this one agree.
+#################################################################
+
+:StructuralStrength
+    a               skos:OrderedCollection ;
+    skos:prefLabel  "Structural Relationships by Strength"@en ;
+    skos:definition "The structural relationships ordered by strength, weakest first: realization, assignment, aggregation, composition. Two structural relationships in line derive the weaker of the two (DR 2)."@en ;
+    skos:memberList ( am4:Realization am4:Assignment am4:Aggregation am4:Composition ) ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Valid-Derivations-for-Structural-Relationships> ;
+.
+
+:DependencyStrength
+    a               skos:OrderedCollection ;
+    skos:prefLabel  "Dependency Relationships by Strength"@en ;
+    skos:definition "The dependency relationships ordered by strength, weakest first: association, influence, access, serving. Two dependency relationships in line may derive the weaker of the two (PDR 7)."@en ;
+    skos:memberList ( am4:Association am4:Influence am4:Access am4:Serving ) ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Potential-Derivation-for-Dependency-Relationships> ;
+.
+
+
+#################################################################
+# Order of proposal
+#
+# Linked.Archi modelling guidance, not the specification: the order
+# in which a modelling tool proposes the relationships the tables
+# permit between two elements. The general order applies everywhere;
+# a collection scoped with arch:domainIncludes (and arch:rangeIncludes)
+# puts its members first for the elements it names, the general
+# order following. A pair-scoped collection is more specific than a
+# source-scoped one.
+#################################################################
+
+:ProposalOrder
+    a               skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel  "Relationships in Order of Proposal"@en ;
+    skos:definition "The order in which a modelling tool proposes the relationships the metamodel figures draw between two elements: realization, serving, access, influence, triggering, flow, aggregation, composition, assignment, specialization, association."@en ;
+    skos:scopeNote  "Where the metamodel figures draw several relationships between two element types, the first of them in this order is proposed first: a process realizes a service rather than triggering it, a service serves a process, a process triggers another before it flows to it or aggregates it, and a collaboration aggregates a role rather than being assigned to it. Linked.Archi modelling guidance, not part of the specification."@en ;
+    skos:memberList ( am4:Realization am4:Serving am4:Access am4:Influence am4:Triggering am4:Flow
+                      am4:Aggregation am4:Composition am4:Assignment am4:Specialization am4:Association ) ;
+.
+
+:GroupingProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Grouping"@en ;
+    skos:definition     "From a grouping, aggregation is proposed first — aggregating concepts is what a grouping is for — and then :ProposalOrder."@en ;
+    arch:domainIncludes am4:Grouping ;
+    skos:memberList     ( am4:Aggregation ) ;
+.
+
+:PlateauProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Plateau"@en ;
+    skos:definition     "From a plateau, aggregation is proposed first — a plateau is the set of elements that make up an architecture at a point in time — and then :ProposalOrder. Figure 12-5 also draws realization."@en ;
+    arch:domainIncludes am4:Plateau ;
+    skos:memberList     ( am4:Aggregation ) ;
+.
+
+:CapabilityProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal between Capabilities"@en ;
+    skos:definition     "Between two capabilities, composition is proposed first — decomposing a capability into the capabilities it consists of — and then :ProposalOrder."@en ;
+    arch:domainIncludes am4:Capability ;
+    arch:rangeIncludes  am4:Capability ;
+    skos:memberList     ( am4:Composition ) ;
+.
+
+:WorkPackageEventProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Work Package to an Event"@en ;
+    skos:definition     "From a work package to an event, triggering is proposed first — a work package triggers a milestone — and then :ProposalOrder."@en ;
+    arch:domainIncludes am4:WorkPackage ;
+    arch:rangeIncludes  am4:Event ;
+    skos:memberList     ( am4:Triggering ) ;
+.
+
+:FacilityNodeProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Facility to a Node"@en ;
+    skos:definition     "From a facility to a node, composition is proposed first, and then :ProposalOrder."@en ;
+    arch:domainIncludes am4:Facility ;
+    arch:rangeIncludes  am4:Node ;
+    skos:memberList     ( am4:Composition ) ;
 .

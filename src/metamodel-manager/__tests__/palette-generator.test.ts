@@ -760,7 +760,7 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     ]);
   });
 
-  it('offers both published classification axes', () => {
+  it('offers both element classification axes — the relationship categories group no element', () => {
     expect(palette.axes?.map((a) => a.label)).toEqual([
       'Element by Domain',
       'Element by Aspect',

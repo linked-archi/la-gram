@@ -359,22 +359,26 @@ doc/guide/archimate/design-decisions.md.'''@en ;
     a              skos:Concept ;
     skos:prefLabel "Structural Relationship"@en ;
     skos:definition "Relationships modeling structural dependencies between elements: composition (part-of), aggregation (groups), assignment (performs), and realization (implements)."@en ;
-    skos:scopeNote "Structural relationships define how elements are organized. Composition is the strongest (part cannot exist without the whole), aggregation is weaker (grouping), assignment connects active structure to behavior, and realization connects logical to physical."@en ;
+    skos:scopeNote "Structural relationships define how elements are organized. Composition is the strongest (part cannot exist without the whole), aggregation is weaker (grouping), assignment connects active structure to behavior, and realization connects logical to physical. Ordered by strength in :StructuralStrength."@en ;
     skos:changeNote "3.0: Restructured from the 2.1 relationship categories. Assignment given directional notation (arrow replaces black circle)."@en ;
     skos:broader   :RelationshipByCategory ;
     skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   :StructuralStrength ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
     skos:narrower  am:Composition, am:Aggregation, am:Assignment, am:Realization ;
 .
 
 :DependencyRelationship
     a              skos:Concept ;
     skos:prefLabel "Dependency Relationship"@en ;
-    skos:definition "Relationships modeling dependencies between elements: serving (provides functionality), access (reads/writes data), and influence (affects motivation)."@en ;
-    skos:scopeNote "Dependency relationships express how elements rely on each other. Serving connects a provider to a consumer (typically across layers), access connects behavior to passive structure (with read/write direction), and influence connects any element to a motivation element (with positive/negative strength)."@en ;
+    skos:definition "Relationships modeling dependencies between elements: serving (provides functionality), access (reads/writes data), influence (affects motivation), and association (any other dependency)."@en ;
+    skos:scopeNote "Dependency relationships express how elements rely on each other. Serving connects a provider to a consumer (typically across layers), access connects behavior to passive structure (with read/write direction), influence connects any element to a motivation element (with positive/negative strength), and association — the weakest, specification 5.2.4 — any two elements where no other relationship is appropriate. Ordered by strength in :DependencyStrength."@en ;
     skos:changeNote "3.0: 'Used By' renamed to 'Serving'. Influence notation changed for consistency with other dependency relationships. Cross-layer relationship constraints relaxed."@en ;
     skos:broader   :RelationshipByCategory ;
     skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
-    skos:narrower  am:Serving, am:Access, am:Influence ;
+    rdfs:seeAlso   :DependencyStrength ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
+    skos:narrower  am:Serving, am:Access, am:Influence, am:Association ;
 .
 
 :DynamicRelationship
@@ -391,9 +395,35 @@ doc/guide/archimate/design-decisions.md.'''@en ;
 :OtherRelationship
     a              skos:Concept ;
     skos:prefLabel "Other Relationship"@en ;
-    skos:definition "Other relationship types: specialization (is-a-kind-of) and association (unspecified or generic relationship)."@en ;
+    skos:definition "The relationship that falls in none of the other categories: specialization (is-a-kind-of)."@en ;
     skos:changeNote "3.0: Relationships to other relationships allowed in some cases. 3.1: Optional directed notation added for association."@en ;
     skos:broader   :RelationshipByCategory ;
     skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
-    skos:narrower  am:Specialization, am:Association ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
+    skos:narrower  am:Specialization ;
+.
+
+#################################################################
+# Order of strength
+#
+# Weakest first. Two relationships of a category in line derive the
+# weaker of the two, which is what the derivation rules
+# (archimate3.2-derivation-rules.ttl) apply; the CI run checks that
+# their order and this one agree.
+#################################################################
+
+:StructuralStrength
+    a               skos:OrderedCollection ;
+    skos:prefLabel  "Structural Relationships by Strength"@en ;
+    skos:definition "The structural relationships ordered by strength, weakest first: realization, assignment, aggregation, composition. Two structural relationships in line derive the weaker of the two (DR 2)."@en ;
+    skos:memberList ( am:Realization am:Assignment am:Aggregation am:Composition ) ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-relationships-Normative.html> ;
+.
+
+:DependencyStrength
+    a               skos:OrderedCollection ;
+    skos:prefLabel  "Dependency Relationships by Strength"@en ;
+    skos:definition "The dependency relationships ordered by strength, weakest first: association, influence, access, serving. Two dependency relationships in line may derive the weaker of the two (PDR 7)."@en ;
+    skos:memberList ( am:Association am:Influence am:Access am:Serving ) ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-relationships-Normative.html> ;
 .

@@ -1,6 +1,6 @@
 /**
- * Which relationships a modeller may draw directly, from a metamodel's
- * relationship tables.
+ * Which relationships a modeller may draw directly, and which the language's
+ * metamodel figures draw, from a metamodel's relationship tables.
  *
  * ## Direct, or only by derivation
  *
@@ -25,11 +25,22 @@
  * the same pattern need nothing here. Looking it up through its type keeps the
  * read to indexed quad lookups.
  *
+ * ## Drawn in the metamodel figures
+ *
+ * The same tables say which relationships the specification's metamodel figures
+ * draw between two element types — the relationship a tool proposes first for
+ * the pair — in the same pattern, under `drawnBy`:
+ *
+ * ```turtle
+ * am4:assignedTo am4rt:drawnBy am4rt:drawsAssignment .
+ * am4:ApplicationComponent am4rt:drawsAssignment am4:DataObject , am4:Role .
+ * ```
+ *
  * ## What the tables do not cover is unknown, not forbidden
  *
  * A relationship whose predicate has no such annotation, or an end type the
  * tables never mention (a junction: the tables list element types only), is
- * neither direct nor derived as far as they say: {@link DirectPermissions.isDirect}
+ * neither direct nor derived as far as they say: {@link TablePermissions.holds}
  * answers `undefined`, and the caller ranks as before.
  */
 
@@ -40,15 +51,17 @@ import { nn } from './vocabulary.js';
 
 const RDF_TYPE = nn(NAMESPACES.rdf + 'type');
 const OWL_ANNOTATION_PROPERTY = nn(NAMESPACES.owl + 'AnnotationProperty');
+/** The annotations that map a relationship predicate to its permissions of each kind. */
 const DIRECT_ANNOTATION = 'permittedDirectlyBy';
+const DRAWN_ANNOTATION = 'drawnBy';
 /** The tables' wildcards: every element type, and every element and relationship. */
 const WILDCARDS = new Set([NAMESPACES.arch + 'Element', NAMESPACES.arch + 'ModelConcept']);
 
 /** For one relationship predicate: each source type and the types it may reach directly. */
 type DirectTargets = ReadonlyMap<string, ReadonlySet<string>>;
 
-/** The direct permissions of the loaded relationship tables. */
-export class DirectPermissions {
+/** One kind of permission of the loaded relationship tables: direct, or drawn. */
+export class TablePermissions {
   constructor(
     private readonly byPredicate: ReadonlyMap<string, DirectTargets>,
     /** Every type the tables name, as a source or as a target (wildcards aside). */
@@ -61,14 +74,14 @@ export class DirectPermissions {
   }
 
   /**
-   * Whether a relationship with this predicate may be drawn directly from the
-   * source to the target, given the types' `rdfs:subClassOf*` closures (each
-   * including the type itself): `true` when the tables print it in upper case,
-   * `false` when they permit it only by derivation, `undefined` when they do not
-   * say — no direct permissions for the predicate, or an end type they never
-   * mention.
+   * Whether the tables give this kind of permission for a relationship with this
+   * predicate from the source to the target, given the types' `rdfs:subClassOf*`
+   * closures (each including the type itself) — for direct permissions, `true`
+   * when the tables print it in upper case and `false` when they permit it only
+   * by derivation. `undefined` when they do not say: no permissions of this kind
+   * for the predicate, or an end type they never mention.
    */
-  isDirect(predicateIri: string, sourceClosure: readonly string[], targetClosure: readonly string[]): boolean | undefined {
+  holds(predicateIri: string, sourceClosure: readonly string[], targetClosure: readonly string[]): boolean | undefined {
     const bySource = this.byPredicate.get(predicateIri);
     if (!bySource) return undefined;
     if (!sourceClosure.some((c) => this.mentioned.has(c)) || !targetClosure.some((c) => this.mentioned.has(c))) {
@@ -84,8 +97,8 @@ export class DirectPermissions {
   }
 }
 
-/** No relationship tables loaded: nothing is known to be direct or derived. */
-export const NO_DIRECT_PERMISSIONS = new DirectPermissions(new Map(), new Set());
+/** No relationship tables loaded: nothing is known to be direct, derived or drawn. */
+export const NO_TABLE_PERMISSIONS = new TablePermissions(new Map(), new Set());
 
 /** The local name of an IRI: after the last `#` or `/`. */
 function localName(iri: string): string {
@@ -93,13 +106,23 @@ function localName(iri: string): string {
 }
 
 /** Read the direct permissions of every relationship table in the store (all graphs). */
-export function readDirectPermissions(store: RdfStore): DirectPermissions {
+export function readDirectPermissions(store: RdfStore): TablePermissions {
+  return readPermissions(store, DIRECT_ANNOTATION);
+}
+
+/** Read the relationships the metamodel figures draw, from every relationship table in the store. */
+export function readDrawnPermissions(store: RdfStore): TablePermissions {
+  return readPermissions(store, DRAWN_ANNOTATION);
+}
+
+/** The permissions mapped by the annotation of this local name, in any namespace. */
+function readPermissions(store: RdfStore, annotationName: string): TablePermissions {
   const byPredicate = new Map<string, Map<string, Set<string>>>();
   const mentioned = new Set<string>();
   const annotations = store
     .getQuads(null, RDF_TYPE, OWL_ANNOTATION_PROPERTY)
     .map((q) => q.subject)
-    .filter((s) => s.termType === 'NamedNode' && localName(s.value) === DIRECT_ANNOTATION);
+    .filter((s) => s.termType === 'NamedNode' && localName(s.value) === annotationName);
 
   for (const annotation of annotations) {
     for (const mapping of store.getQuads(null, annotation as NamedNode)) {
@@ -118,5 +141,5 @@ export function readDirectPermissions(store: RdfStore): DirectPermissions {
       }
     }
   }
-  return new DirectPermissions(byPredicate, mentioned);
+  return new TablePermissions(byPredicate, mentioned);
 }

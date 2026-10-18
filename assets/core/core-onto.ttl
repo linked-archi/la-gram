@@ -781,6 +781,20 @@ here, target points to the element at which the relationship arrives.''' ;
      restrictions, like other types of restrictions, should be implemented using SHACL. ''' ;
 .
 
+:RelationshipProposalOrder
+    a               owl:Class ;
+    rdfs:subClassOf skos:OrderedCollection ;
+    skos:prefLabel  "Relationship Proposal Order"@en ;
+    skos:definition "Relationship types in the order a modelling tool proposes them when two elements are connected."@en ;
+    skos:scopeNote  '''Without :domainIncludes, it is a language's general order, which decides between the
+relationships the language's metamodel draws between the two elements. With :domainIncludes, and :rangeIncludes,
+it puts its members first between the elements it names, whether the metamodel draws them or only permits them;
+one that names both ends is more specific than one that names the source only. Where the metamodel draws nothing,
+a tool falls back on what the language permits directly before what it permits only by derivation. Guidance, like
+:domainIncludes itself: it orders what a language permits and restricts nothing. ArchiMate 4.0's are in its
+taxonomy.'''@en ;
+.
+
 
 ## Basic Properties
 

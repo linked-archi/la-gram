@@ -266,7 +266,9 @@ lists. So that adding a language does not disturb the first: the palette's
 axes come in the loaded metamodels' order (`PaletteOptions.metamodelIris`,
 which the UI passes as it passes the notation sets), so the first language's
 grouping stays the default, and under its axis another language's types are
-in "Other". Basic's notation draws `arch:Element` and
+in "Other". Only an axis that groups some element type is offered: a taxonomy
+may also classify relationship types — ArchiMate's Relationship by Category —
+which are no palette elements. Basic's notation draws `arch:Element` and
 `arch:QualifiedRelationship` generically, so an element typed by a core class
 alone is drawn too. The core ontology document loads under its bundled
 `coreOntology` role, which unloading never drops.
@@ -380,16 +382,29 @@ am4rt:permitsDirectRealization`). `model-manager/direct-permissions.ts` reads
 them, finding the annotation by its declaration and name
 (`permittedDirectlyBy`) in whatever namespace, and the manager marks each
 candidate `direct: true | false`, or leaves it unmarked where the tables do not
-say (a junction, which they do not list). Candidates come in three tiers —
-direct, only by derivation, the fallbacks (Association and the core's generic
-relationship) — and by score within a tier; Specialization, valid between any
-two elements of one type, is nudged down as Composition and Aggregation are. So
-a derived-only relationship is offered but is the default only where nothing
-except a fallback is direct: between two business actors in 4.0 the default is
-Aggregation (Serving, Flow and Triggering are lower case), between a node and a
-process a derived-only one (Assignment, the first of five at the same score)
-rather than Association. The change-type menu says "only
-by derivation", and so does the candidate's reason.
+say (a junction, which they do not list). The same tables say which
+relationships the specification's metamodel figures draw for a pair
+(`am4:assignedTo am4rt:drawnBy am4rt:drawsAssignment`), read by the same code
+under the name `drawnBy`; and the language's taxonomy gives its order of
+proposal — `arch:RelationshipProposalOrder` collections, a general one and
+exceptions scoped with `arch:domainIncludes` / `arch:rangeIncludes`
+(`model-manager/proposal-order.ts`). Candidates come in five groups
+(`RelationshipPreference`), best first: `first`, a scoped exception names it for
+these elements (composition between two capabilities, aggregation from a
+grouping); `drawn`, the figures draw it, in the general order (a process
+realizes a service before it triggers it, triggers another process before it
+flows to or aggregates it); `direct`; `derived`, only by derivation; and
+`fallback`, Association and the core's generic relationship. Within the last
+three, a candidate whose `arch:domainIncludes`/`arch:rangeIncludes` hints
+describe the pair comes first, then the score's nudges (Specialization,
+Composition and Aggregation down), then the label. The general order is kept to
+what the figures draw: where they draw nothing it proposes worse than the hints
+(an actor serving a process before being assigned to it). So in 4.0 an
+application component is assigned to a data object — the system of record, as
+the Application Structure metamodel draws it — with Access, derived, second. The
+menus say why in words (`preferenceNotes`): "proposed first", "drawn in the
+metamodel", "only by derivation", "always permitted"; the candidate's reason
+says it too.
 
 **Append.** "+" on the pad lists the element types some relationship is
 permitted to, with the palette's icons. Association is permitted between any two

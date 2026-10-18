@@ -37,9 +37,13 @@ import { matchesClass } from '../../metamodel-manager/taxonomy.js';
 import type {
   ElementTypeInfo,
   PaletteDefinition,
+  RelationshipPreference,
   RelationshipTypeInfo,
 } from '../../metamodel-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+
+/** The groups a pair's relationships rank in, best first (`RelationshipPreference`). */
+const PREFERENCE_RANK: Record<RelationshipPreference, number> = { first: 0, drawn: 1, direct: 2, derived: 3, fallback: 4 };
 
 /** Resolves a type IRI to its `rdfs:subClassOf*` closure, the type included. */
 export type ClassClosure = (typeIri: string) => string[];
@@ -254,12 +258,13 @@ export function appendableTargetTypes(
     }
   }
 
-  // A target reached directly before one reached only by derivation, then by score.
-  const derivedOnly = (t: AppendTarget) => (t.relationships[0]?.direct === false ? 1 : 0);
+  // By the group of the best relationship that reaches the target — one proposed first or drawn in
+  // the metamodel before one only permitted, before one reached only by derivation — then by score.
+  const group = (t: AppendTarget) => PREFERENCE_RANK[t.relationships[0]?.preference ?? 'direct'];
   targets.sort((a, b) => {
-    const byDirect = derivedOnly(a) - derivedOnly(b);
+    const byGroup = group(a) - group(b);
     const byScore = (b.relationships[0]?.score ?? 0) - (a.relationships[0]?.score ?? 0);
-    return byDirect || byScore || a.type.label.localeCompare(b.type.label);
+    return byGroup || byScore || a.type.label.localeCompare(b.type.label);
   });
 
   return targets;

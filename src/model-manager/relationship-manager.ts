@@ -14,15 +14,28 @@
  * subclasses). The hints below decide only for relationship types no shape
  * covers — metamodels without relationship shapes.
  *
- * **Direct first, the fallbacks last.** Where the metamodel's relationship
- * tables say which relationships a modeller may draw directly
- * (`direct-permissions.ts` — the tables' upper case), a candidate permitted only
- * as the conclusion of a derivation (lower case) is marked `direct: false`. The
- * candidates come in three tiers: those a modeller may draw directly, those only
- * a derivation gives, then the fallbacks — Association and a generic
- * relationship (Basic's Connection), which every pair admits and which say least. A derived-only
- * relationship is offered, but is the default only where nothing but a fallback
- * is direct (a node and a process in ArchiMate 4.0: Assignment, not Association).
+ * **What is proposed first.** The candidates are ranked in five groups
+ * (`RelationshipPreference`), best first:
+ *
+ * 1. `first` — a proposal order scoped to these elements puts it first
+ *    (`proposal-order.ts`: ArchiMate 4.0 proposes composition between two
+ *    capabilities, aggregation from a grouping);
+ * 2. `drawn` — the language's metamodel figures draw it for the pair
+ *    (`direct-permissions.ts`, `drawnBy`), in the language's general proposal
+ *    order: a process realizes a service before it triggers it;
+ * 3. `direct` — the relationship tables let a modeller draw it directly (the
+ *    tables' upper case), or say nothing either way;
+ * 4. `derived` — permitted only as the conclusion of a derivation (lower case),
+ *    marked `direct: false`;
+ * 5. `fallback` — Association and a generic relationship (Basic's Connection),
+ *    which every pair admits and which say least.
+ *
+ * Within the last three, a candidate whose `arch:domainIncludes` /
+ * `arch:rangeIncludes` hints describe the pair comes before one they do not,
+ * then the score's small nudges decide, then the label. The general order is
+ * kept to the relationships the figures draw: where they draw nothing it
+ * proposes worse than the hints do — between an actor and a process, serving
+ * before assignment.
  *
  * `arch:domainIncludes` / `arch:rangeIncludes` are `owl:AnnotationProperty`
  * *hints*, not `rdfs:domain` / `rdfs:range` axioms. The core ontology is
@@ -85,7 +98,9 @@ import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scop
 import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
 import { modelNamespace } from './model-namespace.js';
 import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
-import { readDirectPermissions, type DirectPermissions } from './direct-permissions.js';
+import { readDirectPermissions, readDrawnPermissions, type TablePermissions } from './direct-permissions.js';
+import { readProposalOrders, type ProposalOrders, type Proposal } from './proposal-order.js';
+import type { RelationshipPreference } from '../metamodel-manager/interfaces.js';
 import {
   collectRelationshipQuads,
   relationshipClassOf,
@@ -125,6 +140,14 @@ const CONTAINMENT_PENALTY = 1;
 const SPECIALIZATION_PENALTY = 1;
 /** A generic relationship (relates any elements) says less than any language's: below Association. */
 const GENERIC_PENALTY = 5;
+
+/** The groups candidates rank in, best first (see the module documentation). */
+const PREFERENCE_RANK: Record<RelationshipPreference, number> = { first: 0, drawn: 1, direct: 2, derived: 3, fallback: 4 };
+
+/** Numbers in order, where both may be infinite (no proposal order lists either). */
+function compare(a: number, b: number): number {
+  return a === b ? 0 : a < b ? -1 : 1;
+}
 
 /** Counter for generating unique QualifiedRelationship IRIs. */
 let qrCounter = 0;
@@ -210,10 +233,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     const targetClosure = this.classClosure(targetTypeIri, scope);
     const table = this.relationshipTable(scope);
     const directPermissions = this.directPermissions(scope);
+    const drawnPermissions = this.drawnPermissions(scope);
+    const proposalOrders = this.proposalOrders(scope);
 
     const matches: RelationshipTypeInfo[] = [];
-    /** 0 direct (or not known otherwise), 1 only by derivation, 2 a fallback. */
-    const tier = new Map<RelationshipTypeInfo, number>();
+    /** Each candidate's place in the proposal orders, and whether its hints describe the pair. */
+    const ranking = new Map<RelationshipTypeInfo, { proposal: Proposal; hintFit: boolean }>();
 
     for (const candidate of candidates) {
       const { domainTypes, rangeTypes } = candidate;
@@ -249,9 +274,19 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (label === 'Composition' || label === 'Aggregation') score -= CONTAINMENT_PENALTY;
       if (label === 'Specialization') score -= SPECIALIZATION_PENALTY;
 
-      const direct = candidate.unqualifiedPredicateIri
-        ? directPermissions.isDirect(candidate.unqualifiedPredicateIri, sourceClosure, targetClosure)
-        : undefined;
+      const predicate = candidate.unqualifiedPredicateIri;
+      const direct = predicate ? directPermissions.holds(predicate, sourceClosure, targetClosure) : undefined;
+      const drawn = predicate ? drawnPermissions.holds(predicate, sourceClosure, targetClosure) === true : false;
+      const proposal = proposalOrders.proposal(candidate.iri, relationshipClosure, sourceClosure, targetClosure);
+      const preference: RelationshipPreference =
+        proposal.scope <= 1 ? 'first'
+        : drawn ? 'drawn'
+        : association || generic ? 'fallback'
+        : direct === false ? 'derived'
+        : 'direct';
+      const hintFit =
+        (domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri))) &&
+        (rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri)));
 
       const constrained = domainTypes.length > 0 || rangeTypes.length > 0;
       const allowed = shaped
@@ -262,11 +297,17 @@ export class OxigraphRelationshipManager implements RelationshipManager {
           `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}.`
         : 'Allowed because the metamodel declares no arch:domainIncludes or ' +
           'arch:rangeIncludes for this type, and an absent constraint hint is permissive.';
+      const why =
+        preference === 'first'
+          ? ' Proposed first for these elements, by the language\'s order of proposal.'
+          : preference === 'drawn'
+          ? ' The language\'s metamodel figures draw it between these element types.'
+          : '';
       const reason =
         direct === false
-          ? `${allowed} Only by derivation: the relationship tables permit it as the conclusion of a ` +
+          ? `${allowed}${why} Only by derivation: the relationship tables permit it as the conclusion of a ` +
             'derivation, not drawn directly.'
-          : allowed;
+          : `${allowed}${why}`;
 
       const match: RelationshipTypeInfo = {
         iri: candidate.iri,
@@ -279,28 +320,61 @@ export class OxigraphRelationshipManager implements RelationshipManager {
         reason,
         ...(direct === undefined ? {} : { direct }),
         ...(generic ? { generic } : {}),
+        preference,
       };
       matches.push(match);
-      tier.set(match, association || generic ? 2 : direct === false ? 1 : 0);
+      ranking.set(match, { proposal, hintFit });
     }
 
-    // Direct, then only by derivation, then the fallbacks; by score within a tier.
-    return matches.sort(
-      (a, b) =>
-        (tier.get(a) ?? 0) - (tier.get(b) ?? 0) || (b.score ?? 0) - (a.score ?? 0) || a.label.localeCompare(b.label),
-    );
+    return matches.sort((a, b) => {
+      const ra = ranking.get(a)!;
+      const rb = ranking.get(b)!;
+      return (
+        PREFERENCE_RANK[a.preference!] - PREFERENCE_RANK[b.preference!] ||
+        // A scoped order puts its members first in its own order; the general order ranks what is drawn.
+        (a.preference === 'first' || a.preference === 'drawn'
+          ? compare(ra.proposal.scope, rb.proposal.scope) || compare(ra.proposal.position, rb.proposal.position)
+          : 0) ||
+        Number(rb.hintFit) - Number(ra.hintFit) ||
+        (b.score ?? 0) - (a.score ?? 0) ||
+        a.label.localeCompare(b.label)
+      );
+    });
+  }
+
+  /** The relationships the loaded metamodel figures draw (`drawnBy`), read once per set of loaded graphs. */
+  private drawnCache: { key: string; permissions: TablePermissions } | undefined;
+  /** The loaded proposal orders, read likewise. */
+  private proposalCache: { key: string; orders: ProposalOrders } | undefined;
+
+  /** Which relationships the language's metamodel figures draw, per pair (`direct-permissions.ts`). */
+  drawnPermissions(scope: GraphScope = graphScope(this.store)): TablePermissions {
+    const key = scope.namedGraphs.join('\n');
+    if (this.drawnCache?.key !== key) {
+      this.drawnCache = { key, permissions: readDrawnPermissions(this.store) };
+    }
+    return this.drawnCache.permissions;
+  }
+
+  /** The loaded languages' orders of proposal (`proposal-order.ts`). */
+  proposalOrders(scope: GraphScope = graphScope(this.store)): ProposalOrders {
+    const key = scope.namedGraphs.join('\n');
+    if (this.proposalCache?.key !== key) {
+      this.proposalCache = { key, orders: readProposalOrders(this.store) };
+    }
+    return this.proposalCache.orders;
   }
 
   /** The relationship table of the loaded shapes, read once per set of loaded graphs. */
   private tableCache: { key: string; table: RelationshipTable } | undefined;
   /** The direct permissions of the loaded relationship tables, read likewise. */
-  private directCache: { key: string; permissions: DirectPermissions } | undefined;
+  private directCache: { key: string; permissions: TablePermissions } | undefined;
 
   /**
    * Which relationships the loaded relationship tables let a modeller draw
    * directly (`direct-permissions.ts`), read once per set of loaded graphs.
    */
-  directPermissions(scope: GraphScope = graphScope(this.store)): DirectPermissions {
+  directPermissions(scope: GraphScope = graphScope(this.store)): TablePermissions {
     const key = scope.namedGraphs.join('\n');
     if (this.directCache?.key !== key) {
       this.directCache = { key, permissions: readDirectPermissions(this.store) };

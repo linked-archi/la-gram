@@ -222,6 +222,18 @@ can coexist for migration purposes.'''@en ;
     skos:scopeNote       "High-level planning elements: capabilities (what the organization can do), value streams (how value is delivered), courses of action (plans), and resources (assets). Realized by elements from other domains."@en ;
 .
 
+:StrategyBehaviorElement
+    a                    owl:Class ;
+    rdfs:subClassOf      :BehaviorElement, :StrategyElement ;
+    arch:isAbstractClass true ;
+    skos:prefLabel       "StrategyBehaviorElement"@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Strategy-Elements-Metamodel> ;
+    skos:definition      "The behaviour elements of the strategy domain — capability, value stream and course of action — which the Strategy Elements Metamodel (Figure 7-1) generalizes as Strategy Behavior Element."@en ;
+    skos:scopeNote       "What the strategy figures relate as a whole: a resource is assigned to one; one triggers, flows to and serves another; services and internal behaviour elements realize one; and one realizes and influences requirements (Figures 7-1 and 7-6)."@en ;
+.
+
 ## Domain hierarchy (replaces "layers" in 3.2)
 
 :CommonDomainElement
@@ -583,7 +595,7 @@ Resources are realized by active and passive structure elements and are therefor
 
 :Capability
     a                  owl:Class ;
-    rdfs:subClassOf    :BehaviorElement, :StrategyElement ;
+    rdfs:subClassOf    :StrategyBehaviorElement ;
     skos:prefLabel     "Capability"@en ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Capability> ;
     prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Capability> ;
@@ -601,7 +613,7 @@ The name of a capability should emphasize “what we do” rather than “how we
 
 :ValueStream
     a                  owl:Class ;
-    rdfs:subClassOf    :BehaviorElement, :StrategyElement ;
+    rdfs:subClassOf    :StrategyBehaviorElement ;
     skos:prefLabel     "Value Stream"@en ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Value-Stream> ;
     prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Value-Stream> ;
@@ -617,7 +629,7 @@ It is recommended that the name of a value stream be expressed using a verb-noun
 
 :CourseOfAction
     a                  owl:Class ;
-    rdfs:subClassOf    :BehaviorElement, :StrategyElement ;
+    rdfs:subClassOf    :StrategyBehaviorElement ;
     skos:prefLabel     "Course of Action"@en ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Course-of-Action> ;
     prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Course-of-Action> ;

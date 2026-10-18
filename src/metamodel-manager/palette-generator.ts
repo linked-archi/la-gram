@@ -165,8 +165,13 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
   generatePalette(metamodelGraph?: string, options?: PaletteOptions): PaletteDefinition {
     const graph = this.snapshot();
 
-    const taxonomyAxes = buildClassificationAxes(graph, options?.metamodelIris);
-    const semanticClasses = buildClasses(graph, taxonomyAxes);
+    const classificationAxes = buildClassificationAxes(graph, options?.metamodelIris);
+    const semanticClasses = buildClasses(graph, classificationAxes);
+    // Only an axis that groups some element type is one to group the palette by. A taxonomy may also
+    // classify relationship types — ArchiMate's Relationship by Category — which are not palette elements.
+    const taxonomyAxes = classificationAxes.filter((axis) =>
+      semanticClasses.some((cls) => cls.groupsByAxis[axis.iri] !== undefined),
+    );
 
     const activeAxis = this.pickAxis(taxonomyAxes, options?.axisIri);
     const notationSet = this.resolveNotationSet(graph, options);
