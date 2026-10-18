@@ -32,7 +32,7 @@ import type { ValidationResult } from '../rdf-engine/interfaces.js';
 import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
-import { METAMODEL_CATALOGUE } from '../metamodel-manager/catalogue.js';
+import { CORE_ENTRY } from '../metamodel-manager/catalogue.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
@@ -278,7 +278,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // ── Top: app toolbar ─────────────────────────────────────────────────
   const appToolbar = document.createElement('app-toolbar');
   appToolbar.slot = 'toolbar';
-  appToolbar.catalogue = METAMODEL_CATALOGUE;
+  // The bundled catalogue, then the published one (App.loadCatalogue).
+  appToolbar.catalogue = [CORE_ENTRY];
+  void app.loadCatalogue((entries) => {
+    appToolbar.catalogue = entries;
+  });
 
   // ── Right: palette ───────────────────────────────────────────────────
   const palettePanel = document.createElement('palette-panel');

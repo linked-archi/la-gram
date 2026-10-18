@@ -7,7 +7,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createApp, type App } from '../../app.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
-import { METAMODEL_CATALOGUE } from '../catalogue.js';
+import { loadCatalogue } from '../catalogue.js';
+import { BundledAssetSource } from '../asset-sources.js';
 import { getBundledMetamodel } from '../bundled-assets.js';
 import { isGenericRelationship, unambiguousRelationship } from '../../ui/canvas/rdf-append-menu-provider.js';
 
@@ -25,8 +26,8 @@ const palette = () => app.components.paletteGenerator.generatePalette();
 const elementIris = () => palette().elementGroups.flatMap((g) => g.elements.map((e) => e.iri));
 
 describe('the core metamodel', () => {
-  it('is listed first in the catalogue, and bundled', () => {
-    expect(METAMODEL_CATALOGUE[0]).toMatchObject({ iri: CORE_MM, kind: 'core' });
+  it('is listed first in the catalogue, and bundled', async () => {
+    expect((await loadCatalogue(new BundledAssetSource()))?.[0]).toMatchObject({ iri: CORE_MM, kind: 'core' });
     expect(getBundledMetamodel(CORE_MM)?.id).toBe('core');
   });
 

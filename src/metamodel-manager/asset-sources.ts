@@ -24,7 +24,13 @@
 import { Parser as N3Parser } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import * as oxigraph from 'oxigraph';
-import { fetchAssetText, getAssetByIri, type BundledAssetRole } from './bundled-assets.js';
+import {
+  BUNDLED_CATALOGUE_PATH,
+  CATALOGUE_IRI,
+  fetchAssetText,
+  getAssetByIri,
+  type BundledAssetRole,
+} from './bundled-assets.js';
 
 /** Serialization of a fetched document, as far as the loader cares. */
 export type AssetFormat =
@@ -118,11 +124,15 @@ export function parseRdf(text: string, format: AssetFormat, baseIri?: string): Q
 
 // ── Bundled ─────────────────────────────────────────────────────────────
 
-/** Reads the copies shipped under `assets/`. */
+/** Reads the copies shipped under `assets/` — the registry's files, and the catalogue. */
 export class BundledAssetSource implements AssetSource {
   readonly kind = 'bundled' as const;
 
   async fetch(documentIri: string): Promise<AssetDocument | null> {
+    if (documentIri === CATALOGUE_IRI) {
+      const text = await fetchAssetText(BUNDLED_CATALOGUE_PATH);
+      return { documentIri, text, format: 'text/turtle', origin: 'bundled', location: BUNDLED_CATALOGUE_PATH };
+    }
     const asset = getAssetByIri(documentIri);
     if (!asset) return null;
     const text = await fetchAssetText(asset);

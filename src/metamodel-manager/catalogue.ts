@@ -1,21 +1,30 @@
 /**
- * The metamodels published on `meta.linked.archi`.
+ * The metamodels the Metamodels menu offers: meta.linked.archi's catalogue.
  *
- * The site has no machine-readable catalogue endpoint yet (`/catalog` and `/`
- * answer 404 to `Accept: text/turtle`), so the list ships with the tool. It is
- * maintained by hand from the `arch:Metamodel` manifests in the
- * `linked-archi-meta` repository; no script generates it. Every entry is an
- * `arch:Metamodel` subject IRI that dereferences with `Accept: text/turtle` —
- * the loader fetches the rest from it.
+ * meta.linked.archi publishes a DCAT catalogue of its semantic assets at
+ * {@link CATALOGUE_IRI} (Turtle by content negotiation, or `/catalog.ttl`). A
+ * metamodel manifest's dataset names its `arch:Metamodel` with
+ * `foaf:primaryTopic`, with that metamodel's `skos:prefLabel`, and carries the
+ * section of the site's index it is listed in as its `dcat:theme` — a concept
+ * whose `skos:notation` is `languages`, `frameworks`, `extensions` or `core`.
+ * Those four sections are what the menu lists, by section and label; a
+ * metamodel in any other (the examples) is not offered, and any metamodel at
+ * all still loads through "Load by IRI" or an upload.
  *
- * The two bundled ArchiMate versions and the core metamodel load offline;
- * every other entry needs the network. The core metamodel (the core ontology's
- * generic element and relationship) is la-gram's own manifest, bundled, until
- * meta.linked.archi publishes one. Basic is listed ahead of its publication:
- * until its manifest is served, choosing it reports a load error and changes
- * nothing else. A metamodel not in this list loads just the same through
- * "Load by IRI" or an upload.
+ * The catalogue is read like any published document: a copy ships in
+ * `assets/catalog.ttl` (refreshed by `npm run sync-assets`), so the menu is
+ * complete offline, and `App.loadCatalogue` replaces it with the published one
+ * when it arrives — a metamodel meta.linked.archi publishes appears without a
+ * new la-gram. The core metamodel (the core ontology's generic element and
+ * relationship) is la-gram's own manifest, bundled, which the catalogue does
+ * not list, so it is always added, first.
  */
+
+import type { Quad } from '@rdfjs/types';
+import { parseRdf, type AssetSource } from './asset-sources.js';
+import { CATALOGUE_IRI } from './bundled-assets.js';
+
+export { CATALOGUE_IRI };
 
 /** What a catalogue entry describes. */
 export type CatalogueKind = 'core' | 'language' | 'framework' | 'extension';
@@ -28,39 +37,12 @@ export interface CatalogueEntry {
   kind: CatalogueKind;
 }
 
-/** Every published metamodel: the core, modelling languages, then frameworks, then extensions. */
-export const METAMODEL_CATALOGUE: readonly CatalogueEntry[] = [
-  // Bundled; its manifest is la-gram's own until meta.linked.archi publishes one.
-  { iri: 'https://meta.linked.archi/core/metamodel#Core', label: 'Linked.Archi Core — generic element and relationship', kind: 'core' },
-  { iri: 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2', label: 'ArchiMate 3.2', kind: 'language' },
-  { iri: 'https://meta.linked.archi/archimate4/metamodel#ArchiMate4', label: 'ArchiMate 4.0', kind: 'language' },
-  { iri: 'https://meta.linked.archi/backstage/metamodel#BackstageCatalog', label: 'Backstage Catalog', kind: 'language' },
-  // A minimal language whose two notation sets (rectangle by default, bubble by
-  // presentation context) describe arch:Element and arch:QualifiedRelationship. Not published yet.
-  { iri: 'https://meta.linked.archi/basic/metamodel#Basic', label: 'Basic', kind: 'language' },
-  { iri: 'https://meta.linked.archi/bmc/metamodel#BusinessModelCanvas', label: 'Business Model Canvas', kind: 'language' },
-  { iri: 'https://meta.linked.archi/bpmn-lite/metamodel#BPMNLite', label: 'BPMN Lite', kind: 'language' },
-  { iri: 'https://meta.linked.archi/bpmn/metamodel#BPMN2', label: 'BPMN 2.0.2', kind: 'language' },
-  { iri: 'https://meta.linked.archi/c4/metamodel#C4Model', label: 'C4 Model', kind: 'language' },
-  { iri: 'https://meta.linked.archi/edgy/metamodel#EDGY23', label: 'EDGY 23', kind: 'language' },
-  { iri: 'https://meta.linked.archi/leanix/metamodel#LeanIXv4', label: 'LeanIX Meta Model v4', kind: 'language' },
-  { iri: 'https://meta.linked.archi/leanix/v3/metamodel#LeanIXv3', label: 'LeanIX Meta Model v3', kind: 'language' },
-  { iri: 'https://meta.linked.archi/uml/metamodel#UML2', label: 'UML 2.5.1', kind: 'language' },
-  { iri: 'https://meta.linked.archi/4plus1/metamodel#FourPlusOneMetamodel', label: '4+1 View Model', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/time-framework/metamodel#TIME', label: 'TIME', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/admit/metamodel#ADMIT', label: 'ADMIT', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/atam/metamodel#ATAM', label: 'ATAM', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/dodaf/metamodel#DoDAF2', label: 'DoDAF 2.02', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/eaonapage/metamodel#EAOnAPage', label: 'EA on a Page', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/tech-radar/metamodel#TechRadar', label: 'Technology Radar', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/togaf/metamodel#TOGAF10', label: 'TOGAF', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/uaf/metamodel#UAF1', label: 'UAF 1.2', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/zachman/metamodel#ZachmanMetamodel', label: 'Zachman Framework', kind: 'framework' },
-  { iri: 'https://meta.linked.archi/ai-governance/metamodel#AIEthicsAndGovernance', label: 'AI Ethics & Governance', kind: 'extension' },
-  { iri: 'https://meta.linked.archi/ea-service/metamodel#EAAsAService', label: 'EA-as-a-Service', kind: 'extension' },
-  { iri: 'https://meta.linked.archi/financial-architecture/metamodel#FinancialArchitecture', label: 'Financial Architecture', kind: 'extension' },
-  { iri: 'https://meta.linked.archi/ml-systems/metamodel#MLEnabledSystems', label: 'ML-Enabled Systems', kind: 'extension' },
-];
+/** la-gram's own core metamodel, bundled; not in meta.linked.archi's catalogue. */
+export const CORE_ENTRY: CatalogueEntry = {
+  iri: 'https://meta.linked.archi/core/metamodel#Core',
+  label: 'Linked.Archi Core — generic element and relationship',
+  kind: 'core',
+};
 
 /** Section titles for {@link CatalogueKind}. */
 export const CATALOGUE_KIND_LABELS: Record<CatalogueKind, string> = {
@@ -69,3 +51,72 @@ export const CATALOGUE_KIND_LABELS: Record<CatalogueKind, string> = {
   framework: 'Frameworks',
   extension: 'Extensions',
 };
+
+/** The catalogue sections (theme notations) the menu lists, and the kind each is. */
+const KIND_BY_THEME: Record<string, CatalogueKind> = {
+  core: 'core',
+  languages: 'language',
+  frameworks: 'framework',
+  extensions: 'extension',
+};
+
+const KIND_ORDER: readonly CatalogueKind[] = ['core', 'language', 'framework', 'extension'];
+
+const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+const DCAT = 'http://www.w3.org/ns/dcat#';
+const DCTERMS_CONFORMS_TO = 'http://purl.org/dc/terms/conformsTo';
+const FOAF_PRIMARY_TOPIC = 'http://xmlns.com/foaf/0.1/primaryTopic';
+const SKOS = 'http://www.w3.org/2004/02/skos/core#';
+const ARCH_METAMODEL = 'https://meta.linked.archi/core#Metamodel';
+
+/**
+ * The metamodels a catalogue offers, the core metamodel first, then by section
+ * and label. A label loses the " Metamodel" every manifest's label ends in
+ * ("ArchiMate 4.0 Metamodel" → "ArchiMate 4.0"): the menu is all metamodels.
+ */
+export function readCatalogue(quads: readonly Quad[]): CatalogueEntry[] {
+  const values = new Map<string, Map<string, string[]>>();
+  const labels = new Map<string, string>();
+  for (const q of quads) {
+    const s = q.subject.value;
+    const p = q.predicate.value;
+    if (p === SKOS + 'prefLabel') {
+      // English first, then an untagged label.
+      const lang = q.object.termType === 'Literal' ? q.object.language : '';
+      if (lang === 'en' || (lang === '' && !labels.has(s))) labels.set(s, q.object.value);
+      continue;
+    }
+    const byPredicate = values.get(s) ?? new Map<string, string[]>();
+    byPredicate.set(p, [...(byPredicate.get(p) ?? []), q.object.value]);
+    values.set(s, byPredicate);
+  }
+  const get = (s: string, p: string) => values.get(s)?.get(p) ?? [];
+
+  const entries = new Map<string, CatalogueEntry>([[CORE_ENTRY.iri, CORE_ENTRY]]);
+  for (const [dataset, byPredicate] of values) {
+    if (!(byPredicate.get(RDF_TYPE) ?? []).includes(DCAT + 'Dataset')) continue;
+    if (!(byPredicate.get(DCTERMS_CONFORMS_TO) ?? []).includes(ARCH_METAMODEL)) continue;
+    const kind = (byPredicate.get(DCAT + 'theme') ?? [])
+      .map((theme) => KIND_BY_THEME[get(theme, SKOS + 'notation')[0] ?? theme.slice(theme.lastIndexOf('#') + 1)])
+      .find((k): k is CatalogueKind => k !== undefined);
+    if (!kind) continue;
+    for (const iri of byPredicate.get(FOAF_PRIMARY_TOPIC) ?? []) {
+      if (entries.has(iri)) continue;
+      const label = (labels.get(iri) ?? iri.slice(iri.lastIndexOf('#') + 1)).replace(/\s+Metamodel$/i, '');
+      entries.set(iri, { iri, label, kind });
+    }
+  }
+  return [...entries.values()].sort(
+    (a, b) =>
+      (a === CORE_ENTRY ? -1 : 0) - (b === CORE_ENTRY ? -1 : 0) ||
+      KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
+      a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }),
+  );
+}
+
+/** The metamodels of the catalogue `source` has, or `null` when it has none. */
+export async function loadCatalogue(source: AssetSource): Promise<CatalogueEntry[] | null> {
+  const doc = await source.fetch(CATALOGUE_IRI);
+  if (!doc) return null;
+  return readCatalogue(parseRdf(doc.text, doc.format, CATALOGUE_IRI));
+}

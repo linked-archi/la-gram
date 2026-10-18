@@ -6,7 +6,7 @@ The model lives in an RDF store; the diagram, the model tree, files and the
 collaboration document are views of it. Metamodels — ArchiMate 4.0 and 3.2
 bundled, the Linked.Archi Core (a generic element and relationship, to add
 alongside a language or use alone), and every other language, framework and
-extension published on `meta.linked.archi` — are loaded at runtime, so the palette, the relationship
+extension published on `meta.linked.archi` (the Metamodels menu lists its catalogue) — are loaded at runtime, so the palette, the relationship
 rules, the notation and the validation all come from data.
 
 - **Model / views** — one model, any number of diagram, catalog and matrix views; an element is one resource wherever it appears. Delete from a view or from the model.
@@ -56,7 +56,9 @@ Desktop: `npm run build:electron && npm run electron` runs it (Electron 44; the 
 ### Bundled metamodels, and refreshing them
 
 ArchiMate 4.0 and 3.2, the core vocabularies and their icons and markers ship in `assets/`, a
-snapshot of what meta.linked.archi serves, used first (`?assets=bundled-first`). To refresh it
+snapshot of what meta.linked.archi serves, used first (`?assets=bundled-first`), with
+meta.linked.archi's catalogue (`assets/catalog.ttl`) — the metamodels the Metamodels menu offers,
+complete offline; unless offline, the published catalogue replaces it when it arrives. To refresh it
 from a `linked-archi-meta` checkout (by default `../../../linked-archi-meta`):
 
 ```bash
@@ -66,9 +68,11 @@ npm run sync-assets -- --meta ~/src/linked-archi-meta
 ```
 
 It runs linked-archi-meta's own publishing scripts into a temporary folder and refreshes each
-bundled file from its published path, so it maps files exactly as the site does. Files the site
-does not publish (la-gram's core metamodel manifest and taxonomy) are left alone. Asset fetches
-always revalidate, so after a rebuild a plain reload loads the new files.
+bundled file from its published path, so it maps files exactly as the site does. The catalogue
+comes from the checkout's last generated site (`.onto-docs/catalog.ttl`; run
+`.scripts/docgen/generate-docs.sh` there for a current one). Files the site does not publish
+(la-gram's core metamodel manifest and taxonomy) are left alone. Asset fetches always revalidate,
+so after a rebuild a plain reload loads the new files.
 
 ## Test
 

@@ -268,6 +268,22 @@ append menu (`isGenericRelationship`), so it never makes a choice ambiguous.
 The core ontology document loads under its bundled `coreOntology` role, which
 unloading never drops.
 
+**The Metamodels menu** (Req 1.2) lists meta.linked.archi's DCAT catalogue
+(`https://meta.linked.archi/catalog`, `catalogue.ts`): a metamodel manifest's
+dataset names its `arch:Metamodel` (`foaf:primaryTopic`) with its label, and
+its section of the site's index as `dcat:theme`; the menu lists the sections
+whose notation is `languages`, `frameworks`, `extensions` or `core`, by label,
+with the label's trailing " Metamodel" dropped, and la-gram's own core
+metamodel (which the catalogue does not list) first. `App.loadCatalogue` hands
+the menu the bundled copy (`assets/catalog.ttl`, through the bundled source by
+the catalogue IRI — not a registry entry, so nothing loads it into the store),
+then — unless offline — the published one, read from meta.linked.archi
+whatever the asset mode: under `bundled-first` the chain would always answer
+from the bundle, and a newly published metamodel would wait for a new la-gram.
+A published catalogue that is missing or unreadable leaves the bundled list.
+`npm run sync-assets` takes the catalogue from the meta checkout's last
+generated site (`.onto-docs/catalog.ttl`).
+
 ### Editing on the canvas — recorded changes
 
 diagram-js owns *when* things happen (its command stack, rules, tools);
@@ -720,8 +736,8 @@ way), each cell the relationship the model has between the two. Before, neither
 view was given anything to show: the catalog's type filter and the matrix's row
 and column types were never set, so both opened empty. The matrix's axis choice
 is kept per view in the browser (`localStorage`); kept in the model, it would
-need vocabulary the core does not have (a view's settings) — a question for
-meta.
+need vocabulary the core does not have (a view's settings) — a possible
+improvement, not planned.
 
 ### Nesting
 

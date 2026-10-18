@@ -136,6 +136,17 @@ export const ASSET_ROOT = 'assets';
 export const PUBLISHED_BASE_URI = 'https://meta.linked.archi/';
 
 /**
+ * meta.linked.archi's DCAT catalogue of its semantic assets: the metamodels the
+ * Metamodels menu offers (`catalogue.ts`). It belongs to no metamodel, so it is
+ * not in {@link BUNDLED_ASSETS} — nothing loads it into the store — and the
+ * bundled source answers for it by this IRI alone.
+ */
+export const CATALOGUE_IRI = 'https://meta.linked.archi/catalog';
+
+/** The bundled copy of the catalogue, where the site serves it (`/catalog.ttl`). */
+export const BUNDLED_CATALOGUE_PATH = 'catalog.ttl';
+
+/**
  * Asset-root-relative directories under which icons are actually bundled.
  *
  * Only these are shipped: the two ArchiMate icon sets, and the core-vis

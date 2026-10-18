@@ -41,12 +41,16 @@ import { SparqlPaletteGenerator } from './metamodel-manager/palette-generator.js
 import { SparqlViewpointManager } from './metamodel-manager/viewpoint-manager.js';
 import { DEFAULT_METAMODEL, type BundledAssetRole } from './metamodel-manager/bundled-assets.js';
 import {
+  BundledAssetSource,
+  RemoteAssetSource,
   UploadedAssetSource,
   createAssetSource,
   detectFormat,
   parseRdf,
   type AssetMode,
+  type AssetSource,
 } from './metamodel-manager/asset-sources.js';
+import { CORE_ENTRY, loadCatalogue, type CatalogueEntry } from './metamodel-manager/catalogue.js';
 
 // Model Manager
 import type { ElementManager, RelationshipManager, ViewManager } from './model-manager/interfaces.js';
@@ -124,6 +128,11 @@ export interface AppExtras {
   additionalMetamodels?: LoadedMetamodel[];
   /** Base new models' namespaces are minted under; `https://example.org/` by default. */
   base?: string;
+  /**
+   * Where the published catalogue of metamodels is read from, after the bundled
+   * copy (`loadCatalogue`); none offline.
+   */
+  catalogueSource?: AssetSource;
 }
 
 /** A model file ready to hand to the platform's save dialog. */
@@ -161,6 +170,7 @@ export class App {
 
   private metamodels: LoadedMetamodel[] = [];
   private coreGraphs: Partial<Record<BundledAssetRole, string[]>>;
+  private readonly catalogueSource: AssetSource | undefined;
   private shapesCache: Quad[] | null = null;
   private validationTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly validationDelayMs: number;
@@ -179,6 +189,7 @@ export class App {
     this.metamodels.push(...(extras.additionalMetamodels ?? []));
     this.coreGraphs = extras.coreGraphs ?? {};
     this.uploaded = extras.uploaded ?? new UploadedAssetSource();
+    this.catalogueSource = extras.catalogueSource;
     this.validationDelayMs = extras.validationDelayMs ?? 0;
     this.session = new ModelSession(
       components.store,
@@ -194,6 +205,28 @@ export class App {
   /** The first loaded metamodel (the "primary" language), or `null`. */
   get loadedMetamodel(): LoadedMetamodel | null {
     return this.metamodels[0] ?? null;
+  }
+
+  /**
+   * The metamodels to offer (`metamodel-manager/catalogue.ts`), handed to
+   * `onEntries` as they arrive: the bundled catalogue first, then the published
+   * one — unless offline. A published catalogue that cannot be read leaves the
+   * bundled list; one that has no metamodels is not taken.
+   */
+  async loadCatalogue(onEntries: (entries: CatalogueEntry[]) => void): Promise<void> {
+    try {
+      onEntries((await loadCatalogue(new BundledAssetSource())) ?? [CORE_ENTRY]);
+    } catch (err: unknown) {
+      console.warn('[app] The bundled catalogue could not be read', err);
+      onEntries([CORE_ENTRY]);
+    }
+    if (!this.catalogueSource) return;
+    try {
+      const published = await loadCatalogue(this.catalogueSource);
+      if (published && published.length > 1) onEntries(published);
+    } catch (err: unknown) {
+      console.warn('[app] The published catalogue could not be read; the bundled one stays', err);
+    }
   }
 
   /** Every loaded metamodel, primary first. */
@@ -643,6 +676,11 @@ export interface CreateAppOptions {
    * `offline` elsewhere (tests and tools never touch the network unasked).
    */
   assetMode?: AssetMode;
+  /**
+   * Where the published catalogue of metamodels is read from: meta.linked.archi
+   * unless `assetMode` is `offline`, when only the bundled copy is read.
+   */
+  catalogueSource?: AssetSource;
   /** Metamodels to load at startup; ArchiMate 4.0 when omitted. */
   metamodels?: string[];
   /** Validation debounce in ms; 0 validates synchronously. */
@@ -730,6 +768,14 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
       uploaded,
       validationDelayMs: options.validationDelayMs ?? 0,
       additionalMetamodels: loaded.slice(1),
+      // The published catalogue is read from meta.linked.archi whatever the mode
+      // but offline: bundled-first would always answer from the bundle, and a
+      // newly published metamodel would wait for a new la-gram.
+      ...(options.catalogueSource
+        ? { catalogueSource: options.catalogueSource }
+        : assetMode === 'offline'
+          ? {}
+          : { catalogueSource: new RemoteAssetSource() }),
       ...(options.base && !namespaceProblem(options.base) ? { base: ensureNamespace(options.base) } : {}),
     },
   );

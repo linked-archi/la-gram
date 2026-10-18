@@ -1012,9 +1012,12 @@ describe('the core metamodel: a generic element', () => {
     const entry = page.locator(
       'app-toolbar button[data-command="add-metamodel"][data-value="https://meta.linked.archi/core/metamodel#Core"]',
     );
-    // Its own section, first.
+    // Its own section, first; then the catalogue's sections, from meta.linked.archi's catalogue.
+    await page
+      .locator('app-toolbar button[data-command="add-metamodel"][data-value="https://meta.linked.archi/4plus1/metamodel#FourPlusOneMetamodel"]')
+      .waitFor({ state: 'attached', timeout: 30_000 });
     const sections = (await page.locator('app-toolbar .dropdown .group').allInnerTexts()).map((t) => t.trim().toLowerCase());
-    expect(sections.slice(0, 3)).toEqual(['loaded', 'core', 'modelling languages']);
+    expect(sections).toEqual(['loaded', 'core', 'modelling languages', 'frameworks', 'extensions']);
     await entry.click();
     const element = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/core#Element"]');
     await element.waitFor({ state: 'visible', timeout: 30_000 });

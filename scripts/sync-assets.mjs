@@ -18,6 +18,12 @@
  * - anything else (icons, glyphs, markers) from the same relative path. New
  *   files in a bundled icon folder are added too.
  *
+ * The catalogue (`catalog.ttl`, the metamodels the Metamodels menu offers) is
+ * written by meta's documentation generator, which takes minutes, so it is not
+ * run here: it is taken from the checkout's last generated site,
+ * `.onto-docs/catalog.ttl` — run `.scripts/docgen/generate-docs.sh` there first
+ * for a current one. Without it, the bundled copy stays and the run says so.
+ *
  * Files the published tree does not have are la-gram's own (the core metamodel
  * manifest and taxonomy, until they are published) and are left alone. After a
  * sync, rebuild (`npm run build`).
@@ -68,6 +74,10 @@ function namespaceOf(text) {
   return base ? base[1].trim() : undefined;
 }
 
+/** The catalogue: bundled at the site root, as the site serves it. */
+const CATALOGUE = 'catalog.ttl';
+const GENERATED_CATALOGUE = join(META, '.onto-docs', CATALOGUE);
+
 /** Where the published site serves a bundled file, relative to its root. */
 function publishedPath(assetPath) {
   if (!assetPath.endsWith('.ttl')) return assetPath;
@@ -89,9 +99,15 @@ try {
   const added = [];
 
   const bundled = filesUnder(ASSETS);
+  let noCatalogue = false;
   for (const assetPath of bundled) {
-    const from = publishedPath(assetPath);
-    const source = from ? join(site, from) : undefined;
+    const isCatalogue = assetPath === CATALOGUE;
+    if (isCatalogue && !existsSync(GENERATED_CATALOGUE)) {
+      noCatalogue = true;
+      continue;
+    }
+    const from = isCatalogue ? '.onto-docs/catalog.ttl' : publishedPath(assetPath);
+    const source = isCatalogue ? GENERATED_CATALOGUE : from ? join(site, from) : undefined;
     if (!source || !existsSync(source)) {
       own.push(assetPath);
       continue;
@@ -103,6 +119,12 @@ try {
     }
     updated.push(`${assetPath}  ←  ${from}`);
     if (!check) copyFileSync(source, join(ASSETS, assetPath));
+  }
+
+  // The catalogue, when it is not bundled yet.
+  if (!bundled.includes(CATALOGUE) && existsSync(GENERATED_CATALOGUE)) {
+    added.push(`${CATALOGUE}  ←  .onto-docs/catalog.ttl`);
+    if (!check) copyFileSync(GENERATED_CATALOGUE, join(ASSETS, CATALOGUE));
   }
 
   // New icons in a folder la-gram already bundles.
@@ -127,6 +149,9 @@ try {
   for (const line of updated) console.log(`  ${check ? 'differs' : 'updated'}  ${line}`);
   for (const line of added) console.log(`  ${check ? 'missing' : 'added  '}  ${line}`);
   for (const line of own) console.log(`  own      ${line}`);
+  if (noCatalogue) {
+    console.log(`  kept     ${CATALOGUE} — no ${GENERATED_CATALOGUE}; run .scripts/docgen/generate-docs.sh in the checkout`);
+  }
   if (!check && (updated.length > 0 || added.length > 0)) console.log('Rebuild to ship it: npm run build');
   if (check && (updated.length > 0 || added.length > 0)) process.exitCode = 1;
 } finally {
