@@ -152,6 +152,22 @@ In three parts, each reviewed before the next.
   - [x] The conflict choice gains *Open the newer version* — *git-open.test*
   - [x] Docs: README, design, tool spec §5.11
 
+### Task 20: Configuration (Req 19, Req 18.13–18.17)
+In parts, each reviewed before the next.
+- [x] **1. Document** (2026-10-19): Req 18.13–18.17, Req 19; design — *Configuration*
+- [ ] **2. The deployment's file**
+  - [ ] `src/config.ts`: read `la-gram.config.json` at startup (same origin, once; 404 = none); the check — shape, values, `https:` API addresses, no token or secret-looking key or value; unknown keys reported; a failed check reported and Git storage not started
+  - [ ] `LA_GRAM_CONFIG=<file>` copies it into the web build, the desktop renderer and the package
+  - [ ] Modules: `on` / `off` / `unavailable` through the switchboard
+  - [ ] Git: the hosts list (refused before any request; kinds and API addresses from it), `rememberTokens: never`, the defaults
+  - [ ] Tests, and a browser check with a served file
+- [ ] **3. Settings**
+  - [ ] *File › Settings…*, replacing *File › Modules…*: a section per part; `MountedUi.addSettingsSection`
+  - [ ] Git's section: default repository, branch, folder; message template; branch prefix; *Remember* ticked or not; the tokens kept, to forget one
+  - [ ] What the deployment enforces shown fixed; its defaults as defaults; the precedence of Req 19.7
+  - [ ] Host kinds learned per host
+  - [ ] Tests; docs (README, design planned → as built)
+
 ## Phase 3: Server-side validation
 - [ ] `POST /validate` with full SHACL incl. `sh:SPARQLConstraintComponent` (pyshacl or Jena)
 - [ ] Merge server results with client results, tagged by source
@@ -219,6 +235,7 @@ Agreed order; relationship visuals come first.
 - [x] **Electron packaging** (Phase 5) — done (2026-10-11), see the change log.
 - [x] ~~*Optional:* C4 external containers and components as subclasses~~ — declined (2026-10-11): C4 stays with what c4model.com defines.
 - [x] **Git storage** (Task 19, Req 18) — done (2026-10-19): open from and commit to a Git repository by its link and an access token; a module that can be switched off. See the change log.
+- [ ] **Configuration** (Task 20, Req 19) — the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). Documented (2026-10-19); the deployment's file next, then Settings.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
 
 ---

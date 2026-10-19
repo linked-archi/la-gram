@@ -923,6 +923,77 @@ newer version on a conflict); *modules.test*; *module-boundary.test*;
 then open what was saved); *workbench.spec* (Chrome: the menu, the token typed
 unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
 
+
+### Configuration — planned
+
+Req 18.13–18.17, Req 19, Task 20. Two layers, both optional, over la-gram's own
+defaults.
+
+**The deployment's file**, `la-gram.config.json`, beside `index.html`: fetched
+once at startup, same origin, before the modules start (`index.ts`). A web
+deployment drops it into the build's directory; `LA_GRAM_CONFIG=<file> npm run
+build` (or `npm run package`) copies it in, for the desktop app too — whose
+renderer fetches it from `app://la-gram/` like any other file. 404: no
+configuration. No URL parameter names another file: a link must not be able to
+widen the hosts a token may go to.
+
+```json
+{
+  "modules": { "git": "on" },
+  "git": {
+    "hosts": [
+      { "host": "github.com", "kind": "github" },
+      { "host": "git.acme.example", "kind": "gitlab", "api": "https://git.acme.example/api/v4" }
+    ],
+    "rememberTokens": "ask",
+    "defaults": { "repository": "https://git.acme.example/architecture/models", "folder": "models" }
+  }
+}
+```
+
+| Key | Values | |
+|---|---|---|
+| `modules.<id>` | `on` (default), `off`, `unavailable` | `off`: off until switched on; `unavailable`: not registered, as if not built |
+| `git.hosts` | `{ host, kind, api? }[]` | given: the allow-list — an address on another host is refused before any request, and no token goes there; `api` defaults as a link's would (`/api/v3`, `/api/v4`; `api.github.com`) |
+| `git.rememberTokens` | `ask` (default), `never` | `never`: no *Remember* checkbox, nothing kept beyond the session, on the web and the desktop |
+| `git.defaults` | `repository`, `branch`, `folder`, `message`, `branchPrefix` | defaults personal settings may override |
+
+`src/config.ts` reads and checks it — a small hand-written check, no schema
+library: the shape, the values, a host per entry, `https:` API addresses, and
+no key that looks like a secret (`token`, `password`, `secret`, `key`, case
+apart) and no value that looks like one (`ghp_…`, `github_pat_…`, `glpat-…`).
+Unknown keys are reported and ignored. A file that is there but fails the check
+is reported once (a toast and the console), and Git storage does not start —
+failing closed: a deployment that meant an allow-list must not get none.
+
+**Personal settings**, kept in `localStorage` (`la-gram:settings`) on this
+machine: *File › Settings…* — one dialog, a section per part — replaces *File ›
+Modules…*. `MountedUi.addSettingsSection(id, section)` lets a module add its
+own; the Modules section is the switchboard's. Git's: default repository,
+branch, folder; the commit message template (`{action} {model}`; `{action}` is
+*Add* for a new file, *Update* for one there); the new-branch prefix
+(`la-gram/`); whether *Remember* starts ticked; the tokens kept, to forget one
+(what *Forget a Git token…* does now, moved here). Applied at once: the Save
+dialog reads them each time it opens.
+
+What the deployment enforces — `unavailable`, the hosts list, `never` — shows
+in the dialog as fixed, "set by the deployment"; what it defaults shows as the
+field's default. Resolution, first winning: the build → the deployment's
+`unavailable` and policies → `?git=off` → personal → the deployment's defaults
+→ la-gram's.
+
+**Host kinds learned.** Choosing GitHub or GitLab for a self-hosted address not
+in the hosts list remembers the kind for that host (`localStorage`,
+`la-gram:git-hosts`); `parseRepositoryLink` is given the deployment's hosts and
+the learned kinds, deployment first.
+
+**Tests.** The file: absent, valid, each refusal (shape, value, a token, a
+secret-looking key); fail closed. Precedence, case by case. The hosts list
+refusing an address before any request (the fake host sees none). `never`: no
+checkbox, nothing kept. The Settings dialog: the sections, the enforced values
+fixed, applied at once. In Chrome: a served config file changes what the File
+menu and the Save dialog offer.
+
 ---
 
 ## Key design decisions

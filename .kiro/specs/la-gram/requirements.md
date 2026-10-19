@@ -13,7 +13,7 @@ These requirements are adapted from the `la-modeller-excalidraw` specification
 (`tools/modellers/excalidraw-linked-archi-yjs-demo/.kiro/specs/la-modeller-excalidraw/`),
 which is the reference for behaviour; requirement numbers 1–11 match it so the
 two can be compared line by line. Where la-gram deliberately differs, the
-criterion says so. Requirements 12–18 are specific to la-gram. The broader,
+criterion says so. Requirements 12–19 are specific to la-gram. The broader,
 implementation-independent tool specification is `docs/linked-archi-tool-spec.md`.
 
 ## Glossary
@@ -345,4 +345,25 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 10. Failures are said in words: a wrong or expired token, no access, no such repository, branch or file, the file changed (criterion 7), a rate limit, a file too large, the network or a cross-origin refusal
 11. In a collaboration room, opening from Git replaces the room's model, asking first as Open does; saving commits what the room holds; the token and the binding stay with the user who saves
 12. Commits made in the History tab (Req 9.10) stay on this machine: a Git save is one commit of the model as it is, not a push of that history
+13. *Configured by the deployment* (Req 19): the Git hosts la-gram may talk to — each with its kind (GitHub or GitLab) and API address. When the list is given, an address on any other host is refused and no token is sent there; a listed self-hosted host needs no choice of kind. Without the list, any host, as before
+14. *Configured by the deployment*: whether a token may be remembered — `ask` (the checkbox is offered; the default) or `never` (every token is kept for the session only, on the web and the desktop alike); and a default repository and folder for new saves
+15. *Personal settings* (Req 19): a default repository, branch and folder for new saves, the commit message (a template: `{action}` Add or Update, `{model}`, `{path}`, `{branch}`; `{action} {model}` by default), the prefix of a new branch's suggested name (`la-gram/` by default), and whether the token checkbox starts ticked. A personal setting wins over the deployment's default, never over its policy (criteria 13–14)
+16. The kind chosen for a self-hosted host not in the deployment's list is remembered for that host on this machine, and offered next time
+17. No token is ever configured: a configuration that holds one is refused
+
+---
+
+### Requirement 19: Configuration (la-gram)
+
+**User Story:** As whoever deploys la-gram for an organisation, I want to set once which Git hosts it may use, what it remembers and which modules it offers; as an architect, I want my own defaults kept — so that la-gram fits the organisation without a rebuild, and me without retyping.
+
+#### Acceptance Criteria
+
+1. **Deployment configuration**: an optional `la-gram.config.json` beside the app's `index.html` — dropped into a deployed web build, or put into a build or desktop package with `LA_GRAM_CONFIG=<file>`. Without it la-gram behaves as it does with none of these settings
+2. It says, per switchable module (Req 18.1), `on` (the default), `off` (off until the user switches it on) or `unavailable` (not offered, as if the build left it out); and for Git storage what Req 18.13–18.14 list
+3. It is read once, at startup, from the app's own origin only: no URL parameter points to another, so a link cannot widen what a deployment allows
+4. A file that is there but cannot be read — not JSON, not the expected shape, an unknown policy value, a token in it — is reported in words, and what it governs fails closed: Git storage does not start, rather than run without the hosts list it may have meant to give. Unknown keys are reported and ignored
+5. **Settings** (*File › Settings…*, replacing *File › Modules…*): one dialog with a section per part of la-gram — the modules' switches, and each module's own settings (Git: Req 18.15, the tokens kept, to forget one). Kept on this machine (this browser profile), applied at once
+6. What the deployment enforces is shown, not offered for change, and says it is set by the deployment; what it only defaults is offered, the deployment's value as the default
+7. Precedence, first winning: the build (a module left out); the deployment's `unavailable` and its policies (Req 18.13–18.14); the address (`?git=off`, for the session); personal settings; the deployment's defaults; la-gram's own
 
