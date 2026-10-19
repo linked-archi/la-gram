@@ -18,9 +18,10 @@
  * server, it has an origin (IndexedDB keeps the working state), and every
  * response carries the Content-Security-Policy below.
  */
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell, type IpcMainInvokeEvent } from 'electron';
-import { readFile, writeFile } from 'fs/promises';
+import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
+import { readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
+import { SecretFile } from './platform/secret-file.js';
 
 const SCHEME = 'app';
 const HOST = 'la-gram';
@@ -130,7 +131,53 @@ function registerBridge(): void {
     if (!chosen.has(file)) throw new Error('Only a file chosen in a dialog can be written');
     await writeFile(file, content, 'utf-8');
   });
+
+  // Secrets: the Git module's access tokens, encrypted with the system keychain.
+  ipcMain.handle('la-gram:secrets-available', (event) => {
+    fromApp(event);
+    return secrets.available();
+  });
+  ipcMain.handle('la-gram:secret-get', async (event, key: string) => {
+    fromApp(event);
+    return secrets.get(key);
+  });
+  ipcMain.handle('la-gram:secret-set', async (event, key: string, value: string) => {
+    fromApp(event);
+    await secrets.set(key, value);
+  });
+  ipcMain.handle('la-gram:secret-delete', async (event, key: string) => {
+    fromApp(event);
+    await secrets.delete(key);
+  });
+  ipcMain.handle('la-gram:secret-keys', async (event) => {
+    fromApp(event);
+    return secrets.keys();
+  });
 }
+
+/**
+ * The secrets file, `userData/secrets.json`: each value encrypted by
+ * `safeStorage`. On Linux without a keyring `safeStorage` falls back to a
+ * fixed plain-text key ("basic_text"), which is no protection: secrets are not
+ * kept there at all, and the renderer keeps a token for the session only.
+ */
+const secrets = new SecretFile(
+  {
+    available: () =>
+      safeStorage.isEncryptionAvailable() &&
+      !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text'),
+    encrypt: (text) => safeStorage.encryptString(text),
+    decrypt: (data) => safeStorage.decryptString(Buffer.from(data)),
+  },
+  {
+    read: () => readFile(path.join(app.getPath('userData'), 'secrets.json'), 'utf-8'),
+    write: async (text) => {
+      const file = path.join(app.getPath('userData'), 'secrets.json');
+      await writeFile(`${file}.tmp`, text, { encoding: 'utf-8', mode: 0o600 });
+      await rename(`${file}.tmp`, file);
+    },
+  },
+);
 
 // ── The window ─────────────────────────────────────────────────────────
 

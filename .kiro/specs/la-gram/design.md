@@ -800,78 +800,107 @@ step, so undo takes it back while the view is open; in a room, collaborators
 receive it like any other change. Blank-node labels are not stable across
 sessions, so a triple about a blank node may show as removed and added again.
 
-### Git storage (optional module) — planned
+### Git storage (optional module)
 
-Req 18, Task 19. A model is opened from, and committed to, one file in a Git
-repository, through the host's REST API: GitHub's and GitLab's both answer a
-browser's cross-origin request with a token, so the web build needs no Git
-client, clone or proxy, and the desktop build's Content-Security-Policy already
-admits `https:` (a web deployment with a policy of its own lists the Git hosts
-in `connect-src`). One file per model, written by `ModelIO.serialize` — sorted,
-so a commit's diff is the change; TriG keeps the DD-15 partition, Turtle the
-union.
+Req 18, Task 19 — Save is built; Open is next. A model is committed to (and
+will be opened from) one file in a Git repository, through the host's REST
+API: GitHub's and GitLab's both answer a browser's cross-origin request with a
+token, so the web build needs no Git client, clone or proxy, and the desktop
+build's Content-Security-Policy already admits `https:` (a web deployment with
+a policy of its own lists the Git hosts in `connect-src`). One file per model,
+written by `ModelIO.serialize` — sorted, so a commit's diff is the change; the
+path's extension picks the format (TriG keeps the DD-15 partition, Turtle the
+union).
 
 ```
-src/git/                    imported only when the module is on (its own chunk)
-  module.ts                 the switch; registers Open from Git / Save to Git
-  link.ts                   a pasted link → host, provider, API base, repository, branch?, path?
+src/modules.ts              the switchboard: registered modules, on/off, start/stop
+src/git/                    imported only when the module is on — a chunk of its own
+  module.ts                 started: its File-menu entries, its token store; stopped: both gone
+  link.ts                   a pasted address → host, provider, API base, repository, branch?, path?
+  providers/provider.ts     the interface, the shared request (token in the header only), base64
   providers/github.ts       REST v3: github.com, or https://HOST/api/v3 (Enterprise)
   providers/gitlab.ts       REST v4: gitlab.com, or https://HOST/api/v4 (self-managed)
-  credentials.ts            tokens per host: desktop through the bridge, web in the session
-  bindings.ts               model IRI → the file it is bound to (IndexedDB, beside version history)
-  git-dialogs.ts            Open from Git, Save to Git, the token prompt
+  credentials.ts            tokens per host: the session; the keychain (desktop) or, if asked, localStorage (web)
+  bindings.ts               model IRI → the file it is bound to (localStorage)
+  git-save.ts               Save to Git: dialog, token, version, commit, conflict
+  errors.ts                 failures in words, from the status — never the request or the host's text
+src/platform/secret-file.ts the desktop's secrets file (main process)
 ```
 
 ```typescript
 interface GitHostProvider {
-  readFile(repo: string, ref: string, path: string): Promise<{ text: string; version: string }>;
-  listFiles(repo: string, ref: string): Promise<string[]>;
-  listBranches(repo: string): Promise<string[]>;
-  commitFile(repo: string, change: {
-    branch: string; newBranchFrom?: string; path: string; text: string; message: string;
-    expectedVersion?: string;   // the version opened or saved last; absent for a new file
-  }): Promise<{ version: string; commit: string; webUrl: string }>;
+  defaultBranch(): Promise<string>;
+  branchHead(branch: string): Promise<string>;
+  readFile(ref: string, path: string): Promise<{ text: string; version: string } | undefined>;
+  commitFile(change: {
+    branch: string; newBranch?: string; startFrom?: string;   // a new branch, from this commit
+    path: string; text: string; message: string;
+    expectedVersion?: string;   // the version replaced; absent for a new file
+  }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
+  // Open (next): listFiles, listBranches
 }
 ```
 
 | | GitHub | GitLab |
 |---|---|---|
-| Read | `GET /repos/{o}/{r}/contents/{path}?ref=` (raw media type); version = the blob `sha` | `GET /projects/{id}/repository/files/{path}?ref=`; version = `last_commit_id` |
-| List | `GET /repos/{o}/{r}/git/trees/{ref}?recursive=1` | `GET /projects/{id}/repository/tree?recursive=true&ref=` (paged) |
-| Branches | `GET /repos/{o}/{r}/branches` | `GET /projects/{id}/repository/branches` |
-| Commit | `PUT /repos/{o}/{r}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = expected version; 409 when the file moved on | `POST` (new) or `PUT` (update) `/projects/{id}/repository/files/{path}` — `branch`, `content`, `commit_message`, `last_commit_id` = expected version; 400 when the file moved on |
-| New branch | `POST /repos/{o}/{r}/git/refs` from the base branch's head, then commit | `start_branch` on the commit |
+| Read | `GET /repos/{o}/{r}/contents/{path}?ref=`; version = the blob `sha`; over 1 MB asked again raw | `GET /projects/{id}/repository/files/{path}?ref=`; version = `last_commit_id` |
+| Commit | `PUT /repos/{o}/{r}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = expected version; 409 (or 422, no `sha`) when the file moved on | `POST /projects/{id}/repository/commits` — one `create` / `update` action with `last_commit_id` = expected version; 400 when it moved on. The commit is the file's new version |
+| New branch | `POST /repos/{o}/{r}/git/refs` from `startFrom`, else the base branch's head; then commit | `start_sha` = `startFrom`, else `start_branch` |
+| Default branch, head | `GET /repos/{o}/{r}`, `…/branches/{b}` | `GET /projects/{id}`, `…/repository/branches/{b}` |
 
-GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`).
+GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`). Both
+take the token as `Authorization: Bearer`.
 
-**The switch.** In the build, `LA_GRAM_GIT` (default on) becomes a constant
-through webpack's `DefinePlugin`; `if (GIT_MODULE) await import('./git/module.js')`
-is dropped when it is off, so the chunk is not emitted. At runtime, a setting
-kept on this machine (`localStorage`, on by default) and `?git=off` for the
-session. Off: no menu entries, no chunk loaded, no token read, no request. It is
-la-gram's first switchable module; collaboration could be the second.
+**The switch.** `index.ts` registers the module with `ModuleSwitchboard` only
+`if (__LA_GRAM_GIT__)` — a `DefinePlugin` constant from `LA_GRAM_GIT` (default
+on), so with it off webpack drops the branch and the `git` chunk is not emitted
+(*module-boundary.test* holds every other import of `src/git/` out). The
+switchboard starts a registered module unless `?git=off` (the session) or the
+setting kept in `localStorage` (`la-gram:modules`) says off; *File › Modules…*
+(shown when the build has a module) switches it, starting or stopping it at
+once. Started, the module adds its entries through `MountedUi.addFileMenu`,
+asked each time the menu opens so they name the model's binding; stopped, it
+removes them and forgets the session's tokens. It is la-gram's first
+switchable module; collaboration could be the second.
 
-**Tokens.** Kept per host, sent only to it. Desktop: the bridge gains
-`secretGet(host)`, `secretSet(host, token)` and `secretDelete(host)`; the main
-process encrypts with Electron's `safeStorage` (the OS keychain) into a file in
-`userData` — where encryption is unavailable (Linux without a keyring) the token
-is kept for the session only. Web: in memory for the session, or
-`localStorage` when the user ticks *Remember on this browser*. Requests carry
-it in the `Authorization` header only; errors are reported from the status
-code, never echoing a request.
+**Tokens.** Kept per host (lower case, with its port), sent only to it, in the
+`Authorization` header — no cookie (`credentials: 'omit'`), never in a URL,
+the model, a file, a binding or a message: a failure is reported from its
+status, and the host's own error text is only matched for the kind of failure,
+never shown. Every token is held for the session. Desktop: remembered by
+default, through the bridge (`secretGet` / `secretSet` / `secretDelete` /
+`secretKeys`) — the main process encrypts with `safeStorage` into
+`userData/secrets.json` (base64 ciphertext under keys `git:<host>`, written
+atomically, mode 600) and refuses where there is no real keychain (Linux's
+plain-text `basic_text` fallback), the token then kept for the session only.
+Web: remembered only when *Remember on this browser* is ticked, which says it
+is stored unencrypted. A refused token (401) is forgotten. *File › Forget a Git
+token…* forgets one.
 
-**Binding and conflicts.** Opening or saving binds the model IRI to {host,
-repository, branch, path, format, version}. A bound save commits with the
-version it last saw; the host refuses when the file moved on, and the dialog
-offers: open the newer version (losing nothing — the current model can be saved
-to a new branch first), save to a new branch, or overwrite (commit against the
-newer version). A successful commit records the new version, emits
-`model-saved` (the dirty marker clears) and reports the commit with a link to it.
+**Save.** Unbound, or *Save to Git as…*: the dialog asks for the repository's
+address (a link to a branch or a file fills those in), the host kind when the
+address does not say (GitHub Enterprise, self-managed GitLab), the branch
+(empty: the default), a new branch, the path and the message; the token is
+asked when the host has none. A path the model is not bound to is read first:
+a file there is replaced only on confirmation, naming its version. Bound: the
+message only, and the commit names the binding's version. When the host
+refuses (the file moved on), the choice is a new branch — from the commit the
+model was opened or last saved at, replacing the version it saw, so it cannot
+conflict — or overwrite (naming the newer version, on confirmation); Open adds
+"open the newer version". A commit binds the model {host, provider, API base,
+repository, branch, path, version, commit} in `localStorage`
+(`la-gram:git-bindings`), emits `model-saved` (the dirty marker clears) and
+reports the commit with its URL.
 
-**Tests.** Providers against recorded HTTP exchanges (no network in CI); link
-parsing for both hosts, Enterprise and self-managed addresses, branch and file
-links; the token never in the model, a saved file, the URL or an error; the
-module off — no chunk, no request.
+**Tests.** *link.test* (both hosts, Enterprise and self-managed, subgroups,
+SSH addresses, what is refused); *providers.test* (the requests and answers of
+both APIs, recorded; conflicts, branches, failures — and no token in a message);
+*credentials.test*, *secret-file.test*; *git-save.test* (the flow against a
+fake host: first save, bound save, a file already there, conflicts, the token
+nowhere it must not be); *modules.test*; *module-boundary.test*;
+*git-module.test* (the module in the mounted UI, the network stubbed);
+*workbench.spec* (Chrome: the menu, the token typed unseen; `?git=off` — no
+entries, the chunk never fetched).
 
 ---
 

@@ -23,11 +23,16 @@ export interface ChoiceOption {
 export interface FormField {
   name: string;
   label: string;
-  /** A line of text (default) or a checkbox. */
-  type?: 'text' | 'checkbox';
+  /**
+   * A line of text (default), a checkbox, a secret (typed unseen, never
+   * pre-filled or autocompleted), or one of `options`.
+   */
+  type?: 'text' | 'checkbox' | 'password' | 'select';
   value?: string | boolean;
   /** Help shown under the field. */
   hint?: string;
+  /** The choices of a `select`. */
+  options?: Array<{ value: string; label: string }>;
 }
 
 /** What {@link Dialogs.form} resolves with: text fields trimmed, checkboxes as booleans. */
@@ -150,17 +155,33 @@ export const domDialogs: Dialogs = {
   form(title, fields, options = {}) {
     const body: Node[] = [];
     if (options.message) body.push(el('p', { text: options.message }));
-    const inputs = new Map<string, HTMLInputElement>();
+    const inputs = new Map<string, HTMLInputElement | HTMLSelectElement>();
     for (const field of fields) {
       const id = `la-form-${field.name}`;
-      const input = el('input', { id, name: field.name, type: field.type === 'checkbox' ? 'checkbox' : 'text' });
       const row = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}` });
+      if (field.type === 'select') {
+        const select = el('select', { id, name: field.name, class: 'la-input', 'aria-label': field.label });
+        for (const option of field.options ?? []) select.append(el('option', { value: option.value, text: option.label }));
+        if (typeof field.value === 'string') select.value = field.value;
+        row.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), select);
+        if (field.hint) row.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+        inputs.set(field.name, select);
+        body.push(row);
+        continue;
+      }
+      const type = field.type === 'checkbox' ? 'checkbox' : field.type === 'password' ? 'password' : 'text';
+      const input = el('input', { id, name: field.name, type });
+      if (field.type === 'password') {
+        // Not remembered by the browser's autofill, nor offered back.
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('spellcheck', 'false');
+      }
       if (field.type === 'checkbox') {
         input.checked = field.value === true;
         row.append(input, el('label', { for: id, text: field.label }));
       } else {
         input.className = 'la-input';
-        input.value = typeof field.value === 'string' ? field.value : '';
+        input.value = typeof field.value === 'string' && field.type !== 'password' ? field.value : '';
         input.setAttribute('aria-label', field.label);
         row.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), input);
       }
@@ -175,11 +196,13 @@ export const domDialogs: Dialogs = {
       const out: FormValues = {};
       for (const field of fields) {
         const input = inputs.get(field.name)!;
-        out[field.name] = field.type === 'checkbox' ? input.checked : input.value.trim();
+        out[field.name] = field.type === 'checkbox' ? (input as HTMLInputElement).checked : input.value.trim();
       }
       return out;
     };
-    const first = [...inputs.values()].find((i) => i.type === 'text');
+    const first = [...inputs.values()].find(
+      (i): i is HTMLInputElement => i instanceof HTMLInputElement && (i.type === 'text' || i.type === 'password'),
+    );
     if (first) queueMicrotask(() => first.select());
     return modal<FormValues | null>(
       title,

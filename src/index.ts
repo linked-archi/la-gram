@@ -17,11 +17,13 @@
  * | `user`       | Display name shown to collaborators                            |
  * | `rdf`        | `1` to start with the RDF panel open (hidden by default)       |
  * | `base`       | Base new models' namespaces are minted under, `https://example.org/` by default |
+ * | `git`        | `off` to switch Git storage off for the session (see `modules.ts`) |
  */
 import { createApp } from './app.js';
 import { mountUi } from './ui/mount-ui.js';
 import { startCollaboration } from './collab/start.js';
 import type { AssetMode } from './metamodel-manager/asset-sources.js';
+import { ModuleSwitchboard } from './modules.js';
 
 async function bootstrap(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
@@ -66,6 +68,23 @@ async function bootstrap(): Promise<void> {
     ...(params.get('user') ? { userName: params.get('user') as string } : {}),
   });
 
+  // Switchable modules (Req 18.1). A build without one never registers it: the
+  // branch is dropped, and with it the module's chunk.
+  const modules = new ModuleSwitchboard(params);
+  if (__LA_GRAM_GIT__) {
+    modules.register({
+      id: 'git',
+      label: 'Git storage',
+      detail: 'save a model to a GitHub or GitLab repository as a commit',
+      start: async () => (await import(/* webpackChunkName: "git" */ './git/module.js')).startGitStorage(app, ui),
+    });
+  }
+  ui.setModuleSwitches(
+    () => modules.list(),
+    (id, on) => modules.set(id, on),
+  );
+  await modules.startEnabled();
+
   // Leaving with unsaved changes asks first — unless collaborators hold a copy.
   window.addEventListener('beforeunload', (event) => {
     if (app.isDirty() && !collaboration.isConnected()) {
@@ -78,6 +97,7 @@ async function bootstrap(): Promise<void> {
   w.__LA_GRAM_APP__ = app;
   w.__LA_GRAM_UI__ = ui;
   w.__LA_GRAM_COLLAB__ = collaboration;
+  w.__LA_GRAM_MODULES__ = modules;
 }
 
 bootstrap().catch((err) => {

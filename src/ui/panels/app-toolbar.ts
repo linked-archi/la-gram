@@ -47,12 +47,26 @@ export type ToolbarCommand =
   | 'redo'
   | 'toggle-explorer'
   | 'toggle-palette'
-  | 'toggle-rdf';
+  | 'toggle-rdf'
+  /** A module's File-menu entry; the value is `<module>:<entry>`. */
+  | 'module'
+  /** File → Modules…: switch modules on and off. */
+  | 'modules';
 
 /** Detail of `toolbar-command`. */
 export interface ToolbarCommandDetail {
   command: ToolbarCommand;
   value?: string;
+}
+
+/** An entry a module adds to the File menu (`MountedUi.addFileMenu`). */
+export interface FileMenuItem {
+  /** `<module>:<entry>`, the value of the `module` command. */
+  command: string;
+  label: string;
+  hint?: string;
+  /** Beside Open (`open`) or beside Save (`save`). */
+  section: 'open' | 'save';
 }
 
 /** A labelled IRI for a selector. */
@@ -280,6 +294,10 @@ export class AppToolbar extends LitElement {
   @property({ type: Boolean }) paletteOpen = true;
   /** Whether the model tree is shown (the "Model" toggle is pressed). */
   @property({ type: Boolean }) explorerOpen = true;
+  /** The modules' File-menu entries, asked each time the menu opens. */
+  @property({ attribute: false }) fileMenuItems: () => FileMenuItem[] = () => [];
+  /** Whether File → Modules… is offered: the build has a module to switch. */
+  @property({ type: Boolean }) modulesMenu = false;
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | null = null;
 
@@ -329,7 +347,18 @@ export class AppToolbar extends LitElement {
     this._open = this._open === menu ? null : menu;
   }
 
+  private _moduleItems(items: FileMenuItem[], section: FileMenuItem['section']) {
+    return items
+      .filter((i) => i.section === section)
+      .map(
+        (i) => html`<button data-command="module" data-value=${i.command} @click=${() => this._cmd('module', i.command)}>
+          ${i.label}${i.hint ? html` <span class="hint">${i.hint}</span>` : nothing}
+        </button>`,
+      );
+  }
+
   private _fileMenu() {
+    const items = this.fileMenuItems();
     return html`<div class="dropdown" role="menu">
       <button data-command="new-model" @click=${() => this._cmd('new-model')}>New model</button>
       <button data-command="open-model" @click=${() => this._cmd('open-model')}>
@@ -338,9 +367,15 @@ export class AppToolbar extends LitElement {
       <button data-command="import-archimate" @click=${() => this._cmd('import-archimate')}>
         Import ArchiMate exchange… <span class="hint">.xml</span>
       </button>
+      ${this._moduleItems(items, 'open')}
       <button data-command="model-settings" @click=${() => this._cmd('model-settings')}>
         Model settings… <span class="hint">name, namespace</span>
       </button>
+      ${this.modulesMenu
+        ? html`<button data-command="modules" @click=${() => this._cmd('modules')}>
+            Modules… <span class="hint">switch parts off</span>
+          </button>`
+        : nothing}
       <hr />
       <button data-command="save" @click=${() => this._cmd('save')}>Save <span class="hint">Turtle</span></button>
       ${MODEL_FORMATS.filter((f) => f.id !== 'turtle').map(
@@ -351,6 +386,7 @@ export class AppToolbar extends LitElement {
       <button data-command="save-no-geometry" @click=${() => this._cmd('save-no-geometry')}>
         Save without diagram geometry <span class="hint">.ttl</span>
       </button>
+      ${this._moduleItems(items, 'save')}
       <hr />
       <button data-command="export-svg" @click=${() => this._cmd('export-svg')}>Export view as SVG</button>
       <button data-command="export-png" @click=${() => this._cmd('export-png')}>Export view as PNG</button>

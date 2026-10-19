@@ -59,7 +59,8 @@ import './panels/history-panel.js';
 import './panels/type-guide-panel.js';
 
 import type { AppShell, BottomTab } from './app-shell.js';
-import type { AppToolbar, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
+import type { AppToolbar, FileMenuItem, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
+import type { ModuleSwitch } from '../modules.js';
 import type {
   PalettePanel,
   PaletteDragDetail,
@@ -174,10 +175,31 @@ export interface MountedUi {
   selectConcept(iri: string | undefined): void;
   /** Execute a toolbar command, as if picked. */
   runCommand(detail: ToolbarCommandDetail): Promise<void>;
+  /** The dialogs the UI asks with (scripted in tests): for modules. */
+  dialogs: Dialogs;
+  /** Say something: a toast, and `notify` on the event bus. */
+  report(message: string, level?: 'info' | 'warning' | 'error'): void;
+  /**
+   * A module's entries in the File menu. `items` is asked each time the menu
+   * opens, so an entry can name the model's state; `run` runs one, its failure
+   * reported. Returns what takes the entries away.
+   */
+  addFileMenu(moduleId: string, items: () => ModuleMenuItem[], run: (itemId: string) => Promise<void>): () => void;
+  /** The modules File → Modules… switches, and what switches one. */
+  setModuleSwitches(list: () => ModuleSwitch[], toggle: (id: string, on: boolean) => Promise<void>): void;
   /** Refresh every panel from the store. */
   refresh(): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
+}
+
+/** An entry a module puts in the File menu ({@link MountedUi.addFileMenu}). */
+export interface ModuleMenuItem {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Beside Open or beside Save. */
+  section: 'open' | 'save';
 }
 
 /** Options for {@link mountUi}. */
@@ -1209,6 +1231,52 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     appToolbar.activeContextIri = app.activePresentationContext() ?? '';
   };
 
+  // ── Modules: their File-menu entries, and File → Modules… ───────────
+  const moduleMenus = new Map<string, { items: () => ModuleMenuItem[]; run: (itemId: string) => Promise<void> }>();
+  let moduleSwitches: { list: () => ModuleSwitch[]; toggle: (id: string, on: boolean) => Promise<void> } | undefined;
+  appToolbar.fileMenuItems = (): FileMenuItem[] =>
+    [...moduleMenus].flatMap(([moduleId, menu]) =>
+      menu.items().map((item) => ({
+        command: `${moduleId}:${item.id}`,
+        label: item.label,
+        section: item.section,
+        ...(item.hint ? { hint: item.hint } : {}),
+      })),
+    );
+  const addFileMenu = (moduleId: string, items: () => ModuleMenuItem[], run: (itemId: string) => Promise<void>): (() => void) => {
+    const entry = { items, run };
+    moduleMenus.set(moduleId, entry);
+    appToolbar.requestUpdate();
+    return () => {
+      if (moduleMenus.get(moduleId) === entry) moduleMenus.delete(moduleId);
+      appToolbar.requestUpdate();
+    };
+  };
+  const setModuleSwitches = (list: () => ModuleSwitch[], toggle: (id: string, on: boolean) => Promise<void>): void => {
+    moduleSwitches = { list, toggle };
+    appToolbar.modulesMenu = list().length > 0;
+  };
+  const switchModules = async (): Promise<void> => {
+    if (!moduleSwitches) return;
+    const list = moduleSwitches.list();
+    const values = await dialogs.form(
+      'Modules',
+      list.map((m) => ({ name: m.id, label: `${m.label} — ${m.detail}`, type: 'checkbox' as const, value: m.enabled })),
+      {
+        message: 'Parts of la-gram that can be switched off. Off, a module shows nothing, loads nothing and talks to no one. The setting is kept on this machine.',
+        confirmLabel: 'Apply',
+      },
+    );
+    if (!values) return;
+    for (const m of list) {
+      const on = values[m.id] === true;
+      if (on !== m.enabled) {
+        await moduleSwitches.toggle(m.id, on);
+        report(`${m.label} is ${on ? 'on' : 'off'}.`);
+      }
+    }
+  };
+
   // ── Toolbar commands ─────────────────────────────────────────────────
   const onToolbarCommand = (e: Event): void => {
     void runCommand((e as CustomEvent<ToolbarCommandDetail>).detail);
@@ -1462,6 +1530,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         case 'share':
           eventBus.emit('collab-status', { request: 'share' });
           return;
+        case 'module': {
+          const [moduleId, ...entry] = (value ?? '').split(':');
+          await moduleMenus.get(moduleId)?.run(entry.join(':'));
+          return;
+        }
+        case 'modules':
+          await switchModules();
+          return;
         case 'toggle-explorer':
           setExplorerOpen(!shell.explorerOpen);
           return;
@@ -1701,6 +1777,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     },
     selectConcept: (iri) => selectConcept(iri),
     runCommand,
+    dialogs,
+    report,
+    addFileMenu,
+    setModuleSwitches,
     refresh,
     dispose,
   };

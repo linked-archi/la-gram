@@ -86,7 +86,18 @@ describe.skipIf(!existsSync(MAIN) || !binaryInstalled)('the desktop build', () =
       expect(renderer.url).toBe('app://la-gram/index.html');
       expect(renderer.require).toBe('undefined');
       expect(renderer.process).toBe('undefined');
-      expect(renderer.bridge).toEqual(['readFile', 'showOpenDialog', 'showSaveDialog', 'writeFile']);
+      // Files chosen in a dialog, and the Git module's secrets (encrypted by the main process).
+      expect(renderer.bridge).toEqual([
+        'readFile',
+        'secretDelete',
+        'secretGet',
+        'secretKeys',
+        'secretSet',
+        'secretsAvailable',
+        'showOpenDialog',
+        'showSaveDialog',
+        'writeFile',
+      ]);
       expect(renderer.csp).toContain("script-src 'self' 'wasm-unsafe-eval'");
 
       // The native dialogs, answered by the main process with a file in a temporary directory.

@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
 
@@ -32,6 +33,18 @@ const sharedModuleRules = [
 ];
 
 const sharedExperiments = { asyncWebAssembly: true };
+
+/**
+ * Build-time switches (`src/types/build-flags.d.ts`). A module switched off
+ * here is not in the bundle at all: `if (__LA_GRAM_GIT__)` becomes `if (false)`,
+ * and webpack drops the branch and the chunk only it imports.
+ *
+ *   LA_GRAM_GIT=off npm run build      no Git storage (Req 18.1)
+ */
+const buildFlags = () =>
+  new webpack.DefinePlugin({
+    __LA_GRAM_GIT__: JSON.stringify(process.env.LA_GRAM_GIT !== 'off'),
+  });
 
 /**
  * Emit the bundled metamodel assets (TTL + SVG icons) into the output
@@ -102,6 +115,7 @@ export default (_env, argv) => {
         title: 'RDF Architecture Modeler',
       }),
       bundledAssetsPlugin(),
+      buildFlags(),
     ],
     devtool,
   };
@@ -174,6 +188,7 @@ export default (_env, argv) => {
         title: 'RDF Architecture Modeler',
       }),
       bundledAssetsPlugin(),
+      buildFlags(),
     ],
     devtool,
   };

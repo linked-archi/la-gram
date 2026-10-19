@@ -829,7 +829,7 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §5.8 Freehand sketch layer | ✗ | |
 | §5.9 Progressive typing | ✗ | |
 | §5.10 Real-time collaboration | ✓ mostly | Yjs over Hocuspocus; presence, remote selection, soft locks; no remote cursors; awareness not persisted |
-| §5.11 Persistence & versioning | partly | Files in six formats; rooms persisted by the server (`.nt` + `.ttl`); commits as N-Triples snapshots per model in IndexedDB, with history, diff (added/removed triples) and restore — on this machine, not yet in a shared store (Git or a triplestore) |
+| §5.11 Persistence & versioning | partly | Files in six formats; rooms persisted by the server (`.nt` + `.ttl`); commits as N-Triples snapshots per model in IndexedDB, with history, diff (added/removed triples) and restore — on this machine; Turtle-in-Git through the hosts' REST APIs (GitHub, GitLab): a save is a commit of one file, refused when the file moved on — opening from Git next; not yet a triplestore |
 | §5.12 AI assistance | ✗ | |
 | §5.13 Import / export | ✓ | Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG; no-geometry profile; live RDF panel |
 | (beyond this spec) Relationship graph | ✓ | The relationships around an element to a chosen depth, filterable by type; its query as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported; the graph as a new view or Turtle; SPARQL results render as a new view |

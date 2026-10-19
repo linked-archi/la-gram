@@ -600,14 +600,14 @@ describe('appending from the context pad', () => {
     const icons = await menu.locator('img').count();
     expect(icons).toBeGreaterThan(20);
 
-    // Business Actor → Application Component: Flow, Serving, Triggering — so it asks.
+    // Business Actor → Application Component: Serving (its hints describe the pair), Flow, Triggering — so it asks.
     const component = menu.locator('.entry', { hasText: 'Application Component' }).first();
-    expect(await component.innerText()).toMatch(/choose: Flow \/ Serving \/ Triggering/);
+    expect(await component.innerText()).toMatch(/choose: Serving \/ Flow \/ Triggering/);
     await session.screenshot('workbench-append-menu');
     await component.click();
     await until(async () => (await menu.locator('.entry').allInnerTexts()).some((t) => t.includes('Serving')), 'the relationship step');
     const step = (await menu.locator('.entry .djs-popup-label').allInnerTexts()).map((t) => t.trim());
-    expect(step).toEqual(['Flow', 'Serving', 'Triggering', 'Association', 'Directed Association']);
+    expect(step).toEqual(['Serving', 'Flow', 'Triggering', 'Association', 'Directed Association']);
     await session.screenshot('workbench-append-relationship');
     await menu.locator('.entry', { hasText: 'Serving' }).first().click();
 
@@ -1286,5 +1286,49 @@ describe('two selected elements, and catalog and matrix views', () => {
     await until(async () => (await catalog.locator('tbody tr').count()) === 2, 'two rows');
     expect(await catalog.locator('.type-header').innerText()).toBe('Business Actor (2)');
     findings.push('catalog: lists its members by type, adds from the picker: ok');
+  });
+});
+
+describe('Git storage, a switchable module (Req 18.1)', () => {
+  it('on: File offers Save to Git… and Modules…; the dialog asks for the token unseen', async () => {
+    const { page, session } = await openPage();
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    const save = page.locator('app-toolbar button[data-command="module"][data-value="git:save"]');
+    await save.waitFor({ state: 'visible' });
+    expect(await save.innerText()).toContain('Save to Git…');
+    expect(await page.locator('app-toolbar button[data-command="modules"]').count()).toBe(1);
+
+    await save.click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('select[name="provider"]').count()).toBe(1);
+    expect(await dialog.locator('input[name="path"]').inputValue()).toMatch(/^models\/.+\.ttl$/);
+    await dialog.locator('input[name="repository"]').fill('https://github.com/acme/arch');
+    await dialog.locator('.la-button.primary').click();
+
+    const token = page.locator('.la-dialog input[name="token"]');
+    await token.waitFor({ state: 'visible' });
+    expect(await token.getAttribute('type')).toBe('password');
+    expect(await token.getAttribute('autocomplete')).toBe('off');
+    expect(await page.locator('.la-dialog').innerText()).toContain('sends it to github.com only');
+    await session.screenshot('workbench-git-token');
+    await page.keyboard.press('Escape');
+    await page.locator('.la-dialog').waitFor({ state: 'detached' });
+    findings.push('git: Save to Git… → the address → the token, typed unseen: ok');
+  });
+
+  it('?git=off: nothing of it in the File menu, and its code never fetched', async () => {
+    const { page } = await openPage('?git=off');
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    await page.locator('app-toolbar button[data-command="modules"]').waitFor({ state: 'visible' });
+    expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
+    const fetched = await page.evaluate(() =>
+      performance
+        .getEntriesByType('resource')
+        .map((e) => e.name)
+        .filter((name) => /\/git\.[0-9a-f]+\.js$/.test(name)),
+    );
+    expect(fetched).toEqual([]);
+    findings.push('git: ?git=off → no entries, no chunk fetched: ok');
   });
 });

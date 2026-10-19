@@ -398,6 +398,11 @@
       flex-basis: 100%;
       margin-top: 0;
     }
+    /* A long label wraps beside its checkbox, not under it. */
+    .la-form-row.check > label {
+      flex: 1 1 0;
+      min-width: 0;
+    }
     .la-dialog-hint {
       font-size: 12px;
       color: #80868b;
