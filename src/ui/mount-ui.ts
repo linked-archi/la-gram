@@ -180,6 +180,13 @@ export interface MountedUi {
   /** Say something: a toast, and `notify` on the event bus. */
   report(message: string, level?: 'info' | 'warning' | 'error'): void;
   /**
+   * Ask before the model is replaced, as File › Open does: when it has unsaved
+   * changes, or is shared in a room. `false` when the user says no.
+   */
+  confirmReplace(what: string): Promise<boolean>;
+  /** Open a model file's text as File › Open does — the model replaced — and say what it did. */
+  openModelText(text: string, fileName: string): Promise<void>;
+  /**
    * A module's entries in the File menu. `items` is asked each time the menu
    * opens, so an entry can name the model's state; `run` runs one, its failure
    * reported. Returns what takes the entries away.
@@ -1325,6 +1332,22 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.emit('notify', { level, message });
   };
 
+  /** Open a model file's text as File › Open does, and say what it did. */
+  const openModelText = async (text: string, fileName: string): Promise<void> => {
+    const opened = await app.openModel(text, fileName);
+    report(
+      `Opened ${fileName}: ${opened.quadCount} triples` +
+        (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out` : '') +
+        (opened.migration.renamed + opened.migration.relationships + opened.migration.placements > 0
+          ? ', older vocabulary migrated'
+          : '') +
+        '.',
+    );
+    if (opened.missingMetamodels.length > 0) {
+      report(`Could not load: ${opened.missingMetamodels.join(', ')}`, 'warning');
+    }
+  };
+
   /** Name, namespace and prefix of the model, in one dialog. */
   const editModelSettings = async (): Promise<void> => {
     const current = session.namespace();
@@ -1410,18 +1433,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           if (!(await guardUnsaved('Open another model'))) return;
           const file = await pickFile(MODEL_FORMATS.map((f) => `.${f.extension}`).join(','));
           if (!file) return;
-          const opened = await app.openModel(file.text, file.name);
-          report(
-            `Opened ${file.name}: ${opened.quadCount} triples` +
-              (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out` : '') +
-              (opened.migration.renamed + opened.migration.relationships + opened.migration.placements > 0
-                ? ', older vocabulary migrated'
-                : '') +
-              '.',
-          );
-          if (opened.missingMetamodels.length > 0) {
-            report(`Could not load: ${opened.missingMetamodels.join(', ')}`, 'warning');
-          }
+          await openModelText(file.text, file.name);
           return;
         }
         case 'import-archimate': {
@@ -1779,6 +1791,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     runCommand,
     dialogs,
     report,
+    confirmReplace: guardUnsaved,
+    openModelText,
     addFileMenu,
     setModuleSwitches,
     refresh,

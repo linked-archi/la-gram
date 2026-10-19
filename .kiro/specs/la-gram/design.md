@@ -802,9 +802,8 @@ sessions, so a triple about a blank node may show as removed and added again.
 
 ### Git storage (optional module)
 
-Req 18, Task 19 — Save is built; Open is next. A model is committed to (and
-will be opened from) one file in a Git repository, through the host's REST
-API: GitHub's and GitLab's both answer a browser's cross-origin request with a
+Req 18, Task 19. A model is opened from, and committed to, one file in a Git
+repository, through the host's REST API: GitHub's and GitLab's both answer a browser's cross-origin request with a
 token, so the web build needs no Git client, clone or proxy, and the desktop
 build's Content-Security-Policy already admits `https:` (a web deployment with
 a policy of its own lists the Git hosts in `connect-src`). One file per model,
@@ -823,6 +822,7 @@ src/git/                    imported only when the module is on — a chunk of i
   credentials.ts            tokens per host: the session; the keychain (desktop) or, if asked, localStorage (web)
   bindings.ts               model IRI → the file it is bound to (localStorage)
   git-save.ts               Save to Git: dialog, token, version, commit, conflict
+  git-open.ts               Open from Git: address, files to choose, read, open, bind
   errors.ts                 failures in words, from the status — never the request or the host's text
 src/platform/secret-file.ts the desktop's secrets file (main process)
 ```
@@ -837,7 +837,8 @@ interface GitHostProvider {
     path: string; text: string; message: string;
     expectedVersion?: string;   // the version replaced; absent for a new file
   }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
-  // Open (next): listFiles, listBranches
+  listFiles(ref: string): Promise<{ paths: string[]; truncated: boolean }>;
+  listBranches(): Promise<string[]>;
 }
 ```
 
@@ -847,9 +848,13 @@ interface GitHostProvider {
 | Commit | `PUT /repos/{o}/{r}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = expected version; 409 (or 422, no `sha`) when the file moved on | `POST /projects/{id}/repository/commits` — one `create` / `update` action with `last_commit_id` = expected version; 400 when it moved on. The commit is the file's new version |
 | New branch | `POST /repos/{o}/{r}/git/refs` from `startFrom`, else the base branch's head; then commit | `start_sha` = `startFrom`, else `start_branch` |
 | Default branch, head | `GET /repos/{o}/{r}`, `…/branches/{b}` | `GET /projects/{id}`, `…/repository/branches/{b}` |
+| Files | `GET /repos/{o}/{r}/git/trees/{commit}?recursive=1` — one answer, `truncated` past GitHub's limit | `GET /projects/{id}/repository/tree?recursive=true&ref=`, paged |
+| Branches | `GET /repos/{o}/{r}/branches`, paged | `GET /projects/{id}/repository/branches`, paged |
 
 GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`). Both
-take the token as `Authorization: Bearer`.
+take the token as `Authorization: Bearer`. A paged listing is read 100 at a
+time until a page comes back short (the paging headers are not always exposed
+to another origin), 50 pages at most.
 
 **The switch.** `index.ts` registers the module with `ModuleSwitchboard` only
 `if (__LA_GRAM_GIT__)` — a `DefinePlugin` constant from `LA_GRAM_GIT` (default
@@ -886,21 +891,37 @@ a file there is replaced only on confirmation, naming its version. Bound: the
 message only, and the commit names the binding's version. When the host
 refuses (the file moved on), the choice is a new branch — from the commit the
 model was opened or last saved at, replacing the version it saw, so it cannot
-conflict — or overwrite (naming the newer version, on confirmation); Open adds
-"open the newer version". A commit binds the model {host, provider, API base,
+conflict — overwrite (naming the newer version, on confirmation), or open the
+newer version instead (asking first: what changed here is lost). A commit binds the model {host, provider, API base,
 repository, branch, path, version, commit} in `localStorage`
 (`la-gram:git-bindings`), emits `model-saved` (the dirty marker clears) and
 reports the commit with its URL.
+
+**Open.** *Open from Git…* asks for an address (and, when it does not say, the
+host kind and a branch); `?git=<link>` opens one at startup, once. A link to a
+model file opens it; a link to a repository, branch or folder lists the model
+files there (by extension) at the branch's head commit, grouped by folder, with
+*Another branch…* to list another's; a link to a file that is not a model is
+refused. The file is read at the branch's head commit — so the binding's
+version and commit belong together — and only then is the user asked before
+the model is replaced (unsaved changes, a shared room); it opens as File › Open
+does (`MountedUi.openModelText`) and the model is bound {…, branch, path, the
+file's version, the head commit}. Reads go without a token unless one is kept
+for the host — a public repository needs none — and when the host refuses (a
+private repository answers 404, a rate limit 403/429) the token is asked for,
+naming read access, and the read tried again.
 
 **Tests.** *link.test* (both hosts, Enterprise and self-managed, subgroups,
 SSH addresses, what is refused); *providers.test* (the requests and answers of
 both APIs, recorded; conflicts, branches, failures — and no token in a message);
 *credentials.test*, *secret-file.test*; *git-save.test* (the flow against a
 fake host: first save, bound save, a file already there, conflicts, the token
-nowhere it must not be); *modules.test*; *module-boundary.test*;
-*git-module.test* (the module in the mounted UI, the network stubbed);
-*workbench.spec* (Chrome: the menu, the token typed unseen; `?git=off` — no
-entries, the chunk never fetched).
+nowhere it must not be); *git-open.test* (a file link, a repository's files by
+folder, another branch, a folder, a private repository, a refused token, the
+newer version on a conflict); *modules.test*; *module-boundary.test*;
+*git-module.test* (the module in the mounted UI, the network stubbed: save,
+then open what was saved); *workbench.spec* (Chrome: the menu, the token typed
+unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
 
 ---
 

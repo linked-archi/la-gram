@@ -1317,6 +1317,22 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     findings.push('git: Save to Git… → the address → the token, typed unseen: ok');
   });
 
+  it('on: File offers Open from Git… beside Open; a link to a repository asks for the branch it lists', async () => {
+    const { page } = await openPage();
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    const open = page.locator('app-toolbar button[data-command="module"][data-value="git:open"]');
+    await open.waitFor({ state: 'visible' });
+    expect(await open.innerText()).toContain('Open from Git…');
+    await open.click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('input[name="repository"]').count()).toBe(1);
+    expect(await dialog.locator('input[name="branch"]').count()).toBe(1);
+    await page.keyboard.press('Escape');
+    await page.locator('.la-dialog').waitFor({ state: 'detached' });
+    findings.push('git: Open from Git… → the address dialog: ok');
+  });
+
   it('?git=off: nothing of it in the File menu, and its code never fetched', async () => {
     const { page } = await openPage('?git=off');
     await page.locator('app-toolbar button[data-menu="file"]').click();

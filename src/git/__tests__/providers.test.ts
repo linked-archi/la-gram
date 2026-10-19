@@ -268,3 +268,42 @@ describe('failures, in words, and never with the token', () => {
     expect(host.calls[0].headers).not.toHaveProperty('Authorization');
   });
 });
+
+describe('listing a branch’s files and the branches (Open from Git)', () => {
+  it('GitHub: the whole tree in one answer, files only; truncated said', async () => {
+    const host = fakeHost([
+      {
+        method: 'GET',
+        url: `${GH}/git/trees/abc123?recursive=1`,
+        body: {
+          truncated: true,
+          tree: [
+            { path: 'models', type: 'tree' },
+            { path: 'models/shop.ttl', type: 'blob' },
+            { path: 'README.md', type: 'blob' },
+          ],
+        },
+      },
+      { method: 'GET', url: `${GH}/branches?per_page=100&page=1`, body: [{ name: 'main' }, { name: 'feature/x' }] },
+    ]);
+    const provider = new GitHubProvider(github, TOKEN, host.fetch);
+    expect(await provider.listFiles('abc123')).toEqual({ paths: ['models/shop.ttl', 'README.md'], truncated: true });
+    expect(await provider.listBranches()).toEqual(['main', 'feature/x']);
+  });
+
+  it('GitLab: paged until a page comes back short', async () => {
+    const page = (n: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({ path: `m/${n}-${i}.ttl`, type: 'blob' }));
+    const host = fakeHost([
+      { method: 'GET', url: `${GL}/repository/tree?recursive=true&ref=c9&per_page=100&page=1`, body: page(1, 100) },
+      { method: 'GET', url: `${GL}/repository/tree?recursive=true&ref=c9&per_page=100&page=2`, body: [...page(2, 3), { path: 'm', type: 'tree' }] },
+      { method: 'GET', url: `${GL}/repository/branches?per_page=100&page=1`, body: [{ name: 'main' }] },
+    ]);
+    const provider = new GitLabProvider(gitlab, TOKEN, host.fetch);
+    const listed = await provider.listFiles('c9');
+    expect(listed.paths).toHaveLength(103);
+    expect(listed.truncated).toBe(false);
+    expect(host.calls).toHaveLength(2);
+    expect(await provider.listBranches()).toEqual(['main']);
+  });
+});

@@ -11,9 +11,20 @@
  * | read | `GET /repos/{repo}/contents/{path}?ref=` → base64 `content`, the blob `sha` (the version); over 1 MB the content comes raw, asked again |
  * | new branch | `POST /repos/{repo}/git/refs` from the commit the model was at, or the base branch's head |
  * | commit | `PUT /repos/{repo}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = the version replaced; 409 when the file moved on |
+ * | files | `GET /repos/{repo}/git/trees/{ref}?recursive=1` — the whole tree in one answer, `truncated` past GitHub's limit |
+ * | branches | `GET /repos/{repo}/branches`, paged |
  */
 import { GitError } from '../errors.js';
-import { RestProvider, encodePath, fromBase64, toBase64, type CommitResult, type FileChange, type GitFile } from './provider.js';
+import {
+  RestProvider,
+  encodePath,
+  fromBase64,
+  toBase64,
+  type CommitResult,
+  type FileChange,
+  type FileList,
+  type GitFile,
+} from './provider.js';
 
 interface ContentsFile {
   type: string;
@@ -81,5 +92,19 @@ export class GitHubProvider extends RestProvider {
       },
     );
     return { version: result!.content.sha, commit: result!.commit.sha, branch, webUrl: result!.commit.html_url };
+  }
+
+  async listFiles(ref: string): Promise<FileList> {
+    const tree = await this.request<{ tree: Array<{ path: string; type: string }>; truncated: boolean }>(
+      'GET',
+      `/repos/${this.repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+      `the branch ${ref}`,
+    );
+    return { paths: tree!.tree.filter((e) => e.type === 'blob').map((e) => e.path), truncated: tree!.truncated === true };
+  }
+
+  async listBranches(): Promise<string[]> {
+    const { items } = await this.paged<{ name: string }>(`/repos/${this.repo}/branches`, `the repository ${this.link.repository}`);
+    return items.map((b) => b.name);
   }
 }

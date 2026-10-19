@@ -17,7 +17,7 @@
  * | `user`       | Display name shown to collaborators                            |
  * | `rdf`        | `1` to start with the RDF panel open (hidden by default)       |
  * | `base`       | Base new models' namespaces are minted under, `https://example.org/` by default |
- * | `git`        | `off` to switch Git storage off for the session (see `modules.ts`) |
+ * | `git`        | a repository file's link to open from Git at startup; `off` switches Git storage off for the session (see `modules.ts`) |
  */
 import { createApp } from './app.js';
 import { mountUi } from './ui/mount-ui.js';
@@ -72,11 +72,17 @@ async function bootstrap(): Promise<void> {
   // branch is dropped, and with it the module's chunk.
   const modules = new ModuleSwitchboard(params);
   if (__LA_GRAM_GIT__) {
+    // `?git=<link>` opens that file once, when the module first starts.
+    let openAtStart = params.get('git') && params.get('git') !== 'off' ? (params.get('git') as string) : undefined;
     modules.register({
       id: 'git',
       label: 'Git storage',
-      detail: 'save a model to a GitHub or GitLab repository as a commit',
-      start: async () => (await import(/* webpackChunkName: "git" */ './git/module.js')).startGitStorage(app, ui),
+      detail: 'open a model from a GitHub or GitLab repository, and save it there as a commit',
+      start: async () => {
+        const open = openAtStart;
+        openAtStart = undefined;
+        return (await import(/* webpackChunkName: "git" */ './git/module.js')).startGitStorage(app, ui, open ? { open } : {});
+      },
     });
   }
   ui.setModuleSwitches(

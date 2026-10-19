@@ -44,6 +44,17 @@ export interface CommitResult {
   webUrl: string;
 }
 
+/** The files of a branch. */
+export interface FileList {
+  /** Every file's path, folders left out. */
+  paths: string[];
+  /** Whether the host stopped short of the whole tree (a very large repository). */
+  truncated: boolean;
+}
+
+/** How many pages of a paged listing are read at most (100 entries a page). */
+export const MAX_PAGES = 50;
+
 /** A Git host's REST API, for one repository. */
 export interface GitHostProvider {
   /** The repository's default branch. */
@@ -54,6 +65,10 @@ export interface GitHostProvider {
   readFile(ref: string, path: string): Promise<GitFile | undefined>;
   /** Commit one file: create it, or replace the version it names. */
   commitFile(change: FileChange): Promise<CommitResult>;
+  /** The files on a branch (or at a commit). */
+  listFiles(ref: string): Promise<FileList>;
+  /** The repository's branches, by name. */
+  listBranches(): Promise<string[]>;
 }
 
 /** `fetch`, injectable for tests. */
@@ -71,6 +86,24 @@ export abstract class RestProvider implements GitHostProvider {
   abstract branchHead(branch: string): Promise<string>;
   abstract readFile(ref: string, path: string): Promise<GitFile | undefined>;
   abstract commitFile(change: FileChange): Promise<CommitResult>;
+  abstract listFiles(ref: string): Promise<FileList>;
+  abstract listBranches(): Promise<string[]>;
+
+  /**
+   * Every entry of a paged listing (`per_page=100&page=N`), reading pages until
+   * one comes back short — the paging headers are not always exposed to a page
+   * of another origin. `truncated` when `MAX_PAGES` is reached.
+   */
+  protected async paged<T>(path: string, what: string): Promise<{ items: T[]; truncated: boolean }> {
+    const items: T[] = [];
+    const joiner = path.includes('?') ? '&' : '?';
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const batch = (await this.request<T[]>('GET', `${path}${joiner}per_page=100&page=${page}`, what)) ?? [];
+      items.push(...batch);
+      if (batch.length < 100) return { items, truncated: false };
+    }
+    return { items, truncated: true };
+  }
 
   /** Headers the host wants on every request, besides the token. */
   protected abstract headers(): Record<string, string>;

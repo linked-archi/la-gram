@@ -14,6 +14,7 @@ import { GitBindings } from './bindings.js';
 import { DesktopTokenStore, WebTokenStore, type TokenStore } from './credentials.js';
 import { setDesktop } from './errors.js';
 import { saveToGit, type GitSaveContext } from './git-save.js';
+import { openFromGit, reopenFromGit, type GitOpenContext } from './git-open.js';
 import type { RepositoryLink } from './link.js';
 import { GitHubProvider } from './providers/github.js';
 import { GitLabProvider } from './providers/gitlab.js';
@@ -30,10 +31,18 @@ export interface GitStorage {
   stop(): void;
   /** The Save flow's context (for tests and the console). */
   readonly context: GitSaveContext;
+  /** The Open flow's context. */
+  readonly openContext: GitOpenContext;
 }
 
-/** Start the module: its menu entries, its token store. */
-export async function startGitStorage(app: App, ui: MountedUi): Promise<GitStorage> {
+/** Options for {@link startGitStorage}. */
+export interface GitStorageOptions {
+  /** A link to open once started (`?git=<link>`). */
+  open?: string;
+}
+
+/** Start the module: its menu entries, its token store; open `options.open`. */
+export async function startGitStorage(app: App, ui: MountedUi, options: GitStorageOptions = {}): Promise<GitStorage> {
   const desktop = isElectronEnvironment();
   setDesktop(desktop);
   const bridge = desktopBridge();
@@ -41,7 +50,21 @@ export async function startGitStorage(app: App, ui: MountedUi): Promise<GitStora
   const bindings = new GitBindings();
   const { eventBus } = app.components;
 
+  const openContext: GitOpenContext = {
+    dialogs: ui.dialogs,
+    report: (message, level) => ui.report(message, level),
+    tokens,
+    bindings,
+    provider: providerFor,
+    confirmReplace: (what) => ui.confirmReplace(what),
+    open: async (text, fileName) => {
+      await ui.openModelText(text, fileName);
+      return app.session.modelIri;
+    },
+  };
+
   const context: GitSaveContext = {
+    reopen: (link, branch, path) => reopenFromGit(openContext, link, branch, path),
     modelIri: () => app.session.modelIri,
     modelLabel: () => app.session.modelLabel() || 'model',
     serialize: (format) => app.modelIO.serialize(app.session.modelIri, { format }),
@@ -74,6 +97,7 @@ export async function startGitStorage(app: App, ui: MountedUi): Promise<GitStora
       const modelIri = app.session.modelIri;
       const binding = modelIri ? bindings.get(modelIri) : undefined;
       return [
+        { id: 'open', section: 'open' as const, label: 'Open from Git…', hint: 'GitHub, GitLab' },
         binding
           ? { id: 'save', section: 'save' as const, label: 'Save to Git', hint: `${binding.repository} · ${binding.branch}` }
           : { id: 'save', section: 'save' as const, label: 'Save to Git…', hint: 'GitHub, GitLab' },
@@ -82,14 +106,18 @@ export async function startGitStorage(app: App, ui: MountedUi): Promise<GitStora
       ];
     },
     async (id) => {
-      if (id === 'save') await saveToGit(context);
+      if (id === 'open') await openFromGit(openContext);
+      else if (id === 'save') await saveToGit(context);
       else if (id === 'save-as') await saveToGit(context, true);
       else if (id === 'forget-token') await forgetToken();
     },
   );
 
+  if (options.open) await openFromGit(openContext, options.open);
+
   return {
     context,
+    openContext,
     stop() {
       removeMenu();
       tokens.clearSession();

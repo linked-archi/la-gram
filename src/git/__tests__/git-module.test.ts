@@ -31,12 +31,22 @@ const host = fakeHost([
   { method: 'PUT', url: /\/contents\/models\//, status: 201, body: { content: { sha: 'blob1' }, commit: { sha: 'abc1234def', html_url: 'https://github.com/acme/arch/commit/abc1234def' } } },
 ]);
 
+/** The host, and the file as last committed — read back by Open from Git. */
+const fetchFn: typeof host.fetch = async (url, init) => {
+  if (url === `${GH}/branches/main`) return new Response(JSON.stringify({ commit: { sha: 'abc1234def' } }), { status: 200 });
+  if (url === `${GH}/contents/models/shop-floor.ttl?ref=abc1234def`) {
+    const put = host.calls.filter((c) => c.method === 'PUT').at(-1);
+    return new Response(JSON.stringify({ type: 'file', sha: 'blob1', size: 1, encoding: 'base64', content: put?.body?.['content'] }), { status: 200 });
+  }
+  return host.fetch(url, init);
+};
+
 // Node's own `localStorage` shadows jsdom's here; a store in memory stands in.
 const storage = new MemoryStorage();
 
 beforeAll(async () => {
   vi.stubGlobal('localStorage', storage);
-  vi.stubGlobal('fetch', host.fetch);
+  vi.stubGlobal('fetch', fetchFn);
   app = await createApp({ assetMode: 'offline', validationDelayMs: 0 });
   const dialogs: Dialogs = {
     prompt: vi.fn(async () => (prompts.length ? prompts.shift()! : null)),
@@ -69,9 +79,13 @@ afterAll(() => {
 const entries = () => ui.appToolbar.fileMenuItems().map((i) => `${i.command} ${i.label}${i.hint ? ` [${i.hint}]` : ''}`);
 
 describe('the Git module in the File menu', () => {
-  it('offers Save to Git…, beside Save', () => {
-    expect(entries()).toEqual(['git:save Save to Git… [GitHub, GitLab]', 'git:forget-token Forget a Git token…']);
-    expect(ui.appToolbar.fileMenuItems().every((i) => i.section === 'save')).toBe(true);
+  it('offers Open from Git… beside Open, Save to Git… beside Save', () => {
+    expect(entries()).toEqual([
+      'git:open Open from Git… [GitHub, GitLab]',
+      'git:save Save to Git… [GitHub, GitLab]',
+      'git:forget-token Forget a Git token…',
+    ]);
+    expect(ui.appToolbar.fileMenuItems().map((i) => i.section)).toEqual(['open', 'save', 'save']);
   });
 
   it('commits the model to GitHub, and the model is clean after', async () => {
@@ -91,10 +105,21 @@ describe('the Git module in the File menu', () => {
 
   it('bound now: Save to Git names where, and Save to Git as… is offered', () => {
     expect(entries()).toEqual([
+      'git:open Open from Git… [GitHub, GitLab]',
       'git:save Save to Git [acme/arch · main]',
       'git:save-as Save to Git as… [another branch or file]',
       'git:forget-token Forget a Git token…',
     ]);
+  });
+
+  it('Open from Git… opens the file it committed, and the model is bound at that commit', async () => {
+    app.newModel('Something else');
+    expect(app.session.modelLabel()).toBe('Something else');
+    forms.push({ repository: 'https://github.com/acme/arch/blob/main/models/shop-floor.ttl' });
+    await ui.runCommand({ command: 'module', value: 'git:open' });
+    expect(app.session.modelLabel()).toBe('Shop Floor');
+    expect(app.isDirty()).toBe(false);
+    expect(entries()).toContain('git:save Save to Git [acme/arch · main]');
   });
 
   it('the token is not in the page’s storage (not remembered), nor in the address', () => {

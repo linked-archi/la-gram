@@ -8,7 +8,8 @@
  *   → the version the commit replaces: the binding's — or, for a file the model
  *     was never bound to, whatever is there (asking before replacing it)
  *   → commit; the host refuses a version it has moved past (a conflict), and the
- *     user chooses: a new branch from where the model was, or overwrite
+ *     user chooses: a new branch from where the model was, overwrite, or open
+ *     the newer version instead
  *   → bind the model to the commit, mark it saved, say where it went
  * ```
  *
@@ -41,6 +42,11 @@ export interface GitSaveContext {
   provider(link: RepositoryLink, token: string | undefined): GitHostProvider;
   /** The time, for a new branch's suggested name. */
   now?(): Date;
+  /**
+   * Open the newer version of the file instead — the conflict's third choice
+   * (Open from Git); absent, the choice is not offered.
+   */
+  reopen?(link: RepositoryLink, branch: string, path: string): Promise<boolean>;
 }
 
 /** Where a save goes. */
@@ -280,14 +286,27 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
   };
 }
 
-/** The token for a host: kept, or asked for. `null` when the user cancels. */
-export async function tokenFor(ctx: Pick<GitSaveContext, 'tokens' | 'dialogs'>, link: RepositoryLink): Promise<string | null> {
+/**
+ * The token for a host: kept, or asked for. `null` when the user cancels.
+ *
+ * @param purpose What it is for, which decides the access the prompt names:
+ *   committing needs write access, opening a private repository read access.
+ */
+export async function tokenFor(
+  ctx: Pick<GitSaveContext, 'tokens' | 'dialogs'>,
+  link: RepositoryLink,
+  purpose: 'save' | 'open' = 'save',
+): Promise<string | null> {
   const kept = await ctx.tokens.get(link.host);
   if (kept) return kept;
   const scope =
-    link.provider === 'github'
-      ? 'A fine-grained personal access token with Contents: read and write on this repository.'
-      : 'A personal, project or group access token with the api scope.';
+    purpose === 'open'
+      ? link.provider === 'github'
+        ? 'The repository is private, or not there. A fine-grained personal access token with Contents: read on it opens it (read and write saves too).'
+        : 'The project is private, or not there. An access token with read_repository opens it (api saves too).'
+      : link.provider === 'github'
+        ? 'A fine-grained personal access token with Contents: read and write on this repository.'
+        : 'A personal, project or group access token with the api scope.';
   const values = await ctx.dialogs.form(
     `Access token for ${link.host}`,
     [
@@ -299,7 +318,7 @@ export async function tokenFor(ctx: Pick<GitSaveContext, 'tokens' | 'dialogs'>, 
     {
       message: `la-gram sends it to ${link.host} only, and never writes it into the model or a file.`,
       confirmLabel: 'Use this token',
-      validate: (v) => (String(v['token']) ? null : 'A token is needed to commit.'),
+      validate: (v) => (String(v['token']) ? null : purpose === 'open' ? 'A token is needed to read it.' : 'A token is needed to commit.'),
     },
   );
   if (!values) return null;
@@ -330,7 +349,20 @@ async function resolveConflict(
       label: `Overwrite it on ${where}`,
       detail: 'Replace the newer version with this model. What changed there stays in the branch’s history, but not in its latest file.',
     },
+    ...(ctx.reopen
+      ? [
+          {
+            value: 'open',
+            label: 'Open the newer version',
+            detail: 'Replace the model here with the repository’s. What you changed here is lost — save it to a new branch first to keep it.',
+          },
+        ]
+      : []),
   ]);
+  if (choice === 'open') {
+    await ctx.reopen?.(target.link, where, target.path);
+    return undefined;
+  }
   if (choice === 'branch') {
     const stamp = (ctx.now?.() ?? new Date()).toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
     const name = await ctx.dialogs.prompt('Save to a new branch', 'Branch name', `la-gram/${slug(ctx.modelLabel())}-${stamp}`);

@@ -11,11 +11,13 @@
  * | branch head | `GET /projects/{id}/repository/branches/{branch}` → `commit.id` |
  * | read | `GET /projects/{id}/repository/files/{path}?ref=` → base64 `content`, `last_commit_id` (the version) |
  * | commit | `POST /projects/{id}/repository/commits` — one `create` or `update` action with `last_commit_id` = the version replaced (400 when the file moved on); `start_sha` / `start_branch` for a new branch. The commit is the file's new version |
+ * | files | `GET /projects/{id}/repository/tree?recursive=true&ref=`, paged |
+ * | branches | `GET /projects/{id}/repository/branches`, paged |
  *
  * The Commits API rather than the Repository Files API's `PUT`: it answers with
  * the commit, which is the file's version from then on.
  */
-import { RestProvider, fromBase64, type CommitResult, type FileChange, type GitFile } from './provider.js';
+import { RestProvider, fromBase64, type CommitResult, type FileChange, type FileList, type GitFile } from './provider.js';
 
 export class GitLabProvider extends RestProvider {
   private get project(): string {
@@ -79,5 +81,18 @@ export class GitLabProvider extends RestProvider {
       },
     );
     return { version: commit!.id, commit: commit!.id, branch, webUrl: commit!.web_url };
+  }
+
+  async listFiles(ref: string): Promise<FileList> {
+    const { items, truncated } = await this.paged<{ path: string; type: string }>(
+      `/projects/${this.project}/repository/tree?recursive=true&ref=${encodeURIComponent(ref)}`,
+      `the branch ${ref}`,
+    );
+    return { paths: items.filter((e) => e.type === 'blob').map((e) => e.path), truncated };
+  }
+
+  async listBranches(): Promise<string[]> {
+    const { items } = await this.paged<{ name: string }>(`/projects/${this.project}/repository/branches`, `the project ${this.link.repository}`);
+    return items.map((b) => b.name);
   }
 }
