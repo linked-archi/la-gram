@@ -412,6 +412,18 @@ outcome.'''@en ;
 # Strategy Layer Elements
 #################################################################
 
+:StrategyBehaviorElement
+    a                    owl:Class ;
+    rdfs:subClassOf      :BehaviorElement,
+                         :StrategyLayerElement ;
+    arch:isAbstractClass true ;
+    skos:prefLabel       "StrategyBehaviorElement"@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html#sec-Strategy-Elements-Metamodel> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html#fig-Strategy-Elements-Metamodel> ;
+    skos:definition      "The behaviour elements of the strategy layer that the Strategy Elements Metamodel (Figure 46) generalizes as Strategy Behavior Element: capability and value stream. A course of action is a behaviour element beside them, not one of them."@en ;
+    skos:scopeNote       "What the strategy figures relate as a whole: a resource is assigned to one; one triggers, flows to and serves another, and serves and realizes a course of action; internal and external behaviour elements realize one; and one realizes and influences requirements (Figures 46 and 51)."@en ;
+.
+
 :Resource
     a                    owl:Class ;
     rdfs:subClassOf      :StructureElement,
@@ -429,8 +441,7 @@ assets, intangible assets, and human assets.'''@en ;
 
 :Capability
     a                    owl:Class ;
-    rdfs:subClassOf      :BehaviorElement,
-                         :StrategyLayerElement ;
+    rdfs:subClassOf      :StrategyBehaviorElement ;
     skos:prefLabel       "Capability"@en ;
     skos:altLabel        "Business Capability"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html#sec-Capability> ;
@@ -447,8 +458,7 @@ information, and technology.'''@en ;
 
 :ValueStream
     a                    owl:Class ;
-    rdfs:subClassOf      :BehaviorElement,
-                         :StrategyLayerElement ;
+    rdfs:subClassOf      :StrategyBehaviorElement ;
     skos:prefLabel       "Value Stream"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html#sec-Value-Stream> ;
     skos:definition      '''A value stream represents a sequence of activities that create an overall result for a

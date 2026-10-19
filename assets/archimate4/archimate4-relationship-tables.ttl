@@ -58,11 +58,12 @@ them: without it, the potential rules derive nothing.
 
 Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
 subproperty of :permitsRealization (am4:realizes :drawnBy :drawsRealization), lists the types the
-figures draw a realization to from this type — expanded from the abstract types a figure names to every
-concrete pair the tables permit. They are the relationships a modelling tool proposes first for a pair.
-Each such triple's reifier cites, with dcterms:source, every figure that draws it. Nearly all are
-permitted directly; figures 8-1, 9-1 and 11-1 draw an interface serving a business actor, an
-application component and a facility, which the tables give only as derived.
+figures draw a realization to from this type — expanded from the abstract types a figure names to the
+concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
+proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
+it. A pair a figure names itself is given as the figure draws it: figures 8-1, 9-1 and 11-1 draw an
+interface serving a business actor, an application component and a facility, which the tables give only
+as derived.
 
 This is not an official Open Group document.'''@en ;
     dcterms:created               "2026-10-15"^^xsd:date ;
@@ -1022,10 +1023,10 @@ am4:Event
     :permitsDirectTriggering      am4:Function , am4:Plateau , am4:Process , am4:Service , am4:WorkPackage ;
     :drawsAccess                  am4:Artifact , am4:BusinessObject , am4:DataObject , am4:Deliverable , am4:Material ;
     :drawsAssociation             am4:Meaning , am4:Value ;
-    :drawsFlow                    am4:Event , am4:Function , am4:Process , am4:Service , am4:WorkPackage ;
+    :drawsFlow                    am4:Function , am4:Process , am4:Service , am4:WorkPackage ;
     :drawsInfluence               am4:Requirement ;
     :drawsRealization             am4:Requirement ;
-    :drawsTriggering              am4:Event , am4:Function , am4:Plateau , am4:Process , am4:Service , am4:WorkPackage .
+    :drawsTriggering              am4:Function , am4:Plateau , am4:Process , am4:Service , am4:WorkPackage .
 
 am4:Facility
     :permitsAccess                am4:Artifact , am4:BusinessObject , am4:DataObject , am4:Grouping , am4:Material ;
@@ -1104,10 +1105,10 @@ am4:Function
     :drawsAccess                  am4:Artifact , am4:BusinessObject , am4:DataObject , am4:Material ;
     :drawsAggregation             am4:Function , am4:Process ;
     :drawsAssociation             am4:Meaning , am4:Value ;
-    :drawsFlow                    am4:Event , am4:Function , am4:Process , am4:Service ;
+    :drawsFlow                    am4:Event , am4:Function , am4:Process ;
     :drawsInfluence               am4:Requirement ;
     :drawsRealization             am4:Capability , am4:CourseOfAction , am4:Requirement , am4:Service , am4:ValueStream ;
-    :drawsTriggering              am4:Event , am4:Function , am4:Process , am4:Service .
+    :drawsTriggering              am4:Event , am4:Function , am4:Process .
 
 am4:Goal
     :permitsAggregation           am4:Goal , am4:Grouping ;
@@ -1466,10 +1467,10 @@ am4:Process
     :drawsAccess                  am4:Artifact , am4:BusinessObject , am4:DataObject , am4:Material ;
     :drawsAggregation             am4:Function , am4:Process ;
     :drawsAssociation             am4:Meaning , am4:Value ;
-    :drawsFlow                    am4:Event , am4:Function , am4:Process , am4:Service ;
+    :drawsFlow                    am4:Event , am4:Function , am4:Process ;
     :drawsInfluence               am4:Requirement ;
     :drawsRealization             am4:Capability , am4:CourseOfAction , am4:Requirement , am4:Service , am4:ValueStream ;
-    :drawsTriggering              am4:Event , am4:Function , am4:Process , am4:Service .
+    :drawsTriggering              am4:Event , am4:Function , am4:Process .
 
 am4:Product
     :permitsAccess                am4:Artifact , am4:BusinessObject , am4:DataObject , am4:Grouping , am4:Material ;
@@ -1625,13 +1626,13 @@ am4:Service
     :permitsDirectTriggering      am4:Event , am4:Service ;
     :drawsAccess                  am4:Artifact , am4:BusinessObject , am4:DataObject , am4:Material ;
     :drawsAssociation             am4:Meaning , am4:Value ;
-    :drawsFlow                    am4:Event , am4:Function , am4:Process , am4:Service ;
+    :drawsFlow                    am4:Event , am4:Service ;
     :drawsInfluence               am4:Requirement ;
     :drawsRealization             am4:Capability , am4:CourseOfAction , am4:Requirement , am4:ValueStream ;
     :drawsServing                 am4:ApplicationComponent , am4:ApplicationInterface , am4:BusinessActor , am4:BusinessInterface , am4:Collaboration , am4:CommunicationNetwork ,
                                  am4:Device , am4:DistributionNetwork , am4:Equipment , am4:Facility , am4:Function , am4:Node ,
                                  am4:Path , am4:Process , am4:Role , am4:SystemSoftware , am4:TechnologyInterface ;
-    :drawsTriggering              am4:Event , am4:Function , am4:Process , am4:Service .
+    :drawsTriggering              am4:Event , am4:Service .
 
 am4:Stakeholder
     :permitsAggregation           am4:Grouping , am4:Stakeholder ;
@@ -2268,8 +2269,6 @@ arch:QualifiedRelationship
                   <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
 [] rdf:reifies <<( am4:Event :drawsAccess am4:Material )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Event :drawsTriggering am4:Event )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Event :drawsTriggering am4:Function )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Event :drawsTriggering am4:Plateau )>> ;
@@ -2281,8 +2280,6 @@ arch:QualifiedRelationship
 [] rdf:reifies <<( am4:Event :drawsTriggering am4:WorkPackage )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> ,
                   <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
-[] rdf:reifies <<( am4:Event :drawsFlow am4:Event )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Event :drawsFlow am4:Function )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Event :drawsFlow am4:Process )>> ;
@@ -2355,15 +2352,11 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Function :drawsTriggering am4:Process )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Function :drawsTriggering am4:Service )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Function :drawsFlow am4:Event )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Function :drawsFlow am4:Function )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Function :drawsFlow am4:Process )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Function :drawsFlow am4:Service )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Function :drawsInfluence am4:Requirement )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
@@ -2771,15 +2764,11 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Process :drawsTriggering am4:Process )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Process :drawsTriggering am4:Service )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Process :drawsFlow am4:Event )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Process :drawsFlow am4:Function )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Process :drawsFlow am4:Process )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Process :drawsFlow am4:Service )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Process :drawsInfluence am4:Requirement )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
@@ -2922,17 +2911,9 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Service :drawsTriggering am4:Event )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Service :drawsTriggering am4:Function )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Service :drawsTriggering am4:Process )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Service :drawsTriggering am4:Service )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Service :drawsFlow am4:Event )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Service :drawsFlow am4:Function )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
-[] rdf:reifies <<( am4:Service :drawsFlow am4:Process )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .
 [] rdf:reifies <<( am4:Service :drawsFlow am4:Service )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Common-Domain> .

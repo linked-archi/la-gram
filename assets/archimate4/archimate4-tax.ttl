@@ -452,3 +452,30 @@ to its corresponding OWL class.'''@en ;
     arch:rangeIncludes  am4:Node ;
     skos:memberList     ( am4:Composition ) ;
 .
+
+:NodeArtifactProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Node to an Artifact"@en ;
+    skos:definition     "From a node to an artifact, assignment is proposed first — the artifact deployed on the node — and then :ProposalOrder."@en ;
+    arch:domainIncludes am4:Node ;
+    arch:rangeIncludes  am4:Artifact ;
+    skos:memberList     ( am4:Assignment ) ;
+.
+
+:FacilityDeviceProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Facility to a Device"@en ;
+    skos:definition     "From a facility to a device, composition is proposed first, as from a facility to a node, and then :ProposalOrder."@en ;
+    arch:domainIncludes am4:Facility ;
+    arch:rangeIncludes  am4:Device ;
+    skos:memberList     ( am4:Composition ) ;
+.
+
+:EventProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal between Events"@en ;
+    skos:definition     "Between two events, triggering is proposed first — one event causes the next — and then :ProposalOrder. Table B.5 gives triggering between events only as derived, and aggregation as the relationship a modeller may draw directly."@en ;
+    arch:domainIncludes am4:Event ;
+    arch:rangeIncludes  am4:Event ;
+    skos:memberList     ( am4:Triggering ) ;
+.
