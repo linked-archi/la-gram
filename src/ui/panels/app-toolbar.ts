@@ -50,7 +50,9 @@ export type ToolbarCommand =
   | 'toggle-rdf'
   /** A module's File-menu entry; the value is `<module>:<entry>`. */
   | 'module'
-  /** File → Modules…: switch modules on and off. */
+  /** File › Settings…: the modules' switches and each part's settings. */
+  | 'settings'
+  /** The Settings dialog, by its older name. */
   | 'modules';
 
 /** Detail of `toolbar-command`. */
@@ -296,8 +298,8 @@ export class AppToolbar extends LitElement {
   @property({ type: Boolean }) explorerOpen = true;
   /** The modules' File-menu entries, asked each time the menu opens. */
   @property({ attribute: false }) fileMenuItems: () => FileMenuItem[] = () => [];
-  /** Whether File → Modules… is offered: the build has a module to switch. */
-  @property({ type: Boolean }) modulesMenu = false;
+  /** Whether File › Settings… is offered: there is a module to switch, or a part with settings. */
+  @property({ type: Boolean }) settingsMenu = false;
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | null = null;
 
@@ -371,9 +373,9 @@ export class AppToolbar extends LitElement {
       <button data-command="model-settings" @click=${() => this._cmd('model-settings')}>
         Model settings… <span class="hint">name, namespace</span>
       </button>
-      ${this.modulesMenu
-        ? html`<button data-command="modules" @click=${() => this._cmd('modules')}>
-            Modules… <span class="hint">switch parts off</span>
+      ${this.settingsMenu
+        ? html`<button data-command="settings" @click=${() => this._cmd('settings')}>
+            Settings… <span class="hint">modules, defaults</span>
           </button>`
         : nothing}
       <hr />

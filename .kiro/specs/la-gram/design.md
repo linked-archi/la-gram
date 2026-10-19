@@ -861,9 +861,8 @@ to another origin), 50 pages at most.
 on), so with it off webpack drops the branch and the `git` chunk is not emitted
 (*module-boundary.test* holds every other import of `src/git/` out). The
 switchboard starts a registered module unless `?git=off` (the session) or the
-setting kept in `localStorage` (`la-gram:modules`) says off; *File › Modules…*
-(shown when the build has a module) switches it, starting or stopping it at
-once. Started, the module adds its entries through `MountedUi.addFileMenu`,
+setting kept in `localStorage` (`la-gram:modules`) says off; *File ›
+Settings…*'s Modules section switches it, starting or stopping it at once. Started, the module adds its entries through `MountedUi.addFileMenu`,
 asked each time the menu opens so they name the model's binding; stopped, it
 removes them and forgets the session's tokens. It is la-gram's first
 switchable module; collaboration could be the second.
@@ -879,8 +878,8 @@ default, through the bridge (`secretGet` / `secretSet` / `secretDelete` /
 atomically, mode 600) and refuses where there is no real keychain (Linux's
 plain-text `basic_text` fallback), the token then kept for the session only.
 Web: remembered only when *Remember on this browser* is ticked, which says it
-is stored unencrypted. A refused token (401) is forgotten. *File › Forget a Git
-token…* forgets one.
+is stored unencrypted. A refused token (401) is forgotten. *File › Settings…*
+lists the tokens kept, to forget one.
 
 **Save.** Unbound, or *Save to Git as…*: the dialog asks for the repository's
 address (a link to a branch or a file fills those in), the host kind when the
@@ -926,8 +925,8 @@ unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
 
 ### Configuration
 
-Req 18.13–18.17, Req 19, Task 20 — the deployment's file is built; personal
-settings are next. Two layers, both optional, over la-gram's own defaults.
+Req 18.13–18.17, Req 19, Task 20. Two layers, both optional, over la-gram's
+own defaults.
 
 **The deployment's file**, `la-gram.config.json`, beside `index.html`: fetched
 once at startup (`loadDeploymentConfig`, fetched while the app starts, awaited
@@ -983,26 +982,36 @@ message `{action} {model}`, prefix `la-gram/`), `commitMessage` fills the
 template; the Save dialog's repository, branch, path and message, the Open
 dialog's address and a new branch's suggested name start from them.
 
-**Personal settings**, kept in `localStorage` (`la-gram:settings`) on this
-machine: *File › Settings…* — one dialog, a section per part — replaces *File ›
-Modules…*. `MountedUi.addSettingsSection(id, section)` lets a module add its
-own; the Modules section is the switchboard's. Git's: default repository,
-branch, folder; the commit message template (`{action} {model}`; `{action}` is
-*Add* for a new file, *Update* for one there); the new-branch prefix
-(`la-gram/`); whether *Remember* starts ticked; the tokens kept, to forget one
-(what *Forget a Git token…* does now, moved here). Applied at once: the Save
-dialog reads them each time it opens.
+**Personal settings**, kept in `localStorage` (`la-gram:settings`, a section
+each; `src/settings.ts`) on this machine: *File › Settings…* — one form, a
+section per part, headed — replaces *File › Modules…* (the `modules` command
+opens it too). `MountedUi.addSettingsSection(section)` lets a module add its
+own (`fields()`, asked each time the dialog opens; `validate`; `apply`); field
+names are prefixed with the section's id, and each section applies its own,
+the modules' switches last. Git's (`git/settings-section.ts`): default
+repository, branch, folder (`.` for the repository's top); the commit message
+template (`{action} {model}`; `{action}` is *Add* for a new file, *Update* for
+one there); the new-branch prefix (`la-gram/`); whether *Remember* starts
+ticked; the tokens kept, a checkbox each to forget; the host kinds learned, to
+forget. An emptied field keeps no setting — its hint names the default that
+applies. Applied at once: the flows read the settings each time
+(`ctx.personal()`), and *Remember* goes to the token store as it is applied.
+The repository a dialog starts from: the model's binding, else the user's
+default, else the last used, else the deployment's; a link's own branch and
+file win over the defaults the dialog filled in.
 
-What the deployment enforces — `unavailable`, the hosts list, `never` — shows
-in the dialog as fixed, "set by the deployment"; what it defaults shows as the
-field's default. Resolution, first winning: the build → the deployment's
+What the deployment enforces — the hosts list, `never` — shows in the dialog
+as a disabled field, "Set by the deployment" (`FormField.disabled`; a module
+`unavailable` is not listed at all); what it defaults is named in the field's
+hint. Resolution, first winning: the build → the deployment's
 `unavailable` and policies → `?git=off` → personal → the deployment's defaults
 → la-gram's.
 
 **Host kinds learned.** Choosing GitHub or GitLab for a self-hosted address not
-in the hosts list remembers the kind for that host (`localStorage`,
-`la-gram:git-hosts`); `parseRepositoryLink` is given the deployment's hosts and
-the learned kinds, deployment first.
+in the hosts list remembers the kind for that host (`git/host-kinds.ts`,
+`localStorage` `la-gram:git-hosts`); the dialogs read addresses with
+`readLink` — the deployment's list first, then the user's choice, then the
+kind learned when the host does not decide.
 
 **Tests.** *config.test* (the check, case by case: shape, values, hosts, API
 addresses, a token by key, by shape, in an address; reading: none, a fallback
@@ -1011,8 +1020,12 @@ page, not JSON, a 5xx, beside the page only); *modules.test* (`off`,
 `providerFor` — refused before any token or request; `never` in both stores;
 the defaults in the dialogs); *workbench.spec* (Chrome, the file served: Git
 `unavailable`; a failed check said and Git off; a hosts list named and another
-host refused in the Save dialog). To come with Settings: the dialog's sections,
-enforced values fixed, applied at once.
+host refused in the Save dialog; *File › Settings…* with both sections, the
+deployment's values fixed, a default kept); *settings-section.test* (the
+defaults' precedence, the fields fixed or named, checking, applying, forgetting,
+host kinds learned); *settings.test*; *dialogs.test* (headings, fixed fields, a
+secret, a select); *git-module.test* (Settings applied at once to the next Save
+dialog; the modules' section).
 
 ---
 

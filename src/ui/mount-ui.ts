@@ -40,7 +40,7 @@ import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
-import { domDialogs, type Dialogs } from './dialogs.js';
+import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 
 // Side-effect imports: register the custom elements.
 import './app-shell.js';
@@ -192,12 +192,31 @@ export interface MountedUi {
    * reported. Returns what takes the entries away.
    */
   addFileMenu(moduleId: string, items: () => ModuleMenuItem[], run: (itemId: string) => Promise<void>): () => void;
-  /** The modules File → Modules… switches, and what switches one. */
+  /** The modules File › Settings… switches, and what switches one. */
   setModuleSwitches(list: () => ModuleSwitch[], toggle: (id: string, on: boolean) => Promise<void>): void;
+  /** A part's own section of File › Settings…. Returns what takes it away. */
+  addSettingsSection(section: SettingsSection): () => void;
   /** Refresh every panel from the store. */
   refresh(): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
+}
+
+/** A part's section of File › Settings… ({@link MountedUi.addSettingsSection}, Req 19.5). */
+export interface SettingsSection {
+  id: string;
+  title: string;
+  /** A line under the title. */
+  detail?: string;
+  /**
+   * The section's fields with their current values, asked each time the dialog
+   * opens; a field the deployment sets is `disabled` (Req 19.6).
+   */
+  fields(): FormField[] | Promise<FormField[]>;
+  /** The problem with the section's values, or `null`. */
+  validate?(values: FormValues): string | null;
+  /** Keep the section's values (its own fields, by their own names). */
+  apply(values: FormValues): Promise<void> | void;
 }
 
 /** An entry a module puts in the File menu ({@link MountedUi.addFileMenu}). */
@@ -1238,7 +1257,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     appToolbar.activeContextIri = app.activePresentationContext() ?? '';
   };
 
-  // ── Modules: their File-menu entries, and File → Modules… ───────────
+  // ── Modules: their File-menu entries, and File › Settings… ──────────
   const moduleMenus = new Map<string, { items: () => ModuleMenuItem[]; run: (itemId: string) => Promise<void> }>();
   let moduleSwitches: { list: () => ModuleSwitch[]; toggle: (id: string, on: boolean) => Promise<void> } | undefined;
   appToolbar.fileMenuItems = (): FileMenuItem[] =>
@@ -1259,29 +1278,71 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       appToolbar.requestUpdate();
     };
   };
+  const settingsSections = new Map<string, SettingsSection>();
+  const updateSettingsMenu = (): void => {
+    appToolbar.settingsMenu = (moduleSwitches?.list().length ?? 0) > 0 || settingsSections.size > 0;
+  };
   const setModuleSwitches = (list: () => ModuleSwitch[], toggle: (id: string, on: boolean) => Promise<void>): void => {
     moduleSwitches = { list, toggle };
-    appToolbar.modulesMenu = list().length > 0;
+    updateSettingsMenu();
   };
-  const switchModules = async (): Promise<void> => {
-    if (!moduleSwitches) return;
-    const list = moduleSwitches.list();
-    const values = await dialogs.form(
-      'Modules',
-      list.map((m) => ({ name: m.id, label: `${m.label} — ${m.detail}`, type: 'checkbox' as const, value: m.enabled })),
-      {
-        message: 'Parts of la-gram that can be switched off. Off, a module shows nothing, loads nothing and talks to no one. The setting is kept on this machine.',
-        confirmLabel: 'Apply',
+  const addSettingsSection = (section: SettingsSection): (() => void) => {
+    settingsSections.set(section.id, section);
+    updateSettingsMenu();
+    return () => {
+      if (settingsSections.get(section.id) === section) settingsSections.delete(section.id);
+      updateSettingsMenu();
+    };
+  };
+  /** The modules' switches, as the first section. */
+  const modulesSection = (): SettingsSection | undefined => {
+    if (!moduleSwitches || moduleSwitches.list().length === 0) return undefined;
+    const switches = moduleSwitches;
+    return {
+      id: 'modules',
+      title: 'Modules',
+      detail: 'Parts of la-gram that can be switched off. Off, a module shows nothing, loads nothing and talks to no one.',
+      fields: () => switches.list().map((m) => ({ name: m.id, label: `${m.label} — ${m.detail}`, type: 'checkbox' as const, value: m.enabled })),
+      apply: async (values) => {
+        for (const m of switches.list()) {
+          const on = values[m.id] === true;
+          if (on !== m.enabled) {
+            await switches.toggle(m.id, on);
+            report(`${m.label} is ${on ? 'on' : 'off'}.`);
+          }
+        }
       },
-    );
-    if (!values) return;
-    for (const m of list) {
-      const on = values[m.id] === true;
-      if (on !== m.enabled) {
-        await moduleSwitches.toggle(m.id, on);
-        report(`${m.label} is ${on ? 'on' : 'off'}.`);
-      }
+    };
+  };
+  /** File › Settings…: one dialog, a section per part, applied at once (Req 19.5). */
+  const openSettings = async (): Promise<void> => {
+    const sections = [...settingsSections.values(), ...[modulesSection()].filter((s): s is SettingsSection => !!s)];
+    if (sections.length === 0) return;
+    const fields: FormField[] = [];
+    for (const section of sections) {
+      fields.push({ name: section.id, label: section.title, type: 'section', ...(section.detail ? { hint: section.detail } : {}) });
+      for (const field of await section.fields()) fields.push({ ...field, name: `${section.id}.${field.name}` });
     }
+    const own = (values: FormValues, id: string): FormValues =>
+      Object.fromEntries(
+        Object.entries(values)
+          .filter(([name]) => name.startsWith(`${id}.`))
+          .map(([name, v]) => [name.slice(id.length + 1), v]),
+      );
+    const values = await dialogs.form('Settings', fields, {
+      message: 'Kept on this machine, and applied at once. What the deployment sets is shown, not offered for change.',
+      confirmLabel: 'Apply',
+      validate: (v) => {
+        for (const section of sections) {
+          const problem = section.validate?.(own(v, section.id));
+          if (problem) return `${section.title}: ${problem}`;
+        }
+        return null;
+      },
+    });
+    if (!values) return;
+    // A module's own settings first: switching it off after is then its last word.
+    for (const section of sections) await section.apply(own(values, section.id));
   };
 
   // ── Toolbar commands ─────────────────────────────────────────────────
@@ -1547,8 +1608,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           await moduleMenus.get(moduleId)?.run(entry.join(':'));
           return;
         }
+        case 'settings':
         case 'modules':
-          await switchModules();
+          await openSettings();
           return;
         case 'toggle-explorer':
           setExplorerOpen(!shell.explorerOpen);
@@ -1795,6 +1857,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     openModelText,
     addFileMenu,
     setModuleSwitches,
+    addSettingsSection,
     refresh,
     dispose,
   };

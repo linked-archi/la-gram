@@ -151,6 +151,21 @@ describe('the first save to a repository', () => {
     expect(serialized).toEqual(['trig']);
   });
 
+  it('personal defaults start the dialog; a pasted link’s branch and file still win over them', async () => {
+    ctx.personal = () => ({ branch: 'develop', folder: 'arch', repository: 'https://gitlab.com/acme/arch' });
+    script.forms.push({}, { token: TOKEN });
+    await saveToGit(ctx);
+    const fields = vi.mocked(script.dialogs.form).mock.calls[0][1];
+    expect(fields.find((f) => f.name === 'repository')?.value).toBe('https://gitlab.com/acme/arch');
+    expect(fields.find((f) => f.name === 'branch')?.value).toBe('develop');
+    expect(repo.commits[0]).toMatchObject({ branch: 'develop', path: 'arch/shop-floor.ttl' });
+
+    ctx.bindings.forget(MODEL);
+    script.forms.push({ repository: 'https://gitlab.com/acme/arch/-/blob/main/other/plant.ttl' });
+    await saveToGit(ctx);
+    expect(repo.commits[1]).toMatchObject({ branch: 'main', path: 'other/plant.ttl' });
+  });
+
   it('a file already there is replaced only when the user says so — naming its version', async () => {
     repo.files.set('main:models/shop-floor.ttl', { text: 'theirs', version: 'theirs-1' });
     script.confirms.push(false);

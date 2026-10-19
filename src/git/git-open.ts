@@ -25,8 +25,10 @@ import type { GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
 import { branchProblem, formatOfPath, tokenFor } from './git-save.js';
-import { parseRepositoryLink, type GitProviderKind, type RepositoryLink } from './link.js';
+import { type GitProviderKind, type RepositoryLink } from './link.js';
 import type { GitConfig } from '../config.js';
+import { learnKind, readLink, type HostKinds } from './host-kinds.js';
+import type { PersonalGitSettings } from './git-save.js';
 import type { GitHostProvider } from './providers/provider.js';
 
 /** What the Open flow needs from la-gram, injected so it is tested without the UI. */
@@ -42,6 +44,10 @@ export interface GitOpenContext {
   open(text: string, fileName: string): Promise<string | undefined>;
   /** The deployment's Git configuration: the hosts allowed, the default repository. */
   config?: GitConfig;
+  /** The user's own defaults, read each time (Req 18.15). */
+  personal?(): PersonalGitSettings;
+  /** The kinds learned for self-hosted hosts (Req 18.16). */
+  hostKinds?: HostKinds;
 }
 
 /** The value of the chooser's "another branch" entry: not a path (paths have no NUL). */
@@ -101,7 +107,7 @@ export async function openFromGit(ctx: GitOpenContext, address?: string): Promis
   let branchAsked = '';
   try {
     if (address !== undefined) {
-      link = parseRepositoryLink(address, undefined, ctx.config?.hosts);
+      link = readLink(address, undefined, ctx.config, ctx.hostKinds);
     } else {
       const asked = await askAddress(ctx);
       if (!asked) return undefined;
@@ -155,13 +161,14 @@ export async function reopenFromGit(ctx: GitOpenContext, link: RepositoryLink, b
 async function askAddress(ctx: GitOpenContext): Promise<{ link: RepositoryLink; branch: string } | undefined> {
   const providerOf = (v: Record<string, string | boolean>): GitProviderKind | undefined =>
     v['provider'] === 'github' || v['provider'] === 'gitlab' ? v['provider'] : undefined;
+  const suggestedBranch = ctx.personal?.().branch ?? ctx.config?.defaults.branch ?? '';
   const values = await ctx.dialogs.form(
     'Open from Git',
     [
       {
         name: 'repository',
         label: 'Address',
-        value: ctx.bindings.lastRepository() ?? ctx.config?.defaults.repository ?? '',
+        value: ctx.personal?.().repository ?? ctx.bindings.lastRepository() ?? ctx.config?.defaults.repository ?? '',
         hint: ctx.config?.hosts
           ? `A link to a model file opens it; to a repository, a branch or a folder lists its model files. This installation allows ${ctx.config.hosts.map((h) => h.host).join(', ')}.`
           : 'A link to a model file opens it; a link to a repository, a branch or a folder lists its model files.',
@@ -177,13 +184,18 @@ async function askAddress(ctx: GitOpenContext): Promise<{ link: RepositoryLink; 
           { value: 'gitlab', label: 'GitLab (also self-managed)' },
         ],
       },
-      { name: 'branch', label: 'Branch', value: '', hint: 'Empty: the one the address names, or the repository’s default.' },
+      {
+        name: 'branch',
+        label: 'Branch',
+        value: suggestedBranch,
+        hint: 'Empty: the one the address names, or the repository’s default.',
+      },
     ],
     {
       confirmLabel: 'Open',
       validate: (v) => {
         try {
-          parseRepositoryLink(String(v['repository']), providerOf(v), ctx.config?.hosts);
+          readLink(String(v['repository']), providerOf(v), ctx.config, ctx.hostKinds);
         } catch (err: unknown) {
           return err instanceof Error ? err.message : String(err);
         }
@@ -192,10 +204,11 @@ async function askAddress(ctx: GitOpenContext): Promise<{ link: RepositoryLink; 
     },
   );
   if (!values) return undefined;
-  return {
-    link: parseRepositoryLink(String(values['repository']), providerOf(values), ctx.config?.hosts),
-    branch: String(values['branch']),
-  };
+  learnKind(String(values['repository']), providerOf(values), ctx.config, ctx.hostKinds);
+  const link = readLink(String(values['repository']), providerOf(values), ctx.config, ctx.hostKinds);
+  // A link's branch wins over a branch the dialog only suggested.
+  const branchField = String(values['branch']);
+  return { link, branch: branchField === suggestedBranch && link.branch ? link.branch : branchField };
 }
 
 /** Choose a model file on a branch — or move to another branch. `null` when cancelled. */

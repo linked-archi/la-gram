@@ -25,14 +25,17 @@ export interface FormField {
   label: string;
   /**
    * A line of text (default), a checkbox, a secret (typed unseen, never
-   * pre-filled or autocompleted), or one of `options`.
+   * pre-filled or autocompleted), one of `options` — or a section's heading
+   * (`label`, with `hint` under it), which has no value.
    */
-  type?: 'text' | 'checkbox' | 'password' | 'select';
+  type?: 'text' | 'checkbox' | 'password' | 'select' | 'section';
   value?: string | boolean;
   /** Help shown under the field. */
   hint?: string;
   /** The choices of a `select`. */
   options?: Array<{ value: string; label: string }>;
+  /** Shown, not offered for change: a value set elsewhere (a deployment's). */
+  disabled?: boolean;
 }
 
 /** What {@link Dialogs.form} resolves with: text fields trimmed, checkboxes as booleans. */
@@ -158,11 +161,18 @@ export const domDialogs: Dialogs = {
     const inputs = new Map<string, HTMLInputElement | HTMLSelectElement>();
     for (const field of fields) {
       const id = `la-form-${field.name}`;
-      const row = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}` });
+      if (field.type === 'section') {
+        const heading = el('div', { class: 'la-form-section' }, el('div', { class: 'la-form-section-title', text: field.label }));
+        if (field.hint) heading.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+        body.push(heading);
+        continue;
+      }
+      const row = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}${field.disabled ? ' fixed' : ''}` });
       if (field.type === 'select') {
         const select = el('select', { id, name: field.name, class: 'la-input', 'aria-label': field.label });
         for (const option of field.options ?? []) select.append(el('option', { value: option.value, text: option.label }));
         if (typeof field.value === 'string') select.value = field.value;
+        select.disabled = field.disabled === true;
         row.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), select);
         if (field.hint) row.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
         inputs.set(field.name, select);
@@ -171,6 +181,7 @@ export const domDialogs: Dialogs = {
       }
       const type = field.type === 'checkbox' ? 'checkbox' : field.type === 'password' ? 'password' : 'text';
       const input = el('input', { id, name: field.name, type });
+      input.disabled = field.disabled === true;
       if (field.type === 'password') {
         // Not remembered by the browser's autofill, nor offered back.
         input.setAttribute('autocomplete', 'off');
@@ -195,13 +206,14 @@ export const domDialogs: Dialogs = {
     const values = (): FormValues => {
       const out: FormValues = {};
       for (const field of fields) {
-        const input = inputs.get(field.name)!;
+        const input = inputs.get(field.name);
+        if (!input) continue; // a section's heading
         out[field.name] = field.type === 'checkbox' ? (input as HTMLInputElement).checked : input.value.trim();
       }
       return out;
     };
     const first = [...inputs.values()].find(
-      (i): i is HTMLInputElement => i instanceof HTMLInputElement && (i.type === 'text' || i.type === 'password'),
+      (i): i is HTMLInputElement => i instanceof HTMLInputElement && !i.disabled && (i.type === 'text' || i.type === 'password'),
     );
     if (first) queueMicrotask(() => first.select());
     return modal<FormValues | null>(

@@ -1290,13 +1290,13 @@ describe('two selected elements, and catalog and matrix views', () => {
 });
 
 describe('Git storage, a switchable module (Req 18.1)', () => {
-  it('on: File offers Save to Git… and Modules…; the dialog asks for the token unseen', async () => {
+  it('on: File offers Save to Git… and Settings…; the dialog asks for the token unseen', async () => {
     const { page, session } = await openPage();
     await page.locator('app-toolbar button[data-menu="file"]').click();
     const save = page.locator('app-toolbar button[data-command="module"][data-value="git:save"]');
     await save.waitFor({ state: 'visible' });
     expect(await save.innerText()).toContain('Save to Git…');
-    expect(await page.locator('app-toolbar button[data-command="modules"]').count()).toBe(1);
+    expect(await page.locator('app-toolbar button[data-command="settings"]').count()).toBe(1);
 
     await save.click();
     const dialog = page.locator('.la-dialog');
@@ -1350,7 +1350,7 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     await page.locator('app-toolbar button[data-menu="file"]').click();
     await page.locator('app-toolbar button[data-command="save"]').waitFor({ state: 'visible' });
     expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
-    expect(await page.locator('app-toolbar button[data-command="modules"]').count()).toBe(0);
+    expect(await page.locator('app-toolbar button[data-command="settings"]').count()).toBe(0);
     findings.push('config: git unavailable → no entries, no switch: ok');
   });
 
@@ -1384,10 +1384,36 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     findings.push('config: hosts list → named, another host refused in the dialog: ok');
   });
 
+  it('File › Settings…: Git’s section and the modules’; what the deployment sets is shown fixed', async () => {
+    const { page, session } = await openConfigured(
+      JSON.stringify({ git: { hosts: [{ host: 'git.acme.example', kind: 'gitlab' }], rememberTokens: 'never' } }),
+    );
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    const settings = page.locator('app-toolbar button[data-command="settings"]');
+    await settings.waitFor({ state: 'visible' });
+    // The Git section is there once the module has started.
+    await page.locator('app-toolbar button[data-command="module"][data-value="git:save"]').waitFor({ state: 'visible' });
+    await settings.click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-form-section-title').allInnerTexts()).toEqual(['Git storage', 'Modules']);
+    const hosts = dialog.locator('input[name="git.hosts"]');
+    expect(await hosts.isDisabled()).toBe(true);
+    expect(await hosts.inputValue()).toBe('git.acme.example (GitLab)');
+    expect(await dialog.locator('input[name="git.remember"]').isDisabled()).toBe(true);
+    await dialog.locator('input[name="git.folder"]').fill('architecture');
+    await session.screenshot('workbench-settings');
+    await dialog.locator('.la-button.primary').click();
+    await page.locator('.la-dialog').waitFor({ state: 'detached' });
+    const kept = await page.evaluate(() => localStorage.getItem('la-gram:settings'));
+    expect(JSON.parse(kept!)).toEqual({ git: { folder: 'architecture' } });
+    findings.push('settings: Git and Modules sections, the deployment’s values fixed, a default kept: ok');
+  });
+
   it('?git=off: nothing of it in the File menu, and its code never fetched', async () => {
     const { page } = await openPage('?git=off');
     await page.locator('app-toolbar button[data-menu="file"]').click();
-    await page.locator('app-toolbar button[data-command="modules"]').waitFor({ state: 'visible' });
+    await page.locator('app-toolbar button[data-command="settings"]').waitFor({ state: 'visible' });
     expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
     const fetched = await page.evaluate(() =>
       performance

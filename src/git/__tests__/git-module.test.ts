@@ -80,12 +80,8 @@ const entries = () => ui.appToolbar.fileMenuItems().map((i) => `${i.command} ${i
 
 describe('the Git module in the File menu', () => {
   it('offers Open from Git… beside Open, Save to Git… beside Save', () => {
-    expect(entries()).toEqual([
-      'git:open Open from Git… [GitHub, GitLab]',
-      'git:save Save to Git… [GitHub, GitLab]',
-      'git:forget-token Forget a Git token…',
-    ]);
-    expect(ui.appToolbar.fileMenuItems().map((i) => i.section)).toEqual(['open', 'save', 'save']);
+    expect(entries()).toEqual(['git:open Open from Git… [GitHub, GitLab]', 'git:save Save to Git… [GitHub, GitLab]']);
+    expect(ui.appToolbar.fileMenuItems().map((i) => i.section)).toEqual(['open', 'save']);
   });
 
   it('commits the model to GitHub, and the model is clean after', async () => {
@@ -108,7 +104,6 @@ describe('the Git module in the File menu', () => {
       'git:open Open from Git… [GitHub, GitLab]',
       'git:save Save to Git [acme/arch · main]',
       'git:save-as Save to Git as… [another branch or file]',
-      'git:forget-token Forget a Git token…',
     ]);
   });
 
@@ -128,12 +123,30 @@ describe('the Git module in the File menu', () => {
     expect(window.location.href).not.toContain(TOKEN);
   });
 
-  it('File → Modules… switches it', async () => {
+  it('File › Settings…: the Git section, its tokens kept; applied at once, to the next Save dialog', async () => {
+    expect(ui.appToolbar.settingsMenu).toBe(true);
+    forms.push({ 'git.folder': 'architecture', 'git.message': 'arch: {action} {model}', [`git.forget:github.com`]: true });
+    await ui.runCommand({ command: 'settings' });
+    const [title, fields] = vi.mocked(ui.dialogs.form).mock.calls.at(-1)!;
+    expect(title).toBe('Settings');
+    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Git storage']);
+    expect(fields.map((f) => f.name)).toContain('git.forget:github.com');
+    expect(JSON.parse(storage.getItem('la-gram:settings')!)).toEqual({ git: { folder: 'architecture', message: 'arch: {action} {model}', rememberByDefault: false } });
+    expect(await git.context.tokens.get('github.com')).toBeUndefined();
+
+    forms.push(null);
+    await ui.runCommand({ command: 'module', value: 'git:save-as' });
+    const save = vi.mocked(ui.dialogs.form).mock.calls.at(-1)![1];
+    expect(save.find((f) => f.name === 'message')?.value).toBe('arch: Update Shop Floor');
+  });
+
+  it('File › Settings… switches modules too, in a section of their own', async () => {
     const toggle = vi.fn(async () => undefined);
     ui.setModuleSwitches(() => [{ id: 'git', label: 'Git storage', detail: 'commits', enabled: true }], toggle);
-    expect(ui.appToolbar.modulesMenu).toBe(true);
-    forms.push({ git: false });
-    await ui.runCommand({ command: 'modules' });
+    forms.push({ 'modules.git': false });
+    await ui.runCommand({ command: 'settings' });
+    const fields = vi.mocked(ui.dialogs.form).mock.calls.at(-1)![1];
+    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Git storage', 'Modules']);
     expect(toggle).toHaveBeenCalledWith('git', false);
   });
 

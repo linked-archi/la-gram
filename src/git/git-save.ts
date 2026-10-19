@@ -22,8 +22,9 @@ import { MODEL_FORMATS, type ModelFormat } from '../import-export/model-io.js';
 import type { GitBinding, GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
-import { hostNotAllowed, parseRepositoryLink, type GitProviderKind, type RepositoryLink } from './link.js';
+import { hostNotAllowed, type GitProviderKind, type RepositoryLink } from './link.js';
 import type { GitConfig } from '../config.js';
+import { learnKind, readLink, type HostKinds } from './host-kinds.js';
 import type { CommitResult, FileChange, GitHostProvider } from './providers/provider.js';
 
 /** What the Save flow needs from la-gram, injected so it is tested without the UI. */
@@ -45,6 +46,10 @@ export interface GitSaveContext {
   now?(): Date;
   /** The deployment's Git configuration: the hosts allowed, the defaults (Req 18.13–18.14). */
   config?: GitConfig;
+  /** The user's own defaults, read each time (Req 18.15). */
+  personal?(): PersonalGitSettings;
+  /** The kinds learned for self-hosted hosts (Req 18.16). */
+  hostKinds?: HostKinds;
   /**
    * Open the newer version of the file instead — the conflict's third choice
    * (Open from Git); absent, the choice is not offered.
@@ -63,7 +68,19 @@ interface Target {
   message: string;
 }
 
-/** The defaults a save starts from: the deployment's, else la-gram's (Req 18.14–18.15). */
+/** The user's Git settings (*File › Settings…*), each optional. */
+export interface PersonalGitSettings {
+  repository?: string;
+  branch?: string;
+  /** `.` for the repository's top. */
+  folder?: string;
+  message?: string;
+  branchPrefix?: string;
+  /** Whether *Remember* starts ticked. */
+  rememberByDefault?: boolean;
+}
+
+/** The defaults a save starts from: the user's, else the deployment's, else la-gram's (Req 18.14–18.15). */
 export interface ResolvedDefaults {
   repository?: string;
   branch?: string;
@@ -74,15 +91,17 @@ export interface ResolvedDefaults {
   branchPrefix: string;
 }
 
-/** The defaults, resolved. */
-export function gitDefaults(config: GitConfig | undefined): ResolvedDefaults {
-  const given = config?.defaults ?? {};
+/** The defaults, resolved: the user's over the deployment's over la-gram's. */
+export function gitDefaults(config: GitConfig | undefined, personal: PersonalGitSettings = {}): ResolvedDefaults {
+  const deployment = config?.defaults ?? {};
+  const pick = (key: 'repository' | 'branch' | 'folder' | 'message' | 'branchPrefix') => personal[key] || deployment[key];
+  const folder = personal.folder === '.' ? '' : pick('folder');
   return {
-    ...(given.repository ? { repository: given.repository } : {}),
-    ...(given.branch ? { branch: given.branch } : {}),
-    folder: given.folder ?? 'models',
-    message: given.message || '{action} {model}',
-    branchPrefix: given.branchPrefix ?? 'la-gram/',
+    ...(pick('repository') ? { repository: pick('repository') } : {}),
+    ...(pick('branch') ? { branch: pick('branch') } : {}),
+    folder: folder ?? 'models',
+    message: pick('message') || '{action} {model}',
+    branchPrefix: pick('branchPrefix') ?? 'la-gram/',
   };
 }
 
@@ -226,7 +245,7 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
 /** A bound save: only the message is asked. */
 async function boundTarget(ctx: GitSaveContext, binding: GitBinding): Promise<Target | undefined> {
   const format = formatOfPath(binding.path) ?? 'turtle';
-  const suggested = commitMessage(gitDefaults(ctx.config).message, {
+  const suggested = commitMessage(gitDefaults(ctx.config, ctx.personal?.()).message, {
     action: 'Update',
     model: ctx.modelLabel(),
     path: binding.path,
@@ -255,7 +274,8 @@ async function boundTarget(ctx: GitSaveContext, binding: GitBinding): Promise<Ta
 /** The Save to Git dialog. */
 async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): Promise<Target | undefined> {
   const label = ctx.modelLabel();
-  const defaults = gitDefaults(ctx.config);
+  const personal = ctx.personal?.() ?? {};
+  const defaults = gitDefaults(ctx.config, personal);
   const hosts = ctx.config?.hosts;
   const defaultPath = binding?.path ?? `${defaults.folder ? `${defaults.folder}/` : ''}${slug(label)}.ttl`;
   const defaultBranch = binding?.branch ?? defaults.branch ?? '';
@@ -273,7 +293,8 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
       {
         name: 'repository',
         label: 'Repository',
-        value: binding?.webUrl ?? ctx.bindings.lastRepository() ?? defaults.repository ?? '',
+        // The model's file; else the user's default; else the last used; else the deployment's.
+        value: binding?.webUrl ?? personal.repository ?? ctx.bindings.lastRepository() ?? ctx.config?.defaults.repository ?? '',
         hint: hosts
           ? `Its address, as in the browser. This installation allows ${hosts.map((h) => h.host).join(', ')}.`
           : 'Its address, as in the browser: https://github.com/org/repo, https://gitlab.com/group/repo. A link to a branch or a file fills those in.',
@@ -309,7 +330,7 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
       validate: (v) => {
         let link: RepositoryLink;
         try {
-          link = parseRepositoryLink(String(v['repository']), providerOf(v), hosts);
+          link = readLink(String(v['repository']), providerOf(v), ctx.config, ctx.hostKinds);
         } catch (err: unknown) {
           return err instanceof Error ? err.message : String(err);
         }
@@ -326,10 +347,13 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
     },
   );
   if (!values) return undefined;
-  const link = parseRepositoryLink(String(values['repository']), providerOf(values), hosts);
+  const link = readLink(String(values['repository']), providerOf(values), ctx.config, ctx.hostKinds);
+  learnKind(String(values['repository']), providerOf(values), ctx.config, ctx.hostKinds);
   // A link to a branch or a file fills in what the user left as it was.
   const path = String(values['path']) === defaultPath && link.path ? link.path : String(values['path']);
-  const branch = String(values['branch']) || link.branch || '';
+  // A link's branch wins over a branch the dialog only suggested.
+  const branchField = String(values['branch']);
+  const branch = (branchField === defaultBranch && link.branch) || branchField || link.branch || '';
   const newBranch = String(values['newBranch']);
   return {
     link,
@@ -420,7 +444,7 @@ async function resolveConflict(
   }
   if (choice === 'branch') {
     const stamp = (ctx.now?.() ?? new Date()).toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const prefix = gitDefaults(ctx.config).branchPrefix;
+    const prefix = gitDefaults(ctx.config, ctx.personal?.()).branchPrefix;
     const name = await ctx.dialogs.prompt('Save to a new branch', 'Branch name', `${prefix}${slug(ctx.modelLabel())}-${stamp}`);
     if (!name) return undefined;
     const problem = branchProblem(name);

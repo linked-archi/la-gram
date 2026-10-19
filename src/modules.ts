@@ -9,7 +9,7 @@
  * - the deployment's configuration (`config.ts`): `unavailable` — not
  *   registered either;
  * - `?<id>=off` in the address — off for the session;
- * - the user's choice, kept on this machine (`localStorage`) — File › Modules…;
+ * - the user's choice, kept on this machine (`localStorage`) — File › Settings…;
  * - the deployment's default: `on`, or `off` until the user switches it on;
  * - on.
  *
@@ -23,7 +23,7 @@ import type { ModuleAvailability } from './config.js';
 export interface ModuleDescriptor {
   id: string;
   label: string;
-  /** What it does, in a line, for File → Modules…. */
+  /** What it does, in a line, for File › Settings…. */
   detail: string;
   /** Import and start it. */
   start(): Promise<StartedModule>;
@@ -34,7 +34,7 @@ export interface StartedModule {
   stop(): void;
 }
 
-/** A module as File → Modules… shows it. */
+/** A module as File › Settings… shows it. */
 export interface ModuleSwitch {
   id: string;
   label: string;
@@ -78,7 +78,7 @@ export class ModuleSwitchboard {
     return this.running.has(id);
   }
 
-  /** The registered modules, for File → Modules…. */
+  /** The registered modules, for File › Settings…. */
   list(): ModuleSwitch[] {
     return this.modules.map((m) => ({ id: m.id, label: m.label, detail: m.detail, enabled: this.enabled(m.id) }));
   }

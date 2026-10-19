@@ -29,8 +29,8 @@ export interface TokenStore {
   clearSession(): void;
   /** The "remember" checkbox's label; `undefined` when tokens cannot be remembered here. */
   readonly rememberLabel: string | undefined;
-  /** Whether the checkbox starts ticked. */
-  readonly rememberByDefault: boolean;
+  /** Whether the checkbox starts ticked — the store's own, or the user's setting (Req 18.15). */
+  rememberByDefault: boolean;
 }
 
 const WEB_KEY = 'la-gram:git-tokens';
@@ -44,7 +44,7 @@ function key(host: string): string {
 export class WebTokenStore implements TokenStore {
   private readonly session = new Map<string, string>();
   readonly rememberLabel: string | undefined;
-  readonly rememberByDefault = false;
+  rememberByDefault = false;
   private readonly storage: Storage | undefined;
 
   /**
@@ -108,7 +108,7 @@ export class WebTokenStore implements TokenStore {
 /** The desktop build's store: the session, and the system keychain through the bridge. */
 export class DesktopTokenStore implements TokenStore {
   private readonly session = new Map<string, string>();
-  readonly rememberByDefault = true;
+  rememberByDefault = true;
 
   private constructor(
     private readonly bridge: Required<Pick<DesktopBridge, 'secretGet' | 'secretSet' | 'secretDelete' | 'secretKeys'>>,
