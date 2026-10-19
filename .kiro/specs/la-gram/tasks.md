@@ -134,6 +134,24 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ### Task 18: Element reuse across views — done
 - [x] One resource, many placements; drop from the tree; draws relationships to placed elements — *view-canvas.test*
 
+### Task 19: Git storage (Req 18) — an optional module
+In three parts, each reviewed before the next.
+- [x] **1. Document** (2026-10-19): Req 18; design — *Git storage (optional module)*
+- [ ] **2. Save to Git**
+  - [ ] The switch: `LA_GRAM_GIT` in the build (the module's own chunk, not emitted when off); a setting on this machine, on by default; `?git=off`
+  - [ ] Link parsing: github.com and GitHub Enterprise, gitlab.com and self-managed GitLab (subgroups), with a branch and a file or without
+  - [ ] Tokens: the bridge's `secretGet` / `secretSet` / `secretDelete` and `safeStorage` in the main process; the web build's session store and *Remember on this browser*; forget a token
+  - [ ] `commitFile` for GitHub and GitLab: create or update, a new branch from the chosen one, the expected version (a moved-on file refused)
+  - [ ] Bindings per model IRI (IndexedDB); a bound save commits without the dialog; the model clean after
+  - [ ] *Save to Git…*: repository link, branch, path, format, message; the conflict choice; failures in words; the commit reported with a link
+  - [ ] Tests: link parsing; providers against recorded exchanges; no token in the model, a file, the URL or an error; the module off — no chunk, no request
+  - [ ] Docs: README, design (planned → as built), tool spec §5.11
+- [ ] **3. Open from Git**
+  - [ ] `readFile`, `listFiles`, `listBranches` for GitHub and GitLab; a public repository without a token
+  - [ ] *Open from Git…*: a file link opens it; a repository or branch link lists its model files to choose from; opened as Open does, and bound
+  - [ ] `?git=<link>` at startup; in a room, asking before the room's model is replaced
+  - [ ] Tests and docs as for Save
+
 ## Phase 3: Server-side validation
 - [ ] `POST /validate` with full SHACL incl. `sh:SPARQLConstraintComponent` (pyshacl or Jena)
 - [ ] Merge server results with client results, tagged by source
@@ -200,6 +218,7 @@ Agreed order; relationship visuals come first.
 - [x] **Commit & version history** (Task 15) — done (2026-10-11), see the change log.
 - [x] **Electron packaging** (Phase 5) — done (2026-10-11), see the change log.
 - [x] ~~*Optional:* C4 external containers and components as subclasses~~ — declined (2026-10-11): C4 stays with what c4model.com defines.
+- [ ] **Git storage** (Task 19, Req 18) — open from and commit to a Git repository by its link and an access token; a module that can be switched off. Documented (2026-10-19); Save next, then Open.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
 
 ---

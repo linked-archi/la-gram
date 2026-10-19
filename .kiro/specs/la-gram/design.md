@@ -800,6 +800,79 @@ step, so undo takes it back while the view is open; in a room, collaborators
 receive it like any other change. Blank-node labels are not stable across
 sessions, so a triple about a blank node may show as removed and added again.
 
+### Git storage (optional module) — planned
+
+Req 18, Task 19. A model is opened from, and committed to, one file in a Git
+repository, through the host's REST API: GitHub's and GitLab's both answer a
+browser's cross-origin request with a token, so the web build needs no Git
+client, clone or proxy, and the desktop build's Content-Security-Policy already
+admits `https:` (a web deployment with a policy of its own lists the Git hosts
+in `connect-src`). One file per model, written by `ModelIO.serialize` — sorted,
+so a commit's diff is the change; TriG keeps the DD-15 partition, Turtle the
+union.
+
+```
+src/git/                    imported only when the module is on (its own chunk)
+  module.ts                 the switch; registers Open from Git / Save to Git
+  link.ts                   a pasted link → host, provider, API base, repository, branch?, path?
+  providers/github.ts       REST v3: github.com, or https://HOST/api/v3 (Enterprise)
+  providers/gitlab.ts       REST v4: gitlab.com, or https://HOST/api/v4 (self-managed)
+  credentials.ts            tokens per host: desktop through the bridge, web in the session
+  bindings.ts               model IRI → the file it is bound to (IndexedDB, beside version history)
+  git-dialogs.ts            Open from Git, Save to Git, the token prompt
+```
+
+```typescript
+interface GitHostProvider {
+  readFile(repo: string, ref: string, path: string): Promise<{ text: string; version: string }>;
+  listFiles(repo: string, ref: string): Promise<string[]>;
+  listBranches(repo: string): Promise<string[]>;
+  commitFile(repo: string, change: {
+    branch: string; newBranchFrom?: string; path: string; text: string; message: string;
+    expectedVersion?: string;   // the version opened or saved last; absent for a new file
+  }): Promise<{ version: string; commit: string; webUrl: string }>;
+}
+```
+
+| | GitHub | GitLab |
+|---|---|---|
+| Read | `GET /repos/{o}/{r}/contents/{path}?ref=` (raw media type); version = the blob `sha` | `GET /projects/{id}/repository/files/{path}?ref=`; version = `last_commit_id` |
+| List | `GET /repos/{o}/{r}/git/trees/{ref}?recursive=1` | `GET /projects/{id}/repository/tree?recursive=true&ref=` (paged) |
+| Branches | `GET /repos/{o}/{r}/branches` | `GET /projects/{id}/repository/branches` |
+| Commit | `PUT /repos/{o}/{r}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = expected version; 409 when the file moved on | `POST` (new) or `PUT` (update) `/projects/{id}/repository/files/{path}` — `branch`, `content`, `commit_message`, `last_commit_id` = expected version; 400 when the file moved on |
+| New branch | `POST /repos/{o}/{r}/git/refs` from the base branch's head, then commit | `start_branch` on the commit |
+
+GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`).
+
+**The switch.** In the build, `LA_GRAM_GIT` (default on) becomes a constant
+through webpack's `DefinePlugin`; `if (GIT_MODULE) await import('./git/module.js')`
+is dropped when it is off, so the chunk is not emitted. At runtime, a setting
+kept on this machine (`localStorage`, on by default) and `?git=off` for the
+session. Off: no menu entries, no chunk loaded, no token read, no request. It is
+la-gram's first switchable module; collaboration could be the second.
+
+**Tokens.** Kept per host, sent only to it. Desktop: the bridge gains
+`secretGet(host)`, `secretSet(host, token)` and `secretDelete(host)`; the main
+process encrypts with Electron's `safeStorage` (the OS keychain) into a file in
+`userData` — where encryption is unavailable (Linux without a keyring) the token
+is kept for the session only. Web: in memory for the session, or
+`localStorage` when the user ticks *Remember on this browser*. Requests carry
+it in the `Authorization` header only; errors are reported from the status
+code, never echoing a request.
+
+**Binding and conflicts.** Opening or saving binds the model IRI to {host,
+repository, branch, path, format, version}. A bound save commits with the
+version it last saw; the host refuses when the file moved on, and the dialog
+offers: open the newer version (losing nothing — the current model can be saved
+to a new branch first), save to a new branch, or overwrite (commit against the
+newer version). A successful commit records the new version, emits
+`model-saved` (the dirty marker clears) and reports the commit with a link to it.
+
+**Tests.** Providers against recorded HTTP exchanges (no network in CI); link
+parsing for both hosts, Enterprise and self-managed addresses, branch and file
+links; the token never in the model, a saved file, the URL or an error; the
+module off — no chunk, no request.
+
 ---
 
 ## Key design decisions
