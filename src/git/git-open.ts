@@ -26,6 +26,7 @@ import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
 import { branchProblem, formatOfPath, tokenFor } from './git-save.js';
 import { parseRepositoryLink, type GitProviderKind, type RepositoryLink } from './link.js';
+import type { GitConfig } from '../config.js';
 import type { GitHostProvider } from './providers/provider.js';
 
 /** What the Open flow needs from la-gram, injected so it is tested without the UI. */
@@ -39,6 +40,8 @@ export interface GitOpenContext {
   confirmReplace(what: string): Promise<boolean>;
   /** Open a model file's text, as File › Open does; the model's IRI after. */
   open(text: string, fileName: string): Promise<string | undefined>;
+  /** The deployment's Git configuration: the hosts allowed, the default repository. */
+  config?: GitConfig;
 }
 
 /** The value of the chooser's "another branch" entry: not a path (paths have no NUL). */
@@ -98,7 +101,7 @@ export async function openFromGit(ctx: GitOpenContext, address?: string): Promis
   let branchAsked = '';
   try {
     if (address !== undefined) {
-      link = parseRepositoryLink(address);
+      link = parseRepositoryLink(address, undefined, ctx.config?.hosts);
     } else {
       const asked = await askAddress(ctx);
       if (!asked) return undefined;
@@ -158,8 +161,10 @@ async function askAddress(ctx: GitOpenContext): Promise<{ link: RepositoryLink; 
       {
         name: 'repository',
         label: 'Address',
-        value: ctx.bindings.lastRepository() ?? '',
-        hint: 'A link to a model file opens it; a link to a repository, a branch or a folder lists its model files.',
+        value: ctx.bindings.lastRepository() ?? ctx.config?.defaults.repository ?? '',
+        hint: ctx.config?.hosts
+          ? `A link to a model file opens it; to a repository, a branch or a folder lists its model files. This installation allows ${ctx.config.hosts.map((h) => h.host).join(', ')}.`
+          : 'A link to a model file opens it; a link to a repository, a branch or a folder lists its model files.',
       },
       {
         name: 'provider',
@@ -178,7 +183,7 @@ async function askAddress(ctx: GitOpenContext): Promise<{ link: RepositoryLink; 
       confirmLabel: 'Open',
       validate: (v) => {
         try {
-          parseRepositoryLink(String(v['repository']), providerOf(v));
+          parseRepositoryLink(String(v['repository']), providerOf(v), ctx.config?.hosts);
         } catch (err: unknown) {
           return err instanceof Error ? err.message : String(err);
         }
@@ -187,7 +192,10 @@ async function askAddress(ctx: GitOpenContext): Promise<{ link: RepositoryLink; 
     },
   );
   if (!values) return undefined;
-  return { link: parseRepositoryLink(String(values['repository']), providerOf(values)), branch: String(values['branch']) };
+  return {
+    link: parseRepositoryLink(String(values['repository']), providerOf(values), ctx.config?.hosts),
+    branch: String(values['branch']),
+  };
 }
 
 /** Choose a model file on a branch — or move to another branch. `null` when cancelled. */

@@ -24,9 +24,12 @@ import { mountUi } from './ui/mount-ui.js';
 import { startCollaboration } from './collab/start.js';
 import type { AssetMode } from './metamodel-manager/asset-sources.js';
 import { ModuleSwitchboard } from './modules.js';
+import { loadDeploymentConfig } from './config.js';
 
 async function bootstrap(): Promise<void> {
   const params = new URLSearchParams(window.location.search);
+  // The deployment's configuration, beside the page (Req 19): read while the app starts.
+  const deployment = loadDeploymentConfig();
   const metamodels = params
     .getAll('metamodel')
     .flatMap((v) => v.split(','))
@@ -68,9 +71,17 @@ async function bootstrap(): Promise<void> {
     ...(params.get('user') ? { userName: params.get('user') as string } : {}),
   });
 
+  // The configuration's problems are said; one that failed its check fails
+  // closed: the modules it governs do not start (Req 19.4).
+  const { config, failed, problems } = await deployment;
+  for (const problem of problems) {
+    console.warn(`[la-gram] ${problem}`);
+    ui.report(failed ? `${problem} Git storage is off until it is fixed.` : problem, failed ? 'error' : 'warning');
+  }
+
   // Switchable modules (Req 18.1). A build without one never registers it: the
   // branch is dropped, and with it the module's chunk.
-  const modules = new ModuleSwitchboard(params);
+  const modules = new ModuleSwitchboard(params, undefined, undefined, failed ? { git: 'unavailable' } : config.modules);
   if (__LA_GRAM_GIT__) {
     // `?git=<link>` opens that file once, when the module first starts.
     let openAtStart = params.get('git') && params.get('git') !== 'off' ? (params.get('git') as string) : undefined;
@@ -81,7 +92,10 @@ async function bootstrap(): Promise<void> {
       start: async () => {
         const open = openAtStart;
         openAtStart = undefined;
-        return (await import(/* webpackChunkName: "git" */ './git/module.js')).startGitStorage(app, ui, open ? { open } : {});
+        return (await import(/* webpackChunkName: "git" */ './git/module.js')).startGitStorage(app, ui, {
+          config: config.git,
+          ...(open ? { open } : {}),
+        });
       },
     });
   }

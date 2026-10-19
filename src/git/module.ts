@@ -12,16 +12,24 @@ import { isElectronEnvironment } from '../platform/platform-factory.js';
 import { desktopBridge } from '../platform/desktop-bridge.js';
 import { GitBindings } from './bindings.js';
 import { DesktopTokenStore, WebTokenStore, type TokenStore } from './credentials.js';
-import { setDesktop } from './errors.js';
+import { GitError, setDesktop } from './errors.js';
+import type { GitConfig } from '../config.js';
 import { saveToGit, type GitSaveContext } from './git-save.js';
 import { openFromGit, reopenFromGit, type GitOpenContext } from './git-open.js';
-import type { RepositoryLink } from './link.js';
+import { hostNotAllowed, type RepositoryLink } from './link.js';
 import { GitHubProvider } from './providers/github.js';
 import { GitLabProvider } from './providers/gitlab.js';
 import type { GitHostProvider } from './providers/provider.js';
 
-/** A provider for a repository. */
-export function providerFor(link: RepositoryLink, token: string | undefined): GitHostProvider {
+/**
+ * A provider for a repository — only on a host the deployment allows, when it
+ * lists them: the flows refuse an address before this, and this is the last
+ * check before a request.
+ */
+export function providerFor(link: RepositoryLink, token: string | undefined, config?: GitConfig): GitHostProvider {
+  if (config?.hosts && !config.hosts.some((h) => h.host === link.host)) {
+    throw new GitError('forbidden', hostNotAllowed(link.host, config.hosts));
+  }
   return link.provider === 'github' ? new GitHubProvider(link, token) : new GitLabProvider(link, token);
 }
 
@@ -39,14 +47,19 @@ export interface GitStorage {
 export interface GitStorageOptions {
   /** A link to open once started (`?git=<link>`). */
   open?: string;
+  /** The deployment's Git configuration (`la-gram.config.json`). */
+  config?: GitConfig;
 }
 
 /** Start the module: its menu entries, its token store; open `options.open`. */
 export async function startGitStorage(app: App, ui: MountedUi, options: GitStorageOptions = {}): Promise<GitStorage> {
   const desktop = isElectronEnvironment();
   setDesktop(desktop);
+  const { config } = options;
+  const remember = config?.rememberTokens !== 'never';
   const bridge = desktopBridge();
-  const tokens: TokenStore = (bridge && (await DesktopTokenStore.create(bridge))) || new WebTokenStore();
+  const tokens: TokenStore = (bridge && (await DesktopTokenStore.create(bridge, remember))) || new WebTokenStore(undefined, remember);
+  const provider = (link: RepositoryLink, token: string | undefined) => providerFor(link, token, config);
   const bindings = new GitBindings();
   const { eventBus } = app.components;
 
@@ -55,7 +68,8 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     report: (message, level) => ui.report(message, level),
     tokens,
     bindings,
-    provider: providerFor,
+    provider,
+    ...(config ? { config } : {}),
     confirmReplace: (what) => ui.confirmReplace(what),
     open: async (text, fileName) => {
       await ui.openModelText(text, fileName);
@@ -73,7 +87,8 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     report: (message, level) => ui.report(message, level),
     tokens,
     bindings,
-    provider: providerFor,
+    provider,
+    ...(config ? { config } : {}),
   };
 
   const forgetToken = async (): Promise<void> => {

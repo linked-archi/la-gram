@@ -924,18 +924,20 @@ then open what was saved); *workbench.spec* (Chrome: the menu, the token typed
 unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
 
 
-### Configuration — planned
+### Configuration
 
-Req 18.13–18.17, Req 19, Task 20. Two layers, both optional, over la-gram's own
-defaults.
+Req 18.13–18.17, Req 19, Task 20 — the deployment's file is built; personal
+settings are next. Two layers, both optional, over la-gram's own defaults.
 
 **The deployment's file**, `la-gram.config.json`, beside `index.html`: fetched
-once at startup, same origin, before the modules start (`index.ts`). A web
-deployment drops it into the build's directory; `LA_GRAM_CONFIG=<file> npm run
+once at startup (`loadDeploymentConfig`, fetched while the app starts, awaited
+before the modules start; `index.ts`), same origin. A web deployment drops it
+into the build's directory; `LA_GRAM_CONFIG=<file> npm run
 build` (or `npm run package`) copies it in, for the desktop app too — whose
-renderer fetches it from `app://la-gram/` like any other file. 404: no
-configuration. No URL parameter names another file: a link must not be able to
-widen the hosts a token may go to.
+renderer fetches it from `app://la-gram/` like any other file. 404 — or an
+HTML page in its place, which a server answering every path with its index
+gives — is no configuration. No URL parameter names another file: a link must
+not be able to widen the hosts a token may go to.
 
 ```json
 {
@@ -963,8 +965,23 @@ library: the shape, the values, a host per entry, `https:` API addresses, and
 no key that looks like a secret (`token`, `password`, `secret`, `key`, case
 apart) and no value that looks like one (`ghp_…`, `github_pat_…`, `glpat-…`).
 Unknown keys are reported and ignored. A file that is there but fails the check
-is reported once (a toast and the console), and Git storage does not start —
-failing closed: a deployment that meant an allow-list must not get none.
+— or cannot be fetched (a 5xx), or is not JSON — is reported once (a toast and
+the console), and `index.ts` hands the switchboard `git: unavailable` for the
+session — failing closed: a deployment that meant an allow-list must not get
+none.
+
+Where the hosts list acts: `parseRepositoryLink` takes it — an address on
+another host is refused there, in the dialog's own check, before a token is
+asked or a request made, and a listed host's kind and API address are the
+list's; a model bound to a host the list no longer has is refused before its
+save asks anything (*Save to Git as…* commits elsewhere); and `providerFor`
+refuses one as the last check before a request. `never`: the token stores are
+made without remembering — the web store reads and writes no `localStorage`,
+the desktop store neither reads nor writes the keychain — so no *Remember* is
+offered. The defaults: `gitDefaults` resolves them (la-gram's: folder `models`,
+message `{action} {model}`, prefix `la-gram/`), `commitMessage` fills the
+template; the Save dialog's repository, branch, path and message, the Open
+dialog's address and a new branch's suggested name start from them.
 
 **Personal settings**, kept in `localStorage` (`la-gram:settings`) on this
 machine: *File › Settings…* — one dialog, a section per part — replaces *File ›
@@ -987,12 +1004,15 @@ in the hosts list remembers the kind for that host (`localStorage`,
 `la-gram:git-hosts`); `parseRepositoryLink` is given the deployment's hosts and
 the learned kinds, deployment first.
 
-**Tests.** The file: absent, valid, each refusal (shape, value, a token, a
-secret-looking key); fail closed. Precedence, case by case. The hosts list
-refusing an address before any request (the fake host sees none). `never`: no
-checkbox, nothing kept. The Settings dialog: the sections, the enforced values
-fixed, applied at once. In Chrome: a served config file changes what the File
-menu and the Save dialog offer.
+**Tests.** *config.test* (the check, case by case: shape, values, hosts, API
+addresses, a token by key, by shape, in an address; reading: none, a fallback
+page, not JSON, a 5xx, beside the page only); *modules.test* (`off`,
+`unavailable`); *git-config.test* (the hosts list in links, flows and
+`providerFor` — refused before any token or request; `never` in both stores;
+the defaults in the dialogs); *workbench.spec* (Chrome, the file served: Git
+`unavailable`; a failed check said and Git off; a hosts list named and another
+host refused in the Save dialog). To come with Settings: the dialog's sections,
+enforced values fixed, applied at once.
 
 ---
 

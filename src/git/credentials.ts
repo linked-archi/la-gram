@@ -43,10 +43,20 @@ function key(host: string): string {
 /** The web build's store: the session, and `localStorage` when asked. */
 export class WebTokenStore implements TokenStore {
   private readonly session = new Map<string, string>();
-  readonly rememberLabel = 'Remember on this browser (stored unencrypted; anyone using this browser profile can read it)';
+  readonly rememberLabel: string | undefined;
   readonly rememberByDefault = false;
+  private readonly storage: Storage | undefined;
 
-  constructor(private readonly storage: Storage | undefined = safeLocalStorage()) {}
+  /**
+   * @param remember Whether tokens may be remembered at all: `false` when the
+   *   deployment says `never` (Req 18.14) — then none is read or written here.
+   */
+  constructor(storage: Storage | undefined = safeLocalStorage(), remember = true) {
+    this.storage = remember ? storage : undefined;
+    this.rememberLabel = remember
+      ? 'Remember on this browser (stored unencrypted; anyone using this browser profile can read it)'
+      : undefined;
+  }
 
   async get(host: string): Promise<string | undefined> {
     return this.session.get(key(host)) ?? this.remembered()[key(host)];
@@ -105,12 +115,17 @@ export class DesktopTokenStore implements TokenStore {
     readonly rememberLabel: string | undefined,
   ) {}
 
-  /** The store, once the main process has said whether it can encrypt. */
-  static async create(bridge: DesktopBridge): Promise<DesktopTokenStore | undefined> {
+  /**
+   * The store, once the main process has said whether it can encrypt.
+   *
+   * @param remember `false` when the deployment says `never`: the keychain is
+   *   neither read nor written, every token kept for the session only.
+   */
+  static async create(bridge: DesktopBridge, remember = true): Promise<DesktopTokenStore | undefined> {
     if (!bridge.secretGet || !bridge.secretSet || !bridge.secretDelete || !bridge.secretKeys || !bridge.secretsAvailable) {
       return undefined;
     }
-    const available = await bridge.secretsAvailable().catch(() => false);
+    const available = remember && (await bridge.secretsAvailable().catch(() => false));
     return new DesktopTokenStore(
       { secretGet: bridge.secretGet, secretSet: bridge.secretSet, secretDelete: bridge.secretDelete, secretKeys: bridge.secretKeys },
       available ? 'Remember on this computer (encrypted with the system keychain)' : undefined,

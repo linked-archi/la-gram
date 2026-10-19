@@ -361,7 +361,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 1. **Deployment configuration**: an optional `la-gram.config.json` beside the app's `index.html` — dropped into a deployed web build, or put into a build or desktop package with `LA_GRAM_CONFIG=<file>`. Without it la-gram behaves as it does with none of these settings
 2. It says, per switchable module (Req 18.1), `on` (the default), `off` (off until the user switches it on) or `unavailable` (not offered, as if the build left it out); and for Git storage what Req 18.13–18.14 list
-3. It is read once, at startup, from the app's own origin only: no URL parameter points to another, so a link cannot widen what a deployment allows
+3. It is read once, at startup, from the app's own origin only: no URL parameter points to another, so a link cannot widen what a deployment allows. No file — or a page served in its place, as a server answering every path with its index does — means no configuration
 4. A file that is there but cannot be read — not JSON, not the expected shape, an unknown policy value, a token in it — is reported in words, and what it governs fails closed: Git storage does not start, rather than run without the hosts list it may have meant to give. Unknown keys are reported and ignored
 5. **Settings** (*File › Settings…*, replacing *File › Modules…*): one dialog with a section per part of la-gram — the modules' switches, and each module's own settings (Git: Req 18.15, the tokens kept, to forget one). Kept on this machine (this browser profile), applied at once
 6. What the deployment enforces is shown, not offered for change, and says it is set by the deployment; what it only defaults is offered, the deployment's value as the default

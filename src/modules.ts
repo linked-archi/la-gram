@@ -2,17 +2,22 @@
  * Switchable modules (Req 18.1): parts of la-gram that can be turned off. Off,
  * a module shows nothing, loads none of its code and talks to no one.
  *
- * Switched in three places, the first winning:
+ * Switched in these places, the first winning (Req 19.7):
  *
  * - the build — a module the build leaves out is never registered
  *   (`LA_GRAM_GIT=off` for Git storage; `index.ts`);
+ * - the deployment's configuration (`config.ts`): `unavailable` — not
+ *   registered either;
  * - `?<id>=off` in the address — off for the session;
- * - a setting kept on this machine (`localStorage`), on by default — File →
- *   Modules….
+ * - the user's choice, kept on this machine (`localStorage`) — File › Modules…;
+ * - the deployment's default: `on`, or `off` until the user switches it on;
+ * - on.
  *
  * A module's code is imported when it starts, so one that stays off is never
  * fetched.
  */
+
+import type { ModuleAvailability } from './config.js';
 
 /** A module la-gram can switch. */
 export interface ModuleDescriptor {
@@ -50,17 +55,22 @@ export class ModuleSwitchboard {
     private readonly storage: Storage | undefined = safeLocalStorage(),
     private readonly onError: (id: string, err: unknown) => void = (id, err) =>
       console.error(`[la-gram] The ${id} module did not start`, err),
+    /** The deployment's availability per module (`config.ts`); absent: `on`. */
+    private readonly availability: Record<string, ModuleAvailability> = {},
   ) {
     this.sessionOff = new Set([...params.entries()].filter(([, v]) => v === 'off').map(([k]) => k));
   }
 
+  /** Register a module — unless the deployment makes it unavailable. */
   register(module: ModuleDescriptor): void {
+    if (this.availability[module.id] === 'unavailable') return;
     this.modules.push(module);
   }
 
-  /** Whether a module is on: not off for the session, and not switched off here. */
+  /** Whether a module is on: not off for the session; else the user's choice; else the deployment's default. */
   enabled(id: string): boolean {
-    return this.modules.some((m) => m.id === id) && !this.sessionOff.has(id) && this.setting()[id] !== false;
+    if (!this.modules.some((m) => m.id === id) || this.sessionOff.has(id)) return false;
+    return this.setting()[id] ?? this.availability[id] !== 'off';
   }
 
   /** Whether it is running. */
@@ -83,12 +93,10 @@ export class ModuleSwitchboard {
     const module = this.modules.find((m) => m.id === id);
     if (!module) return;
     this.sessionOff.delete(id);
-    const setting = this.setting();
-    if (on) delete setting[id];
-    else setting[id] = false;
+    // The choice is kept either way: a module the deployment has off by default stays on once switched on.
+    const setting = { ...this.setting(), [id]: on };
     try {
-      if (Object.keys(setting).length === 0) this.storage?.removeItem(KEY);
-      else this.storage?.setItem(KEY, JSON.stringify(setting));
+      this.storage?.setItem(KEY, JSON.stringify(setting));
     } catch {
       // Storage refused: the switch holds for the session.
     }

@@ -54,6 +54,37 @@ Then open http://localhost:8080. Useful URL parameters:
 | `base` | `?base=https://acme.com/ea/` | base for new models' namespaces (`{base}{notation}/{uuid}/`), `https://example.org/` by default |
 | `git` | `?git=https://github.com/acme/arch/blob/main/models/shop.ttl` | open a model from Git at startup; `off` switches Git storage off for the session |
 
+### Deployment configuration
+
+An optional `la-gram.config.json` beside `index.html` sets, for everyone using that installation, which modules it offers and how Git storage behaves. Drop it into a built directory, or build it in — `LA_GRAM_CONFIG=deploy/acme.json npm run build` (or `npm run package` for the desktop app):
+
+```json
+{
+  "modules": { "git": "on" },
+  "git": {
+    "hosts": [
+      { "host": "github.com", "kind": "github" },
+      { "host": "git.acme.example", "kind": "gitlab", "api": "https://git.acme.example/api/v4" }
+    ],
+    "rememberTokens": "ask",
+    "defaults": {
+      "repository": "https://git.acme.example/architecture/models",
+      "branch": "main",
+      "folder": "models",
+      "message": "{action} {model}",
+      "branchPrefix": "la-gram/"
+    }
+  }
+}
+```
+
+- `modules.git` — `on` (the default), `off` (until a user switches it on in *File › Modules…*) or `unavailable` (not offered).
+- `git.hosts` — when given, the only Git hosts la-gram talks to: an address on another is refused before anything is asked or sent. `kind` is `github` or `gitlab`; `api` defaults to `https://api.github.com`, `https://HOST/api/v3` (GitHub Enterprise) or `https://HOST/api/v4` (GitLab).
+- `git.rememberTokens` — `ask` (the default: users may tick *Remember*) or `never` (tokens are kept for the session only, in the browser and the desktop app).
+- `git.defaults` — what a new save starts from; the message template knows `{action}` (Add, Update), `{model}`, `{path}` and `{branch}`.
+
+It is read once at startup, from the app's own address only. A file that fails the check — not JSON, an unknown value, anything that looks like a token or password (tokens are never configured) — is reported, and Git storage stays off until it is fixed. Keys la-gram does not know are reported and ignored.
+
 Desktop: `npm run build:electron && npm run electron` runs it (Electron 44; the renderer is sandboxed and without Node, and reaches files only through the native dialogs); `npm run package` builds the app for this machine into `dist/packages/la-gram-<platform>-<arch>/` (`-- --platform win32 --arch x64` for another). The app carries only the desktop build — the bundled metamodels included, so it works offline — and is not signed: on macOS, open it with right-click › Open the first time. In a terminal inside VS Code, run it with `ELECTRON_RUN_AS_NODE` unset (`env -u ELECTRON_RUN_AS_NODE npm run electron`): VS Code sets it, and Electron then starts as plain Node.
 
 ### Bundled metamodels, and refreshing them

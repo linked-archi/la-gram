@@ -22,7 +22,8 @@ import { MODEL_FORMATS, type ModelFormat } from '../import-export/model-io.js';
 import type { GitBinding, GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
-import { parseRepositoryLink, type GitProviderKind, type RepositoryLink } from './link.js';
+import { hostNotAllowed, parseRepositoryLink, type GitProviderKind, type RepositoryLink } from './link.js';
+import type { GitConfig } from '../config.js';
 import type { CommitResult, FileChange, GitHostProvider } from './providers/provider.js';
 
 /** What the Save flow needs from la-gram, injected so it is tested without the UI. */
@@ -42,6 +43,8 @@ export interface GitSaveContext {
   provider(link: RepositoryLink, token: string | undefined): GitHostProvider;
   /** The time, for a new branch's suggested name. */
   now?(): Date;
+  /** The deployment's Git configuration: the hosts allowed, the defaults (Req 18.13–18.14). */
+  config?: GitConfig;
   /**
    * Open the newer version of the file instead — the conflict's third choice
    * (Open from Git); absent, the choice is not offered.
@@ -58,6 +61,37 @@ interface Target {
   path: string;
   format: ModelFormat;
   message: string;
+}
+
+/** The defaults a save starts from: the deployment's, else la-gram's (Req 18.14–18.15). */
+export interface ResolvedDefaults {
+  repository?: string;
+  branch?: string;
+  /** The folder new files go in; empty for the repository's top. */
+  folder: string;
+  /** The commit message's template: `{action}`, `{model}`, `{path}`, `{branch}`. */
+  message: string;
+  branchPrefix: string;
+}
+
+/** The defaults, resolved. */
+export function gitDefaults(config: GitConfig | undefined): ResolvedDefaults {
+  const given = config?.defaults ?? {};
+  return {
+    ...(given.repository ? { repository: given.repository } : {}),
+    ...(given.branch ? { branch: given.branch } : {}),
+    folder: given.folder ?? 'models',
+    message: given.message || '{action} {model}',
+    branchPrefix: given.branchPrefix ?? 'la-gram/',
+  };
+}
+
+/** A commit message from its template. */
+export function commitMessage(
+  template: string,
+  values: { action: 'Add' | 'Update'; model: string; path: string; branch: string },
+): string {
+  return template.replace(/\{(action|model|path|branch)\}/g, (_m, key: keyof typeof values) => values[key]).trim();
 }
 
 /** The model formats by the extension that names them. */
@@ -104,6 +138,12 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     return undefined;
   }
   const binding = ctx.bindings.get(modelIri);
+  const hosts = ctx.config?.hosts;
+  if (binding && !ask && hosts && !hosts.some((h) => h.host === binding.host)) {
+    // Bound before the deployment listed its hosts: refused before anything is asked or sent.
+    ctx.report(`${hostNotAllowed(binding.host, hosts)} Save to Git as… commits elsewhere.`, 'error');
+    return undefined;
+  }
   const target = binding && !ask ? await boundTarget(ctx, binding) : await askTarget(ctx, binding);
   if (!target) return undefined;
 
@@ -186,32 +226,45 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
 /** A bound save: only the message is asked. */
 async function boundTarget(ctx: GitSaveContext, binding: GitBinding): Promise<Target | undefined> {
   const format = formatOfPath(binding.path) ?? 'turtle';
-  const message = await ctx.dialogs.prompt(
-    'Save to Git',
-    `Commit message — ${binding.repository} · ${binding.branch} · ${binding.path}`,
-    `Update ${ctx.modelLabel()}`,
-  );
+  const suggested = commitMessage(gitDefaults(ctx.config).message, {
+    action: 'Update',
+    model: ctx.modelLabel(),
+    path: binding.path,
+    branch: binding.branch,
+  });
+  const message = await ctx.dialogs.prompt('Save to Git', `Commit message — ${binding.repository} · ${binding.branch} · ${binding.path}`, suggested);
   if (message === null) return undefined;
+  // A listed host's API address is the deployment's, now.
+  const listed = ctx.config?.hosts?.find((h) => h.host === binding.host);
   return {
     link: {
       host: binding.host,
-      provider: binding.provider,
+      provider: listed?.kind ?? binding.provider,
       providerKnown: true,
-      apiBase: binding.apiBase,
+      apiBase: listed?.api ?? binding.apiBase,
       repository: binding.repository,
       webUrl: binding.webUrl,
     },
     branch: binding.branch,
     path: binding.path,
     format,
-    message: message || `Update ${ctx.modelLabel()}`,
+    message: message || suggested,
   };
 }
 
 /** The Save to Git dialog. */
 async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): Promise<Target | undefined> {
   const label = ctx.modelLabel();
-  const defaultPath = binding?.path ?? `models/${slug(label)}.ttl`;
+  const defaults = gitDefaults(ctx.config);
+  const hosts = ctx.config?.hosts;
+  const defaultPath = binding?.path ?? `${defaults.folder ? `${defaults.folder}/` : ''}${slug(label)}.ttl`;
+  const defaultBranch = binding?.branch ?? defaults.branch ?? '';
+  const suggested = commitMessage(defaults.message, {
+    action: binding ? 'Update' : 'Add',
+    model: label,
+    path: defaultPath,
+    branch: defaultBranch,
+  });
   const providerOf = (v: FormValues): GitProviderKind | undefined =>
     v['provider'] === 'github' || v['provider'] === 'gitlab' ? v['provider'] : undefined;
   const values = await ctx.dialogs.form(
@@ -220,8 +273,10 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
       {
         name: 'repository',
         label: 'Repository',
-        value: binding?.webUrl ?? ctx.bindings.lastRepository() ?? '',
-        hint: 'Its address, as in the browser: https://github.com/org/repo, https://gitlab.com/group/repo. A link to a branch or a file fills those in.',
+        value: binding?.webUrl ?? ctx.bindings.lastRepository() ?? defaults.repository ?? '',
+        hint: hosts
+          ? `Its address, as in the browser. This installation allows ${hosts.map((h) => h.host).join(', ')}.`
+          : 'Its address, as in the browser: https://github.com/org/repo, https://gitlab.com/group/repo. A link to a branch or a file fills those in.',
       },
       {
         name: 'provider',
@@ -234,7 +289,7 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
           { value: 'gitlab', label: 'GitLab (also self-managed)' },
         ],
       },
-      { name: 'branch', label: 'Branch', value: binding?.branch ?? '', hint: 'Empty: the repository’s default branch.' },
+      { name: 'branch', label: 'Branch', value: defaultBranch, hint: 'Empty: the repository’s default branch.' },
       {
         name: 'newBranch',
         label: 'New branch',
@@ -247,14 +302,14 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
         value: defaultPath,
         hint: `In the repository; created when it is not there. The extension decides the format: ${MODEL_FORMATS.map((f) => `.${f.extension}`).join(' ')}.`,
       },
-      { name: 'message', label: 'Commit message', value: binding ? `Update ${label}` : `Add ${label}` },
+      { name: 'message', label: 'Commit message', value: suggested },
     ],
     {
       confirmLabel: 'Commit',
       validate: (v) => {
         let link: RepositoryLink;
         try {
-          link = parseRepositoryLink(String(v['repository']), providerOf(v));
+          link = parseRepositoryLink(String(v['repository']), providerOf(v), hosts);
         } catch (err: unknown) {
           return err instanceof Error ? err.message : String(err);
         }
@@ -271,7 +326,7 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
     },
   );
   if (!values) return undefined;
-  const link = parseRepositoryLink(String(values['repository']), providerOf(values));
+  const link = parseRepositoryLink(String(values['repository']), providerOf(values), hosts);
   // A link to a branch or a file fills in what the user left as it was.
   const path = String(values['path']) === defaultPath && link.path ? link.path : String(values['path']);
   const branch = String(values['branch']) || link.branch || '';
@@ -282,7 +337,7 @@ async function askTarget(ctx: GitSaveContext, binding: GitBinding | undefined): 
     ...(newBranch ? { newBranch } : {}),
     path,
     format: formatOfPath(path) ?? 'turtle',
-    message: String(values['message']) || (binding ? `Update ${label}` : `Add ${label}`),
+    message: String(values['message']) || suggested,
   };
 }
 
@@ -365,7 +420,8 @@ async function resolveConflict(
   }
   if (choice === 'branch') {
     const stamp = (ctx.now?.() ?? new Date()).toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const name = await ctx.dialogs.prompt('Save to a new branch', 'Branch name', `la-gram/${slug(ctx.modelLabel())}-${stamp}`);
+    const prefix = gitDefaults(ctx.config).branchPrefix;
+    const name = await ctx.dialogs.prompt('Save to a new branch', 'Branch name', `${prefix}${slug(ctx.modelLabel())}-${stamp}`);
     if (!name) return undefined;
     const problem = branchProblem(name);
     if (problem) throw new GitError('invalid', problem);

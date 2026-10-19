@@ -43,7 +43,34 @@ describe('the switchboard', () => {
 
     await again.set('git', true);
     expect(next.start).toHaveBeenCalledOnce();
-    expect(storage.length).toBe(0);
+    expect(JSON.parse(storage.getItem('la-gram:modules')!)).toEqual({ git: true });
+  });
+
+  it('the deployment’s “off”: off until the user switches it on — and that choice is kept', async () => {
+    const storage = new MemoryStorage();
+    const m = module();
+    const board = new ModuleSwitchboard(new URLSearchParams(), storage, undefined, { git: 'off' });
+    board.register(m.descriptor);
+    await board.startEnabled();
+    expect(m.start).not.toHaveBeenCalled();
+    expect(board.list()[0].enabled).toBe(false);
+    await board.set('git', true);
+    const next = module();
+    const again = new ModuleSwitchboard(new URLSearchParams(), storage, undefined, { git: 'off' });
+    again.register(next.descriptor);
+    await again.startEnabled();
+    expect(next.start).toHaveBeenCalledOnce();
+  });
+
+  it('the deployment’s “unavailable”: not registered, not listed, nothing to switch', async () => {
+    const m = module();
+    const board = new ModuleSwitchboard(new URLSearchParams(), new MemoryStorage(), undefined, { git: 'unavailable' });
+    board.register(m.descriptor);
+    await board.startEnabled();
+    expect(board.list()).toEqual([]);
+    expect(m.start).not.toHaveBeenCalled();
+    await board.set('git', true);
+    expect(m.start).not.toHaveBeenCalled();
   });
 
   it('?git=off: off for the session, the setting untouched', async () => {

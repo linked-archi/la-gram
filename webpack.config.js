@@ -47,6 +47,24 @@ const buildFlags = () =>
   });
 
 /**
+ * The deployment's configuration (`src/config.ts`, Req 19.1): with
+ * `LA_GRAM_CONFIG=<file>`, the file goes beside `index.html` as
+ * `la-gram.config.json` — in the web build and in the desktop renderer, and so
+ * in the package `npm run package` makes. Without it, nothing: a deployment
+ * may also drop the file into a built directory.
+ *
+ *   LA_GRAM_CONFIG=deploy/acme.json npm run build
+ */
+const deploymentConfig = () =>
+  process.env.LA_GRAM_CONFIG
+    ? [
+        new CopyWebpackPlugin({
+          patterns: [{ from: path.resolve(process.env.LA_GRAM_CONFIG), to: 'la-gram.config.json' }],
+        }),
+      ]
+    : [];
+
+/**
  * Emit the bundled metamodel assets (TTL + SVG icons) into the output
  * directory, preserving the `assets/` layout.
  *
@@ -116,6 +134,7 @@ export default (_env, argv) => {
       }),
       bundledAssetsPlugin(),
       buildFlags(),
+      ...deploymentConfig(),
     ],
     devtool,
   };
@@ -189,6 +208,7 @@ export default (_env, argv) => {
       }),
       bundledAssetsPlugin(),
       buildFlags(),
+      ...deploymentConfig(),
     ],
     devtool,
   };

@@ -15,10 +15,16 @@
  * other host is taken as a self-managed GitLab unless the caller says otherwise
  * — the Save dialog lets the user say.
  *
+ * When the deployment lists the hosts la-gram may use (`config.ts`, Req 18.13),
+ * an address on another is refused here, before anything is asked or sent, and
+ * a listed host's kind and API address are the list's.
+ *
  * A branch whose name has a slash (`feature/x`) cannot be told from the folder
  * after it in a file link; the link's first segment is taken as the branch, and
  * the dialog shows both to correct.
  */
+
+import type { GitHostConfig } from '../config.js';
 
 /** The hosts la-gram talks to. */
 export type GitProviderKind = 'github' | 'gitlab';
@@ -46,9 +52,9 @@ const GITHUB = 'github.com';
 const GITLAB = 'gitlab.com';
 
 /** The problem with a link, in words, or `null` when it can be read. */
-export function repositoryLinkProblem(text: string, provider?: GitProviderKind): string | null {
+export function repositoryLinkProblem(text: string, provider?: GitProviderKind, hosts?: readonly GitHostConfig[]): string | null {
   try {
-    parseRepositoryLink(text, provider);
+    parseRepositoryLink(text, provider, hosts);
     return null;
   } catch (err: unknown) {
     return err instanceof Error ? err.message : String(err);
@@ -60,9 +66,10 @@ export function repositoryLinkProblem(text: string, provider?: GitProviderKind):
  *
  * @param provider The provider, when the user chose one: it wins over the guess
  *   for a self-hosted address (github.com and gitlab.com are what they are).
+ * @param hosts The deployment's hosts, when it lists them: the only ones allowed.
  * @throws Error with the problem in words.
  */
-export function parseRepositoryLink(text: string, provider?: GitProviderKind): RepositoryLink {
+export function parseRepositoryLink(text: string, provider?: GitProviderKind, hosts?: readonly GitHostConfig[]): RepositoryLink {
   const address = fromSsh(text.trim());
   if (!address) throw new Error('Give the repository’s address, as it is in the browser: https://github.com/org/repo');
   let url: URL;
@@ -79,16 +86,24 @@ export function parseRepositoryLink(text: string, provider?: GitProviderKind): R
     throw new Error('The address must be https:// — a token is not sent over a plain connection');
   }
   const host = url.host.toLowerCase();
+  const listed = hosts?.find((h) => h.host === host);
+  if (hosts && !listed) throw new Error(hostNotAllowed(host, hosts));
   const segments = url.pathname
     .split('/')
     .filter(Boolean)
     .map((s) => decodeURIComponent(s));
 
-  const kind = providerFor(url.hostname.toLowerCase(), segments, provider);
+  const kind = listed ? { provider: listed.kind, known: true } : providerFor(url.hostname.toLowerCase(), segments, provider);
   const origin = `${url.protocol}//${host}`;
-  return kind.provider === 'github'
-    ? github(host, origin, segments, kind.known)
-    : gitlab(host, origin, segments, kind.known);
+  const link = kind.provider === 'github' ? github(host, origin, segments, kind.known) : gitlab(host, origin, segments, kind.known);
+  return listed ? { ...link, apiBase: listed.api } : link;
+}
+
+/** The refusal of a host the deployment does not list. */
+export function hostNotAllowed(host: string, hosts: readonly GitHostConfig[]): string {
+  return hosts.length === 0
+    ? 'This installation allows no Git host.'
+    : `${host} is not one of the Git hosts this installation allows: ${hosts.map((h) => h.host).join(', ')}.`;
 }
 
 /** `git@host:path` and `ssh://git@host/path` as `https://host/path`. */

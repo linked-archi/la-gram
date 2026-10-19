@@ -1333,6 +1333,57 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     findings.push('git: Open from Git… → the address dialog: ok');
   });
 
+  /** A page whose deployment serves `la-gram.config.json` with `body`. */
+  async function openConfigured(body: string): Promise<{ session: BrowserSession; page: Page }> {
+    const session = await openSession();
+    sessions.push(session);
+    await session.page.route('**/la-gram.config.json', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body }),
+    );
+    await session.page.goto(`${server.baseUrl}/index.html`, { waitUntil: 'load' });
+    await waitForAppReady(session.page);
+    return { session, page: session.page };
+  }
+
+  it('a deployment that makes Git unavailable: nothing of it, nor a switch to turn it on', async () => {
+    const { page } = await openConfigured(JSON.stringify({ modules: { git: 'unavailable' } }));
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    await page.locator('app-toolbar button[data-command="save"]').waitFor({ state: 'visible' });
+    expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
+    expect(await page.locator('app-toolbar button[data-command="modules"]').count()).toBe(0);
+    findings.push('config: git unavailable → no entries, no switch: ok');
+  });
+
+  it('a configuration that fails its check: said, and Git storage off (fails closed)', async () => {
+    const { page } = await openConfigured('{ "git": { "rememberTokens": "always" } }');
+    await page.locator('.la-toast.error').first().waitFor({ state: 'visible' });
+    expect(await page.locator('.la-toast.error').first().innerText()).toMatch(/rememberTokens must be "ask" or "never".*Git storage is off/);
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
+    findings.push('config: a failed check → said, Git off: ok');
+  });
+
+  it('a hosts list: the Save dialog names it, and refuses another host', async () => {
+    const { page } = await openConfigured(
+      JSON.stringify({ git: { hosts: [{ host: 'git.acme.example', kind: 'gitlab' }], defaults: { folder: 'architecture' } } }),
+    );
+    await page.locator('app-toolbar button[data-menu="file"]').click();
+    const save = page.locator('app-toolbar button[data-command="module"][data-value="git:save"]');
+    await save.waitFor({ state: 'visible' });
+    await save.click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.innerText()).toContain('This installation allows git.acme.example');
+    expect(await dialog.locator('input[name="path"]').inputValue()).toMatch(/^architecture\/.+\.ttl$/);
+    await dialog.locator('input[name="repository"]').fill('https://github.com/acme/arch');
+    await dialog.locator('.la-button.primary').click();
+    const error = dialog.locator('.la-dialog-error');
+    await error.waitFor({ state: 'visible' });
+    expect(await error.innerText()).toContain('github.com is not one of the Git hosts this installation allows: git.acme.example.');
+    await page.keyboard.press('Escape');
+    findings.push('config: hosts list → named, another host refused in the dialog: ok');
+  });
+
   it('?git=off: nothing of it in the File menu, and its code never fetched', async () => {
     const { page } = await openPage('?git=off');
     await page.locator('app-toolbar button[data-menu="file"]').click();
