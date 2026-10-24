@@ -785,17 +785,21 @@ model does not already have, and the menu creates the one picked — or none.
 
 ### Version history
 
-A commit (`model-manager/version-history.ts`) is a snapshot of the default
+A *checkpoint* — what the History tab calls it, so that "commit" means a Git
+commit (Req 18); the code, written before, still says `Commit`
+(`model-manager/version-history.ts`, the `history-commit` event, the
+`la-gram-history` store), which nobody sees — is a snapshot of the default
 graph — model and view geometry — as canonical N-Triples: sorted, one triple
 per line, so snapshots compare line by line and the same model gives the same
-commit. Snapshots, not deltas: restore and diff need no other commit. They are
-kept per model IRI in IndexedDB (Chromium in the browser and Electron alike),
-in memory where there is none; a saved file does not carry them. Each commit
-records its time (strictly after the model's previous one), message, author
-(the collaboration name, when in a room) and parent. The History tab lists
-them with +/− triple counts against the parent, shows a commit's triples added
-and removed — against its parent or against the model now — with prefixed
-names, and restores one: the default graph is replaced as one `rdf.store.edit`
+checkpoint. Snapshots, not deltas: restore and diff need no other checkpoint.
+They are kept per model IRI in IndexedDB (Chromium in the browser and Electron
+alike), in memory where there is none; a saved file does not carry them, and a
+Git save does not push them. Each records its time (strictly after the model's
+previous one), message, author (the collaboration name, when in a room) and
+the one before it. The History tab (*Save checkpoint*, its tooltip saying it is
+not a Git commit) lists them with +/− triple counts against the one before,
+shows a checkpoint's triples added and removed — against the one before or
+against the model now — with prefixed names, and restores one: the default graph is replaced as one `rdf.store.edit`
 step, so undo takes it back while the view is open; in a room, collaborators
 receive it like any other change. Blank-node labels are not stable across
 sessions, so a triple about a blank node may show as removed and added again.

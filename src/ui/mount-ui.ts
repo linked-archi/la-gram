@@ -1095,9 +1095,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const { message } = (e as CustomEvent<HistoryCommitDetail>).detail;
     try {
       await versionHistory.commit(modelIri, message, app.collaborationUser);
-      dialogs.toast('Committed');
+      dialogs.toast('Checkpoint saved');
     } catch (err: unknown) {
-      report(`Commit failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      report(`The checkpoint could not be saved: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
     await refreshHistory();
   };
@@ -1106,9 +1106,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const commit = historyPanel.commits.find((c) => c.id === id);
     if (!commit) return;
     const go = await dialogs.confirm(
-      'Restore this version',
-      `The model becomes the version committed ${new Date(commit.timestamp).toLocaleString()}${commit.message ? ` ("${commit.message}")` : ''}. ` +
-        'Changes not committed are replaced — commit first to keep them. Undo takes the restore back while this view stays open.',
+      'Restore this checkpoint',
+      `The model becomes the checkpoint of ${new Date(commit.timestamp).toLocaleString()}${commit.message ? ` ("${commit.message}")` : ''}. ` +
+        'Changes since the last checkpoint are replaced — save a checkpoint first to keep them. Undo takes the restore back while this view stays open.',
       { confirmLabel: 'Restore', ...(app.collaborationRoom ? { details: [`It is restored for everyone in room "${app.collaborationRoom}".`] } : {}) },
     );
     if (!go) return;

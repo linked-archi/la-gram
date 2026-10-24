@@ -460,7 +460,7 @@ describe('the workbench', () => {
     // Restoring the first puts the old name back — on the canvas too — and undo takes it back.
     history.dispatchEvent(new CustomEvent('history-restore', { detail: { id: history.commits[1].id } }));
     await vi.waitFor(() => expect(labelOf(store, placed)).toBe('Teller'));
-    expect(script.confirms.at(-1)).toBe('Restore this version');
+    expect(script.confirms.at(-1)).toBe('Restore this checkpoint');
     expect(ui.diagramCanvas.getElement(placed)?.label).toBe('Teller');
     await ui.runCommand({ command: 'undo' });
     expect(labelOf(store, placed)).toBe('Cashier');

@@ -1,11 +1,17 @@
 /**
- * History Panel — the model's commits (Req 9.10, 9.14).
+ * History Panel — the model's checkpoints (Req 9.10, 9.14).
  *
- * Commit the working state with a message; list the commits, newest first,
- * with what each changed; see a commit's changes, or how it differs from the
- * model now, as triples added and removed; restore one. The panel holds no
- * history itself: it is given the commits and the working state, and asks for
- * a commit or a restore with an event (`mount-ui.ts` does the work).
+ * Save a checkpoint of the working state with a message; list the checkpoints,
+ * newest first, with what each changed; see a checkpoint's changes, or how it
+ * differs from the model now, as triples added and removed; restore one. The
+ * panel holds no history itself: it is given the checkpoints and the working
+ * state, and asks for a new one or a restore with an event (`mount-ui.ts` does
+ * the work).
+ *
+ * The user sees *checkpoints*: kept on this machine, they are not Git commits —
+ * "commit" means Save to Git (Req 18). The code keeps its older names
+ * (`Commit`, `history-commit`, the `commit` classes, the `la-gram-history`
+ * store), which nobody sees.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -184,7 +190,14 @@ export class HistoryPanel extends LitElement {
           @input=${(e: Event) => (this._message = (e.target as HTMLInputElement).value)}
           @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this._commit()}
         />
-        <button class="commit" ?disabled=${!this.canCommit || unchanged} @click=${() => this._commit()}>Commit</button>
+        <button
+          class="commit"
+          title="Kept on this machine only — not a Git commit (File › Save to Git commits to a repository)"
+          ?disabled=${!this.canCommit || unchanged}
+          @click=${() => this._commit()}
+        >
+          Save checkpoint
+        </button>
       </div>
       <div class="status">${this._status(pending)}</div>
       ${this.commits.length === 0
@@ -199,13 +212,13 @@ export class HistoryPanel extends LitElement {
   }
 
   private _status(pending: SnapshotDiff | undefined) {
-    if (!this.canCommit) return 'Open a model to commit its versions.';
-    if (this.commits.length === 0) return 'No commits yet: commit the model to start its history.';
+    if (!this.canCommit) return 'Open a model to keep checkpoints of it.';
+    if (this.commits.length === 0) return 'No checkpoints yet: save one to start the model’s history on this machine.';
     if (!pending) return '';
     const changes = pending.added.length + pending.removed.length;
     return changes === 0
-      ? 'No changes since the last commit.'
-      : html`Since the last commit: <span class="added">+${pending.added.length}</span>
+      ? 'No changes since the last checkpoint.'
+      : html`Since the last checkpoint: <span class="added">+${pending.added.length}</span>
           <span class="removed">−${pending.removed.length}</span> triples.`;
   }
 
@@ -240,11 +253,11 @@ export class HistoryPanel extends LitElement {
     return html`<div class="detail">
       <div class="detail-header">
         <label><input type="radio" name="comparison" value="parent" .checked=${this._comparison === 'parent'}
-          @change=${() => (this._comparison = 'parent')} />Changes in this commit</label>
+          @change=${() => (this._comparison = 'parent')} />Changes in this checkpoint</label>
         <label><input type="radio" name="comparison" value="working" .checked=${this._comparison === 'working'}
           @change=${() => (this._comparison = 'working')} />Since then, to now</label>
         <button class="restore" @click=${() => this._emit<HistoryRestoreDetail>('history-restore', { id: commit.id })}>
-          Restore this version
+          Restore this checkpoint
         </button>
       </div>
       ${diff.added.length + diff.removed.length === 0

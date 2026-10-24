@@ -1094,13 +1094,21 @@ describe('metamodels from the network', () => {
 });
 
 describe('version history', () => {
-  it('commits the model from the History tab and keeps the commit in IndexedDB', async () => {
-    const { page } = await openPage();
+  it('saves a checkpoint of the model from the History tab and keeps it in IndexedDB', async () => {
+    const { page, session } = await openPage();
     await page.locator('app-shell .tab[data-tab="history"]').click();
+    // A checkpoint, not a commit: "commit" is Git's (Save to Git).
+    const button = page.locator('history-panel button.commit');
+    expect((await button.innerText()).trim()).toBe('Save checkpoint');
+    expect(await button.getAttribute('title')).toMatch(/not a Git commit/);
+    expect(await page.locator('history-panel .status').innerText()).toMatch(/No checkpoints yet/);
     await page.locator('history-panel input.commit-message').fill('First version');
-    await page.locator('history-panel button.commit').click();
+    await button.click();
     await until(async () => (await page.locator('history-panel li[data-commit]').count()) === 1, 'the commit listed');
     expect(await page.locator('history-panel li[data-commit] .message').innerText()).toBe('First version');
+    await page.locator('history-panel li[data-commit]').click();
+    expect((await page.locator('history-panel button.restore').innerText()).trim()).toBe('Restore this checkpoint');
+    await session.screenshot('workbench-history-checkpoint');
     // Nothing changed since: the button waits for a change.
     expect(await page.locator('history-panel button.commit').isDisabled()).toBe(true);
 

@@ -225,11 +225,11 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 7b. *la-gram:* **Model settings** edits the name, namespace and prefix; changing the namespace moves the model's existing IRIs into it (default) or applies only to IRIs minted from then on; namespaces must be absolute IRIs and prefixes must not stand for another namespace; collaborators follow the move
 8. Files: Turtle, TriG, JSON-LD, RDF/XML, N-Quads, N-Triples
 9. Collaborative rooms persist continuously on the server (debounced) as N-Triples plus a Turtle snapshot, and are readable over HTTP (`/rooms/<room>.ttl`)
-10. Committing a version is an explicit action: the History tab commits the model's working state with a message (and the author's collaboration name), kept on this machine per model
+10. Saving a version is an explicit action: the History tab saves a *checkpoint* of the model's working state with a message (and the author's collaboration name), kept on this machine per model. *la-gram:* it says "checkpoint", not "commit", which means a Git commit (Req 18)
 11. Joining a room loads its persisted state
 12. The same model always serializes to the same text (deterministic ordering)
 13. Delete from view vs. from model, as Req 3.7
-14. Version history: the commits, newest first, with the triples each added and removed; a commit's differences from its parent or from the model now; restore a commit — one undoable step
+14. Version history: the checkpoints, newest first, with the triples each added and removed; a checkpoint's differences from the one before or from the model now; restore a checkpoint — one undoable step
 15. *la-gram:* models written with retired vocabulary (`arch:partOfModel`, `arch:exposedInView`, `arch:contains`, `arch:conformsToMetamodel`, `arch:viewpoint`, `arch:relSource`/`relTarget`/`relPredicate`, element-level bounds) are migrated on open
 
 ---
@@ -344,7 +344,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 9. **Open from Git**: a link to a file opens it; a link to a repository, or a branch, lists the model files in it (Req 9.8's extensions) to choose one. It opens as Open does — declared metamodels loaded, retired vocabulary migrated (Req 9.15) — and binds the model. `?git=<link>` opens one at startup
 10. Failures are said in words: a wrong or expired token, no access, no such repository, branch or file, the file changed (criterion 7), a rate limit, a file too large, the network or a cross-origin refusal
 11. In a collaboration room, opening from Git replaces the room's model, asking first as Open does; saving commits what the room holds; the token and the binding stay with the user who saves
-12. Commits made in the History tab (Req 9.10) stay on this machine: a Git save is one commit of the model as it is, not a push of that history
+12. Checkpoints saved in the History tab (Req 9.10) stay on this machine: a Git save is one commit of the model as it is, not a push of them
 13. *Configured by the deployment* (Req 19): the Git hosts la-gram may talk to — each with its kind (GitHub or GitLab) and API address. When the list is given, an address on any other host is refused and no token is sent there; a listed self-hosted host needs no choice of kind. Without the list, any host, as before
 14. *Configured by the deployment*: whether a token may be remembered — `ask` (the checkbox is offered; the default) or `never` (every token is kept for the session only, on the web and the desktop alike); and a default repository and folder for new saves
 15. *Personal settings* (Req 19): a default repository, branch and folder for new saves, the commit message (a template: `{action}` Add or Update, `{model}`, `{path}`, `{branch}`; `{action} {model}` by default), the prefix of a new branch's suggested name (`la-gram/` by default), and whether the token checkbox starts ticked. A personal setting wins over the deployment's default, never over its policy (criteria 13–14)

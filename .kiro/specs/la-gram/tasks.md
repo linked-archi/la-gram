@@ -120,9 +120,9 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] Collaboration server persists rooms continuously (debounced, atomic writes)
 - [x] Files: open/save in six formats; unsaved-changes indicator and guard
 
-### Task 15: Commit & version history — done
-- [x] Explicit commit of the working state; history list; diff (added/removed triples); restore — *version-history.test, workbench.test, workbench.spec*
-- [ ] Commits shared through the collaboration server (today they stay on the machine that made them)
+### Task 15: Checkpoints & version history — done
+- [x] An explicit checkpoint of the working state (called a commit until 2026-10-23); history list; diff (added/removed triples); restore — *version-history.test, workbench.test, workbench.spec*
+- [ ] Checkpoints shared through the collaboration server (today they stay on the machine that made them)
 
 ### Task 16: Model tree — done
 - [x] Model → Views / Elements by type / Relationships by type / Unclassified; placed markers — *model-explorer.test*
@@ -151,6 +151,15 @@ In three parts, each reviewed before the next.
   - [x] `?git=<link>` at startup, once; in a room, asking before the room's model is replaced (`MountedUi.confirmReplace`)
   - [x] The conflict choice gains *Open the newer version* — *git-open.test*
   - [x] Docs: README, design, tool spec §5.11
+
+### Task 21: The History tab shows the Git history too — recorded (2026-10-23), not started
+When the model is bound to a file in Git (Req 18.8), the History tab lists that file's commits from the repository beside the local checkpoints, so History is the one place for a model's versions: Git commits for what is shared and reviewed, checkpoints for quick points between Git saves.
+- [ ] Providers: a file's commits — GitHub `GET /repos/{o}/{r}/commits?path=&sha={branch}`, GitLab `GET /projects/{id}/repository/commits?path=&ref_name={branch}` (paged; author, date, message, web link) — and the file at a commit (`readFile(commit, path)`, there)
+- [ ] The tab: two kinds of entry, told apart (a Git commit with its author, short id and a link to it on the host; a checkpoint as now), newest first; Git's read when the tab opens and on demand, not polled; the token as Save and Open use it (a public repository without one)
+- [ ] A Git commit's changes — against the commit before it, or against the model now — as triples added and removed, as for checkpoints (both files parsed and compared as canonical N-Triples)
+- [ ] *Open this version*: the model becomes the file at that commit — asking first, undoable — and stays bound to the branch, so the next Save to Git names the version it replaces and the conflict choice applies
+- [ ] Not bound, Git storage off or unavailable: the tab is as now; a failure to read the Git history is said in the tab, the checkpoints still shown
+- [ ] Docs (Req 9.14, Req 18; design *Version history*), tests (providers against recorded exchanges, the tab with a fake host, Chrome)
 
 ### Task 20: Configuration (Req 19, Req 18.13–18.17)
 In parts, each reviewed before the next.
@@ -236,6 +245,7 @@ Agreed order; relationship visuals come first.
 - [x] **Electron packaging** (Phase 5) — done (2026-10-11), see the change log.
 - [x] ~~*Optional:* C4 external containers and components as subclasses~~ — declined (2026-10-11): C4 stays with what c4model.com defines.
 - [x] **Git storage** (Task 19, Req 18) — done (2026-10-19): open from and commit to a Git repository by its link and an access token; a module that can be switched off. See the change log.
+- [ ] **The History tab shows the Git history too** (Task 21) — recorded (2026-10-23): for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes and *Open this version*.
 - [x] **Configuration** (Task 20, Req 19) — done (2026-10-19): the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). See the change log.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
 
@@ -255,6 +265,7 @@ Agreed order; relationship visuals come first.
 
 ### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
+- **Checkpoints, not commits** (Req 9.10, 9.14, 18.12): the History tab's local snapshots are called *checkpoints* — *Save checkpoint* (its tooltip: kept on this machine, not a Git commit), *Restore this checkpoint*, "Checkpoint saved", the statuses — so that "commit" means a Git commit, which *Save to Git* makes. Only the words people see change: the stored snapshots, the code's names and the `la-gram-history` store are as they were, so checkpoints kept before are all there. Task 21 recorded: the bound file's Git history in the same tab. *workbench.test*
 - **Settings** (Req 19.5–19.7, Req 18.15–18.16; Task 20 part 3): *File › Settings…* replaces *File › Modules…* — one form, a headed section per part, kept on this machine and applied at once (`src/settings.ts`, `MountedUi.addSettingsSection`). The Modules section switches modules; Git's sets the defaults of a new save — repository, branch, folder (`.` the top), the commit message template, the new-branch prefix — whether *Remember* starts ticked, and lists the tokens kept and the host kinds learned, to forget (*Forget a Git token…* leaves the File menu). The user's defaults win over the deployment's, never over its policies: its hosts list and `never` show as fixed fields, "Set by the deployment". A kind chosen for a self-hosted host is learned for that host. A link's own branch and file now win over the defaults a dialog filled in. The form gains section headings and fixed fields. *settings-section.test, settings.test, dialogs.test, git-save.test, git-module.test, workbench.spec*
 - **The deployment's configuration** (Req 19, Req 18.13–18.14, 18.17; Task 20 part 2): an optional `la-gram.config.json` beside `index.html` — dropped in, or built in with `LA_GRAM_CONFIG=<file>` (web, desktop renderer, package) — read once at startup from the app's own origin. `modules.<id>`: `on`, `off` (until switched on) or `unavailable`. `git.hosts`: the only hosts allowed — an address on another is refused before any token is asked or request made, a listed host's kind and API address are the list's, a model bound to a host no longer listed is refused before its save asks anything. `git.rememberTokens: never`: tokens for the session only, on the web and the desktop. `git.defaults`: repository, branch, folder, message template (`{action}`, `{model}`, `{path}`, `{branch}`), new-branch prefix. A file that fails the check — not JSON, a wrong value, anything that looks like a token or a password — is reported, and Git storage stays off (fails closed); unknown keys are reported and ignored; no file, or a server's fallback page in its place, is no configuration. *config.test, modules.test, git-config.test, workbench.spec*
 - **Open from Git** (Req 18, Task 19 part 3): *File › Open from Git…* — or `?git=<link>` at startup — opens a model from a GitHub or GitLab repository: a link to a model file opens it; a link to a repository, branch or folder lists its model files by folder, with *Another branch…*. The file is read at the branch's head commit, and only then is the user asked before the model is replaced; it opens as File › Open does and binds the model at the file's version and that commit, so Save to Git commits there. A public repository opens without a token; a refused read asks for one, naming read access. A save's conflict now offers *Open the newer version* too. `MountedUi` gains `confirmReplace` and `openModelText` (File › Open's opening, shared). *providers.test, git-open.test, git-module.test, workbench.spec*

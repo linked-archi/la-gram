@@ -1,6 +1,9 @@
 /**
  * Version history: explicit commits of the working state, their differences,
- * and restoring one (Req 9.10, 9.14; tool spec §5.11).
+ * and restoring one (Req 9.10, 9.14; tool spec §5.11). The user sees them as
+ * *checkpoints* (the History tab), so that "commit" means a Git commit — Save to
+ * Git (Req 18); the names here are the older ones, and what is kept under them
+ * is unchanged.
  *
  * A commit is a snapshot of the model — the store's default graph, model data
  * and view geometry alike — as canonical N-Triples: one triple per line,
