@@ -54,6 +54,8 @@ const OWL_ANNOTATION_PROPERTY = nn(NAMESPACES.owl + 'AnnotationProperty');
 /** The annotations that map a relationship predicate to its permissions of each kind. */
 const DIRECT_ANNOTATION = 'permittedDirectlyBy';
 const DRAWN_ANNOTATION = 'drawnBy';
+/** Everything the tables permit, direct or only by derivation. */
+const PERMITTED_ANNOTATION = 'permittedBy';
 /** The tables' wildcards: every element type, and every element and relationship. */
 const WILDCARDS = new Set([NAMESPACES.arch + 'Element', NAMESPACES.arch + 'ModelConcept']);
 
@@ -71,6 +73,16 @@ export class TablePermissions {
   /** Relationship predicates the tables give direct permissions for. */
   get size(): number {
     return this.byPredicate.size;
+  }
+
+  /** Whether the tables give permissions of this kind for the predicate. */
+  covers(predicateIri: string): boolean {
+    return this.byPredicate.has(predicateIri);
+  }
+
+  /** Whether the tables name the type, as a source or a target (wildcards aside). */
+  mentions(typeIri: string): boolean {
+    return this.mentioned.has(typeIri);
   }
 
   /**
@@ -108,6 +120,15 @@ function localName(iri: string): string {
 /** Read the direct permissions of every relationship table in the store (all graphs). */
 export function readDirectPermissions(store: RdfStore): TablePermissions {
   return readPermissions(store, DIRECT_ANNOTATION);
+}
+
+/**
+ * Read everything the relationship tables permit — directly, or as the
+ * conclusion of a derivation: what a relationship may be at all, which
+ * validation checks (`relationship-validity.ts`).
+ */
+export function readPermittedPermissions(store: RdfStore): TablePermissions {
+  return readPermissions(store, PERMITTED_ANNOTATION);
 }
 
 /** Read the relationships the metamodel figures draw, from every relationship table in the store. */

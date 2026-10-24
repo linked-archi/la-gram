@@ -259,6 +259,31 @@ describe('OxigraphViewManager', () => {
       expect(store.getQuads().some((q) => q.subject.termType === 'BlankNode')).toBe(false);
     });
 
+    it('reads a route another tool wrote with blank-node list cells and points, and replaces it', () => {
+      const { blankNode, literal, quad } = DataFactory;
+      const na = views.addElementToView(v, a);
+      const nb = views.addElementToView(v, b);
+      const linkIri = views.addRelationshipToView(v, relIri) as string;
+      const d = (n: number) => literal(String(n), namedNode('http://www.w3.org/2001/XMLSchema#double'));
+      const [c0, c1, p0, p1] = [blankNode('c0'), blankNode('c1'), blankNode('p0'), blankNode('p1')];
+      const RDFNS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+      store.addQuads([
+        quad(namedNode(linkIri), namedNode(VIS + 'points'), c0),
+        quad(c0, namedNode(RDFNS + 'first'), p0),
+        quad(c0, namedNode(RDFNS + 'rest'), c1),
+        quad(c1, namedNode(RDFNS + 'first'), p1),
+        quad(c1, namedNode(RDFNS + 'rest'), namedNode(RDFNS + 'nil')),
+        quad(p0, namedNode(VIS + 'point-x'), d(10)),
+        quad(p0, namedNode(VIS + 'point-y'), d(20)),
+        quad(p1, namedNode(VIS + 'point-x'), d(30)),
+        quad(p1, namedNode(VIS + 'point-y'), d(40)),
+      ] as never);
+      expect(views.getLinks(v)[0]).toMatchObject({ sourceNodeIri: na, targetNodeIri: nb, waypoints: [{ x: 10, y: 20 }, { x: 30, y: 40 }] });
+      views.updateLinkWaypoints(v, relIri, [{ x: 1, y: 1 }]);
+      expect(views.getLinks(v)[0].waypoints).toEqual([{ x: 1, y: 1 }]);
+      expect(store.getQuads().some((q) => q.subject.termType === 'BlankNode')).toBe(false);
+    });
+
     it('re-routes a link, replacing the whole point list', () => {
       views.addElementToView(v, a);
       views.addElementToView(v, b);

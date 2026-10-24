@@ -675,8 +675,27 @@ compiled engine. Data: the model + all `rdfs:subClassOf` axioms + the types of
 referenced resources. `sh:sparql` is stripped (server-side, Req 8). Debounced
 300 ms. Results go to the Validation tab; the tab carries the number of
 Violations (Warnings and Infos are listed, not counted), and violating concepts
-are marked on the canvas. Measured: 140 ms for a 500-element model against the ArchiMate 4.0
-element and relationship shapes.
+are marked on the canvas.
+
+**Relationships by the tables, not the shapes** (Task 22,
+`model-manager/relationship-validity.ts`). The relationship shapes generated
+from a language's matrix check a relationship against an `sh:or` of every
+permitted pair, and rdf-validate-shacl builds — and discards — a full result for
+each pair that fails: 12 of 14 s on a 34 000-triple model. `App.relationshipCheck`
+(cached with the shapes) takes out of the shapes graph what the loaded
+relationship tables cover, recognised by form — a node shape on a relationship
+class whose `arch:unqualifiedForm` the tables cover, made of an `sh:or` alone; a
+node shape whose property shapes are all on covered predicates, each an `sh:or`
+of classes or `sh:maxCount 0` — and keeps the rest (an attribute shape on a
+relationship class, the element, principle and viewpoint shapes). SHACL checks
+what is kept; `checkRelationshipsByTables` checks each qualified relationship and
+each direct triple on a covered predicate by lookup in the tables (`permittedBy`:
+direct or derived), over the ends' type closures, a junction at either end always
+permitted — junctions read from the replaced shapes (a class they accept that the
+tables never name and that is not a relationship class). A finding is reported
+under the replaced shape's IRI and its `sh:message`. The same findings as the
+shapes, checked on three models (56, 0 and 95 relationships): validation
+14.9 s → 1.25 s + 8 ms (34 000 triples), 78 s → 14 s + 49 ms (347 000).
 
 ### Collaboration
 

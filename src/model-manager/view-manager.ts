@@ -422,17 +422,17 @@ export class OxigraphViewManager implements ViewManager {
     const types = this.objects(link, T.rdfType);
     if (!types.includes(IRI.Link)) return undefined;
     const relationshipIri = this.objects(link, T.archRelationship)[0];
-    const sourceNodeIri = this.objects(link, T.visSource)[0];
-    const targetNodeIri = this.objects(link, T.visTarget)[0];
-    if (!relationshipIri || !sourceNodeIri || !targetNodeIri) return undefined;
-    const sourceElementIri = this.objects(nn(sourceNodeIri), T.archElement)[0];
-    const targetElementIri = this.objects(nn(targetNodeIri), T.archElement)[0];
+    const sourceNode = this.objectTerms(link, T.visSource)[0];
+    const targetNode = this.objectTerms(link, T.visTarget)[0];
+    if (!relationshipIri || !sourceNode || !targetNode) return undefined;
+    const sourceElementIri = this.objects(sourceNode, T.archElement)[0];
+    const targetElementIri = this.objects(targetNode, T.archElement)[0];
     if (!sourceElementIri || !targetElementIri) return undefined;
     return {
       linkIri: link.value,
       relationshipIri,
-      sourceNodeIri,
-      targetNodeIri,
+      sourceNodeIri: sourceNode.value,
+      targetNodeIri: targetNode.value,
       sourceElementIri,
       targetElementIri,
       waypoints: this.readPoints(link),
@@ -488,35 +488,43 @@ export class OxigraphViewManager implements ViewManager {
 
   private readPoints(link: Term): Point[] {
     const points: Point[] = [];
-    let cell = this.objects(link, T.points)[0];
-    const guard = new Set<string>();
-    while (cell && cell !== IRI.rdfNil && !guard.has(cell)) {
-      guard.add(cell);
-      const pointIri = this.objects(nn(cell), T.rdfFirst)[0];
-      if (pointIri) {
-        const p = nn(pointIri);
-        const x = numberOf(this.store.getQuads(p, T.pointX)[0]?.object);
-        const y = numberOf(this.store.getQuads(p, T.pointY)[0]?.object);
+    for (const cell of this.listCells(link)) {
+      // As terms throughout: another tool's list may have blank-node cells and points.
+      const point = this.objectTerms(cell, T.rdfFirst)[0];
+      if (point) {
+        const x = numberOf(this.store.getQuads(point as NamedNode, T.pointX)[0]?.object);
+        const y = numberOf(this.store.getQuads(point as NamedNode, T.pointY)[0]?.object);
         if (x !== undefined && y !== undefined) points.push({ x, y });
       }
-      cell = this.objects(nn(cell), T.rdfRest)[0];
     }
     return points;
+  }
+
+  /**
+   * The cells of a link's `arch-vis:points` list, in order — named or blank (la-gram
+   * names its own, `writePoints`; a converter's may be blank nodes). Stops at
+   * `rdf:nil`, and at a cell seen before.
+   */
+  private listCells(link: Term): Term[] {
+    const cells: Term[] = [];
+    const seen = new Set<string>();
+    let cell = this.objectTerms(link, T.points)[0];
+    while (cell && !(cell.termType === 'NamedNode' && cell.value === IRI.rdfNil)) {
+      const key = `${cell.termType}:${cell.value}`;
+      if (seen.has(key)) break;
+      seen.add(key);
+      cells.push(cell);
+      cell = this.objectTerms(cell, T.rdfRest)[0];
+    }
+    return cells;
   }
 
   /** The list cells and points hanging off a link's `arch-vis:points`. */
   private pointListQuads(link: Term): Quad[] {
     const quads: Quad[] = [];
-    let cell = this.objects(link, T.points)[0];
-    const guard = new Set<string>();
-    while (cell && cell !== IRI.rdfNil && !guard.has(cell)) {
-      guard.add(cell);
-      const cellNode = nn(cell);
-      for (const pointIri of this.objects(cellNode, T.rdfFirst)) {
-        quads.push(...this.store.getQuads(nn(pointIri)));
-      }
-      quads.push(...this.store.getQuads(cellNode));
-      cell = this.objects(cellNode, T.rdfRest)[0];
+    for (const cell of this.listCells(link)) {
+      for (const point of this.objectTerms(cell, T.rdfFirst)) quads.push(...this.store.getQuads(point as NamedNode));
+      quads.push(...this.store.getQuads(cell as NamedNode));
     }
     return quads;
   }
@@ -527,6 +535,11 @@ export class OxigraphViewManager implements ViewManager {
 
   private objects(subject: Term, predicate: NamedNode): string[] {
     return this.store.getQuads(subject as NamedNode, predicate).map((q) => q.object.value);
+  }
+
+  /** The objects as terms: a blank node stays one, where `objects`' values would lose it. */
+  private objectTerms(subject: Term, predicate: NamedNode): Term[] {
+    return this.store.getQuads(subject as NamedNode, predicate).map((q) => q.object);
   }
 
   /** Set a single-valued property (or clear it with `undefined`). */

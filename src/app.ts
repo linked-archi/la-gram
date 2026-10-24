@@ -59,7 +59,9 @@ import { OxigraphRelationshipManager } from './model-manager/relationship-manage
 import { OxigraphViewManager } from './model-manager/view-manager.js';
 import { ModelOperations } from './model-manager/model-operations.js';
 import { ModelSession, type AdoptResult } from './model-manager/model-session.js';
-import { labelOf, modelQuads } from './model-manager/model-queries.js';
+import { labelOf, modelQuads, typeClosure, type TypeClosure } from './model-manager/model-queries.js';
+import { readPermittedPermissions, type TablePermissions } from './model-manager/direct-permissions.js';
+import { checkRelationshipsByTables, splitTableShapes, type TableShapes } from './model-manager/relationship-validity.js';
 import { isValidPrefix } from './model-manager/model-namespace.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from './rdf-engine/iri.js';
 
@@ -172,6 +174,8 @@ export class App {
   private coreGraphs: Partial<Record<BundledAssetRole, string[]>>;
   private readonly catalogueSource: AssetSource | undefined;
   private shapesCache: Quad[] | null = null;
+  /** The shapes split for validation: what SHACL checks, what the relationship tables check. */
+  private relationshipCheckCache: { shapes: Quad[]; split: TableShapes; tables: TablePermissions; closure: TypeClosure } | null = null;
   private validationTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly validationDelayMs: number;
   private presentationContext: string | undefined;
@@ -523,6 +527,27 @@ export class App {
     return [...data, ...subClassOf, ...types];
   }
 
+  /**
+   * The shapes graph split for validation (`relationship-validity.ts`): the
+   * relationship shapes the loaded relationship tables cover are checked by
+   * lookup in the tables, the rest by SHACL. Cached with the shapes.
+   */
+  relationshipCheck(): { shapes: Quad[]; split: TableShapes; tables: TablePermissions; closure: TypeClosure } {
+    const shapes = this.shapesGraph();
+    if (this.relationshipCheckCache?.shapes === shapes) return this.relationshipCheckCache;
+    const store = this.components.store;
+    const closure = typeClosure(store);
+    const tables = readPermittedPermissions(store);
+    const formOf = new Map<string, string>();
+    for (const q of store.getQuads(null, namedNode(NAMESPACES.arch + 'unqualifiedForm') as unknown as NamedNode, null)) {
+      if (q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode') formOf.set(q.subject.value, q.object.value);
+    }
+    const relationship = NAMESPACES.arch + 'QualifiedRelationship';
+    const split = splitTableShapes(shapes, tables, formOf, (c) => closure(c).includes(relationship));
+    this.relationshipCheckCache = { shapes, split, tables, closure };
+    return this.relationshipCheckCache;
+  }
+
   /** Validate the model now and publish the report. */
   runValidation(): void {
     const { validator, eventBus } = this.components;
@@ -531,11 +556,14 @@ export class App {
     const data = this.validationDataGraph();
     if (data.length === 0) return;
     try {
-      const report = validator.validate(data, shapes);
+      const { split, tables, closure } = this.relationshipCheck();
+      const report = validator.validate(data, split.kept);
+      const byTables = checkRelationshipsByTables(data, split, tables, closure);
+      const results = [...report.results, ...byTables];
       eventBus.emit('validation-updated', {
-        conforms: report.conforms,
-        resultCount: report.results.length,
-        results: report.results,
+        conforms: report.conforms && !byTables.some((r) => r.severity === 'Violation'),
+        resultCount: results.length,
+        results,
       });
     } catch (err: unknown) {
       console.warn('[app] Validation failed', err);
