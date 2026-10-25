@@ -504,6 +504,16 @@ property panel, opening a file — reach the canvas as `model-changed` events, a
 never appear in the undo history. Markers (viewpoint, validation, remote
 selection, lock) are kept per concept and re-applied to shapes drawn later.
 
+A stored route (`arch-vis:points`) is drawn as core-vis reads it: its first and
+last points are its ends when they lie on their shapes' outlines — as la-gram
+writes a route and a BPMN diagram has it — and otherwise bends, the line run
+from each shape to them and docked to its outline as a line drawn here is (the
+ArchiMate exchange format, and so the ArchiMate converter, keeps the bends
+alone); one point is one bend. Whether a point is on the outline: a 3-pixel
+probe across it meets the outline docking crops against (the bounds' edge for
+an outline with curves) — inside the shape is not enough, a bend may be there,
+on a line to a nested node.
+
 The model tree reads the model once after the events of one task (opening a
 model fires several), in one pass for each concept's types, names and ends;
 another active view only re-marks the tree it has (Task 22). What it reads is

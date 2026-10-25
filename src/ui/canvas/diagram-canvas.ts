@@ -90,6 +90,7 @@
  * it would have nothing to act on.
  */
 
+import { lineOutlineIntersections } from './straight-docking.js';
 import Diagram from 'diagram-js';
 import { DataFactory } from 'n3';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
@@ -928,6 +929,59 @@ export class DiagramCanvas {
     };
   }
 
+  /**
+   * A stored route as the line to draw. Its first and last points are its ends
+   * when they lie on their shapes' outlines — as la-gram writes a route, and a
+   * BPMN diagram has it; otherwise they are bends — as the ArchiMate converter
+   * writes Archi's bend points — and the line runs from the shape through them,
+   * docked to the outline as a line drawn here is. One point is one bend.
+   */
+  private drawnRoute(points: readonly Point[], source: DjsShape, target: DjsShape): Array<{ x: number; y: number }> {
+    const first = points[0];
+    const last = points[points.length - 1];
+    const fromSource = points.length >= 2 && this.onOutline(first, source);
+    const toTarget = points.length >= 2 && this.onOutline(last, target);
+    if (fromSource && toTarget) return points.map((p) => ({ x: p.x, y: p.y }));
+    const centre = (shape: DjsShape) => ({ x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 });
+    const bends = points.slice(fromSource ? 1 : 0, toTarget ? points.length - 1 : points.length).map((p) => ({ x: p.x, y: p.y }));
+    const route = [fromSource ? { x: first.x, y: first.y } : centre(source), ...bends, toTarget ? { x: last.x, y: last.y } : centre(target)];
+    const docking = this.diagram?.get('connectionDocking') as
+      | { getCroppedWaypoints(connection: unknown, source?: unknown, target?: unknown): Array<{ x: number; y: number }> }
+      | undefined;
+    return docking ? docking.getCroppedWaypoints({ waypoints: route, source, target }, source, target) : route;
+  }
+
+  /**
+   * Whether a point lies on a shape's outline, within 3 pixels: a short probe
+   * across it meets the outline docking crops against; for an outline with
+   * curves, which the probe cannot read, on the edge of the shape's bounds.
+   */
+  private onOutline(point: Point, shape: DjsShape): boolean {
+    const graphics = this.diagram?.get('graphicsFactory') as { getShapePath(shape: DjsShape): string } | undefined;
+    const outline = graphics?.getShapePath(shape);
+    const near = 3;
+    if (outline) {
+      let readable = true;
+      for (const [dx, dy] of [[near, 0], [0, near]]) {
+        const hits = lineOutlineIntersections(outline, { x: point.x - dx, y: point.y - dy }, { x: point.x + dx, y: point.y + dy });
+        if (hits === undefined) {
+          readable = false;
+          break;
+        }
+        if (hits.length > 0) return true;
+      }
+      if (readable) return false;
+    }
+    const within = (v: number, from: number, to: number) => v >= from - near && v <= to + near;
+    const x0 = shape.x;
+    const y0 = shape.y;
+    const x1 = shape.x + shape.width;
+    const y1 = shape.y + shape.height;
+    const onVertical = (Math.abs(point.x - x0) <= near || Math.abs(point.x - x1) <= near) && within(point.y, y0, y1);
+    const onHorizontal = (Math.abs(point.y - y0) <= near || Math.abs(point.y - y1) <= near) && within(point.x, x0, x1);
+    return onVertical || onHorizontal;
+  }
+
   /** The view {@link showView} drew in the current task, if any. */
   private drawnThisTask: string | undefined;
 
@@ -1004,8 +1058,12 @@ export class DiagramCanvas {
       const existing = services.elementRegistry.get(link.relationshipIri) ?? drawnLinks.get(link.relationshipIri);
       const typeIri = this.describeElement?.(link.relationshipIri)?.typeIri ?? '';
       if (existing) {
-        if (link.waypoints.length >= 2 && !sameRoute(existing.waypoints, link.waypoints)) {
-          existing.waypoints = link.waypoints.map((p) => ({ x: p.x, y: p.y }));
+        const route =
+          link.waypoints.length > 0 && existing.source && existing.target
+            ? this.drawnRoute(link.waypoints, existing.source as DjsShape, existing.target as DjsShape)
+            : undefined;
+        if (route && !sameRoute(existing.waypoints, route.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })))) {
+          existing.waypoints = route;
           services.eventBus.fire('elements.changed', { elements: [existing] });
         }
         if (typeIri && existing.businessObject && existing.businessObject.typeIri !== typeIri) {
@@ -1404,8 +1462,8 @@ export class DiagramCanvas {
       waypoints: [],
     });
     connection.waypoints =
-      waypoints && waypoints.length >= 2
-        ? waypoints.map((p) => ({ x: p.x, y: p.y }))
+      waypoints && waypoints.length > 0
+        ? this.drawnRoute(waypoints, source, target)
         : services.layouter.layoutConnection(connection, { source, target });
     services.canvas.addConnection(connection, services.canvas.getRootElement());
     this.applyKeptMarkers(connection);

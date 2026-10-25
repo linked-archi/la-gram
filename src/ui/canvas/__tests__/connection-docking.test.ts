@@ -552,3 +552,52 @@ describe('the graphics of what changed', () => {
     expect(stacked(canvas, root)).toEqual(root.children!.map((c) => c.id));
   });
 });
+
+// ── Routes stored with or without their ends ─────────────────────────────
+
+describe('a stored route', () => {
+  const A = 'https://example.org/model/ra';
+  const B = 'https://example.org/model/rb';
+  const REL = 'https://example.org/model/route';
+  function draw(points: Array<{ x: number; y: number }>, shape: ShapeType = 'Rectangle') {
+    const canvas = mount();
+    canvas.addElement(A, typeIriFor(shape), { x: 0, y: 0, width: 100, height: 100 });
+    canvas.addElement(B, typeIriFor(shape), { x: 400, y: 0, width: 100, height: 100 });
+    canvas.addRelationship(A, B, REL_TYPE, REL, points);
+    return (registry(canvas).get(REL)!.waypoints ?? []).map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  }
+
+  it('with its ends on its shapes — as la-gram writes it — is drawn as it is', () => {
+    expect(draw([{ x: 100, y: 50 }, { x: 250, y: -40 }, { x: 400, y: 50 }])).toEqual([{ x: 100, y: 50 }, { x: 250, y: -40 }, { x: 400, y: 50 }]);
+  });
+
+  it('of bends only — as Archi has it — runs from the shapes’ outlines through them', () => {
+    // From each centre towards its bend, out through the box's side.
+    expect(draw([{ x: 200, y: -60 }, { x: 300, y: -60 }])).toEqual([{ x: 100, y: 13 }, { x: 200, y: -60 }, { x: 300, y: -60 }, { x: 400, y: 13 }]);
+  });
+
+  it('of one point is one bend', () => {
+    const route = draw([{ x: 250, y: 200 }]);
+    expect(route).toHaveLength(3);
+    expect(route[1]).toEqual({ x: 250, y: 200 });
+    expect(route[0]).toEqual({ x: 100, y: 88 });
+    expect(route[2]).toEqual({ x: 400, y: 88 });
+  });
+
+  it('a bend inside its shape, off the outline, is still a bend', () => {
+    const route = draw([{ x: 50, y: 70 }, { x: 450, y: 70 }]);
+    expect(route).toHaveLength(4);
+    expect(route.slice(1, 3)).toEqual([{ x: 50, y: 70 }, { x: 450, y: 70 }]);
+  });
+
+  it('ends are found on an outline that is not the box: an octagon’s', () => {
+    const outline = shapePath('Octagon', 0, 0, 100, 100);
+    const route = draw([{ x: 200, y: -60 }, { x: 300, y: -60 }], 'Octagon');
+    // The first point lies on the octagon's cut corner, not on its bounding box.
+    expect(route).toHaveLength(4);
+    expect(route[0].x).toBeLessThan(100);
+    expect(route[0].y).toBeGreaterThan(0);
+    expect(draw([route[0], { x: 200, y: -60 }, { x: 300, y: -60 }, route[3]], 'Octagon')).toEqual(route);
+    expect(outline.startsWith('M')).toBe(true);
+  });
+});

@@ -201,7 +201,11 @@ arch-vis:point-y
 arch-vis:points
     a            owl:ObjectProperty ;
     rdfs:label   "points"@en ;
-    rdfs:comment "The ordered list of points"@en ;
+    rdfs:comment '''The ordered list of points of a link's route, in the diagram's coordinates. The
+first and last are its ends — where it meets its nodes — when they lie on their nodes' outlines;
+otherwise they are bends, and the line runs from each node to them, meeting the node's outline
+where a line laid out without them would. A route of bends alone is how the ArchiMate exchange
+format has it; a route with its ends, how BPMN DI has it. One point is one bend.'''@en ;
     rdfs:domain  arch-vis:Link ;
     rdfs:range   arch-vis:PointList ;
 .
