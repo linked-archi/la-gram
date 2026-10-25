@@ -81,6 +81,65 @@ describe('the engine', () => {
   });
 });
 
+describe('after an edit, only what it can change', () => {
+  it('finds what validating the whole model finds, edit after edit', async () => {
+    const app = await createApp({ assetMode: 'offline', validationDelayMs: 1e9 });
+    const { modelIri } = app.newModel('Edits');
+    const { elementManager: e, relationshipManager: r, store } = app.components;
+    const element = (type: string, label?: string) => e.createElement(AM4 + type, modelIri, label ? { label } : {}).value;
+    const actor = element('BusinessActor', 'Clerk');
+    const role = element('Role', 'Agent');
+    const data = element('DataObject', 'Order');
+    const service = element('BusinessService', 'Claims');
+    r.createQualifiedRelationship({ typeIri: AM4 + 'Assignment', sourceIri: actor, targetIri: role });
+
+    const incremental = new ValidationEngine();
+    const whole = new ValidationEngine();
+    const setup = (app as unknown as { validationSetup(s: Quad[]): never }).validationSetup(app.shapesGraph());
+    for (const engine of [incremental, whole]) {
+      engine.setup(setup);
+      engine.load(encodeQuads(store.getQuads(null, null, null, defaultGraph() as never)));
+    }
+    (store as unknown as { subscribe(l: (c: { added: Quad[]; removed: Quad[] }) => void): void }).subscribe((change) => {
+      for (const engine of [incremental, whole]) engine.apply(encodeQuads(change.added), encodeQuads(change.removed));
+    });
+    const findings = (report: { results: Array<{ focusNode: string; resultPath: string; sourceShape: string }> }) =>
+      report.results.map((f) => `${f.focusNode} ${f.resultPath} ${f.sourceShape}`).sort();
+    const compare = () => {
+      (whole as unknown as { changed: { all: boolean } }).changed.all = true;
+      const a = incremental.validate();
+      const b = whole.validate();
+      expect(findings(a)).toEqual(findings(b));
+      expect(a.conforms).toBe(b.conforms);
+      return a.timing.nodes;
+    };
+    expect(compare()).toBe('all');
+
+    const unnamed = element('BusinessActor');
+    expect(compare()).toBeTypeOf('number');
+    const bad = r.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: data, targetIri: actor }).iri;
+    compare();
+    e.updateProperty(unnamed, 'http://www.w3.org/2004/02/skos/core#prefLabel', literal('Named', 'en'));
+    compare();
+    r.reconnectRelationship(bad, service, actor);
+    compare();
+    r.retypeRelationship(bad, AM4 + 'Assignment');
+    compare();
+    // An element's type changed: the relationships to it are valid or not by it.
+    const serves = r.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: service, targetIri: actor }).iri;
+    const before = findings(incremental.validate()).filter((f) => f.startsWith(serves));
+    const rdfType = namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type');
+    store.removeQuads([quad(namedNode(service), rdfType, namedNode(AM4 + 'BusinessService')) as unknown as Quad]);
+    store.addQuads([quad(namedNode(service), rdfType, namedNode(AM4 + 'DataObject')) as unknown as Quad]);
+    compare();
+    expect(findings(incremental.validate()).filter((f) => f.startsWith(serves))).not.toEqual(before);
+    e.deleteElement(role);
+    compare();
+    r.deleteRelationship(bad);
+    expect(compare()).toBeTypeOf('number');
+  }, 120_000);
+});
+
 describe('what the engine validates besides the model', () => {
   const ex = (s: string) => namedNode(`https://ex.org/${s}`);
   const RDF_TYPE = namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type');
@@ -136,6 +195,15 @@ describe('what the engine validates besides the model', () => {
     expect(engine.size).toBe(1);
   });
 
+  it('a change to the class hierarchy is validated whole; another change, by what it can change', () => {
+    const engine = engineWith([view]);
+    expect(engine.validate().timing.nodes).toBe('all');
+    engine.apply(encodeQuads([otherView]), []);
+    expect(engine.validate().timing.nodes).toBe(2); // v2, and vp it now points to
+    engine.apply(encodeQuads([quad(ex('Clerk'), SUB, ex('Actor')) as unknown as Quad]), []);
+    expect(engine.validate().timing.nodes).toBe('all');
+  });
+
   it('a type in the model is not a reference', () => {
     const engine = engineWith([quad(ex('x'), RDF_TYPE, ex('vp')) as unknown as Quad]);
     expect(holds(engine, viewpointType)).toBe(false);
@@ -159,7 +227,7 @@ function fakeWorker() {
         report: {
           conforms: false,
           results: [{ focusNode: focus, resultPath: '', sourceShape: 'https://ex.org/S', message: 'm', severity: 'Violation' }],
-          timing: { shacl: 2, tables: 3 },
+          timing: { shacl: 2, tables: 3, nodes: 1 },
         },
       },
     });

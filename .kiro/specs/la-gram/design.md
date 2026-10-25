@@ -722,6 +722,35 @@ counter per node and shape checked (keyed by both as JSON), the report's graph
 and the data graph; with the compiled validator kept between runs, that was
 250 MB on a 347 000-triple model, so it is dropped once the report is read.
 
+**After an edit, only what it can change** (Task 22, `rdf-engine/shape-reach.ts`).
+The engine keeps the last findings by focus node, and notes what each change
+touches: the subjects of the triples added and removed, and their objects when
+nodes. Validating a focus node reads its own triples, those along each
+`sh:path` — L hops for a path of length L, whose value nodes' types `sh:class`
+reads — and what a shape nested on the values reads from there; `shapesReach`
+computes the most hops of the shapes SHACL keeps (1 for ArchiMate and the core
+shapes). The nodes an edit can change the findings of are then the changed
+subjects and the nodes up to that many hops before them (incoming triples; both
+ways when a path is inverse), at least one hop — the table check reads a
+relationship's ends — and the changed objects (a `sh:targetObjectsOf` target).
+They are validated again, each against the shapes that target it, chosen as a
+whole validation chooses them (`RdfShaclValidator.validateNodes`: class targets
+with the data's subclasses, `sh:targetNode`, `sh:targetSubjectsOf`,
+`sh:targetObjectsOf`); the tables check them on their triples and the types of
+what they point to; their findings replace theirs. The whole model is validated
+on loading, when the metamodels change, when the class hierarchy does, when the
+shapes reach without bound (`*`/`+` paths, a shape nested in itself), when a
+property shape has a `sh:property` of its own (rdf-validate-shacl reports that
+with the value node as the focus node), when an edit reaches more nodes than one
+in 20 of the model's quads, and after 100 such validations. With no shape nested
+in itself, rdf-validate-shacl's limit of 50 checks of a node against a shape per
+run — a guard against recursion, which otherwise lets a node referred to from
+many places pass unchecked, differently when validated alone — is switched off.
+Checked by replaying random edits (renames, retypes, deletions and restorations,
+references moved and added) into two engines, one validating the whole model
+each time: the same findings after 1 000 edits on the 34 000-triple model (7 ms an
+edit against 700 ms) and 30 on the 347 000-triple one (1 ms against 9.3 s).
+
 A copy kept up to date by changes is only right if the changes say what the
 store holds. Oxigraph keeps a number, a boolean or a date in canonical form —
 `"010"^^xsd:int` is kept, and read back, as `"10"^^xsd:integer` — so the change

@@ -868,7 +868,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
       validation: createValidationService({
         inline: options.validation === 'inline',
         onTiming: (t) => {
-          if (t.shacl + t.tables > 1000) console.info(`[app] Validated in the worker: SHACL ${t.shacl} ms, tables ${t.tables} ms`);
+          if (t.shacl + t.tables > 1000) console.info(`[app] Validated ${t.nodes === 'all' ? 'the whole model' : `${t.nodes} nodes`} in the worker: SHACL ${t.shacl} ms, tables ${t.tables} ms`);
         },
       }),
       additionalMetamodels: loaded.slice(1),
