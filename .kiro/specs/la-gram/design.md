@@ -478,7 +478,14 @@ selection, lock) are kept per concept and re-applied to shapes drawn later.
 
 The model tree reads the model once after the events of one task (opening a
 model fires several), in one pass for each concept's types, names and ends;
-another active view only re-marks the tree it has (Task 22).
+another active view only re-marks the tree it has (Task 22). What it reads is
+kept by `ModelContentsIndex`, told every change by the store: after an edit it
+reads again only the concepts the change touched — from their own triples, and
+the relationships labelled with a renamed end's name — and moves each in its
+sorted list (by type, name, IRI: a place unique, found by binary search); it
+reads the whole model at first, when the metamodels or the class hierarchy
+change, and when a change touches more than 2 000 concepts. The RDF panel's
+counts and the Graph tab's types read the same.
 
 A view of thousands of shapes (Task 22): a sync indexes the connections drawn
 once, and `findConnection` looks a relationship up by id or among the few

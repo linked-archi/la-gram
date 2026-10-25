@@ -35,7 +35,7 @@ import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/i
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
-import { hasLabel, labelOf, modelQuads, readModelContents, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
@@ -313,6 +313,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // The class hierarchy changes with the loaded metamodels; both closures are
   // rebuilt on `metamodel-loaded`.
   let closure: TypeClosure = typeClosure(store);
+  // The model's contents for the tree, the RDF panel and the Graph tab, kept up
+  // to date by the store's changes rather than read whole after each (Task 22).
+  const contentsIndex = new ModelContentsIndex(store, () => closure);
+  const stopIndexing = (store as Partial<ObservableRdfStore>).subscribe?.((change) => contentsIndex.note(change));
+  const modelContents = () => contentsIndex.contents(viewManager.getViews());
   let classClosure: ClassClosure = buildClassClosure(store);
   const closureLookup: ClassClosure = (typeIri) => classClosure(typeIri);
 
@@ -461,7 +466,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   rdfPanel.slot = 'rdf';
   rdfPanel.source = (format, profile) => app.saveModel(format, profile).text;
   rdfPanel.statsProvider = () => {
-    const contents = readModelContents(store, viewManager.getViews(), closure);
+    const contents = modelContents();
     return {
       elements: contents.elements.length + contents.unclassified.length,
       relationships: contents.relationships.length,
@@ -483,7 +488,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       ...viewManager.getLinks(viewIri).map((l) => l.relationshipIri),
     ]);
   };
-  modelExplorer.contentsProvider = () => readModelContents(store, viewManager.getViews(), closure);
+  modelExplorer.contentsProvider = modelContents;
   modelExplorer.placedProvider = placedInView;
   modelExplorer.eventBus = eventBus;
   modelExplorer.activeViewIri = session.activeViewIri;
@@ -1069,7 +1074,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   graphPanel.source = {
     graph: (options) => relationshipGraph(store, options, app.modelIO.collectPrefixes(session.modelIri)),
     types: () => {
-      const contents = readModelContents(store, viewManager.getViews(), closure);
+      const contents = modelContents();
       return { elements: countTypes(contents.elements), relationships: countTypes(contents.relationships) };
     },
     look: graphLook,
@@ -1673,6 +1678,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     guides.clear();
     classClosure = buildClassClosure(store);
     closure = typeClosure(store);
+    contentsIndex.invalidate();
     const metamodelIri = event.detail?.metamodelIri as string | undefined;
     if (metamodelIri || event.detail?.empty) {
       currentMetamodelIri = metamodelIri;
@@ -1781,6 +1787,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const dispose = (): void => {
+    stopIndexing?.();
     canvasResize?.disconnect();
     eventBus.off('validation-updated', onValidationUpdated);
     eventBus.off('metamodel-loaded', onMetamodelLoaded);

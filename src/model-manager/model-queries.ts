@@ -180,6 +180,108 @@ export function findModelIri(store: RdfStore): string | undefined {
   return models[0];
 }
 
+/** What the tree shows of a concept is read from: its types, membership, names and ends. */
+interface ConceptFacts {
+  types: string[];
+  inModel: boolean;
+  /** Its names by naming predicate (literals only). */
+  names: Map<string, Term[]>;
+  /** Its first end by end predicate. */
+  ends: Map<string, string>;
+}
+
+const NAMING = new Set(NAMING_PREDICATES.map((p) => p.value));
+const ENDS = new Set([IRI.source, IRI.legacyRelSource, IRI.target, IRI.legacyRelTarget]);
+
+/** The facts of each named subject of these quads, in one pass. */
+function collectFacts(quads: Iterable<Quad>): Map<string, ConceptFacts> {
+  const facts = new Map<string, ConceptFacts>();
+  const of = (iri: string) => {
+    let f = facts.get(iri);
+    if (!f) facts.set(iri, (f = { types: [], inModel: false, names: new Map(), ends: new Map() }));
+    return f;
+  };
+  for (const q of quads) {
+    if (q.subject.termType !== 'NamedNode') continue;
+    const p = q.predicate.value;
+    if (p === IRI.rdfType) of(q.subject.value).types.push(q.object.value);
+    else if (p === IRI.inModel || p === IRI.legacyPartOfModel) of(q.subject.value).inModel = true;
+    else if (NAMING.has(p) && q.object.termType === 'Literal') {
+      const names = of(q.subject.value).names;
+      const list = names.get(p);
+      if (list) list.push(q.object);
+      else names.set(p, [q.object]);
+    } else if (ENDS.has(p)) {
+      const ends = of(q.subject.value).ends;
+      if (!ends.has(p)) ends.set(p, q.object.value);
+    }
+  }
+  return facts;
+}
+
+/** A concept as the tree lists it, or `undefined` when it is not one (geometry, a view). */
+type Summarised =
+  | { kind: 'model'; summary: { iri: string; label: string } }
+  | { kind: 'element' | 'unclassified'; summary: ConceptSummary }
+  | { kind: 'relationship'; summary: RelationshipSummary };
+
+/** What the tree lists of a concept, from its facts. */
+function summarize(
+  iri: string,
+  facts: ConceptFacts,
+  closure: TypeClosure,
+  nameOf: (iri: string) => string,
+  typeLabel: (typeIri: string) => string,
+): Summarised | undefined {
+  const { types } = facts;
+  if (types.length === 0) return undefined;
+  const kind = classify(types, closure, facts.inModel);
+  // The most specific type is the one whose closure is largest.
+  const typeIri = [...types].sort((a, b) => closure(b).length - closure(a).length)[0] ?? IRI.ModelConcept;
+  switch (kind) {
+    case 'model':
+      return { kind, summary: { iri, label: nameOf(iri) } };
+    case 'element':
+    case 'unclassified':
+      return { kind, summary: { iri, typeIri, typeLabel: typeLabel(typeIri), label: nameOf(iri) } };
+    case 'relationship': {
+      const relType = types.find((t) => t !== IRI.QualifiedRelationship) ?? typeIri;
+      const sourceIri = facts.ends.get(IRI.source) ?? facts.ends.get(IRI.legacyRelSource);
+      const targetIri = facts.ends.get(IRI.target) ?? facts.ends.get(IRI.legacyRelTarget);
+      const explicit = facts.names.get(T.prefLabel.value)?.[0]?.value;
+      const label = explicit ?? `${sourceIri ? nameOf(sourceIri) : '?'} → ${targetIri ? nameOf(targetIri) : '?'}`;
+      return {
+        kind,
+        summary: {
+          iri,
+          typeIri: relType,
+          typeLabel: typeLabel(relType),
+          label,
+          ...(sourceIri ? { sourceIri } : {}),
+          ...(targetIri ? { targetIri } : {}),
+        },
+      };
+    }
+    default:
+      return undefined;
+  }
+}
+
+/** The order of the tree's lists: by type, name, IRI — a concept's place unique. */
+function byLabel(a: ConceptSummary, b: ConceptSummary): number {
+  return a.typeLabel.localeCompare(b.typeLabel) || a.label.localeCompare(b.label) || a.iri.localeCompare(b.iri);
+}
+
+/** A cache of type labels, from the store. */
+function typeLabels(store: RdfStore): (typeIri: string) => string {
+  const labels = new Map<string, string>();
+  return (typeIri) => {
+    let label = labels.get(typeIri);
+    if (label === undefined) labels.set(typeIri, (label = labelOf(store, typeIri)));
+    return label;
+  };
+}
+
 /**
  * Everything in the model, classified.
  *
@@ -189,99 +291,164 @@ export function findModelIri(store: RdfStore): string | undefined {
 export function readModelContents(store: RdfStore, views: ViewInfo[], closure: TypeClosure = typeClosure(store)): ModelContents {
   // One pass over the model for what the tree shows of each concept — its
   // types, names and ends — rather than a query a concept (Task 22).
-  const quads = modelQuads(store);
-  const typesOf = new Map<string, string[]>();
-  const inModel = new Set<string>();
-  const NAMING = new Set(NAMING_PREDICATES.map((p) => p.value));
-  const ENDS = new Set([IRI.source, IRI.legacyRelSource, IRI.target, IRI.legacyRelTarget]);
-  const names = new Map<string, Map<string, Term[]>>();
-  const ends = new Map<string, Map<string, string>>();
-  for (const q of quads) {
-    if (q.subject.termType !== 'NamedNode') continue;
-    const p = q.predicate.value;
-    if (p === IRI.rdfType) {
-      const list = typesOf.get(q.subject.value);
-      if (list) list.push(q.object.value);
-      else typesOf.set(q.subject.value, [q.object.value]);
-    } else if (p === IRI.inModel || p === IRI.legacyPartOfModel) {
-      inModel.add(q.subject.value);
-    } else if (NAMING.has(p) && q.object.termType === 'Literal') {
-      let byPredicate = names.get(q.subject.value);
-      if (!byPredicate) names.set(q.subject.value, (byPredicate = new Map()));
-      const list = byPredicate.get(p);
-      if (list) list.push(q.object);
-      else byPredicate.set(p, [q.object]);
-    } else if (ENDS.has(p)) {
-      let byPredicate = ends.get(q.subject.value);
-      if (!byPredicate) ends.set(q.subject.value, (byPredicate = new Map()));
-      if (!byPredicate.has(p)) byPredicate.set(p, q.object.value);
-    }
-  }
+  const facts = collectFacts(modelQuads(store));
   /** A concept's name from the model; one the model does not name is looked up as before. */
   const nameOf = (iri: string): string => {
-    const byPredicate = names.get(iri);
+    const names = facts.get(iri)?.names;
     for (const predicate of NAMING_PREDICATES) {
-      const literals = byPredicate?.get(predicate.value);
+      const literals = names?.get(predicate.value);
       if (literals && literals.length > 0) return preferredLiteral(literals, 'en').value;
     }
     return labelOf(store, iri);
   };
-
-  const typeLabels = new Map<string, string>();
-  const typeLabel = (typeIri: string) => {
-    let label = typeLabels.get(typeIri);
-    if (label === undefined) {
-      label = labelOf(store, typeIri);
-      typeLabels.set(typeIri, label);
-    }
-    return label;
-  };
-
+  const typeLabel = typeLabels(store);
   const contents: ModelContents = { views, elements: [], relationships: [], unclassified: [] };
-  const first = (subject: string, predicate: string) => ends.get(subject)?.get(predicate);
-
-  for (const [iri, types] of typesOf) {
-    const kind = classify(types, closure, inModel.has(iri));
-    // The most specific type is the one whose closure is largest.
-    const typeIri =
-      [...types].sort((a, b) => closure(b).length - closure(a).length)[0] ?? IRI.ModelConcept;
-    switch (kind) {
-      case 'model':
-        contents.model = { iri, label: nameOf(iri) };
-        break;
-      case 'element':
-        contents.elements.push({ iri, typeIri, typeLabel: typeLabel(typeIri), label: nameOf(iri) });
-        break;
-      case 'unclassified':
-        contents.unclassified.push({ iri, typeIri, typeLabel: typeLabel(typeIri), label: nameOf(iri) });
-        break;
-      case 'relationship': {
-        const relType = types.find((t) => t !== IRI.QualifiedRelationship) ?? typeIri;
-        const sourceIri = first(iri, IRI.source) ?? first(iri, IRI.legacyRelSource);
-        const targetIri = first(iri, IRI.target) ?? first(iri, IRI.legacyRelTarget);
-        const explicit = names.get(iri)?.get(T.prefLabel.value)?.[0]?.value;
-        const label =
-          explicit ??
-          `${sourceIri ? nameOf(sourceIri) : '?'} → ${targetIri ? nameOf(targetIri) : '?'}`;
-        contents.relationships.push({
-          iri,
-          typeIri: relType,
-          typeLabel: typeLabel(relType),
-          label,
-          ...(sourceIri ? { sourceIri } : {}),
-          ...(targetIri ? { targetIri } : {}),
-        });
-        break;
-      }
-      default:
-        break;
-    }
+  for (const [iri, f] of facts) {
+    const concept = summarize(iri, f, closure, nameOf, typeLabel);
+    if (!concept) continue;
+    if (concept.kind === 'model') contents.model = concept.summary;
+    else if (concept.kind === 'relationship') contents.relationships.push(concept.summary);
+    else contents[concept.kind === 'element' ? 'elements' : 'unclassified'].push(concept.summary);
   }
-
-  const byLabel = (a: ConceptSummary, b: ConceptSummary) =>
-    a.typeLabel.localeCompare(b.typeLabel) || a.label.localeCompare(b.label) || a.iri.localeCompare(b.iri);
   contents.elements.sort(byLabel);
   contents.relationships.sort(byLabel);
   contents.unclassified.sort(byLabel);
   return contents;
+}
+
+/**
+ * The model's contents, kept up to date by its changes (Task 22): the tree,
+ * refreshed after every edit, read the whole model each time. Told each change
+ * ({@link note}), it reads again, when next asked, only the concepts a change
+ * touched — and the relationships whose label is made of their ends' names —
+ * each from its own triples, and moves it in its sorted list. It reads the
+ * whole model at first, when the metamodels change ({@link invalidate}), when
+ * the class hierarchy changes, and when a change touches too many concepts.
+ */
+export class ModelContentsIndex {
+  private concepts = new Map<string, Summarised>();
+  private lists: Pick<ModelContents, 'model' | 'elements' | 'relationships' | 'unclassified'> = { elements: [], relationships: [], unclassified: [] };
+  private changed = new Set<string>();
+  private whole = true;
+  private typeLabel: (typeIri: string) => string;
+
+  /** More concepts touched than this: the whole model is read again. */
+  static readonly WHOLE_AFTER = 2000;
+
+  constructor(
+    private readonly store: RdfStore,
+    private readonly closure: () => TypeClosure,
+  ) {
+    this.typeLabel = typeLabels(store);
+  }
+
+  /** A change to the model: the concepts it touches are read again when next asked. */
+  note(change: { added: readonly Quad[]; removed: readonly Quad[] }): void {
+    if (this.whole) return;
+    for (const list of [change.added, change.removed]) {
+      for (const q of list) {
+        if (q.predicate.value === NAMESPACES.rdfs + 'subClassOf') {
+          this.whole = true;
+          return;
+        }
+        if (q.subject.termType === 'NamedNode') this.changed.add(q.subject.value);
+      }
+    }
+    if (this.changed.size > ModelContentsIndex.WHOLE_AFTER) this.whole = true;
+  }
+
+  /** The metamodels changed — classes, their labels: everything is read again. */
+  invalidate(): void {
+    this.whole = true;
+    this.typeLabel = typeLabels(this.store);
+  }
+
+  /** The model's contents now. The lists are the caller's to keep or change. */
+  contents(views: ViewInfo[]): ModelContents {
+    if (this.whole) this.readWhole();
+    else if (this.changed.size > 0) this.readChanged();
+    return {
+      ...(this.lists.model ? { model: this.lists.model } : {}),
+      views,
+      elements: this.lists.elements.slice(),
+      relationships: this.lists.relationships.slice(),
+      unclassified: this.lists.unclassified.slice(),
+    };
+  }
+
+  private readWhole(): void {
+    const all = readModelContents(this.store, [], this.closure());
+    this.lists = { ...(all.model ? { model: all.model } : {}), elements: all.elements, relationships: all.relationships, unclassified: all.unclassified };
+    this.concepts = new Map();
+    if (all.model) this.concepts.set(all.model.iri, { kind: 'model', summary: all.model });
+    for (const summary of all.elements) this.concepts.set(summary.iri, { kind: 'element', summary });
+    for (const summary of all.unclassified) this.concepts.set(summary.iri, { kind: 'unclassified', summary });
+    for (const summary of all.relationships) this.concepts.set(summary.iri, { kind: 'relationship', summary });
+    this.changed.clear();
+    this.whole = false;
+  }
+
+  private readChanged(): void {
+    const affected = new Set(this.changed);
+    this.changed.clear();
+    // A relationship without a name of its own is labelled with its ends' names.
+    for (const iri of [...affected]) {
+      for (const predicate of ENDS) {
+        for (const q of this.store.getQuads(null, nn(predicate), nn(iri), MODEL_GRAPH)) {
+          if (q.subject.termType === 'NamedNode') affected.add(q.subject.value);
+        }
+      }
+    }
+    const closure = this.closure();
+    const nameOf = (iri: string) => labelOf(this.store, iri);
+    for (const iri of affected) {
+      const facts = collectFacts(this.store.getQuads(nn(iri), null, null, MODEL_GRAPH)).get(iri);
+      this.place(iri, facts ? summarize(iri, facts, closure, nameOf, this.typeLabel) : undefined);
+    }
+  }
+
+  /** Put a concept's new summary in place of its old one. */
+  private place(iri: string, next: Summarised | undefined): void {
+    const previous = this.concepts.get(iri);
+    if (previous) {
+      if (previous.kind === 'model') delete this.lists.model;
+      else remove(this.listOf(previous.kind), previous.summary);
+    }
+    if (!next) {
+      this.concepts.delete(iri);
+      return;
+    }
+    this.concepts.set(iri, next);
+    if (next.kind === 'model') this.lists.model = next.summary;
+    else insert(this.listOf(next.kind), next.summary);
+  }
+
+  private listOf(kind: 'element' | 'unclassified' | 'relationship'): ConceptSummary[] {
+    return kind === 'element' ? this.lists.elements : kind === 'unclassified' ? this.lists.unclassified : this.lists.relationships;
+  }
+}
+
+/** Where a summary goes in a sorted list: the index of the first not before it. */
+function position(list: readonly ConceptSummary[], summary: ConceptSummary): number {
+  let low = 0;
+  let high = list.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (byLabel(list[mid], summary) < 0) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+function insert(list: ConceptSummary[], summary: ConceptSummary): void {
+  list.splice(position(list, summary), 0, summary);
+}
+
+function remove(list: ConceptSummary[], summary: ConceptSummary): void {
+  const at = position(list, summary);
+  if (list[at] === summary) list.splice(at, 1);
+  else {
+    const found = list.indexOf(summary);
+    if (found >= 0) list.splice(found, 1);
+  }
 }
