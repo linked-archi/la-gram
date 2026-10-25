@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad, NamedNode } from '@rdfjs/types';
 import { OxigraphRdfStore, detectQueryType } from '../rdf-store.js';
@@ -456,6 +456,26 @@ describe('a large addition, given to the inner store in the background (Task 22)
     expect(inner.has(quads[7000])).toBe(false);
     expect(inner.has(quads[7001])).toBe(true);
     expect(keys(inner.getQuads(null, null, null, DG))).toEqual(keys(store.getQuads(null, null, null, DG)));
+  });
+
+  it('the whole model removed — another opened — is cleared in one go, told to listeners, the backlog dropped', async () => {
+    const { inner, store } = await stores();
+    const first = many(7000);
+    store.addQuads(first);
+    expect(store.behind).toBe(true);
+    const told: number[] = [];
+    store.subscribe((change) => told.push(change.removed.length));
+    const clear = vi.spyOn(inner, 'update');
+    store.removeQuads(store.getQuads(null, null, null, DG));
+    expect(clear).toHaveBeenCalledWith('CLEAR SILENT DEFAULT');
+    expect(told).toEqual([7000]);
+    expect(store.behind).toBe(false);
+    expect(inner.getQuads(null, null, null, DG)).toHaveLength(0);
+    expect(store.getQuads(null, null, null, nn('https://ex.org/g'))).toHaveLength(1);
+    const second = many(6000).map((q, i) => makeQuad(`https://ex.org/n${i}`, P, q.object.value));
+    store.addQuads(second);
+    await settled(store);
+    expect(inner.getQuads(null, null, null, DG)).toHaveLength(6000);
   });
 
   it('a term the inner store cannot hold is refused at once, and the model keeps none of the addition', async () => {

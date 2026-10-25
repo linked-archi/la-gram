@@ -194,7 +194,15 @@ export class ObservableRdfStore implements RdfStore {
     if (removed.length === 0) return;
     // One still waiting in the backlog is passed over when it comes up.
     try {
-      this.inner.removeQuads(removed);
+      if (this.model.size === 0 && removed.length >= IN_BACKGROUND_FROM && this.inner.update) {
+        // The whole model removed — as opening another does: cleared in the
+        // inner store in one go, not converted into it quad by quad to be
+        // deleted (3.8 s for 347 000), and what it was still to be given dropped.
+        this.dropBacklog();
+        this.inner.update('CLEAR SILENT DEFAULT');
+      } else {
+        this.inner.removeQuads(removed);
+      }
     } catch (err) {
       for (const q of removed) if (this.innerHas(q)) this.model.addQuad(q as never);
       throw err;
@@ -340,6 +348,16 @@ export class ObservableRdfStore implements RdfStore {
   private held(quads: Quad[]): Quad[] {
     if (quads.length === 0 || !this.inner.canonical) return quads;
     return this.inner.canonical(quads);
+  }
+
+  /** Nothing more to give the inner store. */
+  private dropBacklog(): void {
+    if (this.backlogTimer) {
+      clearTimeout(this.backlogTimer);
+      this.backlogTimer = null;
+    }
+    this.backlog = [];
+    this.given = 0;
   }
 
   /** The inner store is to have these model quads, in the background. */

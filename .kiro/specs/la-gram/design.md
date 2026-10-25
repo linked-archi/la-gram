@@ -172,7 +172,10 @@ the copy at once and Oxigraph in the background, in slices of 12 ms between
 frames: converting every quad into Oxigraph was 4 s of opening 353 000 triples.
 Its terms are checked at once, each distinct one made with Oxigraph's own
 constructors (`RdfStore.check`), so a model Oxigraph cannot hold fails to open
-as before; a quad removed before it is given is passed over. Until Oxigraph has
+as before; a quad removed before it is given is passed over. The whole model
+removed — as opening another does — is cleared from Oxigraph in one go
+(`CLEAR SILENT DEFAULT`), and what it was still to be given dropped: deleting it
+a quad at a time, each converted first, was a 6-second freeze. Until Oxigraph has
 the whole model (`behind`), a read of every graph is the copy's model and
 Oxigraph's quads outside the default graph. SPARQL over everything, an update,
 a bulk load into the default graph and `size` give it the rest first
@@ -1296,5 +1299,5 @@ dialog; the modules' section).
 | Unit tests | `npm test` |
 | Browser tests (builds first) | `npm run test:browser:build` |
 | Type-check | `npm run typecheck` |
-| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings and the heap, in Chrome; `test-results/bench/` (Task 22) |
+| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings, opening again over the open model, and the heap, in Chrome; `test-results/bench/` (Task 22) |
 | Desktop | `npm run build:electron && npm run electron`; package the app with `npm run package` (`scripts/package-electron.mjs`: `@electron/packager`, `dist/electron` and `package.json` only, in an asar; `dist/packages/`) |

@@ -1,7 +1,8 @@
 /**
  * The benchmark (Task 22): open models in the built web app, in Chrome, and
  * measure what a modeller waits for — opening the model, opening its largest
- * view, renaming an element in it — and the memory it holds.
+ * view, renaming an element in it, opening the model again over itself — and
+ * the memory it holds.
  *
  *   npm run build:web
  *   node scripts/bench.mjs                      generated models of 10 000 … 500 000 triples
@@ -185,7 +186,17 @@ async function measureModel(file) {
       rename = { ...(await phase(start)), ...(await findings(start, seen)) };
     }
 
-    return { model: path.basename(file), ...facts, open: { ...open, ...openFindings }, view, rename, heapMB: await heaps(browser, page) };
+    // Opening it again, over itself — as File › Open over an open model does.
+    const again = await (async () => {
+      const start = await now();
+      await page.evaluate(async ([url, name]) => {
+        const text = await (await fetch(url)).text();
+        await window.__LA_GRAM_APP__.openModel(text, name);
+      }, [base + modelPath, path.basename(file)]);
+      return phase(start, await now());
+    })();
+
+    return { model: path.basename(file), ...facts, open: { ...open, ...openFindings }, view, rename, again, heapMB: await heaps(browser, page) };
   } finally {
     await browser.close();
     server.close();
@@ -224,12 +235,12 @@ async function heaps(browser, page) {
 const s = (ms) => (ms === null || ms === undefined ? '–' : (ms / 1000).toFixed(ms < 10000 ? 2 : 1));
 function table(rows) {
   const lines = [
-    '| Model | Triples | Open (s) | Longest freeze (s) | Findings (after opening, s) | Largest view: nodes, open (s) | Rename: UI blocked (ms) | Findings after rename (s) | Heap: UI + worker (MB) |',
-    '|---|--:|--:|--:|--:|--:|--:|--:|--:|',
+    '| Model | Triples | Open (s) | Longest freeze (s) | Findings (after opening, s) | Largest view: nodes, open (s) | Rename: UI blocked (ms) | Findings after rename (s) | Open again, over it (s) | Heap: UI + worker (MB) |',
+    '|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
   ];
   for (const r of rows) {
     lines.push(
-      `| ${r.model} | ${r.triples?.toLocaleString('en-GB') ?? '–'} | ${s(r.open.ms)} | ${s(r.open.longestMs)} | ${r.open.findings ?? '–'} (${s(r.open.findingsAfterMs)}) | ${r.view ? `${r.view.nodes}, ${s(r.view.ms)}` : '–'} | ${r.rename?.blockedMs ?? '–'} | ${s(r.rename?.findingsAfterMs)} | ${r.heapMB.ui} + ${r.heapMB.workers.join(' + ') || 0} |`,
+      `| ${r.model} | ${r.triples?.toLocaleString('en-GB') ?? '–'} | ${s(r.open.ms)} | ${s(r.open.longestMs)} | ${r.open.findings ?? '–'} (${s(r.open.findingsAfterMs)}) | ${r.view ? `${r.view.nodes}, ${s(r.view.ms)}` : '–'} | ${r.rename?.blockedMs ?? '–'} | ${s(r.rename?.findingsAfterMs)} | ${s(r.again?.ms)} | ${r.heapMB.ui} + ${r.heapMB.workers.join(' + ') || 0} |`,
     );
   }
   return lines.join('\n');

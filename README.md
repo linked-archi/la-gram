@@ -120,8 +120,8 @@ npm run test:browser:build  # production build + Playwright suite (needs Chrome,
 ### Benchmark
 
 How long a modeller waits on large models: the built web app opens each model
-in Chrome, then its largest view, then renames an element in it, and the
-memory it holds is measured.
+in Chrome, then its largest view, renames an element in it, and opens the model
+again over itself; and the memory it holds is measured.
 
 ```bash
 npm run build:web
