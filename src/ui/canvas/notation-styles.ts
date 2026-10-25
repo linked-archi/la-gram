@@ -52,7 +52,11 @@ export class NotationStyleRegistry {
   }
 
   /** Re-index from a freshly generated palette. */
+  /** How many times the styles were replaced: what was drawn from older ones is stale. */
+  version = 0;
+
   update(paletteDefinition: PaletteDefinition): void {
+    this.version++;
     this.elements = new Map();
     this.relationships = new Map();
     this.index = new Map(Object.entries(paletteDefinition.notationIndex ?? {}));

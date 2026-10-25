@@ -619,6 +619,12 @@ export class DiagramCanvas {
 
   /** Relationship registry keyed by the connection's diagram-js id. */
   private relationships = new Map<string, CanvasRelationship>();
+  /**
+   * The connections not named by their relationship's IRI — one the user draws
+   * gets diagram-js's id, and its relationship after — which are all
+   * {@link findConnection} must look through when the IRI is not an id.
+   */
+  private otherwiseNamed = new Set<DjsShape>();
 
   /**
    * Set while a removal originated in the RDF store, so the diagram-js delete
@@ -804,6 +810,7 @@ export class DiagramCanvas {
     this.registerProviders();
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
+    this.otherwiseNamed.clear();
     this.wireDiagramEvents();
     this.setupEventListeners();
     this.initialized = true;
@@ -861,15 +868,30 @@ export class DiagramCanvas {
    * Put a view on the canvas: clear it, draw the view's nodes and links from
    * the store, and start a fresh undo history — undoing into a view that is no
    * longer shown would edit something the user cannot see.
+   *
+   * The view drawn already in this task — opening a model says it is loaded,
+   * then that its view is open — is only brought up to date: drawing a view of
+   * thousands twice cost as much again (Task 22).
    */
   showView(viewIri: string | undefined): void {
     const services = this.services();
     if (!services) return;
+    if (viewIri && viewIri === this.viewIri && viewIri === this.drawnThisTask) {
+      this.syncFromStore();
+      return;
+    }
     this.viewIri = viewIri;
     this.clearDiagram();
     if (viewIri && this.viewManager) this.syncFromStore();
     services.commandStack.clear();
+    this.drawnThisTask = viewIri;
+    queueMicrotask(() => {
+      this.drawnThisTask = undefined;
+    });
   }
+
+  /** The view {@link showView} drew in the current task, if any. */
+  private drawnThisTask: string | undefined;
 
   /**
    * Make the canvas match the open view in the store: draw what is missing,
@@ -890,11 +912,15 @@ export class DiagramCanvas {
     const wantedShapes = new Map(nodes.map((n) => [n.elementIri, n]));
     const wantedLinks = new Map(links.map((l) => [l.relationshipIri, l]));
 
+    // The connections drawn, by relationship: looked up once, not a scan of the
+    // canvas a link — which made drawing a view of thousands quadratic (Task 22).
+    const drawnLinks = new Map<string, DjsShape>();
     this.removingFromStore = true;
     try {
       for (const connection of this.connections()) {
         const iri = connection.businessObject?.iri;
         if (!iri || !wantedLinks.has(iri)) this.removeConnectionDirect(connection);
+        else if (!drawnLinks.has(iri)) drawnLinks.set(iri, connection);
       }
       for (const shape of this.shapes()) {
         const iri = shape.businessObject?.iri;
@@ -937,7 +963,7 @@ export class DiagramCanvas {
     }
 
     for (const link of links) {
-      const existing = this.findConnection(link.relationshipIri);
+      const existing = services.elementRegistry.get(link.relationshipIri) ?? drawnLinks.get(link.relationshipIri);
       const typeIri = this.describeElement?.(link.relationshipIri)?.typeIri ?? '';
       if (existing) {
         if (link.waypoints.length >= 2 && !sameRoute(existing.waypoints, link.waypoints)) {
@@ -1277,9 +1303,13 @@ export class DiagramCanvas {
       shape.y = updates.bounds.y;
       shape.width = updates.bounds.width;
       shape.height = updates.bounds.height;
+      // What moved: the context pad follows it, and its siblings are re-stacked.
+      services.eventBus.fire('elements.changed', { elements: [shape] });
+      return;
     }
-
-    services.eventBus.fire('elements.changed', { elements: [shape] });
+    // Renamed only: redrawn alone — `elements.changed` re-inserts every sibling's
+    // graphics to keep their order, 30 000 in a view of 10 000 (Task 22).
+    services.eventBus.fire('element.changed', { element: shape });
   }
 
   /**
@@ -2251,14 +2281,18 @@ export class DiagramCanvas {
     return services.elementRegistry.getAll().filter((element) => element.parent && element.waypoints);
   }
 
-  /** The connection drawing a relationship, by the relationship's IRI. */
+  /**
+   * The connection drawing a relationship, by the relationship's IRI: its id,
+   * or one of the few otherwise named — not a scan of the canvas, which made
+   * drawing a view of thousands quadratic (Task 22).
+   */
   private findConnection(relationshipIri: string): DjsShape | undefined {
     const services = this.services();
     if (!services) return undefined;
-    return (
-      services.elementRegistry.get(relationshipIri) ??
-      this.connections().find((c) => c.businessObject?.iri === relationshipIri)
-    );
+    const byId = services.elementRegistry.get(relationshipIri);
+    if (byId) return byId;
+    for (const c of this.otherwiseNamed) if (c.businessObject?.iri === relationshipIri && services.elementRegistry.get(c.id)) return c;
+    return undefined;
   }
 
   /** Remove a connection without a command (store-led). */
@@ -2627,6 +2661,11 @@ export class DiagramCanvas {
     const services = this.services();
     if (!services) return;
     const djs = services.eventBus;
+
+    djs.on('connection.added', (event: { element: DjsShape }) => {
+      if (event.element.id !== event.element.businessObject?.iri) this.otherwiseNamed.add(event.element);
+    });
+    djs.on('connection.removed', (event: { element: DjsShape }) => this.otherwiseNamed.delete(event.element));
 
     // Right-click on an element or a relationship: select it, and open the
     // context menu at the pointer instead of the browser's.

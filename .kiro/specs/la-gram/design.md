@@ -217,7 +217,15 @@ the fallback and the path templates); `drawCustomShape` evaluates its
 numbers, `w`, `h`, the variables, `+ - * /`, parentheses, `min`, `max`; never
 `eval` — into the compact path form the core shapes use, and `translatePath`
 moves the outline for docking. Templates are absolute SVG path commands, so
-arcs and curves reach `path-intersection` as they stand. `shapeLayout` takes the
+arcs and curves reach `path-intersection` as they stand. A straight link — one
+segment, as a link is first drawn — is docked by computation instead
+(`straight-docking.ts`, Task 22): against an outline of lines and unrotated arcs
+(every core shape, and a notation's straight-edged ones) the segment's
+intersections are a line's with a line or an ellipse, chosen as diagram-js's
+`getElementLineIntersection` chooses — the same point for polygons, within a
+pixel for arcs, which diagram-js approximates as Béziers; a curve, a rotated arc
+or a bent link is left to diagram-js. The renderer keeps each shape's outline
+until it moves, resizes, is retyped or the notation changes. `shapeLayout` takes the
 content and label boxes from the templates (a label box's height decides how
 many lines the label gets). A template that cannot be evaluated is reported once
 and the shape drawn as its fallback. The ArchiMate shapes come from the bundled
@@ -471,6 +479,16 @@ selection, lock) are kept per concept and re-applied to shapes drawn later.
 The model tree reads the model once after the events of one task (opening a
 model fires several), in one pass for each concept's types, names and ends;
 another active view only re-marks the tree it has (Task 22).
+
+A view of thousands of shapes (Task 22): a sync indexes the connections drawn
+once, and `findConnection` looks a relationship up by id or among the few
+connections the user drew (diagram-js names those itself); a view already drawn
+in the task is only brought up to date (opening a model says it is loaded, then
+that its view is open); a shape renamed is redrawn alone (`element.changed` —
+`elements.changed` re-stacks every sibling, 30 000 in a view of 10 000). The view
+manager keeps each view's nodes and links until a write touches geometry, a
+node's or link's type or a route (`ObservableRdfStore.onEveryWrite`, told inside
+a batch too), so the canvas and the tree read a view once between such writes.
 
 ### Layout
 
@@ -1240,4 +1258,5 @@ dialog; the modules' section).
 | Unit tests | `npm test` |
 | Browser tests (builds first) | `npm run test:browser:build` |
 | Type-check | `npm run typecheck` |
+| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings and the heap, in Chrome; `test-results/bench/` (Task 22) |
 | Desktop | `npm run build:electron && npm run electron`; package the app with `npm run package` (`scripts/package-electron.mjs`: `@electron/packager`, `dist/electron` and `package.json` only, in an asar; `dist/packages/`) |

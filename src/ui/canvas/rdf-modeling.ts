@@ -85,7 +85,8 @@ import Modeling from 'diagram-js/lib/features/modeling/Modeling.js';
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import { CroppingConnectionDocking, CroppingLayouter } from './connection-docking.js';
+import { CroppingLayouter } from './connection-docking.js';
+import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
 import { relationshipKey } from './relationship-resolution.js';
@@ -826,7 +827,7 @@ export function rdfModelingModule(
     __init__: ['modeling', 'rdfRelationshipBehavior', 'rdfElementBehavior'],
     modeling: ['type', RdfModeling],
     layouter: ['type', CroppingLayouter],
-    connectionDocking: ['type', CroppingConnectionDocking],
+    connectionDocking: ['type', FastCroppingConnectionDocking],
     rdfRelationshipBehavior: ['type', RdfRelationshipBehavior],
     rdfRelationshipWriter: ['value', rdfRelationshipWriter],
     rdfElementBehavior: ['type', RdfElementBehavior],

@@ -285,6 +285,17 @@ describe('getShapePath', () => {
     expect(new Set(paths).size).toBe(SHAPE_TYPES.length);
   });
 
+  it('follows the shape as it moves, resizes and is retyped — though it is kept between asks (Task 22)', () => {
+    const canvas = mount();
+    canvas.addElement(SOURCE_IRI, typeIriFor('Rectangle'), { x: 10, y: 20, width: 100, height: 60 });
+    expect(shapePathOf(canvas, SOURCE_IRI)).toBe(shapePath('Rectangle', 10, 20, 100, 60));
+    canvas.updateElement(SOURCE_IRI, { bounds: { x: 30, y: 40, width: 80, height: 50 } });
+    expect(shapePathOf(canvas, SOURCE_IRI)).toBe(shapePath('Rectangle', 30, 40, 80, 50));
+    const shape = registry(canvas).get(SOURCE_IRI) as unknown as { businessObject: { typeIri: string } };
+    shape.businessObject.typeIri = typeIriFor('Diamond');
+    expect(shapePathOf(canvas, SOURCE_IRI)).toBe(shapePath('Diamond', 30, 40, 80, 50));
+  });
+
   it('falls back to the rectangle path for a type with no notation style', () => {
     const canvas = mount();
     canvas.addElement(SOURCE_IRI, UNSTYLED_TYPE, { x: 10, y: 20, width: 100, height: 60 });

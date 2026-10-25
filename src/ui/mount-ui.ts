@@ -319,7 +319,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const describe = (iri: string): ConceptDescription | undefined => {
     const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     if (types.length === 0) return undefined;
-    return { typeIri: mainType(types, closure), label: labelOf(store, iri), named: hasLabel(store, iri) };
+    // The name only when asked for: drawing a view asks a link only its type,
+    // and a relationship's name is looked for in every graph (Task 22).
+    return {
+      typeIri: mainType(types, closure),
+      get label() {
+        return labelOf(store, iri);
+      },
+      get named() {
+        return hasLabel(store, iri);
+      },
+    };
   };
 
   // ── Top: app toolbar ─────────────────────────────────────────────────

@@ -117,6 +117,26 @@ npm test                    # unit + jsdom integration (Vitest)
 npm run test:browser:build  # production build + Playwright suite (needs Chrome, or LA_GRAM_CHROME)
 ```
 
+### Benchmark
+
+How long a modeller waits on large models: the built web app opens each model
+in Chrome, then its largest view, then renames an element in it, and the
+memory it holds is measured.
+
+```bash
+npm run build:web
+npm run bench                                   # generated models of 10 000 to 500 000 triples
+npm run bench -- --sizes 100000 --view-size 5000   # views of 5 000 nodes
+npm run bench -- path/to/model.ttl              # models of your own
+npm run bench:model -- --triples 250000 --out model.ttl   # a generated model, to open by hand
+```
+
+A generated model is the same each time for the same options: ArchiMate 4.0
+elements of 30 types, two permitted relationships each, laid-out views — and a
+few faults planted (an unnamed element in 997, an impermissible relationship in
+503), so that validation always finds the same. Models and results (JSON) are
+kept in `test-results/bench/`; a table is printed.
+
 ## Collaboration server
 
 `server/collab-server.mjs` keeps each room in `data/rooms/<room>.nt` (one triple

@@ -52,6 +52,7 @@
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { mintIri } from '../rdf-engine/iri.js';
+import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
 import type {
   Bounds,
@@ -77,6 +78,20 @@ import {
 /** The default graph: the model. */
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 
+/**
+ * Whether a quad is one a view's nodes and links are read from: geometry
+ * (`arch-vis`), a node's or link's type, a route's list.
+ */
+function shapesAView(q: Quad): boolean {
+  const p = q.predicate.value;
+  return (
+    p.startsWith(NAMESPACES['arch-vis']) ||
+    p === NAMESPACES.rdf + 'first' ||
+    p === NAMESPACES.rdf + 'rest' ||
+    (p === NAMESPACES.rdf + 'type' && q.object.value.startsWith(NAMESPACES['arch-vis']))
+  );
+}
+
 /** Map from view kind to its `arch:View` subclass. */
 const VIEW_KIND_CLASS: Record<ViewKind, string> = {
   Diagram: IRI.Diagram,
@@ -89,7 +104,23 @@ const DEFAULT_BOUNDS: Bounds = { x: 0, y: 0, width: 120, height: 55 };
 
 /** Concrete {@link ViewManager} over an {@link RdfStore}. */
 export class OxigraphViewManager implements ViewManager {
-  constructor(private readonly store: RdfStore) {}
+  constructor(private readonly store: RdfStore) {
+    const observed = store as RdfStore & { onEveryWrite?(listener: (diff: { added: Quad[]; removed: Quad[] }) => void): unknown };
+    if (typeof observed.onEveryWrite === 'function') {
+      this.cache = new Map();
+      observed.onEveryWrite((diff) => {
+        if (this.cache?.size && (diff.added.some(shapesAView) || diff.removed.some(shapesAView))) this.cache.clear();
+      });
+    }
+  }
+
+  /**
+   * Each view's nodes and links as last read — the canvas and the model tree
+   * both read them after every change, a view of thousands a node at a time —
+   * until a write touches what they are read from (Task 22). Only over a store
+   * that tells of every write; otherwise every read is fresh.
+   */
+  private readonly cache: Map<string, { nodes?: NodeInfo[]; links?: LinkInfo[] }> | undefined;
 
   /**
    * Views, their nodes, links and routes are the model's: read from the model
@@ -246,12 +277,20 @@ export class OxigraphViewManager implements ViewManager {
   }
 
   getNodes(viewIri: string): NodeInfo[] {
+    const known = this.cache?.get(viewIri)?.nodes;
+    if (known) return known.slice();
     const nodes: NodeInfo[] = [];
     for (const q of this.read(null, T.visView, nn(viewIri))) {
       const info = this.readNode(q.subject);
       if (info) nodes.push(info);
     }
-    return nodes;
+    this.remember(viewIri, { nodes });
+    return nodes.slice();
+  }
+
+  private remember(viewIri: string, read: { nodes?: NodeInfo[]; links?: LinkInfo[] }): void {
+    if (!this.cache) return;
+    this.cache.set(viewIri, { ...this.cache.get(viewIri), ...read });
   }
 
   getNode(viewIri: string, elementIri: string): NodeInfo | undefined {
@@ -329,12 +368,15 @@ export class OxigraphViewManager implements ViewManager {
   }
 
   getLinks(viewIri: string): LinkInfo[] {
+    const known = this.cache?.get(viewIri)?.links;
+    if (known) return known.slice();
     const links: LinkInfo[] = [];
     for (const q of this.read(null, T.visView, nn(viewIri))) {
       const info = this.readLink(q.subject);
       if (info) links.push(info);
     }
-    return links;
+    this.remember(viewIri, { links });
+    return links.slice();
   }
 
   updateLinkWaypoints(viewIri: string, relationshipIri: string, waypoints: Point[]): void {

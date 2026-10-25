@@ -32,6 +32,8 @@ export interface ValidationService {
    * worker answers — `undefined` when a later request superseded this one.
    */
   validate(): ValidationReport | Promise<ValidationReport | undefined>;
+  /** Whether a validation is running or asked for. */
+  readonly busy: boolean;
   dispose(): void;
 }
 
@@ -57,6 +59,8 @@ export class InlineValidationService implements ValidationService {
   validate(): ValidationReport {
     return fromPlainReport(this.engine.validate(), toTerm);
   }
+
+  readonly busy = false;
 
   dispose(): void {}
 }
@@ -104,6 +108,10 @@ export class WorkerValidationService implements ValidationService {
 
   apply(added: EncodedQuad[], removed: EncodedQuad[]): void {
     this.worker.postMessage({ type: 'apply', added, removed });
+  }
+
+  get busy(): boolean {
+    return this.running !== undefined || this.waiting.length > 0;
   }
 
   validate(): Promise<ValidationReport | undefined> {

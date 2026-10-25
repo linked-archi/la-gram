@@ -304,3 +304,45 @@ describe('OxigraphViewManager', () => {
     });
   });
 });
+
+describe('a view read once, over a store that tells of its writes (Task 22)', () => {
+  const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+
+  async function setup() {
+    const { ObservableRdfStore } = await import('../../rdf-engine/observable-store.js');
+    const store = new ObservableRdfStore(new OxigraphRdfStore());
+    const views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const model = 'https://example.org/m/model';
+    const view = views.createView('Diagram', undefined, { label: 'V', modelIri: model }).value;
+    const a = elements.createElement(AM4 + 'BusinessActor', model, { label: 'A' }).value;
+    const b = elements.createElement(AM4 + 'Role', model, { label: 'B' }).value;
+    views.addElementToView(view, a, { x: 0, y: 0, width: 100, height: 50 });
+    return { store, views, elements, view, a, b };
+  }
+
+  it('is read again when its geometry changes — inside a batch too, and whoever writes', async () => {
+    const { store, views, view, a, b } = await setup();
+    expect(views.getNodes(view).map((n) => n.elementIri)).toEqual([a]);
+    views.addElementToView(view, b, { x: 200, y: 0, width: 100, height: 50 });
+    expect(views.getNodes(view).map((n) => n.elementIri).sort()).toEqual([a, b].sort());
+    store.batch(() => {
+      views.updateNodeBounds(view, a, { x: 5, y: 6, width: 100, height: 50 });
+      expect(views.getNodes(view).find((n) => n.elementIri === a)?.bounds.x).toBe(5);
+    });
+    const { added, removed } = store.record(() => views.removeElementFromView(view, b));
+    expect(views.getNodes(view).map((n) => n.elementIri)).toEqual([a]);
+    store.applyDiff({ added, removed }, true); // undo, as the canvas does
+    expect(views.getNodes(view).map((n) => n.elementIri).sort()).toEqual([a, b].sort());
+  });
+
+  it('is not read again for a change that is not its geometry; what is returned can be changed by the caller', async () => {
+    const { views, elements, view, a } = await setup();
+    const first = views.getNodes(view);
+    elements.updateProperty(a, 'http://www.w3.org/2004/02/skos/core#prefLabel', DataFactory.literal('Renamed', 'en') as never);
+    const again = views.getNodes(view);
+    expect(again[0]).toBe(first[0]);
+    again.pop();
+    expect(views.getNodes(view)).toHaveLength(1);
+  });
+});

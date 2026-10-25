@@ -499,6 +499,13 @@ export class RdfRenderer extends BaseRenderer {
    */
   getShapePath(shape: RenderableElement): string {
     const typeIri = shape.businessObject?.typeIri;
+    // Asked for once a link end — four times a shape when a view is drawn
+    // (Task 22) — so kept until the shape moves, resizes, is retyped or the
+    // notation changes.
+    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${this.notationStyles.version}`;
+    const known = this.shapePaths.get(shape);
+    if (known?.stamp === stamp) return known.path;
+
     const style = this.notationStyles.styleFor(typeIri);
 
     const x = (shape['x'] as number) ?? 0;
@@ -509,8 +516,13 @@ export class RdfRenderer extends BaseRenderer {
     const mode = this.effectiveMode(typeIri, iconHref(style?.iconSymbol, assetUrl));
     const outline = mode === 'IconCentric' ? 'Rectangle' : (style?.customShape ?? style?.shapeType);
 
-    return shapePath(outline, x, y, width, height);
+    const path = shapePath(outline, x, y, width, height);
+    this.shapePaths.set(shape, { stamp, path });
+    return path;
   }
+
+  /** Each shape's outline as last computed, and what it was computed for. */
+  private readonly shapePaths = new WeakMap<object, { stamp: string; path: string }>();
 
   /**
    * The connection as a polyline path.

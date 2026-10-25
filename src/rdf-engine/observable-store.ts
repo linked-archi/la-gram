@@ -57,6 +57,7 @@ function inDefaultGraph(q: Quad): boolean {
 /** Wraps a store and observes its default graph. */
 export class ObservableRdfStore implements RdfStore {
   private listeners = new Set<StoreChangeListener>();
+  private writeListeners = new Set<(diff: RdfDiff) => void>();
   private recording: RdfDiff[] = [];
   private origin: ChangeOrigin = 'local';
   /** Changes made inside {@link batch}, delivered once at the end. */
@@ -74,6 +75,16 @@ export class ObservableRdfStore implements RdfStore {
   subscribe(listener: StoreChangeListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * Be told of each write to the model as it is made — inside a {@link batch}
+   * too, where {@link subscribe}rs hear only at its end — for a cache of what
+   * was read from the store, which must not outlive it. Returns an unsubscribe.
+   */
+  onEveryWrite(listener: (diff: RdfDiff) => void): () => void {
+    this.writeListeners.add(listener);
+    return () => this.writeListeners.delete(listener);
   }
 
   /**
@@ -237,6 +248,7 @@ export class ObservableRdfStore implements RdfStore {
 
   private track(added: Quad[], removed: Quad[]): void {
     if (added.length === 0 && removed.length === 0) return;
+    for (const listener of this.writeListeners) listener({ added, removed });
     for (const diff of this.recording) {
       diff.added.push(...added);
       diff.removed.push(...removed);

@@ -248,13 +248,17 @@ describe('the worker service', () => {
   it('a validation runs to its end; asked again meanwhile, it runs once more and earlier callers are superseded', async () => {
     const { worker, posted, report } = fakeWorker();
     const service = new WorkerValidationService(worker);
+    expect(service.busy).toBe(false);
     const first = service.validate();
     const second = service.validate();
     const third = service.validate();
+    expect(service.busy).toBe(true);
     expect(posted.filter((m) => m.type === 'validate')).toHaveLength(1);
     report(1, 'https://ex.org/stale');
     expect(posted.filter((m) => m.type === 'validate').map((m) => m.id)).toEqual([1, 2]);
+    expect(service.busy).toBe(true);
     report(2, 'https://ex.org/fresh');
+    expect(service.busy).toBe(false);
     expect(await first).toBeUndefined();
     expect(await second).toBeUndefined();
     expect((await third)?.results[0].focusNode.value).toBe('https://ex.org/fresh');

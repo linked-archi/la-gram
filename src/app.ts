@@ -521,6 +521,11 @@ export class App {
   // ── Validation ─────────────────────────────────────────────────────────
 
   /** Validate soon (debounced), or now when the delay is 0. */
+  /** Whether a validation is due or running — its findings not yet published. */
+  validationPending(): boolean {
+    return this.validationTimer !== null || this.validation.busy;
+  }
+
   scheduleValidation(): void {
     if (this.validationDelayMs <= 0) {
       this.runValidation();
