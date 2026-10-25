@@ -208,7 +208,7 @@ describe('App', () => {
         'element-created', 'element-deleted', 'element-updated',
         'relationship-created', 'relationship-deleted',
         'property-edited', 'palette-drag',
-        'metamodel-loaded', 'model-loaded', 'model-saved',
+        'model-loaded', 'model-saved',
       ] as const;
 
       for (const evt of expectedEvents) {
@@ -261,14 +261,14 @@ describe('App', () => {
   });
 
   describe('metamodel-loaded → palette regeneration', () => {
-    it('calls paletteGenerator.generatePalette on metamodel-loaded', () => {
+    it('is left to the UI: the app generates no palette of its own (Task 22)', () => {
       const eventBus = new EventBus();
       const paletteGenerator = stubPaletteGenerator();
       new App(buildComponents({ eventBus, paletteGenerator }));
 
       eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:test:mm' });
 
-      expect(paletteGenerator.generatePalette).toHaveBeenCalledWith('urn:test:mm');
+      expect(paletteGenerator.generatePalette).not.toHaveBeenCalled();
     });
   });
 

@@ -25,7 +25,8 @@
  *   diagram-js's `create` gesture). The threshold is what keeps a click a click.
  *
  * The tree is rebuilt from a {@link ModelContents} snapshot the host supplies
- * (`contentsProvider`), on every event that can change it.
+ * (`contentsProvider`), once after the events that can change it; another
+ * active view rebuilds it from the snapshot it has.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -430,7 +431,22 @@ export class ModelExplorer extends LitElement {
   @state() private _collapsed: Set<string> = new Set(['folder:relationships']);
   @state() private _menu: { x: number; y: number; node: TreeNode } | null = null;
 
-  private _refresh: ModelEventHandler = () => this.refresh();
+  /**
+   * A model event re-reads the model once, at the end of the task that changed
+   * it: opening a model fires several, and reading a large one takes a while
+   * (Task 22). A {@link refresh} meanwhile makes it unneeded.
+   */
+  private _refresh: ModelEventHandler = () => {
+    if (this._stale) return;
+    this._stale = true;
+    setTimeout(() => {
+      if (this._stale) this.refresh();
+    }, 0);
+  };
+  /** Whether the model changed since it was read. */
+  private _stale = false;
+  /** The model as last read. */
+  private _contents?: ModelContents;
   private _press: { iri: string; x: number; y: number } | null = null;
   private _subscribed?: EventBus;
 
@@ -456,19 +472,29 @@ export class ModelExplorer extends LitElement {
       this._unsubscribe();
       this._subscribe();
     }
-    if (changed.has('contentsProvider') || changed.has('activeViewIri') || changed.has('placedProvider')) {
-      this.refresh();
+    if (changed.has('contentsProvider') || !this._contents || this._stale) {
+      if (changed.has('contentsProvider') || changed.has('activeViewIri') || changed.has('placedProvider')) this.refresh();
+    } else if (changed.has('activeViewIri') || changed.has('placedProvider')) {
+      // Another view: the same model, marked for it.
+      this._build();
     }
   }
 
   /** Re-read the model and rebuild the tree. */
   refresh(): void {
-    if (!this.contentsProvider) {
+    this._stale = false;
+    this._contents = this.contentsProvider?.();
+    this._build();
+  }
+
+  /** Build the tree from the model as last read. */
+  private _build(): void {
+    if (!this._contents) {
       this._tree = [];
       return;
     }
     const placed = this.placedProvider?.() ?? new Set<string>();
-    this._tree = buildModelTree(this.contentsProvider(), this.activeViewIri, placed);
+    this._tree = buildModelTree(this._contents, this.activeViewIri, placed);
   }
 
   /** Expand the ancestors of a concept and scroll it into view. */

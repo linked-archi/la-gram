@@ -35,7 +35,7 @@ import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/i
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
-import { hasLabel, labelOf, modelQuads, readModelContents, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { hasLabel, labelOf, modelQuads, readModelContents, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
@@ -317,7 +317,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const closureLookup: ClassClosure = (typeIri) => classClosure(typeIri);
 
   const describe = (iri: string): ConceptDescription | undefined => {
-    const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
+    const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     if (types.length === 0) return undefined;
     return { typeIri: mainType(types, closure), label: labelOf(store, iri), named: hasLabel(store, iri) };
   };
@@ -514,7 +514,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const headingFor = (iri: string) => {
-    const types = store.getQuads(namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
+    const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     const typeIri = mainType(types, closure);
     const all = new Set(types.flatMap((t) => closure(t)));
     const kind = types.includes(NAMESPACES.arch + 'Model')

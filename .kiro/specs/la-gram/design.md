@@ -36,7 +36,7 @@ graph TB
             Val["RdfShaclValidator (cached)"]
             IO["ModelIO · ArchiMate importer"]
         end
-        Store["ObservableRdfStore → Oxigraph (WASM)<br/>default graph = model · named graphs = metamodels"]
+        Store["ObservableRdfStore, the model graph also in n3 → Oxigraph (WASM)<br/>default graph = model · named graphs = metamodels"]
         Collab["collab/ — RdfYjsBinding + awareness"]
     end
     Server["server/collab-server.mjs<br/>Hocuspocus · rooms as .nt/.ttl · HTTP /rooms"]
@@ -144,6 +144,25 @@ IRIs. (The model resource itself is `{ns}model` rather than DD-15's
 `{base}{notation}/{modelId}`, so that it too is a prefixed name, `m:model`.)
 
 Loading flattens every quad into the default graph.
+
+**The model graph, also in JavaScript** (Task 22). Every quad read out of
+Oxigraph crosses from its WebAssembly and is converted term by term — 10 µs a
+quad, and garbage the collector and Oxigraph's finalizers then spend as long
+on. `ObservableRdfStore`, which sees every write to the model, keeps a copy of
+the default graph in an n3 store, in the form Oxigraph holds it
+(`RdfStore.canonical`: numbers, booleans and dates canonical, language tags in
+lower case — Oxigraph rewrites both). A read of the default graph is answered
+from the copy — `modelQuads()`, and any pattern with the default graph but a
+literal object, which Oxigraph matches in any of its forms; a read of
+everything is the copy and Oxigraph's named graphs one by one
+(`RdfStore.namedGraphs`); other reads, SPARQL and the metamodel graphs stay
+with Oxigraph, which keeps the model too. n3 tells as it adds or removes a quad
+whether the model had it, which is what makes a change effective; a write
+Oxigraph refuses part-way reads the copy again from it. What reads model
+resources reads them from the default graph: the view manager (views, nodes,
+links, routes), and names and types (`labelOf`, `hasLabel`, `statementsOf`) —
+there first, every graph after. On a 347 000-triple model the copy holds
+~100 MB of heap; opening went from 47 s to 11 s.
 
 ---
 
@@ -448,6 +467,10 @@ property panel, opening a file — reach the canvas as `model-changed` events, a
 (add / remove / move / relabel / re-route) **without** the command stack, so they
 never appear in the undo history. Markers (viewpoint, validation, remote
 selection, lock) are kept per concept and re-applied to shapes drawn later.
+
+The model tree reads the model once after the events of one task (opening a
+model fires several), in one pass for each concept's types, names and ends;
+another active view only re-marks the tree it has (Task 22).
 
 ### Layout
 

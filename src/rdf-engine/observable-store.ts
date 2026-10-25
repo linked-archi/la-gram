@@ -19,8 +19,14 @@
  * or removing one that is not, is not part of it, so its inverse never deletes
  * a triple the operation did not create. And it records them as the store holds
  * them, which for a typed literal may not be as they were added.
+ *
+ * It also keeps a copy of the model graph in JavaScript (Task 22): a read of the
+ * model — the model whole, or a pattern in the default graph — is answered from
+ * it, without a crossing into Oxigraph's WebAssembly and a conversion of every
+ * quad back. The inner store keeps everything, for SPARQL and the metamodels.
  */
 
+import { DataFactory, Store as N3Store } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
 import type { RdfStore, SparqlResult } from './interfaces.js';
 
@@ -41,6 +47,8 @@ export interface StoreChange extends RdfDiff {
 /** Listener for {@link ObservableRdfStore.subscribe}. */
 export type StoreChangeListener = (change: StoreChange) => void;
 
+const DEFAULT_GRAPH = DataFactory.defaultGraph();
+
 /** Whether a quad is in the default graph (the model). */
 function inDefaultGraph(q: Quad): boolean {
   return q.graph.termType === 'DefaultGraph';
@@ -53,8 +61,12 @@ export class ObservableRdfStore implements RdfStore {
   private origin: ChangeOrigin = 'local';
   /** Changes made inside {@link batch}, delivered once at the end. */
   private pending: RdfDiff | null = null;
+  /** The model graph, as the inner store holds it. */
+  private model = new N3Store();
 
-  constructor(readonly inner: RdfStore & { has?(q: Quad): boolean }) {}
+  constructor(readonly inner: RdfStore & { has?(q: Quad): boolean }) {
+    this.model.addQuads(this.defaultGraph() as never);
+  }
 
   // ── Observation ────────────────────────────────────────────────────────
 
@@ -118,15 +130,16 @@ export class ObservableRdfStore implements RdfStore {
   // ── RdfStore ───────────────────────────────────────────────────────────
 
   addQuads(quads: Quad[]): void {
-    const effective = quads.filter((q) => !inDefaultGraph(q) || !this.has(q));
-    this.inner.addQuads(quads);
-    this.track(this.held(effective.filter(inDefaultGraph)), []);
+    const held = this.held(quads.filter(inDefaultGraph));
+    this.guarded(() => this.inner.addQuads(quads));
+    // What the model did not have: n3 says whether a quad was new as it adds it.
+    this.track(held.filter((q) => this.model.addQuad(q as never)), []);
   }
 
   removeQuads(quads: Quad[]): void {
-    const effective = quads.filter((q) => inDefaultGraph(q) && this.has(q));
-    this.inner.removeQuads(quads);
-    this.track([], this.held(effective));
+    const held = this.held(quads.filter(inDefaultGraph));
+    this.guarded(() => this.inner.removeQuads(quads));
+    this.track([], held.filter((q) => this.model.removeQuad(q as never)));
   }
 
   getQuads(
@@ -135,7 +148,26 @@ export class ObservableRdfStore implements RdfStore {
     object?: NamedNode | null,
     graph?: NamedNode | null,
   ): Quad[] {
+    // The model from the copy — but a literal asked for, which the inner store
+    // matches in any of its forms (`"010"^^xsd:int` finds `"10"^^xsd:integer`).
+    const termType = (term: unknown) => (term as { termType?: string } | null | undefined)?.termType;
+    if (termType(graph) === 'DefaultGraph' && termType(object) !== 'Literal') {
+      return this.model.getQuads(subject ?? null, predicate ?? null, object ?? null, DEFAULT_GRAPH) as unknown as Quad[];
+    }
+    // Everything: the model from the copy, the inner store's named graphs one by one.
+    if (!subject && !predicate && !object && !graph && this.inner.namedGraphs) {
+      const quads = this.model.getQuads(null, null, null, DEFAULT_GRAPH) as unknown as Quad[];
+      for (const named of this.inner.namedGraphs()) {
+        for (const q of this.inner.getQuads(null, null, null, named)) quads.push(q);
+      }
+      return quads;
+    }
     return this.inner.getQuads(subject, predicate, object, graph);
+  }
+
+  /** How many quads the model has. */
+  modelSize(): number {
+    return this.model.size;
   }
 
   query(sparql: string): SparqlResult {
@@ -143,20 +175,12 @@ export class ObservableRdfStore implements RdfStore {
   }
 
   /**
-   * SPARQL Update is diffed by snapshotting the default graph around it — the
-   * only way to know what an arbitrary update touched.
+   * SPARQL Update is diffed by reading the default graph after it against the
+   * copy — the only way to know what an arbitrary update touched.
    */
   update(sparqlUpdate: string): void {
-    if (this.listeners.size === 0 && this.recording.length === 0) {
-      this.inner.update(sparqlUpdate);
-      return;
-    }
-    const key = (q: Quad) => quadKey(q);
-    const before = new Map(this.defaultGraph().map((q) => [key(q), q]));
-    this.inner.update(sparqlUpdate);
-    const after = new Map(this.defaultGraph().map((q) => [key(q), q]));
-    const added = [...after].filter(([k]) => !before.has(k)).map(([, q]) => q);
-    const removed = [...before].filter(([k]) => !after.has(k)).map(([, q]) => q);
+    this.guarded(() => this.inner.update(sparqlUpdate));
+    const { added, removed } = this.resync();
     this.track(added, removed);
   }
 
@@ -165,10 +189,8 @@ export class ObservableRdfStore implements RdfStore {
     // Bulk loads target metamodel graphs; into the default graph they are rare
     // and are reported as one change computed by snapshot.
     if (options.graph) return this.inner.load(data, options);
-    const before = new Set(this.defaultGraph().map(quadKey));
-    const count = this.inner.load(data, options);
-    const added = this.defaultGraph().filter((q) => !before.has(quadKey(q)));
-    this.track(added, []);
+    const count = this.guarded(() => (this.inner.load as NonNullable<RdfStore['load']>)(data, options));
+    this.track(this.resync().added, []);
     return count;
   }
 
@@ -178,36 +200,35 @@ export class ObservableRdfStore implements RdfStore {
 
   // ── Internals ──────────────────────────────────────────────────────────
 
-  private has(q: Quad): boolean {
-    if (this.inner.has) return this.inner.has(q);
-    return (
-      this.inner.getQuads(
-        q.subject as NamedNode,
-        q.predicate as NamedNode,
-        q.object as NamedNode,
-        q.graph as NamedNode,
-      ).length > 0
-    );
-  }
-
   /**
-   * A change as the store holds it, when anyone is told of it: what it gives
-   * back — and what undo removes, a peer keys and validation sees — is its
-   * form, not necessarily the one added (`"010"^^xsd:int` kept as `"10"^^xsd:integer`).
-   * Two quads added in one call can become one.
+   * Quads as the store holds them: what it gives back — what the copy keeps,
+   * undo removes, a peer keys and validation sees — is their form, not
+   * necessarily the one added (`"010"^^xsd:int` kept as `"10"^^xsd:integer`).
    */
   private held(quads: Quad[]): Quad[] {
     if (quads.length === 0 || !this.inner.canonical) return quads;
-    if (this.listeners.size === 0 && this.recording.length === 0) return quads;
-    const held = this.inner.canonical(quads);
-    if (held === quads) return quads;
-    const seen = new Set<string>();
-    return held.filter((q) => {
-      const key = quadKey(q);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return this.inner.canonical(quads);
+  }
+
+  /** Run a write to the inner store; if it fails part-way, the copy is read again from it. */
+  private guarded<T>(write: () => T): T {
+    try {
+      return write();
+    } catch (err) {
+      this.resync();
+      throw err;
+    }
+  }
+
+  /** Read the model graph again from the inner store into the copy: what that added and removed. */
+  private resync(): RdfDiff {
+    const before = this.model;
+    const after = new N3Store();
+    after.addQuads(this.defaultGraph() as never);
+    const added = (after.getQuads(null, null, null, null) as unknown as Quad[]).filter((q) => !before.has(q as never));
+    const removed = (before.getQuads(null, null, null, null) as unknown as Quad[]).filter((q) => !after.has(q as never));
+    this.model = after;
+    return { added, removed };
   }
 
   private defaultGraph(): Quad[] {

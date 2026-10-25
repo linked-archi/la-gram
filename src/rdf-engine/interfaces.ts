@@ -80,6 +80,8 @@ export interface RdfStore {
    * leaves it out.
    */
   canonical?(quads: Quad[]): Quad[];
+  /** The named graphs it holds. Optional: a store without them leaves it out. */
+  namedGraphs?(): NamedNode[];
 }
 
 // ---------------------------------------------------------------------------

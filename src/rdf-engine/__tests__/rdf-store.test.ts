@@ -280,6 +280,10 @@ describe('quads as the store holds them', () => {
     const held = store.canonical(quads);
     expect(shown(held)).toEqual(['https://ex.org/a "10"^^integer', 'https://ex.org/b "true"^^boolean', 'https://ex.org/c "1.5"^^decimal', 'https://ex.org/d " 010 "^^string']);
     expect(held.every((q) => store.has(q))).toBe(true);
+    const tagged = [quad(namedNode('https://ex.org/e'), namedNode('https://ex.org/p'), literal('Colour', 'en-GB')) as unknown as Quad];
+    store.addQuads(tagged);
+    expect((store.canonical(tagged)[0].object as { language: string }).language).toBe('en-gb');
+    expect(store.getQuads(nn('https://ex.org/e'))[0].object).toEqual(store.canonical(tagged)[0].object);
     const plain = [makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b'), typed('https://ex.org/a', '10', 'integer')];
     expect(store.canonical(plain)).toBe(plain);
   });
@@ -297,5 +301,61 @@ describe('quads as the store holds them', () => {
     store.addQuads([typed('https://ex.org/b', '1', 'boolean')]);
     store.removeQuads([typed('https://ex.org/b', 'true', 'boolean')]);
     expect(told.slice(2)).toEqual(['+https://ex.org/b "true"^^boolean', '-https://ex.org/b "true"^^boolean']);
+  });
+});
+
+describe('the copy of the model graph', () => {
+  const XSD = 'http://www.w3.org/2001/XMLSchema#';
+  const DG = DataFactory.defaultGraph() as unknown as NamedNode;
+  const keys = (quads: Quad[]) => quads.map((q) => `${q.subject.value} ${q.predicate.value} ${q.object.value}`).sort();
+
+  async function stores() {
+    const { ObservableRdfStore } = await import('../observable-store.js');
+    const inner = new OxigraphRdfStore();
+    return { inner, store: new ObservableRdfStore(inner) };
+  }
+  const same = (inner: OxigraphRdfStore, store: { getQuads: OxigraphRdfStore['getQuads'] }) =>
+    expect(keys(store.getQuads(null, null, null, DG))).toEqual(keys(inner.getQuads(null, null, null, DG)));
+
+  it('holds what the store holds, after adds, removes, an update and a bulk load; the metamodel graphs stay out', async () => {
+    const { inner, store } = await stores();
+    store.addQuads([makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b'), quad(namedNode('https://ex.org/a'), namedNode('https://ex.org/n'), literal('010', namedNode(XSD + 'int'))) as unknown as Quad]);
+    store.addQuads([quad(namedNode('https://ex.org/m'), namedNode('https://ex.org/p'), namedNode('https://ex.org/c'), namedNode('https://ex.org/g')) as unknown as Quad]);
+    same(inner, store);
+    expect(store.modelSize()).toBe(2);
+    store.removeQuads([makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b')]);
+    store.update('INSERT DATA { <https://ex.org/x> <https://ex.org/p> <https://ex.org/y> }');
+    store.load('<https://ex.org/z> <https://ex.org/p> <https://ex.org/y> .', { format: 'application/n-triples' });
+    same(inner, store);
+    expect(keys(store.getQuads(null, null, null, DG))).toEqual([
+      'https://ex.org/a https://ex.org/n 10',
+      'https://ex.org/x https://ex.org/p https://ex.org/y',
+      'https://ex.org/z https://ex.org/p https://ex.org/y',
+    ]);
+  });
+
+  it('everything is the model and the named graphs', async () => {
+    const { inner, store } = await stores();
+    store.addQuads([makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b')]);
+    store.load('<https://ex.org/C> <https://ex.org/p> <https://ex.org/D> .', { format: 'application/n-triples', graph: 'https://ex.org/meta' });
+    store.load('<https://ex.org/E> <https://ex.org/p> <https://ex.org/F> .', { format: 'application/n-triples', graph: 'https://ex.org/notation' });
+    expect(inner.namedGraphs().map((g) => g.value).sort()).toEqual(['https://ex.org/meta', 'https://ex.org/notation']);
+    const all = (quads: Quad[]) => quads.map((q) => `${q.subject.value} ${q.graph.value}`).sort();
+    expect(all(store.getQuads())).toEqual(all(inner.getQuads()));
+    expect(store.getQuads()).toHaveLength(3);
+  });
+
+  it('a literal asked for is found in any of its forms', async () => {
+    const { store } = await stores();
+    store.addQuads([quad(namedNode('https://ex.org/a'), namedNode('https://ex.org/n'), literal('010', namedNode(XSD + 'int'))) as unknown as Quad]);
+    expect(store.getQuads(null, null, literal('10', namedNode(XSD + 'integer')) as unknown as NamedNode, DG)).toHaveLength(1);
+    expect(store.getQuads(null, null, literal('010', namedNode(XSD + 'int')) as unknown as NamedNode, DG)).toHaveLength(1);
+  });
+
+  it('a write the store refuses part-way leaves the copy as the store is', async () => {
+    const { inner, store } = await stores();
+    const refused = { ...makeQuad('https://ex.org/b', 'https://ex.org/p', 'https://ex.org/c'), subject: { termType: 'Variable', value: 'v' } } as unknown as Quad;
+    expect(() => store.addQuads([makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b'), refused])).toThrow();
+    same(inner, store);
   });
 });

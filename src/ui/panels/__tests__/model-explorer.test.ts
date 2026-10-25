@@ -170,13 +170,28 @@ describe('<model-explorer>', () => {
     expect(drags.map((d) => d.iri)).toEqual([`${M}/element/c`]);
   });
 
-  it('refreshes when the model changes', async () => {
+  it('refreshes when the model changes — once for the events of one task', async () => {
     const el = await mount();
     const provider = vi.fn(contents);
     el.contentsProvider = provider;
     await el.updateComplete;
     provider.mockClear();
     el.eventBus!.emit('model-changed', {});
-    expect(provider).toHaveBeenCalled();
+    el.eventBus!.emit('views-changed', {});
+    el.eventBus!.emit('element-created', {});
+    expect(provider).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks another active view without reading the model again', async () => {
+    const el = await mount();
+    const provider = vi.fn(contents);
+    el.contentsProvider = provider;
+    await el.updateComplete;
+    provider.mockClear();
+    el.activeViewIri = 'urn:another-view';
+    await el.updateComplete;
+    expect(provider).not.toHaveBeenCalled();
   });
 });

@@ -765,7 +765,7 @@ describe('mountUi', () => {
 
       expect(ui.shell.parentElement).toBeNull();
       expect(eventBus.listenerCount('validation-updated')).toBe(0);
-      expect(eventBus.listenerCount('metamodel-loaded')).toBe(1); // App's own listener
+      expect(eventBus.listenerCount('metamodel-loaded')).toBe(0);
     });
   });
 });

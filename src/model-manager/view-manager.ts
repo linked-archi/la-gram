@@ -74,6 +74,9 @@ import {
   triple,
 } from './vocabulary.js';
 
+/** The default graph: the model. */
+const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
+
 /** Map from view kind to its `arch:View` subclass. */
 const VIEW_KIND_CLASS: Record<ViewKind, string> = {
   Diagram: IRI.Diagram,
@@ -87,6 +90,15 @@ const DEFAULT_BOUNDS: Bounds = { x: 0, y: 0, width: 120, height: 55 };
 /** Concrete {@link ViewManager} over an {@link RdfStore}. */
 export class OxigraphViewManager implements ViewManager {
   constructor(private readonly store: RdfStore) {}
+
+  /**
+   * Views, their nodes, links and routes are the model's: read from the model
+   * graph — which the application's store answers from its copy in JavaScript,
+   * a view of thousands of nodes being read a node at a time (Task 22).
+   */
+  private read(subject?: NamedNode | Term | null, predicate?: NamedNode | null, object?: NamedNode | Term | null): Quad[] {
+    return this.store.getQuads((subject ?? null) as NamedNode | null, predicate ?? null, (object ?? null) as NamedNode | null, MODEL_GRAPH);
+  }
 
   // ── Views ──────────────────────────────────────────────────────────────
 
@@ -110,7 +122,7 @@ export class OxigraphViewManager implements ViewManager {
 
   getViews(modelIri?: string): ViewInfo[] {
     const views: ViewInfo[] = [];
-    for (const q of this.store.getQuads(null, T.rdfType, T.View)) {
+    for (const q of this.read(null, T.rdfType, T.View)) {
       if (q.graph.termType !== 'DefaultGraph') continue;
       const info = this.getView(q.subject.value);
       if (!info) continue;
@@ -152,14 +164,14 @@ export class OxigraphViewManager implements ViewManager {
 
   collectViewQuads(viewIri: string): Quad[] {
     const view = nn(viewIri);
-    const quads: Quad[] = [...this.store.getQuads(view, null, null)];
+    const quads: Quad[] = [...this.read(view, null, null)];
     // Everything drawn in it, with its routes…
-    for (const node of this.store.getQuads(null, T.visView, view)) {
+    for (const node of this.read(null, T.visView, view)) {
       quads.push(...this.subjectQuads(node.subject));
       quads.push(...this.pointListQuads(node.subject));
     }
     // …and every membership statement naming it. The concepts themselves stay.
-    quads.push(...this.store.getQuads(null, T.inView, view));
+    quads.push(...this.read(null, T.inView, view));
     return dedupe(quads);
   }
 
@@ -181,7 +193,7 @@ export class OxigraphViewManager implements ViewManager {
       this.addRelationshipToView(copy.value, link.relationshipIri, link.waypoints);
     }
     // A catalog or matrix lists concepts without geometry: copy the membership.
-    for (const q of this.store.getQuads(null, T.inView, nn(viewIri))) {
+    for (const q of this.read(null, T.inView, nn(viewIri))) {
       this.store.addQuads([triple(q.subject, T.inView, copy)]);
     }
     return copy;
@@ -219,23 +231,23 @@ export class OxigraphViewManager implements ViewManager {
       const node = nn(nodeIri);
       quads.push(...this.subjectQuads(node));
       // What was drawn inside it is no longer inside anything.
-      quads.push(...this.store.getQuads(null, T.inNode, node));
+      quads.push(...this.read(null, T.inNode, node));
       // Links ending at this node cannot outlive it.
       for (const end of [T.visSource, T.visTarget]) {
-        for (const link of this.store.getQuads(null, end, node)) {
+        for (const link of this.read(null, end, node)) {
           quads.push(...this.linkQuads(link.subject, view));
         }
       }
     }
     if (nodeIris.length > 0) {
-      quads.push(...this.store.getQuads(nn(elementIri), T.inView, view));
+      quads.push(...this.read(nn(elementIri), T.inView, view));
     }
     return dedupe(quads);
   }
 
   getNodes(viewIri: string): NodeInfo[] {
     const nodes: NodeInfo[] = [];
-    for (const q of this.store.getQuads(null, T.visView, nn(viewIri))) {
+    for (const q of this.read(null, T.visView, nn(viewIri))) {
       const info = this.readNode(q.subject);
       if (info) nodes.push(info);
     }
@@ -252,7 +264,7 @@ export class OxigraphViewManager implements ViewManager {
     if (!nodeIri) return;
     const node = nn(nodeIri);
     const [parentIri] = parentElementIri ? this.nodeIrisFor(viewIri, parentElementIri) : [];
-    const current = this.store.getQuads(node, T.inNode);
+    const current = this.read(node, T.inNode);
     if (current.length === 1 && current[0].object.value === parentIri) return;
     this.remove(current);
     if (parentIri && parentIri !== nodeIri) this.store.addQuads([triple(node, T.inNode, nn(parentIri))]);
@@ -264,7 +276,7 @@ export class OxigraphViewManager implements ViewManager {
     const node = nn(nodeIri);
     const stale: Quad[] = [];
     for (const predicate of BOUNDS_PREDICATES) {
-      stale.push(...this.store.getQuads(node, nn(predicate)));
+      stale.push(...this.read(node, nn(predicate)));
     }
     this.remove(stale);
     this.store.addQuads(boundsQuads(node, bounds));
@@ -318,7 +330,7 @@ export class OxigraphViewManager implements ViewManager {
 
   getLinks(viewIri: string): LinkInfo[] {
     const links: LinkInfo[] = [];
-    for (const q of this.store.getQuads(null, T.visView, nn(viewIri))) {
+    for (const q of this.read(null, T.visView, nn(viewIri))) {
       const info = this.readLink(q.subject);
       if (info) links.push(info);
     }
@@ -329,7 +341,7 @@ export class OxigraphViewManager implements ViewManager {
     const [linkIri] = this.linkIrisFor(viewIri, relationshipIri);
     if (!linkIri) return;
     const link = nn(linkIri);
-    this.remove([...this.store.getQuads(link, T.points), ...this.pointListQuads(link)]);
+    this.remove([...this.read(link, T.points), ...this.pointListQuads(link)]);
     if (waypoints.length > 0) this.writePoints(link, waypoints);
   }
 
@@ -337,7 +349,7 @@ export class OxigraphViewManager implements ViewManager {
     const rel = nn(relationshipIri);
     const sourceIri = this.objects(rel, T.source)[0];
     const targetIri = this.objects(rel, T.target)[0];
-    for (const q of this.store.getQuads(null, T.archRelationship, rel)) {
+    for (const q of this.read(null, T.archRelationship, rel)) {
       const link = q.subject as NamedNode;
       const viewIri = this.objects(link, T.visView)[0];
       if (!viewIri) continue;
@@ -349,8 +361,8 @@ export class OxigraphViewManager implements ViewManager {
         continue;
       }
       const stale: Quad[] = [];
-      if (this.objects(link, T.visSource)[0] !== sourceNode) stale.push(...this.store.getQuads(link, T.visSource));
-      if (this.objects(link, T.visTarget)[0] !== targetNode) stale.push(...this.store.getQuads(link, T.visTarget));
+      if (this.objects(link, T.visSource)[0] !== sourceNode) stale.push(...this.read(link, T.visSource));
+      if (this.objects(link, T.visTarget)[0] !== targetNode) stale.push(...this.read(link, T.visTarget));
       if (stale.length === 0) continue;
       this.remove(stale);
       this.store.addQuads([triple(link, T.visSource, nn(sourceNode)), triple(link, T.visTarget, nn(targetNode))]);
@@ -361,7 +373,7 @@ export class OxigraphViewManager implements ViewManager {
 
   /** The concepts a view presents (`arch:inView`). */
   getMembers(viewIri: string): string[] {
-    return this.store.getQuads(null, T.inView, nn(viewIri)).map((q) => q.subject.value);
+    return this.read(null, T.inView, nn(viewIri)).map((q) => q.subject.value);
   }
 
   /**
@@ -369,13 +381,13 @@ export class OxigraphViewManager implements ViewManager {
    * is all a catalog or a matrix holds (idempotent).
    */
   addMember(viewIri: string, conceptIri: string): void {
-    if (this.store.getQuads(nn(conceptIri), T.inView, nn(viewIri)).length > 0) return;
+    if (this.read(nn(conceptIri), T.inView, nn(viewIri)).length > 0) return;
     this.store.addQuads([triple(nn(conceptIri), T.inView, nn(viewIri))]);
   }
 
   /** Stop presenting a concept in a catalog or matrix: its `arch:inView`. */
   removeMember(viewIri: string, conceptIri: string): void {
-    const quads = this.store.getQuads(nn(conceptIri), T.inView, nn(viewIri));
+    const quads = this.read(nn(conceptIri), T.inView, nn(viewIri));
     if (quads.length > 0) this.store.removeQuads(quads);
   }
 
@@ -383,12 +395,12 @@ export class OxigraphViewManager implements ViewManager {
 
   viewsContaining(conceptIri: string): string[] {
     const views = new Set<string>();
-    for (const q of this.store.getQuads(nn(conceptIri), T.inView, null)) views.add(q.object.value);
+    for (const q of this.read(nn(conceptIri), T.inView, null)) views.add(q.object.value);
     // Geometry without the membership triple (hand-written or imported data).
-    for (const q of this.store.getQuads(null, T.archElement, nn(conceptIri))) {
+    for (const q of this.read(null, T.archElement, nn(conceptIri))) {
       for (const v of this.objects(q.subject, T.visView)) views.add(v);
     }
-    for (const q of this.store.getQuads(null, T.archRelationship, nn(conceptIri))) {
+    for (const q of this.read(null, T.archRelationship, nn(conceptIri))) {
       for (const v of this.objects(q.subject, T.visView)) views.add(v);
     }
     return [...views].sort();
@@ -402,8 +414,8 @@ export class OxigraphViewManager implements ViewManager {
     const elementIri = this.objects(node, T.archElement)[0];
     if (!elementIri) return undefined;
     const bound = (predicate: string, fallback: number) =>
-      numberOf(this.store.getQuads(node as NamedNode, nn(predicate))[0]?.object) ?? fallback;
-    const parentNode = this.store.getQuads(node as NamedNode, T.inNode)[0]?.object;
+      numberOf(this.read(node as NamedNode, nn(predicate))[0]?.object) ?? fallback;
+    const parentNode = this.read(node as NamedNode, T.inNode)[0]?.object;
     const parentElementIri = parentNode ? this.objects(parentNode, T.archElement)[0] : undefined;
     return {
       nodeIri: node.value,
@@ -445,7 +457,7 @@ export class OxigraphViewManager implements ViewManager {
     for (const relationshipIri of this.objects(link, T.archRelationship)) {
       // Only drop inView when this is the relationship's last link in the view.
       const others = this.linkIrisFor(view.value, relationshipIri).filter((iri) => iri !== link.value);
-      if (others.length === 0) quads.push(...this.store.getQuads(nn(relationshipIri), T.inView, view));
+      if (others.length === 0) quads.push(...this.read(nn(relationshipIri), T.inView, view));
     }
     return quads;
   }
@@ -492,8 +504,8 @@ export class OxigraphViewManager implements ViewManager {
       // As terms throughout: another tool's list may have blank-node cells and points.
       const point = this.objectTerms(cell, T.rdfFirst)[0];
       if (point) {
-        const x = numberOf(this.store.getQuads(point as NamedNode, T.pointX)[0]?.object);
-        const y = numberOf(this.store.getQuads(point as NamedNode, T.pointY)[0]?.object);
+        const x = numberOf(this.read(point as NamedNode, T.pointX)[0]?.object);
+        const y = numberOf(this.read(point as NamedNode, T.pointY)[0]?.object);
         if (x !== undefined && y !== undefined) points.push({ x, y });
       }
     }
@@ -523,28 +535,28 @@ export class OxigraphViewManager implements ViewManager {
   private pointListQuads(link: Term): Quad[] {
     const quads: Quad[] = [];
     for (const cell of this.listCells(link)) {
-      for (const point of this.objectTerms(cell, T.rdfFirst)) quads.push(...this.store.getQuads(point as NamedNode));
-      quads.push(...this.store.getQuads(cell as NamedNode));
+      for (const point of this.objectTerms(cell, T.rdfFirst)) quads.push(...this.read(point as NamedNode));
+      quads.push(...this.read(cell as NamedNode));
     }
     return quads;
   }
 
   private subjectQuads(subject: Term): Quad[] {
-    return this.store.getQuads(subject as NamedNode, null, null);
+    return this.read(subject as NamedNode, null, null);
   }
 
   private objects(subject: Term, predicate: NamedNode): string[] {
-    return this.store.getQuads(subject as NamedNode, predicate).map((q) => q.object.value);
+    return this.read(subject as NamedNode, predicate).map((q) => q.object.value);
   }
 
   /** The objects as terms: a blank node stays one, where `objects`' values would lose it. */
   private objectTerms(subject: Term, predicate: NamedNode): Term[] {
-    return this.store.getQuads(subject as NamedNode, predicate).map((q) => q.object);
+    return this.read(subject as NamedNode, predicate).map((q) => q.object);
   }
 
   /** Set a single-valued property (or clear it with `undefined`). */
   private replace(subject: NamedNode, predicate: NamedNode, value: Term | undefined): void {
-    this.remove(this.store.getQuads(subject, predicate));
+    this.remove(this.read(subject, predicate));
     if (value) this.store.addQuads([triple(subject, predicate, value)]);
   }
 

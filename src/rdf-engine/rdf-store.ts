@@ -120,14 +120,16 @@ const SCRATCH = 'urn:la-gram:canonical:';
 /**
  * Whether Oxigraph may keep this object in another form: a typed literal not a
  * string — but for an integer or a boolean already canonical, most of a
- * diagram's — or a triple term with one.
+ * diagram's — a language tag not in lower case (`en-GB` is kept as `en-gb`),
+ * or a triple term with one.
  */
 function mayBeRewritten(term: Term): boolean {
   if (term.termType === 'Literal') {
     const dt = term.datatype.value;
     if (dt === XSD_INTEGER) return !CANONICAL_INTEGER.test(term.value);
     if (dt === XSD_BOOLEAN) return term.value !== 'true' && term.value !== 'false';
-    return dt !== XSD_STRING && dt !== RDF_LANG_STRING && dt !== RDF_DIR_LANG_STRING;
+    if (dt === RDF_LANG_STRING || dt === RDF_DIR_LANG_STRING) return term.language !== term.language.toLowerCase();
+    return dt !== XSD_STRING;
   }
   if (term.termType === 'Quad') return mayBeRewritten((term as unknown as Quad).object);
   return false;
@@ -333,6 +335,12 @@ export class OxigraphRdfStore implements RdfStore {
     return this.store.size;
   }
 
+  /** The named graphs this store holds. */
+  namedGraphs(): NamedNode[] {
+    const rows = this.store.query('SELECT DISTINCT ?g WHERE { GRAPH ?g {} }') as Map<string, oxigraph.Term>[];
+    return rows.map((row) => fromOxTerm(row.get('g') as oxigraph.Term) as NamedNode);
+  }
+
   /** Whether the store holds exactly this quad (graph included). */
   has(q: Quad): boolean {
     return this.store.has(toOxQuad(q));
@@ -342,7 +350,7 @@ export class OxigraphRdfStore implements RdfStore {
    * The quads as this store holds them. Oxigraph keeps a literal of a type it
    * computes with — a number, a boolean, a date or time — in canonical form:
    * `"010"^^xsd:int` is kept, and read back, as `"10"^^xsd:integer`, `"1"^^xsd:boolean`
-   * as `"true"`. Only an object is rewritten: the objects that may be are put
+   * as `"true"`; and a language tag in lower case. Only an object is rewritten: the objects that may be are put
    * through a scratch store at once, each on a numbered subject, and read back;
    * the array itself is returned when none changes. (One at a time, adding and
    * deleting, is quadratic: the store keeps what was deleted.)
