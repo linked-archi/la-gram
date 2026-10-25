@@ -72,10 +72,23 @@ export class RdfShaclValidator implements ShaclValidator {
   private cache: { shapes: Quad[]; engine: CompiledShapes } | null = null;
 
   validate(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
+    return runCompiledOn(this.compiled(shapesGraph), quadsToStore(dataGraph));
+  }
+
+  /**
+   * Validate the data graph a store holds — every graph in it — as it is: no
+   * copy made. For a caller that keeps its data graph in a store of its own
+   * (the validation engine, Task 22).
+   */
+  validateStore(data: N3Store, shapesGraph: Quad[]): ValidationReport {
+    return runCompiledOn(this.compiled(shapesGraph), data);
+  }
+
+  private compiled(shapesGraph: Quad[]): CompiledShapes {
     if (this.cache?.shapes !== shapesGraph) {
       this.cache = { shapes: shapesGraph, engine: compileShapes(shapesGraph) };
     }
-    return runCompiled(this.cache.engine, dataGraph);
+    return this.cache.engine;
   }
 
   validateIncremental(
@@ -108,14 +121,30 @@ function compileShapes(shapesGraph: Quad[]): CompiledShapes {
   return { validator: new SHACLValidator(shapesStore, options), shapesStore };
 }
 
-function runCompiled(engine: CompiledShapes, dataGraph: Quad[]): ValidationReport {
-  const dataStore = quadsToStore(dataGraph);
+function runCompiledOn(engine: CompiledShapes, dataStore: N3Store): ValidationReport {
   const report = engine.validator.validate(dataStore);
-  return toValidationReport(report, engine.shapesStore, dataStore);
+  try {
+    return toValidationReport(report, engine.shapesStore, dataStore);
+  } finally {
+    release(engine.validator);
+  }
+}
+
+/**
+ * Drop what a run kept for itself once its report is read: rdf-validate-shacl
+ * holds, until the next run, a counter per node and shape it checked (keyed by
+ * both, as JSON), the report's own graph, and the data graph — 250 MB after a
+ * run on a 350 000-triple model (Task 22). A compiled validator is kept between
+ * runs, so they were kept too.
+ */
+function release(validator: SHACLValidator): void {
+  const internal = validator as unknown as { $data?: unknown; validationEngine?: { initReport?(): void } };
+  internal.validationEngine?.initReport?.();
+  internal.$data = undefined;
 }
 
 function runValidation(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
-  return runCompiled(compileShapes(shapesGraph), dataGraph);
+  return runCompiledOn(compileShapes(shapesGraph), quadsToStore(dataGraph));
 }
 
 /**

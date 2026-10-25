@@ -62,6 +62,12 @@ const WILDCARDS = new Set([NAMESPACES.arch + 'Element', NAMESPACES.arch + 'Model
 /** For one relationship predicate: each source type and the types it may reach directly. */
 type DirectTargets = ReadonlyMap<string, ReadonlySet<string>>;
 
+/** {@link TablePermissions} as plain data. */
+export interface PlainTablePermissions {
+  byPredicate: ReadonlyMap<string, DirectTargets>;
+  mentioned: ReadonlySet<string>;
+}
+
 /** One kind of permission of the loaded relationship tables: direct, or drawn. */
 export class TablePermissions {
   constructor(
@@ -73,6 +79,16 @@ export class TablePermissions {
   /** Relationship predicates the tables give direct permissions for. */
   get size(): number {
     return this.byPredicate.size;
+  }
+
+  /** As plain data (maps and sets clone into a worker; the class does not). */
+  toPlain(): PlainTablePermissions {
+    return { byPredicate: this.byPredicate, mentioned: this.mentioned };
+  }
+
+  /** The permissions back from {@link toPlain}'s data. */
+  static fromPlain(plain: PlainTablePermissions): TablePermissions {
+    return new TablePermissions(plain.byPredicate, plain.mentioned);
   }
 
   /** Whether the tables give permissions of this kind for the predicate. */

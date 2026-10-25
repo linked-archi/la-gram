@@ -108,6 +108,31 @@ function fromOxQuad(q: oxigraph.Quad): Quad {
   ) as unknown as Quad;
 }
 
+const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
+const XSD_INTEGER = 'http://www.w3.org/2001/XMLSchema#integer';
+const XSD_BOOLEAN = 'http://www.w3.org/2001/XMLSchema#boolean';
+const RDF_LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
+const RDF_DIR_LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString';
+const CANONICAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;
+/** Subjects in the scratch store {@link OxigraphRdfStore.canonical} uses. */
+const SCRATCH = 'urn:la-gram:canonical:';
+
+/**
+ * Whether Oxigraph may keep this object in another form: a typed literal not a
+ * string — but for an integer or a boolean already canonical, most of a
+ * diagram's — or a triple term with one.
+ */
+function mayBeRewritten(term: Term): boolean {
+  if (term.termType === 'Literal') {
+    const dt = term.datatype.value;
+    if (dt === XSD_INTEGER) return !CANONICAL_INTEGER.test(term.value);
+    if (dt === XSD_BOOLEAN) return term.value !== 'true' && term.value !== 'false';
+    return dt !== XSD_STRING && dt !== RDF_LANG_STRING && dt !== RDF_DIR_LANG_STRING;
+  }
+  if (term.termType === 'Quad') return mayBeRewritten((term as unknown as Quad).object);
+  return false;
+}
+
 // ── SPARQL query type detection ────────────────────────────────────────
 
 type SparqlQueryType = 'SELECT' | 'CONSTRUCT' | 'ASK' | 'DESCRIBE';
@@ -311,6 +336,41 @@ export class OxigraphRdfStore implements RdfStore {
   /** Whether the store holds exactly this quad (graph included). */
   has(q: Quad): boolean {
     return this.store.has(toOxQuad(q));
+  }
+
+  /**
+   * The quads as this store holds them. Oxigraph keeps a literal of a type it
+   * computes with — a number, a boolean, a date or time — in canonical form:
+   * `"010"^^xsd:int` is kept, and read back, as `"10"^^xsd:integer`, `"1"^^xsd:boolean`
+   * as `"true"`. Only an object is rewritten: the objects that may be are put
+   * through a scratch store at once, each on a numbered subject, and read back;
+   * the array itself is returned when none changes. (One at a time, adding and
+   * deleting, is quadratic: the store keeps what was deleted.)
+   */
+  canonical(quads: Quad[]): Quad[] {
+    const candidates: number[] = [];
+    quads.forEach((q, i) => {
+      if (mayBeRewritten(q.object)) candidates.push(i);
+    });
+    if (candidates.length === 0) return quads;
+    const scratch = new oxigraph.Store();
+    const p = oxigraph.namedNode(SCRATCH + 'p');
+    for (const i of candidates) {
+      scratch.add(oxigraph.quad(oxigraph.namedNode(SCRATCH + i), p, toOxTerm(quads[i].object) as oxigraph.Quad_Object, oxigraph.defaultGraph()));
+    }
+    const kept = new Map<number, oxigraph.Term>();
+    for (const q of scratch.match(null, null, null, null)) kept.set(Number(q.subject.value.slice(SCRATCH.length)), q.object);
+    (scratch as unknown as { free?: () => void }).free?.();
+    let changed = false;
+    const held = quads.slice();
+    for (const i of candidates) {
+      const object = fromOxTerm(kept.get(i) as oxigraph.Term);
+      if (object.equals(quads[i].object)) continue;
+      const q = quads[i];
+      held[i] = n3Quad(q.subject as never, q.predicate as never, object as never, q.graph as never) as unknown as Quad;
+      changed = true;
+    }
+    return changed ? held : quads;
   }
 
   /**

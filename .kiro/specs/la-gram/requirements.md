@@ -163,7 +163,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 1. Validation runs against every `shapes` graph of the loaded metamodels (`arch:formalRules`) plus the core and core-vis shapes
 2. The data graph is the model plus the `rdfs:subClassOf` axioms and the types of every resource the model references (so `sh:targetClass` on superclasses and `sh:class` on referenced viewpoints/metamodels work)
-3. Validation runs after every change, debounced (300 ms); the compiled shapes engine is cached until the metamodels change
+3. Validation runs after every change, debounced (300 ms); the compiled shapes engine is cached until the metamodels change. It runs off the UI thread (a Web Worker in the browser and the desktop app), so editing never waits for it; a change made while it runs is validated when it ends, and only the latest results are shown
 4. `sh:sparql` constraints are stripped client-side (left to the server, Req 8)
 5. Each result shows severity, the concept's name, the message and the source shape
 6. `sh:message` is shown when present; otherwise a generated message

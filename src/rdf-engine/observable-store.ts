@@ -17,7 +17,8 @@
  *
  * A diff records only effective changes: adding a quad that is already there,
  * or removing one that is not, is not part of it, so its inverse never deletes
- * a triple the operation did not create.
+ * a triple the operation did not create. And it records them as the store holds
+ * them, which for a typed literal may not be as they were added.
  */
 
 import type { NamedNode, Quad } from '@rdfjs/types';
@@ -119,13 +120,13 @@ export class ObservableRdfStore implements RdfStore {
   addQuads(quads: Quad[]): void {
     const effective = quads.filter((q) => !inDefaultGraph(q) || !this.has(q));
     this.inner.addQuads(quads);
-    this.track(effective.filter(inDefaultGraph), []);
+    this.track(this.held(effective.filter(inDefaultGraph)), []);
   }
 
   removeQuads(quads: Quad[]): void {
     const effective = quads.filter((q) => inDefaultGraph(q) && this.has(q));
     this.inner.removeQuads(quads);
-    this.track([], effective);
+    this.track([], this.held(effective));
   }
 
   getQuads(
@@ -187,6 +188,26 @@ export class ObservableRdfStore implements RdfStore {
         q.graph as NamedNode,
       ).length > 0
     );
+  }
+
+  /**
+   * A change as the store holds it, when anyone is told of it: what it gives
+   * back — and what undo removes, a peer keys and validation sees — is its
+   * form, not necessarily the one added (`"010"^^xsd:int` kept as `"10"^^xsd:integer`).
+   * Two quads added in one call can become one.
+   */
+  private held(quads: Quad[]): Quad[] {
+    if (quads.length === 0 || !this.inner.canonical) return quads;
+    if (this.listeners.size === 0 && this.recording.length === 0) return quads;
+    const held = this.inner.canonical(quads);
+    if (held === quads) return quads;
+    const seen = new Set<string>();
+    return held.filter((q) => {
+      const key = quadKey(q);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   private defaultGraph(): Quad[] {

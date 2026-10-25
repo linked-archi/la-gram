@@ -73,6 +73,13 @@ export interface RdfStore {
   load?(data: string, options: { format: string; graph?: string; baseIri?: string }): number;
   /** Number of quads in the store (all graphs). Optional, like {@link load}. */
   size?(): number;
+  /**
+   * The quads as the store holds them, and gives them back: a store may keep a
+   * literal in another form than the one added (Oxigraph keeps `"010"^^xsd:int`
+   * as `"10"^^xsd:integer`). Optional: a store that keeps every quad as added
+   * leaves it out.
+   */
+  canonical?(quads: Quad[]): Quad[];
 }
 
 // ---------------------------------------------------------------------------

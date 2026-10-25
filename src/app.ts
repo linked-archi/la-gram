@@ -21,7 +21,7 @@ import type { NamedNode, Quad } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 
 // RDF Engine
-import type { RdfStore, ShaclValidator, TtlParser, TtlSerializer } from './rdf-engine/interfaces.js';
+import type { RdfStore, ShaclValidator, TtlParser, TtlSerializer, ValidationReport } from './rdf-engine/interfaces.js';
 import { OxigraphRdfStore } from './rdf-engine/rdf-store.js';
 import { ObservableRdfStore } from './rdf-engine/observable-store.js';
 import { N3TtlParser } from './rdf-engine/ttl-parser.js';
@@ -61,7 +61,10 @@ import { ModelOperations } from './model-manager/model-operations.js';
 import { ModelSession, type AdoptResult } from './model-manager/model-session.js';
 import { labelOf, modelQuads, typeClosure, type TypeClosure } from './model-manager/model-queries.js';
 import { readPermittedPermissions, type TablePermissions } from './model-manager/direct-permissions.js';
-import { checkRelationshipsByTables, splitTableShapes, type TableShapes } from './model-manager/relationship-validity.js';
+import { splitTableShapes, type TableShapes } from './model-manager/relationship-validity.js';
+import { createValidationService, type ValidationService } from './rdf-engine/validation-service.js';
+import type { EngineSetup } from './rdf-engine/validation-engine.js';
+import { encodeQuads } from './rdf-engine/term-codec.js';
 import { isValidPrefix } from './model-manager/model-namespace.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from './rdf-engine/iri.js';
 
@@ -126,6 +129,8 @@ export interface AppExtras {
   uploaded?: UploadedAssetSource;
   /** Validation debounce; 0 runs synchronously (tests). */
   validationDelayMs?: number;
+  /** Where the model is validated: a worker in the browser, this thread elsewhere (`createValidationService`). */
+  validation?: ValidationService;
   /** Metamodels loaded at startup after the primary one. */
   additionalMetamodels?: LoadedMetamodel[];
   /** Base new models' namespaces are minted under; `https://example.org/` by default. */
@@ -203,7 +208,50 @@ export class App {
       { relationships: components.relationshipManager, base: extras.base ?? DEFAULT_MODEL_BASE },
     );
     this.modelIO = new ModelIO(components.store);
+    this.validation = extras.validation ?? createValidationService({ inline: true });
+    this.followModelForValidation();
     this.wireEvents();
+  }
+
+  /** Where the model is validated (Task 22). */
+  readonly validation: ValidationService;
+  /** The metamodels changed since the validation service was last set up. */
+  private validationSetupDirty = true;
+  /** Whether the service follows the store's changes (else it is given the model at each validation). */
+  private validationFollowsStore = false;
+
+  /**
+   * Give the validation service the model, then every change to it as it
+   * happens — so a validation copies nothing out of the store.
+   */
+  private followModelForValidation(): void {
+    const store = this.components.store as Partial<ObservableRdfStore>;
+    if (typeof store.subscribe !== 'function') return;
+    this.validation.load(encodeQuads(modelQuads(this.components.store)));
+    store.subscribe((change) => {
+      if (change.added.length + change.removed.length > 0) {
+        this.validation.apply(encodeQuads(change.added), encodeQuads(change.removed));
+      }
+    });
+    this.validationFollowsStore = true;
+  }
+
+  /** What validation needs of the loaded metamodels, for the service. */
+  private validationSetup(shapes: Quad[]): EngineSetup {
+    const store = this.components.store;
+    const rdfType = namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode;
+    const unqualifiedForms: Array<[string, string]> = [];
+    for (const q of store.getQuads(null, namedNode(NAMESPACES.arch + 'unqualifiedForm') as unknown as NamedNode, null)) {
+      if (q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode') unqualifiedForms.push([q.subject.value, q.object.value]);
+    }
+    const tables = readPermittedPermissions(store);
+    return {
+      shapes: encodeQuads(shapes),
+      hierarchy: encodeQuads(store.getQuads(null, namedNode(NAMESPACES.rdfs + 'subClassOf') as unknown as NamedNode, null)),
+      outsideTypes: encodeQuads(store.getQuads(null, rdfType, null).filter((q) => q.graph.termType !== 'DefaultGraph')),
+      unqualifiedForms,
+      tables: tables.size > 0 ? tables.toPlain() : null,
+    };
   }
 
   /** The first loaded metamodel (the "primary" language), or `null`. */
@@ -548,26 +596,41 @@ export class App {
     return this.relationshipCheckCache;
   }
 
-  /** Validate the model now and publish the report. */
-  runValidation(): void {
-    const { validator, eventBus } = this.components;
+  /**
+   * Validate the model now and publish the report: at once where validation
+   * runs on this thread (Node, the tests), when the worker answers in the
+   * browser — a report a later request superseded is not published.
+   */
+  runValidation(): void | Promise<void> {
     const shapes = this.shapesGraph();
     if (shapes.length === 0) return;
-    const data = this.validationDataGraph();
-    if (data.length === 0) return;
     try {
-      const { split, tables, closure } = this.relationshipCheck();
-      const report = validator.validate(data, split.kept);
-      const byTables = checkRelationshipsByTables(data, split, tables, closure);
-      const results = [...report.results, ...byTables];
-      eventBus.emit('validation-updated', {
-        conforms: report.conforms && !byTables.some((r) => r.severity === 'Violation'),
-        resultCount: results.length,
-        results,
-      });
+      if (this.validationSetupDirty) {
+        this.validation.setup(this.validationSetup(shapes));
+        this.validationSetupDirty = false;
+      }
+      if (!this.validationFollowsStore) this.validation.load(encodeQuads(modelQuads(this.components.store)));
+      const outcome = this.validation.validate();
+      if (outcome instanceof Promise) {
+        return outcome.then(
+          (report) => {
+            if (report) this.publishValidation(report);
+          },
+          (err: unknown) => console.warn('[app] Validation failed', err),
+        );
+      }
+      this.publishValidation(outcome);
     } catch (err: unknown) {
       console.warn('[app] Validation failed', err);
     }
+  }
+
+  private publishValidation(report: ValidationReport): void {
+    this.components.eventBus.emit('validation-updated', {
+      conforms: report.conforms,
+      resultCount: report.results.length,
+      results: report.results,
+    });
   }
 
   // ── Wiring ─────────────────────────────────────────────────────────────
@@ -666,6 +729,7 @@ export class App {
 
   private afterMetamodelsChanged(): void {
     this.shapesCache = null;
+    this.validationSetupDirty = true;
     this.session.setMetamodels(this.metamodels.map((m) => m.metamodelIri));
     this.components.eventBus.emit('metamodels-changed', {
       metamodelIris: this.metamodels.map((m) => m.metamodelIri),
@@ -713,6 +777,12 @@ export interface CreateAppOptions {
   metamodels?: string[];
   /** Validation debounce in ms; 0 validates synchronously. */
   validationDelayMs?: number;
+  /**
+   * Where the model is validated: in a worker where the environment has workers
+   * (the browser, the desktop app) unless `inline` is asked for; on this thread
+   * otherwise (Node, the tests).
+   */
+  validation?: 'auto' | 'inline';
   /** Start a new, empty model (default true). */
   newModel?: boolean;
   /**
@@ -795,6 +865,12 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
       coreGraphs,
       uploaded,
       validationDelayMs: options.validationDelayMs ?? 0,
+      validation: createValidationService({
+        inline: options.validation === 'inline',
+        onTiming: (t) => {
+          if (t.shacl + t.tables > 1000) console.info(`[app] Validated in the worker: SHACL ${t.shacl} ms, tables ${t.tables} ms`);
+        },
+      }),
       additionalMetamodels: loaded.slice(1),
       // The published catalogue is read from meta.linked.archi whatever the mode
       // but offline: bundled-first would always answer from the bundle, and a

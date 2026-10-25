@@ -179,10 +179,10 @@ export function splitTableShapes(
 
 /**
  * The violations the replaced shapes would report for `data` (the model, with
- * the class hierarchy), found by the tables.
+ * the class hierarchy — an array, or a store), found by the tables.
  */
 export function checkRelationshipsByTables(
-  data: readonly Quad[],
+  data: Iterable<Quad>,
   split: TableShapes,
   tables: TablePermissions,
   closure: TypeClosure,

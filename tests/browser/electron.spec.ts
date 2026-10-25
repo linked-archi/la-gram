@@ -100,6 +100,24 @@ describe.skipIf(!existsSync(MAIN) || !binaryInstalled)('the desktop build', () =
       ]);
       expect(renderer.csp).toContain("script-src 'self' 'wasm-unsafe-eval'");
 
+      // Validation runs in a worker, under the same policy: an element without a name is reported.
+      const validation = await page.evaluate(async () => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const unnamed: string = app.components.elementManager.createElement(
+          'https://meta.linked.archi/archimate4/onto#BusinessActor',
+          app.session.modelIri,
+        ).value;
+        const reported = new Promise<boolean>((resolve) => {
+          app.components.eventBus.on('validation-updated', (e: any) => {
+            if (e.detail.results.some((r: any) => r.focusNode.value === unnamed)) resolve(true);
+          });
+          setTimeout(() => resolve(false), 30_000);
+        });
+        await app.runValidation();
+        return { where: app.validation.where, reported: await reported };
+      });
+      expect(validation).toEqual({ where: 'worker', reported: true });
+
       // The native dialogs, answered by the main process with a file in a temporary directory.
       await app.evaluate(({ dialog }, chosen) => {
         dialog.showSaveDialog = (async () => ({ canceled: false, filePath: chosen })) as typeof dialog.showSaveDialog;

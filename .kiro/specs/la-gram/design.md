@@ -697,6 +697,39 @@ under the replaced shape's IRI and its `sh:message`. The same findings as the
 shapes, checked on three models (56, 0 and 95 relationships): validation
 14.9 s → 1.25 s + 8 ms (34 000 triples), 78 s → 14 s + 49 ms (347 000).
 
+**Off the UI thread** (Task 22, `rdf-engine/validation-engine.ts`,
+`validation-service.ts`, `validation.worker.ts`). Validation runs in a Web
+Worker in the browser and the desktop app, so the UI never waits for it; in
+Node and the tests it runs on the calling thread and answers at once. Both run a
+`ValidationEngine`, which keeps its own copy of the model in an n3 store: given
+whole once, then each change from the store's change feed — so a validation
+copies nothing out of Oxigraph on the UI thread. What it needs of the
+metamodels — the shapes graph, the `rdfs:subClassOf` axioms, the types of
+resources outside the model, each relationship class's `arch:unqualifiedForm`,
+the tables as plain data — is posted again whenever the metamodels change; the
+engine splits the shapes as above and keeps the compiled SHACL. Terms cross as
+n3 ids, a triple term as a nested triple (`term-codec.ts`). A worker validation
+is not interrupted: asked again meanwhile, it runs once more when it ends, and
+only the last request's report is published.
+
+The data graph is the engine's store itself: the model with its extras — the
+`rdfs:subClassOf` axioms, and the types of each outside resource while the model
+refers to it (counted from the changes, `rdf:type` objects aside) — all in the
+default graph; a quad both the model and the extras hold stays until neither
+does. SHACL (`RdfShaclValidator.validateStore`) and the tables read it as it is,
+so a validation copies nothing. rdf-validate-shacl keeps, until its next run, a
+counter per node and shape checked (keyed by both as JSON), the report's graph
+and the data graph; with the compiled validator kept between runs, that was
+250 MB on a 347 000-triple model, so it is dropped once the report is read.
+
+A copy kept up to date by changes is only right if the changes say what the
+store holds. Oxigraph keeps a number, a boolean or a date in canonical form —
+`"010"^^xsd:int` is kept, and read back, as `"10"^^xsd:integer` — so the change
+feed reports a typed literal in the form the store holds (`RdfStore.canonical`,
+learnt through a scratch store); fed the form as added, the copy found 1 324
+`sh:datatype xsd:integer` violations the store does not have. Undo and the
+collaboration binding read the same feed, and now remove and key what is there.
+
 ### Collaboration
 
 ```mermaid

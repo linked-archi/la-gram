@@ -266,3 +266,36 @@ describe('OxigraphRdfStore', () => {
     });
   });
 });
+
+describe('quads as the store holds them', () => {
+  const XSD = 'http://www.w3.org/2001/XMLSchema#';
+  const typed = (s: string, value: string, type: string) =>
+    quad(namedNode(s), namedNode('https://ex.org/p'), literal(value, namedNode(XSD + type))) as unknown as Quad;
+  const shown = (quads: Quad[]) => quads.map((q) => `${q.subject.value} "${q.object.value}"^^${(q.object as { datatype: NamedNode }).datatype.value.replace(XSD, '')}`);
+
+  it('Oxigraph keeps numbers, booleans and dates in canonical form; strings and IRIs as they are', () => {
+    const store = new OxigraphRdfStore();
+    const quads = [typed('https://ex.org/a', '010', 'int'), typed('https://ex.org/b', '1', 'boolean'), typed('https://ex.org/c', '1.50', 'decimal'), makeLiteralQuad('https://ex.org/d', 'https://ex.org/p', ' 010 ')];
+    store.addQuads(quads);
+    const held = store.canonical(quads);
+    expect(shown(held)).toEqual(['https://ex.org/a "10"^^integer', 'https://ex.org/b "true"^^boolean', 'https://ex.org/c "1.5"^^decimal', 'https://ex.org/d " 010 "^^string']);
+    expect(held.every((q) => store.has(q))).toBe(true);
+    const plain = [makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b'), typed('https://ex.org/a', '10', 'integer')];
+    expect(store.canonical(plain)).toBe(plain);
+  });
+
+  it('a change is reported, recorded and undone in the form the store holds', async () => {
+    const { ObservableRdfStore } = await import('../observable-store.js');
+    const store = new ObservableRdfStore(new OxigraphRdfStore());
+    const told: string[] = [];
+    store.subscribe((change) => told.push(...shown(change.added).map((s) => `+${s}`), ...shown(change.removed).map((s) => `-${s}`)));
+    const { added } = store.record(() => store.addQuads([typed('https://ex.org/a', '010', 'int'), typed('https://ex.org/a', '10', 'integer')]));
+    expect(shown(added)).toEqual(['https://ex.org/a "10"^^integer']);
+    expect(told).toEqual(['+https://ex.org/a "10"^^integer']);
+    store.applyDiff({ added, removed: [] }, true);
+    expect(store.getQuads()).toHaveLength(0);
+    store.addQuads([typed('https://ex.org/b', '1', 'boolean')]);
+    store.removeQuads([typed('https://ex.org/b', 'true', 'boolean')]);
+    expect(told.slice(2)).toEqual(['+https://ex.org/b "true"^^boolean', '-https://ex.org/b "true"^^boolean']);
+  });
+});

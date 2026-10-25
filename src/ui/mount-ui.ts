@@ -425,7 +425,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   validationPanel.slot = 'validation';
   validationPanel.validator = validator;
   validationPanel.labelFor = (iri) => labelOf(store, iri);
-  validationPanel.dataGraph = store.getQuads();
+  // No data graph: the panel shows the app's reports (`validation-updated`), and
+  // a copy of every graph would only be held in memory (Task 22).
   validationPanel.shapesGraph = app.shapesGraph();
 
   const sparqlEditor = document.createElement('sparql-editor');
@@ -1639,7 +1640,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const shapes = app.shapesGraph();
     propertyPanel.shapesGraph = shapes;
     validationPanel.shapesGraph = shapes;
-    validationPanel.dataGraph = app.validationDataGraph();
+    // Not the data graph: the panel shows the app's reports (`validation-updated`);
+    // copying the model for it on every load cost seconds on a large model (Task 22).
   };
 
   const onValidationUpdated: ModelEventHandler = (event) => {
