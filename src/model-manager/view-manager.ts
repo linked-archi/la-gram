@@ -78,6 +78,12 @@ import {
 /** The default graph: the model. */
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 
+/** Whether a quad is one what a view shows is read from: which view a node or link is in, what it draws. */
+function placesInAView(q: Quad): boolean {
+  const p = q.predicate.value;
+  return p === IRI.visView || p === IRI.archElement || p === IRI.archRelationship;
+}
+
 /**
  * Whether a quad is one a view's nodes and links are read from: geometry
  * (`arch-vis`), a node's or link's type, a route's list.
@@ -110,6 +116,7 @@ export class OxigraphViewManager implements ViewManager {
       this.cache = new Map();
       observed.onEveryWrite((diff) => {
         if (this.cache?.size && (diff.added.some(shapesAView) || diff.removed.some(shapesAView))) this.cache.clear();
+        if (this.members.size && (diff.added.some(placesInAView) || diff.removed.some(placesInAView))) this.members.clear();
       });
     }
   }
@@ -121,6 +128,25 @@ export class OxigraphViewManager implements ViewManager {
    * that tells of every write; otherwise every read is fresh.
    */
   private readonly cache: Map<string, { nodes?: NodeInfo[]; links?: LinkInfo[] }> | undefined;
+  /** What each view shows, kept even as its shapes move — only over a store that tells of every write. */
+  private readonly members = new Map<string, ReadonlySet<string>>();
+
+  /**
+   * The elements and relationships a view shows (by IRI): what the model tree
+   * marks, after every change — read again only when a node or link is added,
+   * removed or re-pointed, not when one moves (Task 22).
+   */
+  placedIn(viewIri: string): ReadonlySet<string> {
+    const known = this.members.get(viewIri);
+    if (known) return known;
+    const placed = new Set<string>();
+    for (const q of this.read(null, T.visView, nn(viewIri))) {
+      for (const element of this.objects(q.subject, T.archElement)) placed.add(element);
+      for (const relationship of this.objects(q.subject, T.archRelationship)) placed.add(relationship);
+    }
+    if (this.cache) this.members.set(viewIri, placed);
+    return placed;
+  }
 
   /**
    * Views, their nodes, links and routes are the model's: read from the model

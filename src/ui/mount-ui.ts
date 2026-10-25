@@ -483,6 +483,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const placedInView = (): ReadonlySet<string> => {
     const viewIri = session.activeViewIri;
     if (!viewIri || typeof viewManager.getNodes !== 'function') return new Set();
+    // What the view shows, kept as its shapes move (Task 22).
+    const placed = (viewManager as { placedIn?(viewIri: string): ReadonlySet<string> }).placedIn;
+    if (placed) return placed.call(viewManager, viewIri);
     return new Set([
       ...viewManager.getNodes(viewIri).map((n) => n.elementIri),
       ...viewManager.getLinks(viewIri).map((l) => l.relationshipIri),
@@ -1675,6 +1678,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const onMetamodelLoaded: ModelEventHandler = (event) => {
     // The class hierarchy has just changed, so the closure indexes are stale.
+    warmRelationshipTables();
     guides.clear();
     classClosure = buildClassClosure(store);
     closure = typeClosure(store);
@@ -1689,7 +1693,33 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     diagramCanvas.syncFromStore();
   };
 
+  /**
+   * Read the relationship tables, permissions and proposal orders while the
+   * browser is idle after a model or metamodel loads, rather than when a shape
+   * is first selected and its context pad asks — on a large model, the first
+   * drag froze for that (Task 22).
+   */
+  let warming: number | null = null;
+  const warmRelationshipTables = (): void => {
+    if (warming !== null) return;
+    const idle = (globalThis as { requestIdleCallback?(fn: () => void, options?: { timeout: number }): number }).requestIdleCallback;
+    const run = () => {
+      warming = null;
+      const manager = relationshipManager as unknown as Partial<Record<'relationshipTable' | 'directPermissions' | 'drawnPermissions' | 'proposalOrders', () => unknown>>;
+      try {
+        manager.relationshipTable?.();
+        manager.directPermissions?.();
+        manager.drawnPermissions?.();
+        manager.proposalOrders?.();
+      } catch (err: unknown) {
+        console.warn('[la-gram] Reading the relationship tables failed', err);
+      }
+    };
+    warming = idle ? idle(run, { timeout: 2000 }) : (setTimeout(run, 200) as unknown as number);
+  };
+
   const onModelLoaded: ModelEventHandler = () => {
+    warmRelationshipTables();
     void refreshHistory();
     guides.clear();
     diagramCanvas.setModelIri(session.modelIri ?? DEFAULT_MODEL_IRI);

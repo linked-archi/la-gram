@@ -64,6 +64,10 @@ async function dropActor(page: Page, dx: number, dy: number): Promise<void> {
   await page.mouse.move(host!.x + dx - 40, host!.y + dy, { steps: 8 });
   await page.mouse.move(host!.x + dx, host!.y + dy, { steps: 8 });
   await page.mouse.up();
+  // diagram-js swallows the first click within 400 ms of a drag ending (its
+  // ClickTrap, so the drop's own mouse-up is no click); a test clicking sooner
+  // — as it can now the drop is quick — would lose its click.
+  await page.waitForTimeout(450);
 }
 
 /** Answer the open prompt dialog. */

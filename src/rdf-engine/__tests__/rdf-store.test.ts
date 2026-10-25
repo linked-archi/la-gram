@@ -288,6 +288,44 @@ describe('quads as the store holds them', () => {
     expect(store.canonical(plain)).toBe(plain);
   });
 
+  it('a double or decimal written plainly is taken as it is, and is as Oxigraph keeps it; one not, put through it', () => {
+    const store = new OxigraphRdfStore();
+    const values = ['0', '120', '-3.75', '0.1', '12.25', '123456789012345', '1.000001', '1.50', '1E3', '-0', '0120', '1234567890123456.5'];
+    for (const type of ['double', 'decimal']) {
+      const quads = values.map((v, i) => typed(`https://ex.org/n${type}${i}`, v, type));
+      store.addQuads(quads);
+      const held = store.canonical(quads);
+      held.forEach((q, i) => expect(store.getQuads(nn(`https://ex.org/n${type}${i}`))[0].object).toEqual(q.object));
+    }
+  });
+
+  it('a number of any integer type, a double or a decimal, in any form, is rewritten as Oxigraph keeps it', () => {
+    let seed = 11;
+    const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const pick = <T>(xs: T[]) => xs[Math.floor(next() * xs.length)];
+    const zeros = () => '0'.repeat(Math.floor(next() * 3));
+    const digits = (n: number) => Array.from({ length: n }, () => Math.floor(next() * 10)).join('');
+    const integerTypes = ['integer', 'int', 'long', 'short', 'byte', 'nonNegativeInteger', 'unsignedInt', 'positiveInteger', 'unsignedByte'];
+    const quads: Quad[] = [];
+    for (let i = 0; i < 3000; i++) {
+      const sign = pick(['', '', '-', '+']);
+      if (i % 2 === 0) {
+        quads.push(typed(`https://ex.org/i${i}`, `${sign}${zeros()}${digits(1 + Math.floor(next() * 12))}`, pick(integerTypes)));
+      } else {
+        const fraction = pick(['', '.', `.${digits(1 + Math.floor(next() * 5))}${zeros()}`]);
+        quads.push(typed(`https://ex.org/d${i}`, `${sign}${zeros()}${pick(['', digits(1 + Math.floor(next() * 8))])}${fraction || '.0'}`, pick(['double', 'decimal'])));
+      }
+    }
+    for (const value of ['0', '-0', '-0.0', '0.0', '.5', '1.', '+3.0', '132.0']) quads.push(typed(`https://ex.org/z${value}`, value, 'double'), typed(`https://ex.org/y${value}`, value, 'decimal'));
+    const store = new OxigraphRdfStore();
+    store.addQuads(quads);
+    const held = store.canonical(quads);
+    // What Oxigraph gives back, exactly: value and datatype.
+    const form = (o: Quad['object']) => `${o.value}^^${(o as { datatype: NamedNode }).datatype.value}`;
+    const wrong = held.filter((q) => form(store.getQuads(q.subject as NamedNode)[0].object) !== form(q.object));
+    expect(wrong.map((q) => `${quads[held.indexOf(q)].object.value} → ${form(q.object)}`)).toEqual([]);
+  });
+
   it('a change is reported, recorded and undone in the form the store holds', async () => {
     const { ObservableRdfStore } = await import('../observable-store.js');
     const store = new ObservableRdfStore(new OxigraphRdfStore());
@@ -357,5 +395,74 @@ describe('the copy of the model graph', () => {
     const refused = { ...makeQuad('https://ex.org/b', 'https://ex.org/p', 'https://ex.org/c'), subject: { termType: 'Variable', value: 'v' } } as unknown as Quad;
     expect(() => store.addQuads([makeQuad('https://ex.org/a', 'https://ex.org/p', 'https://ex.org/b'), refused])).toThrow();
     same(inner, store);
+  });
+});
+
+describe('a large addition, given to the inner store in the background (Task 22)', () => {
+  const DG = DataFactory.defaultGraph() as unknown as NamedNode;
+  const P = 'https://ex.org/p';
+  const many = (n: number) => Array.from({ length: n }, (_, i) => makeQuad(`https://ex.org/s${i}`, P, `https://ex.org/o${i % 7}`));
+  const keys = (quads: Quad[]) => quads.map((q) => `${q.subject.value} ${q.predicate.value} ${q.object.value} ${q.graph.value}`).sort();
+
+  async function stores() {
+    const { ObservableRdfStore } = await import('../observable-store.js');
+    const inner = new OxigraphRdfStore();
+    const store = new ObservableRdfStore(inner);
+    store.load('<https://ex.org/s1> <https://ex.org/meta> <https://ex.org/M> .', { format: 'application/n-triples', graph: 'https://ex.org/g' });
+    return { inner, store };
+  }
+  const settled = (store: { behind: boolean }) =>
+    new Promise<void>((resolve) => {
+      const wait = () => (store.behind ? setTimeout(wait, 5) : resolve());
+      wait();
+    });
+
+  it('is read whole at once — the model, and every graph — while the inner store gets it after', async () => {
+    const { inner, store } = await stores();
+    store.addQuads(many(12000));
+    expect(store.behind).toBe(true);
+    expect(inner.getQuads(null, null, null, DG).length).toBeLessThan(12000);
+    expect(store.getQuads(null, null, null, DG)).toHaveLength(12000);
+    expect(keys(store.getQuads(nn('https://ex.org/s1')))).toEqual([
+      'https://ex.org/s1 https://ex.org/meta https://ex.org/M https://ex.org/g',
+      'https://ex.org/s1 https://ex.org/p https://ex.org/o1 ',
+    ]);
+    expect(store.getQuads(null, nn(P), nn('https://ex.org/o3'))).toHaveLength(Math.ceil((12000 - 3) / 7));
+    expect(store.getQuads(null, null, null, nn('https://ex.org/g'))).toHaveLength(1);
+    await settled(store);
+    expect(inner.getQuads(null, null, null, DG)).toHaveLength(12000);
+    expect(keys(store.getQuads(nn('https://ex.org/s1')))).toHaveLength(2);
+  });
+
+  it('is all there for SPARQL, an update, the size; not waited for by a metamodel question', async () => {
+    const { store } = await stores();
+    store.addQuads(many(6000));
+    const count = (r: ReturnType<typeof store.query>) => (r.type === 'bindings' ? Number(r.results[0]?.['n']?.value) : NaN);
+    expect(count(store.queryMetamodels('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }'))).toBeLessThan(6000);
+    expect(store.behind).toBe(true);
+    expect(count(store.query('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }'))).toBe(6000);
+    expect(store.behind).toBe(false);
+    store.addQuads(many(6000).map((q, i) => makeQuad(`https://ex.org/t${i}`, P, q.object.value)));
+    expect(store.size()).toBe(12001);
+  });
+
+  it('what is removed before it reaches the inner store never does; what is added again does', async () => {
+    const { inner, store } = await stores();
+    const quads = many(8000);
+    store.addQuads(quads);
+    store.removeQuads([quads[7000], quads[7001]]);
+    store.addQuads([quads[7001]]);
+    await settled(store);
+    expect(inner.has(quads[7000])).toBe(false);
+    expect(inner.has(quads[7001])).toBe(true);
+    expect(keys(inner.getQuads(null, null, null, DG))).toEqual(keys(store.getQuads(null, null, null, DG)));
+  });
+
+  it('a term the inner store cannot hold is refused at once, and the model keeps none of the addition', async () => {
+    const { store } = await stores();
+    const quads = [...many(6000), quad(namedNode('not an IRI'), namedNode(P), namedNode('https://ex.org/o')) as unknown as Quad];
+    expect(() => store.addQuads(quads)).toThrow();
+    expect(store.getQuads(null, null, null, DG)).toHaveLength(0);
+    expect(store.behind).toBe(false);
   });
 });

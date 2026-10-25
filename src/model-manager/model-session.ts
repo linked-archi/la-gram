@@ -37,6 +37,10 @@ import {
   type ModelNamespace,
 } from './model-namespace.js';
 import { IRI, T, dateTimeLiteral, langLiteral, nn, triple, tripleTerm } from './vocabulary.js';
+import type { NamedNode } from '@rdfjs/types';
+
+/** The default graph: the model. */
+const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 import { relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
@@ -445,11 +449,13 @@ export class ModelSession {
    */
   private ensureReifies(): void {
     const add: Quad[] = [];
-    for (const q of modelQuads(this.store)) {
-      if (q.predicate.value !== IRI.source || q.subject.termType !== 'NamedNode') continue;
+    // The model's relationships, by index in the model graph (Task 22).
+    const model = MODEL_GRAPH;
+    for (const q of this.store.getQuads(null, T.source, null, model)) {
+      if (q.subject.termType !== 'NamedNode') continue;
       const rel = q.subject.value;
-      if (this.store.getQuads(nn(rel), T.reifies).length > 0) continue;
-      const target = this.store.getQuads(nn(rel), T.target)[0]?.object;
+      if (this.store.getQuads(nn(rel), T.reifies, null, model).length > 0) continue;
+      const target = this.store.getQuads(nn(rel), T.target, null, model)[0]?.object;
       const classIri = relationshipClassOf(this.store, rel);
       const predicate = classIri ? unqualifiedFormOf(this.store, classIri) : undefined;
       if (!target || target.termType !== 'NamedNode' || q.object.termType !== 'NamedNode' || !predicate) continue;

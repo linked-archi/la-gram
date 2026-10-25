@@ -71,6 +71,7 @@
 
 import { DataFactory, Store } from 'n3';
 import type { Quad as N3Quad } from 'n3';
+import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { resolveIconUri } from './bundled-assets.js';
@@ -255,6 +256,15 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
    * per-document graphs stay visible without special handling.
    */
   private snapshot(): Store {
+    // Over the application's store: the metamodel graphs read into a store, and
+    // the model's copy as it is — not copied into it too (Task 22). Not kept
+    // between palettes: the metamodels' quads held in JavaScript cost 100 MB.
+    const observed = this.store as RdfStore & { modelGraph?(): Store; namedGraphQuads?(): Quad[] };
+    if (observed.modelGraph && observed.namedGraphQuads) {
+      const named = new Store();
+      named.addQuads(observed.namedGraphQuads() as unknown as N3Quad[]);
+      return unionOf(named, observed.modelGraph());
+    }
     const graph = new Store();
     for (const q of this.store.getQuads()) {
       // The application's Quad is @rdfjs/types-shaped and n3's addQuad wants its
@@ -605,4 +615,26 @@ function fragmentToLabel(fragment: string): string {
 
 function uniqueInOrder(items: string[]): string[] {
   return [...new Set(items)];
+}
+
+/**
+ * Two stores read as one — what the palette's builders ask of a store
+ * (`getQuads`, `getObjects`, `getSubjects`) — without copying either.
+ */
+function unionOf(a: Store, b: Store): Store {
+  const distinct = <T extends { termType: string; value: string }>(terms: T[]): T[] => {
+    const seen = new Set<string>();
+    return terms.filter((t) => {
+      const key = `${t.termType}:${t.value}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  type Args<K extends 'getQuads' | 'getObjects' | 'getSubjects'> = Parameters<Store[K]>;
+  return {
+    getQuads: (...args: Args<'getQuads'>) => [...a.getQuads(...args), ...b.getQuads(...args)],
+    getObjects: (...args: Args<'getObjects'>) => distinct([...a.getObjects(...args), ...b.getObjects(...args)]),
+    getSubjects: (...args: Args<'getSubjects'>) => distinct([...a.getSubjects(...args), ...b.getSubjects(...args)]),
+  } as unknown as Store;
 }

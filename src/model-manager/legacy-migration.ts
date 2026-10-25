@@ -25,7 +25,10 @@
 import type { NamedNode, Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import type { Bounds, ViewManager } from './interfaces.js';
-import { modelQuads, typeClosure } from './model-queries.js';
+import { typeClosure } from './model-queries.js';
+
+/** The default graph: the model. */
+const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 import { IRI, T, nn, numberOf, triple } from './vocabulary.js';
 
 /** What a migration changed. */
@@ -63,12 +66,13 @@ export function migrateLegacyModel(
   const report: MigrationReport = { renamed: 0, relationships: 0, placements: 0, notes: [] };
   const add: Quad[] = [];
   const remove: Quad[] = [];
-  const data = modelQuads(store);
+  // The model's statements with a predicate, by index — not the model scanned
+  // for each kind, on every opening (Task 22).
+  const withPredicate = (predicate: string) => store.getQuads(null, nn(predicate), null, MODEL_GRAPH);
 
   // 1. Straight renames.
   for (const [from, to] of RENAMES) {
-    for (const q of data) {
-      if (q.predicate.value !== from) continue;
+    for (const q of withPredicate(from)) {
       remove.push(q);
       add.push(triple(q.subject, nn(to), q.object));
       report.renamed += 1;
@@ -76,26 +80,30 @@ export function migrateLegacyModel(
   }
 
   // 2. Views: `arch:viewpoint` and container-first `arch:contains`.
+  const legacyViewpoints = withPredicate(IRI.legacyViewpoint);
+  const legacyContains = withPredicate(IRI.legacyContains);
   const views = new Set(
-    data.filter((q) => q.predicate.value === IRI.rdfType && q.object.value === IRI.View).map((q) => q.subject.value),
+    legacyViewpoints.length + legacyContains.length > 0
+      ? store.getQuads(null, T.rdfType, T.View, MODEL_GRAPH).map((q) => q.subject.value)
+      : [],
   );
-  for (const q of data) {
-    if (q.predicate.value === IRI.legacyViewpoint && views.has(q.subject.value)) {
-      remove.push(q);
-      add.push(triple(q.subject, T.viewConformsToViewpoint, q.object));
-      report.renamed += 1;
-    }
-    if (q.predicate.value === IRI.legacyContains && views.has(q.object.value)) {
-      remove.push(q);
-      add.push(triple(q.object, T.inModel, q.subject));
-      report.renamed += 1;
-    }
+  for (const q of legacyViewpoints) {
+    if (!views.has(q.subject.value)) continue;
+    remove.push(q);
+    add.push(triple(q.subject, T.viewConformsToViewpoint, q.object));
+    report.renamed += 1;
+  }
+  for (const q of legacyContains) {
+    if (!views.has(q.object.value)) continue;
+    remove.push(q);
+    add.push(triple(q.object, T.inModel, q.subject));
+    report.renamed += 1;
   }
 
   // 3. `arch:relPredicate` → a class type plus the unqualified triple.
-  const closure = typeClosure(store);
-  for (const q of data) {
-    if (q.predicate.value !== IRI.legacyRelPredicate) continue;
+  const relPredicates = withPredicate(IRI.legacyRelPredicate);
+  const closure = relPredicates.length > 0 ? typeClosure(store) : () => [];
+  for (const q of relPredicates) {
     remove.push(q);
     report.relationships += 1;
     const rel = q.subject;
@@ -129,8 +137,10 @@ export function migrateLegacyModel(
       : classIri
         ? predicateIri
         : undefined;
-    const source = data.find((d) => d.subject.equals(rel) && (d.predicate.value === IRI.legacyRelSource || d.predicate.value === IRI.source));
-    const target = data.find((d) => d.subject.equals(rel) && (d.predicate.value === IRI.legacyRelTarget || d.predicate.value === IRI.target));
+    const end = (legacy: string, current: string) =>
+      store.getQuads(rel as NamedNode, nn(legacy), null, MODEL_GRAPH)[0] ?? store.getQuads(rel as NamedNode, nn(current), null, MODEL_GRAPH)[0];
+    const source = end(IRI.legacyRelSource, IRI.source);
+    const target = end(IRI.legacyRelTarget, IRI.target);
     if (unqualified && source && target) add.push(triple(source.object, nn(unqualified), target.object));
   }
 
@@ -150,22 +160,15 @@ function migrateElementGeometry(
   defaultView: (() => string) | undefined,
   report: MigrationReport,
 ): void {
-  const data = modelQuads(store);
-  const typesOf = new Map<string, Set<string>>();
-  for (const q of data) {
-    if (q.predicate.value !== IRI.rdfType) continue;
-    const set = typesOf.get(q.subject.value) ?? new Set<string>();
-    set.add(q.object.value);
-    typesOf.set(q.subject.value, set);
-  }
-  const isDiagramElement = (iri: string) =>
-    [...(typesOf.get(iri) ?? [])].some((t) => t.startsWith('https://meta.linked.archi/core-vis#'));
+  const isDiagramElement = (subject: Quad['subject']) =>
+    store.getQuads(subject as NamedNode, T.rdfType, null, MODEL_GRAPH).some((q) => q.object.value.startsWith('https://meta.linked.archi/core-vis#'));
 
   // Elements carrying bounds or an arch-vis:view of their own.
   const carriers = new Set<string>();
-  for (const q of data) {
-    if (isDiagramElement(q.subject.value)) continue;
-    if (q.predicate.value === IRI.boundsX || q.predicate.value === IRI.visView) carriers.add(q.subject.value);
+  for (const predicate of [IRI.boundsX, IRI.visView]) {
+    for (const q of store.getQuads(null, nn(predicate), null, MODEL_GRAPH)) {
+      if (!carriers.has(q.subject.value) && !isDiagramElement(q.subject)) carriers.add(q.subject.value);
+    }
   }
   if (carriers.size === 0) return;
 

@@ -811,6 +811,7 @@ export class DiagramCanvas {
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
     this.otherwiseNamed.clear();
+    this.restackOnlyWhatChanged();
     this.wireDiagramEvents();
     this.setupEventListeners();
     this.initialized = true;
@@ -888,6 +889,43 @@ export class DiagramCanvas {
     queueMicrotask(() => {
       this.drawnThisTask = undefined;
     });
+  }
+
+  /**
+   * After a change, diagram-js re-stacks the graphics of every child of each
+   * changed element's parent, to match the model's order — every shape and
+   * link of a view of 10 000, for one shape moved (Task 22). Only what changed
+   * can be out of place: each is put right after its sibling before it, and a
+   * parent where that sibling is not in place yet is re-stacked whole, as
+   * diagram-js does.
+   */
+  private restackOnlyWhatChanged(): void {
+    const graphics = this.diagram?.get('graphicsFactory') as
+      | { updateContainments(elements: DjsShape[]): void; _getChildrenContainer(parent: DjsShape): SVGElement }
+      | undefined;
+    const registry = this.diagram?.get('elementRegistry') as { getGraphics(element: DjsShape): SVGElement | undefined } | undefined;
+    if (!graphics || !registry) return;
+    const restackWhole = graphics.updateContainments.bind(graphics);
+    graphics.updateContainments = (elements: DjsShape[]) => {
+      const whole = new Set<DjsShape>();
+      for (const element of elements) {
+        const parent = element.parent as DjsShape | undefined;
+        const siblings = (parent as { children?: DjsShape[] } | undefined)?.children;
+        if (!parent || !siblings || whole.has(parent)) continue;
+        const group = registry.getGraphics(element)?.parentNode as SVGElement | null | undefined;
+        if (!group) continue;
+        const container = graphics._getChildrenContainer(parent);
+        const at = siblings.indexOf(element);
+        const before = at > 0 ? (registry.getGraphics(siblings[at - 1])?.parentNode as SVGElement | null | undefined) : null;
+        if (at < 0 || (before && before.parentNode !== container)) {
+          whole.add(parent);
+          continue;
+        }
+        const next = before ? before.nextSibling : container.firstChild;
+        if (next !== group) container.insertBefore(group, next);
+      }
+      if (whole.size > 0) restackWhole([...whole].flatMap((parent) => (parent as { children?: DjsShape[] }).children?.slice(0, 1) ?? []));
+    };
   }
 
   /** The view {@link showView} drew in the current task, if any. */
@@ -2497,7 +2535,13 @@ export class DiagramCanvas {
     const viewIri = this.viewIri;
     const viewManager = this.viewManager;
     if (!connection || !relationshipIri || !viewIri || !viewManager) return;
-    if (!viewManager.getLinks(viewIri).some((l) => l.relationshipIri === relationshipIri)) return;
+    // Drawn in this view: what the view shows, kept as its shapes move — not
+    // every link of it read again after each move (Task 22).
+    const placedIn = (viewManager as { placedIn?(viewIri: string): ReadonlySet<string> }).placedIn;
+    const drawn = placedIn
+      ? placedIn.call(viewManager, viewIri).has(relationshipIri)
+      : viewManager.getLinks(viewIri).some((l) => l.relationshipIri === relationshipIri);
+    if (!drawn) return;
     const route = this.routeOf(connection);
     this.change(() => viewManager.updateLinkWaypoints(viewIri, relationshipIri, route));
   }

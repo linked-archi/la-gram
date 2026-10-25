@@ -210,7 +210,37 @@ interface RelationshipTypeRecord {
  * and creates/deletes relationship triples or QualifiedRelationship resources.
  */
 export class OxigraphRelationshipManager implements RelationshipManager {
-  constructor(private readonly store: RdfStore) {}
+  constructor(private readonly store: RdfStore) {
+    const observed = store as RdfStore & { onEveryWrite?(listener: () => void): unknown };
+    if (typeof observed.onEveryWrite === 'function') {
+      this.memoOn = true;
+      observed.onEveryWrite(() => {
+        this.memo = null;
+      });
+    }
+  }
+
+  /**
+   * What one task reads of the metamodels for {@link getValidRelationships} —
+   * the scope, the relationship types, class closures — kept until the task
+   * ends or the store is written to: a context pad asks for forty pairs at once,
+   * each reading them again by SPARQL (Task 22). Only over a store that tells
+   * of every write.
+   */
+  private memo: { scope: GraphScope; candidates?: RelationshipTypeRecord[]; closures: Map<string, string[]> } | null = null;
+  private memoOn = false;
+
+  private taskMemo(): { scope: GraphScope; candidates?: RelationshipTypeRecord[]; closures: Map<string, string[]> } | null {
+    if (!this.memoOn) return null;
+    if (!this.memo) {
+      const memo = { scope: graphScope(this.store), closures: new Map<string, string[]>() };
+      this.memo = memo;
+      queueMicrotask(() => {
+        if (this.memo === memo) this.memo = null;
+      });
+    }
+    return this.memo;
+  }
 
   /**
    * Return the relationship types that may connect `sourceTypeIri` to
@@ -224,13 +254,20 @@ export class OxigraphRelationshipManager implements RelationshipManager {
   getValidRelationships(sourceTypeIri: string, targetTypeIri: string): RelationshipTypeInfo[] {
     // One scope for all three reads below: enumerating the named graphs costs a
     // scan, and nothing here mutates the store.
-    const scope = graphScope(this.store);
+    const memo = this.taskMemo();
+    const scope = memo?.scope ?? graphScope(this.store);
 
-    const candidates = this.readRelationshipTypes(scope);
+    const candidates = memo ? (memo.candidates ??= this.readRelationshipTypes(scope)) : this.readRelationshipTypes(scope);
     if (candidates.length === 0) return [];
 
-    const sourceClosure = this.classClosure(sourceTypeIri, scope);
-    const targetClosure = this.classClosure(targetTypeIri, scope);
+    const closureOf = (typeIri: string) => {
+      if (!memo) return this.classClosure(typeIri, scope);
+      let closure = memo.closures.get(typeIri);
+      if (!closure) memo.closures.set(typeIri, (closure = this.classClosure(typeIri, scope)));
+      return closure;
+    };
+    const sourceClosure = closureOf(sourceTypeIri);
+    const targetClosure = closureOf(targetTypeIri);
     const table = this.relationshipTable(scope);
     const directPermissions = this.directPermissions(scope);
     const drawnPermissions = this.drawnPermissions(scope);

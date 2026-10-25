@@ -336,6 +336,18 @@ describe('a view read once, over a store that tells of its writes (Task 22)', ()
     expect(views.getNodes(view).map((n) => n.elementIri).sort()).toEqual([a, b].sort());
   });
 
+  it('what it shows is kept as its shapes move, and read again when one is added or removed', async () => {
+    const { views, view, a, b } = await setup();
+    const shown = views.placedIn(view);
+    expect([...shown]).toEqual([a]);
+    views.updateNodeBounds(view, a, { x: 50, y: 60, width: 100, height: 50 });
+    expect(views.placedIn(view)).toBe(shown);
+    views.addElementToView(view, b, { x: 200, y: 0, width: 100, height: 50 });
+    expect([...views.placedIn(view)].sort()).toEqual([a, b].sort());
+    views.removeElementFromView(view, a);
+    expect([...views.placedIn(view)]).toEqual([b]);
+  });
+
   it('is not read again for a change that is not its geometry; what is returned can be changed by the caller', async () => {
     const { views, elements, view, a } = await setup();
     const first = views.getNodes(view);

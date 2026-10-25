@@ -82,6 +82,12 @@ export interface RdfStore {
   canonical?(quads: Quad[]): Quad[];
   /** The named graphs it holds. Optional: a store without them leaves it out. */
   namedGraphs?(): NamedNode[];
+  /**
+   * Throw as {@link addQuads} would for these quads, without adding them — a
+   * term the store cannot hold (an IRI that is not one, a bad language tag).
+   * Optional: what lets a store be given quads later and refuse them now.
+   */
+  check?(quads: Quad[]): void;
 }
 
 // ---------------------------------------------------------------------------

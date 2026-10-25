@@ -516,3 +516,39 @@ describe('cropping preserves the middle of the connection', () => {
     expect(cropped[2].y).toBeCloseTo(0);
   });
 });
+
+// ── Re-stacking after a change (Task 22) ─────────────────────────────────
+
+describe('the graphics of what changed', () => {
+  type Element = { id: string; parent?: Element; children?: Element[] };
+  /** Each parent's graphics, in order: the ids of the groups its children container holds. */
+  function stacked(canvas: DiagramCanvas, parent: Element): string[] {
+    const graphics = service<{ _getChildrenContainer(e: Element): SVGElement }>(canvas, 'graphicsFactory');
+    const elements = service<{ get(gfx: SVGElement): Element | undefined }>(canvas, 'elementRegistry');
+    return [...graphics._getChildrenContainer(parent).children]
+      .filter((g) => g.classList.contains('djs-group'))
+      .map((g) => elements.get(g.firstElementChild as SVGElement)?.id ?? '?');
+  }
+
+  it('stay in their parent’s order after a move and a nesting, and only they are moved', () => {
+    const canvas = mount();
+    const ids = ['a', 'b', 'c', 'd'].map((x) => `https://example.org/model/${x}`);
+    ids.forEach((iri, i) => canvas.addElement(iri, typeIriFor('Rectangle'), { x: 10 + i * 200, y: 20, width: 150, height: 150 }));
+    canvas.addRelationship(ids[0], ids[1], REL_TYPE, 'https://example.org/model/r1');
+    const reg = registry(canvas) as unknown as { get(id: string): Element };
+    const root = service<{ getRootElement(): Element }>(canvas, 'canvas').getRootElement();
+    const modeling = service<{ moveShape(s: Element, d: { x: number; y: number }, parent?: Element): void }>(canvas, 'modeling');
+    const container = service<{ _getChildrenContainer(e: Element): SVGElement }>(canvas, 'graphicsFactory')._getChildrenContainer(root);
+
+    const inserts = vi.spyOn(container, 'insertBefore');
+    modeling.moveShape(reg.get(ids[2]), { x: 0, y: 40 });
+    expect(stacked(canvas, root)).toEqual(root.children!.map((c) => c.id));
+    expect(inserts.mock.calls.length).toBeLessThanOrEqual(1);
+
+    // Into a container: its graphics move into the container's.
+    modeling.moveShape(reg.get(ids[3]), { x: -580, y: 10 }, reg.get(ids[0]));
+    expect(reg.get(ids[3]).parent?.id).toBe(ids[0]);
+    expect(stacked(canvas, reg.get(ids[0]))).toEqual([ids[3]]);
+    expect(stacked(canvas, root)).toEqual(root.children!.map((c) => c.id));
+  });
+});

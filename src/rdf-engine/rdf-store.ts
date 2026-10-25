@@ -114,20 +114,68 @@ const XSD_BOOLEAN = 'http://www.w3.org/2001/XMLSchema#boolean';
 const RDF_LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
 const RDF_DIR_LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString';
 const CANONICAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;
+const XSD_DOUBLE = 'http://www.w3.org/2001/XMLSchema#double';
+const XSD_DECIMAL = 'http://www.w3.org/2001/XMLSchema#decimal';
+/** A number written plainly — no exponent, no leading or trailing zeros — as Oxigraph keeps a double or decimal. */
+const CANONICAL_PLAIN_NUMBER = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?$/;
+
+/** The XML Schema integer types: Oxigraph keeps a value of any of them as an `xsd:integer`. */
+const INTEGER_TYPES = new Set(
+  ['integer', 'int', 'long', 'short', 'byte', 'nonNegativeInteger', 'positiveInteger', 'nonPositiveInteger', 'negativeInteger', 'unsignedLong', 'unsignedInt', 'unsignedShort', 'unsignedByte'].map(
+    (t) => 'http://www.w3.org/2001/XMLSchema#' + t,
+  ),
+);
+
+/**
+ * A number literal in the form Oxigraph keeps it, where that form is known —
+ * else `undefined`, and Oxigraph is asked. An integer of any integer type: an
+ * `xsd:integer`, without sign `+`, leading zeros or `-0` (within 18 digits). A
+ * double or decimal written plainly: without sign `+`, leading zeros, trailing
+ * fractional zeros or a bare point; zero `0` — `-0` for a double (within 15
+ * significant digits). Checked against Oxigraph in rdf-store.test.
+ */
+function canonicalNumber(term: Term & { termType: 'Literal' }): Term | undefined {
+  const dt = term.datatype.value;
+  if (INTEGER_TYPES.has(dt)) {
+    const m = /^([+-]?)([0-9]+)$/.exec(term.value);
+    if (!m) return undefined;
+    const digits = m[2].replace(/^0+(?=[0-9])/, '');
+    if (digits.length > 18) return undefined;
+    return literal(`${m[1] === '-' && digits !== '0' ? '-' : ''}${digits}`, namedNode(XSD_INTEGER));
+  }
+  if (dt === XSD_DOUBLE || dt === XSD_DECIMAL) {
+    const m = /^([+-]?)([0-9]*)(?:\.([0-9]*))?$/.exec(term.value);
+    if (!m || m[2].length + (m[3] ?? '').length === 0) return undefined;
+    const whole = m[2].replace(/^0+/, '');
+    const fraction = (m[3] ?? '').replace(/0+$/, '');
+    const significant = (whole + fraction).replace(/^0+/, '');
+    if (significant.length > 15) return undefined;
+    const negative = m[1] === '-' && (significant !== '' || dt === XSD_DOUBLE);
+    return literal(`${negative ? '-' : ''}${whole || '0'}${fraction ? `.${fraction}` : ''}`, namedNode(dt));
+  }
+  return undefined;
+}
+
+/** Whether a double or decimal is written as Oxigraph keeps it: plainly, in at most 15 significant digits. */
+function plainNumber(value: string): boolean {
+  return CANONICAL_PLAIN_NUMBER.test(value) && value !== '-0' && value.replace(/[-.]/g, '').replace(/^0+/, '').length <= 15;
+}
 /** Subjects in the scratch store {@link OxigraphRdfStore.canonical} uses. */
 const SCRATCH = 'urn:la-gram:canonical:';
 
 /**
  * Whether Oxigraph may keep this object in another form: a typed literal not a
- * string — but for an integer or a boolean already canonical, most of a
- * diagram's — a language tag not in lower case (`en-GB` is kept as `en-gb`),
- * or a triple term with one.
+ * string — but for an integer, a boolean or a plainly written double or decimal
+ * already canonical, most of a diagram's — a language tag not in lower case
+ * (`en-GB` is kept as `en-gb`), or a triple term with one.
  */
 function mayBeRewritten(term: Term): boolean {
   if (term.termType === 'Literal') {
     const dt = term.datatype.value;
     if (dt === XSD_INTEGER) return !CANONICAL_INTEGER.test(term.value);
     if (dt === XSD_BOOLEAN) return term.value !== 'true' && term.value !== 'false';
+    // A diagram's bounds and points: kept as written when written plainly.
+    if (dt === XSD_DOUBLE || dt === XSD_DECIMAL) return !plainNumber(term.value);
     if (dt === RDF_LANG_STRING || dt === RDF_DIR_LANG_STRING) return term.language !== term.language.toLowerCase();
     return dt !== XSD_STRING;
   }
@@ -335,6 +383,66 @@ export class OxigraphRdfStore implements RdfStore {
     return this.store.size;
   }
 
+  /**
+   * Throw as adding these quads would — an IRI that is not one, a language tag
+   * or blank node label Oxigraph refuses, a term out of place — without adding
+   * them: each distinct term is made once with Oxigraph's own constructors.
+   */
+  check(quads: Quad[]): void {
+    const made = new Set<string>();
+    const make = (term: Term): void => {
+      switch (term.termType) {
+        case 'NamedNode':
+          if (!made.has(term.value)) {
+            oxigraph.namedNode(term.value);
+            made.add(term.value);
+          }
+          return;
+        case 'BlankNode': {
+          const key = `_:${term.value}`;
+          if (!made.has(key)) {
+            oxigraph.blankNode(term.value);
+            made.add(key);
+          }
+          return;
+        }
+        case 'Literal': {
+          const language = term.language;
+          if (!language) return make(term.datatype);
+          const key = `@${language}`;
+          if (!made.has(key)) {
+            oxigraph.literal('', language);
+            made.add(key);
+          }
+          return;
+        }
+        case 'Quad': {
+          const triple = term as unknown as Quad;
+          place(triple.subject, triple.predicate);
+          make(triple.subject);
+          make(triple.predicate);
+          make(triple.object);
+          return;
+        }
+        case 'DefaultGraph':
+          return;
+        default:
+          throw new Error(`Not a term the store can hold: ${term.termType}`);
+      }
+    };
+    const place = (subject: Term, predicate: Term) => {
+      if (subject.termType !== 'NamedNode' && subject.termType !== 'BlankNode') throw new Error(`Not a subject: ${subject.termType}`);
+      if (predicate.termType !== 'NamedNode') throw new Error(`Not a predicate: ${predicate.termType}`);
+    };
+    for (const q of quads) {
+      place(q.subject, q.predicate);
+      make(q.subject);
+      make(q.predicate);
+      make(q.object);
+      make(q.graph);
+    }
+  }
+
   /** The named graphs this store holds. */
   namedGraphs(): NamedNode[] {
     const rows = this.store.query('SELECT DISTINCT ?g WHERE { GRAPH ?g {} }') as Map<string, oxigraph.Term>[];
@@ -357,10 +465,20 @@ export class OxigraphRdfStore implements RdfStore {
    */
   canonical(quads: Quad[]): Quad[] {
     const candidates: number[] = [];
+    let held: Quad[] | undefined;
     quads.forEach((q, i) => {
-      if (mayBeRewritten(q.object)) candidates.push(i);
+      if (!mayBeRewritten(q.object)) return;
+      // A number whose form Oxigraph's is known for is rewritten here (Task 22):
+      // a converter's `"132.0"^^xsd:double`, `"9"^^xsd:int`, on every node.
+      const number = q.object.termType === 'Literal' ? canonicalNumber(q.object) : undefined;
+      if (!number) {
+        candidates.push(i);
+      } else if (!number.equals(q.object)) {
+        held ??= quads.slice();
+        held[i] = n3Quad(q.subject as never, q.predicate as never, number as never, q.graph as never) as unknown as Quad;
+      }
     });
-    if (candidates.length === 0) return quads;
+    if (candidates.length === 0) return held ?? quads;
     const scratch = new oxigraph.Store();
     const p = oxigraph.namedNode(SCRATCH + 'p');
     for (const i of candidates) {
@@ -369,16 +487,14 @@ export class OxigraphRdfStore implements RdfStore {
     const kept = new Map<number, oxigraph.Term>();
     for (const q of scratch.match(null, null, null, null)) kept.set(Number(q.subject.value.slice(SCRATCH.length)), q.object);
     (scratch as unknown as { free?: () => void }).free?.();
-    let changed = false;
-    const held = quads.slice();
     for (const i of candidates) {
       const object = fromOxTerm(kept.get(i) as oxigraph.Term);
       if (object.equals(quads[i].object)) continue;
       const q = quads[i];
+      held ??= quads.slice();
       held[i] = n3Quad(q.subject as never, q.predicate as never, object as never, q.graph as never) as unknown as Quad;
-      changed = true;
     }
-    return changed ? held : quads;
+    return held ?? quads;
   }
 
   /**

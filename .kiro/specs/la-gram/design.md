@@ -151,7 +151,10 @@ quad, and garbage the collector and Oxigraph's finalizers then spend as long
 on. `ObservableRdfStore`, which sees every write to the model, keeps a copy of
 the default graph in an n3 store, in the form Oxigraph holds it
 (`RdfStore.canonical`: numbers, booleans and dates canonical, language tags in
-lower case — Oxigraph rewrites both). A read of the default graph is answered
+lower case — Oxigraph rewrites both; a number of an integer type, a double or a
+decimal written plainly is rewritten in JavaScript by Oxigraph's rules, checked
+against it on thousands of values, the rest put through a scratch Oxigraph
+store). A read of the default graph is answered
 from the copy — `modelQuads()`, and any pattern with the default graph but a
 literal object, which Oxigraph matches in any of its forms; a read of
 everything is the copy and Oxigraph's named graphs one by one
@@ -163,6 +166,28 @@ resources reads them from the default graph: the view manager (views, nodes,
 links, routes), and names and types (`labelOf`, `hasLabel`, `statementsOf`) —
 there first, every graph after. On a 347 000-triple model the copy holds
 ~100 MB of heap; opening went from 47 s to 11 s.
+
+A large addition to the model — 5 000 quads or more, as opening one is — reaches
+the copy at once and Oxigraph in the background, in slices of 12 ms between
+frames: converting every quad into Oxigraph was 4 s of opening 353 000 triples.
+Its terms are checked at once, each distinct one made with Oxigraph's own
+constructors (`RdfStore.check`), so a model Oxigraph cannot hold fails to open
+as before; a quad removed before it is given is passed over. Until Oxigraph has
+the whole model (`behind`), a read of every graph is the copy's model and
+Oxigraph's quads outside the default graph. SPARQL over everything, an update,
+a bulk load into the default graph and `size` give it the rest first
+(`giveAll`); SPARQL about the metamodels — `graphScope`'s viewpoints,
+relationship tables and permitted relationships, which read the default graph
+only for metamodel data loaded there — goes through `queryMetamodels`, which
+does not wait; it takes the list of named graphs the store keeps
+(`namedGraphs`, read with `GRAPH ?g {}` until a named graph is written to) —
+enumerating them by a pattern scanned every metamodel quad, for each of the
+forty relationship lookups a context pad makes. The relationship manager keeps
+what one task reads of the metamodels (scope, relationship types, class
+closures) until the task ends or the store is written to, and the relationship
+tables are read when the browser is idle after a model or metamodel loads. The palette reads the metamodel graphs into a store of its own
+and the model through the copy (`modelGraph`), without copying it in too; the
+metamodels' store is not kept between palettes, which would hold 100 MB.
 
 ---
 
@@ -492,10 +517,16 @@ once, and `findConnection` looks a relationship up by id or among the few
 connections the user drew (diagram-js names those itself); a view already drawn
 in the task is only brought up to date (opening a model says it is loaded, then
 that its view is open); a shape renamed is redrawn alone (`element.changed` —
-`elements.changed` re-stacks every sibling, 30 000 in a view of 10 000). The view
+`elements.changed` re-stacks every sibling, 30 000 in a view of 10 000), and
+after a move or a nesting only what changed is put back in its place among its
+siblings (diagram-js's `updateContainments` replaced; a parent where the sibling
+before is not in place is re-stacked whole). The view
 manager keeps each view's nodes and links until a write touches geometry, a
 node's or link's type or a route (`ObservableRdfStore.onEveryWrite`, told inside
-a batch too), so the canvas and the tree read a view once between such writes.
+a batch too), so the canvas and the tree read a view once between such writes;
+what a view shows (`placedIn`: the elements and relationships its nodes and
+links draw) is kept as its shapes move — the tree's marks and a link's route
+written after a move read it.
 
 ### Layout
 
