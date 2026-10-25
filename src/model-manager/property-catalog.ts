@@ -29,7 +29,7 @@ import type { PrefixMap, RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import type { TypeClosure } from './model-queries.js';
 import { modelQuads } from './model-queries.js';
-import { IRI, T, humanize, localName, nn } from './vocabulary.js';
+import { IRI, T, humanize, localName, nn, sentenceCase } from './vocabulary.js';
 
 /** Where a suggestion is listed. */
 export type PropertyGroup = 'type' | 'model' | 'documentation' | 'more';
@@ -251,12 +251,6 @@ export class PropertyCatalog {
 /** Whether a property may be offered at all. */
 function offerable(iri: string): boolean {
   return !NOT_OFFERED.has(iri) && !NOT_OFFERED_NAMESPACES.some((ns) => iri.startsWith(ns));
-}
-
-/** `influence Strength` → `Influence strength`. */
-function sentenceCase(words: string): string {
-  const lowered = words.replace(/ ([A-Z])(?=[a-z])/g, (_, c: string) => ` ${c.toLowerCase()}`);
-  return lowered.charAt(0).toUpperCase() + lowered.slice(1);
 }
 
 /** `cost center` → `costCenter`; a single word is kept as typed. */

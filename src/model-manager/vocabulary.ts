@@ -169,6 +169,12 @@ export function humanize(fragment: string): string {
     .trim();
 }
 
+/** `influence Strength` → `Influence strength`. */
+export function sentenceCase(words: string): string {
+  const lowered = words.replace(/ ([A-Z])(?=[a-z])/g, (_, c: string) => ` ${c.toLowerCase()}`);
+  return lowered.charAt(0).toUpperCase() + lowered.slice(1);
+}
+
 /** Drop duplicate quads (a quad reachable along two paths is removed once). */
 export function dedupe(quads: Quad[]): Quad[] {
   const seen = new Set<string>();

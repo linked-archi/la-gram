@@ -435,16 +435,26 @@ describe('the layout and the property panel', () => {
     const labels = async () =>
       (await panel.locator('.pane li.property-row .property-label').allInnerTexts()).map((t) => t.trim().split(/\s/)[0]);
 
-    // Vertical tabs on the left, with counts; the information tab: ID, type, inModel, name, definition.
+    // Vertical tabs on the left, with counts; the information tab: ID, type, model, name, definition.
     await openTab('info');
-    await until(async () => (await labels()).includes('prefLabel'), 'the element’s fields');
+    await until(async () => (await labels()).includes('Name'), 'the element’s fields');
     expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual([
       'Element information',
       'Properties',
       'Analysis',
       'Appears in views',
     ]);
-    expect(await labels()).toEqual(['ID', 'type', 'inModel', 'prefLabel', 'definition']);
+    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition']);
+    // Named, not by IRI: the model by its name, the ID by its short identifier; a click shows the IRIs.
+    const modelRow = panel.locator('.pane li.property-row', { has: page.locator('.field-name', { hasText: 'Model' }) });
+    expect(await modelRow.locator('.named').innerText()).not.toMatch(/^https?:/);
+    await modelRow.locator('.named').click();
+    expect(await modelRow.locator('.iris dd').allInnerTexts()).toEqual([
+      'https://meta.linked.archi/core#inModel',
+      await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.modelIri as string),
+    ]);
+    await modelRow.locator('.field-name').click();
+    expect(await modelRow.locator('.iris').count()).toBe(0);
 
     // Under the model tree, in the left panel: what the ontology and the taxonomy say about the type.
     const guide = page.locator('type-guide-panel');
@@ -491,7 +501,9 @@ describe('the layout and the property panel', () => {
     await until(async () => ((await page.locator('model-explorer').boundingBox())!.height > tree.height + 150), 'the taller tree');
     await guide.locator('.header').click();
     await until(async () => (await guide.locator('.body').isVisible()), 'the guide again');
-    expect(await panel.locator('li.id-row input').inputValue()).toBe(actor);
+    expect(await panel.locator('li.id-row .named').innerText()).toBe(actor.slice(actor.search(/[^/#]+$/)));
+    await panel.locator('li.id-row .named').click();
+    expect(await panel.locator('li.id-row .iris dd').innerText()).toBe(actor);
     const side = (await panel.locator('.side').boundingBox())!;
     const pane = (await panel.locator('.pane').boundingBox())!;
     expect(side.x + side.width).toBeLessThanOrEqual(pane.x + 1); // tabs on the left
@@ -516,7 +528,7 @@ describe('the layout and the property panel', () => {
     await panel.locator('.pane li.property-row textarea').fill('');
     await panel.locator('.pane li.property-row textarea').press('Tab');
     await until(async () => (await definitions()).length === 0, 'the definition removed');
-    expect(await labels()).toContain('definition');
+    expect(await labels()).toContain('Definition');
 
     // The Properties tab: a plain name typed in the picker is a new property in the model's namespace.
     await openTab('properties');
@@ -530,8 +542,8 @@ describe('the layout and the property panel', () => {
       await panel.locator('.add-row .new-value').fill(value);
       await panel.locator('.add-row button.add').click();
     }
-    await until(async () => (await labels()).includes('cost'), 'the added properties');
-    expect(await labels()).toEqual(['cost', 'owner']);
+    await until(async () => (await labels()).includes('Cost'), 'the added properties');
+    expect(await labels()).toEqual(['Cost', 'Owner']);
     expect(await panel.locator('.vtab[data-tab="properties"] .count').innerText()).toBe('2');
     const ns = await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.namespace().namespace as string);
     const owner = await page.evaluate(

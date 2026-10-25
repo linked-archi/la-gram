@@ -577,7 +577,7 @@ diagram-js (`canvas.resized()`) whenever a panel changes the canvas's size.
 
 The panel (the bottom panel's Properties tab) has vertical tabs on the left,
 under the heading (kind and type), each with a count where one applies:
-**‹Kind› information** — ID, type, `inModel`, name, definition, always in that
+**‹Kind› information** — ID, type, model, name, definition, always in that
 order; **Properties** — everything else on the concept, then the add field;
 **Analysis** — the relationships (or a relationship's ends); **Appears in
 views**. Only the open tab's pane is rendered; its fields sit side by side where
@@ -585,6 +585,17 @@ there is room, a text area taking the whole row. Up/Down move between the tabs.
 The open tab is kept in `localStorage` (`la-gram:property-panel-tab`), so it
 holds from one selection to the next and across reloads; a concept without that
 tab (a model has no analysis) shows its information instead.
+
+The panel reads without knowing RDF. A field is named in words: the ones every
+concept has as a modeller knows them (Type, Model, Name, Definition, Other
+name), the rest by their shape's `sh:name` or their vocabulary's label when that
+is more than the local name again (`prefLabel`, `source`), else by the local name
+in words (`modelRepresentsSystem` → "Model represents system"). A link to
+another resource shows that resource's name (`labelOf`, else its local name in
+words), and the ID the concept's short identifier (its local name). Clicking a
+field's name, or a link, shows the IRIs behind the row — the property's, and the
+value's when it is a link — under it, each selected whole by a click, to copy;
+clicking again hides them, and another selection starts with them hidden.
 
 ### Type guide (About ‹type›)
 

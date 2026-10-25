@@ -2,10 +2,14 @@
  * Property Panel — shows and edits the selected concept (element, relationship,
  * view or model); the bottom panel's Properties tab.
  *
- * Vertical tabs on the left: *‹Kind› information* (ID, type, `inModel`, name,
+ * Vertical tabs on the left: *‹Kind› information* (ID, type, model, name,
  * definition — always in that order, the name and the definition even when
  * empty), *Properties* (everything else, and the add field, `property-picker.ts`),
  * *Analysis* (relationships) and *Appears in views*. The open tab is remembered.
+ *
+ * Read without knowing RDF: fields are named in words, a link to another
+ * resource shows that resource's name, and the ID its short identifier.
+ * Clicking a field's name, or a link, shows the IRIs behind it.
  *
  * Reads the store directly; SHACL shapes give field types and cardinality.
  * Edits are emitted as events (`property-edit`, `property-add`,
@@ -23,6 +27,7 @@ import type { ElementManager } from '../../model-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
+import { humanize, localName, sentenceCase } from '../../model-manager/vocabulary.js';
 import './property-picker.js';
 import type { PropertyPicker } from './property-picker.js';
 
@@ -50,10 +55,12 @@ const XSD_BOOLEAN = NAMESPACES.xsd + 'boolean';
 export interface PropertyEntry {
   /** Full predicate IRI. */
   predicate: string;
-  /** Human-readable label for the predicate. */
+  /** The field's name, in words ({@link fieldName}). */
   label: string;
   /** Current value (literal string or IRI). */
   value: string;
+  /** An IRI value's name: what the loaded data calls it, else its local name in words. */
+  valueLabel?: string;
   /** Whether this is a read-only field (e.g. rdf:type). */
   readonly: boolean;
   /** XSD datatype IRI when known from SHACL shape. */
@@ -286,6 +293,29 @@ function iriLabel(iri: string): string {
   return iri;
 }
 
+/** The fields every concept has, by the names a modeller knows them by. */
+const FIELD_NAMES: Record<string, string> = {
+  [RDF_TYPE]: 'Type',
+  [NAMESPACES.arch + 'inModel']: 'Model',
+  [SKOS_PREF_LABEL]: 'Name',
+  [SKOS_DEFINITION]: 'Definition',
+  [NAMESPACES.skos + 'altLabel']: 'Other name',
+};
+
+/**
+ * A field's name: a familiar one for the fields every concept has
+ * ({@link FIELD_NAMES}); else the shape's (`sh:name`) or the vocabulary's,
+ * when it is more than the property's local name again (`source`); else that
+ * local name in words (`modelRepresentsSystem` → `Model represents system`).
+ */
+function fieldName(predicate: string, shape: ShaclPropertyShape | undefined, nameOf?: NameOf): string {
+  const familiar = FIELD_NAMES[predicate];
+  if (familiar) return familiar;
+  const local = iriLabel(predicate);
+  const named = [shape?.name, nameOf?.(predicate)].find((name) => name && name !== local);
+  return named ? named.charAt(0).toUpperCase() + named.slice(1) : sentenceCase(humanize(local));
+}
+
 /**
  * Builds the list of PropertyEntry objects for a given element IRI
  * by querying the RDF store and optionally enriching with SHACL shape info.
@@ -296,7 +326,7 @@ function iriLabel(iri: string): string {
  * ({@link DEFAULT_FIELDS}), empty, so they can be filled in.
  * `arch:inView` and a relationship's `rdf:reifies` — which la-gram keeps in step
  * with its ends and type — are left out ({@link HIDDEN_FIELDS}). The panel shows the ID
- * (the IRI) above them all.
+ * above them all.
  */
 export function buildPropertyEntries(
   quads: Quad[],
@@ -321,8 +351,9 @@ export function buildPropertyEntries(
     const choices = isType ? undefined : choicesOf(shape, nameOf);
     entries.push({
       predicate,
-      label: shape?.name ?? iriLabel(predicate),
+      label: fieldName(predicate, shape, nameOf),
       value,
+      ...(isIri ? { valueLabel: choiceLabel(value, true, nameOf) } : {}),
       // Types and links to other resources are shown, not typed over: editing
       // an IRI as free text is how dangling references get made. A link the
       // shape lists its values for (`sh:in`) is a choice among them instead.
@@ -343,7 +374,7 @@ export function buildPropertyEntries(
       const shape = shapeMap.get(predicate);
       entries.push({
         predicate,
-        label: shape?.name ?? iriLabel(predicate),
+        label: fieldName(predicate, shape, nameOf),
         value: '',
         readonly: false,
         datatype: shape?.datatype,
@@ -359,6 +390,14 @@ export function buildPropertyEntries(
 
   return entries;
 }
+
+/** A row, for showing its IRIs: its property and its value. */
+function rowKey(entry: PropertyEntry): string {
+  return `${entry.predicate} ${entry.value}`;
+}
+
+/** The ID row's key; no property row's, which all have a space. */
+const ID_ROW = 'id';
 
 /** The panel's vertical tabs, top to bottom. */
 export type PanelSection = 'info' | 'properties' | 'analysis' | 'views';
@@ -559,15 +598,67 @@ export class PropertyPanel extends LitElement {
       padding: 1px 8px;
     }
 
-    .property-value.iri {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 11px;
-    }
-
     .property-label {
       display: flex;
       align-items: center;
       gap: 4px;
+    }
+
+    /* A field's name: clicked, it shows the IRIs behind the row. */
+    .field-name {
+      border: 0;
+      padding: 0;
+      background: none;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .field-name:hover,
+    .field-name[aria-expanded='true'] {
+      color: #1a73e8;
+    }
+
+    /* A link to another resource, by its name; clicked, it shows the IRI. */
+    .property-value.named {
+      display: block;
+      line-height: normal;
+      text-align: left;
+      background: #f5f5f5;
+      border-color: #e0e0e0;
+      color: #3c4043;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .property-value.named:hover,
+    .property-value.named[aria-expanded='true'] {
+      border-color: #aecbfa;
+    }
+
+    /* The IRIs behind a row; a click selects one whole, to copy. */
+    .iris {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 8px;
+      margin: 4px 0 0;
+      font-size: 11px;
+    }
+
+    .iris dt {
+      color: #80868b;
+    }
+
+    .iris dd {
+      margin: 0;
+      min-width: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #3c4043;
+      overflow-wrap: anywhere;
+      user-select: all;
     }
 
     .lang {
@@ -699,6 +790,9 @@ export class PropertyPanel extends LitElement {
   /** The property chosen in the add row, so its value field can follow its shape. */
   @state() private _pickedPredicate = '';
 
+  /** The rows whose IRIs are showing ({@link rowKey}); none, for another selection. */
+  @state() private _shownIris: ReadonlySet<string> = new Set();
+
   /** The selected concept's SHACL property shapes, by path. */
   private _shapes = new Map<string, ShaclPropertyShape>();
 
@@ -710,6 +804,7 @@ export class PropertyPanel extends LitElement {
   private _entries: PropertyEntry[] = [];
 
   override willUpdate(changedProperties: Map<string, unknown>): void {
+    if (changedProperties.has('selectedIri')) this._shownIris = new Set();
     if (
       changedProperties.has('selectedIri') ||
       changedProperties.has('rdfStore') ||
@@ -1022,21 +1117,87 @@ export class PropertyPanel extends LitElement {
     };
     return html`
       <li class="property-row">
-        <label class="property-label">type</label>
+        ${this._renderLabel(entry)}
         <select class="property-value type-select" title=${entry.value} aria-label="Type" @change=${onChange}>
-          ${known ? nothing : html`<option value=${entry.value} selected>${this.heading?.typeLabel ?? entry.value}</option>`}
+          ${known ? nothing : html`<option value=${entry.value} selected>${this.heading?.typeLabel ?? entry.valueLabel ?? entry.value}</option>`}
           ${groups.map(
             (group) => html`<optgroup label=${group.category || 'Other'}>
               ${group.elements.map((type) => html`<option value=${type.iri} ?selected=${type.iri === entry.value}>${type.label}</option>`)}
             </optgroup>`,
           )}
         </select>
+        ${this._renderIris(entry)}
+      </li>
+    `;
+  }
+
+  private _irisShown(key: string): boolean {
+    return this._shownIris?.has(key) ?? false;
+  }
+
+  /** Show a row's IRIs, or hide them again. */
+  private _toggleIris(key: string): void {
+    const shown = new Set(this._shownIris ?? []);
+    if (!shown.delete(key)) shown.add(key);
+    this._shownIris = shown;
+  }
+
+  /**
+   * A row's name — clicked, it shows the IRIs behind the row — then whether it
+   * is required, the value's language when asked for, and ×.
+   */
+  private _renderLabel(entry: PropertyEntry, withLanguage = false) {
+    const isRequired = entry.minCount !== undefined && entry.minCount > 0;
+    const key = rowKey(entry);
+    return html`
+      <div class="property-label">
+        <button
+          class="field-name"
+          title="Show the IRIs"
+          aria-expanded=${this._irisShown(key) ? 'true' : 'false'}
+          @click=${() => this._toggleIris(key)}
+        >${entry.label}</button>${isRequired ? html`<span class="required">*</span>` : nothing}
+        ${withLanguage && entry.language ? html`<span class="lang">@${entry.language}</span>` : nothing}
+        ${this._renderRemove(entry)}
+      </div>
+    `;
+  }
+
+  /** A row's IRIs, once shown: the property's, and the value's when it is a link. */
+  private _renderIris(entry: PropertyEntry) {
+    if (!this._irisShown(rowKey(entry))) return nothing;
+    return html`<dl class="iris">
+      <dt>Property IRI</dt>
+      <dd>${entry.predicate}</dd>
+      ${entry.isIri ? html`<dt>Value IRI</dt><dd>${entry.value}</dd>` : nothing}
+    </dl>`;
+  }
+
+  /** A resource by its name, read-only; clicked, it shows the IRIs of its row (`key`). */
+  private _renderNamed(key: string, name: string) {
+    return html`<button
+      class="property-value named"
+      title="Show the IRI"
+      aria-expanded=${this._irisShown(key) ? 'true' : 'false'}
+      @click=${() => this._toggleIris(key)}
+    >${name}</button>`;
+  }
+
+  /** The ID row: the concept's short identifier; clicked, its IRI. */
+  private _renderId() {
+    const shown = this._irisShown(ID_ROW);
+    return html`
+      <li class="property-row id-row">
+        <div class="property-label">
+          <button class="field-name" title="Show the IRI" aria-expanded=${shown ? 'true' : 'false'} @click=${() => this._toggleIris(ID_ROW)}>ID</button>
+        </div>
+        ${this._renderNamed(ID_ROW, localName(this.selectedIri))}
+        ${shown ? html`<dl class="iris"><dt>IRI</dt><dd>${this.selectedIri}</dd></dl>` : nothing}
       </li>
     `;
   }
 
   private _renderEntry(entry: PropertyEntry) {
-    const isRequired = entry.minCount !== undefined && entry.minCount > 0;
     const rowClass = 'property-row';
 
     // An element's own type: a choice of the loaded types.
@@ -1049,17 +1210,26 @@ export class PropertyPanel extends LitElement {
       const listed = entry.choices.some((c) => c.value === entry.value);
       return html`
         <li class=${rowClass}>
-          <label class="property-label">
-            ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
-            ${this._renderRemove(entry)}
-          </label>
+          ${this._renderLabel(entry)}
           <select
             class="property-value choice"
             @change=${(e: Event) => this._onPropertyChange(entry, (e.target as HTMLSelectElement).value)}
           >
-            ${listed ? nothing : html`<option value=${entry.value} selected>${entry.value}</option>`}
+            ${listed ? nothing : html`<option value=${entry.value} selected>${entry.valueLabel ?? entry.value}</option>`}
             ${entry.choices.map((c) => html`<option value=${c.value} ?selected=${c.value === entry.value}>${c.label}</option>`)}
           </select>
+          ${this._renderIris(entry)}
+        </li>
+      `;
+    }
+
+    // A link to another resource, read-only: its name.
+    if (entry.isIri && entry.readonly) {
+      return html`
+        <li class=${rowClass}>
+          ${this._renderLabel(entry)}
+          ${this._renderNamed(rowKey(entry), entry.valueLabel ?? entry.value)}
+          ${this._renderIris(entry)}
         </li>
       `;
     }
@@ -1068,16 +1238,14 @@ export class PropertyPanel extends LitElement {
     if (entry.datatype === XSD_BOOLEAN && !entry.readonly) {
       return html`
         <li class=${rowClass}>
-          <label class="property-label">
-            ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
-            ${this._renderRemove(entry)}
-          </label>
+          ${this._renderLabel(entry)}
           <input
             class="property-value"
             type="checkbox"
             .checked=${live(entry.value === 'true' || entry.value === '1')}
             @change=${(e: Event) => this._onPropertyChange(entry, String((e.target as HTMLInputElement).checked))}
           />
+          ${this._renderIris(entry)}
         </li>
       `;
     }
@@ -1085,10 +1253,7 @@ export class PropertyPanel extends LitElement {
     if (this._isTextArea(entry)) {
       return html`
         <li class="${rowClass} wide">
-          <label class="property-label">
-            ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
-            ${this._renderRemove(entry)}
-          </label>
+          ${this._renderLabel(entry)}
           <textarea
             class="property-value"
             .value=${live(entry.value)}
@@ -1097,17 +1262,14 @@ export class PropertyPanel extends LitElement {
             @change=${(e: Event) =>
               this._onPropertyChange(entry, (e.target as HTMLTextAreaElement).value)}
           ></textarea>
+          ${this._renderIris(entry)}
         </li>
       `;
     }
 
     return html`
       <li class=${rowClass}>
-        <label class="property-label">
-          ${entry.label}${isRequired ? html`<span class="required">*</span>` : nothing}
-          ${entry.language ? html`<span class="lang">@${entry.language}</span>` : nothing}
-          ${this._renderRemove(entry)}
-        </label>
+        ${this._renderLabel(entry, true)}
         <input
           class="property-value"
           type=${this._inputType(entry)}
@@ -1117,6 +1279,7 @@ export class PropertyPanel extends LitElement {
           @change=${(e: Event) =>
             this._onPropertyChange(entry, (e.target as HTMLInputElement).value)}
         />
+        ${this._renderIris(entry)}
       </li>
     `;
   }
@@ -1169,11 +1332,7 @@ export class PropertyPanel extends LitElement {
         <div class="pane" role="tabpanel" data-tab=${active}>
           ${active === 'info'
             ? html`<ul class="property-list">
-                <li class="property-row id-row">
-                  <label class="property-label">ID</label>
-                  <input class="property-value iri" readonly title=${this.selectedIri} .value=${this.selectedIri} />
-                </li>
-                ${leading.map((entry) => this._renderEntry(entry))}
+                ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0
