@@ -120,7 +120,8 @@ The unqualified predicate is determined from:
 
 Three complementary representations are emitted for every relationship:
 1. **Direct triple** — `source vocab:serves target` — for SPARQL traversal
-2. **Qualified predicate** — `source vocab:qualifiedServes relationshipNode` — to navigate to the full resource
+2. **Qualified predicate** — `source vocab:qualifiedServing relationshipNode` — to navigate to the full resource;
+   named after the class it leads to, as PROV-O names `prov:qualifiedUsage` after `prov:Usage`
 3. **Qualified relationship resource** (this class) — carries all metadata: labels, provenance, lifecycle, etc.
 4. **rdf:reifies** — bridges the direct triple to this resource (RDF 1.2)
 
@@ -142,7 +143,7 @@ and extends it for architecture modeling. The mapping is:
   prov:EntityInfluence            arch:QualifiedRelationship
   prov:influencer / prov:entity   arch:source / arch:target
   prov:unqualifiedForm            arch:unqualifiedForm (schema-level)
-  prov:qualifiedInfluence         type-specific qualified property (e.g. am:qualifiedServes)
+  prov:qualifiedInfluence         type-specific qualified property (e.g. am:qualifiedServing)
   (no equivalent)                 rdf:reifies (RDF 1.2 — bridges direct triple to resource)
 
 With RDF 1.2, rdf:reifies provides the standardized bridge between the direct triple and this resource,
@@ -173,7 +174,7 @@ am:Serving
     arch:prefVisNotation "https://ex.com/serves.svg" ;
 .
 
-am:qualifiedServes
+am:qualifiedServing
     a                    owl:ObjectProperty ;
     rdfs:range           am:Serving ;
     arch:unqualifiedForm am:serves ;
@@ -182,7 +183,7 @@ am:qualifiedServes
 # Model data: emit both representations
 ex:AppSvc1 am:serves ex:BizProc1 .
 
-ex:AppSvc1 am:qualifiedServes ex:qr-005 .
+ex:AppSvc1 am:qualifiedServing ex:qr-005 .
 ex:qr-005 a am:Serving ;
     arch:source ex:AppSvc1 ;
     arch:target ex:BizProc1 ;
@@ -219,7 +220,7 @@ Use on schema definitions only, not on instance data. At the instance level, the
 predicate is available via rdf:reifies on the QualifiedRelationship occurrence (RDF 1.2).
 
 Example:
-  am:qualifiedServes arch:unqualifiedForm am:serves .
+  am:qualifiedServing arch:unqualifiedForm am:serves .
   am:Serving        arch:unqualifiedForm am:serves .
 ''' ;
     skos:closeMatch prov:unqualifiedForm ;

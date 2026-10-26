@@ -121,7 +121,7 @@ describe('qualified relationships against the real ArchiMate 4.0 ontology', () =
     expect(pointers(rel.iri)).toEqual([[a, AM4 + 'qualifiedRealization']]);
 
     rels.retypeRelationship(rel.iri, AM4 + 'Serving');
-    expect(pointers(rel.iri)).toEqual([[a, AM4 + 'qualifiedServes']]);
+    expect(pointers(rel.iri)).toEqual([[a, AM4 + 'qualifiedServing']]);
 
     // A new source: the way in moves, by the predicate the data used — here, core's fallback.
     store.removeQuads(store.getQuads(nn(a), null, nn(rel.iri)));
@@ -234,7 +234,7 @@ describe('ModelSession', () => {
     session.adopt({ fallbackLabel: 'Converted' });
 
     const into = (rel: string) => store.getQuads(nn('urn:z:a'), null, nn(rel)).map((q) => [q.subject.value, q.predicate.value]);
-    expect(into('urn:z:r1')).toEqual([['urn:z:a', AM4 + 'qualifiedServes']]);
+    expect(into('urn:z:r1')).toEqual([['urn:z:a', AM4 + 'qualifiedServing']]);
     expect(into('urn:z:r2')).toEqual([['urn:z:a', ARCH + 'hasQualifiedRelationship']]);
     session.adopt();
     expect(into('urn:z:r1')).toHaveLength(1);

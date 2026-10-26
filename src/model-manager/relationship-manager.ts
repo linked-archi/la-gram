@@ -688,7 +688,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * `arch:inModel`, *plus* the unqualified triple the class maps to through
    * `arch:unqualifiedForm` (DD-10), which the resource `rdf:reifies` (RDF 1.2,
    * `<<( s p o )>>`), and the qualified predicate leading from the source to the
-   * resource (`am4:qualifiedServes`; core's `arch:hasQualifiedRelationship` for
+   * resource (`am4:qualifiedServing`; core's `arch:hasQualifiedRelationship` for
    * a class the metamodel gives none). The resource is what views draw, what
    * properties hang off, and what has a stable IRI; the triple is what makes
    * `?a am4:serves ?b` work in SPARQL; `rdf:reifies` says which triple the

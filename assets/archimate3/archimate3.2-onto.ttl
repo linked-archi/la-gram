@@ -1091,16 +1091,16 @@ elements. The contained element exists only within the context of the container.
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_composition.svg" ;
 .
 
-:qualifiedComposedOf
+:qualifiedComposition
     a                    owl:ObjectProperty ;
     rdfs:range           :Composition ;
     arch:unqualifiedForm :composedOf ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Composed Of"@en ;
+    skos:prefLabel       "qualified Composition"@en ;
     skos:definition      '''Navigates from a source element to a Composition qualified relationship
 resource. Use this to reach the full relationship object with metadata, provenance, and
 lifecycle state.'''@en ;
-    skos:example         '''ex:System1 am:qualifiedComposedOf ex:qr-001 .
+    skos:example         '''ex:System1 am:qualifiedComposition ex:qr-001 .
 ex:qr-001 a am:Composition ;
     arch:source ex:System1 ;
     arch:target ex:Module1 .'''@en ;
@@ -1130,15 +1130,15 @@ Unlike composition, the aggregated element can exist independently.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_aggregation.svg" ;
 .
 
-:qualifiedAggregates
+:qualifiedAggregation
     a                    owl:ObjectProperty ;
     rdfs:range           :Aggregation ;
     arch:unqualifiedForm :aggregates ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Aggregates"@en ;
+    skos:prefLabel       "qualified Aggregation"@en ;
     skos:definition      '''Navigates from a source element to an Aggregation qualified relationship
 resource.'''@en ;
-    skos:example         '''ex:Department1 am:qualifiedAggregates ex:qr-002 .
+    skos:example         '''ex:Department1 am:qualifiedAggregation ex:qr-002 .
 ex:qr-002 a am:Aggregation ;
     arch:source ex:Department1 ;
     arch:target ex:Team1 .'''@en ;
@@ -1170,16 +1170,16 @@ behavior, storage, or execution.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_assignment.svg" ;
 .
 
-:qualifiedAssignedTo
+:qualifiedAssignment
     a                    owl:ObjectProperty ;
     rdfs:range           :Assignment ;
     arch:unqualifiedForm :assignedTo ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Assigned To"@en ;
+    skos:prefLabel       "qualified Assignment"@en ;
     skos:definition      '''Navigates from a source element to an Assignment qualified relationship
 resource. Assignment links active structure elements with behavior they perform, or actors
 with roles they fulfill.'''@en ;
-    skos:example         '''ex:DevTeam am:qualifiedAssignedTo ex:qr-003 .
+    skos:example         '''ex:DevTeam am:qualifiedAssignment ex:qr-003 .
 ex:qr-003 a am:Assignment ;
     arch:source ex:DevTeam ;
     arch:target ex:DeploymentProcess .'''@en ;
@@ -1210,15 +1210,15 @@ achievement, sustenance, or operation of a more abstract entity.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_realization.svg" ;
 .
 
-:qualifiedRealizes
+:qualifiedRealization
     a                    owl:ObjectProperty ;
     rdfs:range           :Realization ;
     arch:unqualifiedForm :realizes ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Realizes"@en ;
+    skos:prefLabel       "qualified Realization"@en ;
     skos:definition      '''Navigates from a source element to a Realization qualified relationship
 resource. Realization links a concrete element with a more abstract element it realizes.'''@en ;
-    skos:example         '''ex:PaymentSvc am:qualifiedRealizes ex:qr-004 .
+    skos:example         '''ex:PaymentSvc am:qualifiedRealization ex:qr-004 .
 ex:qr-004 a am:Realization ;
     arch:source ex:PaymentSvc ;
     arch:target ex:PaymentCapability .'''@en ;
@@ -1255,15 +1255,15 @@ element.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_serving.svg" ;
 .
 
-:qualifiedServes
+:qualifiedServing
     a                    owl:ObjectProperty ;
     rdfs:range           :Serving ;
     arch:unqualifiedForm :serves ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Serves"@en ;
+    skos:prefLabel       "qualified Serving"@en ;
     skos:definition      '''Navigates from a source element to a Serving qualified relationship
 resource. Serving indicates that an element provides its functionality to another.'''@en ;
-    skos:example         '''ex:AppSvc1 am:qualifiedServes ex:qr-005 .
+    skos:example         '''ex:AppSvc1 am:qualifiedServing ex:qr-005 .
 ex:qr-005 a am:Serving ;
     arch:source ex:AppSvc1 ;
     arch:target ex:BizProc1 ;
@@ -1329,16 +1329,16 @@ am:Access that is none of them is unspecified.'''@en ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
 .
 
-:qualifiedAccesses
+:qualifiedAccess
     a                    owl:ObjectProperty ;
     rdfs:range           :Access ;
     arch:unqualifiedForm :accesses ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Accesses"@en ;
+    skos:prefLabel       "qualified Access"@en ;
     skos:definition      '''Navigates from a source element to an Access qualified relationship
 resource. The resource's class says the kind of access: am:ReadAccess, am:WriteAccess or
 am:ReadWriteAccess, or am:Access when it is unspecified.'''@en ;
-    skos:example         '''ex:OrderProcess am:qualifiedAccesses ex:qr-006 .
+    skos:example         '''ex:OrderProcess am:qualifiedAccess ex:qr-006 .
 ex:qr-006 a am:ReadWriteAccess ;
     arch:source ex:OrderProcess ;
     arch:target ex:CustomerData .'''@en ;
@@ -1370,15 +1370,15 @@ achievement of some motivation element. The influenceStrength property specifies
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_influence.svg" ;
 .
 
-:qualifiedInfluences
+:qualifiedInfluence
     a                    owl:ObjectProperty ;
     rdfs:range           :Influence ;
     arch:unqualifiedForm :influences ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Influences"@en ;
+    skos:prefLabel       "qualified Influence"@en ;
     skos:definition      '''Navigates from a source element to an Influence qualified relationship
 resource. The Influence resource carries the influenceStrength (+, ++, -, --).'''@en ;
-    skos:example         '''ex:CostReduction am:qualifiedInfluences ex:qr-007 .
+    skos:example         '''ex:CostReduction am:qualifiedInfluence ex:qr-007 .
 ex:qr-007 a am:Influence ;
     arch:source ex:CostReduction ;
     arch:target ex:Profitability ;
@@ -1414,15 +1414,15 @@ elements.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_triggering.svg" ;
 .
 
-:qualifiedTriggers
+:qualifiedTriggering
     a                    owl:ObjectProperty ;
     rdfs:range           :Triggering ;
     arch:unqualifiedForm :triggers ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Triggers"@en ;
+    skos:prefLabel       "qualified Triggering"@en ;
     skos:definition      '''Navigates from a source element to a Triggering qualified relationship
 resource. Triggering indicates a temporal or causal dependency.'''@en ;
-    skos:example         '''ex:OrderReceived am:qualifiedTriggers ex:qr-008 .
+    skos:example         '''ex:OrderReceived am:qualifiedTriggering ex:qr-008 .
 ex:qr-008 a am:Triggering ;
     arch:source ex:OrderReceived ;
     arch:target ex:FulfillmentProcess .'''@en ;
@@ -1451,15 +1451,15 @@ ex:qr-008 a am:Triggering ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_flow.svg" ;
 .
 
-:qualifiedFlowsTo
+:qualifiedFlow
     a                    owl:ObjectProperty ;
     rdfs:range           :Flow ;
     arch:unqualifiedForm :flowsTo ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Flows To"@en ;
+    skos:prefLabel       "qualified Flow"@en ;
     skos:definition      '''Navigates from a source element to a Flow qualified relationship
 resource. Flow indicates transfer of information, goods, or money.'''@en ;
-    skos:example         '''ex:Invoicing am:qualifiedFlowsTo ex:qr-009 .
+    skos:example         '''ex:Invoicing am:qualifiedFlow ex:qr-009 .
 ex:qr-009 a am:Flow ;
     arch:source ex:Invoicing ;
     arch:target ex:Payment ;
@@ -1494,15 +1494,15 @@ element.'''@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_specialization.svg" ;
 .
 
-:qualifiedSpecializes
+:qualifiedSpecialization
     a                    owl:ObjectProperty ;
     rdfs:range           :Specialization ;
     arch:unqualifiedForm :specializes ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Specializes"@en ;
+    skos:prefLabel       "qualified Specialization"@en ;
     skos:definition      '''Navigates from a source element to a Specialization qualified relationship
 resource. Specialization indicates that an element is a particular kind of another.'''@en ;
-    skos:example         '''ex:OnlineBanking am:qualifiedSpecializes ex:qr-010 .
+    skos:example         '''ex:OnlineBanking am:qualifiedSpecialization ex:qr-010 .
 ex:qr-010 a am:Specialization ;
     arch:source ex:OnlineBanking ;
     arch:target ex:BankingService .'''@en ;
@@ -1546,16 +1546,16 @@ isDirected="true".'''@en ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Association-Relationship> ;
 .
 
-:qualifiedAssociatedWith
+:qualifiedAssociation
     a                    owl:ObjectProperty ;
     rdfs:range           :Association ;
     arch:unqualifiedForm :associatedWith ;
     arch:domainIncludes  arch:Element ;
-    skos:prefLabel       "qualified Associated With"@en ;
+    skos:prefLabel       "qualified Association"@en ;
     skos:definition      '''Navigates from a source element to an Association qualified relationship
 resource. Association is the most generic relationship — used when no more specific type
 applies.'''@en ;
-    skos:example         '''ex:Stakeholder1 am:qualifiedAssociatedWith ex:qr-011 .
+    skos:example         '''ex:Stakeholder1 am:qualifiedAssociation ex:qr-011 .
 ex:qr-011 a am:Association ;
     arch:source ex:Stakeholder1 ;
     arch:target ex:Driver1 .'''@en ;

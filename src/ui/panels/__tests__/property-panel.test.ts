@@ -549,15 +549,15 @@ describe('PropertyPanel', () => {
       const store = mockRdfStore([
         ...sampleQuads(iri),
         iriQuad(iri, NAMESPACES.arch + 'hasQualifiedRelationship', rel),
-        iriQuad(iri, AM4 + 'qualifiedServes', rel),
-        iriQuad(AM4 + 'qualifiedServes', NAMESPACES.arch + 'unqualifiedForm', AM4 + 'serves'),
+        iriQuad(iri, AM4 + 'qualifiedServing', rel),
+        iriQuad(AM4 + 'qualifiedServing', NAMESPACES.arch + 'unqualifiedForm', AM4 + 'serves'),
         iriQuad(iri, AM4 + 'serves', 'https://example.org/elem2'),
       ]);
       const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
       (PropertyPanel.prototype as any)._loadProperties.call(ctx);
       const predicates = ctx._entries.map((e: PropertyEntry) => e.predicate);
       expect(predicates).not.toContain(NAMESPACES.arch + 'hasQualifiedRelationship');
-      expect(predicates).not.toContain(AM4 + 'qualifiedServes');
+      expect(predicates).not.toContain(AM4 + 'qualifiedServing');
       expect(predicates).toContain(AM4 + 'serves');
     });
 

@@ -467,7 +467,7 @@ export class ModelSession {
 
   /**
    * Give every qualified relationship the qualified predicate leading to it
-   * from its source (`am4:qualifiedServes`, else core's
+   * from its source (`am4:qualifiedServing`, else core's
    * `arch:hasQualifiedRelationship`), where it has none — a model saved before
    * la-gram wrote it, or made by another tool. One it has, of whichever
    * predicate, is kept.

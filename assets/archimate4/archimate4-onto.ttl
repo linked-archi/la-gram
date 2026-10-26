@@ -1157,12 +1157,12 @@ resource.'''@en ;
  The “Payment Interface” serves the “Customer”, while the “Payment Service” serves the “Pay Invoices” process of that customer.'''@en ;
 .
 
-:qualifiedServes
+:qualifiedServing
     a                    owl:ObjectProperty ;
     rdfs:range           :Serving ;
     arch:unqualifiedForm :serves ;
     arch:domainIncludes  :ActiveStructureElement, :BehaviorElement ;
-    skos:prefLabel       "qualified Serves"@en ;
+    skos:prefLabel       "qualified Serving"@en ;
     skos:definition      '''Navigates from a source element to a Serving qualified relationship
 resource.'''@en ;
 .
@@ -1230,12 +1230,12 @@ Alternatively, an access relationship can be expressed by nesting the passive st
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Access-Relationship> ;
 .
 
-:qualifiedAccesses
+:qualifiedAccess
     a                    owl:ObjectProperty ;
     rdfs:range           :Access ;
     arch:unqualifiedForm :accesses ;
     arch:domainIncludes  :BehaviorElement, :ActiveStructureElement ;
-    skos:prefLabel       "qualified Accesses"@en ;
+    skos:prefLabel       "qualified Access"@en ;
     skos:definition      '''Navigates from a source element to an Access qualified relationship
 resource. The resource's class says the kind of access: am4:ReadAccess, am4:WriteAccess or
 am4:ReadWriteAccess, or am4:Access when it is unspecified.'''@en ;
@@ -1266,13 +1266,13 @@ element.'''@en ;
     skos:scopeNote       '''The influence relationship is used to describe that some architectural element influences the achievement of a motivation element, such as a goal or principle. In general, a motivation element is realized to a certain degree. An influence relationship can be used to indicate that an element has a positive or negative influence on the realization of a motivation element.'''@en ;
 .
 
-:qualifiedInfluences
+:qualifiedInfluence
     a                    owl:ObjectProperty ;
     rdfs:range           :Influence ;
     arch:unqualifiedForm :influences ;
     arch:domainIncludes  :MotivationElement, :BehaviorElement, :ActiveStructureElement, :PassiveStructureElement,
                          :StrategyElement ;
-    skos:prefLabel       "qualified Influences"@en ;
+    skos:prefLabel       "qualified Influence"@en ;
     skos:definition      '''Navigates from a source element to an Influence qualified relationship
 resource. The Influence resource carries the influenceStrength (+, ++, -, --).'''@en ;
 .
@@ -1306,12 +1306,12 @@ resource. The Influence resource carries the influenceStrength (+, ++, -, --).''
 '''@en ;
 .
 
-:qualifiedTriggers
+:qualifiedTriggering
     a                    owl:ObjectProperty ;
     rdfs:range           :Triggering ;
     arch:unqualifiedForm :triggers ;
     arch:domainIncludes  :BehaviorElement, :StrategyElement ;
-    skos:prefLabel       "qualified Triggers"@en ;
+    skos:prefLabel       "qualified Triggering"@en ;
     skos:definition      '''Navigates from a source element to a Triggering qualified relationship
 resource.'''@en ;
 .

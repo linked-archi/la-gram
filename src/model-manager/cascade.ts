@@ -9,7 +9,7 @@
  * ## A relationship
  *
  * - the qualified resource (every triple with it as subject);
- * - the qualified predicate leading to it from its source (`am4:qualifiedServes`,
+ * - the qualified predicate leading to it from its source (`am4:qualifiedServing`,
  *   or core's `arch:hasQualifiedRelationship`), which would otherwise point at
  *   nothing;
  * - its unqualified triple `source predicate target` — unless another qualified

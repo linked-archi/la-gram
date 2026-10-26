@@ -872,7 +872,7 @@ export class PropertyPanel extends LitElement {
     }
 
     // Query all triples where the selected IRI is the subject — but the way in
-    // to each relationship it is the source of (`am4:qualifiedServes`, core's
+    // to each relationship it is the source of (`am4:qualifiedServing`, core's
     // `arch:hasQualifiedRelationship`): la-gram keeps it in step with the
     // relationship, as it does `rdf:reifies`, and Analysis lists the relationships.
     const store = this.rdfStore;

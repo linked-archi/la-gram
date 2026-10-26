@@ -71,7 +71,7 @@ graph TB
 |---|---|---|---|
 | **Model** | `arch:Model` + `arch:modelConformsToMetamodel` + its namespace (`vann:preferredNamespaceUri` / `…Prefix`) | default graph | yes |
 | **Element** | a metamodel class; `skos:prefLabel`@en; `arch:inModel` | default graph | yes |
-| **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`), which it `rdf:reifies` (RDF 1.2, `<<( s p o )>>`), and the qualified predicate from the source to it (`am4:qualifiedServes`; `arch:hasQualifiedRelationship` for a class with none) | default graph | yes |
+| **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`), which it `rdf:reifies` (RDF 1.2, `<<( s p o )>>`), and the qualified predicate from the source to it (`am4:qualifiedServing`; `arch:hasQualifiedRelationship` for a class with none) | default graph | yes |
 | **View** | `arch:View` + `arch:Diagram`/`Catalog`/`Matrix`, `arch:inModel`, `arch:viewConformsToViewpoint` | default graph | yes |
 | **Membership** | `arch:inView` on each concept a view presents | default graph | yes |
 | **Geometry** | `arch-vis:ArchNode` (bounds, `archElement`, `view`), `arch-vis:Link` (`archRelationship`, `source`/`target` nodes, `points` list with IRI cells) | default graph | yes (droppable profile) |
@@ -1255,8 +1255,8 @@ dialog; the modules' section).
    another tool's); the properties panel does not offer it for editing. So with
    the qualified predicate that leads from the source to the resource — the way
    in, as `arch:source` is the way out: the type's own, which the metamodel
-   declares with the class as its `rdfs:range` (`am4:qualifiedRealization`,
-   ArchiMate 3.2's `am:qualifiedRealizes`), else core's
+   declares with the class as its `rdfs:range` and names after it, as PROV-O
+   does (`am4:qualifiedRealization` for `am4:Realization`), else core's
    `arch:hasQualifiedRelationship` (`cascade.ts`, `qualifiedFormOf`). It moves
    with the source on reconnect, is swapped on retype, goes with the
    relationship on delete, and is given on load to a relationship without one;
