@@ -543,6 +543,32 @@ describe('the workbench', () => {
     entries['properties']!.action();
     expect(ui.shell.bottomTab).toBe('properties');
 
+    // On a relationship: its name and type, where to look at it and its ends, its IRI, deleting it.
+    const other = els.createElement(`${AM4}BusinessActor`, model, { label: 'Teller' }).value;
+    app.components.viewManager.addElementToView(view, other, { x: 400, y: 100, width: 120, height: 55 });
+    const drawn = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Association`, sourceIri: placed, targetIri: other, modelIri: model }).iri;
+    app.components.viewManager.addRelationshipToView(view, drawn);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
+    const line = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(drawn)) as Record<string, { action: () => void }>;
+    expect(Object.keys(line)).toEqual([
+      'rename', 'change-type', 'properties', 'reveal-tree', 'show-source', 'show-target', 'copy-iri', 'delete', 'delete-model',
+    ]);
+
+    // On the empty canvas: the open view's — what the model tree offers for a view — and the canvas's.
+    const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();
+    const onView = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(canvasRoot) as Record<string, { action: () => void }>;
+    expect(Object.keys(onView)).toEqual([
+      'rename-view', 'set-viewpoint', 'duplicate-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri', 'delete-view',
+    ]);
+    onView['properties']!.action();
+    expect([ui.propertyPanel.selectedIri, ui.propertyPanel.heading?.kind]).toEqual([view, 'View']);
+    onView['select-all']!.action();
+    const selected = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(): Array<{ id: string }> } }).get('selection').get();
+    expect(selected.map((e) => e.id)).toEqual(expect.arrayContaining([placed, other, drawn]));
+    app.components.relationshipManager.deleteRelationship!(drawn);
+    els.deleteElement(other);
+
     ui.selectConcept(undefined);
     for (const iri of [placed, unplaced]) els.deleteElement(iri);
   });

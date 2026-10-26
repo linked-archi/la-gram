@@ -391,12 +391,24 @@ relationships to make a type change fit would silently lose model content.
 
 The **right-click menu** (`rdf-context-menu-provider.ts`, popup provider
 `la-context-menu`) opens on `element.contextmenu` for elements and
-relationships (the browser's menu is suppressed; the concept is selected first).
-The canvas decides the actions (`contextMenuActions`) in sections — edit
-(Rename, Change type… / Change relationship type…), relate (Append…), show
-(Properties, Show in model tree, Show relationship graph), copy (Copy IRI),
-delete (Delete from view, Delete from model…) — and hands the "show" and
-"copy" ones to the host (`onContextAction`). A menu an action opens (the type
+relationships (the browser's menu is suppressed; the concept is selected first),
+and on the empty canvas for the open view (the selection is cleared). Over a
+line, diagram-js draws its segment and bendpoint handles in the overlays layer,
+on top of it, and they belong to no diagram element, so a right-click there
+reaches the root: the handles' group (`.djs-bendpoints[data-element-id]`) names
+the line, and the menu opens for it. The canvas decides the actions
+(`contextMenuActions`) in sections — edit (Rename, Change type… / a
+relationship's Rename… and Change relationship type…), relate (Append…), show
+(Properties, Show in model tree, Show relationship graph / a relationship's Show
+source and Show target), copy (Copy IRI), delete (Delete from view, Delete from
+model…); on the canvas, the open view's (`viewContextMenuActions`): edit (Rename
+view…, Set viewpoint…, Duplicate view), view (Select all, Zoom to fit), show
+(View properties, Show in model tree), copy (Copy IRI), delete (Delete view…),
+what the model tree offers for a view — and hands all but the canvas's own
+(rename on the canvas, the type menus, append, select all, zoom, delete from
+view) to the host (`onContextAction`), which runs the model tree's actions for
+them (a relationship's name is edited in the tree's dialog: the canvas edits
+shapes' labels only). A menu an action opens (the type
 menu, the append menu) is opened on the next tick: diagram-js closes the menu
 an entry was picked from after its action runs. The pad keeps delete, connect,
 append and a relationship's change type; an element's type moved to the panel

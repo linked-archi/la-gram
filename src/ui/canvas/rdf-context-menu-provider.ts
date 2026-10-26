@@ -2,7 +2,8 @@
  * RdfContextMenuProvider — the canvas's right-click menu.
  *
  * Right-clicking an element or a relationship selects it and opens this menu
- * at the pointer: a diagram-js popup menu (so it looks and behaves like the
+ * at the pointer; right-clicking the empty canvas opens it for the open view
+ * (and clears the selection): a diagram-js popup menu (so it looks and behaves like the
  * other canvas menus — keyboard, closing on a click elsewhere) whose entries
  * are sections of actions. The provider only lays the entries out; which
  * actions apply to what, and what they do, is the canvas's
@@ -23,7 +24,7 @@ export interface ContextMenuAction {
   id: string;
   label: string;
   /** Section the action sits in; sections are shown in the order they first occur. */
-  section: 'edit' | 'relate' | 'show' | 'copy' | 'delete';
+  section: 'edit' | 'relate' | 'view' | 'show' | 'copy' | 'delete';
   /** A keyboard shortcut for the same action, shown in the tooltip. */
   shortcut?: string;
   run: () => void;

@@ -271,7 +271,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 6. Panels hideable — the model tree, the palette and the RDF panel; the bottom panel folds to its tabs and maximizes
 7. Panels resizable with persisted sizes — the model tree by its right edge, the palette and the RDF panel by their left edge, the bottom panel by its top edge (remembered per browser; the canvas keeps at least 240 × 160 px)
 8. Selecting on the canvas updates the property panel and the tree
-9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, a relationship's change type) and a **right-click menu** on elements and relationships, at the pointer: Rename (F2), Change type… (Req 3.11) or Change relationship type…, Append…; Properties, Show in model tree, Show relationship graph; Copy IRI; Delete from view, Delete from model…
+9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, a relationship's change type) and a **right-click menu** on elements and relationships, at the pointer — on a line wherever it is clicked, its handles included: Rename (F2) or a relationship's Rename…, Change type… (Req 3.11) or Change relationship type…, Append…; Properties, Show in model tree, Show relationship graph or a relationship's Show source and Show target; Copy IRI; Delete from view, Delete from model… On the empty canvas, the open view's: Rename view…, Set viewpoint…, Duplicate view; Select all, Zoom to fit; View properties, Show in model tree; Copy IRI; Delete view…
 10. Keyboard: Delete, Ctrl/Cmd+Z/Y, zoom; keys typed in panel fields never reach the canvas
 
 ---

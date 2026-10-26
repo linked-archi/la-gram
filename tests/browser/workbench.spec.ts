@@ -1046,6 +1046,66 @@ describe('changing an element’s type', () => {
     expect(await typeField.inputValue()).toBe('Product');
     findings.push('change element type: right-click menu and property panel (search, current marked), default name follows, undo, not-permitted relationships named and kept: ok');
   }, 90_000);
+
+  it('opens the right-click menu on a relationship — even over its handles — and on the empty canvas, for the view', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const ids = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string, x: number) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y: 100, width: 120, height: 55 });
+        return iri;
+      };
+      const a = make('ApplicationComponent', 'Portal', 100);
+      const b = make('BusinessActor', 'Clerk', 500);
+      const r = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: a, targetIri: b, modelIri: m }).iri;
+      app.components.viewManager.addRelationshipToView(v, r);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { a, b, r, v };
+    });
+    // The middle of the line, on the page.
+    const mid = await page.evaluate((r) => {
+      const d = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram();
+      const line = d.get('elementRegistry').get(r);
+      const canvas = d.get('canvas');
+      const vb = canvas.viewbox();
+      const svg = canvas._svg.getBoundingClientRect();
+      const [p, q] = [line.waypoints[0], line.waypoints[line.waypoints.length - 1]];
+      return { x: svg.x + ((p.x + q.x) / 2 - vb.x) * vb.scale, y: svg.y + ((p.y + q.y) / 2 - vb.y) * vb.scale };
+    }, ids.r);
+    const menu = page.locator('.djs-popup.la-context-menu');
+    const entries = async () => (await menu.locator('.entry').allInnerTexts()).map((t) => t.trim());
+
+    // Hovering the line puts diagram-js's segment handles over it; the right-click still reaches the line.
+    await page.mouse.move(mid.x, mid.y);
+    await page.waitForTimeout(150);
+    await page.mouse.click(mid.x, mid.y, { button: 'right' });
+    await menu.waitFor({ state: 'visible' });
+    expect(await entries()).toEqual([
+      'Rename…', 'Change relationship type…', 'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
+      'Delete from view', 'Delete from model…',
+    ]);
+    await page.keyboard.press('Escape');
+    await menu.waitFor({ state: 'hidden' });
+
+    // The empty canvas: the open view's menu; "Select all" selects everything drawn.
+    const host = (await page.locator('.la-diagram-host').boundingBox())!;
+    await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
+    await menu.waitFor({ state: 'visible' });
+    expect(await entries()).toEqual([
+      'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
+      'Copy IRI', 'Delete view…',
+    ]);
+    await menu.locator('.entry', { hasText: 'Select all' }).click();
+    const selected = await page.evaluate(() =>
+      (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('selection').get().map((e: any) => e.id) as string[],
+    );
+    expect(selected).toEqual(expect.arrayContaining([ids.a, ids.b, ids.r]));
+    findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view: ok');
+  }, 90_000);
 });
 
 describe('Basic, the generic language', () => {

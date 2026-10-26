@@ -293,7 +293,18 @@ export interface DiagramCanvasOptions {
 }
 
 /** A right-click menu action the host carries out. */
-export type CanvasContextAction = 'properties' | 'reveal-tree' | 'graph' | 'copy-iri';
+export type CanvasContextAction =
+  | 'properties'
+  | 'reveal-tree'
+  | 'graph'
+  | 'copy-iri'
+  | 'rename'
+  | 'show-source'
+  | 'show-target'
+  | 'rename-view'
+  | 'set-viewpoint'
+  | 'duplicate-view'
+  | 'delete-view';
 
 /** What {@link DiagramCanvasOptions.confirmRetypeElement} is asked about. */
 export interface RetypeElementRequest {
@@ -1967,11 +1978,16 @@ export class DiagramCanvas {
     return true;
   }
 
-  /** Open the right-click menu on an element or a relationship, at a point on the page. */
+  /**
+   * Open the right-click menu on an element or a relationship — selecting it —
+   * or on the canvas root, for the open view (clearing the selection), at a
+   * point on the page.
+   */
   openContextMenu(element: DjsShape, at: { x: number; y: number }): void {
     const services = this.services();
     if (!services) return;
-    this.service<{ select(element: unknown): void }>('selection')?.select(element);
+    const onCanvas = element === services.canvas.getRootElement();
+    this.service<{ select(element: unknown): void }>('selection')?.select(onCanvas ? null : element);
     this.contextMenuAt = at;
     services.popupMenu.open(element, CONTEXT_MENU_ID, at, { width: 240 });
   }
@@ -1985,10 +2001,14 @@ export class DiagramCanvas {
 
   /**
    * What the right-click menu offers for `target`: renaming and changing the
-   * type (elements), changing the relationship type (relationships), appending,
-   * where to look at it (properties, tree, graph), its IRI, and deleting it.
+   * type, appending (elements), where to look at it (properties, tree, graph;
+   * a relationship's ends), its IRI, and deleting it. On the canvas root, the
+   * open view's: renaming it, its viewpoint, duplicating it, selecting
+   * everything, zooming to fit, its properties, tree entry and IRI, and
+   * deleting it — what the model tree offers for a view.
    */
   private contextMenuActions(target: unknown): ContextMenuAction[] {
+    if (target && target === this.services()?.canvas.getRootElement()) return this.viewContextMenuActions();
     const element = target as DjsShape | undefined;
     const shown = element?.businessObject;
     if (!element || !shown?.iri) return [];
@@ -2014,13 +2034,17 @@ export class DiagramCanvas {
       if (this.canAppend(pad)) {
         actions.push({ id: 'append', label: 'Append…', section: 'relate', run: then(() => this.openAppendMenu(pad, { clientX: at.x, clientY: at.y })) });
       }
-    } else if (shown.kind === 'relationship' && this.canReplaceRelationshipType(pad)) {
-      actions.push({
-        id: 'change-type',
-        label: 'Change relationship type…',
-        section: 'edit',
-        run: then(() => this.openRelationshipReplaceMenu(pad, { clientX: at.x, clientY: at.y })),
-      });
+    } else if (shown.kind === 'relationship') {
+      // A relationship's name is edited in a dialog, as from the model tree: the canvas edits shapes' labels only.
+      if (this.onContextAction) actions.push({ id: 'rename', label: 'Rename…', section: 'edit', run: host('rename') });
+      if (this.canReplaceRelationshipType(pad)) {
+        actions.push({
+          id: 'change-type',
+          label: 'Change relationship type…',
+          section: 'edit',
+          run: then(() => this.openRelationshipReplaceMenu(pad, { clientX: at.x, clientY: at.y })),
+        });
+      }
     }
 
     if (this.onContextAction) {
@@ -2028,6 +2052,9 @@ export class DiagramCanvas {
       actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
       if (shown.kind === 'element') {
         actions.push({ id: 'graph', label: 'Show relationship graph', section: 'show', run: host('graph') });
+      } else if (shown.kind === 'relationship') {
+        actions.push({ id: 'show-source', label: 'Show source', section: 'show', run: host('show-source') });
+        actions.push({ id: 'show-target', label: 'Show target', section: 'show', run: host('show-target') });
       }
       actions.push({ id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') });
     }
@@ -2041,6 +2068,49 @@ export class DiagramCanvas {
     });
     if (this.viewManager) {
       actions.push({ id: 'delete-model', label: 'Delete from model…', section: 'delete', run: () => void this.deleteFromModel(iri) });
+    }
+    return actions;
+  }
+
+  /** The right-click menu on the empty canvas: the open view's actions, as the model tree offers them, and the canvas's. */
+  private viewContextMenuActions(): ContextMenuAction[] {
+    const viewIri = this.viewIri;
+    const services = this.services();
+    if (!viewIri || !services) return [];
+    const host = (action: CanvasContextAction) => () => this.onContextAction?.(action, viewIri);
+    const actions: ContextMenuAction[] = [];
+    if (this.onContextAction) {
+      actions.push(
+        { id: 'rename-view', label: 'Rename view…', section: 'edit', run: host('rename-view') },
+        { id: 'set-viewpoint', label: 'Set viewpoint…', section: 'edit', run: host('set-viewpoint') },
+        { id: 'duplicate-view', label: 'Duplicate view', section: 'edit', run: host('duplicate-view') },
+      );
+    }
+    actions.push(
+      {
+        id: 'select-all',
+        label: 'Select all',
+        section: 'view',
+        run: () => {
+          const root = services.canvas.getRootElement();
+          const all = services.elementRegistry.getAll().filter((e) => e !== root && !(e as { labelTarget?: unknown }).labelTarget);
+          this.service<{ select(elements: unknown): void }>('selection')?.select(all);
+        },
+      },
+      {
+        id: 'zoom-fit',
+        label: 'Zoom to fit',
+        section: 'view',
+        run: () => this.service<{ zoom(value: string, center?: string): unknown }>('canvas')?.zoom('fit-viewport', 'auto'),
+      },
+    );
+    if (this.onContextAction) {
+      actions.push(
+        { id: 'properties', label: 'View properties', section: 'show', run: host('properties') },
+        { id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') },
+        { id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') },
+        { id: 'delete-view', label: 'Delete view…', section: 'delete', run: host('delete-view') },
+      );
     }
     return actions;
   }
@@ -2771,11 +2841,24 @@ export class DiagramCanvas {
     djs.on('connection.removed', (event: { element: DjsShape }) => this.otherwiseNamed.delete(event.element));
 
     // Right-click on an element or a relationship: select it, and open the
-    // context menu at the pointer instead of the browser's.
+    // context menu at the pointer instead of the browser's; on the empty
+    // canvas, the open view's menu.
+    //
+    // Over a line, diagram-js draws its segment and bendpoint handles in the
+    // overlays layer, on top of it, and they belong to no diagram element: a
+    // right-click there reaches the root. Their group names the line.
     djs.on('element.contextmenu', 1500, (event: { element?: DjsShape; originalEvent?: MouseEvent }) => {
-      const element = event.element;
+      const root = this.services()?.canvas.getRootElement();
+      let element = event.element;
+      if (element && element === root) {
+        const handles = (event.originalEvent?.target as Element | null)?.closest?.('.djs-bendpoints[data-element-id]');
+        const line = handles ? this.services()?.elementRegistry.get(handles.getAttribute('data-element-id') ?? '') : undefined;
+        if (line) element = line;
+      }
       const shown = element?.businessObject;
-      if (!element || !shown?.iri || (shown.kind !== 'element' && shown.kind !== 'relationship')) return undefined;
+      const onConcept = Boolean(shown?.iri) && (shown?.kind === 'element' || shown?.kind === 'relationship');
+      const onCanvas = element === root && Boolean(this.viewIri);
+      if (!element || (!onConcept && !onCanvas)) return undefined;
       event.originalEvent?.preventDefault();
       this.openContextMenu(element, { x: event.originalEvent?.clientX ?? 0, y: event.originalEvent?.clientY ?? 0 });
       return false;

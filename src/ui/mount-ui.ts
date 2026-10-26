@@ -677,6 +677,18 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           .then(() => dialogs.toast('IRI copied'))
           .catch(() => dialogs.toast(`IRI: ${iri}`));
         return;
+      // The model tree's own actions, on a relationship or the open view.
+      case 'rename':
+      case 'show-source':
+      case 'show-target':
+        void handleExplorerAction({ action, iri, kind: 'relationship' });
+        return;
+      case 'rename-view':
+      case 'set-viewpoint':
+      case 'duplicate-view':
+      case 'delete-view':
+        void handleExplorerAction({ action, iri, kind: 'view' });
+        return;
     }
   };
 
