@@ -377,7 +377,11 @@ change puts the field back) and by the right-click menu's "Change type…", whic
 opens the `la-element-replace` popup: the canvas's palette definition — every
 loaded element type, unfiltered by the viewpoint, grouped under the palette's
 current axis — searching names and groups only (definitions would match half
-the list). An element in the open view changes through the command, undoably;
+the list). Types that share a name (ArchiMate 3's Business Actor and ArchiMate
+4's) show their IRIs on the entry's second line, and the header's "Show IRIs"
+shows every one — one setting with the property panel's pickers (`show-iris.ts`);
+an IRI shown is searched too (`archimate3 role`). The type in force is marked
+(bold, ✓). An element in the open view changes through the command, undoably;
 one that is not (selected in the tree) changes in the store directly, like any
 property panel edit. Before either, the canvas checks each of the element's relationships with
 `getValidRelationships(source, target)` under the new type; any that would not

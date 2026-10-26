@@ -730,6 +730,7 @@ export class DiagramCanvas {
       },
       () => this.paletteDefinition.elementGroups,
       (shapeId, typeIri) => void this.retypeElement(shapeId, typeIri),
+      () => this.services()?.popupMenu.refresh(),
     );
 
     this.contextMenuProvider = new RdfContextMenuProvider((target) => this.contextMenuActions(target));

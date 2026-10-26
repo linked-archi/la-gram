@@ -5,9 +5,10 @@
  * The list is in groups. Each entry shows its name first and under it, smaller,
  * what it is (`Business Actor`) and its IRI: the name is what one looks for,
  * the IRI is there for when it matters. Where IRIs are shown on demand
- * (`iris="toggle"`), a "Show IRIs" switch heads the list, remembered per
- * browser; entries that share a name show theirs anyway, so they can be told
- * apart (ArchiMate 3's Business Actor and ArchiMate 4's).
+ * (`iris="toggle"`), a "Show IRIs" switch heads the list — one setting with the
+ * canvas's "Change type…" menu (`show-iris.ts`); entries that share a name show
+ * theirs anyway, so they can be told apart (ArchiMate 3's Business Actor and
+ * ArchiMate 4's).
  *
  * Typed text can be offered as an entry of its own (`typed`), listed last after
  * what it is (`＋ New property: `, `Link to: `). An entry marked `more` is
@@ -27,6 +28,7 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { rememberShowIris, sharedNames, showIris } from '../show-iris.js';
 
 /** An entry of the list. */
 export interface NamedOption {
@@ -51,17 +53,6 @@ export interface NamedOption {
 /** Typed text as an entry: listed last, after what it is (`prefix`). */
 export interface TypedOption extends NamedOption {
   prefix: string;
-}
-
-/** localStorage key of the "Show IRIs" switch, shared by every picker with one. */
-const SHOW_IRIS_KEY = 'la-gram:picker-show-iris';
-
-function storedShowIris(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(SHOW_IRIS_KEY) === 'true';
-  } catch {
-    return false;
-  }
 }
 
 @customElement('named-picker')
@@ -190,7 +181,7 @@ export class NamedPicker extends LitElement {
   @state() private _open = false;
   @state() private _active = 0;
   @state() private _showMore = false;
-  @state() private _showIris = storedShowIris();
+  @state() private _showIris = showIris();
   @state() private _picked: NamedOption | undefined;
   /** Where the list floats: its inline style, from the field's position. */
   @state() private _listStyle = '';
@@ -259,13 +250,7 @@ export class NamedPicker extends LitElement {
 
   private _openList(): void {
     this._options = this.options?.() ?? [];
-    const seen = new Set<string>();
-    this._shared = new Set();
-    for (const o of this._options) {
-      const name = o.label.toLowerCase();
-      if (seen.has(name)) this._shared.add(name);
-      seen.add(name);
-    }
+    this._shared = sharedNames(this._options.map((o) => o.label));
     this._open = true;
     this._active = 0;
     this._place();
@@ -320,11 +305,7 @@ export class NamedPicker extends LitElement {
 
   private _setShowIris(shown: boolean): void {
     this._showIris = shown;
-    try {
-      globalThis.localStorage?.setItem(SHOW_IRIS_KEY, String(shown));
-    } catch {
-      /* not remembered: fine */
-    }
+    rememberShowIris(shown);
   }
 
   private _onBlur(): void {

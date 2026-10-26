@@ -53,6 +53,50 @@ describe('the element type menu', () => {
       vi.fn(),
     );
     expect(lone.getPopupMenuEntries('shape')).toEqual({});
+    expect(lone.getPopupMenuHeaderEntries('shape')).toEqual([]);
+  });
+
+  it('shows the IRIs of types that share a name, and every IRI behind the header’s switch', () => {
+    // Node's own localStorage stub is not a working one: remembered choices go here.
+    const remembered = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => remembered.get(key) ?? null,
+      setItem: (key: string, value: string) => void remembered.set(key, value),
+      removeItem: (key: string) => void remembered.delete(key),
+    });
+    try {
+      const AM3 = 'https://meta.linked.archi/archimate3/onto#';
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const refresh = vi.fn();
+      const menu = new RdfElementReplaceMenuProvider(
+        (target) => (target === 'shape' ? { shapeId: 's', currentTypeIri: AM4 + 'BusinessActor' } : undefined),
+        () => [
+          { category: 'Business', elements: [{ iri: AM4 + 'BusinessActor', label: 'Business Actor' }, { iri: AM4 + 'BusinessRole', label: 'Business Role' }] },
+          { category: 'Other', elements: [{ iri: AM3 + 'BusinessActor', label: 'Business Actor' }] },
+        ],
+        vi.fn(),
+        refresh,
+      );
+      const lines = () =>
+        Object.values(menu.getPopupMenuEntries('shape') as Record<string, { label: string; description?: string }>).map((e) => [e.label, e.description]);
+
+      expect(lines()).toEqual([
+        ['Business Actor', `${AM4}BusinessActor`],
+        ['Business Role', undefined],
+        ['Business Actor', `${AM3}BusinessActor`],
+      ]);
+      const [toggle] = menu.getPopupMenuHeaderEntries('shape');
+      expect(toggle).toMatchObject({ label: 'Show IRIs', active: false });
+
+      toggle!.action();
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(remembered.get('la-gram:picker-show-iris')).toBe('true');
+      expect(lines()[1]).toEqual(['Business Role', `${AM4}BusinessRole`]);
+      expect(menu.getPopupMenuHeaderEntries('shape')[0]!.active).toBe(true);
+      expect(menu.getPopupMenuHeaderEntries('connection')).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

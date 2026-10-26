@@ -240,11 +240,13 @@
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     }
 
-    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label {
+    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label,
+    .la-diagram-host .djs-popup .la-element-type-current .djs-popup-label {
       font-weight: 600;
     }
 
-    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label::after {
+    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label::after,
+    .la-diagram-host .djs-popup .la-element-type-current .djs-popup-label::after {
       content: " \2713";
       color: #1a73e8;
     }
@@ -300,6 +302,25 @@
       border-bottom-color: #1a73e8;
       font-weight: 500;
       background: transparent;
+    }
+
+    /* The "Change type…" menu's "Show IRIs" switch: a header entry, on when
+       diagram-js marks it active. */
+    .la-diagram-host .djs-popup button.entry.la-element-type-iris {
+      padding: 2px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 10px;
+      background: #fff;
+      color: #5f6368;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-element-type-iris.active {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+      color: #1a73e8;
     }
 
     /* ── Canvas markers ────────────────────────────────────────────────
