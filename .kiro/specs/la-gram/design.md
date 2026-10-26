@@ -873,6 +873,14 @@ many findings the rest of the model has, as a link to the model scope. The tab's
 badge counts the Violations of the scope shown; the canvas marks every
 violation drawn.
 
+**Another model opened.** Validation is debounced and, in the browser, runs in
+the worker, so a newly opened model's findings come later — seconds on a large
+model. Until then the tab held the last model's, which read as the new one's
+(in the view scope, as "n more in the model"). On `model-loaded`, when a
+validation is due (`App.validationPending`) and there are shapes to validate
+against, `mount-ui` empties the tab and sets `validating`: it says
+"Validating…" rather than that the model conforms, until `validation-updated`.
+
 **Relationships by the tables, not the shapes** (Task 22,
 `model-manager/relationship-validity.ts`). The relationship shapes generated
 from a language's matrix check a relationship against an `sh:or` of every

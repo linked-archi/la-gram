@@ -167,7 +167,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 4. `sh:sparql` constraints are stripped client-side (left to the server, Req 8)
 5. Each result shows severity, the concept's name, the message and the source shape
 6. `sh:message` is shown when present; otherwise a generated message
-7. Results are in the Validation tab under the canvas; clicking one shows the concept (switching to a view that contains it). The tab shows the number of Violations, so they are seen while another tab is open; Warnings and Infos are listed but not counted — a view without a viewpoint is a Warning (the published viewpoint shapes declare `sh:severity` on their property shapes)
+7. Results are in the Validation tab under the canvas; clicking one shows the concept (switching to a view that contains it). The tab shows the number of Violations, so they are seen while another tab is open; Warnings and Infos are listed but not counted — a view without a viewpoint is a Warning (the published viewpoint shapes declare `sh:severity` on their property shapes). When another model is opened, the last model's findings go at once; the tab says it is validating until the new model's come
 8. Violating concepts are marked on the canvas
 9. Results match what a server-side SHACL engine reports for the core constraints
 10. The Validation tab is scoped, remembered per browser: the **open view** (the default) — the findings on the view itself, the concepts it presents and the nodes and links of its diagram, saying how many more the rest of the model has, with a way to show them — or the whole **model**. With no view open it shows the model. The tab counts the Violations of the scope shown; every violating concept drawn is marked whatever the scope

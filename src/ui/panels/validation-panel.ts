@@ -10,7 +10,8 @@
  * findings on the view, the concepts it presents and the nodes and links of
  * its diagram, with how many more the rest of the model has — or the whole
  * **model**. The host says what the open view covers (`viewIris`); with no view
- * open, the panel shows the model.
+ * open, the panel shows the model. While another model's first findings are
+ * awaited (`validating`), it says so rather than conform.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -181,6 +182,11 @@ export class ValidationPanel extends LitElement {
       color: #c62828;
     }
 
+    .summary.validating {
+      color: #5f6368;
+      font-style: italic;
+    }
+
     .severity-group {
       margin: 4px 0;
     }
@@ -222,6 +228,10 @@ export class ValidationPanel extends LitElement {
   /** Names concepts (their `skos:prefLabel`) instead of showing IRI tails. */
   @property({ attribute: false })
   labelFor?: (iri: string) => string;
+
+  /** Whether the findings are being awaited: another model was opened, and none of its have come yet. */
+  @property({ type: Boolean })
+  validating = false;
 
   /** What the open view covers, by IRI (`viewMembers`); none when no view is open. */
   @property({ attribute: false })
@@ -395,6 +405,17 @@ export class ValidationPanel extends LitElement {
           )}
         </select>
       </div>
+      ${this.validating && this.results.length === 0
+        ? html`<div class="summary validating">Validating…</div>`
+        : this._renderSummary(conforms, summary, rest)}
+      ${this._renderSeverityGroup('Violations', 'Violation', grouped.violations)}
+      ${this._renderSeverityGroup('Warnings', 'Warning', grouped.warnings)}
+      ${this._renderSeverityGroup('Info', 'Info', grouped.infos)}
+    `;
+  }
+
+  private _renderSummary(conforms: boolean, summary: string, rest: number): unknown {
+    return html`
       <div class="summary ${conforms ? 'conforms' : 'non-conforms'}">
         ${summary}
         ${rest > 0
@@ -403,9 +424,6 @@ export class ValidationPanel extends LitElement {
             </button>`
           : nothing}
       </div>
-      ${this._renderSeverityGroup('Violations', 'Violation', grouped.violations)}
-      ${this._renderSeverityGroup('Warnings', 'Warning', grouped.warnings)}
-      ${this._renderSeverityGroup('Info', 'Info', grouped.infos)}
     `;
   }
 }

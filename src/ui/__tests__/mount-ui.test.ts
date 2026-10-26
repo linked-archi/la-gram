@@ -315,6 +315,25 @@ describe('mountUi', () => {
       expect(ui.validationPanel.results).toEqual([result]);
     });
 
+    it("drops the last model's findings when another opens, until its own come", () => {
+      const result: ValidationResult = {
+        focusNode: namedNode('urn:e:1') as unknown as NamedNode,
+        resultPath: namedNode('urn:p:1') as unknown as NamedNode,
+        sourceShape: namedNode('urn:s:1') as unknown as NamedNode,
+        message: 'boom',
+        severity: 'Violation',
+      };
+      app.components.eventBus.emit('validation-updated', { conforms: false, resultCount: 1, results: [result] });
+      // Validation is due (debounced, or running in the worker) when the model opens.
+      vi.spyOn(app, 'scheduleValidation').mockImplementation(() => {});
+      vi.spyOn(app, 'validationPending').mockReturnValue(true);
+      vi.spyOn(app, 'shapesGraph').mockReturnValue([result as never]);
+      app.components.eventBus.emit('model-loaded', { modelIri: 'urn:m:2' });
+      expect([ui.validationPanel.results, ui.validationPanel.validating, ui.shell.tabBadges]).toEqual([[], true, {}]);
+      app.components.eventBus.emit('validation-updated', { conforms: false, resultCount: 1, results: [result] });
+      expect([ui.validationPanel.results, ui.validationPanel.validating]).toEqual([[result], false]);
+    });
+
     it('regenerates the palette when a metamodel is loaded', () => {
       expect(ui.palettePanel.palette.elementGroups).toHaveLength(0);
 

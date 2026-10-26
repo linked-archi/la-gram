@@ -1807,6 +1807,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const results = detail?.results ?? [];
     validationPanel.conforms = detail?.conforms ?? true;
     validationPanel.results = results;
+    validationPanel.validating = false;
     // The violations show on the Validation tab, which may not be the open one.
     scopeValidation();
     // Every violation drawn is marked, whatever the tab's scope.
@@ -1892,6 +1893,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     selectConcept(undefined);
     refreshGraphs();
     showActiveView();
+    // The findings are the last model's until this one's come — seconds on a
+    // large model, where they read as this one's: none shown until then.
+    if (app.validationPending?.() && app.shapesGraph().length > 0) {
+      validationPanel.results = [];
+      validationPanel.conforms = true;
+      validationPanel.validating = true;
+    }
     scopeValidation();
   };
 

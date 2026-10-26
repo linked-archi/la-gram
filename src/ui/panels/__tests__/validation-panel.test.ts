@@ -74,6 +74,7 @@ function makeCtx(overrides: Record<string, any> = {}) {
     '_toggleSeverity',
     '_renderResultItem',
     '_renderSeverityGroup',
+    '_renderSummary',
     'render',
   ]) {
     if (typeof (ValidationPanel.prototype as any)[m] === 'function') {
@@ -214,6 +215,15 @@ describe('validation scope', () => {
     const noView = makeCtx({ results: results(), conforms: false });
     expect(noView.shownScope).toBe('model');
     expect(noView.shownResults).toHaveLength(3);
+  });
+
+  it('says it is validating, not that the model conforms, while the findings are awaited', () => {
+    const awaited = makeCtx({ validating: true, viewIris: new Set(['urn:view']) });
+    const o = flat(awaited.render());
+    expect(o).toContain('Validating…');
+    expect(o).not.toContain('conforms');
+    // Findings that came — an edit's, while the next validation runs — are shown.
+    expect(flat(makeCtx({ validating: true, results: results(), conforms: false, _scope: 'model' }).render())).toContain('✗ 2 violation(s)');
   });
 
   it('announces another scope, and only another', () => {
