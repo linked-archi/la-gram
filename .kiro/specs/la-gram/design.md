@@ -234,6 +234,19 @@ starts loading its symbol; until it arrives that marker uses built-in
 geometry, and is then replaced in place (same id, so every line using it
 follows). A symbol that cannot be loaded leaves the built-in marker.
 
+**Relationship icons** (Req 2.20). A relationship type's icon is its
+descriptor's `arch:prefVisNotation`; ArchiMate 4.0 and 3.2 publish none for
+their relationships (Basic does). For those, `withRelationshipIcons`
+(`notation-shapes.ts`) gives the palette `mount-ui` hands out a drawn one
+(`relationshipIconDataUri`): a standalone 24 × 24 SVG as a `data:` URI — a
+diagonal line, source at the lower left, in the type's line colour with its
+dashes shortened, and the built-in marker geometry of its end decorations at
+three quarters of the canvas's size. Built-in, not the published symbols: those
+load asynchronously, and an `<img>` cannot load what an SVG it shows
+references. The line colour is escaped into the markup. Every menu that offers
+relationship types takes its icon from the palette, as the append menu did:
+the change-type and connect-two menus now show them too.
+
 **Element shapes** (Req 2.18). `notation-shapes.ts` turns a shape into one
 geometry with two encodings: the drawn body (`shapeGeometry`: a `rect`,
 `ellipse`, `circle`, `polygon` or `path`, plus `details`, a path of inner lines)

@@ -273,6 +273,24 @@ describe('RdfReplaceMenuProvider', () => {
     expect(provider.getPopupMenuEntries({ id: 'connection-1' })).not.toEqual({});
   });
 
+  it('shows each type with its icon from the palette — published or drawn from its notation', () => {
+    const relationshipManager: RelationshipManager = {
+      getValidRelationships: vi.fn().mockReturnValue(rankedCandidates()),
+      createRelationship: vi.fn(),
+      deleteRelationship: vi.fn(),
+    };
+    const drawn = 'data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E';
+    const provider = new RdfReplaceMenuProvider(
+      relationshipManager,
+      () => ({ connectionId: 'connection-1', sourceTypeIri: TYPE_A, targetTypeIri: TYPE_B, currentTypeIri: SERVING }),
+      () => undefined,
+      (iri) => (iri === SERVING ? drawn : undefined),
+    );
+    const entries = Object.values(provider.getPopupMenuEntries({ id: 'connection-1' }));
+    expect(entries.find((e) => e.label === 'Serving')?.imageUrl).toBe(drawn);
+    expect(entries.filter((e) => e.imageUrl)).toHaveLength(1);
+  });
+
   it('gives every entry a selector-safe id derived from the type IRI', () => {
     expect(relationshipEntryId(SERVING)).toBe('replace-https-example-org-mm-Serving');
     expect(relationshipEntryId(SERVING)).toMatch(/^[a-zA-Z0-9-]+$/);

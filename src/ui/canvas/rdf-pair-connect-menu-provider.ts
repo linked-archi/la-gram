@@ -15,7 +15,7 @@
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
-import { ENTRY_CLASS, preferenceNotes, relationshipEntryId } from './rdf-replace-menu-provider.js';
+import { ENTRY_CLASS, preferenceNotes, relationshipEntryId, relationshipImageUrl, type RelationshipIconLookup } from './rdf-replace-menu-provider.js';
 
 export const PAIR_CONNECT_MENU_ID = 'la-pair-connect';
 
@@ -47,6 +47,8 @@ export interface PairConnectMenuEntry {
   title?: string;
   description?: string;
   search?: string;
+  /** The relationship type's icon. */
+  imageUrl?: string;
   action: (event: unknown) => void;
 }
 
@@ -55,6 +57,8 @@ export class RdfPairConnectMenuProvider {
     private readonly relationshipManager: RelationshipManager,
     private readonly resolve: PairConnectResolver,
     private readonly connect: PairConnectRequest,
+    /** A relationship type's icon, from the palette. */
+    private readonly iconFor?: RelationshipIconLookup,
   ) {}
 
   /** The entries for the selected pair, both directions; empty when nothing connects them. */
@@ -70,8 +74,10 @@ export class RdfPairConnectMenuProvider {
       const group = { id, name: `${source.label} → ${target.label}` };
       for (const candidate of this.relationshipManager.getValidRelationships(source.typeIri, target.typeIri)) {
         const notes = preferenceNotes(candidate).join(' · ') || undefined;
+        const imageUrl = relationshipImageUrl(candidate, this.iconFor);
         entries[`${id}-${relationshipEntryId(candidate.iri)}`] = {
           label: candidate.label,
+          ...(imageUrl ? { imageUrl } : {}),
           className: ENTRY_CLASS,
           group,
           title: `${source.label} ${candidate.label} ${target.label}`,

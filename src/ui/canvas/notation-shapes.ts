@@ -28,8 +28,10 @@ import type {
   Decoration,
   IconPlacement,
   LineStyle,
+  RelationshipVisualStyle,
   ShapeType,
 } from '../../metamodel-manager/notation.js';
+import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -1081,6 +1083,64 @@ function colorSlug(color: string): string {
 /** Stable id for the marker drawing `decoration` at `end` in `lineColor`. */
 export function markerId(decoration: Decoration, end: DecorationEnd, lineColor: string): string {
   return `la-marker-${decoration}-${end}-${colorSlug(lineColor)}`;
+}
+
+/** How much smaller a decoration is drawn on a relationship icon than on the canvas. */
+const ICON_MARKER_SCALE = 0.75;
+
+/** Text for an XML attribute value. */
+function xmlAttr(value: string | number): string {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * A relationship type's icon drawn from its notation — for a type whose
+ * notation publishes none (ArchiMate's relationships have none, Basic's have):
+ * a short line, source at the lower left, in its line style and colour, with
+ * its end decorations, as the canvas draws it. A type without a notation gets a
+ * plain line. A `data:` URI of a standalone SVG, for an `<img>`.
+ */
+export function relationshipIconDataUri(style: RelationshipVisualStyle | undefined): string {
+  const color = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+  const markers: string[] = [];
+  const ends: string[] = [];
+  for (const [end, decoration] of [['source', style?.sourceDecor], ['target', style?.targetDecor]] as const) {
+    const shape = decoration ? decorationShape(decoration) : null;
+    if (!shape) continue;
+    const fill = shape.fill === 'line' ? color : shape.fill === 'hollow' ? '#FFFFFF' : 'none';
+    const attrs = Object.entries(shape.attrs).map(([name, value]) => ` ${name}="${xmlAttr(value)}"`).join('');
+    markers.push(
+      `<marker id="${end}" viewBox="0 0 ${shape.width} ${shape.height}"` +
+        ` markerWidth="${shape.width * ICON_MARKER_SCALE}" markerHeight="${shape.height * ICON_MARKER_SCALE}"` +
+        ` refX="${shape.refX}" refY="${shape.refY}" markerUnits="userSpaceOnUse"` +
+        ` orient="${end === 'source' ? 'auto-start-reverse' : 'auto'}">` +
+        `<${shape.tag}${attrs} stroke="${xmlAttr(color)}" stroke-width="2" fill="${xmlAttr(fill)}"/></marker>`,
+    );
+    ends.push(` marker-${end === 'source' ? 'start' : 'end'}="url(#${end})"`);
+  }
+  // The canvas's dashes, shortened to the icon's length.
+  const dash = strokeDashArray(style?.lineStyle)
+    ?.split(' ')
+    .map((n) => Number(n) * 0.6)
+    .join(' ');
+  const svg =
+    `<svg xmlns="${SVG_NS}" viewBox="0 0 24 24" width="24" height="24">` +
+    (markers.length > 0 ? `<defs>${markers.join('')}</defs>` : '') +
+    `<line x1="3" y1="21" x2="21" y2="3" stroke="${xmlAttr(color)}" stroke-width="2"` +
+    (dash ? ` stroke-dasharray="${dash}"` : '') +
+    `${ends.join('')}/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/** The palette with an icon for every relationship type: the one its notation publishes, else one drawn from it. */
+export function withRelationshipIcons(palette: PaletteDefinition): PaletteDefinition {
+  if (palette.relationshipTypes.every((r) => r.iconUrl)) return palette;
+  return {
+    ...palette,
+    relationshipTypes: palette.relationshipTypes.map((r) =>
+      r.iconUrl ? r : { ...r, iconUrl: relationshipIconDataUri(r.relationshipStyle) },
+    ),
+  };
 }
 
 /**

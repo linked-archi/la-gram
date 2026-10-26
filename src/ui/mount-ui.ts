@@ -97,7 +97,7 @@ import { relationshipGraph } from '../model-manager/relationship-graph.js';
 import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
 import { assetUrl } from '../metamodel-manager/bundled-assets.js';
-import { iconHref, NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
+import { iconHref, NOTATION_DEFAULTS, withRelationshipIcons } from './canvas/notation-shapes.js';
 import { NotationStyleRegistry } from './canvas/notation-styles.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
@@ -1014,12 +1014,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       .flatMap((m) => (m.notationSetIri ? [m.notationSetIri] : []));
     // In load order too: the first language's classification stays the default grouping.
     const metamodelIris = app.loadedMetamodels().map((m) => m.metamodelIri);
-    const palette = paletteGenerator.generatePalette(currentMetamodelIri, {
-      ...(metamodelIris.length > 0 ? { metamodelIris } : {}),
-      ...(currentAxisIri ? { axisIri: currentAxisIri } : {}),
-      ...(context ? { presentationContextIri: context } : {}),
-      ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),
-    });
+    // A relationship type its notation publishes no icon for is shown with one drawn from its line and ends.
+    const palette = withRelationshipIcons(
+      paletteGenerator.generatePalette(currentMetamodelIri, {
+        ...(metamodelIris.length > 0 ? { metamodelIris } : {}),
+        ...(currentAxisIri ? { axisIri: currentAxisIri } : {}),
+        ...(context ? { presentationContextIri: context } : {}),
+        ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),
+      }),
+    );
     // The active axis may differ from the requested one when the metamodel does
     // not publish it; follow what the generator actually used.
     currentAxisIri = palette.activeAxisIri;

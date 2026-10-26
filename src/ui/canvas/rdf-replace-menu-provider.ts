@@ -46,6 +46,16 @@
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
+import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { iconHref } from './notation-shapes.js';
+
+/** A relationship type's icon as the palette has it — published, or drawn from its notation. */
+export type RelationshipIconLookup = (relationshipTypeIri: string) => string | undefined;
+
+/** The `<img>` source of a relationship type's icon, if it has one. */
+export function relationshipImageUrl(candidate: RelationshipTypeInfo, iconFor?: RelationshipIconLookup): string | undefined {
+  return iconHref(candidate.iconUrl ?? iconFor?.(candidate.iri), assetUrl) ?? undefined;
+}
 
 /** Provider id the menu is registered and opened under. */
 export const RELATIONSHIP_REPLACE_MENU_ID = 'la-relationship-replace';
@@ -121,6 +131,8 @@ export interface RdfPopupMenuEntry {
   title?: string;
   /** Secondary line, also matched by the search box. */
   description?: string;
+  /** The type's icon. */
+  imageUrl?: string;
   /** Extra text the search box matches. */
   search?: string;
   action: (event: unknown, entry?: unknown) => void;
@@ -149,10 +161,12 @@ export class RdfReplaceMenuProvider {
   private resolve: RelationshipReplaceContextResolver;
   private retype: RelationshipRetypeRequest;
 
+  /** @param iconFor A relationship type's icon, from the palette. */
   constructor(
     relationshipManager: RelationshipManager,
     resolve: RelationshipReplaceContextResolver,
     retype: RelationshipRetypeRequest,
+    private readonly iconFor?: RelationshipIconLookup,
   ) {
     this.relationshipManager = relationshipManager;
     this.resolve = resolve;
@@ -199,9 +213,11 @@ export class RdfReplaceMenuProvider {
     if (current) notes.push('current');
 
     const description = [notes.join(' · '), candidate.reason].filter(Boolean).join(' — ');
+    const imageUrl = relationshipImageUrl(candidate, this.iconFor);
 
     return {
       label: candidate.label,
+      ...(imageUrl ? { imageUrl } : {}),
       className: current ? `${ENTRY_CLASS} ${ENTRY_CLASS_CURRENT}` : ENTRY_CLASS,
       group: ENTRY_GROUP,
       title: notes.length > 0 ? `${candidate.label} (${notes.join(', ')})` : candidate.label,

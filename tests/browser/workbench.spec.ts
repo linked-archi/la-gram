@@ -665,6 +665,16 @@ describe('appending from the context pad', () => {
     await until(async () => (await menu.locator('.entry').allInnerTexts()).some((t) => t.includes('Serving')), 'the relationship step');
     const step = (await menu.locator('.entry .djs-popup-label').allInnerTexts()).map((t) => t.trim());
     expect(step).toEqual(['Serving', 'Flow', 'Triggering', 'Association', 'Directed Association']);
+    // Each with its icon: ArchiMate publishes none for its relationships, so each is drawn from its line and ends.
+    const relationshipIcons = await menu.locator('.entry img').evaluateAll((imgs) =>
+      imgs.map((i) => [(i as HTMLImageElement).src.startsWith('data:image/svg+xml'), (i as HTMLImageElement).naturalWidth > 0]),
+    );
+    expect(relationshipIcons).toEqual(Array(5).fill([true, true]));
+    // And in the palette.
+    const paletteRelationships = await page.locator('palette-panel .palette-item[data-kind="relationship"] img').evaluateAll((imgs) =>
+      imgs.filter((i) => (i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth > 0).length,
+    );
+    expect(paletteRelationships).toBeGreaterThanOrEqual(15);
     await session.screenshot('workbench-append-relationship');
     await menu.locator('.entry', { hasText: 'Serving' }).first().click();
 

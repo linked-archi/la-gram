@@ -711,12 +711,14 @@ export class DiagramCanvas {
       this.relationshipManager,
       (target) => this.resolveReplaceContext(target),
       (connectionId, typeIri) => this.applyRelationshipTypeChoice(connectionId, typeIri),
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
 
     this.pairConnectMenuProvider = new RdfPairConnectMenuProvider(
       this.relationshipManager,
       (target) => this.resolvePair(target),
       (source, target, candidate) => this.connectPair(source, target, candidate),
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
     this.contextPadProvider.setPairSupport({
       // The gate the other pad menus use: the menu has entries, or no button.

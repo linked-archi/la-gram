@@ -20,6 +20,8 @@ import {
   labelLayout,
   markerDefinition,
   markerId,
+  relationshipIconDataUri,
+  withRelationshipIcons,
   shapeGeometry,
   shapeLayout,
   shapePath,
@@ -555,5 +557,50 @@ describe('every ShapeType is exercised', () => {
     if (geometry.tag === 'polygon') {
       expect(element.getAttribute('points')).toMatch(/^[\d.,\s]+$/);
     }
+  });
+});
+
+describe('a relationship type\u2019s icon, drawn from its notation', () => {
+  const svgOf = (uri: string) => {
+    expect(uri.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
+    return new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(',') + 1)), 'image/svg+xml');
+  };
+
+  it('draws its line style, colour and end decorations, as the canvas does', () => {
+    const doc = svgOf(relationshipIconDataUri({ lineStyle: 'DottedLine', sourceDecor: 'CircleDot', targetDecor: 'HollowArrowhead', lineColor: '#5B9BD5' }));
+    expect(doc.querySelector('parsererror')).toBeNull();
+    const line = doc.querySelector('line')!;
+    expect([line.getAttribute('stroke'), line.getAttribute('marker-start'), line.getAttribute('marker-end')]).toEqual(['#5B9BD5', 'url(#source)', 'url(#target)']);
+    expect(line.getAttribute('stroke-dasharray')).toBeTruthy();
+    expect([...doc.querySelectorAll('marker')].map((m) => [m.id, m.getAttribute('orient')])).toEqual([
+      ['source', 'auto-start-reverse'],
+      ['target', 'auto'],
+    ]);
+    // A hollow head is white inside, in the line's colour around.
+    const head = doc.querySelector('marker#target > *')!;
+    expect([head.getAttribute('fill'), head.getAttribute('stroke')]).toEqual(['#FFFFFF', '#5B9BD5']);
+  });
+
+  it('is a plain black line without a notation, and keeps a stated colour from breaking out of its attribute', () => {
+    const plain = svgOf(relationshipIconDataUri(undefined));
+    expect(plain.querySelectorAll('marker')).toHaveLength(0);
+    expect(plain.querySelector('line')!.getAttribute('stroke')).toBe('#000000');
+    expect(plain.querySelector('line')!.hasAttribute('stroke-dasharray')).toBe(false);
+    const odd = svgOf(relationshipIconDataUri({ lineColor: '"/><script/>' }));
+    expect(odd.querySelector('parsererror')).toBeNull();
+    expect(odd.querySelector('script')).toBeNull();
+  });
+
+  it('is given to the palette\u2019s relationship types that publish none, and only to those', () => {
+    const palette = withRelationshipIcons({
+      elementGroups: [],
+      relationshipTypes: [
+        { iri: 'urn:serving', label: 'Serving', relationshipStyle: { targetDecor: 'OpenArrowhead' }, domainTypes: [], rangeTypes: [] },
+        { iri: 'urn:connection', label: 'Connection', iconUrl: 'basic/icons/relationship.svg', domainTypes: [], rangeTypes: [] },
+      ],
+    } as never);
+    expect(palette.relationshipTypes.map((r) => r.iconUrl?.slice(0, 19))).toEqual(['data:image/svg+xml;', 'basic/icons/relatio']);
+    const published = { elementGroups: [], relationshipTypes: [palette.relationshipTypes[1]!] };
+    expect(withRelationshipIcons(published as never)).toBe(published);
   });
 });
