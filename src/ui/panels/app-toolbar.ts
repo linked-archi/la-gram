@@ -33,6 +33,8 @@ export type ToolbarCommand =
   | 'rename-model'
   | 'model-settings'
   | 'open-view'
+  | 'view-back'
+  | 'view-forward'
   | 'new-view'
   | 'set-viewpoint'
   | 'add-metamodel'
@@ -149,6 +151,11 @@ export class AppToolbar extends LitElement {
     button.icon:hover,
     button.menu-button.open {
       background: #f1f3f4;
+    }
+    button.icon:disabled {
+      color: #bdc1c6;
+      background: none;
+      cursor: default;
     }
     .dropdown {
       position: absolute;
@@ -283,6 +290,10 @@ export class AppToolbar extends LitElement {
   @property({ type: Boolean }) dirty = false;
   @property({ attribute: false }) views: ViewInfo[] = [];
   @property({ type: String }) activeViewIri = '';
+  /** The view Back would go to, by name; empty when there is none. */
+  @property({ type: String }) backLabel = '';
+  /** The view Forward would go to, by name; empty when there is none. */
+  @property({ type: String }) forwardLabel = '';
   @property({ attribute: false }) viewpoints: LabelledIri[] = [];
   @property({ type: String }) activeViewpointIri = '';
   @property({ attribute: false }) loadedMetamodels: LabelledIri[] = [];
@@ -503,6 +514,26 @@ export class AppToolbar extends LitElement {
       <button class="icon" title="Undo (Ctrl+Z)" @click=${() => this._cmd('undo')}>↶</button>
       <button class="icon" title="Redo (Ctrl+Y)" @click=${() => this._cmd('redo')}>↷</button>
       <span class="sep"></span>
+      <button
+        class="icon"
+        data-command="view-back"
+        title=${this.backLabel ? `Back to ${this.backLabel} (Alt+←)` : 'Back (no earlier view)'}
+        aria-label="Back to the previous view"
+        ?disabled=${!this.backLabel}
+        @click=${() => this._cmd('view-back')}
+      >
+        ←
+      </button>
+      <button
+        class="icon"
+        data-command="view-forward"
+        title=${this.forwardLabel ? `Forward to ${this.forwardLabel} (Alt+→)` : 'Forward (no later view)'}
+        aria-label="Forward to the next view"
+        ?disabled=${!this.forwardLabel}
+        @click=${() => this._cmd('view-forward')}
+      >
+        →
+      </button>
       <label class="field"
         >View
         <select

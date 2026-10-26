@@ -630,6 +630,20 @@ vocabulary does (an object property, a range that is a class), and for
 model's elements, relationships and views by name (the first 100, typing
 narrows), or an address typed (`https:`, `urn:`, `mailto:`) — a link — or text.
 
+### Back and forward between views
+
+`ui/view-history.ts` keeps the views visited, as a browser keeps pages. Every
+way of opening a view ends in `ModelSession.openView` and its `view-opened`;
+there, mount-ui records where the view on the canvas is being left — the
+viewbox (`DiagramCanvas.viewport`) and the selection — and the new visit, unless
+Back or Forward is opening it, in which case the view is put back as it was left
+(`restoreViewport`, `selectIris`). A new visit drops the later ones; a view
+opened twice in a row is one visit; a deleted view is skipped; 50 are kept; the
+history is cleared with another model, and the view open at mount is the first
+visit. The toolbar's ← and → name the view they go to; Alt+← / Alt+→ do the same
+outside text fields and dialogs (`preventDefault`, so a browser does not leave
+the page for its own history).
+
 ### Type guide (About ‹type›)
 
 The left column is the model tree over `type-guide-panel` (the shell's `guide`

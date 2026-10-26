@@ -39,6 +39,7 @@ import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeCl
 import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { conceptStatements, viewStatements } from '../model-manager/rdf-scope.js';
+import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
@@ -1328,11 +1329,24 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return out;
   };
 
+  // ── Back and forward between views: the history ─────────────────────
+  // Every way of opening a view comes through `view-opened`; each opening is a
+  // visit, and the view it leaves keeps where it was (visible area, selection)
+  // for when Back or Forward returns to it. Per model.
+  const viewHistory = new ViewHistory((iri) => Boolean(viewManager.getView?.(iri)));
+  /** The view on the canvas: the one being left when another opens. */
+  let shownViewIri: string | undefined;
+  /** The visit Back or Forward is opening, to put back as it was left. */
+  let travelling: ViewVisit | undefined;
+
   const refreshToolbar = (): void => {
     appToolbar.modelLabel = session.modelLabel();
     appToolbar.dirty = app.isDirty();
     appToolbar.views = viewManager.getViews();
     appToolbar.activeViewIri = session.activeViewIri ?? '';
+    const named = (iri: string | undefined) => (iri ? viewManager.getView?.(iri)?.label || 'Untitled view' : '');
+    appToolbar.backLabel = named(viewHistory.peekBack()?.viewIri);
+    appToolbar.forwardLabel = named(viewHistory.peekForward()?.viewIri);
     appToolbar.viewpoints = viewpointManager.getViewpoints().map((v) => ({ iri: v.iri, label: v.label }));
     appToolbar.activeViewpointIri = (session.activeViewIri && viewManager.getView?.(session.activeViewIri)?.viewpointIri) || '';
     appToolbar.loadedMetamodels = app.loadedMetamodels().map((m) => ({
@@ -1554,6 +1568,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const { command, value } = detail;
     try {
       switch (command) {
+        case 'view-back':
+          return travel('back');
+        case 'view-forward':
+          return travel('forward');
         case 'new-model': {
           if (!(await guardUnsaved('Start a new model'))) return;
           const values = await dialogs.form(
@@ -1785,7 +1803,33 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     warming = idle ? idle(run, { timeout: 2000 }) : (setTimeout(run, 200) as unknown as number);
   };
 
+  // ── Back and forward between views (the history is declared with the toolbar) ──
+  const placeOnCanvas = (): ViewPlace => {
+    const viewbox = diagramCanvas.viewport();
+    return { ...(viewbox ? { viewbox } : {}), selection: diagramCanvas.selectedIris() };
+  };
+  /** Back or Forward: leave the open view where it is, and open the visit's view as it was left. */
+  const travel = (direction: 'back' | 'forward'): void => {
+    viewHistory.leave(placeOnCanvas());
+    const visit = direction === 'back' ? viewHistory.back() : viewHistory.forward();
+    if (!visit) return;
+    travelling = visit;
+    session.openView(visit.viewIri);
+  };
+  // Alt+← and Alt+→ — not in a text field, where they move by word, nor under a dialog.
+  const onHistoryKey = (e: KeyboardEvent): void => {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    const target = e.composedPath?.()[0] as HTMLElement | undefined;
+    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName ?? ''))) return;
+    if (document.querySelector('.la-dialog')) return;
+    e.preventDefault();
+    travel(e.key === 'ArrowLeft' ? 'back' : 'forward');
+  };
+  globalThis.addEventListener?.('keydown', onHistoryKey);
+
   const onModelLoaded: ModelEventHandler = () => {
+    viewHistory.clear();
+    shownViewIri = undefined;
     warmRelationshipTables();
     void refreshHistory();
     guides.clear();
@@ -1796,7 +1840,20 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const onViewOpened: ModelEventHandler = () => {
+    const viewIri = session.activeViewIri;
+    const place = travelling?.viewIri === viewIri ? travelling?.place : undefined;
+    if (!travelling) {
+      if (shownViewIri && shownViewIri !== viewIri) viewHistory.leave(placeOnCanvas());
+      if (viewIri) viewHistory.visit(viewIri);
+    }
+    travelling = undefined;
+    shownViewIri = viewIri;
     showActiveView();
+    // Back or Forward: the view as it was left.
+    if (place) {
+      if (place.viewbox) diagramCanvas.restoreViewport(place.viewbox);
+      diagramCanvas.selectIris(place.selection ?? []);
+    }
     // The RDF panel follows the open view (and draws the selection in it).
     rdfPanel.scheduleRefresh();
     // A view opened from a maximized panel (a new view from results, a
@@ -1865,6 +1922,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   eventBus.on('metamodel-loaded', onMetamodelLoaded);
   eventBus.on('model-loaded', onModelLoaded);
   eventBus.on('view-opened', onViewOpened);
+  // The view open before these listeners: the first visit.
+  if (session.activeViewIri) {
+    viewHistory.visit(session.activeViewIri);
+    shownViewIri = session.activeViewIri;
+  }
   eventBus.on('views-changed', onViewsChanged);
   eventBus.on('model-changed', onModelChanged);
   eventBus.on('selection-changed', onCanvasSelection);
@@ -1910,6 +1972,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     graphPanel.removeEventListener('graph-new-view', onGraphNewView);
     shell.removeEventListener('guide-panel-changed', onGuidePanelChanged);
     shell.removeEventListener('rdf-panel-changed', onRdfPanelChanged);
+    globalThis.removeEventListener?.('keydown', onHistoryKey);
     propertyPanel.removeEventListener('property-retype', onPropertyRetype);
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);

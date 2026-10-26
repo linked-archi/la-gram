@@ -1136,6 +1136,41 @@ export class DiagramCanvas {
     this.setMarkers(LOCKED_MARKER, iris);
   }
 
+  /** The visible area, in diagram coordinates — restored with {@link restoreViewport}. */
+  viewport(): { x: number; y: number; width: number; height: number } | undefined {
+    const canvas = this.service<{ viewbox(): { x: number; y: number; width: number; height: number } }>('canvas');
+    if (!canvas) return undefined;
+    try {
+      const { x, y, width, height } = canvas.viewbox();
+      return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0 ? { x, y, width, height } : undefined;
+    } catch {
+      return undefined; // jsdom has no layout
+    }
+  }
+
+  /** Show a visible area {@link viewport} returned. */
+  restoreViewport(box: { x: number; y: number; width: number; height: number }): void {
+    try {
+      this.service<{ viewbox(box: unknown): unknown }>('canvas')?.viewbox(box);
+    } catch {
+      /* jsdom has no layout */
+    }
+  }
+
+  /** The concepts selected on the canvas. */
+  selectedIris(): string[] {
+    const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+    return selected.map((element) => element.businessObject?.iri).filter((iri): iri is string => Boolean(iri));
+  }
+
+  /** Select these concepts, as far as the open view draws them. */
+  selectIris(iris: readonly string[]): void {
+    const services = this.services();
+    if (!services) return;
+    const elements = iris.map((iri) => services.elementRegistry.get(iri) ?? this.findConnection(iri)).filter(Boolean);
+    services.selection.select(elements);
+  }
+
   /** Select a concept on the canvas and scroll it into view. Returns whether it is drawn. */
   reveal(iri: string): boolean {
     const services = this.services();

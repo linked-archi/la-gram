@@ -1119,6 +1119,46 @@ describe('changing an element’s type', () => {
     expect(selected).toEqual(expect.arrayContaining([ids.a, ids.b, ids.r]));
     findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view: ok');
   }, 90_000);
+
+  it('goes back to the previous view as it was left — zoom and scroll — from the toolbar or with Alt+←', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const views = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const first = app.session.activeViewIri as string;
+      const actor = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#BusinessActor', app.session.modelIri, { label: 'Clerk' }).value;
+      app.components.viewManager.addElementToView(first, actor, { x: 200, y: 150, width: 120, height: 55 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { first, second: app.session.createView('Diagram', { label: 'Elsewhere', open: false }) as string };
+    });
+    const canvas = () => (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('canvas');
+    const viewbox = () =>
+      page.evaluate(() => {
+        const vb = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('canvas').viewbox();
+        return { x: Math.round(vb.x), y: Math.round(vb.y), scale: Math.round(vb.scale * 100) / 100 };
+      });
+    const active = () => page.evaluate(() => (window as any).__LA_GRAM_APP__.session.activeViewIri as string);
+    void canvas;
+    // Zoomed in somewhere in the first view.
+    await page.evaluate(() => (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('canvas').zoom(1.7, { x: 300, y: 200 }));
+    const left = await viewbox();
+
+    await page.locator('app-toolbar select[aria-label="Open view"]').selectOption(views.second);
+    await until(async () => (await active()) === views.second, 'the second view');
+    const back = page.locator('app-toolbar button[data-command="view-back"]');
+    expect(await back.getAttribute('title')).toBe('Back to Default View (Alt+←)');
+    await page.evaluate(() => (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('canvas').zoom(0.6));
+
+    await back.click();
+    await until(async () => (await active()) === views.first, 'back to the first view');
+    expect(await viewbox()).toEqual(left);
+    // Forward with the keyboard, the canvas focused.
+    await page.locator('.la-diagram-host').click({ position: { x: 600, y: 400 } });
+    await page.keyboard.press('Alt+ArrowRight');
+    await until(async () => (await active()) === views.second, 'forward to the second view');
+    expect((await viewbox()).scale).toBe(0.6);
+    findings.push('back and forward between views, as they were left: ok');
+  }, 90_000);
 });
 
 describe('Basic, the generic language', () => {

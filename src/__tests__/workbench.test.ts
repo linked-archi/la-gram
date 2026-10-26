@@ -597,6 +597,48 @@ describe('the workbench', () => {
     for (const iri of [placed, unplaced]) els.deleteElement(iri);
   });
 
+  it('goes back and forward between the views opened — from the toolbar, the tree, the property panel — as they were left', async () => {
+    const start = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const second = app.session.createView('Diagram', { label: 'Second', open: false });
+    const third = app.session.createView('Diagram', { label: 'Third', open: false });
+    // A concept in the second view, to find selected again on coming back.
+    const actor = app.components.elementManager.createElement(`${AM4}BusinessActor`, model, { label: 'Back again' }).value;
+    app.components.viewManager.addElementToView(second, actor, { x: 100, y: 100, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const at = () => app.session.activeViewIri;
+    const labels = () => [ui.appToolbar.backLabel, ui.appToolbar.forwardLabel];
+
+    // The toolbar's view list, then the tree, then the property panel's "Appears in views".
+    await ui.runCommand({ command: 'open-view', value: second });
+    ui.diagramCanvas.reveal(actor);
+    ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'open-view', iri: third, kind: 'view' } }));
+    await vi.waitFor(() => expect(at()).toBe(third));
+    ui.propertyPanel.dispatchEvent(new CustomEvent('panel-open-view', { detail: { viewIri: start }, bubbles: true, composed: true }));
+    expect(at()).toBe(start);
+    expect(labels()).toEqual(['Third', '']);
+
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(third);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(second);
+    // As it was left: its concept selected again.
+    expect(ui.diagramCanvas.selectedIris()).toEqual([actor]);
+    expect(labels()).toEqual([expect.any(String), 'Third']);
+    await ui.runCommand({ command: 'view-forward' });
+    expect(at()).toBe(third);
+    // Alt+← too.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true }));
+    expect(at()).toBe(second);
+    // Another view opened from here drops what was forward.
+    await ui.runCommand({ command: 'open-view', value: start });
+    expect(labels()).toEqual(['Second', '']);
+
+    ui.selectConcept(undefined);
+    app.components.elementManager.deleteElement(actor);
+    for (const view of [second, third]) app.session.deleteView(view);
+  });
+
   it('creates, names and opens a new view from the toolbar', async () => {
     script.answers.push('Application landscape');
     await ui.runCommand({ command: 'new-view', value: 'Diagram' });
