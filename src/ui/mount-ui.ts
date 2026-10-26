@@ -52,6 +52,7 @@ import './panels/app-toolbar.js';
 import './panels/palette-panel.js';
 import './panels/canvas-toolbar.js';
 import './panels/property-panel.js';
+import { fieldName } from './panels/property-panel.js';
 import './panels/model-explorer.js';
 import './panels/validation-panel.js';
 import './panels/sparql-editor.js';
@@ -455,6 +456,18 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   validationPanel.slot = 'validation';
   validationPanel.validator = validator;
   validationPanel.labelFor = (iri) => labelOf(store, iri);
+  // As the tree lists it: a relationship without a name by its ends, an element without one as unnamed.
+  validationPanel.describe = (iri) => {
+    const concept = contentsIndex.concept(iri);
+    if (!concept) {
+      const view = viewManager.getView?.(iri);
+      return view ? { name: view.label || 'Untitled view', type: 'View' } : { name: labelOf(store, iri) };
+    }
+    if (concept.kind === 'model') return { name: concept.summary.label, type: 'Model' };
+    const unnamed = concept.kind !== 'relationship' && !hasLabel(store, iri);
+    return { name: unnamed ? 'Unnamed' : concept.summary.label, type: concept.summary.typeLabel, ...(unnamed ? { unnamed } : {}) };
+  };
+  validationPanel.fieldNameFor = (predicate) => fieldName(predicate, undefined, propertyPanel.nameOf);
   // No data graph: the panel shows the app's reports (`validation-updated`), and
   // a copy of every graph would only be held in memory (Task 22).
   validationPanel.shapesGraph = app.shapesGraph();
@@ -619,7 +632,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   shell.addEventListener('rdf-panel-changed', onRdfPanelChanged);
 
   let selecting = false;
-  const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean; fromGraph?: boolean } = {}): void => {
+  /**
+   * @param options.theView `iri` is the open view, shown because nothing is
+   *   selected on the canvas: neither revealed in the tree nor taking the
+   *   type guide from a palette pick.
+   */
+  const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean; fromGraph?: boolean; theView?: boolean } = {}): void => {
     if (selecting) return;
     selecting = true;
     try {
@@ -629,14 +647,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
       // A palette pick stays until something is selected: starting to create
       // it clears the canvas selection, and so may a click on empty canvas.
-      if (iri) {
+      if (iri && !(options.theView && guideFromPalette)) {
         typeGuidePanel.guideIri = guideIriFor(iri);
         guideFromPalette = false;
-      } else if (!guideFromPalette) {
+      } else if (!iri && !guideFromPalette) {
         typeGuidePanel.guideIri = '';
       }
-      if (iri) modelExplorer.revealIri(iri);
-      else modelExplorer.selectedIri = '';
+      if (iri && !options.theView) modelExplorer.revealIri(iri);
+      else modelExplorer.selectedIri = iri ?? '';
       catalogView.selectedIri = iri ?? '';
       rdfPanel.selectedIri = iri ?? '';
       rdfPanel.selectedIris = iri ? [iri] : [];
@@ -660,12 +678,20 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onValidationNavigate = (e: Event): void => {
     void revealAnywhere((e as CustomEvent<ValidationNavigateDetail>).detail.focusNodeIri);
   };
+  /** Nothing selected: the open view is, as a click on it in the tree selects it — its properties shown. */
+  const selectTheView = (): void => {
+    selectConcept(session.activeViewIri, { fromCanvas: true, theView: true });
+  };
   const onCanvasSelection: ModelEventHandler = (event) => {
     if (selecting) return;
     const iri = event.detail?.iri as string | undefined;
+    if (!iri) {
+      selectTheView();
+      return;
+    }
     selectConcept(iri, { fromCanvas: true });
     // The rest of the panels follow the first; the RDF panel shows them all.
-    rdfPanel.selectedIris = (event.detail?.iris as string[] | undefined) ?? (iri ? [iri] : []);
+    rdfPanel.selectedIris = (event.detail?.iris as string[] | undefined) ?? [iri];
   };
 
   modelExplorer.addEventListener('explorer-select', onExplorerSelect);
@@ -942,7 +968,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const deleteFromModel = async (iri: string): Promise<void> => {
     const result = await diagramCanvas.deleteFromModel(iri);
     if (result) {
-      selectConcept(undefined);
+      selectTheView();
       eventBus.emit('model-changed', { origin: 'explorer' });
     }
   };
@@ -1890,9 +1916,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     void refreshHistory();
     guides.clear();
     diagramCanvas.setModelIri(session.modelIri ?? DEFAULT_MODEL_IRI);
-    selectConcept(undefined);
     refreshGraphs();
     showActiveView();
+    // Nothing selected in another model: its open view is.
+    selectTheView();
     // The findings are the last model's until this one's come — seconds on a
     // large model, where they read as this one's: none shown until then.
     if (app.validationPending?.() && app.shapesGraph().length > 0) {
@@ -1951,7 +1978,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onElementDeleted: ModelEventHandler = (event) => {
     const iri = event.detail?.iri as string | undefined;
     if (iri && iri === propertyPanel.selectedIri && store.getQuads(namedNode(iri) as unknown as NamedNode).length === 0) {
-      selectConcept(undefined);
+      selectTheView();
     }
   };
 

@@ -744,7 +744,10 @@ export class DiagramCanvas {
       () => this.services()?.popupMenu.refresh(),
     );
 
-    this.contextMenuProvider = new RdfContextMenuProvider((target) => this.contextMenuActions(target));
+    this.contextMenuProvider = new RdfContextMenuProvider(
+      (target) => this.contextMenuActions(target),
+      () => this.services()?.popupMenu.close(),
+    );
 
     this.appendMenuProvider = new RdfAppendMenuProvider(
       (target) => this.resolveAppendContext(target),
@@ -3174,6 +3177,16 @@ export class DiagramCanvas {
         iri,
         iris: selected.map((element) => element.businessObject?.iri).filter(Boolean),
       });
+    });
+
+    // A click on the empty canvas with nothing selected changes no selection,
+    // so diagram-js says nothing; it is said all the same — what was selected
+    // elsewhere (the tree) gives way to the view. Before diagram-js's own
+    // handler (1000), which clears a selection and says so itself.
+    djs.on('element.click', 1500, (event: { element?: DjsShape }) => {
+      const services = this.services();
+      if (!services || event.element !== services.canvas.getRootElement()) return;
+      if (services.selection.get().length === 0) this.eventBus.emit('selection-changed', { iri: undefined, iris: [] });
     });
   }
 

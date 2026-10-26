@@ -30,6 +30,10 @@ describe('the model contents index', () => {
     same();
     const assigned = r.createQualifiedRelationship({ typeIri: AM4 + 'Assignment', sourceIri: actor, targetIri: role }).iri;
     same();
+    // One concept as the tree lists it: its kind, name and type; a view is none.
+    expect(index.concept(actor)).toMatchObject({ kind: 'element', summary: { label: 'Clerk', typeIri: AM4 + 'BusinessActor' } });
+    expect(index.concept(assigned)).toMatchObject({ kind: 'relationship', summary: { label: 'Clerk → Agent' } });
+    expect(index.concept(v.getViews()[0]!.iri)).toBeUndefined();
 
     // Renamed: the relationship labelled with its ends' names follows — and
     // only the concepts touched are read, not the whole model.

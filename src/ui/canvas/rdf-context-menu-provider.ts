@@ -34,7 +34,15 @@ export interface ContextMenuAction {
 export type ContextMenuActions = (target: unknown) => ContextMenuAction[];
 
 export class RdfContextMenuProvider {
-  constructor(private readonly actionsFor: ContextMenuActions) {}
+  /**
+   * @param close Closes the menu once an entry has run: diagram-js closes it by
+   *   itself only when the model or the zoom changes, so "Select all",
+   *   "Properties" or "Copy IRI" left it open, over the canvas.
+   */
+  constructor(
+    private readonly actionsFor: ContextMenuActions,
+    private readonly close: () => void = () => {},
+  ) {}
 
   getPopupMenuEntries(target: unknown): RdfPopupMenuEntries {
     const entries: RdfPopupMenuEntries = {};
@@ -44,7 +52,10 @@ export class RdfContextMenuProvider {
         className: `${CONTEXT_MENU_ENTRY_CLASS} la-context-${action.id}`,
         group: action.section,
         title: action.shortcut ? `${action.label} (${action.shortcut})` : action.label,
-        action: () => action.run(),
+        action: () => {
+          this.close();
+          action.run();
+        },
       };
     }
     return entries;

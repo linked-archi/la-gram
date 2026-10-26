@@ -128,6 +128,16 @@ describe('the right-click menu', () => {
     expect(rename).toHaveBeenCalled();
     expect(provider.getPopupMenuEntries('root')).toEqual({});
   });
+
+  it('closes before an entry runs — whatever it does, and so another menu it opens stays', () => {
+    const order: string[] = [];
+    const provider = new RdfContextMenuProvider(
+      () => [{ id: 'select-all', label: 'Select all', section: 'view', run: () => order.push('run') }],
+      () => order.push('close'),
+    );
+    (provider.getPopupMenuEntries('root') as Record<string, { action: () => void }>)['select-all']!.action();
+    expect(order).toEqual(['close', 'run']);
+  });
 });
 
 describe('RetypeElementHandler', () => {

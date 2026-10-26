@@ -220,7 +220,7 @@ function collectFacts(quads: Iterable<Quad>): Map<string, ConceptFacts> {
 }
 
 /** A concept as the tree lists it, or `undefined` when it is not one (geometry, a view). */
-type Summarised =
+export type Summarised =
   | { kind: 'model'; summary: { iri: string; label: string } }
   | { kind: 'element' | 'unclassified'; summary: ConceptSummary }
   | { kind: 'relationship'; summary: RelationshipSummary };
@@ -365,8 +365,7 @@ export class ModelContentsIndex {
 
   /** The model's contents now. The lists are the caller's to keep or change. */
   contents(views: ViewInfo[]): ModelContents {
-    if (this.whole) this.readWhole();
-    else if (this.changed.size > 0) this.readChanged();
+    this.catchUp();
     return {
       ...(this.lists.model ? { model: this.lists.model } : {}),
       views,
@@ -374,6 +373,17 @@ export class ModelContentsIndex {
       relationships: this.lists.relationships.slice(),
       unclassified: this.lists.unclassified.slice(),
     };
+  }
+
+  /** One concept as the tree lists it — its kind, name and type — or `undefined` when it is none (a view, a diagram node). */
+  concept(iri: string): Summarised | undefined {
+    this.catchUp();
+    return this.concepts.get(iri);
+  }
+
+  private catchUp(): void {
+    if (this.whole) this.readWhole();
+    else if (this.changed.size > 0) this.readChanged();
   }
 
   private readWhole(): void {

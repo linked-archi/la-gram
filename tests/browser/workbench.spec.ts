@@ -1121,10 +1121,31 @@ describe('changing an element’s type', () => {
       'Copy IRI', 'Delete view…',
     ]);
     await menu.locator('.entry', { hasText: 'Select all' }).click();
+    // An entry that changes neither the model nor the zoom closes the menu too.
+    await menu.waitFor({ state: 'hidden' });
     const selected = await page.evaluate(() =>
       (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram().get('selection').get().map((e: any) => e.id) as string[],
     );
     expect(selected).toEqual(expect.arrayContaining([ids.a, ids.b, ids.r]));
+
+    // A click on the empty canvas: nothing selected there, so the Properties tab shows the view —
+    // also when what it showed was picked in the tree, with nothing on the canvas to deselect.
+    const shown = () => page.evaluate(() => {
+      const panel = (window as any).__LA_GRAM_UI__.propertyPanel;
+      return [panel.selectedIri, panel.heading?.kind] as [string, string];
+    });
+    await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80);
+    await until(async () => (await shown())[0] === ids.v, 'the view shown');
+    expect(await shown()).toEqual([ids.v, 'View']);
+    // The model, picked in the tree: not drawn, so nothing is selected on the canvas.
+    const modelIri = await page.evaluate(() => {
+      const iri = (window as any).__LA_GRAM_APP__.session.modelIri as string;
+      (window as any).__LA_GRAM_UI__.selectConcept(iri);
+      return iri;
+    });
+    expect(await shown()).toEqual([modelIri, 'Model']);
+    await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80);
+    await until(async () => (await shown())[0] === ids.v, 'the view shown again');
     findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view: ok');
   }, 90_000);
 

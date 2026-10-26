@@ -61,6 +61,15 @@ function storedScope(): ValidationScope {
   }
 }
 
+/** A finding's concept, in words: its name — or its ends', or none — and its type. */
+export interface FocusDescription {
+  name: string;
+  /** The type, in words (`Business Actor`); none for the model. */
+  type?: string;
+  /** It has no name of its own: `name` says so ("Unnamed"). */
+  unnamed?: boolean;
+}
+
 /** Groups validation results by severity. */
 export interface GroupedResults {
   violations: ValidationResult[];
@@ -109,6 +118,11 @@ export function buildSummary(conforms: boolean, results: ValidationResult[], sub
     parts.push(`${grouped.infos.length} info(s)`);
   }
   return `✗ ${parts.join(', ')}`;
+}
+
+/** Whether a term's value is an IRI (`scheme:…`), not a blank node's id (`e7c5f6…`, `_:b0`). */
+export function isIri(value: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value) && !value.startsWith('_:');
 }
 
 /** The findings whose focus node is one of `iris`: a view's. */
@@ -188,7 +202,7 @@ export class ValidationPanel extends LitElement {
     }
 
     .severity-group {
-      margin: 4px 0;
+      margin: 4px 0 8px;
     }
 
     .severity-header {
@@ -198,11 +212,79 @@ export class ValidationPanel extends LitElement {
       text-transform: uppercase;
       cursor: pointer;
       user-select: none;
+      background: #f8f9fa;
+      border-top: 1px solid #e8eaed;
+      border-bottom: 1px solid #e8eaed;
     }
 
     .severity-header.violation { color: #c62828; }
     .severity-header.warning { color: #e65100; }
     .severity-header.info { color: #1565c0; }
+
+    .severity-items.hidden {
+      display: none;
+    }
+
+    /* One finding a row: a bar in its severity's colour, a line under it. */
+    .result-item {
+      --severity: #c62828;
+      padding: 6px 12px 7px 10px;
+      border-left: 3px solid var(--severity);
+      border-bottom: 1px solid #eceff1;
+      cursor: pointer;
+      line-height: 1.35;
+    }
+
+    .result-item.warning { --severity: #e65100; }
+    .result-item.info { --severity: #1565c0; }
+
+    .result-item:hover {
+      background: #f5f8fc;
+    }
+
+    .result-item:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: -2px;
+    }
+
+    .result-focus {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: 6px;
+      font-weight: 600;
+      color: #202124;
+      overflow-wrap: anywhere;
+    }
+
+    .result-focus .unnamed {
+      font-style: italic;
+      font-weight: 500;
+      color: #5f6368;
+    }
+
+    .result-focus .type {
+      font-size: 11px;
+      font-weight: normal;
+      color: #5f6368;
+    }
+
+    .result-message {
+      margin-top: 1px;
+      color: #3c4043;
+      overflow-wrap: anywhere;
+    }
+
+    .result-details {
+      margin-top: 3px;
+      font-size: 11px;
+      color: #5f6368;
+    }
+
+    .result-details .field {
+      color: #3c4043;
+      font-weight: 500;
+    }
   `;
 
   /** Validation results to display. */
@@ -228,6 +310,14 @@ export class ValidationPanel extends LitElement {
   /** Names concepts (their `skos:prefLabel`) instead of showing IRI tails. */
   @property({ attribute: false })
   labelFor?: (iri: string) => string;
+
+  /** Describes a finding's concept — name and type — as the model tree does; else `labelFor` names it. */
+  @property({ attribute: false })
+  describe?: (iri: string) => FocusDescription;
+
+  /** Names a finding's property as the Properties tab does (`Name` for `skos:prefLabel`). */
+  @property({ attribute: false })
+  fieldNameFor?: (predicate: string) => string;
 
   /** Whether the findings are being awaited: another model was opened, and none of its have come yet. */
   @property({ type: Boolean })
@@ -339,18 +429,38 @@ export class ValidationPanel extends LitElement {
   }
 
   _renderResultItem(result: ValidationResult): unknown {
+    const focus = result.focusNode.value;
+    const about = this.describe?.(focus) ?? { name: this.labelFor?.(focus) ?? iriLabel(focus) };
+    // A path or shape written inline in the shapes is a blank node: its id says
+    // nothing. The validator hands every term on as a named node, so it is told by its value.
+    const named = (term: { termType?: string; value: string } | undefined) =>
+      term && term.termType !== 'BlankNode' && isIri(term.value) ? term.value : undefined;
+    const path = named(result.resultPath);
+    const shape = named(result.sourceShape);
     return html`
       <div
-        class="result-item"
+        class="result-item ${result.severity.toLowerCase()}"
+        role="button"
+        tabindex="0"
+        title="Show the concept"
         @click=${() => this._onResultClick(result)}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          this._onResultClick(result);
+        }}
       >
-        <div class="result-focus" title=${result.focusNode.value}>
-          ${this.labelFor?.(result.focusNode.value) ?? iriLabel(result.focusNode.value)}
+        <div class="result-focus">
+          <span class=${about.unnamed ? 'unnamed' : 'name'} title=${focus}>${about.name}</span>
+          ${about.type ? html`<span class="type">${about.type}</span>` : nothing}
         </div>
         <div class="result-message">${result.message}</div>
         <div class="result-details">
-          Path: ${iriLabel(result.resultPath.value)} ·
-          Shape: ${iriLabel(result.sourceShape.value)}
+          ${path
+            ? html`Property: <span class="field" title=${path}>${this.fieldNameFor?.(path) ?? iriLabel(path)}</span>`
+            : nothing}
+          ${path && shape ? html` · ` : nothing}
+          ${shape ? html`Shape: <span title=${shape}>${iriLabel(shape)}</span>` : nothing}
         </div>
       </div>
     `;

@@ -613,6 +613,46 @@ describe('the workbench', () => {
     for (const iri of [placed, unplaced]) els.deleteElement(iri);
   });
 
+  it('shows the open view when nothing is selected on the canvas, as a click on it in the tree does', () => {
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const els = app.components.elementManager;
+    const diagram = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const placed = els.createElement(`${AM4}BusinessActor`, model, { label: 'Drawn' }).value;
+    app.components.viewManager.addElementToView(view, placed, { x: 100, y: 500, width: 120, height: 55 });
+    const elsewhere = els.createElement(`${AM4}BusinessActor`, model, { label: 'Not drawn' }).value;
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const shown = () => [ui.propertyPanel.selectedIri, ui.propertyPanel.heading?.kind];
+    const clickCanvas = () =>
+      diagram.get('eventBus').fire('element.click', { element: diagram.get('canvas').getRootElement(), originalEvent: new MouseEvent('click') });
+
+    // Selected on the canvas, then a click on the empty canvas: the view.
+    diagram.get('selection').select(diagram.get('elementRegistry').get(placed));
+    expect(shown()).toEqual([placed, 'Element']);
+    clickCanvas();
+    expect(shown()).toEqual([view, 'View']);
+    expect(diagram.get('selection').get()).toEqual([]);
+    // Picked in the tree, nothing selected on the canvas — no selection to clear: the view all the same.
+    ui.selectConcept(elsewhere);
+    expect(shown()).toEqual([elsewhere, 'Element']);
+    clickCanvas();
+    expect(shown()).toEqual([view, 'View']);
+
+    // Another view opened — nothing selected in it: that one.
+    const second = app.components.viewManager.createView('Diagram', undefined, { label: 'Second', modelIri: model }).value;
+    app.session.openView(second);
+    expect(shown()).toEqual([second, 'View']);
+    ui.selectConcept(elsewhere);
+    app.session.openView(view);
+    expect(shown()).toEqual([view, 'View']);
+
+    app.components.viewManager.deleteView(second);
+    app.components.eventBus.emit('views-changed', {});
+    ui.selectConcept(undefined);
+    for (const iri of [placed, elsewhere]) els.deleteElement(iri);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+  });
+
   it('goes back and forward between the views opened — from the toolbar, the tree, the property panel — as they were left', async () => {
     const start = app.session.activeViewIri!;
     const model = app.session.modelIri!;

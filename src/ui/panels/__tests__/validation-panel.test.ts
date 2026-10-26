@@ -319,13 +319,40 @@ describe('render template', () => {
     expect(o).not.toContain('Info');
   });
 
-  it('renders result details with path and shape', () => {
+  it('renders result details with property and shape', () => {
     const results = [makeResult('Violation', 'http://example.org/ns#Elem1', 'err')];
     const ctx = makeCtx({ conforms: false, results });
     const o = flat(ctx.render());
-    expect(o).toContain('Path:');
+    expect(o).toContain('Property:');
     expect(o).toContain('Shape:');
     expect(o).toContain('MyShape');
+  });
+
+  it('sets each finding apart in its severity, and names its property as the Properties tab does', () => {
+    const results = [makeResult('Violation', 'urn:a', 'v1'), makeResult('Warning', 'urn:b', 'w1')];
+    const ctx = makeCtx({ conforms: false, results, fieldNameFor: (p: string) => (p === 'http://example.org/path' ? 'Name' : p) });
+    const o = flat(ctx.render());
+    expect(o).toContain('class="result-item violation"');
+    expect(o).toContain('class="result-item warning"');
+    expect(o).toMatch(/Property: <span class="field" title="?[^>]*>Name<\/span>/);
+    expect((ValidationPanel as any).styles.cssText).toMatch(/\.severity-items\.hidden\s*\{\s*display: none/);
+  });
+
+  it("names a finding's concept and its type as the tree does, and leaves out a shape written inline", () => {
+    const inline = { ...makeResult('Violation', 'urn:a', 'v1'), sourceShape: { termType: 'BlankNode', value: 'cc9e574c' } as any };
+    // As the validator hands it on: a named node, its value a blank node's id.
+    const handedOn = { ...makeResult('Info', 'urn:a', 'i1'), sourceShape: nn('e7c5f6f9b162c99505726a1d84b6c892') };
+    const ctx = makeCtx({
+      conforms: false,
+      results: [inline, makeResult('Warning', 'urn:b', 'w1'), handedOn],
+      describe: (iri: string) => (iri === 'urn:a' ? { name: 'Unnamed', type: 'Business Actor', unnamed: true } : { name: 'Clerk', type: 'Business Role' }),
+    });
+    const o = flat(ctx.render());
+    expect(o).toMatch(/<span class="?unnamed"? title="?urn:a"?>Unnamed<\/span>\s*<span class="type">Business Actor<\/span>/);
+    expect(o).toMatch(/>Clerk<\/span>\s*<span class="type">Business Role<\/span>/);
+    expect(o).not.toContain('cc9e574c');
+    expect(o).not.toContain('e7c5f6f9');
+    expect(o.match(/Shape:/g)).toHaveLength(1);
   });
 
   it('renders empty state when no results', () => {

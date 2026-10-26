@@ -329,7 +329,7 @@ const FIELD_NAMES: Record<string, string> = {
  * when it is more than the property's local name again (`source`); else that
  * local name in words (`modelRepresentsSystem` → `Model represents system`).
  */
-function fieldName(predicate: string, shape: ShaclPropertyShape | undefined, nameOf?: NameOf): string {
+export function fieldName(predicate: string, shape?: ShaclPropertyShape, nameOf?: NameOf): string {
   const familiar = FIELD_NAMES[predicate];
   if (familiar) return familiar;
   const local = iriLabel(predicate);
