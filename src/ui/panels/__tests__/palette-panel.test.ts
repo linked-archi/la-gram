@@ -456,4 +456,49 @@ describe('PalettePanel', () => {
       expect(labels()).toEqual(['Business Process', 'Business Actor']);
     });
   });
+
+  describe('which type an entry is', () => {
+    const prefixed = (iri: string) => iri.replace('https://ex.org/am4#', 'am4:').replace('https://ex.org/basic#', 'basic:');
+    const twoLanguages = (): PaletteDefinition => ({
+      elementGroups: [
+        { category: 'Business', elements: [{ iri: 'https://ex.org/am4#Actor', label: 'Business Actor', isAbstract: false }] },
+        // The same type in a second group is not another type of that name.
+        { category: 'Other', elements: [{ iri: 'https://ex.org/am4#Actor', label: 'Business Actor', isAbstract: false }, { iri: 'https://ex.org/basic#Node', label: 'Node', isAbstract: false }] },
+      ],
+      relationshipTypes: [
+        { iri: 'https://ex.org/am4#Aggregation', label: 'Aggregation', domainTypes: [], rangeTypes: [] },
+        { iri: 'https://ex.org/basic#Aggregation', label: 'Aggregation', domainTypes: [], rangeTypes: [] },
+      ],
+    });
+
+    it('names its prefixed IRI in the tooltip, and the prefix beside a name another loaded language uses too', async () => {
+      panel = document.createElement('palette-panel');
+      panel.palette = twoLanguages();
+      panel.prefixedName = prefixed;
+      document.body.appendChild(panel);
+      await panel.updateComplete;
+      const tags = items().map((item) => [item.querySelector('.palette-label')!.textContent!.trim(), item.querySelector('.palette-tag')?.textContent ?? '']);
+      expect(tags).toEqual([
+        ['Business Actor', ''],
+        ['Business Actor', ''],
+        ['Node', ''],
+        ['Aggregation', 'am4'],
+        ['Aggregation', 'basic'],
+      ]);
+      expect(items()[4]!.title).toBe('Aggregation — basic:Aggregation');
+      // The search matches the prefixed name: one language's types.
+      await type('basic:');
+      expect(labels()).toEqual(['Node', 'Aggregation']);
+    });
+
+    it('says which entry is under the pointer, and when it leaves', async () => {
+      await mount(twoLanguages());
+      const seen: Array<string | undefined> = [];
+      panel.addEventListener('palette-hover', (e) => seen.push((e as CustomEvent<{ iri?: string }>).detail.iri));
+      const node = entry('Node');
+      node.dispatchEvent(new Event('pointerenter'));
+      node.dispatchEvent(new Event('pointerleave'));
+      expect(seen).toEqual(['https://ex.org/basic#Node', undefined]);
+    });
+  });
 });

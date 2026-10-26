@@ -1217,9 +1217,14 @@ describe('Basic, the generic language', () => {
     await entry.click();
     const node = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/basic#Node"]');
     await node.waitFor({ state: 'visible', timeout: 30_000 });
-    expect((await node.innerText()).trim()).toBe('Node');
+    expect((await node.locator('.palette-label').innerText()).trim()).toBe('Node');
+    // ArchiMate has a Node too: each says which language it is from.
+    expect(await node.locator('.palette-tag').innerText()).toBe('basic');
+    expect(await page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/archimate4/onto#Node"] .palette-tag').innerText()).toBe('am4');
+    expect(await node.getAttribute('title')).toBe('Node — basic:Node');
     const connection = page.locator('palette-panel .palette-item[data-iri="https://meta.linked.archi/basic#Connection"]');
-    expect((await connection.innerText()).trim()).toBe('Connection');
+    expect((await connection.locator('.palette-label').innerText()).trim()).toBe('Connection');
+    expect(await connection.locator('.palette-tag').count()).toBe(0);
 
     // Dropped on the canvas: an element typed basic:Node, named, in the view. Under
     // ArchiMate's axis, Basic's types are in "Other", at the foot of the palette.

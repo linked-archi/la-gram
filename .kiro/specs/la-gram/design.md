@@ -692,6 +692,21 @@ asks for the fold (`guide-fold-toggle`) and the shell answers
 describes the *type*, not the concept being edited, and stays in view while
 the bottom panel shows validation, a query or the graph.
 
+**Which type, by IRI** (Req 3.10, 2.21). Under the type's name the guide
+gives its prefixed name (`curieOf` over `ModelIO.collectPrefixes()` — the
+standard prefixes and every `vann:preferredNamespacePrefix` a loaded vocabulary
+declares, so `am4:`, `am:`, `basic:` without a table); a click shows the whole
+IRI, selectable whole, with Copy. The host recomputes the prefixes with the
+palette (metamodels change) and hands the same function to the palette, which
+names the prefixed IRI in each entry's tooltip, matches it in the search, and —
+for a name more than one loaded type has (by IRI, so a type in two groups is
+one) — shows the prefix beside it. The palette says which entry is under the
+pointer (`palette-hover`); `mount-ui` shows it as the guide's `previewIri`
+after 350 ms (60 ms once one is shown, so moving down the list follows), and
+clears it 250 ms after the pointer leaves — a sweep across the palette shows
+nothing. A preview hides the guide's way back and leaves its trail as it was;
+picking the entry ends it. Nothing is drawn over the canvas.
+
 The guide is read by `metamodel-manager/type-guide.ts` from whatever
 metamodels are loaded (all graphs of the store), structurally, so any notation
 that publishes the same properties gets the same page. From the ontology:

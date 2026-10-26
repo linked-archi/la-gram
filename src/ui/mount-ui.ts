@@ -36,7 +36,7 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
-import { PropertyCatalog } from '../model-manager/property-catalog.js';
+import { PropertyCatalog, curieOf } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
@@ -69,6 +69,7 @@ import type { ModuleSwitch } from '../modules.js';
 import type {
   PalettePanel,
   PaletteDragDetail,
+  PaletteHoverDetail,
   PaletteAxisChangeDetail,
 } from './panels/palette-panel.js';
 import type { CanvasToolbar, ToolbarToolDetail } from './panels/canvas-toolbar.js';
@@ -852,6 +853,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // The picked type is what the guide under the tree describes, until something is selected.
     typeGuidePanel.guideIri = detail.iri;
     guideFromPalette = true;
+    clearTimeout(paletteHover);
+    typeGuidePanel.previewIri = '';
 
     if (detail.kind === 'relationship') {
       // A relationship type is not a shape, so there is nothing to drag onto the
@@ -864,6 +867,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     diagramCanvas.startCreate(detail.iri, detail.sourceEvent);
   };
   palettePanel.addEventListener('palette-drag-start', onPaletteDragStart);
+
+  /**
+   * The palette entry under the pointer is shown in the About box under the
+   * tree — its name, IRI and definition — after a pause, so sweeping across
+   * the palette does not churn it; once one is shown the next follows at once.
+   * Off the palette, the box shows what it showed before.
+   */
+  let paletteHover: ReturnType<typeof setTimeout> | undefined;
+  const onPaletteHover = (e: Event): void => {
+    const { iri } = (e as CustomEvent<PaletteHoverDetail>).detail;
+    clearTimeout(paletteHover);
+    const delay = iri ? (typeGuidePanel.previewIri ? 60 : 350) : 250;
+    paletteHover = setTimeout(() => (typeGuidePanel.previewIri = iri ?? ''), delay);
+  };
+  palettePanel.addEventListener('palette-hover', onPaletteHover);
 
   // ── Model tree → canvas and model ────────────────────────────────────
   const onExplorerDrag = (e: Event): void => {
@@ -1065,6 +1083,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     currentAxisIri = palette.activeAxisIri;
     currentPalette = palette;
     lookStyles.update(palette);
+    // Types by their prefixed names (`am4:Serving`), from the loaded vocabularies' prefixes.
+    const prefixes = app.modelIO.collectPrefixes();
+    const prefixedName = (iri: string): string => curieOf(iri, prefixes);
+    palettePanel.prefixedName = prefixedName;
+    typeGuidePanel.prefixedName = prefixedName;
     palettePanel.palette = palette;
     diagramCanvas.updatePaletteDefinition(palette);
     propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -2117,6 +2140,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
+    palettePanel.removeEventListener('palette-hover', onPaletteHover);
+    clearTimeout(paletteHover);
     canvasToolbar.removeEventListener('toolbar-tool', onToolbarTool);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);

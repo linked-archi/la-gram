@@ -164,4 +164,40 @@ describe('<type-guide-panel>', () => {
     await panel.updateComplete;
     expect(root.querySelector('.body')!.textContent).toMatch(/say nothing about this type/);
   });
+
+  it('gives the type its prefixed name, and the whole IRI on a click, to copy', async () => {
+    const { panel, root } = await mount();
+    panel.prefixedName = (iri) => iri.replace(AM, 'am:');
+    await panel.updateComplete;
+    const iri = root.querySelector<HTMLButtonElement>('.body .iri')!;
+    expect(iri.textContent!.trim()).toBe('am:Actor');
+    expect(root.querySelector('.iri-full')).toBeNull();
+    const copied = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { clipboard: { writeText: copied } });
+    iri.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.iri-full code')!.textContent).toBe(AM + 'Actor');
+    root.querySelector<HTMLButtonElement>('.iri-full button')!.click();
+    await vi.waitFor(() => expect(root.querySelector('.iri-full button')!.textContent).toBe('Copied'));
+    expect(copied).toHaveBeenCalledWith(AM + 'Actor');
+  });
+
+  it('shows a previewed type over the selected one, and the selected one again after', async () => {
+    const { panel, root } = await mount();
+    panel.openGuide(AM + 'Interface');
+    await panel.updateComplete;
+    expect(root.querySelector('.back')).not.toBeNull();
+    panel.previewIri = AM + 'Interface';
+    await panel.updateComplete;
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Business Interface');
+    expect(root.querySelector('.back')).toBeNull();
+    panel.previewIri = '';
+    await panel.updateComplete;
+    // Where it was: the page opened from the guide, with its way back.
+    expect(root.querySelector('.header .title')!.textContent).toBe('About Business Interface');
+    expect(root.querySelector('.back')).not.toBeNull();
+    panel.previewIri = AM + 'Unknown';
+    await panel.updateComplete;
+    expect(root.querySelector('.body')!.textContent).toMatch(/say nothing about this type/);
+  });
 });

@@ -197,6 +197,23 @@ describe('the workbench', () => {
     ui.showBottomTab('properties');
   });
 
+  it('shows the palette entry under the pointer in the About box — by its prefixed name — after a pause, and what was there after', async () => {
+    const actor = `${AM4}BusinessActor`;
+    expect(ui.palettePanel.prefixedName?.(actor)).toBe('am4:BusinessActor');
+    const before = ui.typeGuidePanel.shownIri;
+    const hover = (iri: string | undefined) =>
+      ui.palettePanel.dispatchEvent(new CustomEvent('palette-hover', { detail: { iri }, bubbles: true, composed: true }));
+    hover(actor);
+    // Not at once: a sweep across the palette does not churn the box.
+    expect(ui.typeGuidePanel.previewIri).toBe('');
+    await vi.waitFor(() => expect(ui.typeGuidePanel.previewIri).toBe(actor), { timeout: 2000 });
+    await ui.typeGuidePanel.updateComplete;
+    expect(ui.typeGuidePanel.shadowRoot!.querySelector('.body .iri')!.textContent!.trim()).toBe('am4:BusinessActor');
+    hover(undefined);
+    await vi.waitFor(() => expect(ui.typeGuidePanel.previewIri).toBe(''), { timeout: 2000 });
+    expect(ui.typeGuidePanel.shownIri).toBe(before);
+  });
+
   it('tells about the selected type under the tree, from the loaded ontology and taxonomy — for a view, its viewpoint', async () => {
     const stored = new Map<string, string>();
     vi.stubGlobal('localStorage', {

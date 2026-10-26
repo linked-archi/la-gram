@@ -213,6 +213,49 @@ export class TypeGuidePanel extends LitElement {
       color: #80868b;
       font-style: italic;
     }
+    /* The type's IRI: its prefixed name, the whole IRI on a click. */
+    .iri {
+      display: inline-block;
+      max-width: 100%;
+      margin: 1px 0 2px;
+      padding: 0 4px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: none;
+      font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #5f6368;
+      text-align: left;
+      overflow-wrap: anywhere;
+      cursor: pointer;
+    }
+    .iri:hover,
+    .iri[aria-expanded='true'] {
+      border-color: #dadce0;
+      color: #202124;
+    }
+    .iri-full {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin: 0 0 4px;
+      font-size: 11px;
+    }
+    .iri-full code {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      overflow-wrap: anywhere;
+      user-select: all;
+    }
+    .iri-full button {
+      flex: none;
+      padding: 0 6px;
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      background: #fff;
+      font-size: 11px;
+      cursor: pointer;
+    }
   `;
 
   /** What the loaded metamodels say about a type; supplied by the host. */
@@ -222,6 +265,23 @@ export class TypeGuidePanel extends LitElement {
   /** The type to describe: the selection's — for a view, its viewpoint. Empty for nothing. */
   @property({ type: String })
   guideIri = '';
+
+  /**
+   * A type shown for now, over {@link guideIri}: the palette entry under the
+   * pointer. Empty for none.
+   */
+  @property({ type: String })
+  previewIri = '';
+
+  /** A type's IRI as a prefixed name (`am4:Serving`), from the loaded vocabularies; supplied by the host. */
+  @property({ attribute: false })
+  prefixedName?: (iri: string) => string;
+
+  /** The whole IRI shown, under the prefixed name. */
+  @state() private _iriShown = false;
+
+  /** "Copied" for a moment after Copy. */
+  @state() private _copied = false;
 
   /** Folded to its header; the shell owns the choice (`guide-fold-toggle` asks for it). */
   @property({ type: Boolean, reflect: true })
@@ -238,9 +298,38 @@ export class TypeGuidePanel extends LitElement {
     if (changed.has('guideIri') && changed.get('guideIri') !== this.guideIri) this._trail = [];
   }
 
-  /** The type shown: one opened from the guide's links, else {@link guideIri}. */
+  /** The type shown: the one previewed, else one opened from the guide's links, else {@link guideIri}. */
   get shownIri(): string {
-    return this._trail.at(-1) ?? this.guideIri;
+    return this.previewIri || (this._trail.at(-1) ?? this.guideIri);
+  }
+
+  private async _copyIri(iri: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(iri);
+      this._copied = true;
+      setTimeout(() => (this._copied = false), 1200);
+    } catch {
+      // No clipboard here: the IRI is selected whole on a click, to copy by hand.
+    }
+  }
+
+  /** The type's prefixed name; clicked, its whole IRI, to copy. */
+  private _renderIri(iri: string) {
+    const prefixed = this.prefixedName?.(iri) ?? iri;
+    return html`
+      <button
+        class="iri"
+        title=${this._iriShown ? 'Hide the IRI' : 'Show the IRI'}
+        aria-expanded=${this._iriShown ? 'true' : 'false'}
+        @click=${() => (this._iriShown = !this._iriShown)}
+      >${prefixed}</button>
+      ${this._iriShown
+        ? html`<div class="iri-full">
+            <code>${iri}</code>
+            <button @click=${() => void this._copyIri(iri)}>${this._copied ? 'Copied' : 'Copy'}</button>
+          </div>`
+        : nothing}
+    `;
   }
 
   /** Open another type's page, with a way back. */
@@ -296,7 +385,7 @@ export class TypeGuidePanel extends LitElement {
   }
 
   private _renderGuide(g: TypeGuide) {
-    const back = this._trail.length > 0;
+    const back = this._trail.length > 0 && !this.previewIri;
     const previous = this._guide(this._trail.length > 1 ? this._trail.at(-2)! : this.guideIri)?.label ?? 'back';
     return html`
       ${back
@@ -314,6 +403,7 @@ export class TypeGuidePanel extends LitElement {
         <span>${g.label}</span>
         ${g.abstract ? html`<span class="abstract" title="Not instantiated itself; its specializations are">abstract</span>` : nothing}
       </h3>
+      ${this._renderIri(g.iri)}
       ${g.altLabels.length > 0 ? html`<div class="aka">Also: ${g.altLabels.join(', ')}</div>` : nothing}
       ${g.definition ? html`<p class="definition">${g.definition}</p>` : html`<p class="muted">No definition.</p>`}
       ${g.notes.length > 0 ? this._section('guidance', 'Guidance', g.notes.map((n) => html`<p>${n}</p>`)) : nothing}
@@ -387,7 +477,7 @@ export class TypeGuidePanel extends LitElement {
         ${g
           ? this._renderGuide(g)
           : html`<div class="muted">
-              ${this.guideIri
+              ${this.shownIri
                 ? 'The loaded metamodels say nothing about this type.'
                 : 'Select an element, a relationship or a view to see what the metamodel says about its type.'}
             </div>`}

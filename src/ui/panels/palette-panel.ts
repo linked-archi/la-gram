@@ -9,6 +9,7 @@ import type {
 } from '../../metamodel-manager/interfaces.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
 import { iconHref } from '../canvas/notation-shapes.js';
+import { sharedNames } from '../show-iris.js';
 
 /**
  * Custom event detail for palette drag operations.
@@ -30,6 +31,14 @@ export interface PaletteDragDetail {
   kind: 'element' | 'relationship';
   /** The raw `mousedown` or `click` that started the gesture. */
   sourceEvent: MouseEvent;
+}
+
+/**
+ * Emitted when the pointer comes onto an entry (its type) and leaves it
+ * (`undefined`): the host shows the type in the About box under the tree.
+ */
+export interface PaletteHoverDetail {
+  iri: string | undefined;
 }
 
 /**
@@ -177,9 +186,22 @@ export class PalettePanel extends LitElement {
     }
 
     .palette-label {
+      min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* Which language a name is from, where loaded languages share it. */
+    .palette-tag {
+      margin-left: auto;
+      flex-shrink: 0;
+      padding: 0 4px;
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      font-size: 10px;
+      line-height: 14px;
+      color: #5f6368;
     }
 
     .section-divider {
@@ -279,6 +301,17 @@ export class PalettePanel extends LitElement {
   @property({ attribute: false })
   activeViewpoint?: ViewpointInfo;
 
+  /**
+   * A type's IRI as a prefixed name (`am4:Serving`), from the loaded
+   * vocabularies' prefixes: shown in the tooltip, and its prefix beside a name
+   * other loaded languages use too. The search matches it as well.
+   */
+  @property({ attribute: false })
+  prefixedName?: (iri: string) => string;
+
+  /** Names (lower-cased) more than one type has, for this render. */
+  private _shared = new Set<string>();
+
   @state()
   private _collapsedGroups: Set<string> = new Set();
 
@@ -312,10 +345,12 @@ export class PalettePanel extends LitElement {
       ? new Set(viewpoint.permittedRelationships)
       : undefined;
 
+    const named = (label: string, iri: string): boolean =>
+      matches(label, query) || (Boolean(query) && Boolean(this.prefixedName) && matches(this.prefixedName!(iri), query));
     const keepElement = (el: ElementTypeInfo): boolean =>
       !el.isAbstract &&
       (!permittedElements || permittedElements.has(el.iri)) &&
-      matches(el.label, query);
+      named(el.label, el.iri);
 
     const filteredGroups: ElementGroup[] = this.palette.elementGroups
       .map((group) => ({ ...group, elements: group.elements.filter(keepElement) }))
@@ -324,7 +359,7 @@ export class PalettePanel extends LitElement {
     const filteredRelationships = this.palette.relationshipTypes.filter(
       (rel) =>
         (!permittedRelationships || permittedRelationships.has(rel.iri)) &&
-        matches(rel.label, query),
+        named(rel.label, rel.iri),
     );
 
     // Spread so axes / notation-set metadata survive filtering.
@@ -343,6 +378,24 @@ export class PalettePanel extends LitElement {
       next.add(category);
     }
     this._collapsedGroups = next;
+  }
+
+  /** The pointer came onto an entry, or left it. */
+  private _onHover(iri: string | undefined): void {
+    this.dispatchEvent(new CustomEvent<PaletteHoverDetail>('palette-hover', { detail: { iri }, bubbles: true, composed: true }));
+  }
+
+  /** An entry's tooltip: its name and its prefixed name. */
+  private _tooltip(label: string, iri: string): string {
+    return `${label} — ${this.prefixedName?.(iri) ?? iri}`;
+  }
+
+  /** The prefix beside a name another entry shares (`am4`, `basic`), if the type has one. */
+  private _renderTag(label: string, iri: string): unknown {
+    if (!this._shared.has(label.toLowerCase())) return nothing;
+    const prefixed = this.prefixedName?.(iri);
+    const prefix = prefixed && prefixed !== iri ? prefixed.slice(0, prefixed.indexOf(':')) : undefined;
+    return prefix ? html`<span class="palette-tag">${prefix}</span>` : nothing;
   }
 
   /**
@@ -406,12 +459,15 @@ export class PalettePanel extends LitElement {
         class="palette-item"
         data-iri=${el.iri}
         data-kind="element"
-        title=${el.definition ?? el.label}
+        title=${this._tooltip(el.label, el.iri)}
         @mousedown=${(e: MouseEvent) => this._onPointer(e, detail)}
         @click=${(e: MouseEvent) => this._onPointer(e, detail)}
+        @pointerenter=${() => this._onHover(el.iri)}
+        @pointerleave=${() => this._onHover(undefined)}
       >
         ${this._renderElementPreview(el)}
         <span class="palette-label">${el.label}</span>
+        ${this._renderTag(el.label, el.iri)}
       </li>
     `;
   }
@@ -517,14 +573,17 @@ export class PalettePanel extends LitElement {
         class="palette-item"
         data-iri=${rel.iri}
         data-kind="relationship"
-        title=${rel.label}
+        title=${this._tooltip(rel.label, rel.iri)}
         @mousedown=${(e: MouseEvent) => this._onPointer(e, detail)}
         @click=${(e: MouseEvent) => this._onPointer(e, detail)}
+        @pointerenter=${() => this._onHover(rel.iri)}
+        @pointerleave=${() => this._onHover(undefined)}
       >
         ${src
           ? html`<img class="palette-icon" src=${src} alt="" />`
           : html`<span class="palette-icon"></span>`}
         <span class="palette-label">${rel.label}</span>
+        ${this._renderTag(rel.label, rel.iri)}
       </li>
     `;
   }
@@ -532,6 +591,12 @@ export class PalettePanel extends LitElement {
   override render() {
     const { elementGroups, relationshipTypes } = this._effectivePalette;
     const empty = elementGroups.length === 0 && relationshipTypes.length === 0;
+    // Shared across all the loaded types, not only those shown, so a tag does not come and go with the
+    // search; by type, as a type may sit in more than one group.
+    const labels = new Map<string, string>();
+    for (const group of this.palette.elementGroups) for (const e of group.elements) if (!e.isAbstract) labels.set(e.iri, e.label);
+    for (const r of this.palette.relationshipTypes) labels.set(r.iri, r.label);
+    this._shared = sharedNames(labels.values());
     return html`
       <div class="palette-header">Palette</div>
       ${this._renderSearch()} ${this._renderAxisSelector()} ${this._renderOwlOnlyNotice()}
