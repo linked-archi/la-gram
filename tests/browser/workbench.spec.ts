@@ -358,6 +358,7 @@ describe('the layout and the property panel', () => {
     const badge = page.locator('app-shell .tab[data-tab="validation"] .badge');
     expect(await badge.count()).toBe(0);
     // A Violation (an element without a name) is counted on the tab, and the count goes when it is fixed.
+    // Not drawn in the open view, it is one more in the model — counted when the tab shows the model.
     const unnamed = await page.evaluate(() => {
       const app = (window as any).__LA_GRAM_APP__;
       return app.components.elementManager.createElement(
@@ -366,7 +367,14 @@ describe('the layout and the property panel', () => {
       ).value as string;
     });
     await page.evaluate(() => (window as any).__LA_GRAM_APP__.scheduleValidation());
+    await until(async () => /1 more in the model/.test(await page.locator('validation-panel .summary').innerText()), 'the finding elsewhere');
+    expect(await badge.count()).toBe(0);
+    const scope = page.locator('validation-panel select.scope');
+    await scope.selectOption('model');
     await until(async () => (await badge.count()) === 1 && (await badge.innerText()) === '1', 'the violation count');
+    expect(await page.locator('validation-panel .summary').innerText()).toMatch(/1 violation/);
+    await scope.selectOption('view');
+    await until(async () => (await badge.count()) === 0, 'the view’s count');
     await page.evaluate((iri) => {
       const app = (window as any).__LA_GRAM_APP__;
       app.components.elementManager.deleteElement(iri);
@@ -1515,7 +1523,13 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     await page.locator('app-toolbar button[data-menu="file"]').click();
     await page.locator('app-toolbar button[data-command="save"]').waitFor({ state: 'visible' });
     expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
-    expect(await page.locator('app-toolbar button[data-command="settings"]').count()).toBe(0);
+    // Settings has la-gram's own (Metamodels), but no Git section and no switch to turn Git on.
+    await page.locator('app-toolbar button[data-command="settings"]').click();
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-form-tab').allInnerTexts()).toEqual(['Metamodels']);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
     findings.push('config: git unavailable → no entries, no switch: ok');
   });
 
@@ -1561,7 +1575,10 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     await settings.click();
     const dialog = page.locator('.la-dialog');
     await dialog.waitFor({ state: 'visible' });
-    expect(await dialog.locator('.la-form-section-title').allInnerTexts()).toEqual(['Git storage', 'Modules']);
+    // A tab per part; Git's fields in its own.
+    expect(await dialog.locator('.la-form-tab').allInnerTexts()).toEqual(['Metamodels', 'Git storage', 'Modules']);
+    expect(await dialog.locator('input[name="git.folder"]').isVisible()).toBe(false);
+    await dialog.locator('.la-form-tab', { hasText: 'Git storage' }).click();
     const hosts = dialog.locator('input[name="git.hosts"]');
     expect(await hosts.isDisabled()).toBe(true);
     expect(await hosts.inputValue()).toBe('git.acme.example (GitLab)');

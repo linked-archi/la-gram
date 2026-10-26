@@ -171,10 +171,26 @@ describe('the workbench', () => {
     await ui.shell.updateComplete;
     expect(ui.validationPanel.results.some((r) => r.severity === 'Warning')).toBe(true);
     expect(ui.shell.tabBadges.validation).toBeUndefined();
-    // An element without a name is a Violation: counted on the tab.
+    // An element without a name is a Violation: counted on the tab — of the
+    // open view (the scope by default) once it is drawn there, of the model at once.
     const unnamed = app.components.elementManager.createElement(`${AM4}BusinessActor`, app.session.modelIri!).value;
     app.runValidation();
+    expect(ui.validationPanel.scope).toBe('view');
+    expect(ui.shell.tabBadges.validation).toBeUndefined();
+    await ui.validationPanel.updateComplete;
+    const summary = () => ui.validationPanel.shadowRoot!.querySelector('.summary')!.textContent!.replace(/\s+/g, ' ');
+    expect(summary()).toContain('1 more in the model');
+    ui.validationPanel.shadowRoot!.querySelector<HTMLButtonElement>('.summary .rest')!.click();
+    expect(ui.validationPanel.scope).toBe('model');
     expect(ui.shell.tabBadges.validation).toBe('1');
+    ui.validationPanel.scope = 'view';
+    expect(ui.shell.tabBadges.validation).toBeUndefined();
+    app.components.viewManager.addElementToView(app.session.activeViewIri!, unnamed, { x: 100, y: 600, width: 120, height: 55 });
+    app.runValidation();
+    expect(ui.shell.tabBadges.validation).toBe('1');
+    await ui.validationPanel.updateComplete;
+    expect(summary()).toContain('✗ 1 violation(s)');
+    expect(summary()).not.toContain('more in the model');
     app.components.elementManager.deleteElement(unnamed);
     app.runValidation();
     expect(ui.shell.tabBadges.validation).toBeUndefined();
@@ -637,6 +653,47 @@ describe('the workbench', () => {
     ui.selectConcept(undefined);
     app.components.elementManager.deleteElement(actor);
     for (const view of [second, third]) app.session.deleteView(view);
+  });
+
+  it('offers in the Metamodels menu the catalogue\u2019s entries Settings leaves there, and keeps the choice', async () => {
+    {
+      const AM3 = 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2';
+      const TOGAF = 'https://example.org/togaf/metamodel#TOGAF';
+      ui.appToolbar.catalogue = [
+        { iri: AM3, label: 'ArchiMate 3.2', kind: 'language' },
+        { iri: TOGAF, label: 'TOGAF', kind: 'framework' },
+      ];
+      script.forms.push({ [`metamodels.${TOGAF}`]: false });
+      await ui.runCommand({ command: 'settings' });
+      const fields = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      // The section, the catalogue's groups, an entry each — offered, until unticked.
+      expect(fields.filter((f) => f.name.startsWith('metamodels.')).map((f) => [f.type, f.label, f.value])).toEqual([
+        ['group', 'Modelling languages', undefined],
+        ['checkbox', 'ArchiMate 3.2', true],
+        ['group', 'Frameworks', undefined],
+        ['checkbox', 'TOGAF', true],
+      ]);
+      expect([...ui.appToolbar.hiddenCatalogue]).toEqual([TOGAF]);
+      // Kept with the other personal settings (`la-gram:settings`): asked again, it is unticked.
+      await ui.runCommand({ command: 'settings' });
+      const again = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(again.find((f) => f.name === `metamodels.${TOGAF}`)?.value).toBe(false);
+
+      // The menu: TOGAF and its group gone, a way back to the choice saying how many are hidden.
+      ui.appToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-menu="metamodels"]')!.click();
+      await ui.appToolbar.updateComplete;
+      const menu = ui.appToolbar.shadowRoot!.querySelector('.dropdown')!;
+      const offered = [...menu.querySelectorAll('button[data-command="add-metamodel"]')].map((b) => b.getAttribute('data-value'));
+      expect(offered).toEqual([AM3]);
+      expect([...menu.querySelectorAll('.group')].map((g) => g.textContent!.trim())).not.toContain('Frameworks');
+      expect(menu.querySelector('button[data-command="settings"]')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('Choose which to show… 1 hidden');
+      ui.appToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-menu="metamodels"]')!.click();
+
+      // Ticked again: offered again.
+      script.forms.push({ [`metamodels.${TOGAF}`]: true });
+      await ui.runCommand({ command: 'settings' });
+      expect(ui.appToolbar.hiddenCatalogue.size).toBe(0);
+    }
   });
 
   it('creates, names and opens a new view from the toolbar', async () => {

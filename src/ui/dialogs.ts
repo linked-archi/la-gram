@@ -26,9 +26,10 @@ export interface FormField {
   /**
    * A line of text (default), a checkbox, a secret (typed unseen, never
    * pre-filled or autocompleted), one of `options` — or a section's heading
-   * (`label`, with `hint` under it), which has no value.
+   * (`label`, with `hint` under it), or a group's within a section; neither has
+   * a value.
    */
-  type?: 'text' | 'checkbox' | 'password' | 'select' | 'section';
+  type?: 'text' | 'checkbox' | 'password' | 'select' | 'section' | 'group';
   value?: string | boolean;
   /** Help shown under the field. */
   hint?: string;
@@ -41,13 +42,26 @@ export interface FormField {
 /** What {@link Dialogs.form} resolves with: text fields trimmed, checkboxes as booleans. */
 export type FormValues = Record<string, string | boolean>;
 
+/** A problem {@link FormOptions.validate} found: what it is, and where — a field's or a section's name. */
+export interface FormProblem {
+  message: string;
+  field?: string;
+}
+
 /** Options of {@link Dialogs.form}. */
 export interface FormOptions {
   /** A paragraph above the fields. */
   message?: string;
   confirmLabel?: string;
-  /** The problem with the values, shown in the dialog, or `null` to accept them. */
-  validate?: (values: FormValues) => string | null;
+  /**
+   * The problem with the values, shown in the dialog, or `null` to accept them.
+   * One that names a field or a section opens its tab, marked.
+   */
+  validate?: (values: FormValues) => string | FormProblem | null;
+  /** Each `section` field a tab of its own, listed down the side — for a form of several parts (Settings). */
+  tabs?: boolean;
+  /** With `tabs`: the section (by its field's name) to open first; the first otherwise. */
+  openSection?: string;
 }
 
 /** The dialogs the UI needs. */
@@ -88,10 +102,11 @@ function modal<T>(
   buttons: Array<{ label: string; value: () => T; primary?: boolean; danger?: boolean; accept?: () => boolean }>,
   cancelValue: T,
   focus?: HTMLElement,
+  className = '',
 ): Promise<T> {
   return new Promise<T>((resolve) => {
     const backdrop = el('div', { class: 'la-dialog-backdrop' });
-    const dialog = el('div', { class: 'la-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title });
+    const dialog = el('div', { class: `la-dialog${className ? ` ${className}` : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title });
     const footer = el('div', { class: 'la-dialog-footer' });
     let done = false;
     const close = (value: T) => {
@@ -159,25 +174,20 @@ export const domDialogs: Dialogs = {
     const body: Node[] = [];
     if (options.message) body.push(el('p', { text: options.message }));
     const inputs = new Map<string, HTMLInputElement | HTMLSelectElement>();
-    for (const field of fields) {
+
+    /** One field's row; its input is kept by name. */
+    const row = (field: FormField): HTMLElement => {
       const id = `la-form-${field.name}`;
-      if (field.type === 'section') {
-        const heading = el('div', { class: 'la-form-section' }, el('div', { class: 'la-form-section-title', text: field.label }));
-        if (field.hint) heading.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
-        body.push(heading);
-        continue;
-      }
-      const row = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}${field.disabled ? ' fixed' : ''}` });
+      const line = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}${field.disabled ? ' fixed' : ''}` });
       if (field.type === 'select') {
         const select = el('select', { id, name: field.name, class: 'la-input', 'aria-label': field.label });
         for (const option of field.options ?? []) select.append(el('option', { value: option.value, text: option.label }));
         if (typeof field.value === 'string') select.value = field.value;
         select.disabled = field.disabled === true;
-        row.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), select);
-        if (field.hint) row.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+        line.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), select);
+        if (field.hint) line.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
         inputs.set(field.name, select);
-        body.push(row);
-        continue;
+        return line;
       }
       const type = field.type === 'checkbox' ? 'checkbox' : field.type === 'password' ? 'password' : 'text';
       const input = el('input', { id, name: field.name, type });
@@ -189,17 +199,110 @@ export const domDialogs: Dialogs = {
       }
       if (field.type === 'checkbox') {
         input.checked = field.value === true;
-        row.append(input, el('label', { for: id, text: field.label }));
+        line.append(input, el('label', { for: id, text: field.label }));
       } else {
         input.className = 'la-input';
         input.value = typeof field.value === 'string' && field.type !== 'password' ? field.value : '';
         input.setAttribute('aria-label', field.label);
-        row.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), input);
+        line.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), input);
       }
-      if (field.hint) row.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+      if (field.hint) line.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
       inputs.set(field.name, input);
-      body.push(row);
+      return line;
+    };
+
+    /**
+     * A group's heading — with All and None, when its fields are switches — and
+     * the box its fields go in, two columns of switches.
+     */
+    const group = (field: FormField, members: () => HTMLInputElement[]): { head: HTMLElement; box: HTMLElement } => {
+      const head = el('div', { class: 'la-form-group' }, el('span', { text: field.label }));
+      const box = el('div', { class: 'la-form-group-body' });
+      for (const [label, checked] of [['All', true], ['None', false]] as const) {
+        const button = el('button', { type: 'button', class: 'la-form-group-all', text: label, title: `${checked ? 'Tick' : 'Untick'} all in ${field.label}` });
+        button.addEventListener('click', () => {
+          for (const input of members()) if (!input.disabled) input.checked = checked;
+        });
+        head.append(button);
+      }
+      return { head, box };
+    };
+
+    // Lay the fields out: sections (tabs, or headed parts), groups within them.
+    interface Tab { name: string; button: HTMLButtonElement; pane: HTMLElement }
+    const tabs: Tab[] = [];
+    const tabOf = new Map<string, Tab>();
+    let target: { append(...nodes: Node[]): void } = { append: (...nodes: Node[]) => body.push(...nodes) };
+    let section: HTMLElement | undefined;
+    let tab: Tab | undefined;
+    const tabList = el('div', { class: 'la-form-tabs', role: 'tablist', 'aria-orientation': 'vertical' });
+    const panes = el('div', { class: 'la-form-panes' });
+    for (const field of fields) {
+      if (field.type === 'section') {
+        if (options.tabs) {
+          const button = el('button', { type: 'button', class: 'la-form-tab', role: 'tab', 'data-section': field.name, text: field.label });
+          const pane = el('div', { class: 'la-form-pane', role: 'tabpanel', 'data-section': field.name });
+          if (field.hint) pane.append(el('div', { class: 'la-dialog-hint la-form-pane-hint', text: field.hint }));
+          tab = { name: field.name, button, pane };
+          tabs.push(tab);
+          tabList.append(button);
+          panes.append(pane);
+          section = pane;
+        } else {
+          const heading = el('div', { class: 'la-form-section' }, el('div', { class: 'la-form-section-title', text: field.label }));
+          if (field.hint) heading.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+          body.push(heading);
+          section = undefined;
+        }
+        tabOf.set(field.name, tab as Tab);
+        target = section ?? { append: (...nodes: Node[]) => body.push(...nodes) };
+        continue;
+      }
+      if (field.type === 'group') {
+        const names: string[] = [];
+        const { head, box } = group(field, () =>
+          names.map((n) => inputs.get(n)).filter((i): i is HTMLInputElement => i instanceof HTMLInputElement && i.type === 'checkbox'),
+        );
+        (section ?? { append: (...nodes: Node[]) => body.push(...nodes) }).append(head, box);
+        target = {
+          append: (...nodes: Node[]) => {
+            box.append(...nodes);
+          },
+        };
+        // The group's fields are those that follow, until the next group or section.
+        const at = fields.indexOf(field);
+        for (const next of fields.slice(at + 1)) {
+          if (next.type === 'group' || next.type === 'section') break;
+          names.push(next.name);
+        }
+        continue;
+      }
+      if (tab) tabOf.set(field.name, tab);
+      target.append(row(field));
     }
+
+    const select = (chosen: Tab | undefined, focus = false): void => {
+      for (const t of tabs) {
+        const on = t === chosen;
+        t.button.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.button.tabIndex = on ? 0 : -1;
+        t.pane.hidden = !on;
+      }
+      if (focus) chosen?.button.focus();
+    };
+    if (options.tabs && tabs.length > 0) {
+      tabs.forEach((t, i) => {
+        t.button.addEventListener('click', () => select(t));
+        t.button.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          select(tabs[(i + (e.key === 'ArrowDown' ? 1 : tabs.length - 1)) % tabs.length], true);
+        });
+      });
+      body.push(el('div', { class: 'la-form-tabbed' }, tabList, panes));
+      select(tabs.find((t) => t.name === options.openSection) ?? tabs[0]);
+    }
+
     const error = el('div', { class: 'la-dialog-error', role: 'alert' });
     error.hidden = true;
     body.push(error);
@@ -207,14 +310,16 @@ export const domDialogs: Dialogs = {
       const out: FormValues = {};
       for (const field of fields) {
         const input = inputs.get(field.name);
-        if (!input) continue; // a section's heading
+        if (!input) continue; // a section's or a group's heading
         out[field.name] = field.type === 'checkbox' ? (input as HTMLInputElement).checked : input.value.trim();
       }
       return out;
     };
-    const first = [...inputs.values()].find(
-      (i): i is HTMLInputElement => i instanceof HTMLInputElement && !i.disabled && (i.type === 'text' || i.type === 'password'),
-    );
+    const opened = options.tabs ? tabs.find((t) => t.name === options.openSection) ?? tabs[0] : undefined;
+    const first = [...inputs.entries()].find(
+      ([name, i]) =>
+        i instanceof HTMLInputElement && !i.disabled && (i.type === 'text' || i.type === 'password') && (!opened || tabOf.get(name) === opened),
+    )?.[1] as HTMLInputElement | undefined;
     if (first) queueMicrotask(() => first.select());
     return modal<FormValues | null>(
       title,
@@ -226,15 +331,26 @@ export const domDialogs: Dialogs = {
           value: values,
           primary: true,
           accept: () => {
-            const problem = options.validate?.(values()) ?? null;
-            error.textContent = problem ?? '';
+            const found = options.validate?.(values()) ?? null;
+            const problem = typeof found === 'string' ? { message: found } : found;
+            error.textContent = problem?.message ?? '';
             error.hidden = !problem;
+            // A problem in a tab: that tab, marked, and the field in it.
+            for (const t of tabs) t.button.classList.remove('invalid');
+            const where = problem?.field ? tabOf.get(problem.field) : undefined;
+            if (where) {
+              where.button.classList.add('invalid');
+              select(where);
+              const input = problem?.field ? inputs.get(problem.field) : undefined;
+              input?.focus();
+            }
             return !problem;
           },
         },
       ],
       null,
-      first,
+      first ?? opened?.button,
+      options.tabs && tabs.length > 0 ? 'la-dialog-tabbed' : '',
     );
   },
 

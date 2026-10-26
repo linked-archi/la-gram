@@ -170,6 +170,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 7. Results are in the Validation tab under the canvas; clicking one shows the concept (switching to a view that contains it). The tab shows the number of Violations, so they are seen while another tab is open; Warnings and Infos are listed but not counted — a view without a viewpoint is a Warning (the published viewpoint shapes declare `sh:severity` on their property shapes)
 8. Violating concepts are marked on the canvas
 9. Results match what a server-side SHACL engine reports for the core constraints
+10. The Validation tab is scoped, remembered per browser: the **open view** (the default) — the findings on the view itself, the concepts it presents and the nodes and links of its diagram, saying how many more the rest of the model has, with a way to show them — or the whole **model**. With no view open it shows the model. The tab counts the Violations of the scope shown; every violating concept drawn is marked whatever the scope
 
 ---
 
@@ -364,7 +365,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 2. It says, per switchable module (Req 18.1), `on` (the default), `off` (off until the user switches it on) or `unavailable` (not offered, as if the build left it out); and for Git storage what Req 18.13–18.14 list
 3. It is read once, at startup, from the app's own origin only: no URL parameter points to another, so a link cannot widen what a deployment allows. No file — or a page served in its place, as a server answering every path with its index does — means no configuration
 4. A file that is there but cannot be read — not JSON, not the expected shape, an unknown policy value, a token in it — is reported in words, and what it governs fails closed: Git storage does not start, rather than run without the hosts list it may have meant to give. Unknown keys are reported and ignored
-5. **Settings** (*File › Settings…*, replacing *File › Modules…*): one dialog with a section per part of la-gram — the modules' switches, and each module's own settings (Git: Req 18.15, the tokens kept, to forget one). Kept on this machine (this browser profile), applied at once
+5. **Settings** (*File › Settings…*, replacing *File › Modules…*): one dialog with a tab per part of la-gram, down its side (Apply and Cancel for all; a part with a problem opens, marked) — which metamodels the Metamodels menu offers (a switch per catalogue entry, grouped as the menu groups them; a loaded one is listed anyway; reached from the menu's *Choose which to show…*), the modules' switches, and each module's own settings (Git: Req 18.15, the tokens kept, to forget one). Kept on this machine (this browser profile), applied at once
 6. What the deployment enforces is shown, not offered for change, and says it is set by the deployment; what it only defaults is offered, the deployment's value as the default
 7. Precedence, first winning: the build (a module left out); the deployment's `unavailable` and its policies (Req 18.13–18.14); the address (`?git=off`, for the session); personal settings; the deployment's defaults; la-gram's own
 

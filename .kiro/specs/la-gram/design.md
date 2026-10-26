@@ -585,8 +585,8 @@ re-laid out on restore. Esc restores unless a dialog or a diagram-js popup is
 open; so does folding, and `mount-ui` restores it when a view is opened. The
 Graph tab watches its drawing area with a `ResizeObserver` (Cytoscape.js
 notices window resizes only) and refits when it changes. Sizes, the open tab and the folding are remembered per browser in
-`localStorage`. The Validation tab carries the number of violations, since it
-is often not the open one. A `ResizeObserver` on the canvas host tells
+`localStorage`. The Validation tab carries the number of violations of its
+scope (the open view or the model), since it is often not the open one. A `ResizeObserver` on the canvas host tells
 diagram-js (`canvas.resized()`) whenever a panel changes the canvas's size.
 
 ### Property panel tabs
@@ -859,6 +859,19 @@ referenced resources. `sh:sparql` is stripped (server-side, Req 8). Debounced
 300 ms. Results go to the Validation tab; the tab carries the number of
 Violations (Warnings and Infos are listed, not counted), and violating concepts
 are marked on the canvas.
+
+**Scope** (Req 6.10). The Validation tab lists the open view's findings (the
+default) or the whole model's, remembered per browser
+(`la-gram:validation-scope`). The validator always checks the whole model;
+the tab only filters, by focus node: `viewMembers` (`model-manager/rdf-scope.ts`)
+gives what a view is about — the view, the concepts it presents (`arch:inView`),
+its diagram's nodes and links (`arch-vis:view`) and the concepts they draw.
+`mount-ui` hands that set to the panel (`viewIris`) when a view opens, a model
+loads and new findings arrive — validation follows every edit, so it stays
+current. In the view scope the summary says whether the view conforms and how
+many findings the rest of the model has, as a link to the model scope. The tab's
+badge counts the Violations of the scope shown; the canvas marks every
+violation drawn.
 
 **Relationships by the tables, not the shapes** (Task 22,
 `model-manager/relationship-validity.ts`). The relationship shapes generated
@@ -1252,11 +1265,21 @@ dialog's address and a new branch's suggested name start from them.
 
 **Personal settings**, kept in `localStorage` (`la-gram:settings`, a section
 each; `src/settings.ts`) on this machine: *File › Settings…* — one form, a
-section per part, headed — replaces *File › Modules…* (the `modules` command
-opens it too). `MountedUi.addSettingsSection(section)` lets a module add its
+tab per part down its side (the form's `tabs` option: each `section` field a
+tab; Up/Down move between them; Apply and Cancel are the whole form's, and a
+part's problem opens its tab, marked) — replaces *File › Modules…* (the
+`modules` command opens it too). `MountedUi.addSettingsSection(section)` lets a module add its
 own (`fields()`, asked each time the dialog opens; `validate`; `apply`); field
 names are prefixed with the section's id, and each section applies its own,
-the modules' switches last. Git's (`git/settings-section.ts`): default
+the modules' switches last. la-gram's own, first, **Metamodels**: a switch per
+catalogue entry, grouped as the Metamodels menu groups them (a `group` field, a
+smaller heading within a section), for whether the menu offers it. It keeps the
+entries hidden (`metamodels.hidden`), so one the catalogue gains later is
+offered, and one hidden while the catalogue was out of reach stays hidden; a
+loaded metamodel is listed under *Loaded* anyway, and *Load by IRI…* reaches any.
+The menu ends with *Choose which to show…* (how many are hidden), which opens
+the dialog at that tab (`openSection`). A group's switches sit in two columns,
+with *All* and *None* on its heading. Git's (`git/settings-section.ts`): default
 repository, branch, folder (`.` for the repository's top); the commit message
 template (`{action} {model}`; `{action}` is *Add* for a new file, *Update* for
 one there); the new-branch prefix (`la-gram/`); whether *Remember* starts

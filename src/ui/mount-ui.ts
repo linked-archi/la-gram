@@ -38,11 +38,13 @@ import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { PropertyCatalog } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
-import { conceptStatements, viewStatements } from '../model-manager/rdf-scope.js';
+import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
+import { PersonalSettings } from '../settings.js';
+import { CATALOGUE_KIND_LABELS } from '../metamodel-manager/catalogue.js';
 
 // Side-effect imports: register the custom elements.
 import './app-shell.js';
@@ -1414,8 +1416,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       },
     };
   };
-  /** File › Settings…: one dialog, a section per part, applied at once (Req 19.5). */
-  const openSettings = async (): Promise<void> => {
+  /**
+   * File › Settings…: one dialog, a tab per part, applied at once (Req 19.5);
+   * opened at the part `open` names (its section id), else at the first.
+   */
+  const openSettings = async (open?: string): Promise<void> => {
     const sections = [...settingsSections.values(), ...[modulesSection()].filter((s): s is SettingsSection => !!s)];
     if (sections.length === 0) return;
     const fields: FormField[] = [];
@@ -1432,10 +1437,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const values = await dialogs.form('Settings', fields, {
       message: 'Kept on this machine, and applied at once. What the deployment sets is shown, not offered for change.',
       confirmLabel: 'Apply',
+      tabs: true,
+      ...(open && sections.some((s) => s.id === open) ? { openSection: open } : {}),
+      // A part's problem opens its tab, marked.
       validate: (v) => {
         for (const section of sections) {
           const problem = section.validate?.(own(v, section.id));
-          if (problem) return `${section.title}: ${problem}`;
+          if (problem) return { message: `${section.title}: ${problem}`, field: section.id };
         }
         return null;
       },
@@ -1444,6 +1452,39 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // A module's own settings first: switching it off after is then its last word.
     for (const section of sections) await section.apply(own(values, section.id));
   };
+
+  // ── File › Settings… › Metamodels: which ones the Metamodels menu offers ──
+  // Kept as the entries hidden, so a metamodel the catalogue gains later is offered.
+  const personalSettings = new PersonalSettings();
+  const hiddenMetamodels = (): string[] => {
+    const hidden = personalSettings.get<{ hidden: unknown }>('metamodels').hidden;
+    return Array.isArray(hidden) ? hidden.filter((iri): iri is string => typeof iri === 'string') : [];
+  };
+  appToolbar.hiddenCatalogue = new Set(hiddenMetamodels());
+  addSettingsSection({
+    id: 'metamodels',
+    title: 'Metamodels',
+    detail: 'Which metamodels the Metamodels menu offers. One that is loaded is listed there anyway, and Load by IRI… reaches any.',
+    fields: () => {
+      const hidden = new Set(hiddenMetamodels());
+      const entries = appToolbar.catalogue;
+      const kinds = (['core', 'language', 'framework', 'extension'] as const).filter((kind) => entries.some((e) => e.kind === kind));
+      return kinds.flatMap((kind): FormField[] => [
+        { name: `kind:${kind}`, label: CATALOGUE_KIND_LABELS[kind], type: 'group' },
+        ...entries
+          .filter((e) => e.kind === kind)
+          .map((e): FormField => ({ name: e.iri, label: e.label, type: 'checkbox', value: !hidden.has(e.iri) })),
+      ]);
+    },
+    apply: (values) => {
+      const entries = appToolbar.catalogue;
+      // Hidden from a catalogue not reached this time (offline) stays hidden.
+      const unseen = hiddenMetamodels().filter((iri) => !entries.some((e) => e.iri === iri));
+      const hidden = [...unseen, ...entries.filter((e) => values[e.iri] === false).map((e) => e.iri)];
+      personalSettings.set('metamodels', { hidden: hidden.length > 0 ? hidden : undefined });
+      appToolbar.hiddenCatalogue = new Set(hidden);
+    },
+  });
 
   // ── Toolbar commands ─────────────────────────────────────────────────
   const onToolbarCommand = (e: Event): void => {
@@ -1714,7 +1755,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         }
         case 'settings':
         case 'modules':
-          await openSettings();
+          // From the Metamodels menu's "Choose which to show…": at that tab.
+          await openSettings(typeof value === 'string' ? value : undefined);
           return;
         case 'toggle-explorer':
           setExplorerOpen(!shell.explorerOpen);
@@ -1747,14 +1789,27 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // copying the model for it on every load cost seconds on a large model (Task 22).
   };
 
+  /**
+   * The Validation tab's view scope follows the open view — what it covers
+   * changes with every edit, which validation follows — and the tab's badge
+   * counts the violations of the scope shown, as the tab lists them.
+   */
+  const scopeValidation = (): void => {
+    const viewIri = session.activeViewIri;
+    validationPanel.viewIris = viewIri ? viewMembers(store, viewIri) : undefined;
+    const violations = validationPanel.shownResults.filter((r) => r.severity === 'Violation').length;
+    shell.tabBadges = violations > 0 ? { validation: String(violations) } : {};
+  };
+  const onValidationScopeChange = (): void => scopeValidation();
+
   const onValidationUpdated: ModelEventHandler = (event) => {
     const detail = event.detail as { conforms?: boolean; results?: ValidationResult[] } | undefined;
     const results = detail?.results ?? [];
     validationPanel.conforms = detail?.conforms ?? true;
     validationPanel.results = results;
     // The violations show on the Validation tab, which may not be the open one.
-    const violations = results.filter((r) => r.severity === 'Violation').length;
-    shell.tabBadges = violations > 0 ? { validation: String(violations) } : {};
+    scopeValidation();
+    // Every violation drawn is marked, whatever the tab's scope.
     diagramCanvas.setMarkers(
       VIOLATION_MARKER,
       new Set(results.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value)),
@@ -1837,6 +1892,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     selectConcept(undefined);
     refreshGraphs();
     showActiveView();
+    scopeValidation();
   };
 
   const onViewOpened: ModelEventHandler = () => {
@@ -1854,8 +1910,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       if (place.viewbox) diagramCanvas.restoreViewport(place.viewbox);
       diagramCanvas.selectIris(place.selection ?? []);
     }
-    // The RDF panel follows the open view (and draws the selection in it).
+    // The RDF panel follows the open view (and draws the selection in it), as does the Validation tab.
     rdfPanel.scheduleRefresh();
+    scopeValidation();
     // A view opened from a maximized panel (a new view from results, a
     // revealed concept) is what the user wants to see: put the panel back.
     shell.setBottomMaximized(false);
@@ -1922,11 +1979,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   eventBus.on('metamodel-loaded', onMetamodelLoaded);
   eventBus.on('model-loaded', onModelLoaded);
   eventBus.on('view-opened', onViewOpened);
+  validationPanel.addEventListener('validation-scope-change', onValidationScopeChange);
   // The view open before these listeners: the first visit.
   if (session.activeViewIri) {
     viewHistory.visit(session.activeViewIri);
     shownViewIri = session.activeViewIri;
   }
+  scopeValidation();
   eventBus.on('views-changed', onViewsChanged);
   eventBus.on('model-changed', onModelChanged);
   eventBus.on('selection-changed', onCanvasSelection);
@@ -1991,6 +2050,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     catalogView.removeEventListener('view-members-change', onViewMembersChange);
     matrixView.removeEventListener('view-members-change', onViewMembersChange);
     validationPanel.removeEventListener('validation-navigate', onValidationNavigate);
+    validationPanel.removeEventListener('validation-scope-change', onValidationScopeChange);
     propertyPanel.removeEventListener('property-edit', onPropertyEdit);
     propertyPanel.removeEventListener('property-add', onPropertyAdd);
     propertyPanel.removeEventListener('property-remove', onPropertyRemove);

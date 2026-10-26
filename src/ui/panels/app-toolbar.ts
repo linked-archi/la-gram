@@ -298,6 +298,8 @@ export class AppToolbar extends LitElement {
   @property({ type: String }) activeViewpointIri = '';
   @property({ attribute: false }) loadedMetamodels: LabelledIri[] = [];
   @property({ attribute: false }) catalogue: readonly CatalogueEntry[] = [];
+  /** Catalogue entries not offered in the Metamodels menu (File › Settings… › Metamodels); a loaded one is listed anyway. */
+  @property({ attribute: false }) hiddenCatalogue: ReadonlySet<string> = new Set();
   @property({ attribute: false }) presentationContexts: LabelledIri[] = [];
   @property({ type: String }) activeContextIri = '';
   @property({ attribute: false }) collab: CollabIndicator = { status: 'off', peers: [] };
@@ -408,9 +410,12 @@ export class AppToolbar extends LitElement {
 
   private _metamodelMenu() {
     const loaded = new Set(this.loadedMetamodels.map((m) => m.iri));
+    // What the settings leave in the menu; the loaded ones are listed above anyway.
+    const offered = this.catalogue.filter((e) => !this.hiddenCatalogue.has(e.iri));
+    const hidden = this.catalogue.length - offered.length;
     // The catalogue's sections that offer something, in this order.
     const kinds = (['core', 'language', 'framework', 'extension'] as const).filter((kind) =>
-      this.catalogue.some((e) => e.kind === kind),
+      offered.some((e) => e.kind === kind),
     );
     return html`<div class="dropdown" role="menu">
       <div class="group">Loaded</div>
@@ -428,7 +433,7 @@ export class AppToolbar extends LitElement {
           )}
       ${kinds.map(
         (kind) => html`<div class="group">${CATALOGUE_KIND_LABELS[kind]}</div>
-          ${this.catalogue
+          ${offered
             .filter((e) => e.kind === kind)
             .map(
               (e) => html`<button
@@ -460,6 +465,14 @@ export class AppToolbar extends LitElement {
         Upload metamodel or asset file…
       </button>
       <button data-command="show-assets" @click=${() => this._cmd('show-assets')}>Show loaded assets…</button>
+      <button
+        data-command="settings"
+        data-value="metamodels"
+        title="File › Settings… › Metamodels: which metamodels this menu offers"
+        @click=${() => this._cmd('settings', 'metamodels')}
+      >
+        Choose which to show…${hidden > 0 ? html` <span class="hint">${hidden} hidden</span>` : nothing}
+      </button>
     </div>`;
   }
 

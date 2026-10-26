@@ -129,7 +129,7 @@ describe('the Git module in the File menu', () => {
     await ui.runCommand({ command: 'settings' });
     const [title, fields] = vi.mocked(ui.dialogs.form).mock.calls.at(-1)!;
     expect(title).toBe('Settings');
-    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Git storage']);
+    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'Git storage']);
     expect(fields.map((f) => f.name)).toContain('git.forget:github.com');
     expect(JSON.parse(storage.getItem('la-gram:settings')!)).toEqual({ git: { folder: 'architecture', message: 'arch: {action} {model}', rememberByDefault: false } });
     expect(await git.context.tokens.get('github.com')).toBeUndefined();
@@ -146,7 +146,7 @@ describe('the Git module in the File menu', () => {
     forms.push({ 'modules.git': false });
     await ui.runCommand({ command: 'settings' });
     const fields = vi.mocked(ui.dialogs.form).mock.calls.at(-1)![1];
-    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Git storage', 'Modules']);
+    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'Git storage', 'Modules']);
     expect(toggle).toHaveBeenCalledWith('git', false);
   });
 

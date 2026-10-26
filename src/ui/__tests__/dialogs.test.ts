@@ -54,3 +54,66 @@ describe('the form dialog', () => {
     expect(await answer).toEqual({ token: 'typed', kind: 'gitlab' });
   });
 });
+
+describe('a form of several parts, as tabs', () => {
+  const parts = [
+    { name: 'metamodels', label: 'Metamodels', type: 'section' as const, hint: 'Which the menu offers.' },
+    { name: 'metamodels.languages', label: 'Modelling languages', type: 'group' as const },
+    { name: 'metamodels.am3', label: 'ArchiMate 3.2', type: 'checkbox' as const, value: true },
+    { name: 'metamodels.am4', label: 'ArchiMate 4.0', type: 'checkbox' as const, value: false },
+    { name: 'metamodels.frameworks', label: 'Frameworks', type: 'group' as const },
+    { name: 'metamodels.togaf', label: 'TOGAF', type: 'checkbox' as const, value: true },
+    { name: 'git', label: 'Git storage', type: 'section' as const },
+    { name: 'git.folder', label: 'Folder', value: 'models' },
+    { name: 'modules', label: 'Modules', type: 'section' as const },
+    { name: 'modules.git', label: 'Git storage', type: 'checkbox' as const, value: true },
+  ];
+  const tabs = () => [...dialog().querySelectorAll<HTMLButtonElement>('.la-form-tab')];
+  const shown = () => [...dialog().querySelectorAll<HTMLElement>('.la-form-pane')].filter((p) => !p.hidden).map((p) => p.dataset['section']);
+
+  it('lists the parts down the side and shows one at a time; Up and Down move between them', async () => {
+    const answer = domDialogs.form('Settings', parts, { tabs: true });
+    expect(tabs().map((t) => t.textContent)).toEqual(['Metamodels', 'Git storage', 'Modules']);
+    expect(shown()).toEqual(['metamodels']);
+    expect(dialog().classList.contains('la-dialog-tabbed')).toBe(true);
+    tabs()[1]!.click();
+    expect(shown()).toEqual(['git']);
+    tabs()[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(shown()).toEqual(['modules']);
+    tabs()[2]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(shown()).toEqual(['metamodels']);
+    // Every part's values, whichever tab was open.
+    ok();
+    expect(await answer).toEqual({ 'metamodels.am3': true, 'metamodels.am4': false, 'metamodels.togaf': true, 'git.folder': 'models', 'modules.git': true });
+  });
+
+  it('opens at the part asked for', async () => {
+    void domDialogs.form('Settings', parts, { tabs: true, openSection: 'git' });
+    expect(shown()).toEqual(['git']);
+  });
+
+  it('puts a group’s switches in two columns, with All and None', async () => {
+    const answer = domDialogs.form('Settings', parts, { tabs: true });
+    const languages = dialog().querySelectorAll('.la-form-group-body')[0]!;
+    expect(languages.querySelectorAll('input[type=checkbox]')).toHaveLength(2);
+    const head = dialog().querySelectorAll('.la-form-group')[0]!;
+    [...head.querySelectorAll<HTMLButtonElement>('.la-form-group-all')].find((b) => b.textContent === 'All')!.click();
+    [...dialog().querySelectorAll('.la-form-group')[1]!.querySelectorAll<HTMLButtonElement>('.la-form-group-all')]
+      .find((b) => b.textContent === 'None')!
+      .click();
+    ok();
+    expect(await answer).toMatchObject({ 'metamodels.am3': true, 'metamodels.am4': true, 'metamodels.togaf': false });
+  });
+
+  it('opens and marks the part a problem is in', async () => {
+    let tries = 0;
+    void domDialogs.form('Settings', parts, {
+      tabs: true,
+      validate: () => (tries++ === 0 ? { message: 'Git storage: no such folder', field: 'git' } : null),
+    });
+    ok();
+    expect(shown()).toEqual(['git']);
+    expect(tabs()[1]!.classList.contains('invalid')).toBe(true);
+    expect(dialog().querySelector('.la-dialog-error')!.textContent).toBe('Git storage: no such folder');
+  });
+});

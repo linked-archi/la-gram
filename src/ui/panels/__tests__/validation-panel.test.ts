@@ -11,6 +11,7 @@ import {
   groupBySeverity,
   buildSummary,
   extractViolatedIris,
+  resultsWithin,
   type ValidationNavigateDetail,
   type ValidationHighlightDetail,
 } from '../validation-panel.js';
@@ -59,6 +60,8 @@ function makeCtx(overrides: Record<string, any> = {}) {
     dataGraph: undefined,
     shapesGraph: undefined,
     _collapsedSeverities: new Set<string>(),
+    _scope: 'view',
+    viewIris: undefined,
     dispatchEvent: vi.fn(),
     requestUpdate: vi.fn(),
     ...overrides,
@@ -76,6 +79,10 @@ function makeCtx(overrides: Record<string, any> = {}) {
     if (typeof (ValidationPanel.prototype as any)[m] === 'function') {
       ctx[m] = (ValidationPanel.prototype as any)[m].bind(ctx);
     }
+  }
+  for (const accessor of ['scope', 'shownScope', 'shownResults']) {
+    const descriptor = Object.getOwnPropertyDescriptor(ValidationPanel.prototype, accessor)!;
+    Object.defineProperty(ctx, accessor, { get: descriptor.get?.bind(ctx), set: descriptor.set?.bind(ctx), configurable: true });
   }
   return ctx;
 }
@@ -143,6 +150,7 @@ describe('groupBySeverity', () => {
 describe('buildSummary', () => {
   it('returns conforms message when model conforms', () => {
     expect(buildSummary(true, [])).toBe('✓ Model conforms');
+    expect(buildSummary(true, [], 'View')).toBe('✓ View conforms');
   });
 
   it('returns violation count', () => {
@@ -163,6 +171,58 @@ describe('buildSummary', () => {
   it('omits zero-count severities', () => {
     const results = [makeResult('Info', 'urn:a', 'i1')];
     expect(buildSummary(false, results)).toBe('✗ 1 info(s)');
+  });
+});
+
+describe('resultsWithin', () => {
+  it('keeps the findings on what a view covers', () => {
+    const results = [makeResult('Violation', 'urn:a', 'a'), makeResult('Warning', 'urn:b', 'b')];
+    expect(resultsWithin(results, new Set(['urn:b', 'urn:view']))).toEqual([results[1]]);
+    expect(resultsWithin(results, new Set())).toEqual([]);
+  });
+});
+
+describe('validation scope', () => {
+  const results = () => [
+    makeResult('Violation', 'urn:a', 'on a'),
+    makeResult('Violation', 'urn:b', 'on b'),
+    makeResult('Warning', 'urn:c', 'on c'),
+  ];
+
+  it("shows the open view's findings, and how many more the model has", () => {
+    const ctx = makeCtx({ results: results(), conforms: false, viewIris: new Set(['urn:a', 'urn:view']) });
+    expect(ctx.shownScope).toBe('view');
+    const o = flat(ctx.render());
+    expect(o).toContain('✗ 1 violation(s)');
+    expect(o).toContain('on a');
+    expect(o).not.toContain('on b');
+    expect(o).toContain('2 more in the model');
+  });
+
+  it('says the view conforms when none of the findings are on it', () => {
+    const ctx = makeCtx({ results: results(), conforms: false, viewIris: new Set(['urn:view']) });
+    const o = flat(ctx.render());
+    expect(o).toContain('✓ View conforms');
+    expect(o).toContain('3 more in the model');
+    expect(o).not.toContain('Violations');
+  });
+
+  it('shows the whole model when it is chosen, or when no view is open', () => {
+    const chosen = makeCtx({ results: results(), conforms: false, viewIris: new Set(['urn:a']), _scope: 'model' });
+    expect(flat(chosen.render())).toContain('✗ 2 violation(s), 1 warning(s)');
+    expect(flat(chosen.render())).not.toContain('more in the model');
+    const noView = makeCtx({ results: results(), conforms: false });
+    expect(noView.shownScope).toBe('model');
+    expect(noView.shownResults).toHaveLength(3);
+  });
+
+  it('announces another scope, and only another', () => {
+    const ctx = makeCtx({ viewIris: new Set<string>() });
+    ctx.scope = 'view';
+    expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+    ctx.scope = 'model';
+    const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<{ scope: string }>;
+    expect([evt.type, evt.detail.scope, ctx.shownScope]).toEqual(['validation-scope-change', 'model', 'model']);
   });
 });
 

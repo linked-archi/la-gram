@@ -9,6 +9,9 @@
  * - Concepts — a selection of one or several: their own statements and, given
  *   the open view, how they are drawn there.
  *
+ * And, by IRI, what a view is about (`viewMembers`): the Validation tab's view
+ * scope.
+ *
  * Read from the model graph only, so a vocabulary's statements about a type
  * never appear. Each subject comes with what only it reaches — blank nodes and
  * the cells and points of a route list — as a saved file has them.
@@ -48,14 +51,35 @@ export function statementsOf(store: RdfStore, subjects: Iterable<Term>): Quad[] 
   return quads;
 }
 
-/** A view's statements: its own, its concepts', and its diagram's. */
-export function viewStatements(store: RdfStore, viewIri: string): Quad[] {
+/** What a view covers: itself, the concepts it presents (`arch:inView`), and its diagram's nodes and links (`arch-vis:view`). */
+export function viewSubjects(store: RdfStore, viewIri: string): Term[] {
   const view = nn(viewIri);
-  return statementsOf(store, [
+  return [
     view,
     ...store.getQuads(null, T.inView, view, MODEL_GRAPH).map((q) => q.subject),
     ...store.getQuads(null, T.visView, view, MODEL_GRAPH).map((q) => q.subject),
-  ]);
+  ];
+}
+
+/**
+ * Everything a view is about, by IRI: what `viewSubjects` gives and the
+ * concepts its diagram draws — presented by geometry alone, as an older model
+ * may have them. The Validation tab's view scope (`ui/panels/validation-panel.ts`).
+ */
+export function viewMembers(store: RdfStore, viewIri: string): Set<string> {
+  const members = new Set<string>();
+  for (const subject of viewSubjects(store, viewIri)) {
+    members.add(subject.value);
+    for (const predicate of [T.archElement, T.archRelationship]) {
+      for (const q of store.getQuads(subject as NamedNode, predicate, null, MODEL_GRAPH)) members.add(q.object.value);
+    }
+  }
+  return members;
+}
+
+/** A view's statements: its own, its concepts', and its diagram's. */
+export function viewStatements(store: RdfStore, viewIri: string): Quad[] {
+  return statementsOf(store, viewSubjects(store, viewIri));
 }
 
 /** Concepts' statements — one IRI or a selection of several — and how they are drawn in the open view. */

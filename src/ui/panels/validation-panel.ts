@@ -5,6 +5,12 @@
  * with click-to-navigate to focus node on Canvas and visual highlighting
  * of elements/relationships with violations. Supports real-time incremental
  * validation feedback via EventBus integration.
+ *
+ * Of a scope, remembered per browser: the **open view** (the default) — the
+ * findings on the view, the concepts it presents and the nodes and links of
+ * its diagram, with how many more the rest of the model has — or the whole
+ * **model**. The host says what the open view covers (`viewIris`); with no view
+ * open, the panel shows the model.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -26,6 +32,32 @@ export interface ValidationNavigateDetail {
 /** Detail emitted to highlight violated elements on the canvas. */
 export interface ValidationHighlightDetail {
   iris: string[];
+}
+
+/** What the panel shows the findings of: the open view, or the whole model. */
+export type ValidationScope = 'view' | 'model';
+
+/** The scopes, in the order offered. */
+export const VALIDATION_SCOPES: ReadonlyArray<{ id: ValidationScope; label: string; title: string }> = [
+  { id: 'view', label: 'View', title: 'Findings on the open view: the view, the concepts it presents, and its diagram' },
+  { id: 'model', label: 'Model', title: 'Findings across the whole model' },
+];
+
+/** Detail of `validation-scope-change`: the scope now shown. */
+export interface ValidationScopeDetail {
+  scope: ValidationScope;
+}
+
+/** localStorage key of the scope shown. */
+const SCOPE_KEY = 'la-gram:validation-scope';
+
+function storedScope(): ValidationScope {
+  try {
+    const value = globalThis.localStorage?.getItem(SCOPE_KEY);
+    return VALIDATION_SCOPES.find((s) => s.id === value)?.id ?? 'view';
+  } catch {
+    return 'view';
+  }
 }
 
 /** Groups validation results by severity. */
@@ -61,9 +93,9 @@ export function groupBySeverity(results: ValidationResult[]): GroupedResults {
   return { violations, warnings, infos };
 }
 
-/** Builds the summary header text from a ValidationReport. */
-export function buildSummary(conforms: boolean, results: ValidationResult[]): string {
-  if (conforms) return '✓ Model conforms';
+/** Builds the summary header text from a ValidationReport; `subject` says what conforms. */
+export function buildSummary(conforms: boolean, results: ValidationResult[], subject = 'Model'): string {
+  if (conforms) return `✓ ${subject} conforms`;
   const grouped = groupBySeverity(results);
   const parts: string[] = [];
   if (grouped.violations.length > 0) {
@@ -76,6 +108,11 @@ export function buildSummary(conforms: boolean, results: ValidationResult[]): st
     parts.push(`${grouped.infos.length} info(s)`);
   }
   return `✗ ${parts.join(', ')}`;
+}
+
+/** The findings whose focus node is one of `iris`: a view's. */
+export function resultsWithin(results: ValidationResult[], iris: ReadonlySet<string>): ValidationResult[] {
+  return results.filter((r) => iris.has(r.focusNode?.value));
 }
 
 /** Extracts unique focus node IRIs from validation results. */
@@ -99,10 +136,35 @@ export class ValidationPanel extends LitElement {
     }
 
     .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       padding: 8px 12px;
       font-weight: 600;
       font-size: 14px;
       border-bottom: 1px solid #ddd;
+    }
+
+    .panel-header select.scope {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: normal;
+      padding: 1px 2px;
+    }
+
+    .summary .rest {
+      margin-left: 6px;
+      padding: 0;
+      border: none;
+      background: none;
+      color: #1a73e8;
+      font: inherit;
+      font-weight: normal;
+      cursor: pointer;
+    }
+
+    .summary .rest:hover {
+      text-decoration: underline;
     }
 
     .summary {
@@ -161,8 +223,44 @@ export class ValidationPanel extends LitElement {
   @property({ attribute: false })
   labelFor?: (iri: string) => string;
 
+  /** What the open view covers, by IRI (`viewMembers`); none when no view is open. */
+  @property({ attribute: false })
+  viewIris?: ReadonlySet<string>;
+
   @state()
   private _collapsedSeverities = new Set<string>();
+
+  @state()
+  private _scope: ValidationScope = storedScope();
+
+  /** The scope chosen; remembered per browser. */
+  get scope(): ValidationScope {
+    return this._scope;
+  }
+
+  /** Show another scope; remembered per browser, and announced (`validation-scope-change`). */
+  set scope(scope: ValidationScope) {
+    if (scope === this._scope) return;
+    this._scope = scope;
+    try {
+      globalThis.localStorage?.setItem(SCOPE_KEY, scope);
+    } catch {
+      // Not remembered: private browsing or storage blocked.
+    }
+    this.dispatchEvent(
+      new CustomEvent<ValidationScopeDetail>('validation-scope-change', { detail: { scope }, bubbles: true, composed: true }),
+    );
+  }
+
+  /** The scope shown: the model when no view is open. */
+  get shownScope(): ValidationScope {
+    return this._scope === 'view' && this.viewIris ? 'view' : 'model';
+  }
+
+  /** The findings shown, of the scope shown. */
+  get shownResults(): ValidationResult[] {
+    return this.shownScope === 'view' ? resultsWithin(this.results, this.viewIris!) : this.results;
+  }
 
   /**
    * Runs SHACL validation using the configured validator and graphs.
@@ -271,12 +369,39 @@ export class ValidationPanel extends LitElement {
   }
 
   override render() {
-    const grouped = groupBySeverity(this.results);
-    const summary = buildSummary(this.conforms, this.results);
+    const inView = this.shownScope === 'view';
+    const shown = this.shownResults;
+    // A view conforms when none of the findings are on it.
+    const conforms = inView ? shown.length === 0 : this.conforms;
+    const grouped = groupBySeverity(shown);
+    const summary = buildSummary(conforms, shown, inView ? 'View' : 'Model');
+    const rest = inView ? this.results.length - shown.length : 0;
     return html`
-      <div class="panel-header">Validation</div>
-      <div class="summary ${this.conforms ? 'conforms' : 'non-conforms'}">
+      <div class="panel-header">
+        Validation
+        <select
+          class="scope"
+          aria-label="Findings of"
+          title=${VALIDATION_SCOPES.find((o) => o.id === this.shownScope)?.title ?? ''}
+          @change=${(e: Event) => (this.scope = (e.target as HTMLSelectElement).value as ValidationScope)}
+        >
+          ${VALIDATION_SCOPES.map(
+            (o) => html`<option
+              value=${o.id}
+              title=${o.id === 'view' && !this.viewIris ? 'No view is open' : o.title}
+              ?disabled=${o.id === 'view' && !this.viewIris}
+              ?selected=${o.id === this.shownScope}
+            >${o.label}</option>`,
+          )}
+        </select>
+      </div>
+      <div class="summary ${conforms ? 'conforms' : 'non-conforms'}">
         ${summary}
+        ${rest > 0
+          ? html`<button class="rest" title="Show the whole model's findings" @click=${() => (this.scope = 'model')}>
+              ${rest} more in the model
+            </button>`
+          : nothing}
       </div>
       ${this._renderSeverityGroup('Violations', 'Violation', grouped.violations)}
       ${this._renderSeverityGroup('Warnings', 'Warning', grouped.warnings)}

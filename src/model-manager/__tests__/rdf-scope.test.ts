@@ -5,7 +5,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createApp } from '../../app.js';
-import { conceptStatements, viewStatements } from '../rdf-scope.js';
+import { conceptStatements, viewMembers, viewStatements } from '../rdf-scope.js';
+import { T, nn } from '../vocabulary.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
@@ -54,5 +55,14 @@ describe('the statements of a view or a concept', () => {
     const bothSubjects = new Set(both.map((q) => q.subject.value));
     expect([bothSubjects.has(portal), bothSubjects.has(clerk), bothSubjects.has(serving)]).toEqual([true, true, false]);
     expect(drawnIn(both, viewIri)).toBe(2);
+
+    // What the view is about, by IRI: itself, its concepts, its diagram — a
+    // concept drawn there without `arch:inView` too — and nothing of another view.
+    const { store } = app.components;
+    store.removeQuads(store.getQuads(nn(clerk), T.inView, nn(viewIri)));
+    const members = viewMembers(store, viewIri);
+    for (const iri of [viewIri, portal, clerk, serving]) expect(members.has(iri), iri).toBe(true);
+    expect(members.has(elsewhere)).toBe(false);
+    expect(members.size).toBe(4 + 3);
   }, 120_000);
 });
