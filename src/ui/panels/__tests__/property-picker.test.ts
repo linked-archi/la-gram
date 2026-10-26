@@ -60,7 +60,7 @@ describe('<property-picker>', () => {
     expect(names()).toEqual(['Is abstract', 'Owner', 'Definition']);
     const first = root.querySelector('.option')!;
     expect(first.querySelector('.name')!.textContent).toBe('Is abstract');
-    expect(first.querySelector('.curie')!.textContent).toBe('arch:isAbstract');
+    expect(first.querySelector('.iri')!.textContent).toBe('arch:isAbstract');
 
     (root.querySelector('.group.toggle') as HTMLElement).click();
     await (root.host as PropertyPicker).updateComplete;
@@ -82,7 +82,7 @@ describe('<property-picker>', () => {
     await open();
     await type('budget');
     expect(names()).toEqual(['Budget']);
-    expect(root.querySelector('.option.new .curie')!.textContent).toBe('m:budget');
+    expect(root.querySelector('.option.new .iri')!.textContent).toBe('m:budget');
     // Typing an existing one does not offer it twice.
     await type('owner');
     expect(names()).toEqual(['Owner']);

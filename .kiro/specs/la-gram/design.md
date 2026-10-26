@@ -71,7 +71,7 @@ graph TB
 |---|---|---|---|
 | **Model** | `arch:Model` + `arch:modelConformsToMetamodel` + its namespace (`vann:preferredNamespaceUri` / `…Prefix`) | default graph | yes |
 | **Element** | a metamodel class; `skos:prefLabel`@en; `arch:inModel` | default graph | yes |
-| **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`), which it `rdf:reifies` (RDF 1.2, `<<( s p o )>>`) | default graph | yes |
+| **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`), which it `rdf:reifies` (RDF 1.2, `<<( s p o )>>`), and the qualified predicate from the source to it (`am4:qualifiedServes`; `arch:hasQualifiedRelationship` for a class with none) | default graph | yes |
 | **View** | `arch:View` + `arch:Diagram`/`Catalog`/`Matrix`, `arch:inModel`, `arch:viewConformsToViewpoint` | default graph | yes |
 | **Membership** | `arch:inView` on each concept a view presents | default graph | yes |
 | **Geometry** | `arch-vis:ArchNode` (bounds, `archElement`, `view`), `arch-vis:Link` (`archRelationship`, `source`/`target` nodes, `points` list with IRI cells) | default graph | yes (droppable profile) |
@@ -595,7 +595,24 @@ another resource shows that resource's name (`labelOf`, else its local name in
 words), and the ID the concept's short identifier (its local name). Clicking a
 field's name, or a link, shows the IRIs behind the row — the property's, and the
 value's when it is a link — under it, each selected whole by a click, to copy;
-clicking again hides them, and another selection starts with them hidden.
+clicking again hides them, and another selection starts with them hidden. A
+value's language is named when it is not English, the language la-gram reads
+names in ("German"; its tag on hovering).
+
+An element's type, and the value of a link being added, are picked by name in a
+search field (`named-picker.ts`, which the add field's property picker is built
+on): the list in groups, each entry's name first and under it, smaller, what it
+is and its IRI. IRIs are behind the list's **Show IRIs** switch — remembered per
+browser, for every picker that has one — except where entries share a name
+(ArchiMate 3's Business Actor and ArchiMate 4's), which show theirs anyway. The
+type field shows the current type's name and goes back to it when left without
+a pick, or when the change is not made after all. A property takes a link when
+its shape says so (`sh:class`, a `sh:nodeKind` that admits IRIs) or its
+vocabulary does (an object property, a range that is a class), and for
+`rdfs:seeAlso`, `prov:wasDerivedFrom` and `dcterms:source` / `relation` /
+`references` (`PropertyCatalog.takesLinks`); its value is then one of the
+model's elements, relationships and views by name (the first 100, typing
+narrows), or an address typed (`https:`, `urn:`, `mailto:`) — a link — or text.
 
 ### Type guide (About ‹type›)
 
@@ -656,7 +673,7 @@ metamodel-authoring annotations (`arch:unqualifiedForm`, `domainIncludes`, …).
 A property whose domain is another class is not listed but can be typed. Typed
 text resolves as a CURIE with a known prefix, an absolute IRI, or a plain name in
 the model's namespace (`cost center` → `m:costCenter`). Each entry shows the name
-first and the prefixed IRI under it. The list floats (`position: fixed`) under the
+first and the prefixed IRI under it, always. The list floats (`position: fixed`) under the
 field, or above it when there is more room there — as in the bottom panel — so
 no scrolling container clips it; a native `<datalist>` could neither group
 nor put the name first.
@@ -1235,7 +1252,16 @@ dialog; the modules' section).
    reification — meta's derivations among them — finds which triple it is about.
    La-gram writes it on create and keeps it in step through retype and reconnect;
    loading a model gives it to a relationship that has none (an older file, or
-   another tool's); the properties panel does not offer it for editing.
+   another tool's); the properties panel does not offer it for editing. So with
+   the qualified predicate that leads from the source to the resource — the way
+   in, as `arch:source` is the way out: the type's own, which the metamodel
+   declares with the class as its `rdfs:range` (`am4:qualifiedRealization`,
+   ArchiMate 3.2's `am:qualifiedRealizes`), else core's
+   `arch:hasQualifiedRelationship` (`cascade.ts`, `qualifiedFormOf`). It moves
+   with the source on reconnect, is swapped on retype, goes with the
+   relationship on delete, and is given on load to a relationship without one;
+   one the data has, of whichever predicate, is kept. The Properties tab leaves
+   it out — Analysis lists the relationships.
 4. **Offline first, network when asked.** ArchiMate 4.0 and 3.2 are bundled;
    every other published metamodel is one click away when online.
 5. **Undo = inverse diff.** One mechanism for every model change a gesture

@@ -41,7 +41,7 @@ import type { NamedNode } from '@rdfjs/types';
 
 /** The default graph: the model. */
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
-import { relationshipClassOf, unqualifiedFormOf } from './cascade.js';
+import { isQualifiedPredicate, qualifiedFormOf, relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -198,6 +198,7 @@ export class ModelSession {
     const migration = migrateLegacyModel(this.store, { viewManager: this.views, defaultView: ensureDefaultView });
     this.ensureMembership(modelIri);
     this.ensureReifies();
+    this.ensureQualifiedPointers();
 
     // A view to open: the first diagram, else a new one.
     const viewIri = ensureDefaultView();
@@ -460,6 +461,34 @@ export class ModelSession {
       const predicate = classIri ? unqualifiedFormOf(this.store, classIri) : undefined;
       if (!target || target.termType !== 'NamedNode' || q.object.termType !== 'NamedNode' || !predicate) continue;
       add.push(triple(nn(rel), T.reifies, tripleTerm(nn(q.object.value), nn(predicate), nn(target.value))));
+    }
+    if (add.length > 0) this.store.addQuads(add);
+  }
+
+  /**
+   * Give every qualified relationship the qualified predicate leading to it
+   * from its source (`am4:qualifiedServes`, else core's
+   * `arch:hasQualifiedRelationship`), where it has none — a model saved before
+   * la-gram wrote it, or made by another tool. One it has, of whichever
+   * predicate, is kept.
+   */
+  private ensureQualifiedPointers(): void {
+    const add: Quad[] = [];
+    const formOf = new Map<string, string>();
+    const qualified = new Map<string, boolean>();
+    const isQualified = (predicate: string): boolean => {
+      if (!qualified.has(predicate)) qualified.set(predicate, isQualifiedPredicate(this.store, predicate));
+      return qualified.get(predicate)!;
+    };
+    // The model's relationships, by index in the model graph (Task 22).
+    const model = MODEL_GRAPH;
+    for (const q of this.store.getQuads(null, T.source, null, model)) {
+      if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+      const rel = q.subject.value;
+      if (this.store.getQuads(nn(q.object.value), null, nn(rel), model).some((p) => isQualified(p.predicate.value))) continue;
+      const classIri = relationshipClassOf(this.store, rel) ?? IRI.QualifiedRelationship;
+      if (!formOf.has(classIri)) formOf.set(classIri, qualifiedFormOf(this.store, classIri));
+      add.push(triple(nn(q.object.value), nn(formOf.get(classIri)!), nn(rel)));
     }
     if (add.length > 0) this.store.addQuads(add);
   }

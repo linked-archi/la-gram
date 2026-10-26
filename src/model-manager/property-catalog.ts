@@ -98,6 +98,23 @@ const NOT_OFFERED = new Set([
   NAMESPACES.vann + 'preferredNamespaceUri',
 ]);
 
+/** Documentation properties whose values are things — another concept, a page — rather than text. */
+const LINKING_PROPERTIES = new Set([
+  NAMESPACES.rdfs + 'seeAlso',
+  NAMESPACES.prov + 'wasDerivedFrom',
+  NAMESPACES.dcterms + 'source',
+  NAMESPACES.dcterms + 'relation',
+  NAMESPACES.dcterms + 'references',
+]);
+
+/** Ranges that are text, not things. */
+const LITERAL_RANGES = new Set([
+  NAMESPACES.rdfs + 'Literal',
+  NAMESPACES.rdf + 'langString',
+  NAMESPACES.rdf + 'HTML',
+  NAMESPACES.rdf + 'PlainLiteral',
+]);
+
 /** Namespaces whose properties are never offered: diagram geometry and notation. */
 const NOT_OFFERED_NAMESPACES = [NAMESPACES['arch-vis'], NAMESPACES.sh, NAMESPACES.owl];
 
@@ -224,6 +241,20 @@ export class PropertyCatalog {
     else if (plainName) iri = this.context.modelNamespace() + camelCase(input);
     if (!iri) return undefined;
     return { iri, curie: curieOf(iri, prefixes), label: this.labelOf(iri) };
+  }
+
+  /**
+   * Whether a property's values are resources rather than text: one of the
+   * documentation properties that point at things ({@link LINKING_PROPERTIES}),
+   * an object property, or one whose range is a class rather than a datatype.
+   */
+  takesLinks(iri: string): boolean {
+    if (LINKING_PROPERTIES.has(iri)) return true;
+    const subject = nn(iri);
+    if (this.store.getQuads(subject, T.rdfType, nn(NAMESPACES.owl + 'ObjectProperty')).length > 0) return true;
+    return this.store
+      .getQuads(subject, nn(NAMESPACES.rdfs + 'range'))
+      .some((q) => q.object.termType === 'NamedNode' && !LITERAL_RANGES.has(q.object.value) && !q.object.value.startsWith(NAMESPACES.xsd));
   }
 
   /** The vocabulary's label for a property, else its local name in words. */

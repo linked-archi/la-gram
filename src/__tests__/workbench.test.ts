@@ -13,6 +13,7 @@ import type { NamedNode } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
 import { mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
 import type { Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
+import type { NamedPicker } from '../ui/panels/named-picker.js';
 import { labelOf, modelQuads, readModelContents } from '../model-manager/model-queries.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
@@ -491,21 +492,29 @@ describe('the workbench', () => {
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     const unplaced = els.createElement(`${AM4}BusinessActor`, model, { label: 'Clerk' }).value;
     const root = ui.propertyPanel.shadowRoot!;
-    const typeSelect = async (iri: string) => {
+    const typePicker = async (iri: string) => {
       ui.selectConcept(iri);
       await ui.propertyPanel.updateComplete;
-      return root.querySelector<HTMLSelectElement>('select.type-select');
+      const picker = root.querySelector<NamedPicker>('named-picker.type-picker');
+      await picker?.updateComplete;
+      return picker;
     };
-    const pick = async (select: HTMLSelectElement, typeIri: string) => {
-      select.value = typeIri;
-      select.dispatchEvent(new Event('change'));
-      await vi.waitFor(() => expect(typesOf(select === null ? '' : (ui.propertyPanel.selectedIri as string))).toContain(typeIri));
+    const openList = async (picker: NamedPicker) => {
+      picker.shadowRoot!.querySelector('input')!.dispatchEvent(new Event('focus'));
+      await picker.updateComplete;
+    };
+    const pick = async (picker: NamedPicker, typeIri: string) => {
+      await openList(picker);
+      picker.shadowRoot!.querySelector<HTMLElement>(`.option[data-iri="${typeIri}"]`)!.click();
+      await vi.waitFor(() => expect(typesOf(ui.propertyPanel.selectedIri as string)).toContain(typeIri));
     };
 
-    // In the view: the dropdown lists the loaded types, grouped as in the palette; the change is undoable.
-    const inView = (await typeSelect(placed))!;
-    expect(inView.value).toBe(`${AM4}BusinessActor`);
-    expect([...inView.querySelectorAll('optgroup')].map((g) => g.label)).toContain('Business Domain');
+    // In the view: the field shows the type's name and lists the loaded types, grouped as in the palette; the change is undoable.
+    const inView = (await typePicker(placed))!;
+    expect(inView.choice?.iri).toBe(`${AM4}BusinessActor`);
+    expect(inView.shadowRoot!.querySelector('input')!.value).toBe('Business Actor');
+    await openList(inView);
+    expect([...inView.shadowRoot!.querySelectorAll('.group')].map((g) => g.textContent!.trim())).toContain('Business Domain');
     await pick(inView, `${AM4}ApplicationComponent`);
     expect(typesOf(placed)).toEqual([`${AM4}ApplicationComponent`]);
     expect(ui.diagramCanvas.getElement(placed)?.typeIri).toBe(`${AM4}ApplicationComponent`);
@@ -514,7 +523,7 @@ describe('the workbench', () => {
     expect(typesOf(placed)).toEqual([`${AM4}BusinessActor`]);
 
     // Not in the view (selected in the tree): changed in the model directly; its own name stays.
-    const offCanvas = (await typeSelect(unplaced))!;
+    const offCanvas = (await typePicker(unplaced))!;
     await pick(offCanvas, `${AM4}Role`);
     expect(typesOf(unplaced)).toEqual([`${AM4}Role`]);
     expect(labelOf(app.components.store, unplaced)).toBe('Clerk');
@@ -523,7 +532,7 @@ describe('the workbench', () => {
 
     // A relationship's type stays read-only here.
     const rel = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Assignment`, sourceIri: placed, targetIri: unplaced, modelIri: model }).iri;
-    expect(await typeSelect(rel)).toBeNull();
+    expect(await typePicker(rel)).toBeNull();
 
     // The right-click menu on the shape: edit, relate, show, copy, delete.
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);

@@ -157,6 +157,17 @@ describe('PropertyCatalog.resolve', () => {
   });
 });
 
+describe('PropertyCatalog.takesLinks', () => {
+  it('says which properties take a resource rather than text: the vocabulary’s object properties and class ranges, and the documentation links', () => {
+    expect(catalog.takesLinks(ARCH + 'inModel')).toBe(true); // an object property
+    expect(catalog.takesLinks(NAMESPACES.rdfs + 'seeAlso')).toBe(true);
+    expect(catalog.takesLinks(NAMESPACES.prov + 'wasDerivedFrom')).toBe(true);
+    expect(catalog.takesLinks(ARCH + 'isAbstract')).toBe(false); // a boolean
+    expect(catalog.takesLinks(NAMESPACES.skos + 'altLabel')).toBe(false);
+    expect(catalog.takesLinks('https://example.org/m/owner')).toBe(false); // unknown: text
+  });
+});
+
 describe('curieOf', () => {
   it('uses the longest prefix whose local name Turtle can write', () => {
     const prefixes = { ex: 'https://ex.org/', exv: 'https://ex.org/v#' };

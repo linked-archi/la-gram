@@ -363,6 +363,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   propertyPanel.rdfStore = store;
   propertyPanel.nameOf = (iri) => (hasLabel(store, iri) ? labelOf(store, iri) : undefined);
   propertyPanel.shapesGraph = app.shapesGraph();
+  // The value of a link added there is picked from the model's concepts, by name.
+  propertyPanel.concepts = () => {
+    const contents = modelContents();
+    const byName = new Intl.Collator('en').compare;
+    const named = <T extends { label: string }>(list: readonly T[]) => [...list].sort((a, b) => byName(a.label, b.label));
+    return [
+      ...named(contents.elements).map((c) => ({ iri: c.iri, label: c.label, detail: c.typeLabel, groupLabel: 'Elements' })),
+      ...named(contents.relationships).map((r) => ({ iri: r.iri, label: r.label, detail: r.typeLabel, groupLabel: 'Relationships' })),
+      ...named(contents.views).map((v) => ({ iri: v.iri, label: v.label, detail: 'View', groupLabel: 'Views' })),
+    ];
+  };
 
   // ── Centre: diagram host + alternative catalog/matrix views ──────────
   const canvasArea = document.createElement('div');

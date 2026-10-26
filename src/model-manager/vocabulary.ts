@@ -107,6 +107,7 @@ export const IRI = {
   source: ARCH + 'source',
   target: ARCH + 'target',
   unqualifiedForm: ARCH + 'unqualifiedForm',
+  hasQualifiedRelationship: ARCH + 'hasQualifiedRelationship',
 
   ArchNode: VIS + 'ArchNode',
   Link: VIS + 'Link',

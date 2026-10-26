@@ -9,7 +9,9 @@
  *
  * Read without knowing RDF: fields are named in words, a link to another
  * resource shows that resource's name, and the ID its short identifier.
- * Clicking a field's name, or a link, shows the IRIs behind it.
+ * Clicking a field's name, or a link, shows the IRIs behind it. An element's
+ * type, and the value of a link being added, are picked by name
+ * (`named-picker.ts`), their IRIs a switch away.
  *
  * Reads the store directly; SHACL shapes give field types and cardinality.
  * Edits are emitted as events (`property-edit`, `property-add`,
@@ -28,7 +30,10 @@ import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
 import { humanize, localName, sentenceCase } from '../../model-manager/vocabulary.js';
+import { isQualifiedPredicate } from '../../model-manager/cascade.js';
+import './named-picker.js';
 import './property-picker.js';
+import type { NamedOption, NamedPicker, TypedOption } from './named-picker.js';
 import type { PropertyPicker } from './property-picker.js';
 
 // ── Well-known predicate IRIs ───────────────────────────────────────────
@@ -46,6 +51,10 @@ const SH_MIN_COUNT = NAMESPACES.sh + 'minCount';
 const SH_MAX_COUNT = NAMESPACES.sh + 'maxCount';
 const SH_NAME = NAMESPACES.sh + 'name';
 const SH_IN = NAMESPACES.sh + 'in';
+const SH_CLASS = NAMESPACES.sh + 'class';
+const SH_NODE_KIND = NAMESPACES.sh + 'nodeKind';
+/** Node kinds that admit an IRI: a property so constrained takes links. */
+const LINK_NODE_KINDS = new Set(['IRI', 'BlankNodeOrIRI', 'IRIOrLiteral'].map((k) => NAMESPACES.sh + k));
 const RDF_FIRST = NAMESPACES.rdf + 'first';
 const RDF_REST = NAMESPACES.rdf + 'rest';
 const RDF_NIL = NAMESPACES.rdf + 'nil';
@@ -184,6 +193,8 @@ export interface ShaclPropertyShape {
   maxCount?: number;
   /** The allowed values (`sh:in`), in list order. */
   in?: Array<{ value: string; isIri: boolean }>;
+  /** Its values are resources (`sh:class`, or a `sh:nodeKind` that admits IRIs). */
+  links?: boolean;
 }
 
 /** The members of an RDF list, from its head node. */
@@ -250,6 +261,10 @@ export function extractShaclShapes(
           value: term.value,
           isIri: term.termType === 'NamedNode',
         }));
+      }
+
+      if (propQuads.some((q) => q.predicate.value === SH_CLASS || (q.predicate.value === SH_NODE_KIND && LINK_NODE_KINDS.has(q.object.value)))) {
+        shape.links = true;
       }
 
       if (shape.path) shapes.push(shape);
@@ -325,7 +340,8 @@ function fieldName(predicate: string, shape: ShaclPropertyShape | undefined, nam
  * them. The name and the definition are listed even without a value
  * ({@link DEFAULT_FIELDS}), empty, so they can be filled in.
  * `arch:inView` and a relationship's `rdf:reifies` — which la-gram keeps in step
- * with its ends and type — are left out ({@link HIDDEN_FIELDS}). The panel shows the ID
+ * with its ends and type — are left out ({@link HIDDEN_FIELDS}), as is the
+ * qualified predicate to each relationship (`PropertyPanel._loadProperties`). The panel shows the ID
  * above them all.
  */
 export function buildPropertyEntries(
@@ -389,6 +405,27 @@ export function buildPropertyEntries(
   entries.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label) || a.value.localeCompare(b.value));
 
   return entries;
+}
+
+/** The language la-gram reads names in (`labelOf`): a value in it is not marked. */
+const NAMES_LANGUAGE = 'en';
+
+/** A language's name (`de` → `German`), else its tag. */
+function languageName(tag: string): string {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'language' }).of(tag) ?? tag;
+  } catch {
+    return tag;
+  }
+}
+
+/** Text typed as a link's value: an address (`https:`, `urn:`, `mailto:`) links, anything else is text. */
+function typedValue(text: string): TypedOption | undefined {
+  const value = text.trim();
+  if (!value) return undefined;
+  return /^(https?|urn|mailto):/i.test(value)
+    ? { iri: value, label: value, prefix: 'Link to: ' }
+    : { iri: value, label: value, text: true, prefix: 'Text: ' };
 }
 
 /** A row, for showing its IRIs: its property and its value. */
@@ -768,7 +805,13 @@ export class PropertyPanel extends LitElement {
   catalog?: {
     suggest(subjectIri: string): PropertySuggestion[];
     resolve(text: string): ResolvedProperty | undefined;
+    /** Whether a property's values are resources: its value is then picked from {@link concepts}. */
+    takesLinks?(iri: string): boolean;
   };
+
+  /** The model's concepts, by name, for the value of a link added; supplied by the host. */
+  @property({ attribute: false })
+  concepts?: () => NamedOption[];
 
   /**
    * The element types an element can be changed to — the loaded metamodels',
@@ -798,6 +841,7 @@ export class PropertyPanel extends LitElement {
 
   @query('property-picker') private _picker?: PropertyPicker;
   @query('.add-row .new-value') private _valueInput?: HTMLInputElement;
+  @query('.add-row named-picker.new-value') private _linkPicker?: NamedPicker;
 
   /** Computed property entries for the selected element. */
   @state()
@@ -827,9 +871,20 @@ export class PropertyPanel extends LitElement {
       return;
     }
 
-    // Query all triples where the selected IRI is the subject
+    // Query all triples where the selected IRI is the subject — but the way in
+    // to each relationship it is the source of (`am4:qualifiedServes`, core's
+    // `arch:hasQualifiedRelationship`): la-gram keeps it in step with the
+    // relationship, as it does `rdf:reifies`, and Analysis lists the relationships.
+    const store = this.rdfStore;
     const subjectNode = { value: this.selectedIri, termType: 'NamedNode' } as NamedNode;
-    const quads = this.rdfStore.getQuads(subjectNode);
+    const qualified = new Map<string, boolean>();
+    const isPointer = (q: Quad): boolean => {
+      if (q.object.termType !== 'NamedNode') return false;
+      const predicate = q.predicate.value;
+      if (!qualified.has(predicate)) qualified.set(predicate, isQualifiedPredicate(store, predicate));
+      return qualified.get(predicate)!;
+    };
+    const quads = store.getQuads(subjectNode).filter((q) => !isPointer(q));
 
     // Determine the element's rdf:type for SHACL shape lookup
     const typeQuad = quads.find((q) => q.predicate.value === RDF_TYPE);
@@ -929,12 +984,14 @@ export class PropertyPanel extends LitElement {
 
   private _add(): void {
     const predicate = this._picker?.value?.iri;
-    const value = this._newValue;
     if (!this.selectedIri) return;
     if (!predicate) {
       this._picker?.focus();
       return;
     }
+    // A link's value: the concept picked, or what was typed — an address, or text.
+    const link = this._linkPicker?.choice;
+    const value = this._linkPicker ? (link?.iri ?? '') : this._newValue;
     if (value === '') {
       this._valueInput?.focus();
       return;
@@ -942,15 +999,25 @@ export class PropertyPanel extends LitElement {
     // The value takes the property's shape: a chosen IRI, or a literal of its datatype.
     const shape = this._shapes.get(predicate);
     const chosen = choicesOf(shape, this.nameOf)?.find((c) => c.value === value);
+    const isIri = chosen?.isIri || (link !== undefined && !link.text);
     this._emit<PropertyChangeDetail>('property-add', {
       elementIri: this.selectedIri,
       predicate,
       value,
-      ...(chosen?.isIri ? { isIri: true } : shape?.datatype ? { datatype: shape.datatype } : {}),
+      ...(isIri ? { isIri: true } : shape?.datatype ? { datatype: shape.datatype } : {}),
     });
     this._picker?.clear();
+    this._linkPicker?.clear();
     this._newValue = '';
     this._pickedPredicate = '';
+  }
+
+  /** Whether a property's values are resources: its shape or its vocabulary says so. */
+  private _takesLinks(predicate: string): boolean {
+    if (!predicate) return false;
+    const shape = this._shapes.get(predicate);
+    if (shape?.datatype) return false;
+    return Boolean(shape?.links || this.catalog?.takesLinks?.(predicate));
   }
 
   private _renderRemove(entry: PropertyEntry) {
@@ -990,7 +1057,8 @@ export class PropertyPanel extends LitElement {
 
   /**
    * The add row's value field, following the picked property's shape: a
-   * choice of its `sh:in` values, true/false for a boolean, else text.
+   * choice of its `sh:in` values, true/false for a boolean; for a link, the
+   * model's concepts by name (or an address or text typed); else text.
    */
   private _renderNewValue() {
     const shape = this._shapes.get(this._pickedPredicate);
@@ -1011,6 +1079,18 @@ export class PropertyPanel extends LitElement {
         <option value="" ?selected=${this._newValue === ''}>Choose…</option>
         ${choices.map((c) => html`<option value=${c.value} ?selected=${c.value === this._newValue}>${c.label}</option>`)}
       </select>`;
+    }
+    if (this._takesLinks(this._pickedPredicate)) {
+      return html`<named-picker
+        class="new-value link-value"
+        label="Value"
+        placeholder="Search the model, or type an address or text"
+        iris="toggle"
+        limit="100"
+        .options=${() => (this.concepts?.() ?? []).filter((c) => c.iri !== this.selectedIri)}
+        .typed=${typedValue}
+        @named-submit=${() => this._add()}
+      ></named-picker>`;
     }
     return html`<input
       class="property-value new-value"
@@ -1097,35 +1177,44 @@ export class PropertyPanel extends LitElement {
   }
 
   /**
-   * The element's type as a choice of the loaded types. Picking one asks the
-   * host (`property-retype`); the host answers whether the type changed, and
-   * the choice goes back to the current type when it did not (a cancelled
-   * warning, say).
+   * The element's type as a choice of the loaded types, searched by name and
+   * grouped as in the palette; types that share a name show their IRIs, and
+   * the list's "Show IRIs" shows every one. Picking one asks the host
+   * (`property-retype`); the host answers whether the type changed, and the
+   * choice goes back to the current type when it did not (a cancelled warning,
+   * say).
    */
   private _renderTypeChoice(entry: PropertyEntry, groups: readonly ElementGroup[]) {
-    const known = groups.some((g) => g.elements.some((t) => t.iri === entry.value));
-    const onChange = (e: Event) => {
-      const select = e.target as HTMLSelectElement;
-      const typeIri = select.value;
+    const options: NamedOption[] = groups.flatMap((group) =>
+      group.elements.map((type) => ({ iri: type.iri, label: type.label, groupLabel: group.category || 'Other' })),
+    );
+    const current = options.find((o) => o.iri === entry.value) ?? {
+      iri: entry.value,
+      label: this.heading?.typeLabel ?? entry.valueLabel ?? entry.value,
+    };
+    const onPicked = (e: CustomEvent<NamedOption>) => {
+      const picker = e.target as NamedPicker;
+      const typeIri = e.detail.iri;
+      if (typeIri === entry.value) return;
       this._emit('property-retype', {
         elementIri: this.selectedIri,
         typeIri,
         reply: (changed: boolean) => {
-          if (!changed) select.value = entry.value;
+          if (!changed) picker.revert();
         },
       });
     };
     return html`
       <li class="property-row">
         ${this._renderLabel(entry)}
-        <select class="property-value type-select" title=${entry.value} aria-label="Type" @change=${onChange}>
-          ${known ? nothing : html`<option value=${entry.value} selected>${this.heading?.typeLabel ?? entry.valueLabel ?? entry.value}</option>`}
-          ${groups.map(
-            (group) => html`<optgroup label=${group.category || 'Other'}>
-              ${group.elements.map((type) => html`<option value=${type.iri} ?selected=${type.iri === entry.value}>${type.label}</option>`)}
-            </optgroup>`,
-          )}
-        </select>
+        <named-picker
+          class="type-picker"
+          label="Type"
+          iris="toggle"
+          .options=${() => options}
+          .selected=${current}
+          @named-picked=${onPicked}
+        ></named-picker>
         ${this._renderIris(entry)}
       </li>
     `;
@@ -1157,7 +1246,9 @@ export class PropertyPanel extends LitElement {
           aria-expanded=${this._irisShown(key) ? 'true' : 'false'}
           @click=${() => this._toggleIris(key)}
         >${entry.label}</button>${isRequired ? html`<span class="required">*</span>` : nothing}
-        ${withLanguage && entry.language ? html`<span class="lang">@${entry.language}</span>` : nothing}
+        ${withLanguage && entry.language && entry.language !== NAMES_LANGUAGE
+          ? html`<span class="lang" title=${entry.language}>${languageName(entry.language)}</span>`
+          : nothing}
         ${this._renderRemove(entry)}
       </div>
     `;

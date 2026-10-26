@@ -103,6 +103,8 @@ import { readProposalOrders, type ProposalOrders, type Proposal } from './propos
 import type { RelationshipPreference } from '../metamodel-manager/interfaces.js';
 import {
   collectRelationshipQuads,
+  qualifiedFormOf,
+  qualifiedPointerQuads,
   relationshipClassOf,
   relationshipsTouching,
   unqualifiedFormOf,
@@ -685,9 +687,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * with its relationship class, carrying `arch:source` / `arch:target` and
    * `arch:inModel`, *plus* the unqualified triple the class maps to through
    * `arch:unqualifiedForm` (DD-10), which the resource `rdf:reifies` (RDF 1.2,
-   * `<<( s p o )>>`). The resource is what views draw, what properties hang off,
-   * and what has a stable IRI; the triple is what makes `?a am4:serves ?b` work
-   * in SPARQL; `rdf:reifies` says which triple the resource is about.
+   * `<<( s p o )>>`), and the qualified predicate leading from the source to the
+   * resource (`am4:qualifiedServes`; core's `arch:hasQualifiedRelationship` for
+   * a class the metamodel gives none). The resource is what views draw, what
+   * properties hang off, and what has a stable IRI; the triple is what makes
+   * `?a am4:serves ?b` work in SPARQL; `rdf:reifies` says which triple the
+   * resource is about; the qualified predicate is the way in from the source.
    *
    * `typeIri` may name either the class (`am4:Serving`, what the palette
    * offers) or the predicate (`am4:serves`); the other is resolved from the
@@ -716,6 +721,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       triple(rel, T.rdfType, nn(classIri)),
       triple(rel, T.source, nn(sourceIri)),
       triple(rel, T.target, nn(targetIri)),
+      triple(nn(sourceIri), nn(qualifiedFormOf(this.store, classIri)), rel),
     ];
     if (request.modelIri) quads.push(triple(rel, T.inModel, nn(request.modelIri)));
     if (request.label?.trim()) quads.push(triple(rel, T.prefLabel, langLiteral(request.label.trim())));
@@ -739,8 +745,9 @@ export class OxigraphRelationshipManager implements RelationshipManager {
 
   /**
    * Change a relationship's kind in place. The IRI, the endpoints, the label
-   * and every other property stay; the class type and the unqualified triple
-   * are swapped (the old triple only when no sibling still justifies it).
+   * and every other property stay; the class type, the qualified predicate
+   * from the source and the unqualified triple are swapped (the old triple only
+   * when no sibling still justifies it).
    */
   retypeRelationship(relationshipIri: string, typeIri: string): RelationshipInfo | undefined {
     const current = this.getRelationship(relationshipIri);
@@ -750,7 +757,11 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     if (newClass === current.classIri) return current;
     const newPredicate = unqualifiedFormOf(this.store, newClass) ?? (newClass === typeIri ? undefined : typeIri);
 
-    const remove: Quad[] = [...this.store.getQuads(rel, T.rdfType, nn(current.classIri)), ...this.store.getQuads(rel, T.reifies)];
+    const remove: Quad[] = [
+      ...this.store.getQuads(rel, T.rdfType, nn(current.classIri)),
+      ...this.store.getQuads(rel, T.reifies),
+      ...qualifiedPointerQuads(this.store, relationshipIri, current.sourceIri),
+    ];
     if (current.predicateIri) {
       const siblings = this.getRelationshipsOf(current.sourceIri).filter(
         (r) => r.iri !== relationshipIri && r.targetIri === current.targetIri && r.classIri === current.classIri,
@@ -760,7 +771,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       }
     }
     if (remove.length > 0) this.store.removeQuads(remove);
-    const add: Quad[] = [triple(rel, T.rdfType, nn(newClass))];
+    const add: Quad[] = [
+      triple(rel, T.rdfType, nn(newClass)),
+      triple(nn(current.sourceIri), nn(qualifiedFormOf(this.store, newClass)), rel),
+    ];
     if (newPredicate) {
       add.push(
         triple(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri)),
@@ -773,17 +787,22 @@ export class OxigraphRelationshipManager implements RelationshipManager {
 
   /**
    * Reattach a relationship to other elements. Its IRI, type and properties
-   * stay; the ends and the unqualified triple move.
+   * stay; the ends, the qualified predicate from the source and the
+   * unqualified triple move.
    */
   reconnectRelationship(relationshipIri: string, sourceIri: string, targetIri: string): RelationshipInfo | undefined {
     const current = this.getRelationship(relationshipIri);
     if (!current) return undefined;
     if (current.sourceIri === sourceIri && current.targetIri === targetIri) return current;
     const rel = nn(relationshipIri);
+    // The way in from the source moves with it, by whichever predicate the data uses.
+    const pointers = qualifiedPointerQuads(this.store, relationshipIri, current.sourceIri);
+    const pointerPredicates = pointers.length > 0 ? [...new Set(pointers.map((q) => q.predicate.value))] : [qualifiedFormOf(this.store, current.classIri)];
     const remove: Quad[] = [
       ...this.store.getQuads(rel, T.source),
       ...this.store.getQuads(rel, T.target),
       ...this.store.getQuads(rel, T.reifies),
+      ...pointers,
     ];
     if (current.predicateIri) {
       const siblings = this.getRelationshipsOf(current.sourceIri).filter(
@@ -794,7 +813,11 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       }
     }
     this.store.removeQuads(remove);
-    const add: Quad[] = [triple(rel, T.source, nn(sourceIri)), triple(rel, T.target, nn(targetIri))];
+    const add: Quad[] = [
+      triple(rel, T.source, nn(sourceIri)),
+      triple(rel, T.target, nn(targetIri)),
+      ...pointerPredicates.map((p) => triple(nn(sourceIri), nn(p), rel)),
+    ];
     if (current.predicateIri) {
       add.push(
         triple(nn(sourceIri), nn(current.predicateIri), nn(targetIri)),

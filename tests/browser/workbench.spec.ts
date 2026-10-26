@@ -566,12 +566,32 @@ describe('the layout and the property panel', () => {
     // The name reads first; the prefixed IRI is quieter.
     const [nameColor, curieColor] = await list.locator('.option').first().evaluate((o) => [
       getComputedStyle(o.querySelector('.name')!).color,
-      getComputedStyle(o.querySelector('.curie')!).color,
+      getComputedStyle(o.querySelector('.iri')!).color,
     ]);
     expect(nameColor).toBe('rgb(32, 33, 36)');
     expect(curieColor).toBe('rgb(128, 134, 139)');
     await session.screenshot('workbench-property-picker');
     await picker.press('Escape');
+
+    // A link's value is picked from the model by name — here, the view — and shown by it.
+    await picker.fill('rdfs:seeAlso');
+    await picker.press('Enter');
+    const linkValue = panel.locator('.add-row named-picker.link-value input[type="text"]');
+    await linkValue.fill('Default');
+    const viewIri = await page.evaluate(() => (window as any).__LA_GRAM_APP__.session.activeViewIri as string);
+    await panel.locator(`.add-row named-picker.link-value .option[data-iri="${viewIri}"]`).click();
+    await panel.locator('.add-row button.add').click();
+    const seeAlso = panel.locator('.pane li.property-row', { has: page.locator('.field-name', { hasText: 'See also' }) });
+    await until(async () => (await seeAlso.count()) === 1, 'the link');
+    expect(await seeAlso.locator('.named').innerText()).toBe('Default View');
+    const linked = await page.evaluate(
+      ([iri, p]) =>
+        (window as any).__LA_GRAM_APP__.components.store
+          .getQuads({ termType: 'NamedNode', value: iri }, { termType: 'NamedNode', value: p })
+          .map((q: any) => [q.object.termType, q.object.value]),
+      [actor, 'http://www.w3.org/2000/01/rdf-schema#seeAlso'],
+    );
+    expect(linked).toEqual([['NamedNode', viewIri]]);
 
     // Analysis and views have tabs of their own.
     await openTab('views');
@@ -1006,16 +1026,24 @@ describe('changing an element’s type', () => {
     // (A click on an already selected shape deselects it: click the canvas first.)
     await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
     await shape.click();
-    const typeField = page.locator('property-panel select.type-select');
+    const typeField = page.locator('property-panel named-picker.type-picker input[type="text"]');
     await typeField.waitFor({ state: 'visible' });
-    expect(await typeField.inputValue()).toBe(AM4 + 'BusinessObject');
-    await typeField.selectOption(AM4 + 'Product');
+    expect(await typeField.inputValue()).toBe('Business Object');
+    // Searched by name; the list's switch shows the IRIs, and is put back as it was.
+    await typeField.click();
+    await typeField.fill('Product');
+    const productOption = page.locator(`property-panel named-picker.type-picker .option[data-iri="${AM4}Product"]`);
+    expect(await productOption.locator('.iri').count()).toBe(0);
+    await page.locator('property-panel named-picker.type-picker .iri-switch input').check();
+    expect(await productOption.locator('.iri').innerText()).toBe(AM4 + 'Product');
+    await page.locator('property-panel named-picker.type-picker .iri-switch input').uncheck();
+    await productOption.click();
     // The relationship is still not permitted: the same warning, from here too.
     await dialog.waitFor({ state: 'visible' });
     expect(await dialog.innerText()).toMatch(/Assignment → Cashier/);
     await dialog.locator('.la-button.primary').click();
     await until(async () => (await facts()).types.includes(AM4 + 'Product'), 'the product');
-    expect(await typeField.inputValue()).toBe(AM4 + 'Product');
+    expect(await typeField.inputValue()).toBe('Product');
     findings.push('change element type: right-click menu and property panel (search, current marked), default name follows, undo, not-permitted relationships named and kept: ok');
   }, 90_000);
 });

@@ -109,6 +109,29 @@ describe('qualified relationships against the real ArchiMate 4.0 ontology', () =
     rels.deleteRelationship(rel.iri);
     expect(store.getQuads(nn(rel.iri))).toHaveLength(0);
   });
+
+  /** The predicates leading to a relationship, as [subject, predicate]. */
+  const pointers = (iri: string) => store.getQuads(null, null, nn(iri)).map((q) => [q.subject.value, q.predicate.value]);
+
+  it('leads from the source to the relationship by its type’s qualified predicate, kept in step through retype, reconnect and delete', () => {
+    const a = elements.createElement(AM4 + 'ApplicationComponent', model).value;
+    const b = elements.createElement(AM4 + 'ApplicationComponent', model).value;
+    const c = elements.createElement(AM4 + 'ApplicationComponent', model).value;
+    const rel = rels.createQualifiedRelationship({ typeIri: AM4 + 'Realization', sourceIri: a, targetIri: b, modelIri: model });
+    expect(pointers(rel.iri)).toEqual([[a, AM4 + 'qualifiedRealization']]);
+
+    rels.retypeRelationship(rel.iri, AM4 + 'Serving');
+    expect(pointers(rel.iri)).toEqual([[a, AM4 + 'qualifiedServes']]);
+
+    // A new source: the way in moves, by the predicate the data used — here, core's fallback.
+    store.removeQuads(store.getQuads(nn(a), null, nn(rel.iri)));
+    store.addQuads([quad(namedNode(a), namedNode(ARCH + 'hasQualifiedRelationship'), namedNode(rel.iri))] as never);
+    rels.reconnectRelationship(rel.iri, c, b);
+    expect(pointers(rel.iri)).toEqual([[c, ARCH + 'hasQualifiedRelationship']]);
+
+    rels.deleteRelationship(rel.iri);
+    expect(pointers(rel.iri)).toEqual([]);
+  });
 });
 
 describe('ModelSession', () => {
@@ -193,6 +216,28 @@ describe('ModelSession', () => {
     // Adopting again adds nothing.
     session.adopt();
     expect(store.getQuads(nn('urn:y:r'), nn(RDF_REIFIES))).toHaveLength(1);
+  });
+
+  it('gives a relationship without one the qualified predicate leading to it on adopt, and keeps one it has', () => {
+    store.addQuads([
+      quad(namedNode('urn:z:a'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(namedNode('urn:z:b'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(namedNode('urn:z:r1'), namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(namedNode('urn:z:r1'), namedNode(ARCH + 'source'), namedNode('urn:z:a')),
+      quad(namedNode('urn:z:r1'), namedNode(ARCH + 'target'), namedNode('urn:z:b')),
+      quad(namedNode('urn:z:r2'), namedNode(RDF_TYPE), namedNode(AM4 + 'Flow')),
+      quad(namedNode('urn:z:r2'), namedNode(ARCH + 'source'), namedNode('urn:z:a')),
+      quad(namedNode('urn:z:r2'), namedNode(ARCH + 'target'), namedNode('urn:z:b')),
+      quad(namedNode('urn:z:a'), namedNode(ARCH + 'hasQualifiedRelationship'), namedNode('urn:z:r2')),
+    ] as never);
+
+    session.adopt({ fallbackLabel: 'Converted' });
+
+    const into = (rel: string) => store.getQuads(nn('urn:z:a'), null, nn(rel)).map((q) => [q.subject.value, q.predicate.value]);
+    expect(into('urn:z:r1')).toEqual([['urn:z:a', AM4 + 'qualifiedServes']]);
+    expect(into('urn:z:r2')).toEqual([['urn:z:a', ARCH + 'hasQualifiedRelationship']]);
+    session.adopt();
+    expect(into('urn:z:r1')).toHaveLength(1);
   });
 
   it('migrates retired vocabulary and element-level geometry on adopt', () => {

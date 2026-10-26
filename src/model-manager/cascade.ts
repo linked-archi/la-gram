@@ -9,6 +9,9 @@
  * ## A relationship
  *
  * - the qualified resource (every triple with it as subject);
+ * - the qualified predicate leading to it from its source (`am4:qualifiedServes`,
+ *   or core's `arch:hasQualifiedRelationship`), which would otherwise point at
+ *   nothing;
  * - its unqualified triple `source predicate target` — unless another qualified
  *   resource of the same kind still connects the same pair, in which case the
  *   triple is still true and stays;
@@ -29,7 +32,10 @@
 
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
+import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { IRI, T, dedupe, nn } from './vocabulary.js';
+
+const RDFS_RANGE = nn(NAMESPACES.rdfs + 'range');
 
 /** Endpoint predicates on a qualified relationship, current first. */
 const ENDPOINTS = [IRI.source, IRI.target, IRI.legacyRelSource, IRI.legacyRelTarget].map(nn);
@@ -41,6 +47,37 @@ function objects(store: RdfStore, subject: Term, predicate: NamedNode): string[]
 /** The unqualified predicate a relationship class maps to, from any graph. */
 export function unqualifiedFormOf(store: RdfStore, classIri: string): string | undefined {
   return store.getQuads(nn(classIri), T.unqualifiedForm)[0]?.object.value;
+}
+
+/**
+ * A relationship class's qualified predicate — the property from a source to
+ * its relationship resource, which a metamodel declares with the class as its
+ * `rdfs:range` and an `arch:unqualifiedForm` (`am4:qualifiedRealization` for
+ * `am4:Realization`) — else core's fallback, `arch:hasQualifiedRelationship`.
+ */
+export function qualifiedFormOf(store: RdfStore, classIri: string): string {
+  const declared = store
+    .getQuads(null, RDFS_RANGE, nn(classIri))
+    .map((q) => q.subject)
+    .find((p) => p.termType === 'NamedNode' && store.getQuads(p as NamedNode, T.unqualifiedForm).length > 0);
+  return declared?.value ?? IRI.hasQualifiedRelationship;
+}
+
+/**
+ * Whether a predicate leads from a relationship's source to its resource:
+ * core's fallback, or a property a metamodel declares an `arch:unqualifiedForm`
+ * for (only qualified predicates and relationship classes have one, and a
+ * class is never a predicate).
+ */
+export function isQualifiedPredicate(store: RdfStore, predicateIri: string): boolean {
+  return predicateIri === IRI.hasQualifiedRelationship || store.getQuads(nn(predicateIri), T.unqualifiedForm).length > 0;
+}
+
+/** The quads leading from a relationship's source to it by a qualified predicate — whichever one the data uses. */
+export function qualifiedPointerQuads(store: RdfStore, relationshipIri: string, sourceIri: string): Quad[] {
+  return store
+    .getQuads(nn(sourceIri), null, nn(relationshipIri))
+    .filter((q) => isQualifiedPredicate(store, q.predicate.value));
 }
 
 /** The relationship class of a qualified resource: its type other than the generic one. */
@@ -73,6 +110,7 @@ export function collectRelationshipQuads(store: RdfStore, relationshipIri: strin
   // The unqualified triple, unless a sibling occurrence keeps it true.
   const sourceIri = objects(store, rel, T.source)[0] ?? objects(store, rel, nn(IRI.legacyRelSource))[0];
   const targetIri = objects(store, rel, T.target)[0] ?? objects(store, rel, nn(IRI.legacyRelTarget))[0];
+  if (sourceIri) quads.push(...qualifiedPointerQuads(store, relationshipIri, sourceIri));
   const classIri = relationshipClassOf(store, relationshipIri);
   const predicateIri =
     (classIri && unqualifiedFormOf(store, classIri)) ??

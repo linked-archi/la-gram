@@ -321,6 +321,7 @@ describe('PropertyPanel', () => {
         '_renderIris',
         '_renderNamed',
         '_renderId',
+        '_takesLinks',
       ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
           ctx[m] = (PropertyPanel.prototype as any)[m].bind(ctx);
@@ -445,6 +446,27 @@ describe('PropertyPanel', () => {
       expect(render()).not.toContain('<dd>https://example.org/m/element-web</dd>');
     });
 
+    it('names a value’s language when it is not English, the language names are read in', () => {
+      const entries: PropertyEntry[] = [
+        { predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Clerk', readonly: false, language: 'en' },
+        { predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Sachbearbeiter', readonly: false, language: 'de' },
+      ];
+      const o = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries });
+      expect(o).toContain('>German<');
+      expect(o).not.toContain('English');
+      expect(o).not.toContain('@en');
+    });
+
+    it('picks the value of a link from the model’s concepts, by name; text stays a text field', () => {
+      const SEE_ALSO = NAMESPACES.rdfs + 'seeAlso';
+      const catalog = { suggest: () => [], resolve: () => undefined, takesLinks: (iri: string) => iri === SEE_ALSO };
+      const add = (picked: string) =>
+        renderPanel({ selectedIri: 'https://example.org/elem1', _entries: TABBED, _tab: 'properties', catalog, _pickedPredicate: picked });
+      expect(add(SEE_ALSO)).toContain('<named-picker');
+      expect(add(SEE_ALSO)).toContain('link-value');
+      expect(add('https://example.org/owner')).not.toContain('link-value');
+    });
+
     it('renders textarea for definition fields', () => {
       const entries: PropertyEntry[] = [
         { predicate: SKOS_DEFINITION, label: 'definition', value: 'A process', readonly: false },
@@ -516,6 +538,27 @@ describe('PropertyPanel', () => {
       (PropertyPanel.prototype as any)._loadProperties.call(ctx);
       expect(ctx._entries.length).toBe(4);
       expect(store.getQuads).toHaveBeenCalled();
+    });
+
+    it('leaves out the qualified predicate to each relationship: Analysis lists them', () => {
+      const iri = 'https://example.org/elem1';
+      const rel = 'https://example.org/rel1';
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const iriQuad = (s: string, p: string, o: string): Quad =>
+        ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+      const store = mockRdfStore([
+        ...sampleQuads(iri),
+        iriQuad(iri, NAMESPACES.arch + 'hasQualifiedRelationship', rel),
+        iriQuad(iri, AM4 + 'qualifiedServes', rel),
+        iriQuad(AM4 + 'qualifiedServes', NAMESPACES.arch + 'unqualifiedForm', AM4 + 'serves'),
+        iriQuad(iri, AM4 + 'serves', 'https://example.org/elem2'),
+      ]);
+      const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
+      (PropertyPanel.prototype as any)._loadProperties.call(ctx);
+      const predicates = ctx._entries.map((e: PropertyEntry) => e.predicate);
+      expect(predicates).not.toContain(NAMESPACES.arch + 'hasQualifiedRelationship');
+      expect(predicates).not.toContain(AM4 + 'qualifiedServes');
+      expect(predicates).toContain(AM4 + 'serves');
     });
 
     it('clears entries when no selectedIri', () => {
@@ -755,6 +798,27 @@ describe('a property whose shape lists its values (sh:in), and a boolean', () =>
     const calls = (elementManager.updateProperty as any).mock.calls;
     expect(calls[0][2]).toMatchObject({ termType: 'NamedNode', value: `${BS}DeprecatedState` });
     expect(calls[1][2]).toMatchObject({ termType: 'Literal', value: 'true', datatype: { value: XSD_BOOLEAN } });
+  });
+
+  it('adds a link’s value as the IRI picked, and typed text as text', () => {
+    const added: any[] = [];
+    const add = (choice: { iri: string; label: string; text?: boolean }) => {
+      const ctx: any = {
+        selectedIri: DB,
+        _shapes: new Map(),
+        _newValue: '',
+        _picker: { value: { iri: NAMESPACES.rdfs + 'seeAlso' }, clear: vi.fn(), focus: vi.fn() },
+        _linkPicker: { choice, clear: vi.fn() },
+        _emit: (_name: string, detail: unknown) => added.push(detail),
+      };
+      (PropertyPanel.prototype as any)._add.call(ctx);
+      expect(ctx._linkPicker.clear).toHaveBeenCalled();
+    };
+    add({ iri: 'https://example.org/m/element-clerk', label: 'Clerk' });
+    add({ iri: 'see the wiki', label: 'see the wiki', text: true });
+    expect(added[0]).toMatchObject({ value: 'https://example.org/m/element-clerk', isIri: true });
+    expect(added[1]).toMatchObject({ value: 'see the wiki' });
+    expect(added[1].isIri).toBeUndefined();
   });
 
   it('adds a value the way its shape says: a chosen IRI, or a literal of its datatype', () => {
