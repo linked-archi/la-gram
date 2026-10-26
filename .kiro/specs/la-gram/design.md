@@ -793,9 +793,27 @@ deleting the view removes it.
 
 ### RDF panel
 
-`rdf-panel` shows the model exactly as Save would write it: its text comes from
-`App.saveModel` (so from `ModelIO`), in any of the six formats, with or without
-geometry. It is hidden by default (the shell's fourth column is 0 wide) and does
+`rdf-panel` shows the model as Save writes it — its text comes from `ModelIO`,
+in any of the six formats, with or without geometry — of a **scope**, chosen at
+the head of the counts line and remembered per browser:
+
+- **View** (the default): the open view's statements, its concepts' (`arch:inView`)
+  and its diagram's (`arch-vis:view`), each subject with the blank nodes and
+  route cells only it reaches (`model-manager/rdf-scope.ts`), written by
+  `ModelIO.serialize` with those statements (`SerializeOptions.quads`) — the same
+  prefixes, order and graphs as a saved file. It follows the open view.
+- **Selection**: the selected concept's statements and how it is drawn in the open
+  view; it follows the selection.
+- **Model**: the whole model, as Save writes it (`App.saveModel`). A whole model
+  past the highlighting limit (`HIGHLIGHT_LIMIT`, 1.5 MB) is not shown: its size
+  is, with Copy and Download, and it is not serialized again on every change —
+  only when the scope, format or geometry is chosen, and afresh for Copy.
+
+A view or a concept stays small on any model — on a model of 431 000 triples
+(33.8 MB of Turtle), the largest of its 569 views is 0.35 MB without geometry
+and 0.72 MB with it, and a view serializes in milliseconds — so it is always
+highlighted. The counts are the scope's; Download writes the scope (the whole
+model through Save). The panel is hidden by default (the shell's fourth column is 0 wide) and does
 no work while hidden; while shown it re-serializes on model events, debounced
 250 ms. Highlighting is a line tokenizer producing one HTML string, assigned
 once per change — cheaper than an editor component for a read-only view of a

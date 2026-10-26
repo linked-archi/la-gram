@@ -106,6 +106,13 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'toggle-rdf' });
     expect(ui.isRdfPanelOpen()).toBe(true);
     expect(ui.appToolbar.rdfOpen).toBe(true);
+    // The open view, by default: the view itself, not the whole model.
+    expect(ui.rdfPanel.scope).toBe('view');
+    const viewName = app.session.activeViewIri!.slice(app.session.namespace()!.namespace.length);
+    expect(ui.rdfPanel.text).toMatch(new RegExp(`^m:${viewName} a `, 'm'));
+    expect(ui.rdfPanel.text).not.toMatch(/^m:model a arch:Model;/m);
+    // The whole model, as Save writes it.
+    ui.rdfPanel.scope = 'model';
     expect(ui.rdfPanel.text).toMatch(/^m:model a arch:Model;/m);
     expect(ui.rdfPanel.text).toContain(`@prefix m: <${app.session.namespace()!.namespace}>.`);
     expect(ui.rdfPanel.text).not.toContain('owl:Ontology');
@@ -123,6 +130,7 @@ describe('the workbench', () => {
     expect(ui.rdfPanel.shadowRoot!.querySelector(`.rdf-block.selected`)?.getAttribute('data-subject')).toBe(el);
 
     app.components.elementManager.deleteElement(el);
+    ui.rdfPanel.scope = 'view';
     await ui.runCommand({ command: 'toggle-rdf' });
     expect(ui.isRdfPanelOpen()).toBe(false);
   });

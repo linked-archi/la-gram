@@ -37,7 +37,8 @@ import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { PropertyCatalog } from '../model-manager/property-catalog.js';
-import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
+import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
+import { conceptStatements, viewStatements } from '../model-manager/rdf-scope.js';
 import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
@@ -84,7 +85,7 @@ import type { SparqlEditor } from './panels/sparql-editor.js';
 import type { TypeGuidePanel } from './panels/type-guide-panel.js';
 import type { CatalogView, CatalogSelectDetail } from './views/catalog-view.js';
 import type { MatrixView } from './views/matrix-view.js';
-import type { RdfPanel, RdfDownloadDetail, RdfSelectDetail } from './panels/rdf-panel.js';
+import type { RdfPanel, RdfDownloadDetail, RdfPanelContent, RdfPanelRequest, RdfSelectDetail } from './panels/rdf-panel.js';
 import type { GraphPanel, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
 import type { ResultsViewRequestDetail, SparqlSelectDetail } from './panels/sparql-editor.js';
 import { layoutPositions } from './panels/graph-view.js';
@@ -471,20 +472,52 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   // ── Far right: the model as RDF ──────────────────────────────────────
   // Hidden by default; the toolbar's "RDF" toggles it. It serializes through
-  // the same path as Save, so it shows exactly what a file would contain, and
-  // it does no work at all while hidden.
-  const rdfPanel = document.createElement('rdf-panel');
-  rdfPanel.slot = 'rdf';
-  rdfPanel.source = (format, profile) => app.saveModel(format, profile).text;
-  rdfPanel.statsProvider = () => {
+  // the same path as Save — the whole model, or the open view's or the
+  // selection's statements written the same way — and it does no work at all
+  // while hidden.
+  /** What the RDF panel shows, and what it downloads, for a scope. */
+  const rdfContent = (request: RdfPanelRequest): RdfPanelContent & { fileName?: string; mediaType?: string } => {
+    const { format, profile, scope, selectedIri } = request;
+    if (scope === 'model') {
+      const contents = modelContents();
+      return {
+        text: app.saveModel(format, profile).text,
+        stats: {
+          elements: contents.elements.length + contents.unclassified.length,
+          relationships: contents.relationships.length,
+          views: contents.views.length,
+          triples: modelQuads(store).length,
+        },
+      };
+    }
+    const viewIri = session.activeViewIri;
+    const iri = scope === 'view' ? viewIri : selectedIri;
+    if (!iri) return { text: '' };
+    const all = scope === 'view' ? viewStatements(store, iri) : conceptStatements(store, iri, viewIri);
+    // Without geometry, what Save would leave out is left out here too — and from the count.
+    const geometry = profile === 'no-geometry' ? new Set(partitionModel(all, session.modelIri).views) : undefined;
+    const quads = geometry ? all.filter((q) => !geometry.has(q)) : all;
     const contents = modelContents();
+    const subjects = new Set(quads.map((q) => q.subject.value));
+    const count = (list: Array<{ iri: string }>) => list.filter((c) => subjects.has(c.iri)).length;
+    const caption = labelOf(store, iri);
+    const info = formatInfo(format);
     return {
-      elements: contents.elements.length + contents.unclassified.length,
-      relationships: contents.relationships.length,
-      views: contents.views.length,
-      triples: modelQuads(store).length,
+      text: quads.length > 0 ? app.modelIO.serialize(session.modelIri, { format, quads }) : '',
+      stats: {
+        elements: count(contents.elements) + count(contents.unclassified),
+        relationships: count(contents.relationships),
+        views: count(contents.views),
+        triples: quads.length,
+      },
+      caption,
+      fileName: `${caption.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'rdf'}.${info.extension}`,
+      mediaType: info.mediaType,
     };
   };
+  const rdfPanel = document.createElement('rdf-panel');
+  rdfPanel.slot = 'rdf';
+  rdfPanel.source = rdfContent;
 
   // ── Attach to the document ───────────────────────────────────────────
   shell.append(appToolbar, modelExplorer, typeGuidePanel, canvasArea, propertyPanel, validationPanel, sparqlEditor, graphPanel, historyPanel, palettePanel, rdfPanel);
@@ -1260,8 +1293,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     rdfPanel.active = open;
   };
   const onRdfDownload = (e: Event): void => {
-    const { format, profile } = (e as CustomEvent<RdfDownloadDetail>).detail;
-    save(format, profile);
+    const request = (e as CustomEvent<RdfDownloadDetail>).detail;
+    // The whole model downloads as Save writes it; a view or a concept as the panel shows it.
+    if (request.scope === 'model') return save(request.format, request.profile);
+    const content = rdfContent(request);
+    if (content.text && content.fileName) void saveFile(content.text, content.fileName, content.mediaType ?? 'text/plain');
   };
   const onRdfSelect = (e: Event): void => {
     void revealAnywhere((e as CustomEvent<RdfSelectDetail>).detail.iri);
@@ -1753,6 +1789,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   const onViewOpened: ModelEventHandler = () => {
     showActiveView();
+    // The RDF panel follows the open view (and draws the selection in it).
+    rdfPanel.scheduleRefresh();
     // A view opened from a maximized panel (a new view from results, a
     // revealed concept) is what the user wants to see: put the panel back.
     shell.setBottomMaximized(false);

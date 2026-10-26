@@ -3,9 +3,15 @@
  *
  * Shows the serialized model (Turtle by default; TriG, JSON-LD, N-Quads,
  * N-Triples, RDF/XML on request), with or without diagram geometry, highlighted,
- * with counts, Copy and Download. It is exactly what "Save" would write: the
- * text comes from the same serializer (`ModelIO`), so what you read here is
- * what goes into Git.
+ * with counts, Copy and Download. The text comes from the same serializer
+ * (`ModelIO`) as "Save", so what you read here is what goes into Git.
+ *
+ * Of a scope, remembered per browser: the **open view** (the default) — the
+ * view, the concepts it presents and its diagram — the **selection**, or the
+ * **whole model**, exactly what Save writes. A view or a concept is small
+ * enough to read and to highlight on any model; a large model is not. A whole
+ * model past the highlighting limit is not shown at all — its size is, with
+ * Copy and Download — and is not serialized again on every change.
  *
  * The panel is hidden by default. While hidden it does no work at all — the
  * host calls {@link RdfPanel.scheduleRefresh} on every model change and the
@@ -19,7 +25,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../../import-export/model-io.js';
-import { highlightRdf } from './rdf-highlight.js';
+import { HIGHLIGHT_LIMIT, highlightRdf } from './rdf-highlight.js';
 
 /** Counts shown above the text. */
 export interface RdfPanelStats {
@@ -29,10 +35,39 @@ export interface RdfPanelStats {
   triples: number;
 }
 
+/** What the panel shows: the open view, the selected concept, or the whole model. */
+export type RdfScope = 'view' | 'selection' | 'model';
+
+/** The scopes, in the order offered. */
+export const RDF_SCOPES: ReadonlyArray<{ id: RdfScope; label: string; title: string }> = [
+  { id: 'view', label: 'View', title: 'The open view: the view, the concepts it shows, and its diagram' },
+  { id: 'selection', label: 'Selection', title: 'The selected concept, and how it is drawn in the open view' },
+  { id: 'model', label: 'Model', title: 'The whole model, as Save writes it' },
+];
+
+/** What the panel asks its source for. */
+export interface RdfPanelRequest {
+  format: ModelFormat;
+  profile: SerializationProfile;
+  scope: RdfScope;
+  /** The selected concept, for the selection scope; empty when there is none. */
+  selectedIri: string;
+}
+
+/** What the source answers: the text, its counts, and what it is about (the view's name). */
+export interface RdfPanelContent {
+  text: string;
+  stats?: RdfPanelStats;
+  caption?: string;
+}
+
 /** Detail of `rdf-download`. */
 export interface RdfDownloadDetail {
   format: ModelFormat;
   profile: SerializationProfile;
+  scope: RdfScope;
+  /** The selected concept, for the selection scope. */
+  selectedIri: string;
 }
 
 /** Detail of `rdf-select`. */
@@ -42,6 +77,25 @@ export interface RdfSelectDetail {
 
 /** Debounce for refreshes while shown. */
 const REFRESH_DELAY_MS = 250;
+
+/** localStorage key of the scope shown. */
+const SCOPE_KEY = 'la-gram:rdf-scope';
+
+function storedScope(): RdfScope {
+  try {
+    const value = globalThis.localStorage?.getItem(SCOPE_KEY);
+    return RDF_SCOPES.find((s) => s.id === value)?.id ?? 'view';
+  } catch {
+    return 'view';
+  }
+}
+
+/** What the panel says when a scope has nothing to show. */
+const EMPTY: Record<RdfScope, string> = {
+  view: 'No view is open.',
+  selection: 'Select an element, a relationship or a view to see its statements.',
+  model: 'Nothing to show.',
+};
 
 @customElement('rdf-panel')
 export class RdfPanel extends LitElement {
@@ -109,11 +163,25 @@ export class RdfPanel extends LitElement {
     }
     .stats {
       display: flex;
+      align-items: center;
       gap: 12px;
       padding: 4px 12px;
       font-size: 11px;
       color: #5f6368;
       border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
+      min-width: 0;
+      /* A long name or a whole model's counts take a second line rather than be cut. */
+      flex-wrap: wrap;
+      row-gap: 2px;
+    }
+    /* What to show, leading the line that says what is shown. */
+    .stats select.scope {
+      flex: none;
+      min-width: 0;
+      max-width: none;
+      font-size: 11px;
+      padding: 1px 2px;
     }
     .stats b {
       color: #202124;
@@ -162,6 +230,17 @@ export class RdfPanel extends LitElement {
       color: #80868b;
       font-style: italic;
     }
+    .caption {
+      font-weight: 600;
+      color: #3c4043;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .notice {
+      padding: 12px;
+      color: #5f6368;
+      line-height: 1.5;
+    }
     .error {
       padding: 12px;
       color: #c5221f;
@@ -171,18 +250,19 @@ export class RdfPanel extends LitElement {
   /** Whether the panel is shown; while `false` nothing is serialized. */
   @property({ type: Boolean, reflect: true }) active = false;
 
-  /** Serializes the model; supplied by the host (`App.saveModel`). */
-  @property({ attribute: false }) source?: (format: ModelFormat, profile: SerializationProfile) => string;
-
-  /** Counts for the stats bar. */
-  @property({ attribute: false }) statsProvider?: () => RdfPanelStats;
+  /** Serializes the scope asked for, with its counts; supplied by the host (`ModelIO`, as Save). */
+  @property({ attribute: false }) source?: (request: RdfPanelRequest) => RdfPanelContent;
 
   /** The concept selected elsewhere: its statements are highlighted. */
   @property({ type: String }) selectedIri = '';
 
   @state() private _format: ModelFormat = 'turtle';
   @state() private _geometry = true;
+  @state() private _scope: RdfScope = storedScope();
   @state() private _text = '';
+  @state() private _caption = '';
+  /** The whole model is past the highlighting limit: its size is shown, not its text. */
+  @state() private _tooLarge = false;
   @state() private _stats: RdfPanelStats | undefined;
   @state() private _error = '';
   @state() private _copied = false;
@@ -204,6 +284,32 @@ export class RdfPanel extends LitElement {
     return this._text;
   }
 
+  /** The scope shown. */
+  get scope(): RdfScope {
+    return this._scope;
+  }
+
+  /** Show another scope; remembered per browser. */
+  set scope(scope: RdfScope) {
+    if (scope === this._scope) return;
+    this._scope = scope;
+    try {
+      globalThis.localStorage?.setItem(SCOPE_KEY, scope);
+    } catch {
+      /* not remembered: fine */
+    }
+    this.refresh();
+  }
+
+  private _request(): RdfPanelRequest {
+    return {
+      format: this._format,
+      profile: this._geometry ? 'full' : 'no-geometry',
+      scope: this._scope,
+      selectedIri: this.selectedIri,
+    };
+  }
+
   /** Re-serialize now (when shown). */
   refresh(): void {
     if (this._timer) {
@@ -212,17 +318,24 @@ export class RdfPanel extends LitElement {
     }
     if (!this.active || !this.source) return;
     try {
-      this._text = this.source(this._format, this._geometry ? 'full' : 'no-geometry');
-      this._stats = this.statsProvider?.();
+      const content = this.source(this._request());
+      this._text = content.text;
+      this._stats = content.stats;
+      this._caption = content.caption ?? '';
+      this._tooLarge = this._scope === 'model' && content.text.length > HIGHLIGHT_LIMIT;
       this._error = '';
     } catch (err: unknown) {
       this._error = err instanceof Error ? err.message : String(err);
     }
   }
 
-  /** Re-serialize soon (when shown); called on every model change. */
+  /**
+   * Re-serialize soon (when shown); called on every model change. Not for a
+   * whole model too large to show: it is measured again when the scope, the
+   * format or geometry is chosen, and Copy and Download write it afresh.
+   */
   scheduleRefresh(): void {
-    if (!this.active) return;
+    if (!this.active || (this._scope === 'model' && this._tooLarge)) return;
     if (this._timer) clearTimeout(this._timer);
     this._timer = setTimeout(() => this.refresh(), REFRESH_DELAY_MS);
   }
@@ -233,13 +346,20 @@ export class RdfPanel extends LitElement {
   }
 
   override willUpdate(changed: Map<string, unknown>): void {
-    // Opening the panel (or getting a source while open) shows current text at once.
+    // Opening the panel (or getting a source while open) shows current text at once;
+    // so does another selection, when the selection is what is shown.
     if ((changed.has('active') || changed.has('source')) && this.active) this.refresh();
+    else if (changed.has('selectedIri') && this._scope === 'selection' && this.active) this.refresh();
   }
 
   override updated(changed: Map<string, unknown>): void {
     const code = this._code;
     if (!code) return;
+    if (this._tooLarge) {
+      code.innerHTML = '';
+      this._renderedText = null;
+      return;
+    }
     // The highlighted text is assigned as one HTML string: an order of
     // magnitude cheaper than a template per token for a model of any size.
     // Only when the text or format changed — a selection change only moves the
@@ -282,7 +402,9 @@ export class RdfPanel extends LitElement {
 
   private async _copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(this._text);
+      // A whole model too large to show was measured, perhaps a while ago: copy it as it is now.
+      const text = this._tooLarge && this.source ? this.source(this._request()).text : this._text;
+      await navigator.clipboard.writeText(text);
       this._copied = true;
       setTimeout(() => (this._copied = false), 1500);
     } catch {
@@ -303,6 +425,7 @@ export class RdfPanel extends LitElement {
       <div class="header">
         <span class="title">RDF</span>
         <select
+          class="format"
           aria-label="RDF format"
           @change=${(e: Event) => {
             this._format = (e.target as HTMLSelectElement).value as ModelFormat;
@@ -327,26 +450,39 @@ export class RdfPanel extends LitElement {
         <button title="Copy to the clipboard" @click=${() => this._copy()}>${this._copied ? 'Copied' : 'Copy'}</button>
         <button
           title="Download this file"
-          @click=${() =>
-            this._emit<RdfDownloadDetail>('rdf-download', {
-              format: this._format,
-              profile: this._geometry ? 'full' : 'no-geometry',
-            })}
+          @click=${() => {
+            const { format, profile, scope, selectedIri } = this._request();
+            this._emit<RdfDownloadDetail>('rdf-download', { format, profile, scope, selectedIri });
+          }}
         >
           Download
         </button>
         <button class="close" title="Hide the RDF panel" @click=${() => this._emit('rdf-close', {})}>×</button>
       </div>
-      ${s
-        ? html`<div class="stats">
-            <span><b>${s.elements}</b> elements</span>
-            <span><b>${s.relationships}</b> relationships</span>
-            <span><b>${s.views}</b> views</span>
-            <span><b>${s.triples}</b> triples</span>
+      <div class="stats">
+            <select
+              class="scope"
+              aria-label="What to show"
+              title="What to show: the open view, the selection, or the whole model as Save writes it"
+              @change=${(e: Event) => (this.scope = (e.target as HTMLSelectElement).value as RdfScope)}
+            >
+              ${RDF_SCOPES.map((o) => html`<option value=${o.id} title=${o.title} ?selected=${o.id === this._scope}>${o.label}</option>`)}
+            </select>
+            ${this._caption ? html`<span class="caption" title=${this._caption}>${this._caption}</span>` : nothing}
+            ${s && (this._scope === 'model' || s.elements) ? html`<span><b>${s.elements}</b> elements</span>` : nothing}
+            ${s && (this._scope === 'model' || s.relationships) ? html`<span><b>${s.relationships}</b> relationships</span>` : nothing}
+            ${s && this._scope === 'model' ? html`<span><b>${s.views}</b> views</span>` : nothing}
+            ${s ? html`<span><b>${s.triples}</b> triples</span>` : nothing}
+          </div>
+      ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
+      ${this._tooLarge
+        ? html`<div class="notice">
+            The whole model is ${(this._text.length / 1e6).toFixed(1)} MB of
+            ${MODEL_FORMATS.find((f) => f.id === this._format)?.label ?? this._format} — too large to show here. Copy or
+            download it, or show the open view or the selection.
           </div>`
         : nothing}
-      ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
-      ${!this._text && !this._error ? html`<div class="empty">Nothing to show.</div>` : nothing}
+      ${!this._text && !this._error ? html`<div class="empty">${EMPTY[this._scope]}</div>` : nothing}
       <pre class="code" @click=${(e: MouseEvent) => this._onCodeClick(e)}></pre>
     `;
   }

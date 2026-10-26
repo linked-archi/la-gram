@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { escapeHtml, highlightRdf, readPrefixes, subjectOf, tokenizeLine } from '../rdf-highlight.js';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { HIGHLIGHT_LIMIT, escapeHtml, highlightRdf, readPrefixes, subjectOf, tokenizeLine } from '../rdf-highlight.js';
 import '../rdf-panel.js';
-import type { RdfPanel } from '../rdf-panel.js';
+import type { RdfPanel, RdfPanelRequest } from '../rdf-panel.js';
 
 const TTL = `@prefix skos: <http://www.w3.org/2004/02/skos/core#>.
 @prefix am4: <https://meta.linked.archi/archimate4/onto#>.
@@ -86,16 +86,30 @@ describe('highlightRdf', () => {
 });
 
 describe('<rdf-panel>', () => {
+  // Node's own localStorage stub shadows jsdom's: remembered choices go here.
+  const remembered = new Map<string, string>();
+  beforeEach(() => {
+    remembered.clear();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => remembered.get(key) ?? null,
+      setItem: (key: string, value: string) => void remembered.set(key, value),
+      removeItem: (key: string) => void remembered.delete(key),
+    });
+  });
   afterEach(() => {
     document.body.innerHTML = '';
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
-  async function mount(active: boolean) {
+  async function mount(active: boolean, text: (request: RdfPanelRequest) => string = (r) => (r.format === 'turtle' ? TTL : `# ${r.format}`)) {
     const panel = document.createElement('rdf-panel') as RdfPanel;
-    const source = vi.fn((format: string) => (format === 'turtle' ? TTL : `# ${format}`));
+    const source = vi.fn((request: RdfPanelRequest) => ({
+      text: text(request),
+      stats: { elements: 1, relationships: 0, views: 1, triples: 3 },
+      ...(request.scope === 'view' ? { caption: 'Landscape' } : {}),
+    }));
     panel.source = source;
-    panel.statsProvider = () => ({ elements: 1, relationships: 0, views: 1, triples: 3 });
     panel.active = active;
     document.body.append(panel);
     await panel.updateComplete;
@@ -111,11 +125,12 @@ describe('<rdf-panel>', () => {
 
   it('serializes when opened and shows highlighted Turtle with counts', async () => {
     const { panel, source } = await mount(true);
-    expect(source).toHaveBeenCalledWith('turtle', 'full');
+    // The open view, by default.
+    expect(source).toHaveBeenCalledWith({ format: 'turtle', profile: 'full', scope: 'view', selectedIri: '' });
     const root = panel.shadowRoot!;
     expect(root.querySelector('.code')!.textContent).toContain('skos:prefLabel');
     expect(root.querySelectorAll('.code .rdf-block')).toHaveLength(2);
-    expect(root.querySelector('.stats')!.textContent).toMatch(/1\s*elements/);
+    expect(root.querySelector('.stats')!.textContent).toMatch(/Landscape\s*1\s*elements\s*3\s*triples/);
   });
 
   it('debounces refreshes while shown', async () => {
@@ -132,14 +147,14 @@ describe('<rdf-panel>', () => {
 
   it('switches format and drops geometry on request', async () => {
     const { panel, source } = await mount(true);
-    const select = panel.shadowRoot!.querySelector<HTMLSelectElement>('select')!;
+    const select = panel.shadowRoot!.querySelector<HTMLSelectElement>('select.format')!;
     select.value = 'json-ld';
     select.dispatchEvent(new Event('change'));
-    expect(source).toHaveBeenLastCalledWith('json-ld', 'full');
+    expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ format: 'json-ld', profile: 'full' }));
     const box = panel.shadowRoot!.querySelector<HTMLInputElement>('input[type=checkbox]')!;
     box.checked = false;
     box.dispatchEvent(new Event('change'));
-    expect(source).toHaveBeenLastCalledWith('json-ld', 'no-geometry');
+    expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ format: 'json-ld', profile: 'no-geometry' }));
   });
 
   it('highlights the selected concept’s block, and selects on click', async () => {
@@ -155,14 +170,69 @@ describe('<rdf-panel>', () => {
     expect(picked).toEqual(['urn:m/view/1/node/1']);
   });
 
+  it('shows the scope chosen — remembered — and follows the selection when that is what it shows', async () => {
+    const { panel, source } = await mount(true);
+    const scope = panel.shadowRoot!.querySelector<HTMLSelectElement>('select.scope')!;
+    expect([...scope.options].map((o) => o.textContent)).toEqual(['View', 'Selection', 'Model']);
+    scope.value = 'selection';
+    scope.dispatchEvent(new Event('change'));
+    expect(remembered.get('la-gram:rdf-scope')).toBe('selection');
+    expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'selection', selectedIri: '' }));
+    source.mockClear();
+    panel.selectedIri = 'urn:m/element/1';
+    await panel.updateComplete;
+    expect(source).toHaveBeenCalledWith(expect.objectContaining({ scope: 'selection', selectedIri: 'urn:m/element/1' }));
+    // Another panel starts where this one was left.
+    const again = await mount(true);
+    expect(again.panel.scope).toBe('selection');
+  });
+
+  it('says what a scope with nothing to show needs', async () => {
+    const { panel } = await mount(true, () => '');
+    panel.scope = 'selection';
+    await panel.updateComplete;
+    expect(panel.shadowRoot!.querySelector('.empty')!.textContent).toMatch(/Select an element/);
+    panel.scope = 'view';
+    await panel.updateComplete;
+    expect(panel.shadowRoot!.querySelector('.empty')!.textContent).toBe('No view is open.');
+  });
+
+  it('gives the size of a whole model too large to show, copies it afresh, and does not redo it on every change', async () => {
+    vi.useFakeTimers();
+    let version = 0;
+    const { panel, source } = await mount(true, (r) => (r.scope === 'model' ? `# ${++version}\n` + 'x'.repeat(HIGHLIGHT_LIMIT) : TTL));
+    panel.scope = 'model';
+    await panel.updateComplete;
+    const root = panel.shadowRoot!;
+    expect(root.querySelector('.notice')!.textContent!.replace(/\s+/g, ' ')).toMatch(/1\.5 MB of Turtle — too large to show here/);
+    expect(root.querySelector('.code')!.innerHTML).toBe('');
+    source.mockClear();
+    panel.scheduleRefresh();
+    vi.advanceTimersByTime(300);
+    expect(source).not.toHaveBeenCalled();
+    const copied: string[] = [];
+    vi.stubGlobal('navigator', { clipboard: { writeText: async (t: string) => void copied.push(t) } });
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === 'Copy')!.click();
+    await Promise.resolve();
+    expect(copied[0]!.startsWith('# 2\n')).toBe(true);
+    // Back to the view: shown again.
+    panel.scope = 'view';
+    await panel.updateComplete;
+    expect(root.querySelector('.notice')).toBeNull();
+    expect(root.querySelector('.code')!.textContent).toContain('skos:prefLabel');
+  });
+
   it('asks the host to download, and to close', async () => {
     const { panel } = await mount(true);
     const events: string[] = [];
-    panel.addEventListener('rdf-download', (e) => events.push(`download:${(e as CustomEvent<{ format: string }>).detail.format}`));
+    panel.addEventListener('rdf-download', (e) => {
+      const d = (e as CustomEvent<{ format: string; scope: string }>).detail;
+      events.push(`download:${d.format}:${d.scope}`);
+    });
     panel.addEventListener('rdf-close', () => events.push('close'));
     const buttons = [...panel.shadowRoot!.querySelectorAll<HTMLButtonElement>('button')];
     buttons.find((b) => b.textContent!.trim() === 'Download')!.click();
     buttons.find((b) => b.classList.contains('close'))!.click();
-    expect(events).toEqual(['download:turtle', 'close']);
+    expect(events).toEqual(['download:turtle:view', 'close']);
   });
 });

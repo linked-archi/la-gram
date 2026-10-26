@@ -214,6 +214,8 @@ describe('the RDF panel', () => {
     await panel.waitFor({ state: 'visible' });
     expect(await toggle.getAttribute('aria-pressed')).toBe('true');
     const code = panel.locator('.code');
+    // The open view, by default: its shapes are there.
+    expect(await panel.locator('select.scope').inputValue()).toBe('view');
     await until(async () => (await code.innerText()).includes('arch-vis:ArchNode'), 'the Turtle text');
     expect(await code.innerText()).toContain('@prefix am4:');
     const box = await panel.boundingBox();
@@ -256,6 +258,8 @@ describe('the RDF panel', () => {
     await page.locator('app-toolbar button[data-command="toggle-rdf"]').click();
     await panel.waitFor({ state: 'visible' });
     const code = panel.locator('.code');
+    // The whole model, as Save writes it.
+    await panel.locator('select.scope').selectOption('model');
     await until(async () => /^m:model a arch:Model;/m.test(await code.innerText()), 'm:model in the Turtle');
     expect(await code.innerText()).toMatch(/@prefix m: <https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/>\./);
     expect(await code.innerText()).toMatch(/^m:element-[0-9a-f-]{36} a am4:BusinessActor;/m);
@@ -289,6 +293,7 @@ describe('the RDF panel', () => {
     expect(state.nodes).toBe(1);
     expect((await model(page)).actors).toHaveLength(1);
     await session.screenshot('workbench-model-namespace');
+    await panel.locator('select.scope').selectOption('view');
     findings.push('Model settings: namespace + prefix, IRIs moved, CURIEs in Turtle: ok');
   });
 });

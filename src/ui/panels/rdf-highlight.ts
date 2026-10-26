@@ -159,13 +159,16 @@ export function subjectOf(line: string, prefixes: Map<string, string>): string |
   return undefined;
 }
 
+/** Above this many characters, text is escaped but not tokenized — and the RDF panel does not show a whole model. */
+export const HIGHLIGHT_LIMIT = 1_500_000;
+
 /**
  * Highlight a serialized model as HTML.
  *
  * @param maxHighlight Above this many characters the text is escaped but not
  *   tokenized (blocks are still marked) — a safety valve for very large models.
  */
-export function highlightRdf(text: string, format: RdfTextFormat, maxHighlight = 1_500_000): string {
+export function highlightRdf(text: string, format: RdfTextFormat, maxHighlight = HIGHLIGHT_LIMIT): string {
   if (format === 'json-ld' || format === 'rdf-xml') return highlightStructured(text, format, maxHighlight);
 
   const prefixes = readPrefixes(text);

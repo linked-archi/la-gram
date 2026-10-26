@@ -84,6 +84,11 @@ export interface SerializeOptions {
   profile?: SerializationProfile;
   /** Extra prefixes on top of the derived ones. */
   prefixes?: PrefixMap;
+  /**
+   * Only these statements — a view's, a concept's (`model-manager/rdf-scope.ts`)
+   * — written as the whole model would be: the same prefixes, order and graphs.
+   */
+  quads?: Quad[];
 }
 
 /** The DD-15 partition of a model. */
@@ -185,7 +190,7 @@ export class ModelIO {
   /** Serialize the model. */
   serialize(modelIri: string | undefined, options: SerializeOptions = {}): string {
     const format = formatInfo(options.format ?? 'turtle');
-    const partition = partitionModel(this.modelQuads(), modelIri);
+    const partition = partitionModel(options.quads ?? this.modelQuads(), modelIri);
     if (options.profile === 'no-geometry') partition.views = [];
 
     if (!format.graphs || !modelIri) {
