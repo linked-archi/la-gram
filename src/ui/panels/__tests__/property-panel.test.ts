@@ -322,6 +322,8 @@ describe('PropertyPanel', () => {
         '_renderNamed',
         '_renderId',
         '_takesLinks',
+        '_renderRelationshipGroup',
+        '_toggleRelationships',
       ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
           ctx[m] = (PropertyPanel.prototype as any)[m].bind(ctx);
@@ -408,6 +410,27 @@ describe('PropertyPanel', () => {
       const views = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: TABBED, analysis: ANALYSIS, _tab: 'views' });
       expect(views).toContain('Main');
       expect(views).not.toContain('>Cost<');
+    });
+
+    it('folds the relationships\u2019 direct statements under a count of their own, opened on a click', () => {
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const entries: PropertyEntry[] = [
+        ...TABBED,
+        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, relationship: true },
+        { predicate: AM4 + 'flowsTo', label: 'Flows to', value: 'urn:e3', valueLabel: 'Till', readonly: true, isIri: true, custom: true, relationship: true },
+      ];
+      const ctx = makeCtx({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis: ANALYSIS });
+      const render = () => flat((PropertyPanel.prototype as any).render.call(ctx));
+      const folded = render();
+      // The tab counts the other properties; the group, the relationships.
+      expect(folded).toMatch(/Properties<\/span>\s*<span class="count">2</);
+      expect(folded).toMatch(/Relationships <span class="count">2</);
+      expect(folded).toContain('>Cost<');
+      expect(folded).not.toContain('>Clerk</button>');
+      ctx._relationshipsOpen = true;
+      const open = render();
+      expect(open).toContain('>Clerk</button>');
+      expect(open).toContain('>Till</button>');
     });
 
     it('falls back to the information tab when the remembered one does not apply', () => {
@@ -559,6 +582,37 @@ describe('PropertyPanel', () => {
       expect(predicates).not.toContain(NAMESPACES.arch + 'hasQualifiedRelationship');
       expect(predicates).not.toContain(AM4 + 'qualifiedServing');
       expect(predicates).toContain(AM4 + 'serves');
+    });
+
+    it('leaves out the way in to a relationship whatever it is called, and marks a relationship\u2019s direct statement', () => {
+      const iri = 'https://example.org/elem1';
+      const rel = 'https://example.org/rel1';
+      const AM3 = 'https://meta.linked.archi/archimate3/onto#';
+      const iriQuad = (s: string, p: string, o: string): Quad =>
+        ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+      const quads = [
+        ...sampleQuads(iri),
+        // A converter's own name for the qualified predicate, which no loaded vocabulary declares.
+        iriQuad(iri, AM3 + 'qualifiedAggregates', rel),
+        iriQuad(rel, NAMESPACES.arch + 'source', iri),
+        // A direct statement, and the relationship type that declares its predicate.
+        iriQuad(iri, AM3 + 'serves', 'https://example.org/elem2'),
+        iriQuad(AM3 + 'Serving', NAMESPACES.arch + 'unqualifiedForm', AM3 + 'serves'),
+        iriQuad(iri, NAMESPACES.rdfs + 'seeAlso', 'https://example.org/page'),
+      ];
+      // A store that matches all three positions.
+      const store = {
+        ...mockRdfStore(quads),
+        getQuads: vi.fn((s?: NamedNode | null, p?: NamedNode | null, o?: NamedNode | null) =>
+          quads.filter((q) => (!s || q.subject.value === s.value) && (!p || q.predicate.value === p.value) && (!o || q.object.value === o.value)),
+        ),
+      } as unknown as RdfStore;
+      const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
+      (PropertyPanel.prototype as any)._loadProperties.call(ctx);
+      const byPredicate = new Map<string, PropertyEntry>(ctx._entries.map((e: PropertyEntry) => [e.predicate, e]));
+      expect(byPredicate.has(AM3 + 'qualifiedAggregates')).toBe(false);
+      expect(byPredicate.get(AM3 + 'serves')?.relationship).toBe(true);
+      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.relationship).toBeUndefined();
     });
 
     it('clears entries when no selectedIri', () => {

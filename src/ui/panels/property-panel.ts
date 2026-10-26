@@ -84,6 +84,12 @@ export interface PropertyEntry {
   isIri?: boolean;
   /** Listed after the leading fields (type, inModel, prefLabel): a property the modeller added. */
   custom?: boolean;
+  /**
+   * A relationship's direct statement (`am4:serves` to the element served): its
+   * predicate is a relationship type's `arch:unqualifiedForm`. Folded together
+   * under the Properties tab's "Relationships" — the Analysis tab lists them.
+   */
+  relationship?: boolean;
   /** The values the SHACL shape allows (`sh:in`): shown as a choice. */
   choices?: PropertyChoice[];
 }
@@ -442,6 +448,17 @@ export type PanelSection = 'info' | 'properties' | 'analysis' | 'views';
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
 
+/** localStorage key of whether the Properties tab's "Relationships" group is open (folded by default). */
+const RELATIONSHIPS_OPEN_KEY = 'la-gram:property-panel-relationships-open';
+
+function storedRelationshipsOpen(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(RELATIONSHIPS_OPEN_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views'];
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
@@ -771,6 +788,33 @@ export class PropertyPanel extends LitElement {
       color: #80868b;
       font-style: italic;
     }
+
+    /* The relationships' direct statements, folded under a header. */
+    .relationship-group {
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .group-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 6px 12px;
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      color: #3c4043;
+      text-align: left;
+      cursor: pointer;
+    }
+    .group-toggle:hover {
+      background: #f8f9fa;
+    }
+    .group-toggle .chevron {
+      color: #5f6368;
+      width: 10px;
+    }
   `;
 
   /** IRI of the currently selected element or relationship. */
@@ -833,6 +877,9 @@ export class PropertyPanel extends LitElement {
   /** The property chosen in the add row, so its value field can follow its shape. */
   @state() private _pickedPredicate = '';
 
+  /** Whether the Properties tab's "Relationships" group is open; remembered per browser. */
+  @state() private _relationshipsOpen = storedRelationshipsOpen();
+
   /** The rows whose IRIs are showing ({@link rowKey}); none, for another selection. */
   @state() private _shownIris: ReadonlySet<string> = new Set();
 
@@ -875,14 +922,18 @@ export class PropertyPanel extends LitElement {
     // to each relationship it is the source of (`am4:qualifiedServing`, core's
     // `arch:hasQualifiedRelationship`): la-gram keeps it in step with the
     // relationship, as it does `rdf:reifies`, and Analysis lists the relationships.
+    // Known by what it links — a relationship whose `arch:source` the concept is —
+    // as well as by name, so a converter's or a mapping's own name for it is
+    // left out too.
     const store = this.rdfStore;
     const subjectNode = { value: this.selectedIri, termType: 'NamedNode' } as NamedNode;
     const qualified = new Map<string, boolean>();
+    const sourceOf = { value: NAMESPACES.arch + 'source', termType: 'NamedNode' } as NamedNode;
     const isPointer = (q: Quad): boolean => {
       if (q.object.termType !== 'NamedNode') return false;
       const predicate = q.predicate.value;
       if (!qualified.has(predicate)) qualified.set(predicate, isQualifiedPredicate(store, predicate));
-      return qualified.get(predicate)!;
+      return qualified.get(predicate)! || store.getQuads(q.object as NamedNode, sourceOf, subjectNode).length > 0;
     };
     const quads = store.getQuads(subjectNode).filter((q) => !isPointer(q));
 
@@ -896,7 +947,19 @@ export class PropertyPanel extends LitElement {
       : [];
     this._shapes = new Map(shaclShapes.map((s) => [s.path, s]));
 
-    this._entries = buildPropertyEntries(quads, shaclShapes, this.nameOf);
+    // A relationship's direct statement: its predicate is a relationship type's unqualified form.
+    const unqualified = { value: NAMESPACES.arch + 'unqualifiedForm', termType: 'NamedNode' } as NamedNode;
+    const relationshipPredicates = new Map<string, boolean>();
+    const isRelationship = (predicate: string): boolean => {
+      if (!relationshipPredicates.has(predicate)) {
+        const term = { value: predicate, termType: 'NamedNode' } as NamedNode;
+        relationshipPredicates.set(predicate, store.getQuads(null, unqualified, term).length > 0);
+      }
+      return relationshipPredicates.get(predicate)!;
+    };
+    this._entries = buildPropertyEntries(quads, shaclShapes, this.nameOf).map((entry) =>
+      entry.custom && entry.isIri && isRelationship(entry.predicate) ? { ...entry, relationship: true } : entry,
+    );
   }
 
   /** Handle input change and propagate to ElementManager. */
@@ -1126,6 +1189,36 @@ export class PropertyPanel extends LitElement {
     this.updateComplete.then(() =>
       (this.renderRoot.querySelector(`.vtab[data-tab="${next}"]`) as HTMLElement | null)?.focus(),
     );
+  }
+
+  /** Open or fold the Properties tab's "Relationships" group; remembered per browser. */
+  private _toggleRelationships(): void {
+    this._relationshipsOpen = !this._relationshipsOpen;
+    try {
+      globalThis.localStorage?.setItem(RELATIONSHIPS_OPEN_KEY, String(this._relationshipsOpen));
+    } catch {
+      /* not remembered: fine */
+    }
+  }
+
+  /**
+   * The relationships' direct statements, folded together — by default — under
+   * a header with their count, so the concept's other properties stand out.
+   */
+  private _renderRelationshipGroup(related: PropertyEntry[]) {
+    if (related.length === 0) return nothing;
+    const open = this._relationshipsOpen === true;
+    return html`<div class="relationship-group">
+      <button
+        class="group-toggle"
+        aria-expanded=${open ? 'true' : 'false'}
+        title="The direct statements of this concept's relationships — the Analysis tab lists the relationships"
+        @click=${() => this._toggleRelationships()}
+      >
+        <span class="chevron">${open ? '▾' : '▸'}</span> Relationships <span class="count">${related.length}</span>
+      </button>
+      ${open ? html`<ul class="property-list">${related.map((entry) => this._renderEntry(entry))}</ul>` : nothing}
+    </div>`;
   }
 
   /** The relationships (or, for a relationship, its ends). */
@@ -1382,7 +1475,8 @@ export class PropertyPanel extends LitElement {
 
     const entries = this._entries ?? [];
     const leading = entries.filter((e) => !e.custom);
-    const added = entries.filter((e) => e.custom);
+    const added = entries.filter((e) => e.custom && !e.relationship);
+    const related = entries.filter((e) => e.relationship);
     const a = this.analysis;
     const kind = this.heading?.kind ?? 'Element';
     const tabs: Array<{ id: PanelSection; title: string; count?: number }> = [
@@ -1428,8 +1522,10 @@ export class PropertyPanel extends LitElement {
             : active === 'properties'
               ? html`${added.length > 0
                   ? html`<ul class="property-list">${added.map((entry) => this._renderEntry(entry))}</ul>`
-                  : html`<div class="muted">No properties yet — add one below.</div>`}
-                ${this._renderAdd()}`
+                  : related.length === 0
+                    ? html`<div class="muted">No properties yet — add one below.</div>`
+                    : nothing}
+                ${this._renderRelationshipGroup(related)} ${this._renderAdd()}`
               : active === 'analysis'
                 ? this._renderRelationships()
                 : this._renderViews()}

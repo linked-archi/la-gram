@@ -602,6 +602,15 @@ The open tab is kept in `localStorage` (`la-gram:property-panel-tab`), so it
 holds from one selection to the next and across reloads; a concept without that
 tab (a model has no analysis) shows its information instead.
 
+The Properties tab leads with the concept's own properties; its relationships'
+direct statements (`am4:serves` to the element served — a predicate a
+relationship type declares as its `arch:unqualifiedForm`) are folded together
+under "Relationships" with their count, opened on a click and remembered per
+browser; the tab's count is of the others. The way in to each relationship it is
+the source of is left out — known by name (`isQualifiedPredicate`) and by what it
+links (a relationship whose `arch:source` the concept is), so a converter's or a
+mapping's own name for it is left out too.
+
 The panel reads without knowing RDF. A field is named in words: the ones every
 concept has as a modeller knows them (Type, Model, Name, Definition, Other
 name), the rest by their shape's `sh:name` or their vocabulary's label when that
