@@ -802,8 +802,9 @@ the head of the counts line and remembered per browser:
   route cells only it reaches (`model-manager/rdf-scope.ts`), written by
   `ModelIO.serialize` with those statements (`SerializeOptions.quads`) — the same
   prefixes, order and graphs as a saved file. It follows the open view.
-- **Selection**: the selected concept's statements and how it is drawn in the open
-  view; it follows the selection.
+- **Selection**: the selected concepts' statements and how they are drawn in the
+  open view — every one of several selected on the canvas ("3 selected"), where
+  the other panels follow the first; it follows the selection.
 - **Model**: the whole model, as Save writes it (`App.saveModel`). A whole model
   past the highlighting limit (`HIGHLIGHT_LIMIT`, 1.5 MB) is not shown: its size
   is, with Copy and Download, and it is not serialized again on every change —

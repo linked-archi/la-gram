@@ -49,5 +49,10 @@ describe('the statements of a view or a concept', () => {
     expect(drawnIn(concept, other)).toBe(0);
     // Without a view, only its own.
     expect(conceptStatements(app.components.store, portal).every((q) => q.subject.value === portal)).toBe(true);
+    // A selection of several: each one's statements, and each one's drawing in the open view.
+    const both = conceptStatements(app.components.store, [portal, clerk], viewIri);
+    const bothSubjects = new Set(both.map((q) => q.subject.value));
+    expect([bothSubjects.has(portal), bothSubjects.has(clerk), bothSubjects.has(serving)]).toEqual([true, true, false]);
+    expect(drawnIn(both, viewIri)).toBe(2);
   }, 120_000);
 });

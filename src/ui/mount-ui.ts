@@ -477,7 +477,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // while hidden.
   /** What the RDF panel shows, and what it downloads, for a scope. */
   const rdfContent = (request: RdfPanelRequest): RdfPanelContent & { fileName?: string; mediaType?: string } => {
-    const { format, profile, scope, selectedIri } = request;
+    const { format, profile, scope, selectedIris } = request;
     if (scope === 'model') {
       const contents = modelContents();
       return {
@@ -491,16 +491,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       };
     }
     const viewIri = session.activeViewIri;
-    const iri = scope === 'view' ? viewIri : selectedIri;
-    if (!iri) return { text: '' };
-    const all = scope === 'view' ? viewStatements(store, iri) : conceptStatements(store, iri, viewIri);
+    const iris = scope === 'view' ? (viewIri ? [viewIri] : []) : selectedIris;
+    if (iris.length === 0) return { text: '' };
+    const all = scope === 'view' ? viewStatements(store, iris[0]!) : conceptStatements(store, iris, viewIri);
     // Without geometry, what Save would leave out is left out here too — and from the count.
     const geometry = profile === 'no-geometry' ? new Set(partitionModel(all, session.modelIri).views) : undefined;
     const quads = geometry ? all.filter((q) => !geometry.has(q)) : all;
     const contents = modelContents();
     const subjects = new Set(quads.map((q) => q.subject.value));
     const count = (list: Array<{ iri: string }>) => list.filter((c) => subjects.has(c.iri)).length;
-    const caption = labelOf(store, iri);
+    const caption = iris.length === 1 ? labelOf(store, iris[0]!) : `${iris.length} selected`;
     const info = formatInfo(format);
     return {
       text: quads.length > 0 ? app.modelIO.serialize(session.modelIri, { format, quads }) : '',
@@ -511,7 +511,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         triples: quads.length,
       },
       caption,
-      fileName: `${caption.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'rdf'}.${info.extension}`,
+      fileName: `${(iris.length === 1 ? caption : 'selection').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'rdf'}.${info.extension}`,
       mediaType: info.mediaType,
     };
   };
@@ -636,6 +636,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       else modelExplorer.selectedIri = '';
       catalogView.selectedIri = iri ?? '';
       rdfPanel.selectedIri = iri ?? '';
+      rdfPanel.selectedIris = iri ? [iri] : [];
       graphPanel.selectedIri = iri ?? '';
       // The graph centres on the selected element — unless the pick came from
       // the graph itself, which would re-centre it under the pointer.
@@ -660,6 +661,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (selecting) return;
     const iri = event.detail?.iri as string | undefined;
     selectConcept(iri, { fromCanvas: true });
+    // The rest of the panels follow the first; the RDF panel shows them all.
+    rdfPanel.selectedIris = (event.detail?.iris as string[] | undefined) ?? (iri ? [iri] : []);
   };
 
   modelExplorer.addEventListener('explorer-select', onExplorerSelect);

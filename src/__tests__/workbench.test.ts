@@ -130,6 +130,22 @@ describe('the workbench', () => {
     expect(ui.rdfPanel.shadowRoot!.querySelector(`.rdf-block.selected`)?.getAttribute('data-subject')).toBe(el);
 
     app.components.elementManager.deleteElement(el);
+
+    // Several selected on the canvas: the selection scope shows them all.
+    const placeTwo = ['First on canvas', 'Second on canvas'].map((label, i) => {
+      const iri = app.components.elementManager.createElement(`${AM4}BusinessActor`, app.session.modelIri!, { label }).value;
+      app.components.viewManager.addElementToView(app.session.activeViewIri!, iri, { x: 100 + 200 * i, y: 300, width: 120, height: 55 });
+      return iri;
+    });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const diagram = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    diagram.get('selection').select(placeTwo.map((iri) => diagram.get('elementRegistry').get(iri)));
+    ui.rdfPanel.scope = 'selection';
+    await ui.rdfPanel.updateComplete;
+    expect(ui.rdfPanel.text).toContain('First on canvas');
+    expect(ui.rdfPanel.text).toContain('Second on canvas');
+    expect(ui.rdfPanel.shadowRoot!.querySelector('.caption')!.textContent).toBe('2 selected');
+    for (const iri of placeTwo) app.components.elementManager.deleteElement(iri);
     ui.rdfPanel.scope = 'view';
     await ui.runCommand({ command: 'toggle-rdf' });
     expect(ui.isRdfPanelOpen()).toBe(false);

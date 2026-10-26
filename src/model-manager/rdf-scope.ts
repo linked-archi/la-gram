@@ -6,8 +6,8 @@
  * - A view: the view's own statements, those of every concept it presents
  *   (`arch:inView`), and its diagram — the nodes and links drawn in it
  *   (`arch-vis:view`), with their routes.
- * - A concept: its own statements and, given the open view, how it is drawn
- *   there.
+ * - Concepts — a selection of one or several: their own statements and, given
+ *   the open view, how they are drawn there.
  *
  * Read from the model graph only, so a vocabulary's statements about a type
  * never appear. Each subject comes with what only it reaches — blank nodes and
@@ -58,14 +58,16 @@ export function viewStatements(store: RdfStore, viewIri: string): Quad[] {
   ]);
 }
 
-/** A concept's statements, and — given the open view — how it is drawn there. */
-export function conceptStatements(store: RdfStore, iri: string, viewIri?: string): Quad[] {
-  const concept = nn(iri);
+/** Concepts' statements — one IRI or a selection of several — and how they are drawn in the open view. */
+export function conceptStatements(store: RdfStore, iris: string | readonly string[], viewIri?: string): Quad[] {
+  const concepts = (typeof iris === 'string' ? [iris] : [...iris]).map(nn);
   const drawnHere = (q: Quad) =>
     viewIri !== undefined && store.getQuads(q.subject as NamedNode, T.visView, nn(viewIri), MODEL_GRAPH).length > 0;
-  const drawings = [
-    ...store.getQuads(null, T.archElement, concept, MODEL_GRAPH),
-    ...store.getQuads(null, T.archRelationship, concept, MODEL_GRAPH),
-  ].filter(drawnHere);
-  return statementsOf(store, [concept, ...drawings.map((q) => q.subject)]);
+  const drawings = concepts.flatMap((concept) =>
+    [
+      ...store.getQuads(null, T.archElement, concept, MODEL_GRAPH),
+      ...store.getQuads(null, T.archRelationship, concept, MODEL_GRAPH),
+    ].filter(drawnHere),
+  );
+  return statementsOf(store, [...concepts, ...drawings.map((q) => q.subject)]);
 }

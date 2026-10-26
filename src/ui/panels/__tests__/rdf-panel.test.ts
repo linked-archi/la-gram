@@ -126,7 +126,7 @@ describe('<rdf-panel>', () => {
   it('serializes when opened and shows highlighted Turtle with counts', async () => {
     const { panel, source } = await mount(true);
     // The open view, by default.
-    expect(source).toHaveBeenCalledWith({ format: 'turtle', profile: 'full', scope: 'view', selectedIri: '' });
+    expect(source).toHaveBeenCalledWith({ format: 'turtle', profile: 'full', scope: 'view', selectedIris: [] });
     const root = panel.shadowRoot!;
     expect(root.querySelector('.code')!.textContent).toContain('skos:prefLabel');
     expect(root.querySelectorAll('.code .rdf-block')).toHaveLength(2);
@@ -177,11 +177,18 @@ describe('<rdf-panel>', () => {
     scope.value = 'selection';
     scope.dispatchEvent(new Event('change'));
     expect(remembered.get('la-gram:rdf-scope')).toBe('selection');
-    expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'selection', selectedIri: '' }));
+    expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'selection', selectedIris: [] }));
     source.mockClear();
     panel.selectedIri = 'urn:m/element/1';
     await panel.updateComplete;
-    expect(source).toHaveBeenCalledWith(expect.objectContaining({ scope: 'selection', selectedIri: 'urn:m/element/1' }));
+    expect(source).toHaveBeenCalledWith(expect.objectContaining({ scope: 'selection', selectedIris: ['urn:m/element/1'] }));
+    // Several selected on the canvas: all of them.
+    source.mockClear();
+    panel.selectedIris = ['urn:m/element/1', 'urn:m/view/1/node/1'];
+    await panel.updateComplete;
+    expect(source).toHaveBeenCalledWith(expect.objectContaining({ selectedIris: ['urn:m/element/1', 'urn:m/view/1/node/1'] }));
+    const marked = [...panel.shadowRoot!.querySelectorAll<HTMLElement>('.rdf-block.selected')].map((b) => b.dataset['subject']);
+    expect(marked).toEqual(['urn:m/element/1', 'urn:m/view/1/node/1']);
     // Another panel starts where this one was left.
     const again = await mount(true);
     expect(again.panel.scope).toBe('selection');

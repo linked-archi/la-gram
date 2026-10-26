@@ -18,8 +18,9 @@
  * panel ignores it unless {@link active}. While shown, refreshes are debounced
  * so dragging a shape does not re-serialize the model on every frame.
  *
- * The selected concept's statements are highlighted and scrolled into view;
- * clicking a subject's statements selects that concept (`rdf-select`).
+ * The selected concepts' statements are highlighted and the first's scrolled
+ * into view; clicking a subject's statements selects that concept
+ * (`rdf-select`). The selection scope shows every selected concept.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -41,7 +42,7 @@ export type RdfScope = 'view' | 'selection' | 'model';
 /** The scopes, in the order offered. */
 export const RDF_SCOPES: ReadonlyArray<{ id: RdfScope; label: string; title: string }> = [
   { id: 'view', label: 'View', title: 'The open view: the view, the concepts it shows, and its diagram' },
-  { id: 'selection', label: 'Selection', title: 'The selected concept, and how it is drawn in the open view' },
+  { id: 'selection', label: 'Selection', title: 'The selected concepts, and how they are drawn in the open view' },
   { id: 'model', label: 'Model', title: 'The whole model, as Save writes it' },
 ];
 
@@ -50,8 +51,8 @@ export interface RdfPanelRequest {
   format: ModelFormat;
   profile: SerializationProfile;
   scope: RdfScope;
-  /** The selected concept, for the selection scope; empty when there is none. */
-  selectedIri: string;
+  /** The selected concepts, for the selection scope; none when nothing is selected. */
+  selectedIris: string[];
 }
 
 /** What the source answers: the text, its counts, and what it is about (the view's name). */
@@ -66,8 +67,8 @@ export interface RdfDownloadDetail {
   format: ModelFormat;
   profile: SerializationProfile;
   scope: RdfScope;
-  /** The selected concept, for the selection scope. */
-  selectedIri: string;
+  /** The selected concepts, for the selection scope. */
+  selectedIris: string[];
 }
 
 /** Detail of `rdf-select`. */
@@ -257,8 +258,11 @@ export class RdfPanel extends LitElement {
   /** Serializes the scope asked for, with its counts; supplied by the host (`ModelIO`, as Save). */
   @property({ attribute: false }) source?: (request: RdfPanelRequest) => RdfPanelContent;
 
-  /** The concept selected elsewhere: its statements are highlighted. */
+  /** The concept selected elsewhere — the first, when several are: its statements are scrolled to. */
   @property({ type: String }) selectedIri = '';
+
+  /** Every concept selected (on the canvas, several may be): their statements are highlighted; the selection scope shows them. */
+  @property({ attribute: false }) selectedIris: readonly string[] = [];
 
   /** Whether the panel covers the workspace; the shell owns the choice (`rdf-maximize-toggle` asks for it). */
   @property({ type: Boolean, reflect: true }) maximized = false;
@@ -313,8 +317,14 @@ export class RdfPanel extends LitElement {
       format: this._format,
       profile: this._geometry ? 'full' : 'no-geometry',
       scope: this._scope,
-      selectedIri: this.selectedIri,
+      selectedIris: this._selected(),
     };
+  }
+
+  /** The selection: every concept selected, else the one. */
+  private _selected(): string[] {
+    if (this.selectedIris.length > 0) return [...this.selectedIris];
+    return this.selectedIri ? [this.selectedIri] : [];
   }
 
   /** Re-serialize now (when shown). */
@@ -356,7 +366,7 @@ export class RdfPanel extends LitElement {
     // Opening the panel (or getting a source while open) shows current text at once;
     // so does another selection, when the selection is what is shown.
     if ((changed.has('active') || changed.has('source')) && this.active) this.refresh();
-    else if (changed.has('selectedIri') && this._scope === 'selection' && this.active) this.refresh();
+    else if ((changed.has('selectedIri') || changed.has('selectedIris')) && this._scope === 'selection' && this.active) this.refresh();
   }
 
   override updated(changed: Map<string, unknown>): void {
@@ -375,24 +385,26 @@ export class RdfPanel extends LitElement {
       code.innerHTML = highlightRdf(this._text, this._format);
       this._renderedText = this._text;
       this._renderedFormat = this._format;
-      this._markSelected(changed.has('selectedIri'));
-    } else if (changed.has('selectedIri')) {
+      this._markSelected(changed.has('selectedIri') || changed.has('selectedIris'));
+    } else if (changed.has('selectedIri') || changed.has('selectedIris')) {
       this._markSelected(true);
     }
   }
 
-  /** Highlight the selected subject's block; scroll to it when asked. */
+  /** Highlight the selected subjects' blocks; scroll to the first when asked. */
   private _markSelected(scroll: boolean): void {
     const code = this._code;
     if (!code) return;
     for (const block of code.querySelectorAll('.rdf-block.selected')) block.classList.remove('selected');
-    if (!this.selectedIri) return;
-    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(this.selectedIri) : this.selectedIri.replace(/"/g, '\\"');
-    const blocks = code.querySelectorAll<HTMLElement>(`.rdf-block[data-subject="${escaped}"]`);
-    for (const block of blocks) block.classList.add('selected');
-    if (scroll && blocks[0] && typeof blocks[0].scrollIntoView === 'function') {
-      blocks[0].scrollIntoView({ block: 'nearest' });
+    const escape = (iri: string) => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(iri) : iri.replace(/"/g, '\\"'));
+    let first: HTMLElement | undefined;
+    for (const iri of this._selected()) {
+      for (const block of code.querySelectorAll<HTMLElement>(`.rdf-block[data-subject="${escape(iri)}"]`)) {
+        block.classList.add('selected');
+        first ??= block;
+      }
     }
+    if (scroll && first && typeof first.scrollIntoView === 'function') first.scrollIntoView({ block: 'nearest' });
   }
 
   private _emit<T>(name: string, detail: T): void {
@@ -458,8 +470,8 @@ export class RdfPanel extends LitElement {
         <button
           title="Download this file"
           @click=${() => {
-            const { format, profile, scope, selectedIri } = this._request();
-            this._emit<RdfDownloadDetail>('rdf-download', { format, profile, scope, selectedIri });
+            const { format, profile, scope, selectedIris } = this._request();
+            this._emit<RdfDownloadDetail>('rdf-download', { format, profile, scope, selectedIris });
           }}
         >
           Download
