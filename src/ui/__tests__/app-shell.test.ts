@@ -149,6 +149,42 @@ describe('AppShell', () => {
       expect(grid().classList.contains('bottom-maximized')).toBe(false);
     });
 
+    it('maximizes the RDF panel when it asks, one panel at a time, and restores it with Esc or by hiding it', async () => {
+      const { shell, root, grid } = await mount({ rdfOpen: true, bottomFolded: false });
+      const changes: boolean[] = [];
+      shell.addEventListener('rdf-panel-changed', (e) => changes.push((e as CustomEvent<{ maximized: boolean }>).detail.maximized));
+      const ask = async () => {
+        root.querySelector('.panel-rdf')!.dispatchEvent(new CustomEvent('rdf-maximize-toggle', { bubbles: true, composed: true }));
+        await shell.updateComplete;
+      };
+
+      await ask();
+      expect(grid().classList.contains('rdf-maximized')).toBe(true);
+      for (const covered of ['.panel-canvas', '.panel-bottom', '.panel-palette', '.panel-explorer']) {
+        expect(root.querySelector(covered)!.hasAttribute('inert'), covered).toBe(true);
+      }
+      expect(root.querySelector('.resizer[data-panel="rdf"]')).toBeNull();
+      await ask();
+      expect(grid().classList.contains('rdf-maximized')).toBe(false);
+
+      // Esc restores it; maximizing the bottom panel puts it back; hiding it does too.
+      shell.setRdfMaximized(true);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(shell.rdfMaximized).toBe(false);
+      shell.setRdfMaximized(true);
+      shell.setBottomMaximized(true);
+      expect([shell.rdfMaximized, shell.bottomMaximized]).toEqual([false, true]);
+      shell.setRdfMaximized(true);
+      expect([shell.rdfMaximized, shell.bottomMaximized]).toEqual([true, false]);
+      shell.rdfOpen = false;
+      await shell.updateComplete;
+      expect(shell.rdfMaximized).toBe(false);
+      expect(changes).toEqual([true, false, true, false, true, false, true, false]);
+      // Hidden, it cannot be maximized.
+      shell.setRdfMaximized(true);
+      expect(shell.rdfMaximized).toBe(false);
+    });
+
     it('leaves Esc to an open dialog', async () => {
       const { shell } = await mount({ bottomFolded: false });
       shell.setBottomMaximized(true);

@@ -248,6 +248,14 @@ describe('the RDF panel', () => {
     expect(await panel.locator('.rdf-block.selected').count()).toBeGreaterThan(0);
     await session.screenshot('workbench-rdf-panel');
 
+    // ⤢ lays the panel over the whole workspace; Esc puts it back.
+    const narrow = (await panel.boundingBox())!.width;
+    await panel.locator('button.maximize').click();
+    await until(async () => (await panel.boundingBox())!.width > narrow * 2, 'the maximized panel');
+    expect(await panel.locator('button.maximize').getAttribute('aria-pressed')).toBe('true');
+    await page.keyboard.press('Escape');
+    await until(async () => Math.abs((await panel.boundingBox())!.width - narrow) < 2, 'the restored panel');
+
     await panel.locator('button.close').click();
     await panel.waitFor({ state: 'hidden' });
     findings.push('RDF panel: hidden by default, toggle, live refresh, block → selection: ok');

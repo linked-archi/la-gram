@@ -24,7 +24,9 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
  *   `sparql` and `graph` slots; resizable by its top edge, folded to its tabs by clicking
  *   the open tab, and maximized over the whole workspace (⤢; Esc or ⤡ restores)
  * - palette (right) — shown by default, can be hidden
- * - rdf (far right, full height: the model as RDF) — hidden until opened
+ * - rdf (far right, full height: the model as RDF) — hidden until opened, and
+ *   maximized over the whole workspace from its header (`rdf-maximize-toggle`;
+ *   Esc or ⤡ restores); one panel is maximized at a time
  *
  * The model tree and the two right-hand panels are *side panels*: each can be
  * shown or hidden, and resized by dragging its inner edge (the tree's right,
@@ -279,12 +281,19 @@ export class AppShell extends LitElement {
       color: #1a73e8;
     }
 
-    /* ── Maximized: the bottom panel over the workspace ── */
+    /* ── Maximized: the bottom panel, or the RDF panel, over the workspace ── */
     .shell.bottom-maximized .panel-bottom {
       grid-row: 2 / 4;
       grid-column: 1 / -1;
       z-index: 10;
       border-top: 0;
+    }
+    .shell.rdf-maximized .panel-rdf {
+      grid-row: 2 / 4;
+      grid-column: 1 / -1;
+      z-index: 10;
+      border-left: 0;
+      background: #fff;
     }
     .tab-body {
       flex: 1 1 auto;
@@ -362,6 +371,9 @@ export class AppShell extends LitElement {
   /** Whether the RDF panel (far right) is shown. Hidden by default. */
   @property({ type: Boolean, reflect: true }) rdfOpen = false;
 
+  /** Whether the RDF panel covers the workspace (not remembered: a reload starts restored). */
+  @property({ type: Boolean, reflect: true }) rdfMaximized = false;
+
   /** Width of the RDF panel in pixels; dragged with its left edge. */
   @property({ type: Number }) rdfWidth = storedSize(SIDE_PANELS.rdf.key, SIDE_PANELS.rdf.initial, SIDE_PANELS.rdf.min);
 
@@ -411,6 +423,7 @@ export class AppShell extends LitElement {
   /** Lay the bottom panel over the whole workspace, or put it back; maximizing unfolds it. */
   setBottomMaximized(maximized: boolean): void {
     if (maximized === this.bottomMaximized && (!maximized || !this.bottomFolded)) return;
+    if (maximized) this.setRdfMaximized(false);
     this.bottomMaximized = maximized;
     if (maximized && this.bottomFolded) {
       this.bottomFolded = false;
@@ -419,11 +432,26 @@ export class AppShell extends LitElement {
     this._panelChanged();
   }
 
+  /** Lay the RDF panel over the whole workspace, or put it back; only while it is shown. */
+  setRdfMaximized(maximized: boolean): void {
+    const next = maximized && this.rdfOpen;
+    if (next === this.rdfMaximized) return;
+    if (next) this.setBottomMaximized(false);
+    this.rdfMaximized = next;
+    this.dispatchEvent(new CustomEvent('rdf-panel-changed', { detail: { maximized: next }, bubbles: true, composed: true }));
+  }
+
+  override willUpdate(changed: Map<string, unknown>): void {
+    // Hiding the RDF panel puts it back too.
+    if (changed.has('rdfOpen') && !this.rdfOpen && this.rdfMaximized) this.setRdfMaximized(false);
+  }
+
   /** Esc restores a maximized panel — unless a dialog or a menu took the key first. */
   private _onKeyDown = (e: KeyboardEvent): void => {
-    if (e.key !== 'Escape' || !this.bottomMaximized || e.defaultPrevented) return;
+    if (e.key !== 'Escape' || !(this.bottomMaximized || this.rdfMaximized) || e.defaultPrevented) return;
     if (document.querySelector('.la-dialog, .djs-popup')) return;
-    this.setBottomMaximized(false);
+    if (this.rdfMaximized) this.setRdfMaximized(false);
+    else this.setBottomMaximized(false);
   };
 
   /** Which bottom tab is showing, if any — for panels that work only while seen. */
@@ -571,6 +599,9 @@ export class AppShell extends LitElement {
     const tab = this.bottomTab ?? 'properties';
     const folded = this.bottomFolded === true;
     const maximized = this.bottomMaximized === true && !folded;
+    const rdfMaximized = this.rdfMaximized === true && this.rdfOpen;
+    // Whatever a maximized panel covers is out of reach until it is restored.
+    const covered = maximized || rdfMaximized;
     const guideFolded = this.guideFolded === true;
     const badges = this.tabBadges ?? {};
     const sizes =
@@ -580,13 +611,13 @@ export class AppShell extends LitElement {
       `--la-bottom-row: ${folded ? 'auto' : `${this.bottomHeight ?? BOTTOM.initial}px`}`;
     return html`
       <div
-        class="shell ${explorerOpen ? 'explorer-open' : ''} ${paletteOpen ? 'palette-open' : ''} ${this.rdfOpen ? 'rdf-open' : ''} ${maximized ? 'bottom-maximized' : ''}"
+        class="shell ${explorerOpen ? 'explorer-open' : ''} ${paletteOpen ? 'palette-open' : ''} ${this.rdfOpen ? 'rdf-open' : ''} ${maximized ? 'bottom-maximized' : ''} ${rdfMaximized ? 'rdf-maximized' : ''}"
         style=${sizes}
       >
         <div class="panel-toolbar">
           <slot name="toolbar"></slot>
         </div>
-        <div class="panel-explorer side" ?inert=${maximized}>
+        <div class="panel-explorer side" ?inert=${covered}>
           ${resizeHandle('explorer', this._resize)}
           <div class="explorer-column">
             <div class="explorer-tree"><slot name="explorer"></slot></div>
@@ -600,10 +631,10 @@ export class AppShell extends LitElement {
             </div>
           </div>
         </div>
-        <div class="panel-canvas" ?inert=${maximized}>
+        <div class="panel-canvas" ?inert=${covered}>
           <slot name="canvas"></slot>
         </div>
-        <div class="panel-bottom">
+        <div class="panel-bottom" ?inert=${rdfMaximized}>
           ${folded || maximized ? nothing : resizeHandle('bottom', this._resize)}
           <div class="tabs" role="tablist">
             ${BOTTOM_TABS.map(
@@ -647,12 +678,12 @@ export class AppShell extends LitElement {
             )}
           </div>
         </div>
-        <div class="panel-palette side" ?inert=${maximized}>
+        <div class="panel-palette side" ?inert=${covered}>
           ${resizeHandle('palette', this._resize)}
           <div class="side-body"><slot name="palette"></slot></div>
         </div>
-        <div class="panel-rdf side" ?inert=${maximized}>
-          ${resizeHandle('rdf', this._resize)}
+        <div class="panel-rdf side" ?inert=${maximized} @rdf-maximize-toggle=${() => this.setRdfMaximized(!rdfMaximized)}>
+          ${rdfMaximized ? nothing : resizeHandle('rdf', this._resize)}
           <slot name="rdf"></slot>
         </div>
       </div>

@@ -147,12 +147,16 @@ export class RdfPanel extends LitElement {
     button:hover {
       background: #f1f3f4;
     }
-    button.close {
+    button.close,
+    button.maximize {
       border: 0;
       font-size: 16px;
       line-height: 1;
       padding: 2px 6px;
       color: #5f6368;
+    }
+    button.maximize[aria-pressed='true'] {
+      color: #1a73e8;
     }
     label.geometry {
       display: flex;
@@ -255,6 +259,9 @@ export class RdfPanel extends LitElement {
 
   /** The concept selected elsewhere: its statements are highlighted. */
   @property({ type: String }) selectedIri = '';
+
+  /** Whether the panel covers the workspace; the shell owns the choice (`rdf-maximize-toggle` asks for it). */
+  @property({ type: Boolean, reflect: true }) maximized = false;
 
   @state() private _format: ModelFormat = 'turtle';
   @state() private _geometry = true;
@@ -456,6 +463,15 @@ export class RdfPanel extends LitElement {
           }}
         >
           Download
+        </button>
+        <button
+          class="maximize"
+          title=${this.maximized ? 'Restore the panel (Esc)' : 'Maximize the panel over the workspace'}
+          aria-label=${this.maximized ? 'Restore the panel' : 'Maximize the panel'}
+          aria-pressed=${this.maximized ? 'true' : 'false'}
+          @click=${() => this._emit('rdf-maximize-toggle', {})}
+        >
+          ${this.maximized ? '⤡' : '⤢'}
         </button>
         <button class="close" title="Hide the RDF panel" @click=${() => this._emit('rdf-close', {})}>×</button>
       </div>

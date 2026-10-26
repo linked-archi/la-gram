@@ -609,6 +609,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     typeGuidePanel.folded = (e as CustomEvent<{ folded: boolean }>).detail.folded;
   };
   shell.addEventListener('guide-panel-changed', onGuidePanelChanged);
+  // The RDF panel shows whether the shell has it over the workspace.
+  const onRdfPanelChanged = (e: Event): void => {
+    rdfPanel.maximized = (e as CustomEvent<{ maximized: boolean }>).detail.maximized;
+  };
+  shell.addEventListener('rdf-panel-changed', onRdfPanelChanged);
 
   let selecting = false;
   const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean; fromGraph?: boolean } = {}): void => {
@@ -1901,6 +1906,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     graphPanel.removeEventListener('graph-open-sparql', onGraphOpenSparql);
     graphPanel.removeEventListener('graph-new-view', onGraphNewView);
     shell.removeEventListener('guide-panel-changed', onGuidePanelChanged);
+    shell.removeEventListener('rdf-panel-changed', onRdfPanelChanged);
     propertyPanel.removeEventListener('property-retype', onPropertyRetype);
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);

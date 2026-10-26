@@ -222,6 +222,19 @@ describe('<rdf-panel>', () => {
     expect(root.querySelector('.code')!.textContent).toContain('skos:prefLabel');
   });
 
+  it('asks to be maximized over the workspace, and shows when it is', async () => {
+    const { panel } = await mount(true);
+    const asked: string[] = [];
+    panel.addEventListener('rdf-maximize-toggle', () => asked.push('toggle'));
+    const button = () => panel.shadowRoot!.querySelector<HTMLButtonElement>('button.maximize')!;
+    expect(button().textContent!.trim()).toBe('⤢');
+    button().click();
+    expect(asked).toEqual(['toggle']);
+    panel.maximized = true;
+    await panel.updateComplete;
+    expect([button().textContent!.trim(), button().getAttribute('aria-pressed')]).toEqual(['⤡', 'true']);
+  });
+
   it('asks the host to download, and to close', async () => {
     const { panel } = await mount(true);
     const events: string[] = [];

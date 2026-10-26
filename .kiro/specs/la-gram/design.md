@@ -809,6 +809,11 @@ the head of the counts line and remembered per browser:
   is, with Copy and Download, and it is not serialized again on every change —
   only when the scope, format or geometry is chosen, and afresh for Copy.
 
+The panel maximizes over the workspace as the bottom panel does — its ⤢ asks
+the shell (`rdf-maximize-toggle`), which lays it over the canvas, the tree, the
+palette and the bottom panel (inert meanwhile) and says so (`rdf-panel-changed`);
+Esc, ⤡ or hiding it restores it, and maximizing one panel restores the other.
+
 A view or a concept stays small on any model — on a model of 431 000 triples
 (33.8 MB of Turtle), the largest of its 569 views is 0.35 MB without geometry
 and 0.72 MB with it, and a view serializes in milliseconds — so it is always
