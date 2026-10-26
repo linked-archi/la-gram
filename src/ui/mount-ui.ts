@@ -1004,6 +1004,40 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   let currentMetamodelIri: string | undefined;
   let currentAxisIri: string | undefined;
 
+  /** Relationship icons a metamodel names that do not load: drawn from the notation instead. */
+  const brokenIcons = new Set<string>();
+  const triedIcons = new Set<string>();
+  let iconRepair: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Try each relationship icon the palette names (once); one that does not
+   * load — the ArchiMate 3.2 ontology names images never published — is
+   * swapped for a drawn one, in the palette and the canvas's menus.
+   */
+  const tryRelationshipIcons = (palette: PaletteDefinition): void => {
+    if (typeof Image !== 'function') return;
+    const failed = (iconUrl: string) => () => {
+      brokenIcons.add(iconUrl);
+      iconRepair ??= setTimeout(() => {
+        iconRepair = undefined;
+        currentPalette = withRelationshipIcons(currentPalette, (url) => brokenIcons.has(url));
+        palettePanel.palette = currentPalette;
+        diagramCanvas.updatePaletteDefinition(currentPalette, { iconsOnly: true });
+      }, 50);
+    };
+    for (const { iconUrl } of palette.relationshipTypes) {
+      if (!iconUrl || iconUrl.startsWith('data:') || triedIcons.has(iconUrl)) continue;
+      triedIcons.add(iconUrl);
+      const href = iconHref(iconUrl, assetUrl);
+      if (!href) {
+        failed(iconUrl)();
+        continue;
+      }
+      const probe = new Image();
+      probe.onerror = failed(iconUrl);
+      probe.src = href;
+    }
+  };
+
   const regeneratePalette = (): void => {
     const context = app.activePresentationContext();
     // The loaded metamodels' default sets in load order: the primary's styles
@@ -1014,7 +1048,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       .flatMap((m) => (m.notationSetIri ? [m.notationSetIri] : []));
     // In load order too: the first language's classification stays the default grouping.
     const metamodelIris = app.loadedMetamodels().map((m) => m.metamodelIri);
-    // A relationship type its notation publishes no icon for is shown with one drawn from its line and ends.
+    // A relationship type its notation publishes no icon for — or one that does
+    // not load — is shown with one drawn from its line and ends.
     const palette = withRelationshipIcons(
       paletteGenerator.generatePalette(currentMetamodelIri, {
         ...(metamodelIris.length > 0 ? { metamodelIris } : {}),
@@ -1022,7 +1057,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         ...(context ? { presentationContextIri: context } : {}),
         ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),
       }),
+      (url) => brokenIcons.has(url),
     );
+    tryRelationshipIcons(palette);
     // The active axis may differ from the requested one when the metamodel does
     // not publish it; follow what the generator actually used.
     currentAxisIri = palette.activeAxisIri;
@@ -2045,6 +2082,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const dispose = (): void => {
+    if (iconRepair) clearTimeout(iconRepair);
     stopIndexing?.();
     canvasResize?.disconnect();
     eventBus.off('validation-updated', onValidationUpdated);

@@ -52,9 +52,14 @@ import { iconHref } from './notation-shapes.js';
 /** A relationship type's icon as the palette has it — published, or drawn from its notation. */
 export type RelationshipIconLookup = (relationshipTypeIri: string) => string | undefined;
 
-/** The `<img>` source of a relationship type's icon, if it has one. */
+/**
+ * The `<img>` source of a relationship type's icon, if it has one: the
+ * palette's first — by the notation lookup, or drawn — then the one the
+ * relationship manager reads off the class, which may be a link that does not
+ * load (ArchiMate 3.2's ontology names images never published).
+ */
 export function relationshipImageUrl(candidate: RelationshipTypeInfo, iconFor?: RelationshipIconLookup): string | undefined {
-  return iconHref(candidate.iconUrl ?? iconFor?.(candidate.iri), assetUrl) ?? undefined;
+  return iconHref(iconFor?.(candidate.iri) ?? candidate.iconUrl, assetUrl) ?? undefined;
 }
 
 /** Provider id the menu is registered and opened under. */

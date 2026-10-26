@@ -13,6 +13,8 @@
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipInfo } from '../../model-manager/interfaces.js';
+import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { iconHref } from './notation-shapes.js';
 
 /** An element on the canvas: its IRI and its type. */
 export interface NestedEnd {
@@ -113,7 +115,8 @@ export class RdfNestMenuProvider {
       // Source first: the container, unless the nested element is the source.
       const [from, to] =
         offer.innerEnd === 'target' ? [pending.outerLabel, pending.innerLabel] : [pending.innerLabel, pending.outerLabel];
-      const imageUrl = offer.type.iconUrl ?? this.iconFor?.(offer.type.iri);
+      // The palette's first, as the append menu: what the manager reads off the class may not load.
+      const imageUrl = iconHref(this.iconFor?.(offer.type.iri) ?? offer.type.iconUrl, assetUrl) ?? undefined;
       entries[`la-nest-${index}`] = {
         label: offer.type.label,
         className: 'la-nest-entry',

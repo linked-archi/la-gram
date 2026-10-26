@@ -409,8 +409,9 @@ export class RdfAppendRelationshipMenuProvider {
   pending: { context: AppendMenuContext; target: AppendTarget } | undefined;
 
   /**
-   * @param iconFor The icon of a relationship type as the palette publishes it,
-   *   for relationships the manager reports without one.
+   * @param iconFor The icon of a relationship type as the palette has it — by
+   *   the notation lookup, or drawn — before the one the manager reads off the
+   *   class, which may be a link that does not load (ArchiMate 3.2's).
    */
   constructor(
     private readonly support: Pick<AppendSupport, 'place'>,
@@ -427,7 +428,7 @@ export class RdfAppendRelationshipMenuProvider {
     ];
     const entries: AppendMenuEntries = {};
     for (const relationship of ordered) {
-      const imageUrl = iconOf(relationship.iconUrl ?? this.iconFor?.(relationship.iri));
+      const imageUrl = iconOf(this.iconFor?.(relationship.iri) ?? relationship.iconUrl);
       entries[appendEntryId(relationship.iri)] = {
         label: relationship.label,
         className: APPEND_ENTRY_CLASS,

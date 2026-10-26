@@ -1132,13 +1132,17 @@ export function relationshipIconDataUri(style: RelationshipVisualStyle | undefin
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-/** The palette with an icon for every relationship type: the one its notation publishes, else one drawn from it. */
-export function withRelationshipIcons(palette: PaletteDefinition): PaletteDefinition {
-  if (palette.relationshipTypes.every((r) => r.iconUrl)) return palette;
+/**
+ * The palette with an icon for every relationship type: the one its notation
+ * publishes, else — none, or one `broken` says does not load — one drawn from it.
+ */
+export function withRelationshipIcons(palette: PaletteDefinition, broken: (iconUrl: string) => boolean = () => false): PaletteDefinition {
+  const usable = (iconUrl: string | undefined): iconUrl is string => Boolean(iconUrl) && !broken(iconUrl!);
+  if (palette.relationshipTypes.every((r) => usable(r.iconUrl))) return palette;
   return {
     ...palette,
     relationshipTypes: palette.relationshipTypes.map((r) =>
-      r.iconUrl ? r : { ...r, iconUrl: relationshipIconDataUri(r.relationshipStyle) },
+      usable(r.iconUrl) ? r : { ...r, iconUrl: relationshipIconDataUri(r.relationshipStyle) },
     ),
   };
 }

@@ -345,6 +345,40 @@ describe('mountUi', () => {
       expect(ui.palettePanel.palette).toEqual(SAMPLE_PALETTE);
     });
 
+    it('draws the icon of a relationship type whose named icon does not load, and keeps the one that does', async () => {
+      const missing = 'https://example.org/img/rel_serving.svg';
+      const published = 'https://example.org/img/rel_flow.svg';
+      // The page's images: the missing one fails, as an unpublished link does.
+      vi.stubGlobal(
+        'Image',
+        class {
+          onerror: (() => void) | null = null;
+          onload: (() => void) | null = null;
+          set src(value: string) {
+            setTimeout(() => (value === missing ? this.onerror?.() : this.onload?.()), 0);
+          }
+        },
+      );
+      vi.mocked(app.components.paletteGenerator.generatePalette).mockReturnValue({
+        ...SAMPLE_PALETTE,
+        relationshipTypes: [
+          { iri: 'urn:t:Serving', label: 'Serving', iconUrl: missing, relationshipStyle: { targetDecor: 'OpenArrowhead' }, domainTypes: [], rangeTypes: [] },
+          { iri: 'urn:t:Flow', label: 'Flow', iconUrl: published, domainTypes: [], rangeTypes: [] },
+        ],
+      });
+      try {
+        app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+        expect(ui.palettePanel.palette.relationshipTypes.map((r) => r.iconUrl)).toEqual([missing, published]);
+        await vi.waitFor(() => expect(ui.palettePanel.palette.relationshipTypes[0]!.iconUrl).toMatch(/^data:image\/svg\+xml/));
+        expect(ui.palettePanel.palette.relationshipTypes[1]!.iconUrl).toBe(published);
+        // Known not to load: the next palette draws it at once.
+        app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+        expect(ui.palettePanel.palette.relationshipTypes[0]!.iconUrl).toMatch(/^data:image\/svg\+xml/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('regroups the palette when the panel asks for another axis', () => {
       app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
 

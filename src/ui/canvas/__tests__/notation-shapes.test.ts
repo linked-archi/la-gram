@@ -602,5 +602,8 @@ describe('a relationship type\u2019s icon, drawn from its notation', () => {
     expect(palette.relationshipTypes.map((r) => r.iconUrl?.slice(0, 19))).toEqual(['data:image/svg+xml;', 'basic/icons/relatio']);
     const published = { elementGroups: [], relationshipTypes: [palette.relationshipTypes[1]!] };
     expect(withRelationshipIcons(published as never)).toBe(published);
+    // One named that does not load: drawn too.
+    const repaired = withRelationshipIcons(published as never, (url) => url === 'basic/icons/relationship.svg');
+    expect(repaired.relationshipTypes[0]!.iconUrl).toMatch(/^data:image\/svg\+xml/);
   });
 });

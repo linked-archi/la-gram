@@ -1803,12 +1803,17 @@ export class DiagramCanvas {
    * re-indexes the styles, but a re-index paints nothing, so the
    * `elements.changed` fire is what makes the renderer repaint them.
    */
-  updatePaletteDefinition(paletteDefinition: PaletteDefinition): void {
+  /**
+   * @param options.iconsOnly Only icons changed — what the menus show, nothing
+   *   drawn: the shapes are not redrawn.
+   */
+  updatePaletteDefinition(paletteDefinition: PaletteDefinition, options: { iconsOnly?: boolean } = {}): void {
     this.paletteDefinition = paletteDefinition;
     // The palette is what the append offer is derived from, so every memoized
     // answer is now stale.
     this.appendTargetCache.clear();
     this.contextPadProvider.updatePaletteDefinition(paletteDefinition);
+    if (options.iconsOnly) return;
     this.notationStyles.update(paletteDefinition);
 
     const services = this.services();

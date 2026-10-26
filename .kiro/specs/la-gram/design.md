@@ -245,7 +245,17 @@ three quarters of the canvas's size. Built-in, not the published symbols: those
 load asynchronously, and an `<img>` cannot load what an SVG it shows
 references. The line colour is escaped into the markup. Every menu that offers
 relationship types takes its icon from the palette, as the append menu did:
-the change-type and connect-two menus now show them too.
+the change-type and connect-two menus now show them too. The palette's icon
+comes before the one the relationship manager reads off the class.
+
+An icon a metamodel names may not load: the ArchiMate 3.2 ontology gives its
+classes `arch:prefVisNotation` links to images that were never published (the
+3.2 notation names bundled icons for elements, none for relationships, so the
+class's own link is what the lookup finds). `mount-ui` tries each relationship
+icon the palette names once (`new Image()`); one that fails is remembered and
+the palette — and the canvas's menus, without redrawing the shapes
+(`updatePaletteDefinition(…, { iconsOnly: true })`) — take the drawn one. The
+swap waits on the network: a few seconds for a link that does not resolve.
 
 **Element shapes** (Req 2.18). `notation-shapes.ts` turns a shape into one
 geometry with two encodings: the drawn body (`shapeGeometry`: a `rect`,
