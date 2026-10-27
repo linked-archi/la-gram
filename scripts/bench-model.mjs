@@ -4,7 +4,12 @@
  * la-gram writes a model — elements, qualified relationships with their direct
  * triples (`rdf:reifies`), diagrams with laid-out nodes and links.
  *
- *   node scripts/bench-model.mjs --triples 100000 [--view-size 40] [--seed 1] [--out file.ttl]
+ *   node scripts/bench-model.mjs --triples 100000 [--view-size 40] [--seed 1] [--language 3.2] [--out file.ttl]
+ *
+ * `--language 3.2` writes the same model in ArchiMate 3.2: each type its 3.2
+ * counterpart (a role a business role, a process a business process, a service
+ * an application service …), for timing what is asked of a 3.2 model. Not every
+ * relationship is then one 3.2 permits.
  *
  * Elements are of 30 types across the layers; each has two relationships the
  * ArchiMate 4.0 relationship tables permit, to elements of the type they name,
@@ -22,6 +27,17 @@ import { DataFactory, Writer } from 'n3';
 const { namedNode, literal, quad } = DataFactory;
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+const AM3 = 'https://meta.linked.archi/archimate3/onto#';
+
+/** The ArchiMate 3.2 type for each ArchiMate 4.0 type the model uses whose name differs. */
+const AM3_TYPE = {
+  Role: 'BusinessRole',
+  Collaboration: 'BusinessCollaboration',
+  Process: 'BusinessProcess',
+  Function: 'ApplicationFunction',
+  Event: 'BusinessEvent',
+  Service: 'ApplicationService',
+};
 const ARCH = 'https://meta.linked.archi/core#';
 const VIS = 'https://meta.linked.archi/core-vis#';
 const RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
@@ -104,9 +120,10 @@ function random(seed) {
 /**
  * The model, as Turtle text, and what it holds.
  *
- * @param {{ triples?: number, elements?: number, viewSize?: number, seed?: number }} options
+ * @param {{ triples?: number, elements?: number, viewSize?: number, seed?: number, language?: '4.0' | '3.2' }} options
  *   `triples`: about how many (or `elements`: exactly how many elements);
- *   `viewSize`: elements a view shows (40); `seed` (1).
+ *   `viewSize`: elements a view shows (40); `seed` (1); `language`: ArchiMate
+ *   4.0 (the default) or 3.2.
  */
 export function generateModel(options = {}) {
   const viewSize = Math.max(1, options.viewSize ?? 40);
@@ -115,7 +132,8 @@ export function generateModel(options = {}) {
   const pick = (list) => list[Math.floor(next() * list.length)];
   const ns = `https://example.org/bench/${count}/`;
   const m = (local) => namedNode(ns + local);
-  const am4 = (local) => namedNode(AM4 + local);
+  const am3 = options.language === '3.2';
+  const am4 = (local) => (am3 ? namedNode(AM3 + (AM3_TYPE[local] ?? local)) : namedNode(AM4 + local));
   const quads = [];
   const add = (s, p, o) => quads.push(quad(s, p, o));
   const label = (text) => literal(text, 'en');
@@ -128,7 +146,11 @@ export function generateModel(options = {}) {
 
   add(model, rdfType, namedNode(ARCH + 'Model'));
   add(model, prefLabel, label(`Benchmark, ${count} elements`));
-  add(model, namedNode(ARCH + 'modelConformsToMetamodel'), namedNode('https://meta.linked.archi/archimate4/metamodel#ArchiMate4'));
+  add(
+    model,
+    namedNode(ARCH + 'modelConformsToMetamodel'),
+    namedNode(am3 ? 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2' : 'https://meta.linked.archi/archimate4/metamodel#ArchiMate4'),
+  );
   add(model, namedNode(DCTERMS + 'created'), literal('2026-01-01T00:00:00Z', namedNode(XSD + 'dateTime')));
   add(model, namedNode(VANN + 'preferredNamespacePrefix'), literal('m'));
   add(model, namedNode(VANN + 'preferredNamespaceUri'), literal(ns));
@@ -223,7 +245,7 @@ export function generateModel(options = {}) {
   }
 
   const writer = new Writer({
-    prefixes: { m: ns, am4: AM4, arch: ARCH, 'arch-vis': VIS, rdf: RDF, skos: SKOS, dcterms: DCTERMS, vann: VANN, xsd: XSD },
+    prefixes: { m: ns, ...(am3 ? { am: AM3 } : { am4: AM4 }), arch: ARCH, 'arch-vis': VIS, rdf: RDF, skos: SKOS, dcterms: DCTERMS, vann: VANN, xsd: XSD },
   });
   for (const q of quads) writer.addQuad(q);
   let text = '';
@@ -255,8 +277,9 @@ function main(argv) {
   const triples = Number(arg('triples', '10000'));
   const viewSize = Number(arg('view-size', '40'));
   const seed = Number(arg('seed', '1'));
-  const out = arg('out', `model-${triples}${viewSize === 40 ? '' : `-view${viewSize}`}.ttl`);
-  const { text, faults, ...facts } = generateModel({ triples, viewSize, seed });
+  const language = arg('language', '4.0');
+  const out = arg('out', `model-${triples}${viewSize === 40 ? '' : `-view${viewSize}`}${language === '3.2' ? '-am3' : ''}.ttl`);
+  const { text, faults, ...facts } = generateModel({ triples, viewSize, seed, language });
   writeFileSync(out, text);
   console.log(JSON.stringify({ out, ...facts, unnamed: faults.unnamed.length, notPermitted: faults.notPermitted.length }));
 }

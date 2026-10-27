@@ -221,7 +221,7 @@ imported by its `owl:versionIRI` (meta's relationship tables import
 data is loaded (and bundled for both ArchiMate versions): its `skos:prefLabel`s
 label the `sh:in` choices in the property panel. Question sets are loaded too:
 a metamodel's through its manifest's `arch:hasQuestionSet` (role `questions`,
-bundled for ArchiMate 4.0), the core set with the core files (`coreQuestions`) —
+bundled for ArchiMate 4.0 and 3.2), the core set with the core files (`coreQuestions`) —
 model questions (`model-manager/questions.ts`; see the la-queries spec), in their
 own named graphs, never model data.
 
@@ -870,9 +870,11 @@ deleting the view removes it.
 
 The questions of the loaded question sets (`model-manager/questions.ts`; the
 la-queries spec) are asked from three places. `mount-ui` lists them once
-(`listQuestions`, read again on `metamodel-loaded`) and offers those whose
-ontologies are loaded (`offeredQuestions`: every graph of every loaded
-metamodel), the open view's viewpoint's first. It binds what the workbench
+(`listQuestions`, read again on `metamodel-loaded`) and offers those of the
+open model's languages (`offeredQuestions` over the graphs of the loaded
+metamodels the model declares with `arch:modelConformsToMetamodel` — of every
+loaded one when it declares none: ArchiMate 4.0 stays loaded beside 3.2, and
+its questions answer nothing on a 3.2 model), the open view's viewpoint's first. It binds what the workbench
 shows: the open model (`?model`), view (`?view`) and its viewpoint
 (`?viewpoint`); one selected element (`?focus` — on the canvas, else in the
 tree), or two (`?from`, `?to`); the type picked in the palette, until something

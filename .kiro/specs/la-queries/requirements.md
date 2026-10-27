@@ -82,6 +82,10 @@ fast, so that one text serves every tool.
 6. Each row is one subject or one link (several neighbours summarised with `GROUP_CONCAT`, IRIs kept); labels in
    English or untagged
 7. A finding question's `arch:findingFocus` names a result column holding a concept IRI
+8. A type a question asks about counts with its subtypes — the language's own (`am:Constraint` under
+   `am:Requirement`) and a model's specialisations — read as a set once per query, in two steps (the types under it
+   within each document, then their specialisations in any document); a row reports the type asked about, so a
+   supertype asserted or inferred beside a specialisation does not repeat it (D15)
 
 ### Requirement 4: The core question set
 
@@ -107,6 +111,7 @@ show where a concern is not met.
 2. `viewpoint-scope` answers without a per-row anchor search (it grew with the square of the model: 24 s at 70 000
    triples); `applications-without-technology`, `unrealised-requirements` and `application-dependencies` look up
    their type sets once
+3. Every type a question asks about counts with its specialisations (Requirement 3.8)
 
 ### Requirement 6: Verification in meta
 
@@ -116,7 +121,7 @@ show where a concern is not met.
 
 1. A `questions` SHACL profile validates every question set against the core shapes
 2. A runner (RDF4J, meta's own toolchain — a second engine beside la-gram's Oxigraph) asks every question of an
-   example model with all its parameters and with its required ones, in named graphs and merged, as written and with
+   example model — each ArchiMate version's, with the core questions — with all its parameters and with its required ones, in named graphs and merged, as written and with
    the inferable core and abstract types added: the four answers agree, and each finding question catches exactly its
    culprits and none of its near misses
 3. The speed budget is checked where it matters, in la-gram (Requirement 12)
@@ -130,7 +135,8 @@ show where a concern is not met.
 1. A metamodel's question sets are loaded through `arch:hasQuestionSet`, into named graphs like its other documents,
    bundled or fetched; the core set is a core asset
 2. Questions are never written into the model and never validated as model data
-3. A question is offered only while the ontologies it requires are loaded
+3. A question is offered only while the ontologies it requires are loaded, and — when the open model declares the
+   languages it is in (`arch:modelConformsToMetamodel`) — only for those (D14)
 
 ### Requirement 8: Questions in the SPARQL tab
 
@@ -187,6 +193,45 @@ requirements — beside the SHACL results, so I see where a concern is not met.
    picked, recorded as a decision with its measurement and held to its own limit (design D12: `viewpoint-scope`)
 2. Model checks run on request, not after every edit
 
+### Requirement 16: The ArchiMate 3.2 question set
+
+**User Story:** As a modeller with an ArchiMate 3.2 model — as the converters and the Exchange import write — I want
+the ArchiMate questions too, not only the core ones.
+
+#### Acceptance Criteria
+
+1. The ArchiMate 4.0 questions that hold in 3.2, 19, written to Requirement 3, in `archimate3.2-questions.ttl`
+   (`amq:`), linked from the ArchiMate 3.2 metamodel: layers where 4.0 has domains; what belongs in a view of a
+   viewpoint is the core question, each 3.2 type having a layer; concerns, stakeholders and viewpoints 3.2's own
+2. Checked as the ArchiMate 4.0 set is (Requirement 6), on a 3.2 example model with the core questions
+3. la-gram bundles it and offers it for 3.2 models (D14); every question within the benchmark's limits at 350 000
+   triples of a generated 3.2 model
+
+### Requirement 14: Converted views follow defined viewpoints
+
+**User Story:** As a modeller, I want a converted view to name a viewpoint the catalogue defines, so its conformance
+can be judged and its scope asked.
+
+#### Acceptance Criteria
+
+1. The ArchiMate converter maps each ArchiMate 3.2 viewpoint name to the individual the published catalogue defines,
+   all 25; a name it does not know is reported and dropped, never guessed
+2. A test checks what the converter claims against the published catalogue
+3. Models converted before are reconverted; consumers do not rewrite their viewpoint IRIs (D13)
+
+### Requirement 15: The query catalogue reads the question sets
+
+**User Story:** As an AI-assisted analyst, I want `linked-archi-query` to ask the same questions la-gram and the
+deliverables ask, chosen by concern.
+
+#### Acceptance Criteria
+
+1. `la-query` reads a question set as catalogue entries, with their concerns, stakeholders, viewpoints and findings
+2. The RDF question is the source of truth (D10); a role-based template for another dataset layout keeps its
+   `dcterms:identifier`
+3. `linked-archi-analyse` selects questions by concern
+4. Entries read from RDF answer meta's example model as `QuestionRunner` does
+
 ### Requirement 13 (later): Deliverable sections ask questions
 
 **User Story:** As an architect, I want a deliverable whose sections answer their concerns and state their findings.
@@ -197,3 +242,6 @@ requirements — beside the SHACL results, so I see where a concern is not met.
    parameters, reports a question it could not ask, and states an empty finding as "none found"
 2. The ArchiMate 4.0 templates are reworked once `la-generate` supports this, keeping the published layout (metadata on
    the first template, no `owl:Ontology`)
+3. A section embeds the model's views that follow its viewpoint
+4. Templates with `arch:sectionQuery` keep working
+5. Generated from meta's example model, every template's output matches its golden file

@@ -143,6 +143,10 @@ contexts into a single discoverable resource.'''@en ;
                                   amdt:ArchitectureRequirementsSpec,
                                   amdt:ArchitecturePrinciplesDocument ;
 
+    ## Model questions: what ArchiMate 3.2 stakeholders ask of a model
+    ## File: archimate3.2-questions.ttl
+    arch:hasQuestionSet           <https://meta.linked.archi/archimate3/questions#> ;
+
     ## Reference data — controlled vocabularies for model content
     ## File: archimate3.2-reference-data.ttl
     arch:referenceData            amrd:ArchiMateReferenceData ;

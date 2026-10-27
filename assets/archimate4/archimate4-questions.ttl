@@ -23,10 +23,11 @@
 # arch:ModelQuestion).
 #
 # Domain membership is read from the ArchiMate 4.0 domain classes
-# (am4:ApplicationDomainElement …). A set of types under a class is
-# read once per query, in two steps — the types under it within each
-# document, then their specialisations in any document — so a model's
-# own specialisation of an ArchiMate type counts where that type does.
+# (am4:ApplicationDomainElement …). Every type a question asks about is
+# read as a set, once per query, in two steps — the types under it
+# within each document, then their specialisations in any document —
+# so a model's own specialisation of an ArchiMate type counts where
+# that type does.
 #################################################################
 
 <https://meta.linked.archi/archimate4/questions#>
@@ -166,7 +167,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionTargetsStakeholder am4vp:ProcessArchitect, am4vp:Manager ;
     arch:questionFitsViewpoint    am4vp:OrganizationViewpoint, am4vp:ProcessCooperationViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "assignments" ;
     arch:defaultLimit             500 ;
@@ -174,7 +175,14 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?performer ?performerLabel ?performerType ?assignment ?assigned ?assignedLabel ?assignedType
         WHERE {
-          ?assignment rdf:type am4:Assignment ;
+          {
+            SELECT DISTINCT ?assignmentType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Assignment } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Assignment } }
+              { ?assignmentType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?assignmentType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?assignment rdf:type ?assignmentType ;
                       arch:source ?performer ;
                       arch:target ?assigned .
           ?performer rdf:type ?performerType .
@@ -196,14 +204,14 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
     dcterms:identifier            "notation/archimate4/application-dependencies" ;
     skos:prefLabel                "Which applications depend on which?"@en ;
-    dcterms:description           "Application components that serve, flow to or trigger one another, directly or through a service one realises and the other is served by."@en ;
+    dcterms:description           "Application components that serve, flow to or trigger one another, directly or through a service one realises — itself or through the function assigned to it — and the other is served by."@en ;
     arch:answers                  "One row per dependency: the provider, how it provides, the relationship or service between, and the consumer."@en ;
     arch:doesNotProve             "Runtime coupling or data volume. A modelled flow says that information moves, not how much or how often."@en ;
     arch:questionStage            arch:AnalysisStage ;
     arch:questionAddressesConcern am4vp:ApplicationDependencies, am4vp:ServiceOrchestration ;
     arch:questionFitsViewpoint    am4vp:ApplicationCooperationViewpoint, am4vp:ApplicationUsageViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "applicationDependencies" ;
     arch:defaultLimit             500 ;
@@ -211,24 +219,44 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?provider ?providerLabel ?how ?via ?consumer ?consumerLabel
         WHERE {
-          # From the relationships to their ends, each branch checking its own: never every pair of components.
+          # From the relationships to their ends, each branch anchored on its relationships: never every pair of
+          # components. Both ends are then checked against the component types, read once each.
           {
             VALUES ?linkType { am4:Serving am4:Flow am4:Triggering }
             ?via rdf:type ?linkType ;
                  arch:source ?provider ;
                  arch:target ?consumer .
-            ?provider rdf:type am4:ApplicationComponent .
-            ?consumer rdf:type am4:ApplicationComponent .
             BIND(REPLACE(STR(?linkType), "^.*[#/]", "") AS ?how)
           }
           UNION
           {
-            ?via rdf:type am4:Service ;
+            {
+              SELECT DISTINCT ?serviceType
+              WHERE {
+                { ?askedService rdfs:subClassOf* am4:Service } UNION { GRAPH ?serviceOntologyGraph { ?askedService rdfs:subClassOf* am4:Service } }
+                { ?serviceType rdfs:subClassOf* ?askedService } UNION { GRAPH ?serviceSpecialisationGraph { ?serviceType rdfs:subClassOf* ?askedService } }
+              }
+            }
+            ?via rdf:type ?serviceType ;
                  am4:serves ?consumer .
-            ?consumer rdf:type am4:ApplicationComponent .
-            ?provider am4:realizes ?via .
-            ?provider rdf:type am4:ApplicationComponent .
+            ?provider am4:realizes|(am4:assignedTo/am4:realizes) ?via .
             BIND("realises a service serving" AS ?how)
+          }
+          ?provider rdf:type ?providerType .
+          ?consumer rdf:type ?consumerType .
+          {
+            SELECT DISTINCT ?providerType
+            WHERE {
+              { ?askedProvider rdfs:subClassOf* am4:ApplicationComponent } UNION { GRAPH ?providerGraph { ?askedProvider rdfs:subClassOf* am4:ApplicationComponent } }
+              { ?providerType rdfs:subClassOf* ?askedProvider } UNION { GRAPH ?providerSpecialisationGraph { ?providerType rdfs:subClassOf* ?askedProvider } }
+            }
+          }
+          {
+            SELECT DISTINCT ?consumerType
+            WHERE {
+              { ?askedConsumer rdfs:subClassOf* am4:ApplicationComponent } UNION { GRAPH ?consumerGraph { ?askedConsumer rdfs:subClassOf* am4:ApplicationComponent } }
+              { ?consumerType rdfs:subClassOf* ?askedConsumer } UNION { GRAPH ?consumerSpecialisationGraph { ?consumerType rdfs:subClassOf* ?askedConsumer } }
+            }
           }
           FILTER(?provider != ?consumer)
           OPTIONAL { ?provider skos:prefLabel ?providerLabel . FILTER(lang(?providerLabel) = "" || langMatches(lang(?providerLabel), "en")) }
@@ -320,7 +348,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionTargetsStakeholder am4vp:BusinessArchitect, am4vp:CxO ;
     arch:questionFitsViewpoint    am4vp:CapabilityMapViewpoint, am4vp:StrategyViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "capabilities" ;
     arch:defaultLimit             500 ;
@@ -328,7 +356,14 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?capability ?capabilityLabel ?realizer ?realizerLabel ?realizerType
         WHERE {
-          ?capability rdf:type am4:Capability .
+          {
+            SELECT DISTINCT ?capabilityType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Capability } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Capability } }
+              { ?capabilityType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?capabilityType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?capability rdf:type ?capabilityType .
           OPTIONAL {
             ?realizer am4:realizes ?capability ;
                       rdf:type ?realizerType .
@@ -355,7 +390,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionTargetsStakeholder am4vp:BusinessManager, am4vp:EnterpriseArchitect ;
     arch:questionFitsViewpoint    am4vp:StakeholderViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "stakeholderMotivation" ;
     arch:defaultLimit             500 ;
@@ -363,16 +398,28 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?stakeholder ?stakeholderLabel ?direction ?predicate ?motivation ?motivationLabel ?motivationType
         WHERE {
-          VALUES ?predicate { am4:associatedWith am4:influences am4:realizes am4:aggregates am4:composedOf }
-          VALUES ?motivationType {
-            am4:Stakeholder am4:Driver am4:Assessment am4:Goal am4:Outcome
-            am4:Principle am4:Requirement am4:Meaning am4:Value
+          {
+            SELECT DISTINCT ?stakeholderType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Stakeholder } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Stakeholder } }
+              { ?stakeholderType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?stakeholderType rdfs:subClassOf* ?asked } }
+            }
           }
-          ?stakeholder rdf:type am4:Stakeholder .
+          {
+            SELECT DISTINCT ?motivationType
+            WHERE {
+              { ?motivationLayerType rdfs:subClassOf* am4:MotivationElement } UNION { GRAPH ?motivationGraph { ?motivationLayerType rdfs:subClassOf* am4:MotivationElement } }
+              { ?motivationType rdfs:subClassOf* ?motivationLayerType } UNION { GRAPH ?motivationSpecialisationGraph { ?motivationType rdfs:subClassOf* ?motivationLayerType } }
+            }
+          }
+          VALUES ?predicate { am4:associatedWith am4:influences am4:realizes am4:aggregates am4:composedOf }
+          ?stakeholder rdf:type ?stakeholderType .
           { ?stakeholder ?predicate ?motivation . BIND("outgoing" AS ?direction) }
           UNION
           { ?motivation ?predicate ?stakeholder . BIND("incoming" AS ?direction) }
           ?motivation rdf:type ?motivationType .
+          MINUS { SELECT DISTINCT ?motivationType WHERE { { ?motivationType arch:isAbstractClass true }
+                                                          UNION { GRAPH ?abstractClassGraph { ?motivationType arch:isAbstractClass true } } } }
           OPTIONAL { ?stakeholder skos:prefLabel ?stakeholderLabel . FILTER(lang(?stakeholderLabel) = "" || langMatches(lang(?stakeholderLabel), "en")) }
           OPTIONAL { ?motivation skos:prefLabel ?motivationLabel . FILTER(lang(?motivationLabel) = "" || langMatches(lang(?motivationLabel), "en")) }
         }
@@ -392,7 +439,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionTargetsStakeholder am4vp:RequirementsManager, am4vp:BusinessAnalyst ;
     arch:questionFitsViewpoint    am4vp:RequirementsRealizationViewpoint, am4vp:GoalRealizationViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "traceability" ;
     arch:defaultLimit             1000 ;
@@ -400,7 +447,14 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?requirement ?requirementLabel ?direction ?predicate ?other ?otherLabel ?otherType
         WHERE {
-          ?requirement rdf:type am4:Requirement .
+          {
+            SELECT DISTINCT ?requirementType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Requirement } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Requirement } }
+              { ?requirementType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?requirementType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?requirement rdf:type ?requirementType .
           {
             ?other am4:realizes ?requirement .
             BIND(am4:realizes AS ?predicate)
@@ -434,7 +488,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionAddressesConcern am4vp:ArchitecturePolicies, am4vp:Motivation ;
     arch:questionFitsViewpoint    am4vp:MotivationViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "principles" ;
     arch:defaultLimit             500 ;
@@ -442,8 +496,15 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?principle ?principleLabel ?direction ?predicate ?other ?otherLabel ?otherType
         WHERE {
+          {
+            SELECT DISTINCT ?principleType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Principle } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Principle } }
+              { ?principleType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?principleType rdfs:subClassOf* ?asked } }
+            }
+          }
           VALUES ?predicate { am4:realizes am4:influences am4:associatedWith }
-          ?principle rdf:type am4:Principle .
+          ?principle rdf:type ?principleType .
           { ?principle ?predicate ?other . BIND("outgoing" AS ?direction) }
           UNION
           { ?other ?predicate ?principle . BIND("incoming" AS ?direction) }
@@ -470,7 +531,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionTargetsStakeholder am4vp:OperationalManager, am4vp:EnterpriseArchitect ;
     arch:questionFitsViewpoint    am4vp:ProjectViewpoint, am4vp:ImplementationAndMigrationViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "workPackages" ;
     arch:defaultLimit             500 ;
@@ -478,9 +539,23 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?workPackage ?workPackageLabel ?deliverable ?deliverableLabel ?realized ?realizedLabel ?realizedType
         WHERE {
-          ?workPackage rdf:type am4:WorkPackage ;
+          {
+            SELECT DISTINCT ?workPackageType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:WorkPackage } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:WorkPackage } }
+              { ?workPackageType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?workPackageType rdfs:subClassOf* ?asked } }
+            }
+          }
+          {
+            SELECT DISTINCT ?deliverableType
+            WHERE {
+              { ?askedDeliverable rdfs:subClassOf* am4:Deliverable } UNION { GRAPH ?deliverableGraph { ?askedDeliverable rdfs:subClassOf* am4:Deliverable } }
+              { ?deliverableType rdfs:subClassOf* ?askedDeliverable } UNION { GRAPH ?deliverableSpecialisationGraph { ?deliverableType rdfs:subClassOf* ?askedDeliverable } }
+            }
+          }
+          ?workPackage rdf:type ?workPackageType ;
                        am4:realizes ?deliverable .
-          ?deliverable rdf:type am4:Deliverable .
+          ?deliverable rdf:type ?deliverableType .
           OPTIONAL {
             ?deliverable am4:realizes ?realized .
             ?realized rdf:type ?realizedType .
@@ -507,7 +582,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:questionAddressesConcern am4vp:ModelHistory, am4vp:ArchitectureVision ;
     arch:questionFitsViewpoint    am4vp:MigrationViewpoint ;
     arch:resultIsFinding          false ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "plateauChanges" ;
     arch:defaultLimit             1000 ;
@@ -519,22 +594,23 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     sh:select """
         SELECT DISTINCT ?change ?element ?label ?type
         WHERE {
-          {
-            ?from rdf:type am4:Plateau .
-            ?to rdf:type am4:Plateau ;
-                am4:aggregates|am4:composedOf ?element .
-            FILTER NOT EXISTS { ?from am4:aggregates|am4:composedOf ?element }
-            BIND("added" AS ?change)
+          # Both are plateaus, or a specialisation of one.
+          FILTER EXISTS {
+            ?from rdf:type ?fromType .
+            { ?fromType rdfs:subClassOf* am4:Plateau } UNION { GRAPH ?fromGraph { ?fromType rdfs:subClassOf* am4:Plateau } }
           }
-          UNION
-          {
-            ?to rdf:type am4:Plateau .
-            ?from rdf:type am4:Plateau ;
-                  am4:aggregates|am4:composedOf ?element .
-            FILTER NOT EXISTS { ?to am4:aggregates|am4:composedOf ?element }
-            BIND("removed" AS ?change)
+          FILTER EXISTS {
+            ?to rdf:type ?toType .
+            { ?toType rdfs:subClassOf* am4:Plateau } UNION { GRAPH ?toGraph { ?toType rdfs:subClassOf* am4:Plateau } }
           }
           FILTER(?from != ?to)
+          { ?to am4:aggregates|am4:composedOf ?element . BIND("added" AS ?change) }
+          UNION
+          { ?from am4:aggregates|am4:composedOf ?element . BIND("removed" AS ?change) }
+          # Here, where both are bound: in the other plateau it is not.
+          FILTER(IF(?change = "added",
+                    NOT EXISTS { ?from am4:aggregates|am4:composedOf ?element },
+                    NOT EXISTS { ?to am4:aggregates|am4:composedOf ?element }))
           ?element rdf:type ?type .
           FILTER(?type NOT IN (arch:ModelConcept, arch:Element, arch:QualifiedRelationship))
           MINUS { SELECT DISTINCT ?type WHERE { { ?type arch:isAbstractClass true }
@@ -560,7 +636,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:resultIsFinding          true ;
     arch:findingSeverity          sh:Warning ;
     arch:findingFocus             "behaviour" ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "unassigned" ;
     arch:defaultLimit             500 ;
@@ -568,10 +644,17 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
                    sh:description "The model to look in. A modelling tool binds the open model; a deliverable, the model it is produced from."@en ] ;
     sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
     sh:select """
-        SELECT ?behaviour ?label ?type
+        SELECT DISTINCT ?behaviour ?label ?type
         WHERE {
-          VALUES ?type { am4:Process am4:Function }
-          ?behaviour rdf:type ?type ;
+          {
+            SELECT DISTINCT ?type ?behaviourType
+            WHERE {
+              VALUES ?type { am4:Process am4:Function }
+              { ?asked rdfs:subClassOf* ?type } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* ?type } }
+              { ?behaviourType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?behaviourType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?behaviour rdf:type ?behaviourType ;
                      arch:inModel ?model .
           FILTER NOT EXISTS { ?performer am4:assignedTo ?behaviour }
           OPTIONAL { ?behaviour skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
@@ -593,7 +676,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:resultIsFinding          true ;
     arch:findingSeverity          sh:Warning ;
     arch:findingFocus             "service" ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "unrealisedServices" ;
     arch:defaultLimit             500 ;
@@ -601,9 +684,17 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
                    sh:description "The model to look in. A modelling tool binds the open model; a deliverable, the model it is produced from."@en ] ;
     sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
     sh:select """
-        SELECT ?service ?label
+        SELECT DISTINCT ?service ?label
         WHERE {
-          ?service rdf:type am4:Service ;
+          {
+            SELECT DISTINCT ?type ?serviceType
+            WHERE {
+              VALUES ?type { am4:Service }
+              { ?asked rdfs:subClassOf* ?type } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* ?type } }
+              { ?serviceType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?serviceType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?service rdf:type ?serviceType ;
                    arch:inModel ?model .
           FILTER NOT EXISTS { ?realizer am4:realizes ?service }
           OPTIONAL { ?service skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
@@ -634,9 +725,16 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
                    sh:description "The model to look in. A modelling tool binds the open model; a deliverable, the model it is produced from."@en ] ;
     sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
     sh:select """
-        SELECT ?application ?label
+        SELECT DISTINCT ?application ?label
         WHERE {
-          ?application rdf:type am4:ApplicationComponent ;
+          {
+            SELECT DISTINCT ?componentType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:ApplicationComponent } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:ApplicationComponent } }
+              { ?componentType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?componentType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?application rdf:type ?componentType ;
                        arch:inModel ?model .
           MINUS {
             # The technology domain's types, read once.
@@ -644,9 +742,9 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
               SELECT DISTINCT ?technologyType
               WHERE {
                 { ?domainType rdfs:subClassOf* am4:TechnologyDomainElement }
-                UNION { GRAPH ?ontologyGraph { ?domainType rdfs:subClassOf* am4:TechnologyDomainElement } }
+                UNION { GRAPH ?domainGraph { ?domainType rdfs:subClassOf* am4:TechnologyDomainElement } }
                 { ?technologyType rdfs:subClassOf* ?domainType }
-                UNION { GRAPH ?specialisationGraph { ?technologyType rdfs:subClassOf* ?domainType } }
+                UNION { GRAPH ?domainSpecialisationGraph { ?technologyType rdfs:subClassOf* ?domainType } }
               }
             }
             ?technology rdf:type ?technologyType ;
@@ -671,7 +769,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:resultIsFinding          true ;
     arch:findingSeverity          sh:Warning ;
     arch:findingFocus             "object" ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "neverWritten" ;
     arch:defaultLimit             500 ;
@@ -682,7 +780,14 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
           {
             SELECT ?object (COUNT(DISTINCT ?reader) AS ?readers)
             WHERE {
-              VALUES ?objectType { am4:DataObject am4:BusinessObject am4:Artifact }
+              {
+                SELECT DISTINCT ?objectType
+                WHERE {
+                  VALUES ?askedObject { am4:DataObject am4:BusinessObject am4:Artifact }
+                  { ?asked rdfs:subClassOf* ?askedObject } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* ?askedObject } }
+                  { ?objectType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?objectType rdfs:subClassOf* ?asked } }
+                }
+              }
               ?read rdf:type am4:ReadAccess ;
                     arch:source ?reader ;
                     arch:target ?object .
@@ -690,10 +795,12 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
             }
             GROUP BY ?object
           }
+          # Written: a write, a read-write, or an access whose kind is not stated.
           FILTER NOT EXISTS {
             VALUES ?writeKind { am4:WriteAccess am4:ReadWriteAccess am4:Access }
             ?write rdf:type ?writeKind ;
                    arch:target ?object .
+            FILTER NOT EXISTS { ?write rdf:type am4:ReadAccess }
           }
           OPTIONAL { ?object skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
         }
@@ -714,7 +821,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:resultIsFinding          true ;
     arch:findingSeverity          sh:Info ;
     arch:findingFocus             "capability" ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "unrealisedCapabilities" ;
     arch:defaultLimit             500 ;
@@ -722,9 +829,16 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
                    sh:description "The model to look in. A modelling tool binds the open model; a deliverable, the model it is produced from."@en ] ;
     sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
     sh:select """
-        SELECT ?capability ?label
+        SELECT DISTINCT ?capability ?label
         WHERE {
-          ?capability rdf:type am4:Capability ;
+          {
+            SELECT DISTINCT ?capabilityType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Capability } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Capability } }
+              { ?capabilityType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?capabilityType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?capability rdf:type ?capabilityType ;
                       arch:inModel ?model .
           FILTER NOT EXISTS {
             ?capability (am4:composedOf|am4:aggregates)* ?part .
@@ -758,9 +872,16 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
                    sh:description "The model to look in. A modelling tool binds the open model; a deliverable, the model it is produced from."@en ] ;
     sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
     sh:select """
-        SELECT ?requirement ?label
+        SELECT DISTINCT ?requirement ?label
         WHERE {
-          ?requirement rdf:type am4:Requirement ;
+          {
+            SELECT DISTINCT ?requirementType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Requirement } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Requirement } }
+              { ?requirementType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?requirementType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?requirement rdf:type ?requirementType ;
                        arch:inModel ?model .
           # Realised by a design element: one whose own type is outside the motivation domain.
           MINUS {
@@ -772,10 +893,10 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
             MINUS {
               SELECT DISTINCT ?realizerType
               WHERE {
-                { ?domainType rdfs:subClassOf* am4:MotivationElement }
-                UNION { GRAPH ?ontologyGraph { ?domainType rdfs:subClassOf* am4:MotivationElement } }
-                { ?realizerType rdfs:subClassOf* ?domainType }
-                UNION { GRAPH ?specialisationGraph { ?realizerType rdfs:subClassOf* ?domainType } }
+                { ?motivationType rdfs:subClassOf* am4:MotivationElement }
+                UNION { GRAPH ?motivationGraph { ?motivationType rdfs:subClassOf* am4:MotivationElement } }
+                { ?realizerType rdfs:subClassOf* ?motivationType }
+                UNION { GRAPH ?motivationSpecialisationGraph { ?realizerType rdfs:subClassOf* ?motivationType } }
               }
             }
           }
@@ -798,7 +919,7 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
     arch:resultIsFinding          true ;
     arch:findingSeverity          sh:Info ;
     arch:findingFocus             "principle" ;
-    arch:requiresDataset          arch:ModelDataset ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
     arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
     arch:resultKey                "unbackedPrinciples" ;
     arch:defaultLimit             500 ;
@@ -806,13 +927,27 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
                    sh:description "The model to look in. A modelling tool binds the open model; a deliverable, the model it is produced from."@en ] ;
     sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
     sh:select """
-        SELECT ?principle ?label
+        SELECT DISTINCT ?principle ?label
         WHERE {
-          ?principle rdf:type am4:Principle ;
+          {
+            SELECT DISTINCT ?principleType
+            WHERE {
+              { ?asked rdfs:subClassOf* am4:Principle } UNION { GRAPH ?ontologyGraph { ?asked rdfs:subClassOf* am4:Principle } }
+              { ?principleType rdfs:subClassOf* ?asked } UNION { GRAPH ?specialisationGraph { ?principleType rdfs:subClassOf* ?asked } }
+            }
+          }
+          ?principle rdf:type ?principleType ;
                      arch:inModel ?model .
           FILTER NOT EXISTS {
+            {
+              SELECT DISTINCT ?requirementType
+              WHERE {
+                { ?askedRequirement rdfs:subClassOf* am4:Requirement } UNION { GRAPH ?requirementGraph { ?askedRequirement rdfs:subClassOf* am4:Requirement } }
+                { ?requirementType rdfs:subClassOf* ?askedRequirement } UNION { GRAPH ?requirementSpecialisationGraph { ?requirementType rdfs:subClassOf* ?askedRequirement } }
+              }
+            }
             ?requirement am4:realizes ?principle ;
-                         rdf:type am4:Requirement .
+                         rdf:type ?requirementType .
           }
           OPTIONAL { ?principle skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
         }

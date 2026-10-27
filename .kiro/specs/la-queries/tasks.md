@@ -21,7 +21,7 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [x] `arch:hasQuestionSet` on the ArchiMate 4.0 metamodel (Req 2.4)
 - [x] Docgen *Question Set* type, renderer and page; `docgen-index.yaml`, `_redirects`, `llms.txt`, `llms-full.txt`; the catalogue validates (Req 2.2–2.3)
 - [x] `questions` SHACL profile (Req 6.1)
-- [x] `QuestionRunner` (RDF4J) and `examples/archimate4-questions-example.ttl` with its expected file, in `--questions` and `--ci`: 36 questions, four ways each, 38 cases (Req 6.2)
+- [x] `QuestionRunner` (RDF4J) and `examples/archimate4-questions-example.ttl` with its expected file, in `--questions` and `--ci`: 36 questions, four ways each, 39 cases (Req 6.2)
 - [x] Docs: DD-33, ontology reference, validation guide, modelling-languages guide; `validate.sh --ci` passes
 
 ## 3. la-gram engine — done 2026-10-27
@@ -42,8 +42,43 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [x] Tests: `questions.test` (hints, a view's viewpoint, model checks — failed and capped too), `sparql-editor.test` (groups, the menu, asking, caveats, the view request), `validation-panel.test` (checks merged, scoped, reported), `workbench.test` (the whole flow on the real app), `workbench.spec` (right-click → ask, the menu and its concern filter, model checks, in Chrome)
 - [x] la-gram specs (requirements 6.11, 11.9, 16.4; design; tasks) and README updated
 
-## 5. Later
+## 4a. Questions for the model's languages — done 2026-10-27
 
-- [ ] Deliverable sections ask questions: `la-generate`, then the ArchiMate 4.0 templates reworked, keeping their published layout (Req 13)
-- [ ] `linked-archi-query`: the source-of-truth decision (D10), the new identifiers, `layer-crossing` for ArchiMate 4.0
-- [ ] Converters: viewpoint IRIs meta defines (`amvp:OrganizationViewpoint`, not `amvp:Organization`)
+- [x] la-gram offers a language's questions only for a model that declares that language, any loaded one's when it declares none (D14, Req 7.3): ArchiMate 4.0's questions answered nothing on an ArchiMate 3.2 model (no `am4:Capability`), which read as "nothing realised". *workbench.test (an imported Exchange model: 16 questions offered, 7 model checks)*
+
+## 5. Converters: viewpoint IRIs — done 2026-10-27
+
+- [x] The ArchiMate converter's viewpoint table holds the published catalogue's 25 names (`amvp:OrganizationViewpoint`, …), Application Structure and Value Stream added (Req 14.1)
+- [x] `ArchiMateViewpointTest`: the 25 specification names resolve, each to its own individual; what is claimed equals what the published catalogue defines (Req 14.2); every converter test passes; the ArchiMate converter jar rebuilt
+- [x] ADR 0006 and the changelog say so
+- [x] la-gram does not rewrite old IRIs; converted models are reconverted (D13, Req 14.3)
+
+## 6. Deliverables (la-generate, then meta) — planned
+
+- [ ] la-generate: RDF4J 6.1 and Java 25
+- [ ] la-generate: load the question sets (core; a language's through `arch:hasQuestionSet`), in named graphs
+- [ ] la-generate: `arch:sectionAsks` — ask in order, `VALUES` pre-binding (`?model`, the section's `?viewpoint`, `arch:templateParameter`), not-asked reported (Req 13.1)
+- [ ] la-generate: the context per question (label, answers, does not prove, finding, severity, rows); "none found" for an empty finding
+- [ ] la-generate: embed the views that follow the section's viewpoint (Req 13.3); `arch:sectionQuery` unchanged (Req 13.4)
+- [ ] meta: the ArchiMate 4.0 templates from the draft — new names, published layout, ARS and APD sections, the quality appendix, a Change Impact Assessment taking `?focus` (Req 13.2)
+- [ ] meta docgen: a section's questions linked to their Question Set page
+- [ ] Golden outputs from meta's example model (Req 13.5); la-generate's README
+
+## 7. linked-archi-query — planned (D10 decided)
+
+- [ ] `la-query --catalog` reads TTL question sets as entries; the field mapping of design § linked-archi-query (Req 15.1)
+- [ ] The core, ArchiMate 4.0 and 3.2 sets read from the published files; role-based templates kept for other profiles under their identifiers (Req 15.2)
+- [ ] The new identifiers; `notation/archimate/layer-crossing` answered by the 3.2 set's question (layers from the layer classes, not type names), `cross-domain-relationships` for ArchiMate 4.0
+- [ ] `linked-archi-analyse`: questions selected by concern (Req 15.3)
+- [ ] A check: entries read from RDF answer meta's example model as `QuestionRunner` does (Req 15.4)
+
+## 8. ArchiMate 3.2 questions, and specialisations — done 2026-10-27
+
+- [x] `archimate3.2-questions.ttl` (`amq:`, `https://meta.linked.archi/archimate3/questions#`): 19 questions, layers for domains, each type asked about as a two-step type set (Req 16.1, D15)
+- [x] `arch:hasQuestionSet` on the ArchiMate 3.2 metamodel; `docgen-index.yaml`, `_redirects`, `llms.txt`, `llms-full.txt`; the ArchiMate README's files and namespaces; the docs render (19 questions) and the catalogue validates
+- [x] `examples/archimate3.2-questions-example.ttl` and its expected file (38 cases, the core findings among them); `validate.sh --questions` runs per version; the `questions` profile holds both sets; `--ci` passes (Req 16.2)
+- [x] The 15 ArchiMate 4.0 questions that matched a type exactly read a type set, and declare `arch:ModelAndMetamodelDataset`; `application-dependencies` also follows the function assigned to a component; the 4.0 example has a strategic capability and a regulatory requirement (Req 5.3, 3.8)
+- [x] `plateau-difference` (3.2) compares where `?from` and `?to` are bound; `data-never-written`'s write check holds with `am:Access` beside a read
+- [x] la-gram: the 3.2 set bundled (`questions`, `archimate3`) and synced; `questions.test` (the 3.2 suite on Oxigraph, the 4.0 example updated); `bench-model.mjs --language 3.2` and a 3.2 benchmark (every question under 0.3 s at 350 000 triples); `workbench.test` (an imported 3.2 model: 35 questions, 14 model checks, `amq:capability-realisation` asked) (Req 16.3)
+- [x] Docs: validation guide, modelling-languages guide, `.scripts/README.md`
+- [x] Converter: accesses typed by kind (`am:ReadAccess`, `am:WriteAccess` — also when the attribute is absent — `am:ReadWriteAccess`, `am:Access`), the deprecated `am:accessType` no longer written; a `relationships:` entry wins; `ArchiMateAccessKindTest`, every converter test passes, the jar rebuilt; a converted sample answers the 3.2 questions as expected

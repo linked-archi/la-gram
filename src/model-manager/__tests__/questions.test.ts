@@ -63,6 +63,8 @@ const MODEL = `@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 :model a arch:Model ; skos:prefLabel "Claims handling"@en .
 
 :CloudServer a owl:Class ; rdfs:subClassOf am4:Node ; skos:prefLabel "Cloud Server"@en .
+:StrategicCapability a owl:Class ; rdfs:subClassOf am4:Capability ; skos:prefLabel "Strategic Capability"@en .
+:RegulatoryRequirement a owl:Class ; rdfs:subClassOf am4:Requirement ; skos:prefLabel "Regulatory Requirement"@en .
 
 
 :orgView a arch:Diagram ; arch:inModel :model ; skos:prefLabel "Organisation"@en ;
@@ -92,10 +94,12 @@ const MODEL = `@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 :goal a am4:Goal ; arch:inModel :model ; skos:prefLabel "Faster claims"@en .
 :req a am4:Requirement ; arch:inModel :model ; skos:prefLabel "Claims settled within 24h"@en .
 :req2 a am4:Requirement ; arch:inModel :model ; skos:prefLabel "Unrealised requirement"@en .
+:req3 a :RegulatoryRequirement ; arch:inModel :model ; skos:prefLabel "Keep claims for ten years"@en .
 :principle a am4:Principle ; arch:inModel :model ; skos:prefLabel "Digital first"@en .
 :principle2 a am4:Principle ; arch:inModel :model ; skos:prefLabel "Unbacked principle"@en .
 :capability a am4:Capability ; arch:inModel :model ; skos:prefLabel "Claims Management"@en .
 :capability2 a am4:Capability ; arch:inModel :model ; skos:prefLabel "Fraud Detection"@en .
+:capability3 a :StrategicCapability ; arch:inModel :model ; skos:prefLabel "Customer Insight"@en .
 :wp a am4:WorkPackage ; arch:inModel :model ; skos:prefLabel "CRM upgrade"@en .
 :deliv a am4:Deliverable ; arch:inModel :model ; skos:prefLabel "Upgraded CRM"@en .
 :plateauA a am4:Plateau ; arch:inModel :model ; skos:prefLabel "Baseline"@en .
@@ -176,10 +180,10 @@ const BINDINGS: QuestionBindings = {
   to: EX + 'plateauB',
 };
 
-function store(): OxigraphRdfStore {
+function store(documents = DOCUMENTS, model = MODEL): OxigraphRdfStore {
   const s = new OxigraphRdfStore();
-  for (const [path, graph] of DOCUMENTS) s.load(asset(path), { format: 'text/turtle', graph });
-  s.load(MODEL, { format: 'text/turtle' });
+  for (const [path, graph] of documents) s.load(asset(path), { format: 'text/turtle', graph });
+  s.load(model, { format: 'text/turtle' });
   return s;
 }
 
@@ -219,8 +223,8 @@ function answer(s: OxigraphRdfStore, q: ModelQuestion, bindings: QuestionBinding
   ))].sort();
 }
 
-const ids = (rows: string[], column: string) =>
-  new Set(rows.flatMap((r) => r.split('\t')).filter((c) => c.startsWith(column + '=' + EX)).map((c) => c.slice(column.length + 1 + EX.length)));
+const ids = (rows: string[], column: string, ns = EX) =>
+  new Set(rows.flatMap((r) => r.split('\t')).filter((c) => c.startsWith(column + '=' + ns)).map((c) => c.slice(column.length + 1 + ns.length)));
 
 let plain: OxigraphRdfStore;
 let questions: ModelQuestion[];
@@ -294,7 +298,9 @@ describe('prebind', () => {
 
 describe('the findings, on meta’s example model', () => {
   it('core: each finding’s culprits, and none of its near misses', () => {
-    expect(ids(ask(archq('orphans')), 'element')).toEqual(new Set(['registerClaim', 'orphanService', 'crmDup', 'req2', 'principle2', 'capability2']));
+    expect(ids(ask(archq('orphans')), 'element')).toEqual(
+      new Set(['registerClaim', 'orphanService', 'crmDup', 'req2', 'req3', 'principle2', 'capability2', 'capability3']),
+    );
     // "Bank" the actor and "Bank" the role share a name across types: not duplicates.
     expect(ids(ask(archq('duplicate-labels')), 'element')).toEqual(new Set(['crm', 'crmDup']));
     expect(ids(ask(archq('relationship-integrity')), 'relationship')).toEqual(new Set(['r5']));
@@ -310,8 +316,9 @@ describe('the findings, on meta’s example model', () => {
     // The broker portal runs on the specialised node: technology under it.
     expect(ids(ask(am4q('applications-without-technology')), 'application')).toEqual(new Set(['policyApp', 'newApp', 'crmDup']));
     expect(ids(ask(am4q('data-never-written')), 'object')).toEqual(new Set(['customerData']));
-    expect(ids(ask(am4q('unrealised-capabilities')), 'capability')).toEqual(new Set(['capability2']));
-    expect(ids(ask(am4q('unrealised-requirements')), 'requirement')).toEqual(new Set(['req2']));
+    // A model's own specialisations count where the type they specialise does.
+    expect(ids(ask(am4q('unrealised-capabilities')), 'capability')).toEqual(new Set(['capability2', 'capability3']));
+    expect(ids(ask(am4q('unrealised-requirements')), 'requirement')).toEqual(new Set(['req2', 'req3']));
     expect(ids(ask(am4q('principles-without-requirements')), 'principle')).toEqual(new Set(['principle2']));
   });
 
@@ -363,7 +370,7 @@ describe('in the workbench', () => {
     const of = (iri: string) => run.results.filter((r) => r.sourceShape.value === iri);
     const orphans = of(archq('orphans'));
     expect(new Set(orphans.map((r) => r.focusNode.value.slice(EX.length)))).toEqual(
-      new Set(['registerClaim', 'orphanService', 'crmDup', 'req2', 'principle2', 'capability2']),
+      new Set(['registerClaim', 'orphanService', 'crmDup', 'req2', 'req3', 'principle2', 'capability2', 'capability3']),
     );
     expect(orphans[0]).toMatchObject({ severity: 'Info', message: question(archq('orphans')).label });
     expect(orphans[0]!.resultPath.value).toBe('');
@@ -390,6 +397,223 @@ describe('in the workbench', () => {
     expect(run.ran.map((q) => q.iri)).toEqual(['urn:q:limited']);
     expect(run.capped.map((q) => q.iri)).toEqual(['urn:q:limited']);
     expect(run.results).toHaveLength(2);
+  });
+});
+
+// ── ArchiMate 3.2 ───────────────────────────────────────────────────────
+
+const AM3 = 'https://meta.linked.archi/archimate3/onto#';
+const AM3VP = 'https://meta.linked.archi/archimate3/viewpoints#';
+const EX3 = 'https://meta.linked.archi/examples/archimate3.2-questions/';
+const amq = (id: string) => 'https://meta.linked.archi/archimate3/questions#' + id;
+
+/** ArchiMate 3.2's documents, one named graph each. */
+const DOCUMENTS_32: [path: string, graph: string][] = [
+  ['core/core-onto.ttl', ARCH],
+  ['core/core-questions.ttl', 'https://meta.linked.archi/core-questions#'],
+  ['archimate3/archimate3.2-onto.ttl', AM3],
+  ['archimate3/archimate3.2-viewpoints.ttl', AM3VP],
+  ['archimate3/archimate3.2-questions.ttl', 'https://meta.linked.archi/archimate3/questions#'],
+];
+
+/** meta's ArchiMate 3.2 example (examples/archimate3.2-questions-example.ttl in linked-archi-meta), without its comments. */
+const MODEL_32 = `@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix arch:  <https://meta.linked.archi/core#> .
+@prefix am:    <https://meta.linked.archi/archimate3/onto#> .
+@prefix amvp:  <https://meta.linked.archi/archimate3/viewpoints#> .
+@prefix :      <https://meta.linked.archi/examples/archimate3.2-questions/> .
+
+:model a arch:Model ; skos:prefLabel "Claims handling"@en .
+
+:CloudServer a owl:Class ; rdfs:subClassOf am:Device ; skos:prefLabel "Cloud Server"@en .
+:RegulatoryConstraint a owl:Class ; rdfs:subClassOf am:Constraint ; skos:prefLabel "Regulatory Constraint"@en .
+:StrategicCapability a owl:Class ; rdfs:subClassOf am:Capability ; skos:prefLabel "Strategic Capability"@en .
+
+:orgView a arch:Diagram ; arch:inModel :model ; skos:prefLabel "Organisation"@en ;
+    arch:viewConformsToViewpoint amvp:OrganizationViewpoint .
+:techView a arch:Diagram ; arch:inModel :model ; skos:prefLabel "Hosting"@en ;
+    arch:viewConformsToViewpoint amvp:TechnologyViewpoint .
+:legacyView a arch:Diagram ; arch:inModel :model ; skos:prefLabel "Legacy"@en ;
+    arch:viewConformsToViewpoint amvp:LegacyOrganizationViewpoint .
+
+:customer a am:BusinessActor ; arch:inModel :model ; skos:prefLabel "Customer"@en ; arch:inView :orgView .
+:clerk a am:BusinessRole ; arch:inModel :model ; skos:prefLabel "Claims Clerk"@en ; arch:inView :orgView .
+:server a am:Node ; arch:inModel :model ; skos:prefLabel "Application Server"@en ; arch:inView :orgView .
+:cloudServer a :CloudServer ; arch:inModel :model ; skos:prefLabel "Cloud Server 1"@en ; arch:inView :techView .
+:handleClaim a am:BusinessProcess ; arch:inModel :model ; skos:prefLabel "Handle Claim"@en ; skos:definition "Settle a claim."@en .
+:registerClaim a am:BusinessProcess ; arch:inModel :model ; skos:prefLabel "Register Claim"@en .
+:claimService a am:BusinessService ; arch:inModel :model ; skos:prefLabel "Claim Service"@en .
+:orphanService a am:ApplicationService ; arch:inModel :model ; skos:prefLabel "Orphan Service"@en .
+:crm a am:ApplicationComponent ; arch:inModel :model ; skos:prefLabel "CRM"@en .
+:crmDup a am:ApplicationComponent ; arch:inModel :model ; skos:prefLabel "crm"@en .
+:policyApp a am:ApplicationComponent ; arch:inModel :model ; skos:prefLabel "Policy Administration"@en .
+:newApp a am:ApplicationComponent ; arch:inModel :model ; skos:prefLabel "Claims Portal"@en ;
+    arch:architectureState arch:Target ; arch:approvalState arch:Proposed .
+:brokerPortal a am:ApplicationComponent ; arch:inModel :model ; skos:prefLabel "Broker Portal"@en .
+:crmFunction a am:ApplicationFunction ; arch:inModel :model ; skos:prefLabel "Customer Management"@en .
+:customerService a am:ApplicationService ; arch:inModel :model ; skos:prefLabel "Customer Lookup"@en .
+:customerData a am:DataObject ; arch:inModel :model ; skos:prefLabel "Customer Data"@en .
+:policyData a am:DataObject ; arch:inModel :model ; skos:prefLabel "Policy Data"@en .
+:ceo a am:Stakeholder ; arch:inModel :model ; skos:prefLabel "CEO"@en .
+:goal a am:Goal ; arch:inModel :model ; skos:prefLabel "Faster claims"@en .
+:req a am:Requirement ; arch:inModel :model ; skos:prefLabel "Claims settled within 24h"@en .
+:req2 a am:Requirement ; arch:inModel :model ; skos:prefLabel "Unrealised requirement"@en .
+:constraint a :RegulatoryConstraint ; arch:inModel :model ; skos:prefLabel "Keep claims for ten years"@en .
+:principle a am:Principle ; arch:inModel :model ; skos:prefLabel "Digital first"@en .
+:principle2 a am:Principle ; arch:inModel :model ; skos:prefLabel "Unbacked principle"@en .
+:capability a am:Capability ; arch:inModel :model ; skos:prefLabel "Claims Management"@en .
+:capability2 a am:Capability ; arch:inModel :model ; skos:prefLabel "Fraud Detection"@en .
+:capability3 a :StrategicCapability ; arch:inModel :model ; skos:prefLabel "Customer Insight"@en .
+:wp a am:WorkPackage ; arch:inModel :model ; skos:prefLabel "CRM upgrade"@en .
+:deliv a am:Deliverable ; arch:inModel :model ; skos:prefLabel "Upgraded CRM"@en .
+:plateauA a am:Plateau ; arch:inModel :model ; skos:prefLabel "Baseline"@en .
+:plateauB a am:Plateau ; arch:inModel :model ; skos:prefLabel "Target"@en .
+:bankActor a am:BusinessActor ; arch:inModel :model ; skos:prefLabel "Bank"@en ; arch:inView :legacyView .
+:bankRole a am:BusinessRole ; arch:inModel :model ; skos:prefLabel "Bank"@en .
+
+:r1 a am:Assignment ; arch:inModel :model ; arch:source :clerk ; arch:target :handleClaim ;
+    rdf:reifies <<( :clerk am:assignedTo :handleClaim )>> .
+:clerk am:assignedTo :handleClaim .
+:r2 a am:Assignment ; arch:inModel :model ; arch:source :customer ; arch:target :clerk ;
+    rdf:reifies <<( :customer am:assignedTo :clerk )>> .
+:customer am:assignedTo :clerk .
+:r3 a am:Realization ; arch:inModel :model ; arch:source :handleClaim ; arch:target :claimService ;
+    rdf:reifies <<( :handleClaim am:realizes :claimService )>> .
+:handleClaim am:realizes :claimService .
+:r4 a am:Serving ; arch:inModel :model ; arch:source :claimService ; arch:target :customer ;
+    rdf:reifies <<( :claimService am:serves :customer )>> .
+:claimService am:serves :customer .
+:r5 a am:Serving ; arch:inModel :model ; arch:source :server ; arch:target :crm .
+:server am:serves :crm .
+:r6 a am:Assignment ; arch:inModel :model ; arch:source :crm ; arch:target :crmFunction ;
+    rdf:reifies <<( :crm am:assignedTo :crmFunction )>> .
+:crm am:assignedTo :crmFunction .
+:r7 a am:Realization ; arch:inModel :model ; arch:source :crmFunction ; arch:target :customerService ;
+    rdf:reifies <<( :crmFunction am:realizes :customerService )>> .
+:crmFunction am:realizes :customerService .
+:r8 a am:Serving ; arch:inModel :model ; arch:source :customerService ; arch:target :policyApp ;
+    rdf:reifies <<( :customerService am:serves :policyApp )>> .
+:customerService am:serves :policyApp .
+:r9 a am:ReadAccess ; arch:inModel :model ; arch:source :crm ; arch:target :customerData ;
+    rdf:reifies <<( :crm am:accesses :customerData )>> .
+:crm am:accesses :customerData .
+:r10 a am:ReadAccess ; arch:inModel :model ; arch:source :policyApp ; arch:target :policyData ;
+    rdf:reifies <<( :policyApp am:accesses :policyData )>> .
+:policyApp am:accesses :policyData .
+:r11 a am:WriteAccess ; arch:inModel :model ; arch:source :crm ; arch:target :policyData ;
+    rdf:reifies <<( :crm am:accesses :policyData )>> .
+:crm am:accesses :policyData .
+:r12 a am:Realization ; arch:inModel :model ; arch:source :handleClaim ; arch:target :req ;
+    rdf:reifies <<( :handleClaim am:realizes :req )>> .
+:handleClaim am:realizes :req .
+:r13 a am:Realization ; arch:inModel :model ; arch:source :req ; arch:target :goal ;
+    rdf:reifies <<( :req am:realizes :goal )>> .
+:req am:realizes :goal .
+:r14 a am:Realization ; arch:inModel :model ; arch:source :req ; arch:target :principle ;
+    rdf:reifies <<( :req am:realizes :principle )>> .
+:req am:realizes :principle .
+:r15 a am:Influence ; arch:inModel :model ; arch:source :ceo ; arch:target :goal ;
+    rdf:reifies <<( :ceo am:influences :goal )>> .
+:ceo am:influences :goal .
+:r16 a am:Realization ; arch:inModel :model ; arch:source :handleClaim ; arch:target :capability ;
+    rdf:reifies <<( :handleClaim am:realizes :capability )>> .
+:handleClaim am:realizes :capability .
+:r17 a am:Realization ; arch:inModel :model ; arch:source :wp ; arch:target :deliv ;
+    rdf:reifies <<( :wp am:realizes :deliv )>> .
+:wp am:realizes :deliv .
+:r18 a am:Realization ; arch:inModel :model ; arch:source :deliv ; arch:target :crm ;
+    rdf:reifies <<( :deliv am:realizes :crm )>> .
+:deliv am:realizes :crm .
+:r19 a am:Aggregation ; arch:inModel :model ; arch:source :plateauA ; arch:target :crm ;
+    rdf:reifies <<( :plateauA am:aggregates :crm )>> .
+:plateauA am:aggregates :crm .
+:r20 a am:Aggregation ; arch:inModel :model ; arch:source :plateauA ; arch:target :policyApp ;
+    rdf:reifies <<( :plateauA am:aggregates :policyApp )>> .
+:plateauA am:aggregates :policyApp .
+:r21 a am:Aggregation ; arch:inModel :model ; arch:source :plateauB ; arch:target :crm ;
+    rdf:reifies <<( :plateauB am:aggregates :crm )>> .
+:plateauB am:aggregates :crm .
+:r22 a am:Aggregation ; arch:inModel :model ; arch:source :plateauB ; arch:target :newApp ;
+    rdf:reifies <<( :plateauB am:aggregates :newApp )>> .
+:plateauB am:aggregates :newApp .
+:r23 a am:Serving ; arch:inModel :model ; arch:source :cloudServer ; arch:target :brokerPortal ;
+    rdf:reifies <<( :cloudServer am:serves :brokerPortal )>> .
+:cloudServer am:serves :brokerPortal .
+:r24 a am:Assignment ; arch:inModel :model ; arch:source :bankActor ; arch:target :bankRole ;
+    rdf:reifies <<( :bankActor am:assignedTo :bankRole )>> .
+:bankActor am:assignedTo :bankRole .
+`;
+
+const BINDINGS_32: QuestionBindings = {
+  focus: EX3 + 'server',
+  view: EX3 + 'orgView',
+  model: EX3 + 'model',
+  viewpoint: AM3VP + 'OrganizationViewpoint',
+  conceptType: AM3 + 'ApplicationComponent',
+  from: EX3 + 'plateauA',
+  to: EX3 + 'plateauB',
+};
+
+describe('the ArchiMate 3.2 questions, on meta’s 3.2 example model', () => {
+  let am3: OxigraphRdfStore;
+  let questions32: ModelQuestion[];
+  beforeAll(() => {
+    am3 = store(DOCUMENTS_32, MODEL_32);
+    questions32 = listQuestions(am3);
+  });
+  const question32 = (iri: string) => questions32.find((q) => q.iri === iri)!;
+  const ask32 = (iri: string, bindings: QuestionBindings = {}) => answer(am3, question32(iri), { ...BINDINGS_32, ...bindings });
+  const ids32 = (rows: string[], column: string) => ids(rows, column, EX3);
+
+  it('are listed beside the core ones, and run with all their parameters and with their required ones only', () => {
+    expect(questions32.filter((q) => q.iri.startsWith('https://meta.linked.archi/archimate3/questions#'))).toHaveLength(19);
+    expect(questions32).toHaveLength(35);
+    for (const q of questions32) {
+      expect(q.label, q.iri).toMatch(/\?$/);
+      const required: QuestionBindings = {};
+      for (const p of q.parameters) if (!p.optional) required[p.name] = BINDINGS_32[p.name];
+      expect(() => am3.query(buildQuery(q, BINDINGS_32)), q.iri).not.toThrow();
+      expect(() => am3.query(buildQuery(q, required)), q.iri).not.toThrow();
+    }
+  });
+
+  it('find each finding’s culprits — subtypes the language and the model define included — and none of its near misses', () => {
+    expect(ids32(ask32(amq('unassigned-behaviour')), 'behaviour')).toEqual(new Set(['registerClaim']));
+    expect(ids32(ask32(amq('unrealised-services')), 'service')).toEqual(new Set(['orphanService']));
+    // The broker portal runs on a cloud server: a device, so a node, so technology.
+    expect(ids32(ask32(amq('applications-without-technology')), 'application')).toEqual(new Set(['policyApp', 'newApp', 'crmDup']));
+    // Policy data is read by one and written by another.
+    expect(ids32(ask32(amq('data-never-written')), 'object')).toEqual(new Set(['customerData']));
+    // A strategic capability is a capability; a regulatory constraint a constraint, so a requirement.
+    expect(ids32(ask32(amq('unrealised-capabilities')), 'capability')).toEqual(new Set(['capability2', 'capability3']));
+    expect(ids32(ask32(amq('unrealised-requirements')), 'requirement')).toEqual(new Set(['req2', 'constraint']));
+    expect(ids32(ask32(amq('principles-without-requirements')), 'principle')).toEqual(new Set(['principle2']));
+    expect(ids32(ask32(archq('viewpoint-conformance')), 'element')).toEqual(new Set(['server']));
+  });
+
+  it('list by layer, and follow a component through the function assigned to it', () => {
+    const layers = new Set(ask32(amq('elements-by-layer')).map((r) => /layer=([^\t]+)/.exec(r)![1]!.slice(AM3.length)));
+    expect(layers).toEqual(new Set(['StrategyLayerElement', 'MotivationElement', 'BusinessLayerElement', 'ApplicationLayerElement', 'TechnologyLayerElement', 'ImplementationAndMigrationLayerElement']));
+    expect(ids32(ask32(amq('application-dependencies')), 'consumer')).toEqual(new Set(['policyApp']));
+    expect(ids32(ask32(amq('capability-realisation')), 'capability')).toEqual(new Set(['capability', 'capability2', 'capability3']));
+    expect(ids32(ask32(amq('impact-of-change')), 'impacted')).toEqual(new Set(['crm', 'crmFunction', 'customerService', 'policyApp']));
+    expect(ids32(ask32(amq('plateau-difference')), 'element')).toEqual(new Set(['newApp', 'policyApp']));
+  });
+
+  it('every answer is the same with the inferable core and abstract types added', () => {
+    const inferred = store(DOCUMENTS_32, MODEL_32);
+    expect(addInferableTypes(inferred)).toBeGreaterThan(100);
+    for (const q of listQuestions(inferred)) {
+      const required: QuestionBindings = {};
+      for (const p of q.parameters) if (!p.optional) required[p.name] = BINDINGS_32[p.name];
+      for (const bindings of [BINDINGS_32, required]) {
+        expect(answer(inferred, q, bindings), q.iri).toEqual(answer(am3, question32(q.iri), bindings));
+      }
+    }
+    inferred.dispose();
   });
 });
 

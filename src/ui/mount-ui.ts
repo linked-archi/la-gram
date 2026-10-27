@@ -1415,11 +1415,30 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   /** The open view's viewpoint. */
   const openViewpoint = (): string | undefined =>
     (session.activeViewIri && viewManager.getView?.(session.activeViewIri)?.viewpointIri) || undefined;
-  /** The questions worth offering: those whose languages are loaded, the open view's viewpoint's first. */
-  const questionsOffered = (): ModelQuestion[] => {
-    const loaded = new Set(app.loadedMetamodels().flatMap((m) => Object.values(m.graphsByRole).flat() as string[]));
-    return offeredQuestions(allQuestions(), loaded, openViewpoint());
+  /**
+   * The documents of the open model's languages: every graph of the loaded
+   * metamodels it declares conformance to — of every loaded one when it
+   * declares none. A language's questions mean nothing for a model in another
+   * (ArchiMate 4.0's find no `am4:Capability` in an ArchiMate 3.2 model).
+   */
+  const modelLanguageGraphs = (): Set<string> => {
+    const model = session.modelIri;
+    const declared = new Set(
+      model
+        ? [NAMESPACES.arch + 'modelConformsToMetamodel', NAMESPACES.arch + 'conformsToMetamodel'].flatMap((predicate) =>
+            store
+              .getQuads(namedNode(model) as unknown as NamedNode, namedNode(predicate) as unknown as NamedNode)
+              .filter((q) => q.graph.termType === 'DefaultGraph')
+              .map((q) => q.object.value),
+          )
+        : [],
+    );
+    const loaded = app.loadedMetamodels();
+    const used = declared.size > 0 ? loaded.filter((m) => declared.has(m.metamodelIri)) : loaded;
+    return new Set(used.flatMap((m) => Object.values(m.graphsByRole).flat() as string[]));
   };
+  /** The questions worth offering: those of the open model's languages, the open view's viewpoint's first. */
+  const questionsOffered = (): ModelQuestion[] => offeredQuestions(allQuestions(), modelLanguageGraphs(), openViewpoint());
   /**
    * What the workbench binds: the open model, view and its viewpoint; the
    * selected element (`focus`), or two (`from`, `to`); the type picked in the
@@ -2090,8 +2109,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       validationPanel.conforms = true;
       validationPanel.validating = true;
     }
-    // The model checks were the last model's.
+    // The model checks were the last model's; its languages' are offered.
     validationPanel.checks = undefined;
+    validationPanel.checksAvailable = modelChecks().length;
     scopeValidation();
     markViolations();
   };

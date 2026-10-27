@@ -942,6 +942,21 @@ describe('the workbench', () => {
     expect(web.typeIri).toBe(`${AM3}ApplicationComponent`);
     expect(ui.diagramCanvas.getElement(web.iri)?.bounds).toMatchObject({ x: 10, y: 10 });
     expect(ui.diagramCanvas.getRelationships().size).toBe(1);
+
+    // An ArchiMate 3.2 model: its language's questions and the core's are offered, not ArchiMate 4.0's —
+    // still loaded, but they would find nothing here.
+    const declared = app.components.store
+      .getQuads(nn(app.session.modelIri!), nn(NAMESPACES.arch + 'modelConformsToMetamodel'))
+      .map((q) => q.object.value);
+    expect(declared).toEqual(['https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2']);
+    expect(app.loadedMetamodels().some((m) => m.metamodelIri.includes('archimate4'))).toBe(true);
+    const offered = ui.sparqlEditor.questionSource!();
+    const from = (set: string) => offered.filter((q) => q.iri.startsWith(`https://meta.linked.archi/${set}#`)).length;
+    expect([offered.length, from('core-questions'), from('archimate3/questions'), from('archimate4/questions')]).toEqual([35, 16, 19, 0]);
+    expect(ui.validationPanel.checksAvailable).toBe(14);
+    // "What realises each capability?" — ArchiMate 3.2's — asks the imported model.
+    const capabilities = offered.find((q) => q.iri === 'https://meta.linked.archi/archimate3/questions#capability-realisation')!;
+    expect(ui.sparqlEditor.ask(capabilities)).toMatchObject({ type: 'bindings' });
   });
 
   it('moves the model into a team namespace from Model settings, keeping the open view', async () => {

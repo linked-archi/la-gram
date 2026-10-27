@@ -288,7 +288,7 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     path: 'core/core-questions.ttl',
   },
   ...languageAssets('archimate4', 'archimate4', 'archimate4', '4.0'),
-  // Only ArchiMate 4.0 publishes a question set so far.
+  // The ArchiMate versions publish question sets; the other languages do not yet.
   {
     role: 'questions',
     ontologyIri: 'https://meta.linked.archi/archimate4/questions#',
@@ -296,6 +296,12 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     metamodel: 'archimate4',
   },
   ...languageAssets('archimate3', 'archimate3', 'archimate3.2', '3.2'),
+  {
+    role: 'questions',
+    ontologyIri: 'https://meta.linked.archi/archimate3/questions#',
+    path: 'archimate3/archimate3.2-questions.ttl',
+    metamodel: 'archimate3',
+  },
   // Basic's documents do not follow the per-language pattern: its ontology is
   // <https://meta.linked.archi/basic> (no fragment), and its bubble notation —
   // which a presentation context selects — has a folder of its own.
