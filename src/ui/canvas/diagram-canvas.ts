@@ -287,7 +287,7 @@ export interface DiagramCanvasOptions {
   /**
    * The right-click menu's actions that belong to the rest of the app: show
    * the concept's properties, reveal it in the model tree, show its relationship
-   * graph, copy its IRI.
+   * graph, ask the questions about it, copy its IRI.
    */
   onContextAction?: (action: CanvasContextAction, iri: string) => void;
 }
@@ -297,6 +297,7 @@ export type CanvasContextAction =
   | 'properties'
   | 'reveal-tree'
   | 'graph'
+  | 'ask'
   | 'copy-iri'
   | 'rename'
   | 'show-source'
@@ -2046,8 +2047,8 @@ export class DiagramCanvas {
 
   /**
    * What the right-click menu offers for `target`: renaming and changing the
-   * type, appending (elements), where to look at it (properties, tree, graph;
-   * a relationship's ends), its IRI, and deleting it. On the canvas root, the
+   * type, appending (elements), where to look at it (properties, tree, graph,
+   * the questions about it; a relationship's ends), its IRI, and deleting it. On the canvas root, the
    * open view's: renaming it, its viewpoint, duplicating it, selecting
    * everything, zooming to fit, its properties, tree entry and IRI, and
    * deleting it — what the model tree offers for a view.
@@ -2097,6 +2098,7 @@ export class DiagramCanvas {
       actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
       if (shown.kind === 'element') {
         actions.push({ id: 'graph', label: 'Show relationship graph', section: 'show', run: host('graph') });
+        actions.push({ id: 'ask', label: 'Ask about this element…', section: 'show', run: host('ask') });
       } else if (shown.kind === 'relationship') {
         actions.push({ id: 'show-source', label: 'Show source', section: 'show', run: host('show-source') });
         actions.push({ id: 'show-target', label: 'Show target', section: 'show', run: host('show-target') });

@@ -24,19 +24,23 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [x] `QuestionRunner` (RDF4J) and `examples/archimate4-questions-example.ttl` with its expected file, in `--questions` and `--ci`: 36 questions, four ways each, 38 cases (Req 6.2)
 - [x] Docs: DD-33, ontology reference, validation guide, modelling-languages guide; `validate.sh --ci` passes
 
-## 3. la-gram engine
+## 3. la-gram engine — done 2026-10-27
 
-- [ ] Loader: role `questions` through `arch:hasQuestionSet`; core set as a core asset; `sync-assets` (Req 7)
-- [ ] `model-manager/questions.ts` from the draft, tests from the draft plus the converter-written fixture (Req 3, 7.3)
-- [ ] Bench test with the budget (Req 12.1): `am4q:viewpoint-scope` (0.66 s for the Layered viewpoint at 350 000 triples) runs off the main thread or is offered with a warning on models of that size
+- [x] Loader: role `questions` through `arch:hasQuestionSet` (followed, not skipped; recognised in uploads); the core set bundled as `coreQuestions` and loaded with the core files; the two sets added to `assets/` and `sync-assets` run (core ontology and shapes, the ArchiMate 4.0 manifest refreshed) (Req 7.1–7.2)
+- [x] `model-manager/questions.ts`: `listQuestions`, `offeredQuestions`, `missingParameters`, `buildQuery`, `prebind`, `stageOf` (Req 3, 7.3)
+- [x] `questions.test.ts`: all 36 questions on meta's example model with all and required parameters; each finding's culprits and near misses; every answer the same with the inferable core and abstract types added — on Oxigraph, as meta checks it on RDF4J; loaded at startup, nothing in the model graph
+- [x] `questions-bench.test.ts` (Req 12.1): 350 000 triples, the Layered viewpoint, every question within 1 s and `viewpoint-scope` within 2 s (measured 0.66 s) — the whole test 2.7 s. `viewpoint-scope` stays on the main thread (D12)
 
-## 4. la-gram workbench
+## 4. la-gram workbench — done 2026-10-27
 
-- [ ] Questions menu in the SPARQL tab, bindings, caveats with the result (Req 8)
-- [ ] "Ask about this element…" in the right-click menu (Req 9)
-- [ ] Model checks in the Validation tab, with scope, badge and markers (Req 10)
-- [ ] New view from a question's result conforms to its viewpoint (Req 11)
-- [ ] la-gram specs (requirements, design, tasks) and README updated
+- [x] Questions menu beside *Run* in the SPARQL tab: stage groups, *Fits this view* first, concern filter, what is bound by name, disabled entries saying what to select; a pick runs the bound query, headed by the question, what a row means and what it does not prove (Req 8)
+- [x] Bindings from the workbench: open model, view and viewpoint, one selected element or two, the palette pick (Req 8.2)
+- [x] "Ask about this element…" in an element's right-click menu: the menu on the questions taking `?focus`, bound to it (Req 9)
+- [x] Model checks in the Validation tab: on request, `?model` bound, rows as results beside the SHACL ones — scope, badge and markers alike; how many ran, which stopped at their limit, which could not run and why, stale after an edit, dropped with another model (Req 10, 12.2)
+- [x] New view from a question's result: named after it, following the viewpoint it fits, or was asked about (Req 11)
+- [x] `viewpoint-scope` on the main thread: recorded (D12, Req 12.1)
+- [x] Tests: `questions.test` (hints, a view's viewpoint, model checks — failed and capped too), `sparql-editor.test` (groups, the menu, asking, caveats, the view request), `validation-panel.test` (checks merged, scoped, reported), `workbench.test` (the whole flow on the real app), `workbench.spec` (right-click → ask, the menu and its concern filter, model checks, in Chrome)
+- [x] la-gram specs (requirements 6.11, 11.9, 16.4; design; tasks) and README updated
 
 ## 5. Later
 

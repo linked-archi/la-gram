@@ -17,9 +17,10 @@ See [requirements.md](requirements.md). The vocabulary and its rationale are met
 | D8 | `am4vp:` purposes: `skos:exactMatch` to `archvp:` for now | As proposed; retire later |
 | D9 | Scope: core and ArchiMate 4.0 first; other languages' sets the same way later | As proposed |
 | D10 | Source of truth between the RDF questions and the `linked-archi-query` catalogue: decided when that work starts | Not needed for meta and la-gram |
+| D12 | `viewpoint-scope` stays on the main thread in la-gram | 0.66 s for the Layered viewpoint (which admits nearly every type) at 350 000 triples, every other question under 0.3 s. It is a listing, asked only when picked, never by the model checks; the validation worker does not hold the metamodel graphs it reads. The benchmark holds it to 2 s, so a regression to the draft's quadratic form (24 s at 70 000) still fails |
 | D11 | The class is `arch:ModelQuestion`, not `arch:Question`; its label is the question, ending in a question mark (checked); `arch:Concern`'s scope note says how the two differ; `arch:QuestionSet` is defined as a unit of publication | A concern is an interest held in the system, a model question asks one thing the description answers. Concerns are often worded as questions, so "Question" beside "Concern" invited the reading "a stakeholder's question is a concern". `arch:CompetencyQuestion` (opaque to architects) and `arch:ModelQuery` (loses the stakeholder framing) were the alternatives |
 
-**To confirm:** the question set files and namespaces —
+**Confirmed:** the question set files and namespaces —
 `core/core-questions.ttl` → `https://meta.linked.archi/core-questions#` (`archq:`) and
 `modelingLanguages/archimate/4.0/archimate4-questions.ttl` → `https://meta.linked.archi/archimate4/questions#`
 (`am4q:`), "questions" rather than the drafts' "queries", after the class.
@@ -136,26 +137,33 @@ fitting the open view's viewpoint first; `buildQuery(question, bindings, { limit
 declared parameters (`prebind`, which masks strings, IRIs and comments to find the outermost `WHERE`) and appends
 the limit; a missing required parameter is a `MissingParameterError`.
 
-**Bindings.** `mount-ui` supplies them from the workbench: selection → `focus`, open model → `model`, open view →
-`view`, its `arch:viewConformsToViewpoint` → `viewpoint`, palette pick → `conceptType`, two picked elements →
-`from`/`to`.
+**Bindings.** `mount-ui` supplies them from the workbench: one selected element → `focus` (on the canvas, else in the
+tree), open model → `model`, open view → `view`, its `arch:viewConformsToViewpoint` → `viewpoint`, the type picked in
+the palette (until something is selected) → `conceptType`, two selected elements → `from`/`to`. The menu shows what
+is bound, by name.
 
-**SPARQL tab.** A Questions menu (stage groups, fitting-viewpoint first, concern filter, disabled entries saying what to
-select) fills the editor with `buildQuery(…)` and runs it; the result header shows `arch:answers` and
-`arch:doesNotProve`.
+**SPARQL tab.** A Questions menu (stage groups, those fitting the viewpoint first under *Fits this view*, concern
+filter, disabled entries saying what to select — `whatToSelect`) fills the editor with `buildQuery(…)` and runs it; the
+result header shows the question, `arch:answers` and `arch:doesNotProve`, and "None found" for a finding without rows.
+Running an edited query drops the header.
 
 **Right-click menu.** "Ask about this element…" opens the questions taking `?focus`, run in the SPARQL tab.
 
-**Model checks.** The Validation tab gets a "Model checks" action: it runs the offered finding questions and adds a
-result per row — `focusNode` from the `arch:findingFocus` column, `severity` from `arch:findingSeverity`, `message`
-the question's label, `sourceShape` the question's IRI — so the View / Model scope, the badge and the canvas markers
-apply unchanged. Checks run on request (Requirement 12.2); the results stay until the next run or a model change.
+**Model checks.** The Validation tab gets a "Model checks" action: `runModelChecks` runs the offered finding questions
+with `?model` bound — nothing else: the checks are of the whole model, the tab's scope filters — and adds a result per
+row, once per concept and question — `focusNode` from the `arch:findingFocus` column, `severity` from
+`arch:findingSeverity`, `message` the question's label, `sourceShape` the question's IRI (shown as "Check: …") — so the
+View / Model scope, the badge and the canvas markers apply unchanged. Checks run on request (Requirement 12.2); the
+results stay until the next run or another model, and after an edit the tab says the model has changed since. A
+check that stops at its `arch:defaultLimit` is said to; one that cannot run is listed with why.
 
-**Views.** "New view" from a question's result passes the question's viewpoint when it fits exactly one.
+**Views.** "New view" from a question's result is named after the question and passes its viewpoint when it fits
+exactly one, or else the viewpoint it was asked about (`viewpoint-scope`) — `viewpointOfAnswer`.
 
-**Performance.** Queries run synchronously on the main thread today. The budget (500 ms at 350 000 triples) is held by
-a benchmark test over `scripts/bench-model.mjs`; a question that cannot meet it moves to the validation worker (which
-has the model, but not yet the metamodel graphs) or is not offered on large models.
+**Performance.** Queries run synchronously on the main thread. The budget (500 ms at 350 000 triples) is held by a
+benchmark test over `scripts/bench-model.mjs`; a question that cannot meet it moves to the validation worker (which
+has the model, but not yet the metamodel graphs) or is not offered on large models — except `viewpoint-scope`, 0.66 s,
+which stays (D12). The model checks show "Checking…" before their queries hold the thread.
 
 ## Tests
 

@@ -7,6 +7,14 @@
  * the triples as a table for CONSTRUCT/DESCRIBE, a boolean for ASK. IRIs show as
  * prefixed names and select the concept when clicked; the elements and
  * relationships a SELECT or CONSTRUCT result mentions can become a new view.
+ *
+ * The Questions menu offers the model questions of the loaded languages
+ * (`questionSource`), by stage, those fitting the open view's viewpoint first,
+ * filterable by concern; picking one puts its query — prefixes, the
+ * workbench's bindings (`bindingSource`) as `VALUES`, a `LIMIT` — in the
+ * editor and runs it, and the result says what a row means and what it does
+ * not prove. One that needs what is not selected is shown disabled, saying
+ * what to select.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -20,6 +28,15 @@ import {
 } from '@codemirror/language';
 import type { RdfStore, SparqlResult } from '../../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import {
+  buildQuery,
+  stageOf,
+  viewpointOfAnswer,
+  whatToSelect,
+  QUESTION_STAGES,
+  type ModelQuestion,
+  type QuestionBindings,
+} from '../../model-manager/questions.js';
 
 // ── SPARQL syntax highlighting via StreamParser ─────────────────────────
 
@@ -137,6 +154,10 @@ export function buildPrefixCompletions(
 export interface ResultsViewRequestDetail {
   /** The IRIs in the result, in order, once each. */
   iris: string[];
+  /** The view's name to propose: the question the result answers. */
+  label?: string;
+  /** The viewpoint the view follows: the question's ({@link viewpointOfAnswer}). */
+  viewpoint?: string;
 }
 
 /** Detail of `sparql-select`: an IRI in the results was clicked. */
@@ -202,6 +223,56 @@ export function projectedVariables(sparql: string): string[] | undefined {
 
 /** Rows shown at most; the count says how many there are. */
 export const MAX_RESULT_ROWS = 500;
+
+// ── The Questions menu ──────────────────────────────────────────────────
+
+/** A heading of the Questions menu and the questions under it. */
+export interface QuestionGroup {
+  title: string;
+  questions: ModelQuestion[];
+}
+
+/**
+ * The Questions menu's groups: those fitting `viewpoint` (the open view's)
+ * first, then each stage in the order an investigation moves through, then
+ * any without one — only those addressing `concern`, when given.
+ */
+export function questionGroups(
+  questions: readonly ModelQuestion[],
+  options: { viewpoint?: string; concern?: string } = {},
+): QuestionGroup[] {
+  const { viewpoint, concern } = options;
+  const shown = concern ? questions.filter((q) => q.concerns.includes(concern)) : [...questions];
+  const groups: QuestionGroup[] = [];
+  const fitting = viewpoint ? shown.filter((q) => q.viewpoints.includes(viewpoint)) : [];
+  if (fitting.length > 0) groups.push({ title: 'Fits this view', questions: fitting });
+  const rest = shown.filter((q) => !fitting.includes(q));
+  for (const stage of [...QUESTION_STAGES, undefined]) {
+    const inStage = rest.filter((q) => stageOf(q) === stage);
+    if (inStage.length > 0) {
+      groups.push({ title: stage ? stage.charAt(0).toUpperCase() + stage.slice(1) : 'Other', questions: inStage });
+    }
+  }
+  return groups;
+}
+
+/** How the menu names each parameter it shows bound. */
+const PARAMETER_TITLES: ReadonlyArray<[name: string, title: string]> = [
+  ['focus', 'Element'],
+  ['from', 'From'],
+  ['to', 'To'],
+  ['conceptType', 'Type'],
+  ['view', 'View'],
+  ['viewpoint', 'Viewpoint'],
+];
+
+/** The parameters `bindings` binds to one IRI, as the menu lists them: title and IRI. */
+export function boundParameters(bindings: QuestionBindings): Array<[title: string, iri: string]> {
+  return PARAMETER_TITLES.flatMap(([name, title]) => {
+    const value = bindings[name];
+    return typeof value === 'string' && value ? [[title, value] as [string, string]] : [];
+  });
+}
 
 /** `prefix:local` when a prefix covers the IRI (the longest namespace wins), else the IRI. */
 export function curieOf(iri: string, prefixes: Record<string, string>): string {
@@ -392,6 +463,168 @@ export class SparqlEditor extends LitElement {
       color: #666;
       font-size: 11px;
     }
+
+    .questions-btn {
+      padding: 4px 12px;
+      background: #fff;
+      border: 1px solid #bbb;
+      color: #333;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .questions-btn:hover,
+    .questions-btn[aria-expanded='true'] {
+      background: #f1f3f4;
+    }
+
+    .questions-btn:disabled {
+      color: #aaa;
+      cursor: default;
+    }
+
+    .questions-menu {
+      margin: 4px 8px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      max-height: 340px;
+      overflow: auto;
+    }
+
+    .menu-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-bottom: 1px solid #eee;
+      position: sticky;
+      top: 0;
+      background: #fff;
+    }
+
+    .menu-title {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .menu-head select {
+      font-size: 12px;
+      max-width: 45%;
+    }
+
+    .menu-close {
+      border: none;
+      background: none;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      color: #555;
+      padding: 0 4px;
+    }
+
+    .bound {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      padding: 4px 8px;
+      font-size: 11px;
+      color: #444;
+      border-bottom: 1px solid #eee;
+    }
+
+    .bound-name {
+      color: #777;
+    }
+
+    .group-title {
+      padding: 6px 8px 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    button.question {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 8px;
+      width: 100%;
+      padding: 4px 8px 4px 16px;
+      border: none;
+      background: none;
+      text-align: left;
+      font: inherit;
+      color: #202124;
+      cursor: pointer;
+    }
+
+    button.question:hover:not([disabled]),
+    button.question:focus-visible {
+      background: #e8f0fe;
+      outline: none;
+    }
+
+    button.question[disabled] {
+      color: #9aa0a6;
+      cursor: default;
+    }
+
+    .q-finding {
+      font-size: 10px;
+      padding: 0 5px;
+      border-radius: 8px;
+      background: #fff3e0;
+      color: #b05a00;
+    }
+
+    .q-finding.violation {
+      background: #fdecea;
+      color: #c62828;
+    }
+
+    .q-finding.info {
+      background: #e8f0fe;
+      color: #1a5fb4;
+    }
+
+    .q-missing {
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    .menu-empty {
+      padding: 8px;
+      color: #666;
+    }
+
+    .asked {
+      margin-bottom: 6px;
+      padding: 6px 8px;
+      border-left: 3px solid #1a73e8;
+      background: #f8f9fa;
+      font-size: 12px;
+      color: #3c4043;
+    }
+
+    .asked-label {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .asked-key {
+      color: #5f6368;
+    }
+
+    .none-found {
+      font-weight: 400;
+      color: #2e7d32;
+    }
   `;
 
   /** Reference to the RDF store for executing queries. */
@@ -405,6 +638,30 @@ export class SparqlEditor extends LitElement {
   /** The model's prefixes, read when a query runs, to show IRIs by. */
   @property({ attribute: false })
   prefixSource?: () => Record<string, string>;
+
+  /** The questions to offer, read when the Questions menu opens: the loaded languages', in order. */
+  @property({ attribute: false })
+  questionSource?: () => ModelQuestion[];
+
+  /** The workbench's bindings — selection, open model, view and viewpoint, palette pick — read when the menu opens. */
+  @property({ attribute: false })
+  bindingSource?: () => QuestionBindings;
+
+  /** Names a bound concept, a viewpoint or a concern (its `skos:prefLabel`). */
+  @property({ attribute: false })
+  labelFor?: (iri: string) => string;
+
+  /** The Questions menu, as opened: what it offers, with which bindings, and the element it is about. */
+  @state()
+  private _menu: { questions: ModelQuestion[]; bindings: QuestionBindings; about?: string } | null = null;
+
+  /** The concern the menu is filtered by; none for all. */
+  @state()
+  private _concern = '';
+
+  /** The question the shown result answers, with the query asked; another query clears it. */
+  @state()
+  private _asked: { question: ModelQuestion; bindings: QuestionBindings; query: string } | null = null;
 
   /** Prefixes the shown result is written with. */
   private _prefixes: Record<string, string> = { ...NAMESPACES };
@@ -465,6 +722,8 @@ export class SparqlEditor extends LitElement {
 
     this._error = '';
     this._result = null;
+    // An edited question is another query: what a row means may no longer hold.
+    if (this._asked && this._asked.query.trim() !== sparql) this._asked = null;
     this._prefixes = { ...NAMESPACES, ...this.extraPrefixes, ...this.prefixSource?.() };
     this._columns = projectedVariables(sparql);
 
@@ -503,16 +762,89 @@ export class SparqlEditor extends LitElement {
     return this.executeQuery();
   }
 
+  /**
+   * Open the Questions menu with the workbench's bindings; `focus` asks about
+   * that element — only the questions taking `?focus`, bound to it.
+   */
+  openQuestions(options: { focus?: string } = {}): void {
+    const { focus } = options;
+    const all = this.questionSource?.() ?? [];
+    this._menu = {
+      questions: focus ? all.filter((q) => q.parameters.some((p) => p.name === 'focus')) : all,
+      bindings: { ...this.bindingSource?.(), ...(focus ? { focus } : {}) },
+      ...(focus ? { about: focus } : {}),
+    };
+    void this.updateComplete.then(() => this._menuButtons()[0]?.focus());
+  }
+
+  /** Close the Questions menu. */
+  closeQuestions(): void {
+    this._menu = null;
+  }
+
+  /** Whether the Questions menu is open. */
+  get questionsOpen(): boolean {
+    return this._menu !== null;
+  }
+
+  /**
+   * Ask a question: its query — prefixes, `bindings` (the workbench's, by
+   * default) as `VALUES`, its `LIMIT` — in the editor, run, and shown with
+   * what a row means and what it does not prove.
+   */
+  ask(question: ModelQuestion, bindings: QuestionBindings = this.bindingSource?.() ?? {}): SparqlResult | null {
+    this._menu = null;
+    let query: string;
+    try {
+      query = buildQuery(question, bindings);
+    } catch (err: unknown) {
+      this._asked = null;
+      this._result = null;
+      this._error = err instanceof Error ? err.message : String(err);
+      return null;
+    }
+    this.setQuery(query);
+    this._asked = { question, bindings, query };
+    return this.executeQuery();
+  }
+
   private _onViewClick(): void {
     const iris = resultIris(this._result);
     if (iris.length === 0) return;
+    const asked = this._asked;
+    const viewpoint = asked ? viewpointOfAnswer(asked.question, asked.bindings) : undefined;
     this.dispatchEvent(
       new CustomEvent<ResultsViewRequestDetail>('results-view-request', {
-        detail: { iris },
+        detail: { iris, ...(asked ? { label: asked.question.label } : {}), ...(viewpoint ? { viewpoint } : {}) },
         bubbles: true,
         composed: true,
       }),
     );
+  }
+
+  private _name(iri: string): string {
+    return this.labelFor?.(iri) || curieOf(iri, this._prefixes ?? NAMESPACES);
+  }
+
+  /** The menu's questions that can be asked, in order. */
+  private _menuButtons(): HTMLButtonElement[] {
+    return [...(this.renderRoot?.querySelectorAll<HTMLButtonElement>('.questions-menu button.question:not([disabled])') ?? [])];
+  }
+
+  /** Escape closes the menu; the arrow keys move between the questions that can be asked. */
+  private _onMenuKey(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.closeQuestions();
+      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLButtonElement>('.questions-btn')?.focus());
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const buttons = this._menuButtons();
+    const at = buttons.indexOf((this.renderRoot as ShadowRoot).activeElement as HTMLButtonElement);
+    const next = e.key === 'ArrowDown' ? Math.min(at + 1, buttons.length - 1) : Math.max(at - 1, 0);
+    buttons[next]?.focus();
   }
 
   private _onIriClick(e: Event, iri: string): void {
@@ -532,11 +864,88 @@ export class SparqlEditor extends LitElement {
   }
 
   _renderViewButton(): unknown {
-    return resultIris(this._result).length > 0
-      ? html`<button class="view-btn" title="A new view with the elements and relationships in these results" @click=${this._onViewClick}>
-          Render as new view
-        </button>`
-      : nothing;
+    if (resultIris(this._result).length === 0) return nothing;
+    const viewpoint = this._asked ? viewpointOfAnswer(this._asked.question, this._asked.bindings) : undefined;
+    const title = `A new view with the elements and relationships in these results${viewpoint ? `, following the ${this._name(viewpoint)}` : ''}`;
+    return html`<button class="view-btn" title=${title} @click=${this._onViewClick}>Render as new view</button>`;
+  }
+
+  /** The question the result answers: what a row means, what it does not prove — and, for a finding, when there is none. */
+  _renderAsked(rows?: number): unknown {
+    const question = this._asked?.question;
+    if (!question) return nothing;
+    return html`<div class="asked">
+      <div class="asked-label">
+        ${question.label}
+        ${question.isFinding && rows === 0 ? html`<span class="none-found">None found.</span>` : nothing}
+      </div>
+      ${question.answers ? html`<div><span class="asked-key">A row:</span> ${question.answers}</div>` : nothing}
+      ${question.doesNotProve ? html`<div><span class="asked-key">Does not prove:</span> ${question.doesNotProve}</div>` : nothing}
+    </div>`;
+  }
+
+  _renderQuestionsMenu(): unknown {
+    const menu = this._menu;
+    if (!menu) return nothing;
+    const viewpoint = typeof menu.bindings.viewpoint === 'string' ? menu.bindings.viewpoint : undefined;
+    const concerns = [...new Set(menu.questions.flatMap((q) => q.concerns))]
+      .map((iri) => ({ iri, label: this._name(iri) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const concern = concerns.some((c) => c.iri === this._concern) ? this._concern : '';
+    // Asked about an element, the view's fit is beside the point.
+    const groups = questionGroups(menu.questions, { ...(menu.about ? {} : { viewpoint }), concern });
+    const bound = boundParameters(menu.bindings).filter(([title]) => !(menu.about && title === 'Element'));
+    return html`
+      <div class="questions-menu" role="menu" aria-label="Questions" @keydown=${this._onMenuKey}>
+        <div class="menu-head">
+          <span class="menu-title">${menu.about ? html`About <strong>${this._name(menu.about)}</strong>` : 'Questions'}</span>
+          ${concerns.length > 0
+            ? html`<select
+                class="concern"
+                aria-label="Concern"
+                title="Only the questions addressing a concern"
+                @change=${(e: Event) => (this._concern = (e.target as HTMLSelectElement).value)}
+              >
+                <option value="" ?selected=${!concern}>All concerns</option>
+                ${concerns.map((c) => html`<option value=${c.iri} ?selected=${c.iri === concern}>${c.label}</option>`)}
+              </select>`
+            : nothing}
+          <button class="menu-close" title="Close" aria-label="Close" @click=${() => this.closeQuestions()}>×</button>
+        </div>
+        ${bound.length > 0
+          ? html`<div class="bound" title="What the questions are asked about">
+              ${bound.map(([title, iri]) => html`<span title=${iri}><span class="bound-name">${title}:</span> ${this._name(iri)}</span>`)}
+            </div>`
+          : nothing}
+        ${groups.length === 0
+          ? html`<div class="menu-empty">
+              ${menu.questions.length > 0 ? 'No question addresses this concern.' : 'No questions: the loaded languages publish none.'}
+            </div>`
+          : groups.map(
+              (group) => html`<div class="menu-group" role="group" aria-label=${group.title}>
+                <div class="group-title">${group.title}</div>
+                ${group.questions.map((q) => this._renderQuestion(q, menu.bindings))}
+              </div>`,
+            )}
+      </div>
+    `;
+  }
+
+  private _renderQuestion(question: ModelQuestion, bindings: QuestionBindings): unknown {
+    const missing = whatToSelect(question, bindings);
+    const severity = question.severity ? question.severity.slice(question.severity.lastIndexOf('#') + 1).toLowerCase() : '';
+    return html`<button
+      class="question"
+      role="menuitem"
+      data-iri=${question.iri}
+      title=${question.description ?? question.label}
+      ?disabled=${!!missing}
+      @click=${() => this.ask(question, bindings)}
+    >
+      <span class="q-label">${question.label}</span>
+      ${question.isFinding ? html`<span class="q-finding ${severity}" title="Its rows are problems">finding</span>` : nothing}
+      ${missing ? html`<span class="q-missing">${missing}</span>` : nothing}
+    </button>`;
   }
 
   _renderCount(count: number, noun: string): string {
@@ -655,11 +1064,11 @@ export class SparqlEditor extends LitElement {
 
     switch (this._result.type) {
       case 'bindings':
-        return this._renderBindingsResult(this._result.results);
+        return html`${this._renderAsked(this._result.results.length)}${this._renderBindingsResult(this._result.results)}`;
       case 'boolean':
-        return this._renderBooleanResult(this._result.value);
+        return html`${this._renderAsked()}${this._renderBooleanResult(this._result.value)}`;
       case 'quads':
-        return this._renderQuadsResult(this._result.quads);
+        return html`${this._renderAsked(this._result.quads.length)}${this._renderQuadsResult(this._result.quads)}`;
       default:
         return nothing;
     }
@@ -677,7 +1086,20 @@ export class SparqlEditor extends LitElement {
         >
           ▶ Run
         </button>
+        ${this.questionSource
+          ? html`<button
+              class="questions-btn"
+              aria-haspopup="menu"
+              aria-expanded=${this._menu ? 'true' : 'false'}
+              title="Questions the loaded languages ask of a model: pick one to run its query"
+              ?disabled=${!this.rdfStore}
+              @click=${() => (this._menu ? this.closeQuestions() : this.openQuestions())}
+            >
+              Questions ▾
+            </button>`
+          : nothing}
       </div>
+      ${this._renderQuestionsMenu()}
       ${this._error
         ? html`<div class="error-display">${this._error}</div>`
         : nothing}

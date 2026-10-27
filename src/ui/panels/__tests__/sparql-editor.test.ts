@@ -10,9 +10,12 @@ import {
   curieOf,
   projectedVariables,
   resultIris,
+  questionGroups,
+  boundParameters,
   type ResultsViewRequestDetail,
   type QueryExecuteDetail,
 } from '../sparql-editor.js';
+import type { ModelQuestion } from '../../../model-manager/questions.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -56,9 +59,14 @@ function makeCtx(overrides: Record<string, any> = {}) {
     _editorView: null,
     _prefixes: { ex: 'http://example.org/' },
     _columns: undefined,
+    _menu: null,
+    _concern: '',
+    _asked: null,
     extraPrefixes: undefined,
     dispatchEvent: vi.fn(),
     requestUpdate: vi.fn(),
+    updateComplete: Promise.resolve(true),
+    renderRoot: { querySelector: () => null, querySelectorAll: () => [] },
     ...overrides,
   };
   // Bind prototype methods
@@ -76,6 +84,15 @@ function makeCtx(overrides: Record<string, any> = {}) {
     '_renderTerm',
     '_renderViewButton',
     '_renderCount',
+    '_renderAsked',
+    '_renderQuestionsMenu',
+    '_renderQuestion',
+    '_name',
+    '_menuButtons',
+    'openQuestions',
+    'closeQuestions',
+    'ask',
+    'run',
     'render',
   ]) {
     if (typeof (SparqlEditor.prototype as any)[m] === 'function') {
@@ -546,6 +563,182 @@ describe('resultIris', () => {
     expect(resultIris({ type: 'bindings', results: [{ a: iri('http://x/1') as never, b: iri('http://x/1') as never }] })).toEqual(['http://x/1']);
     expect(resultIris({ type: 'boolean', value: true })).toEqual([]);
     expect(resultIris(null)).toEqual([]);
+  });
+});
+
+// ── The Questions menu ──────────────────────────────────────────────────
+
+const ARCH = 'https://meta.linked.archi/core#';
+const SH = 'http://www.w3.org/ns/shacl#';
+
+function question(id: string, extra: Partial<ModelQuestion> = {}): ModelQuestion {
+  return {
+    iri: `urn:q:${id}`,
+    label: `${id}?`,
+    form: 'select',
+    text: 'SELECT ?element WHERE {\n  ?element ?p ?o .\n}',
+    isFinding: false,
+    concerns: [],
+    stakeholders: [],
+    viewpoints: [],
+    purposes: [],
+    metamodels: [],
+    parameters: [],
+    prefixes: { arch: ARCH },
+    ...extra,
+  };
+}
+
+const stage = (name: string) => `${ARCH}${name.charAt(0).toUpperCase()}${name.slice(1)}Stage`;
+const ORPHANS = question('orphans', {
+  stage: stage('quality'),
+  isFinding: true,
+  severity: SH + 'Info',
+  findingFocus: 'element',
+  concerns: ['urn:c:quality'],
+  answers: 'One row per unconnected element.',
+  doesNotProve: 'That the element is unused.',
+  defaultLimit: 500,
+});
+const IMPACT = question('impact', {
+  stage: stage('analysis'),
+  viewpoints: ['urn:vp:layered'],
+  concerns: ['urn:c:change'],
+  parameters: [{ name: 'focus', optional: false, order: 1 }],
+});
+const INVENTORY = question('inventory', { stage: stage('orientation') });
+const SCOPE = question('scope', {
+  stage: stage('views'),
+  parameters: [{ name: 'viewpoint', optional: false, order: 1 }],
+});
+
+/** A context whose editor holds what is set, as CodeMirror would. */
+function editorCtx(overrides: Record<string, any> = {}) {
+  let doc = '';
+  const ctx = makeCtx({
+    _editorView: {
+      get state() {
+        return { doc: { length: doc.length, toString: () => doc } };
+      },
+      dispatch: (tr: { changes: { insert: string } }) => (doc = tr.changes.insert),
+    },
+    ...overrides,
+  });
+  return ctx;
+}
+
+describe('questionGroups', () => {
+  it('puts those fitting the open view first, then each stage in order', () => {
+    const groups = questionGroups([ORPHANS, IMPACT, INVENTORY, SCOPE, question('loose')], { viewpoint: 'urn:vp:layered' });
+    expect(groups.map((g) => [g.title, g.questions.map((q) => q.iri)])).toEqual([
+      ['Fits this view', ['urn:q:impact']],
+      ['Orientation', ['urn:q:inventory']],
+      ['Quality', ['urn:q:orphans']],
+      ['Views', ['urn:q:scope']],
+      ['Other', ['urn:q:loose']],
+    ]);
+  });
+
+  it('keeps only those addressing a concern', () => {
+    const groups = questionGroups([ORPHANS, IMPACT, INVENTORY], { concern: 'urn:c:change' });
+    expect(groups.map((g) => g.title)).toEqual(['Analysis']);
+  });
+});
+
+describe('boundParameters', () => {
+  it('lists what is bound to one IRI, by what the workbench calls it', () => {
+    expect(boundParameters({ model: 'urn:m', view: 'urn:v', focus: 'urn:e', conceptType: undefined, from: ['urn:a', 'urn:b'] })).toEqual([
+      ['Element', 'urn:e'],
+      ['View', 'urn:v'],
+    ]);
+  });
+});
+
+describe('the Questions menu', () => {
+  it('is offered beside Run when there are questions', () => {
+    expect(flat(makeCtx().render())).not.toContain('questions-btn');
+    expect(flat(makeCtx({ questionSource: () => [], rdfStore: mockStore() }).render())).toContain('Questions ▾');
+  });
+
+  it('lists the offered questions by stage, one that needs a selection disabled, saying what to select', () => {
+    const ctx = makeCtx({ questionSource: () => [ORPHANS, IMPACT, SCOPE], bindingSource: () => ({ model: 'urn:m' }) });
+    ctx.openQuestions();
+    expect(ctx._menu.questions).toHaveLength(3);
+    const o = flat(ctx._renderQuestionsMenu());
+    expect(o).toContain('Analysis');
+    expect(o).toContain('Select an element');
+    expect(o).toContain('Open a view that follows a viewpoint');
+    expect(o).toMatch(/q-finding info/);
+    // The concerns, to filter by.
+    expect(o).toContain('All concerns');
+    expect(o).toContain('value=urn:c:quality');
+  });
+
+  it('shows what is bound, by name', () => {
+    const ctx = makeCtx({
+      questionSource: () => [IMPACT],
+      bindingSource: () => ({ focus: 'http://example.org/crm', view: 'http://example.org/v1' }),
+      labelFor: (iri: string) => ({ 'http://example.org/crm': 'CRM', 'http://example.org/v1': 'Hosting' })[iri] ?? '',
+    });
+    ctx.openQuestions();
+    const o = flat(ctx._renderQuestionsMenu());
+    expect(o).toContain('Element:</span> CRM');
+    expect(o).toContain('View:</span> Hosting');
+    expect(o).not.toContain('Select an element');
+  });
+
+  it('asked about an element: only the questions taking it, bound to it', () => {
+    const ctx = makeCtx({ questionSource: () => [ORPHANS, IMPACT], bindingSource: () => ({ model: 'urn:m' }), labelFor: () => 'CRM' });
+    ctx.openQuestions({ focus: 'http://example.org/crm' });
+    expect(ctx._menu.questions.map((q: ModelQuestion) => q.iri)).toEqual(['urn:q:impact']);
+    expect(ctx._menu.bindings).toEqual({ model: 'urn:m', focus: 'http://example.org/crm' });
+    expect(flat(ctx._renderQuestionsMenu())).toContain('About <strong>CRM</strong>');
+  });
+
+  it('picking one puts its bound query in the editor, runs it, and says what a row means and does not prove', () => {
+    const store = mockStore({ type: 'bindings', results: [] });
+    const ctx = editorCtx({ rdfStore: store, questionSource: () => [ORPHANS], bindingSource: () => ({ model: 'urn:m' }) });
+    ctx.openQuestions();
+    ctx.ask(ORPHANS, ctx._menu.bindings);
+    expect(ctx._menu).toBeNull();
+    const sent = (store.query as any).mock.calls[0][0] as string;
+    expect(sent).toContain('PREFIX arch: <https://meta.linked.archi/core#>');
+    expect(sent).toContain('LIMIT 500');
+    expect(ctx.getQuery().trim()).toBe(sent);
+    const o = flat(ctx._renderResult());
+    expect(o).toContain('orphans?');
+    expect(o).toContain('None found.');
+    expect(o).toContain('One row per unconnected element.');
+    expect(o).toContain('Does not prove:</span> That the element is unused.');
+  });
+
+  it('binds a parameter as VALUES, and says what is missing when asked without it', () => {
+    const store = mockStore({ type: 'bindings', results: [] });
+    const ctx = editorCtx({ rdfStore: store });
+    ctx.ask(IMPACT, {});
+    expect(ctx._error).toContain('?focus');
+    expect(store.query).not.toHaveBeenCalled();
+    ctx.ask(IMPACT, { focus: 'http://example.org/crm' });
+    expect((store.query as any).mock.calls[0][0]).toContain('VALUES ?focus { <http://example.org/crm> }');
+  });
+
+  it('an edited question is another query: the caveats go', () => {
+    const ctx = editorCtx({ rdfStore: mockStore({ type: 'bindings', results: [] }) });
+    ctx.ask(ORPHANS, {});
+    expect(ctx._asked).not.toBeNull();
+    ctx.setQuery('SELECT ?s WHERE { ?s ?p ?o }');
+    ctx.executeQuery();
+    expect(ctx._asked).toBeNull();
+    expect(flat(ctx._renderResult())).not.toContain('Does not prove');
+  });
+
+  it('a view of the answer is named after the question and follows its viewpoint', () => {
+    const iri = { termType: 'NamedNode', value: 'http://example.org/crm' };
+    const ctx = editorCtx({ rdfStore: mockStore({ type: 'bindings', results: [{ element: iri }] }) });
+    ctx.ask(IMPACT, { focus: 'http://example.org/crm' });
+    ctx._onViewClick();
+    const evt = ctx.dispatchEvent.mock.calls.find((c: any[]) => c[0].type === 'results-view-request')[0] as CustomEvent<ResultsViewRequestDetail>;
+    expect(evt.detail).toEqual({ iris: ['http://example.org/crm'], label: 'impact?', viewpoint: 'urn:vp:layered' });
   });
 });
 

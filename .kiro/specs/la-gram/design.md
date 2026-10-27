@@ -219,7 +219,11 @@ templates, reference models and the framework document are skipped. A document
 imported by its `owl:versionIRI` (meta's relationship tables import
 `…/archimate4/onto/4.0#`) resolves to the bundled document it versions. Reference
 data is loaded (and bundled for both ArchiMate versions): its `skos:prefLabel`s
-label the `sh:in` choices in the property panel.
+label the `sh:in` choices in the property panel. Question sets are loaded too:
+a metamodel's through its manifest's `arch:hasQuestionSet` (role `questions`,
+bundled for ArchiMate 4.0), the core set with the core files (`coreQuestions`) —
+model questions (`model-manager/questions.ts`; see the la-queries spec), in their
+own named graphs, never model data.
 
 **Relationship ends** (Req 2.17). The palette carries each decoration's
 published symbol (`decorationSymbols`: `arch-vis:decorSymbol` on the core-vis
@@ -422,8 +426,8 @@ reaches the root: the handles' group (`.djs-bendpoints[data-element-id]`) names
 the line, and the menu opens for it. The canvas decides the actions
 (`contextMenuActions`) in sections — edit (Rename, Change type… / a
 relationship's Rename… and Change relationship type…), relate (Append…), show
-(Properties, Show in model tree, Show relationship graph / a relationship's Show
-source and Show target), copy (Copy IRI), delete (Delete from view, Delete from
+(Properties, Show in model tree, Show relationship graph and Ask about this
+element… / a relationship's Show source and Show target), copy (Copy IRI), delete (Delete from view, Delete from
 model…); on the canvas, the open view's (`viewContextMenuActions`): edit (Rename
 view…, Set viewpoint…, Duplicate view), view (Select all, Zoom to fit), show
 (View properties, Show in model tree), copy (Copy IRI), delete (Delete view…),
@@ -861,6 +865,49 @@ batch and opens it. Without positions from a drawing, the layout is the Graph
 tab's tree, run headless (`layoutPositions` in `graph-view.ts`, Cytoscape.js
 without a container). Like *New view*, it is not on the canvas's undo stack;
 deleting the view removes it.
+
+### Model questions in the workbench
+
+The questions of the loaded question sets (`model-manager/questions.ts`; the
+la-queries spec) are asked from three places. `mount-ui` lists them once
+(`listQuestions`, read again on `metamodel-loaded`) and offers those whose
+ontologies are loaded (`offeredQuestions`: every graph of every loaded
+metamodel), the open view's viewpoint's first. It binds what the workbench
+shows: the open model (`?model`), view (`?view`) and its viewpoint
+(`?viewpoint`); one selected element (`?focus` — on the canvas, else in the
+tree), or two (`?from`, `?to`); the type picked in the palette, until something
+is selected (`?conceptType`).
+
+- **Questions menu** (SPARQL tab, beside *Run*). `sparql-editor` reads the
+  questions (`questionSource`) and the bindings (`bindingSource`) when it opens:
+  groups by stage (`questionGroups`; those fitting the open view's viewpoint
+  first, under *Fits this view*), a concern filter, what is bound, by name. A
+  question whose required parameter is unbound is disabled, saying what to
+  select (`whatToSelect`). Picking one puts `buildQuery(…)` — prefixes, `VALUES`,
+  `LIMIT` — in the editor and runs it; the result is headed by the question,
+  what a row means (`arch:answers`) and what it does not prove
+  (`arch:doesNotProve`) — for a finding with no rows, "None found". Editing the
+  query and running it again drops the heading: it is another query.
+- **Ask about this element…** (right-click menu on an element, action `ask`):
+  the SPARQL tab, the menu opened with only the questions taking `?focus`, bound
+  to the element.
+- **Model checks** (Validation tab header). On request (la-queries Req 12.2),
+  `runModelChecks` asks every offered finding question with `?model` bound and
+  turns each row into a `ValidationResult` — the concept in its
+  `arch:findingFocus` column (once per question), severity from
+  `arch:findingSeverity`, the question as the message, its IRI as the source
+  shape (shown as "Check: …"). The panel keeps them apart from the SHACL
+  results (`checks`) and shows both (`allResults`): the scope, the summary, the
+  badge and the canvas markers count them alike. It says how many ran, which
+  stopped at their `arch:defaultLimit` (there may be more), which could not run
+  and why (a required parameter unbound, a query error), and — after an edit —
+  that the model has changed since. They are dropped when another model opens.
+  The queries run on the main thread: the button reads "Checking…" first.
+
+*Render as new view* from a question's result names the view after the question
+and passes its viewpoint (`viewpointOfAnswer`): the one it fits, or the one it
+was asked about (`?viewpoint`, `viewpoint-scope`) — `createViewWith(…, {
+viewpointIri })`.
 
 ### RDF panel
 

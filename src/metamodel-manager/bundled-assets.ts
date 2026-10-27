@@ -69,6 +69,10 @@
  * which also say which relationships a modeller may draw directly. They hold no
  * shapes, so they are kept out of the shapes graph; the relationship manager
  * reads them (`direct-permissions.ts`).
+ * `questions` is a language's question set (`arch:hasQuestionSet`) and
+ * `coreQuestions` the core one, which no manifest names because it applies to
+ * every model: model questions the SPARQL tab offers and the Validation tab runs
+ * as model checks (`model-manager/questions.ts`). They are never model data.
  */
 export type BundledAssetRole =
   | 'manifest'
@@ -83,7 +87,9 @@ export type BundledAssetRole =
   | 'referenceData'
   | 'coreOntology'
   | 'coreVisOntology'
-  | 'coreShapes';
+  | 'coreShapes'
+  | 'questions'
+  | 'coreQuestions';
 
 /** A single TTL file shipped with the application. */
 export interface BundledAsset {
@@ -276,7 +282,19 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     ontologyIri: 'https://meta.linked.archi/core-vis-shapes#',
     path: 'core/core-vis-shapes.ttl',
   },
+  {
+    role: 'coreQuestions',
+    ontologyIri: 'https://meta.linked.archi/core-questions#',
+    path: 'core/core-questions.ttl',
+  },
   ...languageAssets('archimate4', 'archimate4', 'archimate4', '4.0'),
+  // Only ArchiMate 4.0 publishes a question set so far.
+  {
+    role: 'questions',
+    ontologyIri: 'https://meta.linked.archi/archimate4/questions#',
+    path: 'archimate4/archimate4-questions.ttl',
+    metamodel: 'archimate4',
+  },
   ...languageAssets('archimate3', 'archimate3', 'archimate3.2', '3.2'),
   // Basic's documents do not follow the per-language pattern: its ontology is
   // <https://meta.linked.archi/basic> (no fragment), and its bubble notation —

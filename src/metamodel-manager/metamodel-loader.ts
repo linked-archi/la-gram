@@ -123,6 +123,7 @@ const MANIFEST_ASSET_PROPERTIES: readonly string[] = [
   'referenceData',
   'referenceModels',
   'hasDeliverableTemplate',
+  'hasQuestionSet',
   'basedOnFramework',
 ];
 
@@ -177,6 +178,8 @@ function roleFromVia(via: string): BundledAssetRole | undefined {
       return 'derivationRules';
     case 'arch:referenceData':
       return 'referenceData';
+    case 'arch:hasQuestionSet':
+      return 'questions';
     default:
       return undefined;
   }
@@ -656,6 +659,7 @@ export class N3MetamodelLoader implements MetamodelLoader {
       return 'shapes';
     }
     if (types.has(NAMESPACES.arch + 'Metamodel')) return 'manifest';
+    if (types.has(NAMESPACES.arch + 'QuestionSet') || types.has(NAMESPACES.arch + 'ModelQuestion')) return 'questions';
     if (types.has(NAMESPACES['arch-vis'] + 'VisualNotation')) return 'notation';
     if (types.has(NAMESPACES.arch + 'Viewpoint')) return 'viewpoints';
     if (types.has(NAMESPACES.skos + 'ConceptScheme') && !types.has(NAMESPACES.owl + 'Class')) {

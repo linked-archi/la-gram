@@ -22,6 +22,8 @@ installJsdomSvgSupport();
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 const AM3 = 'https://meta.linked.archi/archimate3/onto#';
+const archq = (id: string) => 'https://meta.linked.archi/core-questions#' + id;
+const am4q = (id: string) => 'https://meta.linked.archi/archimate4/questions#' + id;
 const nn = (v: string) => DataFactory.namedNode(v) as unknown as NamedNode;
 
 /**
@@ -454,6 +456,95 @@ describe('the workbench', () => {
     for (const iri of [clerk, role, shop]) els.deleteElement(iri);
   });
 
+  it('asks the model questions: from the SPARQL tab’s menu, from an element’s right-click menu, as model checks, and as a view', async () => {
+    const els = app.components.elementManager;
+    const rels = app.components.relationshipManager;
+    const views = app.components.viewManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const service = els.createElement(`${AM4}Service`, model, { label: 'Claims' }).value;
+    const process = els.createElement(`${AM4}Process`, model, { label: 'Handle claim' }).value;
+    const crm = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'CRM' }).value;
+    const capability = els.createElement(`${AM4}Capability`, model, { label: 'Claims management' }).value;
+    rels.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: service, targetIri: process, modelIri: model });
+    views.addElementToView(view, crm, { x: 600, y: 300, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+
+    // The SPARQL tab's menu: every question of both sets; one needing a selection disabled, saying what to select.
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    ui.showBottomTab('sparql');
+    const editor = ui.sparqlEditor.shadowRoot!;
+    editor.querySelector<HTMLButtonElement>('.questions-btn')!.click();
+    await ui.sparqlEditor.updateComplete;
+    const entry = (iri: string) => editor.querySelector<HTMLButtonElement>(`button.question[data-iri="${iri}"]`)!;
+    expect(editor.querySelectorAll('button.question')).toHaveLength(36);
+    expect(entry(am4q('impact-of-change')).disabled).toBe(true);
+    expect(entry(am4q('impact-of-change')).textContent).toContain('Select an element');
+    // Picking one runs it, bound to the open model, and says what a row means.
+    entry(am4q('unrealised-services')).click();
+    await ui.sparqlEditor.updateComplete;
+    expect(ui.sparqlEditor.questionsOpen).toBe(false);
+    expect(ui.sparqlEditor.getQuery()).toContain(`VALUES ?model { <${model}> }`);
+    expect(editor.querySelector('.asked')!.textContent).toContain('Does not prove');
+    expect(editor.querySelector('tbody')!.textContent).toContain('Claims');
+
+    // An element's right-click menu asks about it: the questions taking it, bound to it.
+    const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
+    const menu = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(crm)) as Record<string, { action: () => void }>;
+    menu['ask']!.action();
+    expect(ui.shell.bottomTab).toBe('sparql');
+    await ui.sparqlEditor.updateComplete;
+    expect(editor.querySelector('.menu-title')!.textContent).toContain('CRM');
+    const about = [...editor.querySelectorAll<HTMLButtonElement>('button.question')];
+    expect(about.map((b) => b.dataset.iri)).toEqual(expect.arrayContaining([archq('element-detail'), archq('views-showing'), am4q('impact-of-change')]));
+    expect(about.some((b) => b.disabled)).toBe(false);
+    entry(archq('views-showing')).click();
+    await ui.sparqlEditor.updateComplete;
+    expect(ui.sparqlEditor.getQuery()).toContain(`VALUES ?focus { <${crm}> }`);
+    expect(editor.querySelector('tbody')!.textContent).toContain(views.getView(view)!.label);
+
+    // Model checks, on request: beside the shapes' findings, scoped to the view, stale after an edit.
+    ui.showBottomTab('validation');
+    const panel = ui.validationPanel;
+    expect(panel.checksAvailable).toBe(14);
+    await panel.updateComplete;
+    panel.shadowRoot!.querySelector<HTMLButtonElement>('.checks-btn')!.click();
+    await vi.waitFor(() => expect(panel.checks).toBeDefined());
+    expect([panel.checks!.ran, panel.checks!.failed]).toEqual([14, []]);
+    const checksOn = (iri: string) => panel.checks!.results.filter((r) => r.focusNode.value === iri).map((r) => r.sourceShape.value);
+    expect(checksOn(service)).toContain(am4q('unrealised-services'));
+    expect(checksOn(crm)).toContain(am4q('applications-without-technology'));
+    expect(checksOn(capability)).toContain(am4q('unrealised-capabilities'));
+    panel.scope = 'view';
+    expect(panel.shownResults.some((r) => r.focusNode.value === crm && r.sourceShape.value === am4q('applications-without-technology'))).toBe(true);
+    expect(panel.shownResults.some((r) => r.focusNode.value === service)).toBe(false);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(panel.checks!.stale).toBe(true);
+
+    // A question's answer as a view, following the one viewpoint the question fits.
+    const unrealised = ui.sparqlEditor.questionSource!().find((q) => q.iri === am4q('unrealised-capabilities'))!;
+    expect(unrealised.viewpoints).toHaveLength(1);
+    ui.showBottomTab('sparql');
+    ui.sparqlEditor.ask(unrealised);
+    await ui.sparqlEditor.updateComplete;
+    script.answers.push('Unrealised capabilities');
+    editor.querySelector<HTMLButtonElement>('.view-btn')!.click();
+    await vi.waitFor(() => expect(views.getViews().some((v) => v.label === 'Unrealised capabilities')).toBe(true));
+    const fromQuestion = views.getViews().find((v) => v.label === 'Unrealised capabilities')!;
+    expect(fromQuestion.viewpointIri).toBe(unrealised.viewpoints[0]);
+    expect(views.getNodes(fromQuestion.iri).map((n) => n.elementIri)).toContain(capability);
+    expect(vi.mocked(script.dialogs.prompt).mock.calls.at(-1)?.[2]).toBe(unrealised.label);
+
+    // Another model: the checks were the last one's.
+    app.components.eventBus.emit('model-loaded', { modelIri: model });
+    expect(panel.checks).toBeUndefined();
+
+    app.session.deleteView(fromQuestion.iri);
+    app.session.openView(view);
+    for (const iri of [service, process, crm, capability]) els.deleteElement(iri);
+  });
+
   it('undoes and redoes a property edit, and the canvas follows', async () => {
     const els = app.components.elementManager;
     const store = app.components.store;
@@ -594,7 +685,7 @@ describe('the workbench', () => {
     // The right-click menu on the shape: edit, relate, show, copy, delete.
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);
     const entries = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(shape) as Record<string, { group: string; action: () => void }>;
-    expect(Object.keys(entries)).toEqual(['rename', 'change-type', 'append', 'properties', 'reveal-tree', 'graph', 'copy-iri', 'delete', 'delete-model']);
+    expect(Object.keys(entries)).toEqual(['rename', 'change-type', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model']);
     entries['graph']!.action();
     expect([ui.shell.bottomTab, ui.graphPanel.rootIri]).toEqual(['graph', placed]);
     entries['properties']!.action();

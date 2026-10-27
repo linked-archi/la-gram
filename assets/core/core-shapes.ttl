@@ -237,3 +237,208 @@ Matrix. Geometry belongs on an arch-vis:ArchNode, not here.'''@en ;
         sh:severity sh:Violation ;
     ] ;
 .
+
+#################################################################
+# Model questions — what makes a question well formed
+#
+# A question a tool can offer and a generator can ask: the question
+# itself as its label, one query, a stage, and — for a finding — its
+# severity and the column naming what each finding is about. Concerns, stakeholders and
+# viewpoints are checked as IRIs only: they live in the viewpoint
+# documents, which a question set does not import.
+#################################################################
+
+:ModelQuestionShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:ModelQuestion ;
+    sh:property [
+        sh:path     skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:datatype rdf:langString ;
+        sh:uniqueLang true ;
+        sh:pattern  "\\?$" ;
+        sh:message  '''A ModelQuestion is named by the question itself — one sentence ending in a question
+mark, which is what tells it from a Concern's noun phrase — as a language-tagged skos:prefLabel.'''@en ;
+    ] ;
+    sh:property [
+        sh:path     sh:select ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path     sh:construct ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path     sh:ask ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path     sh:prefixes ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "sh:prefixes names the resource that declares the question's prefixes — normally its question set."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:questionStage ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in       ( arch:OrientationStage arch:ResolutionStage arch:DiscoveryStage arch:AnalysisStage
+                      arch:EnrichmentStage arch:QualityStage arch:ViewsStage ) ;
+        sh:message  "A ModelQuestion has one arch:questionStage from arch:QuestionStageScheme."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:resultIsFinding ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:message  "A ModelQuestion says whether its rows are findings: arch:resultIsFinding true or false."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:findingSeverity ;
+        sh:maxCount 1 ;
+        sh:in       ( sh:Info sh:Warning sh:Violation ) ;
+    ] ;
+    sh:property [
+        sh:path     arch:findingFocus ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern  "^[A-Za-z_][A-Za-z0-9_]*$" ;
+        sh:message  "arch:findingFocus names a result variable, without its ?."@en ;
+    ] ;
+    sh:property [
+        sh:path     sh:parameter ;
+        sh:node     :ModelQuestionParameterShape ;
+    ] ;
+    sh:property [
+        sh:path     arch:answers ;
+        sh:datatype rdf:langString ;
+        sh:uniqueLang true ;
+    ] ;
+    sh:property [
+        sh:path     arch:doesNotProve ;
+        sh:datatype rdf:langString ;
+        sh:uniqueLang true ;
+    ] ;
+    sh:property [
+        sh:path     arch:defaultLimit ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 1 ;
+    ] ;
+    sh:property [
+        sh:path     arch:requiresDataset ;
+        sh:maxCount 1 ;
+        sh:in       ( arch:ModelDataset arch:ModelAndMetamodelDataset ) ;
+    ] ;
+    sh:property [
+        sh:path     arch:requiresMetamodel ;
+        sh:nodeKind sh:IRI ;
+    ] ;
+    sh:property [ sh:path arch:questionAddressesConcern ; sh:nodeKind sh:IRI ] ;
+    sh:property [ sh:path arch:questionTargetsStakeholder ; sh:nodeKind sh:IRI ] ;
+    sh:property [ sh:path arch:questionHasPurpose ; sh:nodeKind sh:IRI ] ;
+    sh:property [ sh:path arch:questionFitsViewpoint ; sh:nodeKind sh:IRI ] ;
+    sh:property [
+        sh:path     arch:resultKey ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+.
+
+# One query, in one of the three forms. Written with sh:or rather than
+# sh:xone, which RDF4J's validator does not evaluate.
+:ModelQuestionQueryShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:ModelQuestion ;
+    sh:or (
+        [ sh:property [ sh:path sh:select ; sh:minCount 1 ] ;
+          sh:property [ sh:path sh:construct ; sh:maxCount 0 ] ;
+          sh:property [ sh:path sh:ask ; sh:maxCount 0 ] ]
+        [ sh:property [ sh:path sh:construct ; sh:minCount 1 ] ;
+          sh:property [ sh:path sh:select ; sh:maxCount 0 ] ;
+          sh:property [ sh:path sh:ask ; sh:maxCount 0 ] ]
+        [ sh:property [ sh:path sh:ask ; sh:minCount 1 ] ;
+          sh:property [ sh:path sh:select ; sh:maxCount 0 ] ;
+          sh:property [ sh:path sh:construct ; sh:maxCount 0 ] ]
+    ) ;
+    sh:message "A ModelQuestion carries exactly one query: one of sh:select, sh:construct or sh:ask."@en ;
+.
+
+# A finding says how serious it is and which column names what it is about.
+:ModelQuestionFindingShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:ModelQuestion ;
+    sh:or (
+        [ sh:property [ sh:path arch:resultIsFinding ; sh:hasValue false ] ]
+        [ sh:property [ sh:path arch:findingSeverity ; sh:minCount 1 ] ;
+          sh:property [ sh:path arch:findingFocus ; sh:minCount 1 ] ]
+    ) ;
+    sh:message "A finding ModelQuestion (arch:resultIsFinding true) gives its arch:findingSeverity and its arch:findingFocus."@en ;
+.
+
+# Severity and focus belong to findings only; a listing carries neither.
+:ModelQuestionListingShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:ModelQuestion ;
+    sh:or (
+        [ sh:property [ sh:path arch:resultIsFinding ; sh:hasValue true ] ]
+        [ sh:property [ sh:path arch:findingSeverity ; sh:maxCount 0 ] ;
+          sh:property [ sh:path arch:findingFocus ; sh:maxCount 0 ] ]
+    ) ;
+    sh:message "arch:findingSeverity and arch:findingFocus describe findings: a ModelQuestion whose rows are not findings carries neither."@en ;
+.
+
+# Not targeted: what ModelQuestionShape requires of each sh:parameter.
+:ModelQuestionParameterShape
+    a              sh:NodeShape ;
+    sh:property [
+        sh:path     sh:path ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A question parameter names the variable it binds with one sh:path: a parameter on arch:focus binds ?focus."@en ;
+    ] ;
+    sh:property [
+        sh:path     sh:optional ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+    ] ;
+    sh:property [
+        sh:path     sh:order ;
+        sh:maxCount 1 ;
+    ] ;
+.
+
+#################################################################
+# Question sets — the root of a question set document
+#################################################################
+
+:QuestionSetShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:QuestionSet ;
+    sh:property [
+        sh:path     dcterms:title ;
+        sh:minCount 1 ;
+        sh:message  "A question set carries its document's dcterms:title."@en ;
+    ] ;
+    sh:property [
+        sh:path     vann:preferredNamespaceUri ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path     vann:preferredNamespacePrefix ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path     sh:declare ;
+        sh:node     [
+            sh:property [ sh:path sh:prefix ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+            sh:property [ sh:path sh:namespace ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:anyURI ] ;
+        ] ;
+        sh:message  "Each sh:declare entry pairs one sh:prefix with one sh:namespace (an xsd:anyURI)."@en ;
+    ] ;
+.

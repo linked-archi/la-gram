@@ -12,6 +12,12 @@
  * **model**. The host says what the open view covers (`viewIris`); with no view
  * open, the panel shows the model. While another model's first findings are
  * awaited (`validating`), it says so rather than conform.
+ *
+ * Beside the SHACL results, the **model checks** (`checks`): the findings of
+ * the loaded languages' finding questions, asked on request
+ * (`model-checks-request`), shown, scoped and counted as the SHACL results
+ * are; the panel says how many ran, which stopped at their limit, which could
+ * not run and why, and when the model has changed since.
  */
 
 import { LitElement, html, css, nothing } from 'lit';
@@ -68,6 +74,20 @@ export interface FocusDescription {
   type?: string;
   /** It has no name of its own: `name` says so ("Unnamed"). */
   unnamed?: boolean;
+}
+
+/** The model checks' last run, as the panel reports it. */
+export interface ModelChecksState {
+  /** Their findings, as validation results: the question as the message, its IRI as the source shape. */
+  results: ValidationResult[];
+  /** How many checks ran. */
+  ran: number;
+  /** The checks that could not run, and why. */
+  failed: Array<{ label: string; reason: string }>;
+  /** The checks that stopped at their limit: there may be more findings. */
+  capped: Array<{ label: string; limit: number }>;
+  /** The model has changed since they ran. */
+  stale?: boolean;
 }
 
 /** Groups validation results by severity. */
@@ -285,6 +305,40 @@ export class ValidationPanel extends LitElement {
       color: #3c4043;
       font-weight: 500;
     }
+
+    .panel-header .checks-btn {
+      font-size: 11px;
+      font-weight: normal;
+      padding: 1px 8px;
+      border: 1px solid #bbb;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .panel-header .checks-btn:hover:not(:disabled) {
+      background: #f1f3f4;
+    }
+
+    .panel-header .checks-btn:disabled {
+      color: #9aa0a6;
+      cursor: default;
+    }
+
+    .checks-status {
+      padding: 0 12px 6px;
+      font-size: 11px;
+      color: #5f6368;
+    }
+
+    .checks-status .stale {
+      color: #b05a00;
+    }
+
+    .checks-status ul {
+      margin: 2px 0 0;
+      padding-left: 16px;
+    }
   `;
 
   /** Validation results to display. */
@@ -327,6 +381,21 @@ export class ValidationPanel extends LitElement {
   @property({ attribute: false })
   viewIris?: ReadonlySet<string>;
 
+  /** The model checks' last run; none until they are asked for, or after another model is opened. */
+  @property({ attribute: false })
+  checks?: ModelChecksState;
+
+  /** How many model checks the loaded languages offer; the action is shown when there are any. */
+  @property({ type: Number })
+  checksAvailable = 0;
+
+  /** Whether the model checks are running. */
+  @property({ type: Boolean })
+  checking = false;
+
+  /** The model checks' results, told from the SHACL results when a row is drawn. */
+  private _checkResults: ReadonlySet<ValidationResult> = new Set();
+
   @state()
   private _collapsedSeverities = new Set<string>();
 
@@ -357,9 +426,24 @@ export class ValidationPanel extends LitElement {
     return this._scope === 'view' && this.viewIris ? 'view' : 'model';
   }
 
+  /** Every finding: the SHACL results, then the model checks'. */
+  get allResults(): ValidationResult[] {
+    return this.checks?.results.length ? [...this.results, ...this.checks.results] : this.results;
+  }
+
   /** The findings shown, of the scope shown. */
   get shownResults(): ValidationResult[] {
-    return this.shownScope === 'view' ? resultsWithin(this.results, this.viewIris!) : this.results;
+    const all = this.allResults;
+    return this.shownScope === 'view' ? resultsWithin(all, this.viewIris!) : all;
+  }
+
+  /** Ask for the model checks to run (`model-checks-request`). */
+  requestChecks(): void {
+    this.dispatchEvent(new CustomEvent('model-checks-request', { bubbles: true, composed: true }));
+  }
+
+  override willUpdate(changed: Map<string, unknown>): void {
+    if (changed.has('checks')) this._checkResults = new Set(this.checks?.results ?? []);
   }
 
   /**
@@ -437,6 +521,7 @@ export class ValidationPanel extends LitElement {
       term && term.termType !== 'BlankNode' && isIri(term.value) ? term.value : undefined;
     const path = named(result.resultPath);
     const shape = named(result.sourceShape);
+    const check = this._checkResults.has(result);
     return html`
       <div
         class="result-item ${result.severity.toLowerCase()}"
@@ -460,7 +545,7 @@ export class ValidationPanel extends LitElement {
             ? html`Property: <span class="field" title=${path}>${this.fieldNameFor?.(path) ?? iriLabel(path)}</span>`
             : nothing}
           ${path && shape ? html` · ` : nothing}
-          ${shape ? html`Shape: <span title=${shape}>${iriLabel(shape)}</span>` : nothing}
+          ${shape ? html`${check ? 'Check' : 'Shape'}: <span title=${shape}>${iriLabel(shape)}</span>` : nothing}
         </div>
       </div>
     `;
@@ -491,14 +576,24 @@ export class ValidationPanel extends LitElement {
   override render() {
     const inView = this.shownScope === 'view';
     const shown = this.shownResults;
-    // A view conforms when none of the findings are on it.
-    const conforms = inView ? shown.length === 0 : this.conforms;
+    // A view conforms when none of the findings are on it; the model, when no shape and no check finds anything.
+    const conforms = inView ? shown.length === 0 : this.conforms && !this.checks?.results.length;
     const grouped = groupBySeverity(shown);
     const summary = buildSummary(conforms, shown, inView ? 'View' : 'Model');
-    const rest = inView ? this.results.length - shown.length : 0;
+    const rest = inView ? this.allResults.length - shown.length : 0;
     return html`
       <div class="panel-header">
         Validation
+        ${this.checksAvailable > 0
+          ? html`<button
+              class="checks-btn"
+              title=${`Ask the ${this.checksAvailable} finding questions of the loaded languages — orphans, unrealised services, unrealised requirements… — and list their findings here`}
+              ?disabled=${this.checking}
+              @click=${() => this.requestChecks()}
+            >
+              ${this.checking ? 'Checking…' : this.checks ? 'Run checks again' : 'Model checks'}
+            </button>`
+          : nothing}
         <select
           class="scope"
           aria-label="Findings of"
@@ -518,9 +613,30 @@ export class ValidationPanel extends LitElement {
       ${this.validating && this.results.length === 0
         ? html`<div class="summary validating">Validating…</div>`
         : this._renderSummary(conforms, summary, rest)}
+      ${this._renderChecksStatus()}
       ${this._renderSeverityGroup('Violations', 'Violation', grouped.violations)}
       ${this._renderSeverityGroup('Warnings', 'Warning', grouped.warnings)}
       ${this._renderSeverityGroup('Info', 'Info', grouped.infos)}
+    `;
+  }
+
+  /** How the model checks went: how many ran and found, which stopped at their limit, which could not run. */
+  private _renderChecksStatus(): unknown {
+    const checks = this.checks;
+    if (!checks) return nothing;
+    const found = checks.results.length;
+    return html`
+      <div class="checks-status">
+        Model checks: ${checks.ran} run, ${found} finding${found === 1 ? '' : 's'}${checks.stale
+          ? html` — <span class="stale">the model has changed since they ran</span>`
+          : nothing}
+        ${checks.capped.length > 0 || checks.failed.length > 0
+          ? html`<ul>
+              ${checks.capped.map((c) => html`<li>“${c.label}” stopped at ${c.limit}: there may be more.</li>`)}
+              ${checks.failed.map((f) => html`<li>“${f.label}” could not run: ${f.reason}</li>`)}
+            </ul>`
+          : nothing}
+      </div>
     `;
   }
 

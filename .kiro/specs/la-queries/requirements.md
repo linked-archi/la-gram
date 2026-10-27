@@ -183,7 +183,8 @@ requirements — beside the SHACL results, so I see where a concern is not met.
 #### Acceptance Criteria
 
 1. Every question answers within 500 ms on la-gram's Oxigraph for a generated ArchiMate 4.0 model of 350 000 triples;
-   one that cannot is run off the main thread or not offered on models of that size
+   one that cannot is run off the main thread or not offered on models of that size — or, a listing asked only when
+   picked, recorded as a decision with its measurement and held to its own limit (design D12: `viewpoint-scope`)
 2. Model checks run on request, not after every edit
 
 ### Requirement 13 (later): Deliverable sections ask questions

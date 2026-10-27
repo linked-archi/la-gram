@@ -62,6 +62,10 @@ function makeCtx(overrides: Record<string, any> = {}) {
     _collapsedSeverities: new Set<string>(),
     _scope: 'view',
     viewIris: undefined,
+    checks: undefined,
+    checksAvailable: 0,
+    checking: false,
+    _checkResults: new Set(),
     dispatchEvent: vi.fn(),
     requestUpdate: vi.fn(),
     ...overrides,
@@ -75,13 +79,16 @@ function makeCtx(overrides: Record<string, any> = {}) {
     '_renderResultItem',
     '_renderSeverityGroup',
     '_renderSummary',
+    '_renderChecksStatus',
+    'requestChecks',
+    'willUpdate',
     'render',
   ]) {
     if (typeof (ValidationPanel.prototype as any)[m] === 'function') {
       ctx[m] = (ValidationPanel.prototype as any)[m].bind(ctx);
     }
   }
-  for (const accessor of ['scope', 'shownScope', 'shownResults']) {
+  for (const accessor of ['scope', 'shownScope', 'allResults', 'shownResults']) {
     const descriptor = Object.getOwnPropertyDescriptor(ValidationPanel.prototype, accessor)!;
     Object.defineProperty(ctx, accessor, { get: descriptor.get?.bind(ctx), set: descriptor.set?.bind(ctx), configurable: true });
   }
@@ -519,5 +526,78 @@ describe('runIncrementalValidation', () => {
     const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<ValidationHighlightDetail>;
     expect(evt.type).toBe('validation-highlight');
     expect(evt.detail.iris).toContain('urn:y');
+  });
+});
+
+describe('model checks', () => {
+  const check = (severity: 'Violation' | 'Warning' | 'Info', focusIri: string, id: string): ValidationResult => ({
+    focusNode: nn(focusIri),
+    resultPath: nn(''),
+    sourceShape: nn(`https://meta.linked.archi/core-questions#${id}`),
+    message: `${id}?`,
+    severity,
+  });
+  const withChecks = (overrides: Record<string, any> = {}) => {
+    const ctx = makeCtx({
+      results: [makeResult('Violation', 'urn:a', 'on a')],
+      conforms: false,
+      checksAvailable: 14,
+      checks: {
+        results: [check('Warning', 'urn:a', 'unrealised-services'), check('Info', 'urn:b', 'orphans')],
+        ran: 13,
+        failed: [{ label: 'Which views show it?', reason: 'Select an element' }],
+        capped: [{ label: 'Which elements appear in no view?', limit: 500 }],
+      },
+      ...overrides,
+    });
+    ctx.willUpdate(new Map([['checks', undefined]]));
+    return ctx;
+  };
+
+  it('are offered when the loaded languages ask any, and asked for on request', () => {
+    expect(flat(makeCtx().render())).not.toContain('checks-btn');
+    const ctx = makeCtx({ checksAvailable: 14 });
+    const o = flat(ctx.render());
+    expect(o).toContain('Model checks');
+    expect(o).toContain('Ask the 14 finding questions');
+    ctx.requestChecks();
+    expect(ctx.dispatchEvent.mock.calls[0][0].type).toBe('model-checks-request');
+    expect(flat(makeCtx({ checksAvailable: 14, checking: true }).render())).toContain('Checking…');
+  });
+
+  it('list their findings beside the shapes’, counted and scoped as they are', () => {
+    const model = withChecks({ _scope: 'model' });
+    expect(model.allResults).toHaveLength(3);
+    let o = flat(model.render());
+    expect(o).toContain('✗ 1 violation(s), 1 warning(s), 1 info(s)');
+    expect(o).toContain('Check: <span title=https://meta.linked.archi/core-questions#orphans>orphans</span>');
+    expect(o).toContain('Shape: <span');
+    // On the open view: only what is on it.
+    const view = withChecks({ viewIris: new Set(['urn:a']) });
+    o = flat(view.render());
+    expect(o).toContain('✗ 1 violation(s), 1 warning(s)');
+    expect(o).toContain('1 more in the model');
+  });
+
+  it('a model conforms only when no check finds anything either', () => {
+    const ctx = withChecks({ results: [], conforms: true, _scope: 'model' });
+    expect(flat(ctx.render())).not.toContain('Model conforms');
+    const none = withChecks({ results: [], conforms: true, _scope: 'model', checks: { results: [], ran: 14, failed: [], capped: [] } });
+    expect(flat(none.render())).toContain('✓ Model conforms');
+    // (flat() leaves out a 0.)
+    expect(flat(none.render())).toMatch(/Model checks: 14 run, 0? ?findings/);
+  });
+
+  it('say how many ran, which stopped at their limit, which could not run and why, and when the model has changed', () => {
+    let o = flat(withChecks().render());
+    expect(o).toContain('Model checks: 13 run, 2 findings');
+    expect(o).toContain('“Which elements appear in no view?” stopped at 500: there may be more.');
+    expect(o).toContain('“Which views show it?” could not run: Select an element');
+    expect(o).toContain('Run checks again');
+    expect(o).not.toContain('has changed');
+    const stale = withChecks();
+    stale.checks = { ...stale.checks, stale: true };
+    o = flat(stale.render());
+    expect(o).toContain('the model has changed since they ran');
   });
 });

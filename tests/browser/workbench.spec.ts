@@ -981,6 +981,7 @@ describe('changing an element’s type', () => {
       'Properties',
       'Show in model tree',
       'Show relationship graph',
+      'Ask about this element…',
       'Copy IRI',
       'Delete from view',
       'Delete from model…',
@@ -1198,6 +1199,66 @@ describe('changing an element’s type', () => {
     expect((await viewbox()).scale).toBe(0.6);
     findings.push('back and forward between views, as they were left: ok');
   }, 90_000);
+});
+
+describe('model questions', () => {
+  it('asks about an element from its right-click menu, picks from the Questions menu, and runs the model checks', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    await dropActor(page, 300, 200);
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const [actor] = (await model(page)).actors;
+
+    // Right-click → "Ask about this element…": the SPARQL tab, the questions about it.
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    await page.locator(SHAPE).first().click({ button: 'right' });
+    const context = page.locator('.djs-popup.la-context-menu');
+    await context.waitFor({ state: 'visible' });
+    await context.locator('.entry', { hasText: 'Ask about this element…' }).click();
+    const editor = page.locator('sparql-editor');
+    const menu = editor.locator('.questions-menu');
+    await menu.waitFor({ state: 'visible' });
+    expect(await menu.locator('.menu-title').innerText()).toMatch(/About\s+Business Actor/);
+    const about = await menu.locator('button.question .q-label').allInnerTexts();
+    expect(about).toEqual(expect.arrayContaining(['What is recorded about this element?', 'What is affected if this element changes?']));
+    await session.screenshot('questions-about-element');
+    await menu.locator('button.question', { hasText: 'What is recorded about this element?' }).click();
+    await until(async () => (await editor.locator('tbody tr').count()) > 0, 'its answer');
+    expect(await editor.locator('.asked').innerText()).toContain('What is recorded about this element?');
+    expect(await editor.locator('tbody').innerText()).toContain('Business Actor');
+    await session.screenshot('questions-element-detail');
+
+    // The Questions menu: by stage, filterable by concern; a pick runs with the open model bound.
+    await editor.locator('.questions-btn').click();
+    await menu.waitFor({ state: 'visible' });
+    const titles = await menu.locator('.group-title').allInnerTexts();
+    expect(titles.map((t) => t.toLowerCase())).toEqual(expect.arrayContaining(['orientation', 'analysis', 'quality', 'views']));
+    const all = await menu.locator('button.question').count();
+    expect(all).toBe(36);
+    const concern = menu.locator('select.concern');
+    const firstConcern = await concern.locator('option').nth(1).getAttribute('value');
+    await concern.selectOption(firstConcern!);
+    await until(async () => (await menu.locator('button.question').count()) < all, 'the concern filter');
+    await concern.selectOption('');
+    await menu.locator('button.question', { hasText: 'Which elements take part in no relationship?' }).click();
+    await until(async () => (await editor.locator('tbody tr').count()) > 0, 'the orphans');
+    expect(await editor.locator('tbody').innerText()).toContain('Business Actor');
+    expect(await editor.locator('.asked').innerText()).toMatch(/Does not prove:/);
+
+    // The model checks, in the Validation tab: on request, beside the shapes' findings.
+    await page.locator('app-shell .tab[data-tab="validation"]').click();
+    const validation = page.locator('validation-panel');
+    await validation.locator('.checks-btn').click();
+    await until(async () => /Model checks: \d+ run/.test(await validation.locator('.checks-status').innerText().catch(() => '')), 'the checks');
+    expect(await validation.locator('.checks-status').innerText()).toMatch(/Model checks: 14 run/);
+    await validation.locator('select.scope').selectOption('model');
+    await until(async () => (await validation.locator('.result-item', { hasText: 'Which elements take part in no relationship?' }).count()) > 0, 'the orphan finding');
+    const finding = validation.locator('.result-item', { hasText: 'Which elements take part in no relationship?' }).first();
+    expect(await finding.innerText()).toMatch(/Check: orphans/);
+    await session.screenshot('questions-model-checks');
+    expect(actor).toBeTruthy();
+    findings.push('questions: asked about an element from its right-click menu, picked from the Questions menu with a concern filter, model checks listed in Validation: ok');
+  });
 });
 
 describe('Basic, the generic language', () => {

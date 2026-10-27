@@ -140,6 +140,10 @@ into a single discoverable resource.'''@en ;
                                   am4dt:ArchitectureRequirementsSpec,
                                   am4dt:ArchitecturePrinciplesDocument ;
 
+    ## Model questions: what ArchiMate 4.0 stakeholders ask of a model
+    ## File: archimate4-questions.ttl
+    arch:hasQuestionSet           <https://meta.linked.archi/archimate4/questions#> ;
+
     ## Reference data
     ## File: archimate4-reference-data.ttl
     arch:referenceData            am4rd:ArchiMateReferenceData ;

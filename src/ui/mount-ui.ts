@@ -36,6 +36,13 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import {
+  listQuestions,
+  offeredQuestions,
+  runModelChecks,
+  type ModelQuestion,
+  type QuestionBindings,
+} from '../model-manager/questions.js';
 import { PropertyCatalog, curieOf } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
@@ -743,6 +750,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         graphPanel.rootIri = iri;
         shell.showTab('graph');
         return;
+      case 'ask':
+        // The questions about it, in the SPARQL tab, where the one picked runs.
+        selectConcept(iri, { fromCanvas: true });
+        shell.showTab('sparql');
+        sparqlEditor.openQuestions({ focus: iri });
+        return;
       case 'copy-iri':
         void Promise.resolve(globalThis.navigator?.clipboard?.writeText(iri))
           .then(() => dialogs.toast('IRI copied'))
@@ -1350,9 +1363,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   /**
    * Make a view of the elements and relationships among `iris` — laid out as
-   * drawn when `centres` places them all (the Graph tab), else as a tree.
+   * drawn when `centres` places them all (the Graph tab), else as a tree;
+   * following `viewpoint` when given (a question's).
    */
-  const newViewFrom = async (iris: string[], options: { label: string; centres?: Map<string, { x: number; y: number }> }): Promise<void> => {
+  const newViewFrom = async (
+    iris: string[],
+    options: { label: string; centres?: Map<string, { x: number; y: number }>; viewpoint?: string },
+  ): Promise<void> => {
     const plan = planView(iris, conceptKinds);
     if (plan.elements.length === 0) {
       dialogs.toast('The results mention no elements of this model.', 'warning');
@@ -1375,11 +1392,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       label,
       plan.elements.map((iri) => ({ iri, bounds: bounds.get(iri)! })),
       plan.relationships,
+      options.viewpoint ? { viewpointIri: options.viewpoint } : {},
     );
-    dialogs.toast(`New view "${label.trim()}": ${counts}.`);
+    const following = options.viewpoint ? ` (${labelOf(store, options.viewpoint)})` : '';
+    dialogs.toast(`New view "${label.trim()}"${following}: ${counts}.`);
   };
   const onResultsViewRequest = (e: Event): void => {
-    void newViewFrom((e as CustomEvent<ResultsViewRequestDetail>).detail.iris, { label: 'Query results' });
+    const { iris, label, viewpoint } = (e as CustomEvent<ResultsViewRequestDetail>).detail;
+    void newViewFrom(iris, { label: label ?? 'Query results', ...(viewpoint ? { viewpoint } : {}) });
   };
   const onSparqlSelect = (e: Event): void => {
     void revealAnywhere((e as CustomEvent<SparqlSelectDetail>).detail.iri);
@@ -1387,6 +1407,84 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   sparqlEditor.prefixSource = () => app.modelIO.collectPrefixes(session.modelIri);
   sparqlEditor.addEventListener('results-view-request', onResultsViewRequest);
   sparqlEditor.addEventListener('sparql-select', onSparqlSelect);
+
+  // ── Model questions: the Questions menu, "Ask about this element…", the model checks ──
+  /** Every question of the loaded question sets; read again when a metamodel loads. */
+  let questionCache: ModelQuestion[] | undefined;
+  const allQuestions = (): ModelQuestion[] => (questionCache ??= listQuestions(store));
+  /** The open view's viewpoint. */
+  const openViewpoint = (): string | undefined =>
+    (session.activeViewIri && viewManager.getView?.(session.activeViewIri)?.viewpointIri) || undefined;
+  /** The questions worth offering: those whose languages are loaded, the open view's viewpoint's first. */
+  const questionsOffered = (): ModelQuestion[] => {
+    const loaded = new Set(app.loadedMetamodels().flatMap((m) => Object.values(m.graphsByRole).flat() as string[]));
+    return offeredQuestions(allQuestions(), loaded, openViewpoint());
+  };
+  /**
+   * What the workbench binds: the open model, view and its viewpoint; the
+   * selected element (`focus`), or two (`from`, `to`); the type picked in the
+   * palette (`conceptType`), until something is selected.
+   */
+  const questionBindings = (): QuestionBindings => {
+    const onCanvas = diagramCanvas.selectedIris().filter(isElement);
+    const picked = propertyPanel.selectedIri;
+    const selected = onCanvas.length > 0 ? onCanvas : picked && isElement(picked) ? [picked] : [];
+    return {
+      model: session.modelIri,
+      view: session.activeViewIri,
+      viewpoint: openViewpoint(),
+      focus: selected.length === 1 ? selected[0] : undefined,
+      from: selected.length === 2 ? selected[0] : undefined,
+      to: selected.length === 2 ? selected[1] : undefined,
+      conceptType: guideFromPalette && typeGuidePanel.guideIri ? typeGuidePanel.guideIri : undefined,
+    };
+  };
+  sparqlEditor.questionSource = questionsOffered;
+  sparqlEditor.bindingSource = questionBindings;
+  sparqlEditor.labelFor = (iri) => labelOf(store, iri);
+
+  /** The model checks: the finding questions offered. */
+  const modelChecks = (): ModelQuestion[] => questionsOffered().filter((q) => q.isFinding);
+  /** Every violation drawn is marked, whatever the Validation tab's scope: the shapes' and the model checks'. */
+  const markViolations = (): void => {
+    diagramCanvas.setMarkers(
+      VIOLATION_MARKER,
+      new Set(validationPanel.allResults.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value)),
+    );
+  };
+  /**
+   * Run the model checks on request (Requirement 12.2) and list their findings
+   * beside the SHACL results, until the next run or another model.
+   */
+  const onModelChecksRequest = async (): Promise<void> => {
+    if (validationPanel.checking) return;
+    validationPanel.checking = true;
+    // "Checking…" shows before the queries hold the main thread.
+    await validationPanel.updateComplete;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    try {
+      const run = runModelChecks(store, modelChecks(), { model: session.modelIri });
+      validationPanel.checks = {
+        results: run.results,
+        ran: run.ran.length,
+        failed: run.failed.map(({ question, reason }) => ({ label: question.label, reason })),
+        capped: run.capped.map((q) => ({ label: q.label, limit: q.defaultLimit ?? 0 })),
+      };
+    } catch (err: unknown) {
+      report(err instanceof Error ? err.message : String(err), 'error');
+    } finally {
+      validationPanel.checking = false;
+    }
+    scopeValidation();
+    markViolations();
+  };
+  const onModelChecksEvent = (): void => void onModelChecksRequest();
+  validationPanel.addEventListener('model-checks-request', onModelChecksEvent);
+  /** An edit after the checks ran: their findings may no longer hold. */
+  const onEditAfterChecks: ModelEventHandler = () => {
+    const checks = validationPanel.checks;
+    if (checks && !checks.stale) validationPanel.checks = { ...checks, stale: true };
+  };
 
   // ── RDF panel ────────────────────────────────────────────────────────
   const setRdfPanelOpen = (open: boolean): void => {
@@ -1902,11 +2000,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     validationPanel.validating = false;
     // The violations show on the Validation tab, which may not be the open one.
     scopeValidation();
-    // Every violation drawn is marked, whatever the tab's scope.
-    diagramCanvas.setMarkers(
-      VIOLATION_MARKER,
-      new Set(results.filter((r) => r.severity === 'Violation').map((r) => r.focusNode.value)),
-    );
+    markViolations();
   };
 
   const onMetamodelLoaded: ModelEventHandler = (event) => {
@@ -1924,6 +2018,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     refreshGraphs();
     refreshToolbar();
     diagramCanvas.syncFromStore();
+    // Another language's questions, or none.
+    questionCache = undefined;
+    validationPanel.checksAvailable = modelChecks().length;
   };
 
   /**
@@ -1993,7 +2090,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       validationPanel.conforms = true;
       validationPanel.validating = true;
     }
+    // The model checks were the last model's.
+    validationPanel.checks = undefined;
     scopeValidation();
+    markViolations();
   };
 
   const onViewOpened: ModelEventHandler = () => {
@@ -2075,6 +2175,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     'relationship-deleted',
   ] as const;
   for (const type of RDF_REFRESH_EVENTS) eventBus.on(type, onAnyModelChange);
+  const EDIT_EVENTS = [
+    'model-changed',
+    'views-changed',
+    'element-created',
+    'element-deleted',
+    'element-updated',
+    'relationship-created',
+    'relationship-deleted',
+  ] as const;
+  for (const type of EDIT_EVENTS) eventBus.on(type, onEditAfterChecks);
+  validationPanel.checksAvailable = modelChecks().length;
 
   eventBus.on('validation-updated', onValidationUpdated);
   eventBus.on('metamodel-loaded', onMetamodelLoaded);
@@ -2123,6 +2234,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.off('presentation-context-changed', onContextChanged);
     eventBus.off('model-saved', onSaved);
     for (const type of RDF_REFRESH_EVENTS) eventBus.off(type, onAnyModelChange);
+    for (const type of EDIT_EVENTS) eventBus.off(type, onEditAfterChecks);
     rdfPanel.removeEventListener('rdf-download', onRdfDownload);
     rdfPanel.removeEventListener('rdf-select', onRdfSelect);
     rdfPanel.removeEventListener('rdf-close', onRdfClose);
@@ -2155,6 +2267,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     matrixView.removeEventListener('view-members-change', onViewMembersChange);
     validationPanel.removeEventListener('validation-navigate', onValidationNavigate);
     validationPanel.removeEventListener('validation-scope-change', onValidationScopeChange);
+    validationPanel.removeEventListener('model-checks-request', onModelChecksEvent);
     propertyPanel.removeEventListener('property-edit', onPropertyEdit);
     propertyPanel.removeEventListener('property-add', onPropertyAdd);
     propertyPanel.removeEventListener('property-remove', onPropertyRemove);

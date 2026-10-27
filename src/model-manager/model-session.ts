@@ -344,17 +344,18 @@ export class ModelSession {
 
   /**
    * A new diagram showing these elements, where given, and the relationships
-   * among them — one change for collaborators; opened unless `open` is false.
+   * among them, following `viewpointIri` when given — one change for
+   * collaborators; opened unless `open` is false.
    */
   createViewWith(
     label: string,
     nodes: ReadonlyArray<{ iri: string; bounds: Bounds }>,
     relationships: readonly string[],
-    options: { open?: boolean } = {},
+    options: { open?: boolean; viewpointIri?: string } = {},
   ): string {
     let viewIri = '';
     this.batch(() => {
-      viewIri = this.views.createView('Diagram', undefined, {
+      viewIri = this.views.createView('Diagram', options.viewpointIri, {
         label: label.trim() || 'New diagram',
         ...(this.currentModel ? { modelIri: this.currentModel } : {}),
       }).value;

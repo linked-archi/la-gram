@@ -30,9 +30,14 @@ describe('bundled asset registry', () => {
   });
 
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    // Four core files, twelve per ArchiMate version (4.0 and 3.2), and Basic's six:
-    // manifest, ontology, taxonomy, its two notation sets and its presentation contexts.
-    expect(BUNDLED_ASSETS).toHaveLength(34);
+    // Five core files (the core question set among them), twelve per ArchiMate version (4.0 and 3.2)
+    // and 4.0's question set, and Basic's six: manifest, ontology, taxonomy, its two notation sets
+    // and its presentation contexts.
+    expect(BUNDLED_ASSETS).toHaveLength(36);
+    expect(getAssetsByRole('coreQuestions').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/core-questions#']);
+    expect(getAssetsByRole('questions').map((a) => [a.metamodel, a.ontologyIri])).toEqual([
+      ['archimate4', 'https://meta.linked.archi/archimate4/questions#'],
+    ]);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);
