@@ -84,6 +84,26 @@ export interface RelationshipGraph {
   edges: GraphEdge[];
 }
 
+/**
+ * Of a concept's types, the one to draw it by. A converted model types each
+ * concept with the core classes too (`a arch:Element, arch:ModelConcept,
+ * am:ValueStream`); drawn by the first, a node lost its icon and a line read
+ * "Model Concept".
+ */
+export type TypeChooser = (types: readonly string[]) => string | undefined;
+
+/** Without the class hierarchy: the first type that is not a core class, else the first. */
+export const notCoreType: TypeChooser = (types) => types.find((t) => !t.startsWith(NAMESPACES.arch)) ?? types[0];
+
+/** With the class hierarchy: the most specific type — the one with the most superclasses — as the model tree takes it. */
+export function mostSpecificType(closure: (typeIri: string) => readonly string[]): TypeChooser {
+  return (types) => [...types].sort((a, b) => closure(b).length - closure(a).length || notCoreFirst(a, b))[0];
+}
+
+function notCoreFirst(a: string, b: string): number {
+  return Number(a.startsWith(NAMESPACES.arch)) - Number(b.startsWith(NAMESPACES.arch));
+}
+
 /** Deepest the graph goes: each level of the query is a nested subquery. */
 export const MAX_GRAPH_DEPTH = 5;
 
@@ -225,9 +245,14 @@ export function buildGraphQuery(options: GraphQueryOptions, prefixes: PrefixMap 
 }
 
 /** The graph for the Graph tab: walked, with the queries that return the same. */
-export function relationshipGraph(store: RdfStore, options: GraphQueryOptions, prefixes: PrefixMap = {}): RelationshipGraph {
+export function relationshipGraph(
+  store: RdfStore,
+  options: GraphQueryOptions,
+  prefixes: PrefixMap = {},
+  typeOf: TypeChooser = notCoreType,
+): RelationshipGraph {
   const quads = traverseGraph(store, options);
-  return { ...queries(options, prefixes), quads, ...readGraph(quads, options.rootIri, store) };
+  return { ...queries(options, prefixes), quads, ...readGraph(quads, options.rootIri, store, typeOf) };
 }
 
 function queries(options: GraphQueryOptions, prefixes: PrefixMap): { query: string; selectQuery: string } {
@@ -239,11 +264,16 @@ function queries(options: GraphQueryOptions, prefixes: PrefixMap): { query: stri
  * Slow on large models (see the module comment); {@link relationshipGraph} is
  * what the tab uses. The root is always a node, related to anything or not.
  */
-export function runGraphQuery(store: RdfStore, options: GraphQueryOptions, prefixes: PrefixMap = {}): RelationshipGraph {
+export function runGraphQuery(
+  store: RdfStore,
+  options: GraphQueryOptions,
+  prefixes: PrefixMap = {},
+  typeOf: TypeChooser = notCoreType,
+): RelationshipGraph {
   const both = queries(options, prefixes);
   const result = store.query(both.query);
   const quads = result.type === 'quads' ? result.quads : [];
-  return { ...both, quads, ...readGraph(quads, options.rootIri, store) };
+  return { ...both, quads, ...readGraph(quads, options.rootIri, store, typeOf) };
 }
 
 /**
@@ -352,6 +382,7 @@ export function readGraph(
   quads: readonly Quad[],
   rootIri: string,
   store?: Pick<RdfStore, 'getQuads'>,
+  typeOf: TypeChooser = notCoreType,
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const bySubject = new Map<string, Quad[]>();
   for (const q of quads) {
@@ -361,13 +392,18 @@ export function readGraph(
   }
   const value = (subject: string, predicate: string) =>
     bySubject.get(subject)?.find((q) => q.predicate.value === predicate)?.object.value;
+  /** The type to draw a concept by, of those given (else the store's). */
+  const typeOfSubject = (subject: string): string | undefined => {
+    const given = (bySubject.get(subject) ?? []).filter((q) => q.predicate.value === IRI.rdfType).map((q) => q.object.value);
+    return typeOf(given.length > 0 ? given : storeValues(store, subject, IRI.rdfType));
+  };
 
   const edges: GraphEdge[] = [];
   for (const [subject] of bySubject) {
     const source = value(subject, IRI.source);
     const target = value(subject, IRI.target);
     if (!source || !target) continue;
-    const typeIri = value(subject, IRI.rdfType);
+    const typeIri = typeOfSubject(subject);
     const label = value(subject, IRI.prefLabel);
     edges.push({ iri: subject, source, target, ...(typeIri ? { typeIri } : {}), ...(label ? { label } : {}) });
   }
@@ -396,7 +432,7 @@ export function readGraph(
   }
 
   const describe = (iri: string): { typeIri?: string; label?: string } => {
-    const typeIri = value(iri, IRI.rdfType) ?? storeValue(store, iri, IRI.rdfType);
+    const typeIri = typeOfSubject(iri);
     const label = value(iri, IRI.prefLabel) ?? storeValue(store, iri, IRI.prefLabel);
     return { ...(typeIri ? { typeIri } : {}), ...(label ? { label } : {}) };
   };
@@ -409,9 +445,16 @@ export function readGraph(
 }
 
 function storeValue(store: Pick<RdfStore, 'getQuads'> | undefined, subject: string, predicate: string): string | undefined {
-  if (!store) return undefined;
+  return storeValues(store, subject, predicate)[0];
+}
+
+function storeValues(store: Pick<RdfStore, 'getQuads'> | undefined, subject: string, predicate: string): string[] {
+  if (!store) return [];
   const nn = (v: string) => ({ termType: 'NamedNode', value: v }) as never;
-  return store.getQuads(nn(subject), nn(predicate)).find((q) => q.graph.termType === 'DefaultGraph')?.object.value;
+  return store
+    .getQuads(nn(subject), nn(predicate))
+    .filter((q) => q.graph.termType === 'DefaultGraph')
+    .map((q) => q.object.value);
 }
 
 function localPart(iri: string): string {

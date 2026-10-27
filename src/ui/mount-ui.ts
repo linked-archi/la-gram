@@ -94,7 +94,7 @@ import type { RdfPanel, RdfDownloadDetail, RdfPanelContent, RdfPanelRequest, Rdf
 import type { GraphPanel, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
 import type { ResultsViewRequestDetail, SparqlSelectDetail } from './panels/sparql-editor.js';
 import { layoutPositions } from './panels/graph-view.js';
-import { relationshipGraph } from '../model-manager/relationship-graph.js';
+import { mostSpecificType, relationshipGraph } from '../model-manager/relationship-graph.js';
 import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
 import { assetUrl } from '../metamodel-manager/bundled-assets.js';
@@ -1231,7 +1231,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return [...byType.values()].sort((a, b) => a.label.localeCompare(b.label));
   };
   graphPanel.source = {
-    graph: (options) => relationshipGraph(store, options, app.modelIO.collectPrefixes(session.modelIri)),
+    // Each concept drawn by its most specific type, as the tree lists it — not
+    // the `arch:ModelConcept` a converted model also types it with.
+    graph: (options) =>
+      relationshipGraph(store, options, app.modelIO.collectPrefixes(session.modelIri), mostSpecificType((t) => closure(t))),
     types: () => {
       const contents = modelContents();
       return { elements: countTypes(contents.elements), relationships: countTypes(contents.relationships) };

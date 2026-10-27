@@ -782,6 +782,16 @@ paths as a flat UNION of hop chains would; a level includes the one before
 (a hop's ends include the element it starts from), and the root is added to
 the last level explicitly, since a filter may leave it out.
 
+*Which type a node or line is drawn by* (`readGraph`'s `TypeChooser`). A
+concept may have several types: the converters write `a arch:Element,
+arch:ModelConcept` (or `arch:QualifiedRelationship`) beside the language's
+own. Drawn by the first, a node lost its glyph and colour and a line read
+"Model Concept". `mount-ui` passes `mostSpecificType` over the class closure —
+the type with the most superclasses, as the model tree takes it, a core class
+last on a tie; without one, `notCoreType` takes the first type outside
+`arch:`. The type filters were not affected: they list the most specific types
+already, and a hop passes on any listed type.
+
 *The query's shape* (2026-09-27) is chosen for Oxigraph, measured on
 synthetic models with two relationships per element (Node). Oxigraph joins a
 bound variable into triple patterns, property paths and filters one lookup at

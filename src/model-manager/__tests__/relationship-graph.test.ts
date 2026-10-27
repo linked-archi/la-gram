@@ -3,7 +3,7 @@ import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
-import { buildGraphQuery, relationshipGraph, runGraphQuery, traverseGraph } from '../relationship-graph.js';
+import { buildGraphQuery, mostSpecificType, relationshipGraph, runGraphQuery, traverseGraph } from '../relationship-graph.js';
 import type { GraphQueryOptions } from '../relationship-graph.js';
 
 const { namedNode, literal, quad } = DataFactory;
@@ -88,6 +88,30 @@ describe('the relationship graph', () => {
     const g = graph(3, { elementTypes: ['Role', 'Object', 'Actor'] });
     // Components are not stepped onto: nothing beyond them either.
     expect(ids(g.edges.map((e) => e.iri))).toEqual(['r3']);
+  });
+
+  it('draws each concept by its own type, not the core classes a converted model also gives it', () => {
+    const on = new OxigraphRdfStore();
+    const CORE = NAMESPACES.arch;
+    const typed = (id: string, ...types: string[]) =>
+      types.map((t) => quad(namedNode(M + id), namedNode(RDF_TYPE), namedNode(t)) as unknown as Quad);
+    on.addQuads([
+      // As the converters write them: `a arch:Element, arch:ModelConcept` beside the language's type.
+      ...typed('a', CORE + 'Element', CORE + 'ModelConcept', L + 'ValueStream'),
+      ...typed('b', CORE + 'ModelConcept', L + 'Actor', CORE + 'Element'),
+      ...typed('r', CORE + 'QualifiedRelationship', CORE + 'ModelConcept', L + 'Serving'),
+      quad(namedNode(M + 'r'), namedNode(SRC), namedNode(M + 'a')) as unknown as Quad,
+      quad(namedNode(M + 'r'), namedNode(TGT), namedNode(M + 'b')) as unknown as Quad,
+    ]);
+    const g = relationshipGraph(on, { rootIri: M + 'a', depth: 1 });
+    expect(g.nodes.map((n) => n.typeIri)).toEqual([L + 'ValueStream', L + 'Actor']);
+    expect(g.edges.map((e) => e.typeIri)).toEqual([L + 'Serving']);
+    // With the class hierarchy, the most specific of the language's own types.
+    on.addQuads(typed('b', L + 'BusinessActor'));
+    const closure = (t: string) => (t === L + 'BusinessActor' ? [t, L + 'Actor', CORE + 'Element'] : t === L + 'Actor' ? [t, CORE + 'Element'] : [t]);
+    const specific = relationshipGraph(on, { rootIri: M + 'a', depth: 1 }, {}, mostSpecificType(closure));
+    expect(specific.nodes.find((n) => n.iri === M + 'b')?.typeIri).toBe(L + 'BusinessActor');
+    on.dispose();
   });
 
   it('draws the root alone when it has no relationships', () => {
