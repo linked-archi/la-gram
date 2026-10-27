@@ -1,0 +1,808 @@
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix cc:      <http://creativecommons.org/ns#> .
+@prefix vann:    <http://purl.org/vocab/vann/> .
+@prefix arch:    <https://meta.linked.archi/core#> .
+@prefix archvp:  <https://meta.linked.archi/core-viewpoints#> .
+@prefix archq:   <https://meta.linked.archi/core-queries#> .
+@prefix am4:     <https://meta.linked.archi/archimate4/onto#> .
+@prefix am4vp:   <https://meta.linked.archi/archimate4/viewpoints#> .
+@prefix am4q:    <https://meta.linked.archi/archimate4/queries#> .
+
+#################################################################
+# Linked.Archi ArchiMate 4.0 Questions — DRAFT starter set
+#
+# Each question addresses concerns the ArchiMate 4.0 viewpoints frame
+# (am4vp:ImpactOfChange, am4vp:Completeness …) and names the
+# viewpoints it fits, so a tool can offer it beside an open view and a
+# deliverable section can ask it for a concern.
+#
+# Conventions as in core-queries. Domain membership is read from the
+# ArchiMate 4 domain superclasses (am4:ApplicationDomainElement …)
+# through "{ P } UNION { GRAPH ?g { P } }", which works whether the
+# ontology is in the default graph or in its own named graph.
+#################################################################
+
+<https://meta.linked.archi/archimate4/queries#>
+    a                             owl:Ontology ;
+    owl:imports                   <https://meta.linked.archi/core-queries#>,
+                                  <https://meta.linked.archi/archimate4/onto#>,
+                                  <https://meta.linked.archi/archimate4/viewpoints#> ;
+    cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/archimate4/queries#" ;
+    vann:preferredNamespacePrefix "am4q" ;
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:title                 "Linked.Archi ArchiMate 4.0 Questions"@en ;
+    dcterms:description           "Questions ArchiMate 4.0 stakeholders ask of a model, bound to the concerns and viewpoints of the ArchiMate 4.0 viewpoint catalogue."@en ;
+    owl:versionInfo               "0.1.0-draft" ;
+    sh:declare
+        [ sh:prefix "arch" ; sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ],
+        [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ],
+        [ sh:prefix "rdfs" ; sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ],
+        [ sh:prefix "skos" ; sh:namespace "http://www.w3.org/2004/02/skos/core#"^^xsd:anyURI ],
+        [ sh:prefix "am4" ; sh:namespace "https://meta.linked.archi/archimate4/onto#"^^xsd:anyURI ] ;
+.
+
+am4q:viewpoint-scope
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/viewpoint-scope" ;
+    skos:prefLabel                  "What in the model belongs in a view of this viewpoint? (ArchiMate 4)"@en ;
+    dcterms:description             "archq:viewpoint-scope refined for ArchiMate 4's common domain. Viewpoints such as the Technology Viewpoint admit Process, Function, Service and Role, which in ArchiMate 4 belong to no domain; listed unconditionally they would put every business process into a technology section. A common-domain element is therefore kept only when it is related, in either direction, to a domain-specific element the same viewpoint admits."@en ;
+    arch:answers                    "One row per element: label, type, definition and a \"relationship → target\" summary of what it points to."@en ;
+    arch:doesNotProve               "That an unlisted common-domain element is irrelevant to the viewpoint; only that nothing domain-specific in it anchors the element."@en ;
+    arch:questionStage              arch:ViewsStage ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "scope" ;
+    arch:defaultLimit               1000 ;
+    sh:parameter [ sh:path archq:viewpoint ; sh:name "viewpoint" ; sh:class arch:Viewpoint ; sh:optional false ; sh:order 1 ;
+                   sh:description "A viewpoint. In la-gram: the active view's viewpoint; in a deliverable: the section's viewpoint."@en ] ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 2 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?element (SAMPLE(?anyLabel) AS ?label) ?type (SAMPLE(?anyDefinition) AS ?definition)
+               (GROUP_CONCAT(DISTINCT ?link; separator = "; ") AS ?outgoing)
+        WHERE {
+          ?element arch:inModel ?model ;
+                   rdf:type ?type .
+          { ?viewpoint arch:includesConcept ?type }
+          UNION
+          { GRAPH ?viewpointGraph { ?viewpoint arch:includesConcept ?type } }
+          # A common-domain element belongs only through a domain-specific element the viewpoint admits.
+          FILTER(
+            NOT EXISTS {
+              { ?type rdfs:subClassOf* am4:CommonDomainElement }
+          UNION
+          { GRAPH ?typeGraph { ?type rdfs:subClassOf* am4:CommonDomainElement } }
+            }
+            || EXISTS {
+              { ?element ?anyPredicate ?anchor } UNION { ?anchor ?anyPredicate ?element }
+              ?anchor rdf:type ?anchorType .
+              { ?viewpoint arch:includesConcept ?anchorType }
+          UNION
+          { GRAPH ?anchorViewpointGraph { ?viewpoint arch:includesConcept ?anchorType } }
+              FILTER NOT EXISTS {
+                { ?anchorType rdfs:subClassOf* am4:CommonDomainElement }
+          UNION
+          { GRAPH ?anchorTypeGraph { ?anchorType rdfs:subClassOf* am4:CommonDomainElement } }
+              }
+            }
+          )
+          OPTIONAL { ?element skos:prefLabel ?anyLabel . FILTER(lang(?anyLabel) = "" || langMatches(lang(?anyLabel), "en")) }
+          OPTIONAL { ?element skos:definition ?anyDefinition . FILTER(lang(?anyDefinition) = "" || langMatches(lang(?anyDefinition), "en")) }
+          OPTIONAL {
+            ?relationship arch:source ?element ;
+                          arch:target ?other ;
+                          rdf:type ?relationshipType .
+            OPTIONAL { ?other skos:prefLabel ?otherLabel . FILTER(lang(?otherLabel) = "" || langMatches(lang(?otherLabel), "en")) }
+            BIND(CONCAT(REPLACE(STR(?relationshipType), "^.*[#/]", ""), " → ",
+                        COALESCE(STR(?otherLabel), STR(?other))) AS ?link)
+          }
+        }
+        GROUP BY ?element ?type
+        ORDER BY ?type ?label
+    """ ;
+.
+
+am4q:elements-by-domain
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/elements-by-domain" ;
+    skos:prefLabel                  "How is the model spread over the ArchiMate domains?"@en ;
+    dcterms:description             "Elements counted by ArchiMate 4 domain, read from the domain superclasses of their types (am4:BusinessDomainElement …), so specialisations count where they belong."@en ;
+    arch:answers                    "One row per domain with the number of elements in it."@en ;
+    arch:doesNotProve               "Balance. Common-domain behaviour (Process, Function, Service, Event, Role …) is counted under am4:CommonDomainElement because ArchiMate 4 gives it no domain of its own."@en ;
+    arch:questionStage              arch:OrientationStage ;
+    arch:questionAddressesConcern   am4vp:ReductionOfComplexity, am4vp:Completeness ;
+    arch:questionFitsViewpoint      am4vp:LayeredViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "domains" ;
+    arch:defaultLimit               50 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?domain (COUNT(DISTINCT ?element) AS ?elements)
+        WHERE {
+          VALUES ?domain {
+            am4:StrategyElement am4:MotivationElement am4:BusinessDomainElement
+            am4:ApplicationDomainElement am4:TechnologyDomainElement am4:ImplementationAndMigrationDomainElement
+            am4:CommonDomainElement
+          }
+          ?element arch:inModel ?model ;
+                   rdf:type ?type .
+          { ?type rdfs:subClassOf* ?domain }
+          UNION
+          { GRAPH ?ontologyGraph { ?type rdfs:subClassOf* ?domain } }
+        }
+        GROUP BY ?domain
+        ORDER BY DESC(?elements)
+    """ ;
+.
+
+am4q:cross-domain-relationships
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/cross-domain-relationships" ;
+    skos:prefLabel                  "Which relationships cross domains, and of which kind?"@en ;
+    dcterms:description             "Relationships whose ends sit in different ArchiMate 4 domains, grouped by domain pair and relationship type. Replaces the ArchiMate 3 layer-crossing template, whose layer is guessed from the type name and fails for ArchiMate 4."@en ;
+    arch:answers                    "One row per (source domain, relationship type, target domain) with the number of relationships."@en ;
+    arch:doesNotProve               "Coupling. Relationships touching common-domain elements are not counted: ArchiMate 4 assigns those no domain, so their crossing is undefined."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:Consistency, am4vp:ImpactOfChange ;
+    arch:questionFitsViewpoint      am4vp:LayeredViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    skos:editorialNote              "Supersedes the linked-archi-query template notation/archimate/layer-crossing for ArchiMate 4, whose layer is read from the type name."@en ;
+    arch:resultKey                  "crossings" ;
+    arch:defaultLimit               200 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?sourceDomain ?relationshipType ?targetDomain (COUNT(DISTINCT ?relationship) AS ?relationships)
+        WHERE {
+          VALUES ?sourceDomain {
+            am4:StrategyElement am4:MotivationElement am4:BusinessDomainElement
+            am4:ApplicationDomainElement am4:TechnologyDomainElement am4:ImplementationAndMigrationDomainElement
+          }
+          VALUES ?targetDomain {
+            am4:StrategyElement am4:MotivationElement am4:BusinessDomainElement
+            am4:ApplicationDomainElement am4:TechnologyDomainElement am4:ImplementationAndMigrationDomainElement
+          }
+          ?relationship arch:source ?source ;
+                        arch:target ?target ;
+                        rdf:type ?relationshipType .
+          ?source rdf:type ?sourceType .
+          ?target rdf:type ?targetType .
+          { ?sourceType rdfs:subClassOf* ?sourceDomain }
+          UNION
+          { GRAPH ?sourceGraph { ?sourceType rdfs:subClassOf* ?sourceDomain } }
+          { ?targetType rdfs:subClassOf* ?targetDomain }
+          UNION
+          { GRAPH ?targetGraph { ?targetType rdfs:subClassOf* ?targetDomain } }
+          FILTER(?sourceDomain != ?targetDomain)
+        }
+        GROUP BY ?sourceDomain ?relationshipType ?targetDomain
+        ORDER BY DESC(?relationships)
+    """ ;
+.
+
+am4q:responsibility-assignments
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/responsibility-assignments" ;
+    skos:prefLabel                  "Who is responsible for what?"@en ;
+    dcterms:description             "Assignment relationships: which actor, role, collaboration, component or node performs which behaviour or plays which role."@en ;
+    arch:answers                    "One row per assignment, with both ends and their types."@en ;
+    arch:doesNotProve               "Accountability in the RACI sense. ArchiMate assignment states who performs, not who answers for the outcome."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:CompetenciesAuthorityResponsibilities, am4vp:Responsibilities ;
+    arch:questionTargetsStakeholder am4vp:ProcessArchitect, am4vp:Manager ;
+    arch:questionFitsViewpoint      am4vp:OrganizationViewpoint, am4vp:ProcessCooperationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "assignments" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?performer ?performerLabel ?performerType ?assignment ?assigned ?assignedLabel ?assignedType
+        WHERE {
+          ?assignment rdf:type am4:Assignment ;
+                      arch:source ?performer ;
+                      arch:target ?assigned .
+          ?performer rdf:type ?performerType .
+          ?assigned rdf:type ?assignedType .
+          OPTIONAL { ?performer skos:prefLabel ?performerLabel . FILTER(lang(?performerLabel) = "" || langMatches(lang(?performerLabel), "en")) }
+          OPTIONAL { ?assigned skos:prefLabel ?assignedLabel . FILTER(lang(?assignedLabel) = "" || langMatches(lang(?assignedLabel), "en")) }
+        }
+        ORDER BY ?performerLabel ?assignedLabel
+    """ ;
+.
+
+am4q:unassigned-behaviour
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/unassigned-behaviour" ;
+    skos:prefLabel                  "Which processes and functions has nobody been assigned to?"@en ;
+    dcterms:description             "Processes and functions with no assignment from any active structure element."@en ;
+    arch:answers                    "One row per behaviour without a performer."@en ;
+    arch:doesNotProve               "That nobody performs it. The performer may be assigned to an enclosing process, or the model may stop above that level of detail."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:Responsibilities, am4vp:Completeness ;
+    arch:questionFitsViewpoint      am4vp:ProcessCooperationViewpoint, am4vp:OrganizationViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Warning ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "unassigned" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?behaviour ?label ?type
+        WHERE {
+          VALUES ?type { am4:Process am4:Function }
+          ?behaviour rdf:type ?type ;
+                     arch:inModel ?model .
+          FILTER NOT EXISTS { ?performer am4:assignedTo ?behaviour }
+          OPTIONAL { ?behaviour skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?type ?label
+    """ ;
+.
+
+am4q:unrealised-services
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/unrealised-services" ;
+    skos:prefLabel                  "Which services does nothing realise?"@en ;
+    dcterms:description             "Services with no realisation relationship from any behaviour or active structure."@en ;
+    arch:answers                    "One row per unrealised service."@en ;
+    arch:doesNotProve               "That the service is not delivered: it may be bought in, or realised in a model that is not loaded."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:Completeness, am4vp:AddedValueOfProcesses ;
+    arch:questionFitsViewpoint      am4vp:ServiceRealizationViewpoint, am4vp:ProcessCooperationViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Warning ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "unrealisedServices" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?service ?label
+        WHERE {
+          ?service rdf:type am4:Service ;
+                   arch:inModel ?model .
+          FILTER NOT EXISTS { ?realizer am4:realizes ?service }
+          OPTIONAL { ?service skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?label
+    """ ;
+.
+
+am4q:applications-without-technology
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/applications-without-technology" ;
+    skos:prefLabel                  "Which application components run on no technology?"@en ;
+    dcterms:description             "Application components that no technology-domain element serves or realises, directly or by realising a service that serves them."@en ;
+    arch:answers                    "One row per application component with no technology underneath it."@en ;
+    arch:doesNotProve               "That it runs nowhere. Hosting may be out of the model's scope, or recorded only in a deployment model that is not loaded."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:ApplicationPlatforms, am4vp:InfrastructureQuality ;
+    arch:questionTargetsStakeholder am4vp:ApplicationArchitect, am4vp:InfrastructureArchitect ;
+    arch:questionFitsViewpoint      am4vp:ImplementationAndDeploymentViewpoint, am4vp:TechnologyUsageViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Warning ;
+    arch:requiresDataset            arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "unhosted" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?application ?label
+        WHERE {
+          ?application rdf:type am4:ApplicationComponent ;
+                       arch:inModel ?model .
+          FILTER NOT EXISTS {
+            ?technology am4:serves|am4:realizes|(am4:realizes/am4:serves) ?application ;
+                        rdf:type ?technologyType .
+            { ?technologyType rdfs:subClassOf* am4:TechnologyDomainElement }
+          UNION
+          { GRAPH ?ontologyGraph { ?technologyType rdfs:subClassOf* am4:TechnologyDomainElement } }
+          }
+          OPTIONAL { ?application skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?label
+    """ ;
+.
+
+am4q:application-dependencies
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/application-dependencies" ;
+    skos:prefLabel                  "Which applications depend on which?"@en ;
+    dcterms:description             "Application components that serve, flow to or trigger one another, directly or through a service one realises and the other is served by."@en ;
+    arch:answers                    "One row per dependency: provider, how, the relationship or service in between, and the consumer."@en ;
+    arch:doesNotProve               "Runtime coupling or data volume. A modelled flow says that information moves, not how much or how often."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ApplicationDependencies, am4vp:ServiceOrchestration ;
+    arch:questionFitsViewpoint      am4vp:ApplicationCooperationViewpoint, am4vp:ApplicationUsageViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "applicationDependencies" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?provider ?providerLabel ?how ?via ?consumer ?consumerLabel
+        WHERE {
+          ?provider rdf:type am4:ApplicationComponent .
+          ?consumer rdf:type am4:ApplicationComponent .
+          {
+            VALUES ?linkType { am4:Serving am4:Flow am4:Triggering }
+            ?link rdf:type ?linkType ;
+                  arch:source ?provider ;
+                  arch:target ?consumer .
+            BIND(?link AS ?via)
+            BIND(REPLACE(STR(?linkType), "^.*[#/]", "") AS ?how)
+          }
+          UNION
+          {
+            ?provider am4:realizes ?via .
+            ?via rdf:type am4:Service ;
+                 am4:serves ?consumer .
+            BIND("realizes a service serving" AS ?how)
+          }
+          FILTER(?provider != ?consumer)
+          OPTIONAL { ?provider skos:prefLabel ?providerLabel . FILTER(lang(?providerLabel) = "" || langMatches(lang(?providerLabel), "en")) }
+          OPTIONAL { ?consumer skos:prefLabel ?consumerLabel . FILTER(lang(?consumerLabel) = "" || langMatches(lang(?consumerLabel), "en")) }
+        }
+        ORDER BY ?providerLabel ?consumerLabel
+    """ ;
+.
+
+am4q:data-access
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/data-access" ;
+    skos:prefLabel                  "Who reads and writes which information?"@en ;
+    dcterms:description             "Access relationships by kind (ArchiMate 4 types the kind: am4:ReadAccess, am4:WriteAccess, am4:ReadWriteAccess, am4:Access when unspecified)."@en ;
+    arch:answers                    "One row per access: accessor, kind of access, accessed object."@en ;
+    arch:doesNotProve               "Data ownership. Write access is not mastership; use arch:masterDataSource where it is recorded."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:InformationStructure, am4vp:Consistency ;
+    arch:questionTargetsStakeholder am4vp:InformationArchitect ;
+    arch:questionFitsViewpoint      am4vp:InformationStructureViewpoint, am4vp:ApplicationCooperationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "access" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?accessor ?accessorLabel ?access ?accessKind ?object ?objectLabel ?objectType
+        WHERE {
+          VALUES ?accessKind { am4:Access am4:ReadAccess am4:WriteAccess am4:ReadWriteAccess }
+          ?access rdf:type ?accessKind ;
+                  arch:source ?accessor ;
+                  arch:target ?object .
+          ?object rdf:type ?objectType .
+          OPTIONAL { ?accessor skos:prefLabel ?accessorLabel . FILTER(lang(?accessorLabel) = "" || langMatches(lang(?accessorLabel), "en")) }
+          OPTIONAL { ?object skos:prefLabel ?objectLabel . FILTER(lang(?objectLabel) = "" || langMatches(lang(?objectLabel), "en")) }
+        }
+        ORDER BY ?objectLabel ?accessKind ?accessorLabel
+    """ ;
+.
+
+am4q:data-never-written
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/data-never-written" ;
+    skos:prefLabel                  "Which information is read but never written?"@en ;
+    dcterms:description             "Data objects, business objects and artifacts that something reads and nothing writes. Unspecified access (am4:Access) counts as a possible write."@en ;
+    arch:answers                    "One row per object, with how many elements read it."@en ;
+    arch:doesNotProve               "That the data has no source. It may be written by a system outside the model; that boundary is the finding to discuss."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:InformationStructure, am4vp:Completeness ;
+    arch:questionFitsViewpoint      am4vp:InformationStructureViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Warning ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "neverWritten" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?object ?label ?readers
+        WHERE {
+          {
+            SELECT ?object (COUNT(DISTINCT ?reader) AS ?readers)
+            WHERE {
+              VALUES ?objectType { am4:DataObject am4:BusinessObject am4:Artifact }
+              ?read rdf:type am4:ReadAccess ;
+                    arch:source ?reader ;
+                    arch:target ?object .
+              ?object rdf:type ?objectType .
+            }
+            GROUP BY ?object
+          }
+          FILTER NOT EXISTS {
+            VALUES ?writeKind { am4:WriteAccess am4:ReadWriteAccess am4:Access }
+            ?write rdf:type ?writeKind ;
+                   arch:target ?object .
+          }
+          OPTIONAL { ?object skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY DESC(?readers) ?label
+    """ ;
+.
+
+am4q:impact-of-change
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/impact-of-change" ;
+    skos:prefLabel                  "What is affected if this element changes?"@en ;
+    dcterms:description             "Everything that depends on the focus, transitively, following ArchiMate dependency semantics: what it serves, realises or is assigned to, and what accesses it."@en ;
+    arch:answers                    "One row per element that transitively depends on the focus."@en ;
+    arch:doesNotProve               "That each is broken by the change. Dynamic relationships (flow, triggering) and structure (composition, aggregation) are not followed, and a dependency may tolerate the change."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ImpactOfChange, am4vp:Dependencies ;
+    arch:questionTargetsStakeholder am4vp:EnterpriseArchitect, am4vp:ApplicationArchitect, am4vp:InfrastructureArchitect ;
+    arch:questionFitsViewpoint      am4vp:LayeredViewpoint, am4vp:TechnologyUsageViewpoint, am4vp:ApplicationCooperationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "impacted" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:focus ; sh:name "focus" ; sh:nodeKind sh:IRI ; sh:optional false ; sh:order 1 ;
+                   sh:description "The element the question is about. In la-gram: the selected element."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT DISTINCT ?impacted ?label ?type
+        WHERE {
+          ?focus (am4:serves|am4:realizes|am4:assignedTo|^am4:accesses)+ ?impacted .
+          FILTER(?impacted != ?focus)
+          ?impacted rdf:type ?type .
+          FILTER NOT EXISTS { ?impacted arch:source ?anySource }
+          OPTIONAL { ?impacted skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?type ?label
+    """ ;
+.
+
+am4q:capability-realisation
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/capability-realisation" ;
+    skos:prefLabel                  "What realises each capability?"@en ;
+    dcterms:description             "Capabilities with the behaviour, active structure or resources that realise them."@en ;
+    arch:answers                    "One row per capability and realiser; a capability nothing realises appears once with no realiser."@en ;
+    arch:doesNotProve               "Maturity. Being realised says the capability is delivered somehow, not how well."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:StrategyDevelopment, am4vp:ArchitectureStrategy ;
+    arch:questionTargetsStakeholder am4vp:BusinessArchitect, am4vp:CxO ;
+    arch:questionFitsViewpoint      am4vp:CapabilityMapViewpoint, am4vp:StrategyViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "capabilities" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?capability ?capabilityLabel ?realizer ?realizerLabel ?realizerType
+        WHERE {
+          ?capability rdf:type am4:Capability .
+          OPTIONAL {
+            ?realizer am4:realizes ?capability ;
+                      rdf:type ?realizerType .
+            OPTIONAL { ?realizer skos:prefLabel ?realizerLabel . FILTER(lang(?realizerLabel) = "" || langMatches(lang(?realizerLabel), "en")) }
+          }
+          OPTIONAL { ?capability skos:prefLabel ?capabilityLabel . FILTER(lang(?capabilityLabel) = "" || langMatches(lang(?capabilityLabel), "en")) }
+        }
+        ORDER BY ?capabilityLabel ?realizerLabel
+    """ ;
+.
+
+am4q:unrealised-capabilities
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/unrealised-capabilities" ;
+    skos:prefLabel                  "Which capabilities does nothing realise?"@en ;
+    dcterms:description             "Capabilities realised neither directly nor through any capability they are composed of or aggregate."@en ;
+    arch:answers                    "One row per capability with no realisation anywhere beneath it."@en ;
+    arch:doesNotProve               "That the enterprise lacks the capability; only that the model does not say what delivers it."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:StrategyDevelopment, am4vp:Completeness ;
+    arch:questionFitsViewpoint      am4vp:CapabilityMapViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Info ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "unrealisedCapabilities" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?capability ?label
+        WHERE {
+          ?capability rdf:type am4:Capability ;
+                      arch:inModel ?model .
+          FILTER NOT EXISTS {
+            ?capability (am4:composedOf|am4:aggregates)* ?part .
+            ?realizer am4:realizes ?part .
+          }
+          OPTIONAL { ?capability skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?label
+    """ ;
+.
+
+am4q:stakeholder-motivation
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/stakeholder-motivation" ;
+    skos:prefLabel                  "What do stakeholders care about?"@en ;
+    dcterms:description             "Stakeholders and the motivation elements (drivers, assessments, goals, outcomes, principles, requirements, values, meanings) they are related to, in either direction."@en ;
+    arch:answers                    "One row per relationship between a stakeholder and a motivation element."@en ;
+    arch:doesNotProve               "Priority. That a stakeholder is associated with a goal does not rank it among their concerns."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ArchitectureMission, am4vp:Motivation ;
+    arch:questionTargetsStakeholder am4vp:BusinessManager, am4vp:EnterpriseArchitect ;
+    arch:questionFitsViewpoint      am4vp:StakeholderViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "stakeholderMotivation" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?stakeholder ?stakeholderLabel ?direction ?predicate ?motivation ?motivationLabel ?motivationType
+        WHERE {
+          VALUES ?predicate { am4:associatedWith am4:influences am4:realizes am4:aggregates am4:composedOf }
+          VALUES ?motivationType {
+            am4:Stakeholder am4:Driver am4:Assessment am4:Goal am4:Outcome
+            am4:Principle am4:Requirement am4:Meaning am4:Value
+          }
+          ?stakeholder rdf:type am4:Stakeholder .
+          { ?stakeholder ?predicate ?motivation . BIND("outgoing" AS ?direction) }
+          UNION
+          { ?motivation ?predicate ?stakeholder . BIND("incoming" AS ?direction) }
+          ?motivation rdf:type ?motivationType .
+          OPTIONAL { ?stakeholder skos:prefLabel ?stakeholderLabel . FILTER(lang(?stakeholderLabel) = "" || langMatches(lang(?stakeholderLabel), "en")) }
+          OPTIONAL { ?motivation skos:prefLabel ?motivationLabel . FILTER(lang(?motivationLabel) = "" || langMatches(lang(?motivationLabel), "en")) }
+        }
+        ORDER BY ?stakeholderLabel ?direction ?motivationLabel
+    """ ;
+.
+
+am4q:requirement-traceability
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/requirement-traceability" ;
+    skos:prefLabel                  "How does each requirement trace to goals and to the elements that realise it?"@en ;
+    dcterms:description             "Requirements with what realises them (downward) and the goals, outcomes and principles they realise or influence (upward), as an edge list."@en ;
+    arch:answers                    "One row per traced link: the requirement, the direction, the predicate and the element at the other end."@en ;
+    arch:doesNotProve               "Verification. A realisation relationship is a design claim; it does not show the requirement is met."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ArchitectureTactics, am4vp:Motivation ;
+    arch:questionTargetsStakeholder am4vp:RequirementsManager, am4vp:BusinessAnalyst ;
+    arch:questionFitsViewpoint      am4vp:RequirementsRealizationViewpoint, am4vp:GoalRealizationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "traceability" ;
+    arch:defaultLimit               1000 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?requirement ?requirementLabel ?direction ?predicate ?other ?otherLabel ?otherType
+        WHERE {
+          ?requirement rdf:type am4:Requirement .
+          {
+            ?other am4:realizes ?requirement .
+            BIND(am4:realizes AS ?predicate)
+            BIND("realised by" AS ?direction)
+          }
+          UNION
+          {
+            VALUES ?predicate { am4:realizes am4:influences }
+            ?requirement ?predicate ?other .
+            BIND("contributes to" AS ?direction)
+          }
+          ?other rdf:type ?otherType .
+          OPTIONAL { ?requirement skos:prefLabel ?requirementLabel . FILTER(lang(?requirementLabel) = "" || langMatches(lang(?requirementLabel), "en")) }
+          OPTIONAL { ?other skos:prefLabel ?otherLabel . FILTER(lang(?otherLabel) = "" || langMatches(lang(?otherLabel), "en")) }
+        }
+        ORDER BY ?requirementLabel ?direction ?otherLabel
+    """ ;
+.
+
+am4q:unrealised-requirements
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/unrealised-requirements" ;
+    skos:prefLabel                  "Which requirements does no architecture element realise?"@en ;
+    dcterms:description             "Requirements realised by no core, strategy or implementation element (realisation by another motivation element does not count)."@en ;
+    arch:answers                    "One row per requirement without a realising design element."@en ;
+    arch:doesNotProve               "That the requirement is unmet; only that the model does not show what meets it."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:ArchitectureTactics, am4vp:Motivation ;
+    arch:questionTargetsStakeholder am4vp:RequirementsManager ;
+    arch:questionFitsViewpoint      am4vp:RequirementsRealizationViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Warning ;
+    arch:requiresDataset            arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "unrealisedRequirements" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?requirement ?label
+        WHERE {
+          ?requirement rdf:type am4:Requirement ;
+                       arch:inModel ?model .
+          FILTER NOT EXISTS {
+            ?realizer am4:realizes ?requirement ;
+                      rdf:type ?realizerType .
+            FILTER NOT EXISTS {
+              { ?realizerType rdfs:subClassOf* am4:MotivationElement }
+          UNION
+          { GRAPH ?ontologyGraph { ?realizerType rdfs:subClassOf* am4:MotivationElement } }
+            }
+          }
+          OPTIONAL { ?requirement skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?label
+    """ ;
+.
+
+am4q:principle-rationale
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/principle-rationale" ;
+    skos:prefLabel                  "What motivates each principle, and what does it constrain?"@en ;
+    dcterms:description             "Principles with the motivation elements they relate to in either direction: drivers and goals behind them, requirements that realise them."@en ;
+    arch:answers                    "One row per relationship between a principle and another element."@en ;
+    arch:doesNotProve               "Compliance. A requirement realising a principle states intent, not that designs follow it."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ArchitecturePolicies, am4vp:Motivation ;
+    arch:questionFitsViewpoint      am4vp:MotivationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "principles" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?principle ?principleLabel ?direction ?predicate ?other ?otherLabel ?otherType
+        WHERE {
+          VALUES ?predicate { am4:realizes am4:influences am4:associatedWith }
+          ?principle rdf:type am4:Principle .
+          { ?principle ?predicate ?other . BIND("outgoing" AS ?direction) }
+          UNION
+          { ?other ?predicate ?principle . BIND("incoming" AS ?direction) }
+          ?other rdf:type ?otherType .
+          OPTIONAL { ?principle skos:prefLabel ?principleLabel . FILTER(lang(?principleLabel) = "" || langMatches(lang(?principleLabel), "en")) }
+          OPTIONAL { ?other skos:prefLabel ?otherLabel . FILTER(lang(?otherLabel) = "" || langMatches(lang(?otherLabel), "en")) }
+        }
+        ORDER BY ?principleLabel ?direction ?otherLabel
+    """ ;
+.
+
+am4q:principles-without-requirements
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/principles-without-requirements" ;
+    skos:prefLabel                  "Which principles has no requirement made concrete?"@en ;
+    dcterms:description             "Principles that no requirement realises."@en ;
+    arch:answers                    "One row per principle with no realising requirement."@en ;
+    arch:doesNotProve               "That the principle is ignored. It may be applied by review rather than through stated requirements."@en ;
+    arch:questionStage              arch:QualityStage ;
+    arch:questionAddressesConcern   am4vp:ArchitecturePolicies ;
+    arch:questionFitsViewpoint      am4vp:MotivationViewpoint ;
+    arch:resultIsFinding            true ;
+    arch:findingSeverity            sh:Info ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "unbackedPrinciples" ;
+    arch:defaultLimit               500 ;
+    sh:parameter [ sh:path archq:model ; sh:name "model" ; sh:class arch:Model ; sh:optional true ; sh:order 1 ;
+                   sh:description "Restrict to one model. In la-gram: the open model; in a deliverable: the model it is produced from."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?principle ?label
+        WHERE {
+          ?principle rdf:type am4:Principle ;
+                     arch:inModel ?model .
+          FILTER NOT EXISTS {
+            ?requirement am4:realizes ?principle ;
+                         rdf:type am4:Requirement .
+          }
+          OPTIONAL { ?principle skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?label
+    """ ;
+.
+
+am4q:work-package-deliverables
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/work-package-deliverables" ;
+    skos:prefLabel                  "What does each work package deliver, and what does that realise?"@en ;
+    dcterms:description             "Work packages, the deliverables they realise and the architecture elements those deliverables realise."@en ;
+    arch:answers                    "One row per work package, deliverable and realised element."@en ;
+    arch:doesNotProve               "Schedule or status. ArchiMate records what a work package produces, not when."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ArchitectureVision, am4vp:ArchitecturePolicies ;
+    arch:questionTargetsStakeholder am4vp:OperationalManager, am4vp:EnterpriseArchitect ;
+    arch:questionFitsViewpoint      am4vp:ProjectViewpoint, am4vp:ImplementationAndMigrationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "workPackages" ;
+    arch:defaultLimit               500 ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?workPackage ?workPackageLabel ?deliverable ?deliverableLabel ?realized ?realizedLabel ?realizedType
+        WHERE {
+          ?workPackage rdf:type am4:WorkPackage ;
+                       am4:realizes ?deliverable .
+          ?deliverable rdf:type am4:Deliverable .
+          OPTIONAL {
+            ?deliverable am4:realizes ?realized .
+            ?realized rdf:type ?realizedType .
+            OPTIONAL { ?realized skos:prefLabel ?realizedLabel . FILTER(lang(?realizedLabel) = "" || langMatches(lang(?realizedLabel), "en")) }
+          }
+          OPTIONAL { ?workPackage skos:prefLabel ?workPackageLabel . FILTER(lang(?workPackageLabel) = "" || langMatches(lang(?workPackageLabel), "en")) }
+          OPTIONAL { ?deliverable skos:prefLabel ?deliverableLabel . FILTER(lang(?deliverableLabel) = "" || langMatches(lang(?deliverableLabel), "en")) }
+        }
+        ORDER BY ?workPackageLabel ?deliverableLabel
+    """ ;
+.
+
+am4q:plateau-difference
+    a                               arch:Question, sh:SPARQLSelectExecutable ;
+    dcterms:identifier              "notation/archimate4/plateau-difference" ;
+    skos:prefLabel                  "What changes between these two plateaus?"@en ;
+    dcterms:description             "Elements a later plateau aggregates or is composed of that an earlier one does not (added), and the reverse (removed)."@en ;
+    arch:answers                    "One row per added or removed element."@en ;
+    arch:doesNotProve               "The migration path. The difference is the gap; the work packages that close it are a separate question."@en ;
+    arch:questionStage              arch:AnalysisStage ;
+    arch:questionAddressesConcern   am4vp:ModelHistory, am4vp:ArchitectureVision ;
+    arch:questionFitsViewpoint      am4vp:MigrationViewpoint ;
+    arch:resultIsFinding            false ;
+    arch:requiresDataset            arch:ModelDataset ;
+    arch:requiresMetamodel          <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                  "plateauChanges" ;
+    arch:defaultLimit               1000 ;
+    sh:parameter [ sh:path archq:from ; sh:name "from" ; sh:nodeKind sh:IRI ; sh:optional false ; sh:order 1 ;
+                   sh:description "The earlier state, e.g. the baseline plateau."@en ] ;
+    sh:parameter [ sh:path archq:to ; sh:name "to" ; sh:nodeKind sh:IRI ; sh:optional false ; sh:order 2 ;
+                   sh:description "The later state, e.g. the target plateau."@en ] ;
+    sh:prefixes                     <https://meta.linked.archi/archimate4/queries#> ;
+    sh:select """
+        SELECT ?change ?element ?label ?type
+        WHERE {
+          {
+            ?from rdf:type am4:Plateau .
+            ?to rdf:type am4:Plateau ;
+                am4:aggregates|am4:composedOf ?element .
+            FILTER NOT EXISTS { ?from am4:aggregates|am4:composedOf ?element }
+            BIND("added" AS ?change)
+          }
+          UNION
+          {
+            ?to rdf:type am4:Plateau .
+            ?from rdf:type am4:Plateau ;
+                  am4:aggregates|am4:composedOf ?element .
+            FILTER NOT EXISTS { ?to am4:aggregates|am4:composedOf ?element }
+            BIND("removed" AS ?change)
+          }
+          FILTER(?from != ?to)
+          ?element rdf:type ?type .
+          OPTIONAL { ?element skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
+        }
+        ORDER BY ?change ?type ?label
+    """ ;
+.
