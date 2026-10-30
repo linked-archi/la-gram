@@ -22,6 +22,10 @@ See [requirements.md](requirements.md). The vocabulary and its rationale are met
 | D13 | la-gram does not rewrite a converted model's viewpoint IRIs; such models are reconverted (decided 2026-10-27) | The converter fix is the source of the right IRIs; a rewrite in one consumer would leave every other consumer of the old files wrong, and hide that they are |
 | D14 | A language's questions are offered for a model that declares conformance to that language (`arch:modelConformsToMetamodel`), or for any model that declares none | ArchiMate 4.0 stays loaded beside ArchiMate 3.2; its questions on a 3.2 model found no `am4:Capability` and answered nothing, which read as "none realised" |
 | D15 | A question asks for a type with its subtypes, read as a two-step type set once per query, and reports the type asked about | ArchiMate 3.2 defines subtypes of its own (`am:Constraint` under `am:Requirement`, `am:Device` under `am:Node`), and a model may specialise a type; a one-step set misses a model's subclass of a language's subtype, and reporting the matched type would repeat a row wherever a supertype is asserted or inferred beside it |
+| D16 | `linked-archi-query` asks a question of the dataset read as one graph: local data from the merge of its graphs, on request per query; an endpoint only when the profile declares `capabilities.union_default_graph`. Templates keep their graph scoping (decided 2026-10-30) | The questions are written and checked for one graph (la-gram, meta's check); converter TriG keeps the model in named graphs and an empty default graph. Asked per query, the strict default that makes a template's missing scope fail loudly stays for everything else. A merge, not pyoxigraph's union: that keeps a triple once per graph holding it |
+| D17 | The converters write direct relationship triples by default (`--no-emit-direct-rel-triples` leaves them out); a question reading them is gated on `direct_rel_triples` (decided 2026-10-30) | The core requires the direct triple always, and 28 of the 55 questions follow relationships along it; without it, "which services does nothing realise?" would list every service. The bundled default profile describes that output, and `linked-archi-qualified` output without them |
+| D18 | A question reading the metamodel is checked when it runs - each `arch:requiresMetamodel` ontology, a viewpoint catalogue, unqualified forms - and refused, naming the published Turtle, when it is not loaded; `linked-archi-query` never fetches it (decided 2026-10-30) | Without it a question answers from type sets of one type and a catalogue of no viewpoints, which reads as an answer. Choosing data is the user's, as everywhere in the package |
+| D19 | A question and a template of one name are one entry with two implementations: the question where the dataset fits it, the template elsewhere; `query render` on named graphs gives the template. A question asking something a template does not takes a name of its own (decided 2026-10-30) | Separate names would leave the analysis skill choosing between two entries for one question. Four core questions first shared a template's name while asking something else, and were renamed after their local names: `core/model-inventory` (the template `core/inventory` reports graphs), `core/missing-definitions` (`core/coverage-gaps` checks a predicate you name), `core/duplicate-labels` (`core/label-collisions` pairs names across models) and `core/architecture-state` (`core/lifecycle` reads notation lifecycle fields) |
 
 **Confirmed:** the question set files and namespaces —
 `core/core-questions.ttl` → `https://meta.linked.archi/core-questions#` (`archq:`) and
@@ -194,7 +198,8 @@ directions (skipped when it cannot be fetched). Converted models are reconverted
    arch:inModel ?model`) — what `arch:templateRequiresViewpoint` was meant for.
 6. `arch:sectionQuery` keeps working, so the ArchiMate 3.2, core and framework templates are unchanged.
 
-**meta:** the ArchiMate 4.0 templates rewritten from `archimate4-deliverable-templates.proposed.ttl` — the names
+**meta:** the ArchiMate 4.0 templates rewritten from `archimate4-deliverable-templates.proposed.ttl`, and the 3.2 templates
+(`archimate3.2-deliverable-templates.ttl`) the same way with the 3.2 questions — the names
 `arch:ModelQuestion` and `am4q:`, no `owl:Ontology` (metadata on the first template), no history wording — with
 sections for ARS and APD, a "Quality of this description" appendix of the quality findings, and an ArchiMate 4.0
 Change Impact Assessment taking `?focus` (optional plateaus `?from`, `?to`). Docgen's template page links each
@@ -203,19 +208,41 @@ section's questions to their Question Set page.
 **Check:** generate each template from meta's questions example model; the output compared with a golden file, and
 every question a section asks either answered or reported as not asked.
 
-## linked-archi-query (phase 7)
+## linked-archi-query (phase 7, done)
 
-D10: the RDF question sets are the source of truth. `la-query --catalog` reads a TTL question set as catalogue
-entries: name `dcterms:identifier`, purpose `dcterms:description` and the question, `answers` / `does_not_prove`,
-`stage`, parameters from `sh:parameter` (`?focus` ↔ `FOCUS_IRI`, …), `requires` from `arch:requiresDataset` — plus
-what only RDF has: concerns, stakeholders, viewpoints, findings and their severity. The core set and the ArchiMate sets
-(4.0, 3.2) are read from the published sets; the role-based `.rq` templates remain for other dataset profiles, under the same
-identifiers. The new identifiers (`core/unpresented`, `core/viewpoint-conformance`, `core/viewpoint-scope`,
-`core/views-with-unknown-viewpoint`, the 20 `notation/archimate4/*`, the 3.2 set's `notation/archimate/*`) come with
-them; `notation/archimate/layer-crossing` is the 3.2 set's question, and `notation/archimate4/cross-domain-relationships`
-its ArchiMate 4.0 counterpart; `linked-archi-analyse` selects questions
-by concern (`arch:questionAddressesConcern`), the selection a deliverable section makes. A check runs every
-catalogue entry read from RDF on meta's example model and compares the answers with `QuestionRunner`'s.
+D10: the RDF question sets are the source of truth. The catalogue reads them as entries (`questions.py`):
+
+- **Sources.** The core, ArchiMate 4.0 and 3.2 sets are copied from meta into `assets/questions/`, with an index
+  `catalog list` reads without an RDF library; `make questions` refreshes both, and a test fails when they disagree.
+  A project's own set joins with `--catalog questions.ttl` (pyoxigraph), under a project namespace.
+- **Fields.** Name `dcterms:identifier`; purpose the label (the question); `answers`, `does_not_prove`, stage; one
+  IRI parameter per `sh:parameter` named after its core property (`arch:focus` ↔ `FOCUS_IRI`, `arch:conceptType` ↔
+  `TYPE_IRI`, …; `sh:optional` may be left unset); `LIMIT` from `arch:defaultLimit`; plus what only RDF has:
+  concerns, stakeholders, viewpoints, finding focus and severity. A question is built as la-gram and meta's
+  check build it: the set's prefixes, `VALUES` at the outermost `WHERE` group.
+- **Implementations** (D19). 55 entries, 9 sharing a name with a template (`Q+T`). `query run` asks the
+  question where the dataset fits it and the template elsewhere; the envelope's `implementation`, `question`,
+  `default_graph` and `finding` say which answered and how.
+- **One graph** (D16). `la-connect` takes `default_graph: "union"` per query and answers local data from a merged copy,
+  built once per process; an endpoint refuses it.
+- **Requirements** (D17, D18). Read from the query: a published unqualified predicate needs `direct_rel_triples`
+  (28 questions), `rdf:reifies` `rdf_reifies`, `arch:inModel` `part_of_model_edge`; a refusal says what lifts it. A
+  question declaring `arch:ModelAndMetamodelDataset` runs its ASKs first, in the same call; a failed one refuses
+  it, naming the published Turtle, or hands it to its template. A notation question is gated on its one required
+  ontology, as a notation template is: ArchiMate 4.0's questions on a profile that speaks only 3.2 are refused.
+- **By concern.** `catalog concerns`, `--concern` on `catalog list` and `dump`, and `la-analyse plan --concern`, which
+  plans the questions informing a concern in stage order, between orientation and provenance — the selection a
+  deliverable section makes — leaving out, with a note, a language the profile does not declare.
+
+**Check.** `tests/test_questions.py` asks every case of meta's two expected files through `render` and `la-connect`,
+on the flattened example (as meta checks it) and on the example in converter graphs read as one graph: all agree with
+`QuestionRunner`'s expectations. Every question renders read-only with all and
+with required parameters. linked-archi-apm: 979 tests, `make check` and the strict docs build pass.
+
+**Default profile** (linked-archi-apm 0.10.0). The fixtures are re-extracted from current converter output, so they
+carry the direct triples and their `rdf:reifies` bridges; `linked-archi-default` claims `direct_rel_triples` and a
+`partial` `rdf_reifies` (a class publishing no unqualified predicate, BPMN's flows among them, has neither), and
+`linked-archi-qualified` describes output without them, refusing what follows them.
 
 ## ArchiMate 3.2 and specialisations (phase 8, done)
 

@@ -28,7 +28,9 @@
     dcterms:title                      "Linked.Archi ArchiMate 3.2 Ontology"@en ;
     dcterms:description                '''Linked.Archi ArchiMate ontology aligned to the ArchiMate 3.2 specification,
 modernized to conform to Linked.Archi core ontology conventions, the qualified relationship
-pattern, and RDF 1.2. This is not an official Open Group document.'''@en ;
+pattern, and RDF 1.2. Each relationship class has as its skos:notation the letter the relationship
+tables of Appendix B write it with (c composition, r realization, v serving …). This is not an
+official Open Group document.'''@en ;
     dcterms:abstract              '''Linked.Archi ArchiMate ontology based on the ArchiMate 3.2 specification.
 Represents ArchiMate elements, relationship types (using the three-declaration qualified
 relationship pattern), and composite/connector concepts as RDF/OWL. Version 3.2 modernizes
@@ -1083,6 +1085,7 @@ be satisfied.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :composedOf ;
     skos:prefLabel       "Composition"@en ;
+    skos:notation        "c" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Composition-Relationship> ;
     skos:definition      '''A composition relationship indicates that an element consists of one or more other
 elements. The contained element exists only within the context of the container.'''@en ;
@@ -1122,6 +1125,7 @@ ex:qr-001 a am:Composition ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :aggregates ;
     skos:prefLabel       "Aggregation"@en ;
+    skos:notation        "g" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Aggregation-Relationship> ;
     skos:definition      '''An aggregation relationship indicates that an element combines one or more other elements.
 Unlike composition, the aggregated element can exist independently.'''@en ;
@@ -1162,6 +1166,7 @@ execution.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :assignedTo ;
     skos:prefLabel       "Assignment"@en ;
+    skos:notation        "i" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Assignment-Relationship> ;
     skos:definition      '''An assignment relationship indicates the allocation of responsibility, performance of
 behavior, storage, or execution.'''@en ;
@@ -1202,6 +1207,7 @@ or operation of a more abstract entity.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :realizes ;
     skos:prefLabel       "Realization"@en ;
+    skos:notation        "r" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Realization-Relationship> ;
     skos:definition      '''A realization relationship indicates that an entity plays a critical role in the creation,
 achievement, sustenance, or operation of a more abstract entity.'''@en ;
@@ -1246,6 +1252,7 @@ ex:qr-004 a am:Realization ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :serves ;
     skos:prefLabel       "Serving"@en ;
+    skos:notation        "v" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Serving-Relationship> ;
     skos:definition      '''A serving relationship indicates that an element provides its functionality to another
 element.'''@en ;
@@ -1287,6 +1294,7 @@ ex:qr-005 a am:Serving ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :accesses ;
     skos:prefLabel       "Access"@en ;
+    skos:notation        "a" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Access-Relationship> ;
     skos:definition      '''An access relationship indicates that a behavior element may access a business or data
 object. Its subclasses say the kind of access — am:ReadAccess, am:WriteAccess, am:ReadWriteAccess; an
@@ -1362,6 +1370,7 @@ element.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :influences ;
     skos:prefLabel       "Influence"@en ;
+    skos:notation        "n" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Influence-Relationship> ;
     skos:definition      '''An influence relationship indicates that an element affects the implementation or
 achievement of some motivation element. The influenceStrength property specifies the degree.'''@en ;
@@ -1406,6 +1415,7 @@ ex:qr-007 a am:Influence ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :triggers ;
     skos:prefLabel       "Triggering"@en ;
+    skos:notation        "t" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Triggering-Relationship> ;
     skos:definition      '''A triggering relationship indicates a temporal or causal relationship between
 elements.'''@en ;
@@ -1444,6 +1454,7 @@ ex:qr-008 a am:Triggering ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :flowsTo ;
     skos:prefLabel       "Flow"@en ;
+    skos:notation        "f" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Flow-Relationship> ;
     skos:definition      '''A flow relationship indicates transfer from one element to another.'''@en ;
     arch:domainIncludes  arch:Element ;
@@ -1486,6 +1497,7 @@ ex:qr-009 a am:Flow ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :specializes ;
     skos:prefLabel       "Specialization"@en ;
+    skos:notation        "s" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Specialization-Relationship> ;
     skos:definition      '''A specialization relationship indicates that an element is a particular kind of another
 element.'''@en ;
@@ -1525,6 +1537,7 @@ ArchiMate relationship.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :associatedWith ;
     skos:prefLabel       "Association"@en ;
+    skos:notation        "o" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Association-Relationship> ;
     skos:definition      '''An association relationship indicates an unspecified relationship, or one that is not
 represented by another ArchiMate relationship.'''@en ;

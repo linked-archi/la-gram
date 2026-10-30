@@ -33,7 +33,9 @@ Motivation, Implementation & Migration). Behavior elements that were previously
 duplicated per layer (e.g., BusinessProcess, ApplicationProcess, TechnologyProcess) are
 merged into single cross-domain elements (Process, Function, Event, Service). New Common
 Domain elements (Role, Collaboration, Path) are introduced as generic, domain-independent
-concepts. This is not an official Open Group document.'''@en ;
+concepts. Each relationship class has as its skos:notation the letter the relationship tables of
+the specification write it with (c composition, r realization, v serving …). This is not an
+official Open Group document.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
     dcterms:issued                "2026-04-29"^^xsd:date ;
     dcterms:modified              "2026-10-10"^^xsd:date ;
@@ -992,6 +994,7 @@ In order to support this, the plateau element is defined.'''@en ;
     rdfs:subClassOf      :Aggregation ;
     arch:unqualifiedForm :composedOf ;
     skos:prefLabel       "Composition"@en ;
+    skos:notation        "c" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship>,
@@ -1027,6 +1030,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :aggregates ;
     skos:prefLabel       "Aggregation"@en ;
+    skos:notation        "g" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship>,
@@ -1065,6 +1069,7 @@ execution.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :assignedTo ;
     skos:prefLabel       "Assignment"@en ;
+    skos:notation        "i" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Assignment-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Assignment-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Assignment-Relationship>,
@@ -1105,6 +1110,7 @@ or operation of a more abstract entity.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :realizes ;
     skos:prefLabel       "Realization"@en ;
+    skos:notation        "r" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Realization-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Realization-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Realization-Relationship>,
@@ -1148,6 +1154,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :serves ;
     skos:prefLabel       "Serving"@en ;
+    skos:notation        "v" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship>,
@@ -1182,6 +1189,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :accesses ;
     skos:prefLabel       "Access"@en ;
+    skos:notation        "a" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship>,
@@ -1258,6 +1266,7 @@ element.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :influences ;
     skos:prefLabel       "Influence"@en ;
+    skos:notation        "n" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship>,
@@ -1297,6 +1306,7 @@ resource. The Influence resource carries the influenceStrength (+, ++, -, --).''
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :triggers ;
     skos:prefLabel       "Triggering"@en ;
+    skos:notation        "t" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship>,
@@ -1331,6 +1341,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :flowsTo ;
     skos:prefLabel       "Flow"@en ;
+    skos:notation        "f" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship>,
@@ -1370,6 +1381,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :specializes ;
     skos:prefLabel       "Specialization"@en ;
+    skos:notation        "s" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Specialization-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Specialization-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Specialization-Relationship>,
@@ -1407,6 +1419,7 @@ ArchiMate relationship.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :associatedWith ;
     skos:prefLabel       "Association"@en ;
+    skos:notation        "o" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship>,

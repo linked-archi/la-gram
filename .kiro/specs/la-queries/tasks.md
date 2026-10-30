@@ -61,16 +61,22 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [ ] la-generate: the context per question (label, answers, does not prove, finding, severity, rows); "none found" for an empty finding
 - [ ] la-generate: embed the views that follow the section's viewpoint (Req 13.3); `arch:sectionQuery` unchanged (Req 13.4)
 - [ ] meta: the ArchiMate 4.0 templates from the draft — new names, published layout, ARS and APD sections, the quality appendix, a Change Impact Assessment taking `?focus` (Req 13.2)
+- [ ] meta: the ArchiMate 3.2 templates the same way, asking the 3.2 questions (`amq:`) — most models, converted from exchange files, are 3.2 (Req 13.2)
 - [ ] meta docgen: a section's questions linked to their Question Set page
 - [ ] Golden outputs from meta's example model (Req 13.5); la-generate's README
 
-## 7. linked-archi-query — planned (D10 decided)
+## 7. linked-archi-query — done 2026-10-30
 
-- [ ] `la-query --catalog` reads TTL question sets as entries; the field mapping of design § linked-archi-query (Req 15.1)
-- [ ] The core, ArchiMate 4.0 and 3.2 sets read from the published files; role-based templates kept for other profiles under their identifiers (Req 15.2)
-- [ ] The new identifiers; `notation/archimate/layer-crossing` answered by the 3.2 set's question (layers from the layer classes, not type names), `cross-domain-relationships` for ArchiMate 4.0
-- [ ] `linked-archi-analyse`: questions selected by concern (Req 15.3)
-- [ ] A check: entries read from RDF answer meta's example model as `QuestionRunner` does (Req 15.4)
+- [x] Decisions D16–D19: the one-graph reading, direct triples by default, the metamodel checked when a question runs, one name with two implementations
+- [x] Converters: `--emit-direct-rel-triples` on by default, negatable, in every converter; BPMN reports flows reaching no predicate only when the flag is named; docs, changelog; 1 457 tests pass; the jars rebuilt (D17)
+- [x] `la-connect`: `default_graph: "union"` per query (`default_graphs` in `execute-many`), local data answered from a merged copy, an endpoint refusing; the reading echoed in the result (D16)
+- [x] `la-query`: the bundled sets and their index (`make questions`), `--catalog questions.ttl`, the field mapping of design § linked-archi-query (Req 15.1)
+- [x] One entry, two implementations; `catalog show` and `dump` say which runs where (Req 15.2, D19)
+- [x] Requirements read from the query, with remedies; metamodel ASKs run in the same call, refusing or handing to the template (D17, D18)
+- [x] `catalog concerns`, `--concern`; `la-analyse plan --concern` (Req 15.3)
+- [x] `tests/test_questions.py`: every case of meta's two expected files, flattened and in converter graphs (Req 15.4); profile reference (`union_default_graph`), skill docs, template and machine contracts, changelog, docs site
+- [x] Four core questions named apart from the templates whose names they shared: `core/model-inventory`, `core/missing-definitions`, `core/duplicate-labels`, `core/architecture-state`, after their local names; `make questions`
+- [x] The default profile and fixtures (linked-archi-apm 0.10.0): fixtures re-extracted from current converter output, direct triples and their bridges included; `linked-archi-default` claims `direct_rel_triples` and a `partial` `rdf_reifies`; `linked-archi-qualified` describes output without them; `linked-archi-direct` deprecated; `la-analyse` takes `PREDICATE_PATH` from `core/reified-predicates`
 
 ## 8. ArchiMate 3.2 questions, and specialisations — done 2026-10-27
 

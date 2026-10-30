@@ -228,9 +228,12 @@ deliverables ask, chosen by concern.
 
 1. `la-query` reads a question set as catalogue entries, with their concerns, stakeholders, viewpoints and findings
 2. The RDF question is the source of truth (D10); a role-based template for another dataset layout keeps its
-   `dcterms:identifier`
+   `dcterms:identifier`, and the entry runs the question where the dataset fits it (D19)
 3. `linked-archi-analyse` selects questions by concern
 4. Entries read from RDF answer meta's example model as `QuestionRunner` does
+5. A question is asked of the dataset read as one graph, or refused where that cannot be done (D16)
+6. A question whose data or metamodel the dataset lacks is refused, saying what lifts it, rather than answered (D17,
+   D18)
 
 ### Requirement 13 (later): Deliverable sections ask questions
 
@@ -240,8 +243,8 @@ deliverables ask, chosen by concern.
 
 1. Template sections ask questions with `arch:sectionAsks`; a generator binds `?model`, `?viewpoint` and the template
    parameters, reports a question it could not ask, and states an empty finding as "none found"
-2. The ArchiMate 4.0 templates are reworked once `la-generate` supports this, keeping the published layout (metadata on
-   the first template, no `owl:Ontology`)
+2. The ArchiMate 4.0 and 3.2 templates are reworked once `la-generate` supports this, each asking its version's
+   questions, keeping the published layout (metadata on the first template, no `owl:Ontology`)
 3. A section embeds the model's views that follow its viewpoint
 4. Templates with `arch:sectionQuery` keep working
 5. Generated from meta's example model, every template's output matches its golden file
