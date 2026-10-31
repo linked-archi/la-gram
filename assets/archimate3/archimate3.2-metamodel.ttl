@@ -141,7 +141,8 @@ contexts into a single discoverable resource.'''@en ;
     ## File: archimate3.2-deliverable-templates.ttl
     arch:hasDeliverableTemplate   amdt:ArchitectureDefinitionDocument,
                                   amdt:ArchitectureRequirementsSpec,
-                                  amdt:ArchitecturePrinciplesDocument ;
+                                  amdt:ArchitecturePrinciplesDocument,
+                                  amdt:ChangeImpactAssessment ;
 
     ## Model questions: what ArchiMate 3.2 stakeholders ask of a model
     ## File: archimate3.2-questions.ttl

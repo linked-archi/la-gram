@@ -138,7 +138,8 @@ into a single discoverable resource.'''@en ;
     ## File: archimate4-deliverable-templates.ttl
     arch:hasDeliverableTemplate   am4dt:ArchitectureDefinitionDocument,
                                   am4dt:ArchitectureRequirementsSpec,
-                                  am4dt:ArchitecturePrinciplesDocument ;
+                                  am4dt:ArchitecturePrinciplesDocument,
+                                  am4dt:ChangeImpactAssessment ;
 
     ## Model questions: what ArchiMate 4.0 stakeholders ask of a model
     ## File: archimate4-questions.ttl

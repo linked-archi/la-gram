@@ -26,6 +26,15 @@ See [requirements.md](requirements.md). The vocabulary and its rationale are met
 | D17 | The converters write direct relationship triples by default (`--no-emit-direct-rel-triples` leaves them out); a question reading them is gated on `direct_rel_triples` (decided 2026-10-30) | The core requires the direct triple always, and 28 of the 55 questions follow relationships along it; without it, "which services does nothing realise?" would list every service. The bundled default profile describes that output, and `linked-archi-qualified` output without them |
 | D18 | A question reading the metamodel is checked when it runs - each `arch:requiresMetamodel` ontology, a viewpoint catalogue, unqualified forms - and refused, naming the published Turtle, when it is not loaded; `linked-archi-query` never fetches it (decided 2026-10-30) | Without it a question answers from type sets of one type and a catalogue of no viewpoints, which reads as an answer. Choosing data is the user's, as everywhere in the package |
 | D19 | A question and a template of one name are one entry with two implementations: the question where the dataset fits it, the template elsewhere; `query render` on named graphs gives the template. A question asking something a template does not takes a name of its own (decided 2026-10-30) | Separate names would leave the analysis skill choosing between two entries for one question. Four core questions first shared a template's name while asking something else, and were renamed after their local names: `core/model-inventory` (the template `core/inventory` reports graphs), `core/missing-definitions` (`core/coverage-gaps` checks a predicate you name), `core/duplicate-labels` (`core/label-collisions` pairs names across models) and `core/architecture-state` (`core/lifecycle` reads notation lifecycle fields) |
+| D20 | la-generate reads the question sets and metamodel documents from the files it is given (`--data`) and fetches nothing; a question whose documents are missing is reported as not asked, naming the published Turtle (decided 2026-10-30) | As D18 for linked-archi-query: choosing data is the user's. A deliverable that silently fetched would differ by network |
+| D21 | A section lists the model's views that follow its viewpoint, with the elements each shows (`arch:inView`), and embeds a view's image only where the model links one (`schema:image`); drawing a view from its geometry is later (decided 2026-10-30) | The converters write no images and meta's examples no geometry; a listing is right for every model today |
+| D22 | ArchiMate 3.2 has the same four templates as 4.0, the Change Impact Assessment included, asking the 3.2 questions; its sections ask the core `viewpoint-scope`, as 3.2 has none of its own (decided 2026-10-30) | Most models, converted from exchange files, are 3.2. 3.2's layers need no common-domain rule, which is all 4.0's own `viewpoint-scope` adds |
+| D23 | The golden files are la-generate's: each template of both versions generated from meta's questions example as Markdown, compared byte for byte; `syncMeta` copies the documents they read (decided 2026-10-30) | The generator's output is what is checked, so the check lives with it; HTML renders the same context. A meta change reaches the golden files through a reviewed sync |
+| D24 | When nothing is `arch:inModel` the deliverable's model, the questions bound to `?model` are reported as not asked, not answered (2026-10-30) | Such a model (one stating membership with `dcterms:isPartOf`, as older converter output does, or none at all, as meta's NordFreight example did until D28) answered every one of them "none found", a false all-clear |
+| D25 | The rewritten templates name no layout (`arch:templateResource`); la-generate renders a template that asks questions with its own layouts, and never with the layouts it bundles for section-query columns (2026-10-30) | meta publishes no layout files, so the names pointed nowhere; a question section carries what a layout needs (label, rows, caveat, status) |
+| D26 | In a template whose sections ask questions, a section that asks none and has no query presents its viewpoint, concerns and views (2026-10-31) | It printed "No elements found" — a query section's line — without its viewpoint or views; the core templates have sections only a language's questions could answer |
+| D27 | The core templates ask the core questions, keeping their sections and viewpoints; a section none of them answers (stakeholders, process, interface, deployment, decisions, roadmap) presents its views (2026-10-31) | They asked nothing and produced a title alone; the core questions are what is known of a model in any language |
+| D28 | Every relationship is written as its direct triple, qualified predicate and resource; a graph trimmed to direct triples is a projection for traversal, not a model the questions are asked of (2026-10-31) | One shape for converters and modelling tools; the core questions read the resources, so a direct-only model answered falsely (every element an orphan). meta's guides, the relationship guide's §5 and NordFreight now follow core |
 
 **Confirmed:** the question set files and namespaces —
 `core/core-questions.ttl` → `https://meta.linked.archi/core-questions#` (`archq:`) and
@@ -181,32 +190,44 @@ nothing defines, and two (Application Structure, Value Stream) were not recognis
 names, and `ArchiMateViewpointTest` checks what the converter claims against the published catalogue in both
 directions (skipped when it cannot be fetched). Converted models are reconverted (D13).
 
-## Deliverables (phase 6)
+## Deliverables (phase 6, done)
 
-**la-generate** (Kotlin, RDF4J; reads `arch:DeliverableTemplate`, runs `arch:sectionQuery`, renders Handlebars):
+**la-generate 0.2.0** (Kotlin, RDF4J 6.1, Java 25; `tools/generators/la-generate`):
 
-1. RDF4J 6.1 (and Java 25, as meta): `relationship-integrity` uses RDF 1.2 triple terms, which 5.1 cannot parse.
-2. Load the question sets with the templates: the core set always, a language's through its manifest's
-   `arch:hasQuestionSet`, into named graphs as la-gram does.
-3. `arch:sectionAsks` (an `rdf:List`): ask each question in order, pre-binding with `VALUES` exactly as meta's
-   `QuestionRunner` and la-gram do — `?model` the deliverable's model, `?viewpoint` the section's
-   `arch:sectionViewpoint`, the `arch:templateParameter` values. One whose required parameter stays unbound is
-   reported as not asked, never run unbound.
-4. Context: `sections.<sectionResultKey>.<question resultKey> = { label, answers, doesNotProve, isFinding, severity,
-   rows }`; a finding with no rows renders as "none found" with the concern it meets, never as an empty table.
-5. Embed the model's views that follow the section's viewpoint (`?view arch:viewConformsToViewpoint ?viewpoint ;
-   arch:inModel ?model`) — what `arch:templateRequiresViewpoint` was meant for.
-6. `arch:sectionQuery` keeps working, so the ArchiMate 3.2, core and framework templates are unchanged.
+1. Data: `--data` files (Turtle, TriG, N-Quads, N-Triples), read as one graph — every triple in the default
+   graph, once (D16's reading). The template file is read apart, so its triples never reach a section query.
+   With `--endpoint`, the endpoint is the data and the files only supply definitions.
+2. Parameters: each `arch:templateParameter` binds its `sh:path`'s local name; `--param name=IRI`, which must
+   occur in the data. A required one without a value stops the run, except `?model`: the data's only
+   `arch:Model`. When nothing is `arch:inModel` the model, questions bound to `?model` are not asked (D24).
+3. `arch:sectionAsks`, in list order: `?viewpoint` from the section, the rest from the template, as `VALUES`
+   at the outermost WHERE (la-gram, la-query and meta's `QuestionRunner` send the same text); the metamodel
+   probed as linked-archi-query probes (D18, D20); `LIMIT` one past `arch:defaultLimit`, so a cut-off answer
+   says so. Not asked, with the reason: a required parameter unbound, a set not loaded, a metamodel missing.
+4. Context, per section: `viewpoint`, `concerns`, `views` (D21) and `questions`; per question: `label`,
+   `description`, `answers`, `doesNotProve`, `isFinding`, `severity`, `status` (`answered`, `none-found`,
+   `empty`, `not-asked`), `reason`, raw `columns`/`rows`, and `displayColumns`/`displayRows` — an IRI by its
+   label (any language when there is no English or untagged one), a label column folded into its IRI's, a
+   relationship without a name by its type. Also under `sectionResultKey`, each question under its
+   `arch:resultKey`. A question asked again by a later section is marked `repeated`.
+5. Layouts: bundled `questions.hbs` and `questions-html.hbs` (D25); a finding with no rows reads
+   "**None found** — <concerns>".
+6. `arch:sectionQuery` unchanged: 292 outputs of 55 templates (meta's and the playground's, every fallback
+   format and playground layout) byte-identical to 0.1.0's.
 
-**meta:** the ArchiMate 4.0 templates rewritten from `archimate4-deliverable-templates.proposed.ttl`, and the 3.2 templates
-(`archimate3.2-deliverable-templates.ttl`) the same way with the 3.2 questions — the names
-`arch:ModelQuestion` and `am4q:`, no `owl:Ontology` (metadata on the first template), no history wording — with
-sections for ARS and APD, a "Quality of this description" appendix of the quality findings, and an ArchiMate 4.0
-Change Impact Assessment taking `?focus` (optional plateaus `?from`, `?to`). Docgen's template page links each
-section's questions to their Question Set page.
+**meta:** the ArchiMate 4.0 and 3.2 templates rewritten from the draft — `arch:ModelQuestion` IRIs (`archq:`,
+`am4q:`, `amq:`), no `owl:Ontology` (metadata on the first template), no history wording, no
+`arch:templateResource` (D25), core purposes (`archvp:`). Four templates each: ADD (8 sections, the roadmap
+and the quality appendix included), ARS (3), APD (2), Change Impact Assessment (3; `?focus` required,
+`?from`/`?to` optional). 3.2 keeps its published section names and result keys; its sections ask
+`archq:viewpoint-scope` (D22) and `amq:elements-by-layer` / `amq:cross-layer-relationships`. Both
+manifests list the Change Impact Assessment. Docgen's template page lists what a template is produced for,
+and each section's concerns and questions in order, a question linked to its entry on its Question Set page.
 
-**Check:** generate each template from meta's questions example model; the output compared with a golden file, and
-every question a section asks either answered or reported as not asked.
+**Check:** `GoldenTest` generates the four templates of each version from meta's questions example
+(`--param focus=:crm`, the two plateaus for the Change Impact Assessment) and compares the Markdown with
+`src/test/resources/golden/`; every question a section asks must be asked. `./gradlew syncMeta` copies the
+documents read; `-Pgolden.update=true` rewrites the files.
 
 ## linked-archi-query (phase 7, done)
 

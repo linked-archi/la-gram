@@ -19,7 +19,7 @@ The core already has every 42010 term needed (`arch:Concern`, `arch:Stakeholder`
 | `core-question-terms.ttl` | merge into `linked-archi-meta/core/core-onto.ttl` | `arch:Question` and its properties, the shared stage scheme, and section additions (`arch:sectionAsks`, `arch:sectionAddressesConcern`, `arch:templateParameter`) |
 | `core-queries.ttl` | `linked-archi-meta/core/` → `https://meta.linked.archi/core-queries#` (`archq:`) | 15 questions that work for any notation |
 | `archimate4-queries.ttl` | `modelingLanguages/archimate/4.0/` → `https://meta.linked.archi/archimate4/queries#` (`am4q:`) | 20 ArchiMate 4.0 questions bound to the viewpoint concerns |
-| `archimate4-deliverable-templates.proposed.ttl` | replaces `archimate4-deliverable-templates.ttl` | Reworked templates where sections answer concerns |
+| `archimate4-deliverable-templates.proposed.ttl` (removed: meta's `archimate4-deliverable-templates.ttl` replaced it) | replaces `archimate4-deliverable-templates.ttl` | Reworked templates where sections answer concerns |
 | `la-gram/src/model-manager/example-queries.ts` | la-gram | Reads questions from the store; pre-binds parameters; builds the runnable query |
 | `la-gram/src/model-manager/__tests__/example-queries.test.ts` | la-gram | Runs all 35 questions on la-gram's Oxigraph against the bundled ArchiMate 4 metamodel and a fixture model, and checks each finding question catches its culprit |
 

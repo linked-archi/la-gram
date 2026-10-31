@@ -53,17 +53,24 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [x] ADR 0006 and the changelog say so
 - [x] la-gram does not rewrite old IRIs; converted models are reconverted (D13, Req 14.3)
 
-## 6. Deliverables (la-generate, then meta) — planned
+## 6. Deliverables (la-generate, then meta) — done 2026-10-30
 
-- [ ] la-generate: RDF4J 6.1 and Java 25
-- [ ] la-generate: load the question sets (core; a language's through `arch:hasQuestionSet`), in named graphs
-- [ ] la-generate: `arch:sectionAsks` — ask in order, `VALUES` pre-binding (`?model`, the section's `?viewpoint`, `arch:templateParameter`), not-asked reported (Req 13.1)
-- [ ] la-generate: the context per question (label, answers, does not prove, finding, severity, rows); "none found" for an empty finding
-- [ ] la-generate: embed the views that follow the section's viewpoint (Req 13.3); `arch:sectionQuery` unchanged (Req 13.4)
-- [ ] meta: the ArchiMate 4.0 templates from the draft — new names, published layout, ARS and APD sections, the quality appendix, a Change Impact Assessment taking `?focus` (Req 13.2)
-- [ ] meta: the ArchiMate 3.2 templates the same way, asking the 3.2 questions (`amq:`) — most models, converted from exchange files, are 3.2 (Req 13.2)
-- [ ] meta docgen: a section's questions linked to their Question Set page
-- [ ] Golden outputs from meta's example model (Req 13.5); la-generate's README
+- [x] la-generate: RDF4J 6.1, Java 25, Kotlin 2.3, Gradle 9.6; TriG, N-Quads and N-Triples read as one graph; `--data`, `--param`
+- [x] la-generate: a baseline of every section-query template first — 292 outputs byte-identical after the move
+- [x] la-generate: question sets from the files given (D20); `arch:sectionAsks` asked in order with `VALUES` pre-binding; metamodel probes; not asked reported with the reason (Req 13.1)
+- [x] la-generate: the context per question, display rows, "none found" for an empty finding; bundled Markdown and HTML layouts (D25)
+- [x] la-generate: the views that follow the section's viewpoint, with their elements (Req 13.3, D21); `arch:sectionQuery` unchanged (Req 13.4)
+- [x] la-generate: questions bound to `?model` not asked when nothing is `arch:inModel` the model (D24)
+- [x] meta: the ArchiMate 4.0 templates from the draft — published IRIs, ARS and APD sections, the quality appendix, a Change Impact Assessment taking `?focus` (Req 13.2); in the manifest
+- [x] meta: the ArchiMate 3.2 templates the same way, asking the 3.2 questions, with a Change Impact Assessment (Req 13.2, D22); in the manifest
+- [x] meta docgen: a template's parameters, and each section's concerns and questions, linked to their Question Set entries (built in a scratch copy)
+- [x] meta docs: Deliverable Templates and Deliverable Generator Spec rewritten; the ArchiMate 4.0 and 3.2 guides' template sections
+- [x] Golden outputs from meta's questions examples, Markdown, in la-generate's tests (Req 13.5, D23); unit tests (20 in all); README, CHANGELOG
+- [x] la-gram: the two ArchiMate manifests synced with the Change Impact Assessment line (meta b823d39); bundle rebuilt
+- [x] la-generate: a section that asks nothing presents its viewpoint, concerns and views (D26); golden files of the core templates; 22 tests
+- [x] meta: the core templates ask the core questions (D27), without an `owl:Ontology` header, their formats without layouts that do not exist; core's template vocabulary defines a deliverable as produced from a model; `arch:templateResource` on a template or a format
+- [x] meta: every relationship qualified (D28) — core, the relationship guide and both ArchiMate guides agree; NordFreight with `arch:inModel` on its 40 elements and views and a resource for each of its 35 relationships (the 4.0 relationship shapes report clean); its Architecture Definition Document asks every question
+- [x] meta docgen: an ontology that also holds viewpoints or a concept scheme is documented by WIDOCO — the core ontology, and four extension ontologies (built in a scratch copy)
 
 ## 7. linked-archi-query — done 2026-10-30
 

@@ -235,7 +235,7 @@ deliverables ask, chosen by concern.
 6. A question whose data or metamodel the dataset lacks is refused, saying what lifts it, rather than answered (D17,
    D18)
 
-### Requirement 13 (later): Deliverable sections ask questions
+### Requirement 13: Deliverable sections ask questions
 
 **User Story:** As an architect, I want a deliverable whose sections answer their concerns and state their findings.
 
@@ -245,6 +245,7 @@ deliverables ask, chosen by concern.
    parameters, reports a question it could not ask, and states an empty finding as "none found"
 2. The ArchiMate 4.0 and 3.2 templates are reworked once `la-generate` supports this, each asking its version's
    questions, keeping the published layout (metadata on the first template, no `owl:Ontology`)
-3. A section embeds the model's views that follow its viewpoint
+3. A section lists the model's views that follow its viewpoint, with the elements each shows, and embeds a view's
+   image where the model links one
 4. Templates with `arch:sectionQuery` keep working
 5. Generated from meta's example model, every template's output matches its golden file
