@@ -77,8 +77,8 @@ am4q:impact-of-change
 | `archq:model-inventory` | What does the model contain? | orientation | listing | ?model? | — | any | `core/inventory` |
 | `archq:elements-of-type` | Which elements are of this type? | resolution | listing | ?type?, ?model? | — | any | `core/elements-by-type` |
 | `archq:element-detail` | What is recorded about this element? | resolution | listing | ?focus | — | any | `core/element-detail` |
-| `archq:neighbours` | What is this element directly related to? | analysis | listing | ?focus | DependencyConcern | any | `core/neighbours-qualified` |
-| `archq:reaches-in-two-hops` | What reaches this element within two hops? | analysis | listing | ?focus | DependencyConcern | any | `core/dependents-qualified` |
+| `archq:neighbours` | What is this element directly related to? | analysis | listing | ?focus | DependencyConcern | any | `core/neighbours` |
+| `archq:reaches-in-two-hops` | What reaches this element within two hops? | analysis | listing | ?focus | DependencyConcern | any | `core/dependents` |
 | `archq:orphans` | Which elements take part in no relationship? | quality | finding (Info) | ?model? | QualityConcern | any | `core/orphans` |
 | `archq:not-in-any-view` | Which elements appear in no view? | quality | finding (Info) | ?model? | QualityConcern | any | `core/unpresented` |
 | `archq:views-showing` | Which views show this element? | views | listing | ?focus | — | any | `core/view-usage-semantic` |

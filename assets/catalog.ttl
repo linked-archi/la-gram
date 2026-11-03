@@ -14,7 +14,7 @@
   dcterms:language <http://id.loc.gov/vocabulary/iso639-1/en>;
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:issued "2024-06-01"^^xsd:date;
-  dcterms:modified "2026-10-17"^^xsd:date;
+  dcterms:modified "2026-10-27"^^xsd:date;
   dcterms:publisher <https://linked.archi>;
   foaf:homepage <https://meta.linked.archi/>;
   dcat:themeTaxonomy <https://meta.linked.archi/catalog#themes>;
@@ -31,15 +31,16 @@
     <https://meta.linked.archi/archimate3/metamodel>, <https://meta.linked.archi/archimate3/notation>,
     <https://meta.linked.archi/archimate3/onto>, <https://meta.linked.archi/archimate3/onto/3.0>,
     <https://meta.linked.archi/archimate3/onto/3.1>, <https://meta.linked.archi/archimate3/presentation-contexts>,
-    <https://meta.linked.archi/archimate3/principle-shapes>, <https://meta.linked.archi/archimate3/reference-data>,
-    <https://meta.linked.archi/archimate3/reference-models>, <https://meta.linked.archi/archimate3/relationship-tables>,
-    <https://meta.linked.archi/archimate3/shapes>, <https://meta.linked.archi/archimate3/tax>,
-    <https://meta.linked.archi/archimate3/tax/3.0>, <https://meta.linked.archi/archimate3/tax/3.1>,
-    <https://meta.linked.archi/archimate3/viewpoint-shapes>, <https://meta.linked.archi/archimate3/viewpoints>,
-    <https://meta.linked.archi/archimate4/deliverable-templates>, <https://meta.linked.archi/archimate4/derivation>,
-    <https://meta.linked.archi/archimate4/element-shapes>, <https://meta.linked.archi/archimate4/metamodel>,
-    <https://meta.linked.archi/archimate4/notation>, <https://meta.linked.archi/archimate4/onto>,
-    <https://meta.linked.archi/archimate4/presentation-contexts>, <https://meta.linked.archi/archimate4/principle-shapes>,
+    <https://meta.linked.archi/archimate3/principle-shapes>, <https://meta.linked.archi/archimate3/questions>,
+    <https://meta.linked.archi/archimate3/reference-data>, <https://meta.linked.archi/archimate3/reference-models>,
+    <https://meta.linked.archi/archimate3/relationship-tables>, <https://meta.linked.archi/archimate3/shapes>,
+    <https://meta.linked.archi/archimate3/tax>, <https://meta.linked.archi/archimate3/tax/3.0>,
+    <https://meta.linked.archi/archimate3/tax/3.1>, <https://meta.linked.archi/archimate3/viewpoint-shapes>,
+    <https://meta.linked.archi/archimate3/viewpoints>, <https://meta.linked.archi/archimate4/deliverable-templates>,
+    <https://meta.linked.archi/archimate4/derivation>, <https://meta.linked.archi/archimate4/element-shapes>,
+    <https://meta.linked.archi/archimate4/metamodel>, <https://meta.linked.archi/archimate4/notation>,
+    <https://meta.linked.archi/archimate4/onto>, <https://meta.linked.archi/archimate4/presentation-contexts>,
+    <https://meta.linked.archi/archimate4/principle-shapes>, <https://meta.linked.archi/archimate4/questions>,
     <https://meta.linked.archi/archimate4/reference-data>, <https://meta.linked.archi/archimate4/reference-models>,
     <https://meta.linked.archi/archimate4/relationship-tables>, <https://meta.linked.archi/archimate4/shapes>,
     <https://meta.linked.archi/archimate4/tax>, <https://meta.linked.archi/archimate4/viewpoint-shapes>,
@@ -70,8 +71,8 @@
     <https://meta.linked.archi/c4/reference-data>, <https://meta.linked.archi/c4/shapes>,
     <https://meta.linked.archi/c4/structurizr>, <https://meta.linked.archi/c4/structurizr-shapes>,
     <https://meta.linked.archi/c4/tax>, <https://meta.linked.archi/c4/viewpoints>, <https://meta.linked.archi/core>,
-    <https://meta.linked.archi/core-deliverable-templates>, <https://meta.linked.archi/core-shapes>,
-    <https://meta.linked.archi/core-tax>, <https://meta.linked.archi/core-viewpoints>,
+    <https://meta.linked.archi/core-deliverable-templates>, <https://meta.linked.archi/core-questions>,
+    <https://meta.linked.archi/core-shapes>, <https://meta.linked.archi/core-tax>, <https://meta.linked.archi/core-viewpoints>,
     <https://meta.linked.archi/core-vis>, <https://meta.linked.archi/core-vis-shapes>,
     <https://meta.linked.archi/dodaf/metamodel>, <https://meta.linked.archi/dodaf/onto>,
     <https://meta.linked.archi/dodaf/shapes>, <https://meta.linked.archi/dodaf/tax>, <https://meta.linked.archi/dodaf/viewpoints>,
@@ -85,6 +86,7 @@
     <https://meta.linked.archi/edgy/notation-v1>, <https://meta.linked.archi/edgy/onto>,
     <https://meta.linked.archi/edgy/presentation-contexts>, <https://meta.linked.archi/edgy/reference-data>,
     <https://meta.linked.archi/edgy/shapes>, <https://meta.linked.archi/edgy/tax>, <https://meta.linked.archi/edgy/viewpoints>,
+    <https://meta.linked.archi/examples/archimate3.2-questions/>, <https://meta.linked.archi/examples/archimate4-questions/>,
     <https://meta.linked.archi/examples/archimate4-viewpoint/>, <https://meta.linked.archi/examples/atlas-bank/>,
     <https://meta.linked.archi/examples/cloudplatform/deliverable-templates>, <https://meta.linked.archi/examples/cloudplatform/metamodel>,
     <https://meta.linked.archi/examples/cloudplatform/model/>, <https://meta.linked.archi/examples/cloudplatform/onto>,
@@ -476,7 +478,7 @@ Motivated by Gartner 2025 Leadership Vision identifying AI ethics and governance
 a critical gap in EA teams, and by the EU AI Act (Regulation 2024/1689) requiring
 formal risk classification and conformity assessment for high-risk AI systems.
 Trademarked names referenced herein are property of their respective owners."""@en;
-  dcterms:conformsTo arch:Viewpoint;
+  dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/ai-governance/onto#";
   vann:preferredNamespacePrefix "aigov";
   owl:versionInfo "0.1.0";
@@ -489,8 +491,20 @@ Trademarked names referenced herein are property of their respective owners."""@
   dcat:theme <https://meta.linked.archi/catalog#extensions>;
   dcat:landingPage <https://meta.linked.archi/ai-governance/onto/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/ai-governance/onto/ai-governance-onto.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/ai-governance/onto/ai-governance-onto.ttl>;
+      dcat:accessURL <https://meta.linked.archi/ai-governance/onto/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/ai-governance/onto/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ai-governance/onto/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/ai-governance/onto/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ai-governance/onto/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/ai-governance/onto/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ai-governance/onto/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/ai-governance/onto/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -785,7 +799,8 @@ in general."""@en;
 
 <https://meta.linked.archi/archimate3/deliverable-templates> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 3.2 Deliverable Templates"@en;
-  dcterms:description "Deliverable template definitions for generating architecture documents from ArchiMate 3.2 models."@en;
+  dcterms:description """Deliverable template definitions for generating architecture documents from ArchiMate 3.2
+models: each section answers the concerns it names by asking model questions of the model."""@en;
   dcterms:conformsTo arch:DeliverableTemplate;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/deliverable-templates#";
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
@@ -807,14 +822,23 @@ in general."""@en;
 rules of Appendix B: DR1–DR8, whose derived relationships are valid in any model, and PDR1–PDR12,
 whose derived relationships may hold. Each rule is the join its definition states; the restrictions of
 B.4 and the order of strength are written into each rule. A
-rule derives the direct triple and a qualified relationship resource for the derivation, which reifies
-the triple (rdf:reifies) and carries its certainty (:Valid or :Potential), the rule that generated it
-(prov:wasGeneratedBy) and the relationships it was derived from (prov:wasDerivedFrom): the qualified
-relationships the rule matched, the modeller's or derived; before the rules run, :QualifyRelationships
-gives each relationship the model states only as a direct triple one of its own. The IRIs are in the
-model's namespace, a derivation's from its rule and premises. The rules are SPARQL 1.2. A rule
-derives only from relationships that are asserted or derived as :Valid
-— one that is only :Potential is for the modeller to confirm — so the rules give the closure of valid
+valid rule derives a statement: the direct triple, the qualified predicate and the resource, a
+relationship like any other. A potential rule derives a proposition: the resource alone, which reifies
+the triple (rdf:reifies) without asserting it, for the modeller to confirm by asserting the triple, with
+its qualified predicate. Either way the resource carries its certainty (:Valid or :Potential),
+the relationships it was derived from (prov:wasDerivedFrom) — the qualified relationships the rule
+matched, the modeller's or derived — and the activity that generated it (prov:wasGeneratedBy): the
+derivation activity, the rule applied to them, whose plan is the rule (prov:qualifiedAssociation,
+prov:hadPlan). Each rule is a prov:Plan. What runs the rules — an application, a pipeline — records
+its run: an activity of its own, with its agent and when it ran, of which each derivation activity it
+produced is part (dcterms:isPartOf). What the modeller stated is told from what a rule derived by the
+graph, in a store (a derivation is kept in .../graph/derived), and by the resource. Before the rules run,
+:QualifyRelationships gives each relationship the model states only as a direct triple a resource of
+its own. The IRIs are in the
+model's namespace, a derivation's and its derivation activity's from its rule and premises; with no model
+loaded, or several, in urn:linked-archi:. The rules are SPARQL 1.2. A rule
+derives only from relationships whose triple is asserted, in the model or by a valid derivation
+— one that is only :Potential is for the modeller to confirm, as is any other proposition — so the rules give the closure of valid
 derivations and one layer of potential ones; a valid derivation of a relationship that so far is only
 :Potential makes it :Valid. A potential rule derives only what the relationship tables of Appendix B.5
 permit between the two element types, as archimate3.2-relationship-tables.ttl gives them: load it with
@@ -927,7 +951,9 @@ rendering from structured metadata."""@en;
   dcterms:title "Linked.Archi ArchiMate 3.2 Ontology"@en;
   dcterms:description """Linked.Archi ArchiMate ontology aligned to the ArchiMate 3.2 specification,
 modernized to conform to Linked.Archi core ontology conventions, the qualified relationship
-pattern, and RDF 1.2. This is not an official Open Group document."""@en;
+pattern, and RDF 1.2. Each relationship class has as its skos:notation the letter the relationship
+tables of Appendix B write it with (c composition, r realization, v serving …). This is not an
+official Open Group document."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/onto#";
   vann:preferredNamespacePrefix "am";
@@ -1086,6 +1112,30 @@ Or load manually alongside other shapes:
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
+<https://meta.linked.archi/archimate3/questions> a dcat:Dataset;
+  dcterms:title "Linked.Archi ArchiMate 3.2 Questions"@en;
+  dcterms:description """Questions ArchiMate 3.2 stakeholders ask of a model — impact of change, application
+dependencies, data access, responsibilities, realisation and traceability — and the findings that show where a
+concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL (see arch:ModelQuestion)."""@en;
+  dcterms:conformsTo arch:QuestionSet;
+  vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/questions#";
+  vann:preferredNamespacePrefix "amq";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-10-27"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#languages>;
+  dcat:keyword "ArchiMate 3.2"@en;
+  dcat:landingPage <https://meta.linked.archi/archimate3/questions/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate3/questions/archimate3.2-questions.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate3/questions/archimate3.2-questions.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
 <https://meta.linked.archi/archimate3/reference-data> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 3.2 Reference Data"@en;
   dcterms:description """Controlled vocabularies and reference data for ArchiMate 3.2 models,
@@ -1154,8 +1204,21 @@ relationship up, and to tell one a modeller may draw from one only a derivation 
 The derivation rules (archimate3.2-derivation-rules.ttl) use these: a SHACL rule queries the data
 graph, where the shapes are not, and reading the shapes' lists in SPARQL is slow. A potential rule
 derives only what these permit from the one element type to the other, so load this file with the
-model to run them: without it, the potential rules derive nothing. This is not an official Open Group
-document."""@en;
+model to run them: without it, the potential rules derive nothing.
+
+Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
+subproperty of :permitsRealization (am:realizes :drawnBy :drawsRealization), lists the types the
+figures draw a realization to from this type — expanded from the abstract types a figure names to the
+concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
+proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
+it. The generic figures hold within a layer: across layers the tables give their triggering, flow, access
+and assignment only as derived (a business process accessing a data object), and the figures of Chapter
+12 draw what holds between layers. They leave the implementation and migration elements out too, which
+3.2 classifies as internal behaviour, event and passive structure elements: their own figures draw their
+relationships. A pair a figure names itself is given as the figure draws it: figure 113 draws a work
+package realizing and influencing a requirement, which the tables give only as derived.
+
+This is not an official Open Group document."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/relationship-tables#";
   vann:preferredNamespacePrefix "amrt";
@@ -1170,20 +1233,8 @@ document."""@en;
   dcat:keyword "ArchiMate 3.2"@en;
   dcat:landingPage <https://meta.linked.archi/archimate3/relationship-tables/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.jsonld>;
-      dcat:downloadURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.jsonld>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
-    ], [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.nt>;
-      dcat:downloadURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.nt>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
-    ], [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.owl>;
-      dcat:downloadURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.owl>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
-    ], [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/archimate3/relationship-tables/ontology.ttl>;
+      dcat:accessURL <https://meta.linked.archi/archimate3/relationship-tables/archimate3.2-relationship-tables.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate3/relationship-tables/archimate3.2-relationship-tables.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -1352,7 +1403,8 @@ normative or exhaustive list; organizations may define their own."""@en;
 
 <https://meta.linked.archi/archimate4/deliverable-templates> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Deliverable Templates"@en;
-  dcterms:description "Deliverable template definitions for generating architecture documents from ArchiMate 4.0 models."@en;
+  dcterms:description """Deliverable template definitions for generating architecture documents from ArchiMate 4.0
+models: each section answers the concerns it names by asking model questions of the model."""@en;
   dcterms:conformsTo arch:DeliverableTemplate;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/deliverable-templates#";
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
@@ -1374,14 +1426,23 @@ normative or exhaustive list; organizations may define their own."""@en;
 rules of Appendix B: DR1–DR8, whose derived relationships are valid in any model, and PDR1–PDR12,
 whose derived relationships may hold. Each rule is the join its definition states; the restrictions of
 B.4 and the order of strength are written into each rule. A
-rule derives the direct triple and a qualified relationship resource for the derivation, which reifies
-the triple (rdf:reifies) and carries its certainty (:Valid or :Potential), the rule that generated it
-(prov:wasGeneratedBy) and the relationships it was derived from (prov:wasDerivedFrom): the qualified
-relationships the rule matched, the modeller's or derived; before the rules run, :QualifyRelationships
-gives each relationship the model states only as a direct triple one of its own. The IRIs are in the
-model's namespace, a derivation's from its rule and premises. The rules are SPARQL 1.2. A rule
-derives only from relationships that are asserted or derived as :Valid
-— one that is only :Potential is for the modeller to confirm — so the rules give the closure of valid
+valid rule derives a statement: the direct triple, the qualified predicate and the resource, a
+relationship like any other. A potential rule derives a proposition: the resource alone, which reifies
+the triple (rdf:reifies) without asserting it, for the modeller to confirm by asserting the triple, with
+its qualified predicate. Either way the resource carries its certainty (:Valid or :Potential),
+the relationships it was derived from (prov:wasDerivedFrom) — the qualified relationships the rule
+matched, the modeller's or derived — and the activity that generated it (prov:wasGeneratedBy): the
+derivation activity, the rule applied to them, whose plan is the rule (prov:qualifiedAssociation,
+prov:hadPlan). Each rule is a prov:Plan. What runs the rules — an application, a pipeline — records
+its run: an activity of its own, with its agent and when it ran, of which each derivation activity it
+produced is part (dcterms:isPartOf). What the modeller stated is told from what a rule derived by the
+graph, in a store (a derivation is kept in .../graph/derived), and by the resource. Before the rules run,
+:QualifyRelationships gives each relationship the model states only as a direct triple a resource of
+its own. The IRIs are in the
+model's namespace, a derivation's and its derivation activity's from its rule and premises; with no model
+loaded, or several, in urn:linked-archi:. The rules are SPARQL 1.2. A rule
+derives only from relationships whose triple is asserted, in the model or by a valid derivation
+— one that is only :Potential is for the modeller to confirm, as is any other proposition — so the rules give the closure of valid
 derivations and one layer of potential ones; a valid derivation of a relationship that so far is only
 :Potential makes it :Valid. A potential rule derives only what the relationship tables of Appendix B.5
 permit between the two element types, as archimate4-relationship-tables.ttl gives them: load it with
@@ -1495,7 +1556,9 @@ Motivation, Implementation & Migration). Behavior elements that were previously
 duplicated per layer (e.g., BusinessProcess, ApplicationProcess, TechnologyProcess) are
 merged into single cross-domain elements (Process, Function, Event, Service). New Common
 Domain elements (Role, Collaboration, Path) are introduced as generic, domain-independent
-concepts. This is not an official Open Group document."""@en;
+concepts. Each relationship class has as its skos:notation the letter the relationship tables of
+the specification write it with (c composition, r realization, v serving …). This is not an
+official Open Group document."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/onto#";
   vann:preferredNamespacePrefix "am4";
@@ -1571,6 +1634,30 @@ domain-based structure."""@en;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
+<https://meta.linked.archi/archimate4/questions> a dcat:Dataset;
+  dcterms:title "Linked.Archi ArchiMate 4.0 Questions"@en;
+  dcterms:description """Questions ArchiMate 4.0 stakeholders ask of a model — impact of change, application
+dependencies, data access, responsibilities, realisation and traceability — and the findings that show where a
+concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL (see arch:ModelQuestion)."""@en;
+  dcterms:conformsTo arch:QuestionSet;
+  vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/questions#";
+  vann:preferredNamespacePrefix "am4q";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-10-27"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#languages>;
+  dcat:keyword "ArchiMate 4.0"@en;
+  dcat:landingPage <https://meta.linked.archi/archimate4/questions/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate4/questions/archimate4-questions.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate4/questions/archimate4-questions.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
 <https://meta.linked.archi/archimate4/reference-data> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Reference Data"@en;
   dcterms:description "Controlled vocabularies and reference data for ArchiMate 4.0 architecture models."@en;
@@ -1637,7 +1724,18 @@ relationship up, and to tell one a modeller may draw from one only a derivation 
 The derivation rules (archimate4-derivation-rules.ttl) use these: a SHACL rule queries the data graph,
 where the shapes are not, and reading the shapes' lists in SPARQL is slow. A potential rule derives only
 what these permit from the one element type to the other, so load this file with the model to run
-them: without it, the potential rules derive nothing. This is not an official Open Group document."""@en;
+them: without it, the potential rules derive nothing.
+
+Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
+subproperty of :permitsRealization (am4:realizes :drawnBy :drawsRealization), lists the types the
+figures draw a realization to from this type — expanded from the abstract types a figure names to the
+concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
+proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
+it. A pair a figure names itself is given as the figure draws it: figures 8-1, 9-1 and 11-1 draw an
+interface serving a business actor, an application component and a facility, which the tables give only
+as derived.
+
+This is not an official Open Group document."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/relationship-tables#";
   vann:preferredNamespacePrefix "am4rt";
@@ -1652,20 +1750,8 @@ them: without it, the potential rules derive nothing. This is not an official Op
   dcat:keyword "ArchiMate 4.0"@en;
   dcat:landingPage <https://meta.linked.archi/archimate4/relationship-tables/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.jsonld>;
-      dcat:downloadURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.jsonld>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
-    ], [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.nt>;
-      dcat:downloadURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.nt>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
-    ], [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.owl>;
-      dcat:downloadURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.owl>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
-    ], [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/archimate4/relationship-tables/ontology.ttl>;
+      dcat:accessURL <https://meta.linked.archi/archimate4/relationship-tables/archimate4-relationship-tables.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate4/relationship-tables/archimate4-relationship-tables.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -1696,7 +1782,7 @@ unqualified direct triples. Pure SHACL core."""@en;
 
 <https://meta.linked.archi/archimate4/tax> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Taxonomy"@en;
-  dcterms:description "Classification of ArchiMate 4.0 elements by domain and by aspect, and of its relationships by category, with the order of strength the derivation rules apply."@en;
+  dcterms:description "Classification of ArchiMate 4.0 elements by domain and by aspect, and of its relationships by category, with the order of strength the derivation rules apply and the order in which a modelling tool proposes them."@en;
   dcterms:conformsTo skos:ConceptScheme;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/tax#";
   vann:preferredNamespacePrefix "am4tax";
@@ -3401,21 +3487,14 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
 
 <https://meta.linked.archi/core-deliverable-templates> a dcat:Dataset;
   dcterms:title "Linked.Archi Core Deliverable Templates"@en;
-  dcterms:description """Framework-agnostic deliverable templates that define the content
-structure of common architecture documents. Each template specifies which
-viewpoints are required — the actual views are created when someone
-instantiates the template into a concrete deliverable (arch:Model).
-
-These templates reference core viewpoints. Framework-specific templates
-(e.g., TOGAF Architecture Definition Document) should be defined in the
-respective framework's file, referencing framework-specific viewpoints."""@en;
+  dcterms:description """Framework-agnostic deliverable templates of common architecture documents,
+produced from a model in any language: each section answers the concerns it names by asking the
+core model questions. Also the presentation formats every deliverable template renders in.
+Language- and framework-specific templates (e.g., the ArchiMate Architecture Definition Document)
+are defined with their language or framework."""@en;
   dcterms:conformsTo arch:DeliverableTemplate;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-deliverable-templates#";
-  vann:preferredNamespacePrefix "archdt";
-  owl:versionInfo "0.1.0";
-  dcterms:modified "2026-04-15"^^xsd:date;
-  adms:status <http://purl.org/adms/status/UnderDevelopment>;
-  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
       foaf:name "Kalin Maldzhanski"
     ];
@@ -3424,6 +3503,29 @@ respective framework's file, referencing framework-specific viewpoints."""@en;
   dcat:distribution [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/core-deliverable-templates/core-deliverable-templates.ttl>;
       dcat:downloadURL <https://meta.linked.archi/core-deliverable-templates/core-deliverable-templates.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/core-questions> a dcat:Dataset;
+  dcterms:title "Linked.Archi Core Questions"@en;
+  dcterms:description """The questions any Linked.Archi model answers, whatever its modelling language:
+what it contains, what an element is related to, which views show what, and how sound the description
+is. Each is executable SPARQL bound to the concerns it informs (see arch:ModelQuestion)."""@en;
+  dcterms:conformsTo arch:QuestionSet;
+  vann:preferredNamespaceUri "https://meta.linked.archi/core-questions#";
+  vann:preferredNamespacePrefix "archq";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-10-27"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#core>;
+  dcat:landingPage <https://meta.linked.archi/core-questions/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/core-questions/core-questions.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/core-questions/core-questions.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -3750,7 +3852,7 @@ queryable elements in the knowledge graph.
 Designed to be lightweight and adaptable — organizations customize the
 service catalog and maturity model to their operating model.
 Trademarked names referenced herein are property of their respective owners."""@en;
-  dcterms:conformsTo arch:Viewpoint;
+  dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/ea-service/onto#";
   vann:preferredNamespacePrefix "easvc";
   owl:versionInfo "0.1.0";
@@ -3763,8 +3865,20 @@ Trademarked names referenced herein are property of their respective owners."""@
   dcat:theme <https://meta.linked.archi/catalog#extensions>;
   dcat:landingPage <https://meta.linked.archi/ea-service/onto/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/ea-service/onto/ea-service-onto.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/ea-service/onto/ea-service-onto.ttl>;
+      dcat:accessURL <https://meta.linked.archi/ea-service/onto/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/ea-service/onto/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ea-service/onto/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/ea-service/onto/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ea-service/onto/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/ea-service/onto/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ea-service/onto/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/ea-service/onto/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -4302,6 +4416,30 @@ their intersections, and cross-cutting enterprise-wide perspectives."""@en;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
+<https://meta.linked.archi/examples/archimate3.2-questions/> a dcat:Dataset;
+  dcterms:title "Claims handling"@en;
+  dcterms:conformsTo arch:Model;
+  vann:preferredNamespaceUri "https://meta.linked.archi/examples/archimate3.2-questions/";
+  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
+  dcat:landingPage <https://meta.linked.archi/examples/archimate3.2-questions/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/examples/archimate3.2-questions/archimate3.2-questions-example.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/examples/archimate3.2-questions/archimate3.2-questions-example.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/examples/archimate4-questions/> a dcat:Dataset;
+  dcterms:title "Claims handling"@en;
+  dcterms:conformsTo arch:Model;
+  vann:preferredNamespaceUri "https://meta.linked.archi/examples/archimate4-questions/";
+  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
+  dcat:landingPage <https://meta.linked.archi/examples/archimate4-questions/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/examples/archimate4-questions/archimate4-questions-example.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/examples/archimate4-questions/archimate4-questions-example.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
 <https://meta.linked.archi/examples/archimate4-viewpoint/> a dcat:Dataset;
   dcterms:title "NordFreight Organization"@en;
   dcterms:conformsTo arch:Model;
@@ -4675,7 +4813,7 @@ option has the best NPV?\"
 Motivated by Gartner 2025 Leadership Vision identifying lack of financial acumen as
 one of the five mistakes EA teams make.
 Trademarked names referenced herein are property of their respective owners."""@en;
-  dcterms:conformsTo arch:Viewpoint;
+  dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/financial-architecture/onto#";
   vann:preferredNamespacePrefix "fina";
   owl:versionInfo "0.1.0";
@@ -4688,8 +4826,20 @@ Trademarked names referenced herein are property of their respective owners."""@
   dcat:theme <https://meta.linked.archi/catalog#extensions>;
   dcat:landingPage <https://meta.linked.archi/financial-architecture/onto/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/financial-architecture/onto/financial-architecture-onto.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/financial-architecture/onto/financial-architecture-onto.ttl>;
+      dcat:accessURL <https://meta.linked.archi/financial-architecture/onto/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/financial-architecture/onto/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/financial-architecture/onto/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/financial-architecture/onto/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/financial-architecture/onto/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/financial-architecture/onto/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/financial-architecture/onto/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/financial-architecture/onto/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -5394,7 +5544,7 @@ Motivated by the gap identified in Moin et al. (2023): existing architecture fra
 lack stakeholders, viewpoints, and model kinds for data scientists, data engineers, and
 ML engineers. This extension addresses that gap within the Linked.Archi ecosystem.
 Trademarked names referenced herein are property of their respective owners."""@en;
-  dcterms:conformsTo arch:Viewpoint;
+  dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/ml-systems/onto#";
   vann:preferredNamespacePrefix "mlsys";
   owl:versionInfo "0.1.0";
@@ -5407,8 +5557,20 @@ Trademarked names referenced herein are property of their respective owners."""@
   dcat:theme <https://meta.linked.archi/catalog#extensions>;
   dcat:landingPage <https://meta.linked.archi/ml-systems/onto/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/ml-systems/onto/ml-systems-onto.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/ml-systems/onto/ml-systems-onto.ttl>;
+      dcat:accessURL <https://meta.linked.archi/ml-systems/onto/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/ml-systems/onto/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ml-systems/onto/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/ml-systems/onto/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ml-systems/onto/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/ml-systems/onto/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/ml-systems/onto/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/ml-systems/onto/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -5827,7 +5989,11 @@ dispositionMovement from the assessment history of each application,
 ordered by assessmentDate.
 
 Derived triples are annotated with PROV-O provenance:
-* prov:wasGeneratedBy — the derivation rule that produced the triple
+* prov:wasGeneratedBy — the derivation activity that produced the triple:
+  an activity whose plan is the derivation rule (prov:qualifiedAssociation,
+  prov:hadPlan); what runs the rules may record its run, an activity with
+  its agent and when it ran, of which the derivation activity is part
+  (dcterms:isPartOf)
 * prov:wasDerivedFrom — the source assessments used for derivation
 
 This follows the same pattern as the ArchiMate derivation rules

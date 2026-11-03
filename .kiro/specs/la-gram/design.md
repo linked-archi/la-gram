@@ -1452,7 +1452,12 @@ dialog; the modules' section).
    with the source on reconnect, is swapped on retype, goes with the
    relationship on delete, and is given on load to a relationship without one;
    one the data has, of whichever predicate, is kept. The Properties tab leaves
-   it out — Analysis lists the relationships.
+   it out — Analysis lists the relationships. A proposition — a resource that
+   reifies a triple the model does not assert, with no qualified predicate
+   leading to it, as a potential derivation is until a modeller confirms it — is
+   not a relationship of the model, and loading leaves it as it is: a qualified
+   predicate leading to it would be half of confirming it, so it gets none, nor
+   `arch:inModel`, nor a link when a model with no geometry is laid out.
 4. **Offline first, network when asked.** ArchiMate 4.0 and 3.2 are bundled;
    every other published metamodel is one click away when online.
 5. **Undo = inverse diff.** One mechanism for every model change a gesture

@@ -10,6 +10,7 @@ import { OxigraphRelationshipManager } from '../relationship-manager.js';
 import { ModelSession, DEFAULT_VIEW_LABEL } from '../model-session.js';
 import { readModelContents, modelQuads } from '../model-queries.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { tripleTerm } from '../vocabulary.js';
 
 const { namedNode, literal, quad } = DataFactory;
 const ARCH = NAMESPACES.arch;
@@ -238,6 +239,64 @@ describe('ModelSession', () => {
     expect(into('urn:z:r2')).toEqual([['urn:z:a', ARCH + 'hasQualifiedRelationship']]);
     session.adopt();
     expect(into('urn:z:r1')).toHaveLength(1);
+  });
+
+  it('leaves a proposition as it is on adopt, until its triple and qualified predicate confirm it', () => {
+    const a = namedNode('urn:p:a');
+    const b = namedNode('urn:p:b');
+    const proposed = namedNode('urn:p:proposed');
+    const stated = namedNode('urn:p:stated');
+    const trimmed = namedNode('urn:p:trimmed');
+    store.addQuads([
+      quad(a, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(b, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      // A potential derivation: the resource alone, reifying a triple nothing asserts.
+      quad(proposed, namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(proposed, namedNode(ARCH + 'source'), a),
+      quad(proposed, namedNode(ARCH + 'target'), b),
+      quad(proposed, namedNode(RDF_REIFIES), tripleTerm(a as never, namedNode(AM4 + 'serves') as never, b as never) as never),
+      // Another tool's relationship: its triple is asserted, without the rest.
+      quad(stated, namedNode(RDF_TYPE), namedNode(AM4 + 'Flow')),
+      quad(stated, namedNode(ARCH + 'source'), a),
+      quad(stated, namedNode(ARCH + 'target'), b),
+      quad(stated, namedNode(RDF_REIFIES), tripleTerm(a as never, namedNode(AM4 + 'flowsTo') as never, b as never) as never),
+      quad(a, namedNode(AM4 + 'flowsTo'), b),
+      // A converter's, trimmed of its direct triple: the qualified predicate says it is the model's.
+      quad(trimmed, namedNode(RDF_TYPE), namedNode(AM4 + 'Access')),
+      quad(trimmed, namedNode(ARCH + 'source'), a),
+      quad(trimmed, namedNode(ARCH + 'target'), b),
+      quad(trimmed, namedNode(RDF_REIFIES), tripleTerm(a as never, namedNode(AM4 + 'accesses') as never, b as never) as never),
+      quad(a, namedNode(AM4 + 'qualifiedAccess'), trimmed),
+    ] as never);
+
+    session.adopt({ fallbackLabel: 'Derived' });
+
+    const into = (rel: string) => store.getQuads(nn('urn:p:a'), null, nn(rel)).map((q) => q.predicate.value);
+    const members = (rel: string) => store.getQuads(nn(rel), nn(ARCH + 'inModel'));
+    const links = (rel: string) => store.getQuads(null, nn(VIS + 'archRelationship'), nn(rel));
+    const triples = () => store.getQuads(nn('urn:p:a'), nn(AM4 + 'serves'), nn('urn:p:b'));
+
+    expect(into('urn:p:proposed')).toEqual([]);
+    expect(members('urn:p:proposed')).toEqual([]);
+    expect(links('urn:p:proposed')).toEqual([]);
+    expect(triples()).toEqual([]);
+    expect(into('urn:p:stated')).toEqual([AM4 + 'qualifiedFlow']);
+    expect(members('urn:p:stated')).toHaveLength(1);
+    expect(links('urn:p:stated')).toHaveLength(1);
+    expect(members('urn:p:trimmed')).toHaveLength(1);
+    expect(links('urn:p:trimmed')).toHaveLength(1);
+
+    session.adopt();
+    expect(into('urn:p:proposed')).toEqual([]);
+    expect(members('urn:p:proposed')).toEqual([]);
+
+    // Confirmed, it is a relationship of the model.
+    store.addQuads([
+      quad(a, namedNode(AM4 + 'serves'), b),
+      quad(a, namedNode(AM4 + 'qualifiedServing'), proposed),
+    ] as never);
+    session.adopt();
+    expect(members('urn:p:proposed')).toHaveLength(1);
   });
 
   it('migrates retired vocabulary and element-level geometry on adopt', () => {

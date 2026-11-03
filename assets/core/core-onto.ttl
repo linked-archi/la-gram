@@ -125,6 +125,18 @@ Three complementary representations are emitted for every relationship:
 3. **Qualified relationship resource** (this class) — carries all metadata: labels, provenance, lifecycle, etc.
 4. **rdf:reifies** — bridges the direct triple to this resource (RDF 1.2)
 
+The relationship resource is the canonical form: converters and modelling tools write one for every relationship,
+whether or not it carries metadata yet, and the questions a model is asked about its relationships read it. A
+graph trimmed to the direct triples, for fast traversal, is a projection of the model: it answers which elements
+are connected, not what is recorded about a connection, nor the questions that read relationship resources.
+
+A relationship resource whose triple is not asserted is a proposition, not a relationship of the model:
+rdf:reifies names a triple without asserting it. A potential derivation is one, until the modeller confirms it:
+asserting the triple, with its qualified predicate, confirms a proposition, and its resource then records that it
+was derived. A valid derivation is a statement: a rule asserts its triple, with its qualified predicate, and its
+resource records how. What a modeller stated is told from what a rule derived by the graph, in a store, and by the
+resource.
+
 With RDF 1.2, `rdf:reifies` bridges the direct triple to this resource, replacing the older rdf:Statement approach.
 Multiple distinct reifiers for the same proposition are supported — essential when the same logical relation appears
 in different contexts (current vs target state, observed vs inferred, CMDB-discovered vs design-reviewed).
@@ -569,14 +581,11 @@ format role is handled by this class.'''@en ;
     a               owl:Class ;
     rdfs:subClassOf schema:CreativeWork ;
     skos:prefLabel  "DeliverableTemplate"@en ;
-    skos:definition '''A template that defines the content structure of an architecture deliverable
-by specifying which viewpoints it requires and which presentation formats it supports.
-Each required viewpoint acts as a placeholder — the actual views are created when someone
-uses the template to produce a concrete deliverable.
-
-A concrete deliverable (arch:Model) is produced by instantiating a DeliverableTemplate:
-for each required viewpoint, a View conforming to that viewpoint is created and joined
-to the Model via arch:inModel.'''@en ;
+    skos:definition '''A template of an architecture document produced from a model: its sections in
+order, each presenting a viewpoint and answering concerns by asking model questions; the values the
+document is produced for (arch:templateParameter); and the presentation formats it can be rendered in.
+A generator produces the document from the model, so it states what the model holds, what it lacks
+and what could not be checked, and does not drift from the model.'''@en ;
     skos:scopeNote  '''Aligned with TOGAF Architecture Content Framework where deliverables
 (e.g., Architecture Definition Document, Architecture Requirements Specification) are
 defined as aggregations of specific catalogs, matrices, and diagrams. Also aligned with
@@ -585,25 +594,23 @@ each governed by a Viewpoint.
 
 DeliverableTemplates are defined at the Metamodel level via arch:hasDeliverableTemplate,
 alongside other metamodel components (elements, relationships, viewpoints, rules).
-Models instantiate them via arch:deliverableTemplateUsed.
+A Model names the templates its deliverables follow with arch:deliverableTemplateUsed.
 
-Example:
-  archvp:ArchitectureDefinitionDocument a arch:DeliverableTemplate ;
-      arch:templateRequiresViewpoint amvp:OrganizationViewpoint, amvp:ApplicationCooperationViewpoint,
-                                     amvp:ImplementationAndDeploymentViewpoint ;
+Example, abridged from the ArchiMate 4.0 templates:
+  am4dt:ArchitectureDefinitionDocument a arch:DeliverableTemplate ;
+      arch:templateParameter am4dt:ModelParameter ;
+      arch:templateHasSection am4dt:ADD-S1, am4dt:ADD-S2 ;
+      arch:templateRequiresViewpoint am4vp:OrganizationViewpoint, am4vp:ProcessCooperationViewpoint ;
       arch:templateHasFormat archdt:MarkdownFormat, archdt:PDFFormat ;
       arch:templateTargetsPurpose archvp:Designing .
 
-When instantiated, each View names the Model it belongs to — membership is stated by the
-member, not the container. See arch:inModel.
-  ex:MyADD a arch:Model ;
-      arch:deliverableTemplateUsed archvp:ArchitectureDefinitionDocument .
-  ex:OrgView a arch:Diagram ;
-      arch:inModel ex:MyADD ;
-      arch:viewConformsToViewpoint amvp:OrganizationViewpoint .
-  ex:AppCoopView a arch:Diagram ;
-      arch:inModel ex:MyADD ;
-      arch:viewConformsToViewpoint amvp:ApplicationCooperationViewpoint .
+The document presents the model's views by the viewpoint each follows. Each View names the
+Model it belongs to — membership is stated by the member, not the container. See arch:inModel.
+  ex:Claims a arch:Model ;
+      arch:deliverableTemplateUsed am4dt:ArchitectureDefinitionDocument .
+  ex:ProcessView a arch:Diagram ;
+      arch:inModel ex:Claims ;
+      arch:viewConformsToViewpoint am4vp:ProcessCooperationViewpoint .
 '''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html>,
                     <https://pubs.opengroup.org/togaf-standard/architecture-content/chap03.html> ;
@@ -612,16 +619,20 @@ member, not the container. See arch:inModel.
 :TemplateSection
     a               owl:Class ;
     skos:prefLabel  "TemplateSection"@en ;
-    skos:definition '''An ordered section within a DeliverableTemplate that references a Viewpoint.
-When the template is instantiated, each TemplateSection becomes a placeholder for a View
-conforming to the referenced viewpoint. Sections carry an order index for sequencing
-and optional guidance text.'''@en ;
+    skos:definition '''An ordered section of a DeliverableTemplate: the Viewpoint it presents
+(arch:sectionViewpoint), the concerns it answers (arch:sectionAddressesConcern) and the model
+questions it asks to answer them (arch:sectionAsks), or a single inline query (arch:sectionQuery).
+Produced from a model, the section shows the answers and the model's views that follow its
+viewpoint.'''@en ;
     skos:example    '''
-archvp:ADDSection1 a arch:TemplateSection ;
-    arch:sectionOrder 1 ;
-    arch:sectionViewpoint amvp:OrganizationViewpoint ;
-    skos:prefLabel "1. Organizational Structure"@en ;
-    skos:definition "Document the organizational structure using the Organization Viewpoint."@en .
+am4dt:ADD-S2 a arch:TemplateSection ;
+    arch:sectionOrder 2 ;
+    skos:prefLabel "2. Process Cooperation"@en ;
+    skos:definition "How do processes cooperate, is each performed by someone, and is every service delivered?"@en ;
+    arch:sectionViewpoint am4vp:ProcessCooperationViewpoint ;
+    arch:sectionAddressesConcern am4vp:ProcessDependencies, am4vp:Responsibilities, am4vp:Completeness ;
+    arch:sectionAsks ( am4q:viewpoint-scope am4q:unassigned-behaviour am4q:unrealised-services ) ;
+    arch:sectionResultKey "processCooperation" .
 '''@en ;
 .
 
@@ -1906,12 +1917,11 @@ metamodel and is not linked.'''@en ;
 :templateRequiresViewpoint
     a               owl:ObjectProperty ;
     skos:prefLabel  "templateRequiresViewpoint"@en ;
-    skos:definition '''Links a DeliverableTemplate to the Viewpoints it requires. Each referenced
-viewpoint acts as a placeholder — when the template is instantiated into a concrete
-deliverable (arch:Model), a View conforming to each required viewpoint must be created.
+    skos:definition '''Links a DeliverableTemplate to the Viewpoints it presents: the model a
+deliverable is produced from needs a View following each of them for the document to show it.
 
-For ordered sections with sequence numbers and guidance text, use arch:templateHasSection
-with TemplateSection instances instead.'''@en ;
+The sections say in which order and for which concerns (arch:templateHasSection); this flat list
+lets a tool see at a glance which views a model lacks for the document.'''@en ;
     rdfs:domain     :DeliverableTemplate ;
     rdfs:range      :Viewpoint ;
 .
@@ -1930,9 +1940,9 @@ For a simpler flat list of required viewpoints, use arch:templateRequiresViewpoi
 :sectionViewpoint
     a               owl:ObjectProperty ;
     skos:prefLabel  "sectionViewpoint"@en ;
-    skos:definition '''Links a TemplateSection to the Viewpoint it references. When the
-deliverable template is instantiated, a View conforming to this viewpoint
-is created for this section.'''@en ;
+    skos:definition '''Links a TemplateSection to the Viewpoint it presents. Produced from a model,
+the section shows the model's Views that follow this viewpoint, and the questions it asks are
+pre-bound with it as ?viewpoint.'''@en ;
     rdfs:domain     :TemplateSection ;
     rdfs:range      :Viewpoint ;
 .
@@ -1949,7 +1959,7 @@ Sections are ordered by ascending sectionOrder value.'''@en ;
 :sectionQuery
     a               owl:DatatypeProperty ;
     skos:prefLabel  "sectionQuery"@en ;
-    skos:definition '''A SPARQL SELECT or CONSTRUCT query that extracts the data needed to
+    skos:definition '''A SPARQL SELECT query that extracts the data needed to
 populate this template section from the knowledge graph. The query is executed against
 the architecture model data and its results are passed to the template engine as the
 data context for this section.
@@ -1992,9 +2002,9 @@ a tool may derive the key from the section's local name or sectionOrder.'''@en ;
 :deliverableTemplateUsed
     a               owl:ObjectProperty ;
     skos:prefLabel  "deliverableTemplateUsed"@en ;
-    skos:definition '''Links a Model (concrete deliverable) to the DeliverableTemplate it was
-instantiated from. This enables traceability from a deliverable back to its
-template and validation that all required viewpoints have corresponding views.'''@en ;
+    skos:definition '''Links a Model to a DeliverableTemplate its deliverables are produced with.
+This lets a tool offer the document for the model, and check that the model has a View
+following each viewpoint the template presents (arch:templateRequiresViewpoint).'''@en ;
     rdfs:domain     :Model ;
     rdfs:range      :DeliverableTemplate ;
 .
@@ -2020,16 +2030,17 @@ Specifies how the deliverable can be rendered — e.g., Markdown, HTML, PDF, sli
 :templateResource
     a               owl:DatatypeProperty ;
     skos:prefLabel  "templateResource"@en ;
-    skos:definition '''Points to the actual template file, URL, or resource used to render
-a deliverable in this format. Can be a local file path, a URL to a template repository,
-or a reference to a template engine resource (e.g., Handlebars, Jinja2, XSLT).'''@en ;
+    skos:definition '''Points to the template file, URL, or resource a deliverable is rendered
+with: on a DeliverableTemplate, the layout of the document; on a PresentationFormat, the layout
+for that format. Can be a local file path, a URL to a template repository, or a reference to a
+template engine resource (e.g., Handlebars, Jinja2, XSLT).'''@en ;
     skos:example    '''
 "templates/aod.md.hbs"          — Handlebars Markdown template
 "templates/report.html.j2"      — Jinja2 HTML template
 "templates/governance.tex"       — LaTeX PDF template
-"https://templates.linked.archi/slides/default.pptx" — remote PPTX template
+"https://example.org/templates/slides/default.pptx" — remote PPTX template
 '''@en ;
-    rdfs:domain     :PresentationFormat ;
+    :domainIncludes :DeliverableTemplate, :PresentationFormat ;
     rdfs:range      xsd:anyURI ;
 .
 
