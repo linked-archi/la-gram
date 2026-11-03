@@ -34,8 +34,12 @@
 # that asks what serves, realises, is assigned to or triggers what
 # follows the chains the valid derivation rules follow (DR 2 to DR 8),
 # so it answers the same with the derivations loaded, each then one
-# hop, as without them. One that needs the relationship itself (the
-# kind of an access) reads its qualified resource.
+# hop, as without them; but where that walk is too slow on a large
+# model (application dependencies, technology under applications,
+# requirement traceability, unrealised capabilities) a question
+# follows a few fixed steps, and a longer chain only once derived. One
+# that needs the relationship itself (the kind of an access) reads
+# its qualified resource.
 #
 # What a view of a viewpoint should hold is the core question
 # (core/viewpoint-scope): each ArchiMate 3.2 type belongs to a layer,
@@ -222,8 +226,8 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
     a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
     dcterms:identifier            "notation/archimate/application-dependencies" ;
     skos:prefLabel                "Which applications depend on which?"@en ;
-    dcterms:description           "Application components that serve, flow to or trigger one another: directly, or along the chains the valid derivation rules follow, through the functions assigned to them, the services they realise and the components they are composed of."@en ;
-    arch:answers                  "One row per dependency: the provider, how it provides and the consumer."@en ;
+    dcterms:description           "Application components that serve, flow to or trigger one another, directly or through an application service one realises — itself or through the function assigned to it — and the other is served by. With the derivations loaded, a longer chain the valid rules derive counts too, as one hop."@en ;
+    arch:answers                  "One row per dependency: the provider, how it provides, the service between where there is one, and the consumer."@en ;
     arch:doesNotProve             "Runtime coupling or data volume. A modelled flow says that information moves, not how much or how often."@en ;
     arch:questionStage            arch:AnalysisStage ;
     arch:questionAddressesConcern amvp:ApplicationDependencies, amvp:ServiceOrchestration ;
@@ -235,32 +239,27 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
     arch:defaultLimit             500 ;
     sh:prefixes                   <https://meta.linked.archi/archimate3/questions#> ;
     sh:select """
-        SELECT DISTINCT ?provider ?providerLabel ?how ?consumer ?consumerLabel
+        SELECT DISTINCT ?provider ?providerLabel ?how ?via ?consumer ?consumerLabel
         WHERE {
-          # From each serving, flow or triggering, never from every pair of components: back to the provider and on
-          # to the consumer along the chains the valid derivation rules follow, serving and flow after structural
-          # relationships in line and before opposing ones (DR 3 to DR 6), triggering through structural
-          # relationships and further triggering (DR 5, DR 7, DR 8). Both ends are then checked against the
-          # component types, read once each.
+          # From the direct triples to their ends, each branch anchored on its relationships: never every pair of
+          # components. Both ends are then checked against the component types, read once each.
           {
-            ?from am:serves ?to .
-            ?provider (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-            ?to (^(am:composedOf|am:aggregates|am:assignedTo|am:realizes))* ?consumer .
-            BIND("serves" AS ?how)
+            VALUES (?link ?how) { (am:serves "Serving") (am:flowsTo "Flow") (am:triggers "Triggering") }
+            ?provider ?link ?consumer .
           }
           UNION
           {
-            ?from am:flowsTo ?to .
-            ?provider (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-            ?to (^(am:composedOf|am:aggregates|am:assignedTo|am:realizes))* ?consumer .
-            BIND("flows to" AS ?how)
-          }
-          UNION
-          {
-            ?from am:triggers ?to .
-            ?provider (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-            ?to (am:composedOf|am:aggregates|am:assignedTo|am:realizes|am:triggers)* ?consumer .
-            BIND("triggers" AS ?how)
+            {
+              SELECT DISTINCT ?serviceType
+              WHERE {
+                { ?askedService rdfs:subClassOf* am:ApplicationService } UNION { GRAPH ?serviceOntologyGraph { ?askedService rdfs:subClassOf* am:ApplicationService } }
+                { ?serviceType rdfs:subClassOf* ?askedService } UNION { GRAPH ?serviceSpecialisationGraph { ?serviceType rdfs:subClassOf* ?askedService } }
+              }
+            }
+            ?via rdf:type ?serviceType ;
+                 am:serves ?consumer .
+            ?provider am:realizes|(am:assignedTo/am:realizes) ?via .
+            BIND("realises a service serving" AS ?how)
           }
           ?provider rdf:type ?providerType .
           ?consumer rdf:type ?consumerType .
@@ -460,7 +459,7 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
     a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
     dcterms:identifier            "notation/archimate/requirement-traceability" ;
     skos:prefLabel                "How does each requirement trace to goals and to the elements that realise it?"@en ;
-    dcterms:description           "Requirements and constraints with what realises them, below, and the goals, outcomes and principles they realise or influence, above, as a list of links. Realisation and influence count directly or as DR 2 to DR 4 derive them."@en ;
+    dcterms:description           "Requirements and constraints with what realises them, below, and the goals, outcomes and principles they realise or influence, above, as a list of links. With the derivations loaded, a longer chain the valid rules derive counts too, as one hop."@en ;
     arch:answers                  "One row per traced link: the requirement, the direction, the predicate and the element at the other end."@en ;
     arch:doesNotProve             "Verification. A realisation relationship is a design claim; it does not show the requirement is met."@en ;
     arch:questionStage            arch:AnalysisStage ;
@@ -484,29 +483,15 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
             }
           }
           ?requirement rdf:type ?requirementType .
-          # Each link directly, or as the valid derivation rules derive it: a realisation through structural
-          # relationships in line (DR 2), an influence after them and before opposing ones (DR 3, DR 4).
           {
-            ?from am:realizes ?to .
-            ?other (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-            ?to (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?requirement .
+            ?other am:realizes ?requirement .
             BIND(am:realizes AS ?predicate)
             BIND("realised by" AS ?direction)
           }
           UNION
           {
-            ?from am:realizes ?to .
-            ?requirement (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-            ?to (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?other .
-            BIND(am:realizes AS ?predicate)
-            BIND("contributes to" AS ?direction)
-          }
-          UNION
-          {
-            ?from am:influences ?to .
-            ?requirement (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-            ?to (^(am:composedOf|am:aggregates|am:assignedTo|am:realizes))* ?other .
-            BIND(am:influences AS ?predicate)
+            VALUES ?predicate { am:realizes am:influences }
+            ?requirement ?predicate ?other .
             BIND("contributes to" AS ?direction)
           }
           ?other rdf:type ?otherType .
@@ -760,7 +745,7 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
     a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
     dcterms:identifier            "notation/archimate/applications-without-technology" ;
     skos:prefLabel                "Which application components run on no technology?"@en ;
-    dcterms:description           "Application components that no element of the technology layer serves or realises, directly or along the chains the valid derivation rules follow (DR 2 to DR 4), such as realising a service that serves them. Equipment and facilities are nodes, so they count as technology."@en ;
+    dcterms:description           "Application components that no element of the technology layer serves or realises, directly or by realising a service that serves them. Equipment and facilities are nodes, so they count as technology. With the derivations loaded, a longer chain the valid rules derive counts too, as one hop."@en ;
     arch:answers                  "One row per application component with no technology under it."@en ;
     arch:doesNotProve             "That it runs nowhere. Where it is hosted may be outside the model, or recorded only in a deployment model that is not loaded."@en ;
     arch:questionStage            arch:QualityStage ;
@@ -800,20 +785,8 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
                 UNION { GRAPH ?layerSpecialisationGraph { ?technologyType rdfs:subClassOf* ?layerType } }
               }
             }
-            ?technology rdf:type ?technologyType .
-            # Serving it after structural relationships in line and before opposing ones (DR 3, DR 4), or
-            # realising it through structural relationships in line (DR 2), from each serving or realisation.
-            {
-              ?from am:serves ?to .
-              ?technology (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-              ?to (^(am:composedOf|am:aggregates|am:assignedTo|am:realizes))* ?application .
-            }
-            UNION
-            {
-              ?from am:realizes ?to .
-              ?technology (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?from .
-              ?to (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?application .
-            }
+            ?technology rdf:type ?technologyType ;
+                        am:serves|am:realizes|(am:realizes/am:serves) ?application .
           }
           OPTIONAL { ?application skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
         }
@@ -877,7 +850,7 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
     a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
     dcterms:identifier            "notation/archimate/unrealised-capabilities" ;
     skos:prefLabel                "Which capabilities does nothing realise?"@en ;
-    dcterms:description           "Capabilities realised neither directly nor through any capability they are composed of or aggregate. A realisation counts directly or as DR 2 derives it, through structural relationships in line."@en ;
+    dcterms:description           "Capabilities realised neither directly nor through any capability they are composed of or aggregate. With the derivations loaded, a longer chain the valid rules derive counts too, as one hop."@en ;
     arch:answers                  "One row per capability with no realisation anywhere beneath it."@en ;
     arch:doesNotProve             "That the enterprise lacks the capability; only that the model does not say what delivers it."@en ;
     arch:questionStage            arch:QualityStage ;
@@ -907,8 +880,7 @@ concern the ArchiMate 3.2 viewpoints frame is not met. Each is executable SPARQL
                       arch:inModel ?model .
           FILTER NOT EXISTS {
             ?capability (am:composedOf|am:aggregates)* ?part .
-            ?from am:realizes ?to .
-            ?to (am:composedOf|am:aggregates|am:assignedTo|am:realizes)* ?part .
+            ?realizer am:realizes ?part .
           }
           OPTIONAL { ?capability skos:prefLabel ?label . FILTER(lang(?label) = "" || langMatches(lang(?label), "en")) }
         }
