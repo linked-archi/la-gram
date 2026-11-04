@@ -85,7 +85,7 @@ import Modeling from 'diagram-js/lib/features/modeling/Modeling.js';
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import { CroppingLayouter } from './connection-docking.js';
+import { AttachedConnectionBehavior, CroppingLayouter } from './connection-docking.js';
 import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
@@ -815,7 +815,10 @@ export class RdfModeling extends ModelingBase {
  * that boot `rdfModelingModule` on its own — instead of making correctness
  * depend on `DiagramCanvas` remembering two extra array entries.
  *
- * See `connection-docking.ts` for what each of the two does.
+ * See `connection-docking.ts` for what each of the two does, and for
+ * `attachedConnectionBehavior`, which keeps a relationship that ends on another
+ * relationship docked to it — the same concern, for the one kind of end
+ * diagram-js does not re-lay out itself.
  */
 export function rdfModelingModule(
   rdfRelationshipWriter: RdfRelationshipWriter,
@@ -824,10 +827,11 @@ export function rdfModelingModule(
 ): Record<string, unknown> {
   return {
     __depends__: [ModelingModule],
-    __init__: ['modeling', 'rdfRelationshipBehavior', 'rdfElementBehavior'],
+    __init__: ['modeling', 'rdfRelationshipBehavior', 'rdfElementBehavior', 'attachedConnectionBehavior'],
     modeling: ['type', RdfModeling],
     layouter: ['type', CroppingLayouter],
     connectionDocking: ['type', FastCroppingConnectionDocking],
+    attachedConnectionBehavior: ['type', AttachedConnectionBehavior],
     rdfRelationshipBehavior: ['type', RdfRelationshipBehavior],
     rdfRelationshipWriter: ['value', rdfRelationshipWriter],
     rdfElementBehavior: ['type', RdfElementBehavior],

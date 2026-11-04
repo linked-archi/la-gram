@@ -13,6 +13,8 @@
  * rotated arc) or a connection of more than two points is left to diagram-js.
  */
 import CroppingConnectionDocking from 'diagram-js/lib/layout/CroppingConnectionDocking.js';
+import { getIntersections } from 'diagram-js/lib/layout/LayoutUtil.js';
+import { closestPointOnPolyline } from './connection-docking.js';
 
 export interface Point {
   x: number;
@@ -163,21 +165,104 @@ export function chooseDocking(hits: readonly LineIntersection[], cropStart: bool
   return round((cropStart ? sorted[0] : sorted[sorted.length - 1]).h);
 }
 
+/** A docking as diagram-js's `getDockingPoint` returns it. */
+interface Docking {
+  /** The end's reference: where `original` on the docked end comes from. */
+  point: Point & { original?: Point };
+  /** Where the end is drawn. */
+  actual: Point;
+  /** Which waypoint is the end. */
+  idx: number;
+}
+
 /** `CroppingConnectionDocking`, as far as the subclass uses it. */
 const CroppingBase = CroppingConnectionDocking as unknown as {
   new (elementRegistry: unknown, graphicsFactory: unknown): {
     _getShapePath(shape: unknown): string;
     _getIntersection(shape: unknown, connection: { waypoints?: Point[] }, cropStart: boolean): Point | null;
+    getDockingPoint(connection: { waypoints?: Point[] }, shape: unknown, dockStart?: boolean): Docking;
   };
   $inject: string[];
 };
 
+/** Closer than this to its outline, an end is on it. */
+const ON_OUTLINE = 0.5;
+
+/**
+ * Where the segment `a`–`b` crosses the outline, nearest `a` first, a crossing
+ * met twice (at a vertex, by both its edges) counted once.
+ */
+export function outlineCrossings(outline: string, a: Point, b: Point): Point[] {
+  const hits: Point[] =
+    lineOutlineIntersections(outline, a, b) ?? (getIntersections(outline, `M${a.x},${a.y}L${b.x},${b.y}`) as Point[]);
+  const from = (p: Point) => Math.hypot(p.x - a.x, p.y - a.y);
+  const sorted = hits.map(({ x, y }) => ({ x, y })).sort((p, q) => from(p) - from(q));
+  return sorted.filter((p, i) => i === 0 || Math.hypot(p.x - sorted[i - 1].x, p.y - sorted[i - 1].y) > 0.01);
+}
+
+/**
+ * `point` if it lies inside the outline or on it; otherwise the point just inside
+ * the outline on the way from `point` to `centre`.
+ *
+ * Inside is decided by parity: the centre is inside, so a point is too exactly
+ * when the segment between them crosses the outline an even number of times.
+ */
+export function insideOutline(outline: string, point: Point, centre: Point): Point {
+  if (point.x === centre.x && point.y === centre.y) return point;
+  const crossings = outlineCrossings(outline, point, centre);
+  if (crossings.length % 2 === 0) return point;
+  const edge = crossings[0];
+  if (Math.hypot(edge.x - point.x, edge.y - point.y) <= ON_OUTLINE) return point;
+  const toCentre = Math.hypot(centre.x - edge.x, centre.y - edge.y);
+  if (toCentre === 0) return centre;
+  const step = Math.min(1, toCentre / 2) / toCentre;
+  return { x: edge.x + (centre.x - edge.x) * step, y: edge.y + (centre.y - edge.y) * step };
+}
+
 /**
  * diagram-js's cropping, with a straight connection's docking points computed
- * against an outline of lines and arcs rather than intersected as curves.
+ * against an outline of lines and arcs rather than intersected as curves — and
+ * with two cases diagram-js's cropping does not have:
+ *
+ * - **An end off its element.** Cropping assumes the end's reference lies
+ *   inside the element, and when it does not it keeps the reference itself as
+ *   the end (`actual: croppedPoint || dockingPoint`) whenever the line misses
+ *   the outline. diagram-js hit-tests a shape on its bounding box plus a 15px
+ *   stroke, so a reattach drag dropped beside an element, or in the empty corner
+ *   of a diamond or an ellipse, hands exactly such a reference over — as can a
+ *   segment drag or a resize, which decide "inside" by the bounds. The
+ *   reference is moved just inside the outline, on the way to the element's
+ *   centre, before cropping, and recorded as the end's `original`, so later
+ *   moves re-dock from inside too.
+ * - **An end on a relationship.** A connection has no outline — the renderer's
+ *   `getShapePath` reads bounds a connection does not have, and so describes a
+ *   default-sized box at the diagram's origin. Such an end is put on the
+ *   nearest point of the line it ends on.
  */
 export class FastCroppingConnectionDocking extends CroppingBase {
   static $inject = ['elementRegistry', 'graphicsFactory'];
+
+  override getDockingPoint(connection: { waypoints?: Point[] }, shape: unknown, dockStart?: boolean): Docking {
+    const waypoints = connection.waypoints ?? [];
+    const idx = dockStart ? 0 : waypoints.length - 1;
+    const point = waypoints[idx];
+    const element = shape as { x?: number; y?: number; width?: number; height?: number; waypoints?: Point[] } | undefined;
+    if (!point || !element) return super.getDockingPoint(connection, shape, dockStart);
+
+    if (element.waypoints) {
+      const on = element.waypoints.length > 0 ? closestPointOnPolyline(element.waypoints, point) : { x: point.x, y: point.y };
+      return { point: on, actual: on, idx };
+    }
+
+    if (element.width === undefined || element.height === undefined) return super.getDockingPoint(connection, shape, dockStart);
+    const centre = { x: (element.x ?? 0) + element.width / 2, y: (element.y ?? 0) + element.height / 2 };
+    const reference = insideOutline(this._getShapePath(shape), point, centre);
+    if (reference === point) return super.getDockingPoint(connection, shape, dockStart);
+
+    const probe = { ...connection, waypoints: waypoints.map((p, i) => (i === idx ? reference : p)) };
+    const docked = super.getDockingPoint(probe, shape, dockStart);
+    return { point: { ...reference, original: reference }, actual: docked.actual, idx };
+  }
 
   override _getIntersection(shape: unknown, connection: { waypoints?: Point[] }, cropStart: boolean): Point | null {
     const waypoints = connection.waypoints;

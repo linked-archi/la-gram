@@ -228,7 +228,7 @@ export class RdfRules extends RuleProvider {
 
   init(): void {
     this.addRule('connection.create', (context: ConnectContext) => this.checkConnect(context));
-    this.addRule('connection.reconnect', (context: ConnectContext) => this.checkConnect(context));
+    this.addRule('connection.reconnect', (context: ConnectContext) => this.checkReconnect(context));
 
     // `connection.start` — "may a connection begin here at all?", asked with
     // only a source. `GlobalConnect` (the palette's connect tool) gates its
@@ -276,6 +276,21 @@ export class RdfRules extends RuleProvider {
     const targetType = context.target?.businessObject?.typeIri;
     if (!sourceType || !targetType) return undefined;
     return this.rdfRules.canConnect(sourceType, targetType);
+  }
+
+  /**
+   * Allow moving an end of a connection onto what the metamodel permits it to
+   * join — as for drawing one ({@link checkConnect}), but never undecided.
+   *
+   * Both ends are always known here: `BendpointMove` asks with the connection's
+   * own ends, and mid-drag with whatever is under the pointer — the diagram root
+   * over empty canvas. The root has no type, and `checkConnect`'s "cannot decide
+   * yet" (`undefined`) reads as *allowed* to diagram-js's `Rules`, so an end let
+   * go on empty canvas was reattached to the root: drawn hanging where it was
+   * dropped, while the model still had it on its element.
+   */
+  private checkReconnect(context: ConnectContext): RdfConnectionAttrs | false {
+    return this.checkConnect(context) || false;
   }
 
   /**
