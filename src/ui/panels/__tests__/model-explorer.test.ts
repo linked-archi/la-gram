@@ -64,6 +64,37 @@ describe('buildModelTree', () => {
     expect(find(tree, (n) => n.iri === `${M}/element/b`)?.placed).toBe(false);
   });
 
+  it('lists derivations the model does not state apart, by certainty, with their rule, and offers to confirm a potential one', () => {
+    const c = contents();
+    c.relationships.push(
+      { iri: `${M}/d/1`, typeIri: 'urn:t#Serving', typeLabel: 'Serving', label: 'Customer → Web', derivation: { certainty: 'valid', rule: 'DR3' } },
+      { iri: `${M}/d/2`, typeIri: 'urn:t#Flow', typeLabel: 'Flow', label: 'API → Customer', derivation: { certainty: 'potential', rule: 'PDR8' } },
+    );
+    const [root] = buildModelTree(c, undefined);
+    expect(root.children.map((f) => [f.label, f.detail])).toEqual([
+      ['Views', '2'],
+      ['Elements', '3'],
+      ['Relationships', '1'],
+      ['Derived relationships', '2'],
+    ]);
+    const derived = root.children[3];
+    expect(derived.children.map((f) => [f.label, f.detail])).toEqual([
+      ['Valid', '1'],
+      ['Potential', '1'],
+    ]);
+    const valid = find(derived.children, (n) => n.iri === `${M}/d/1`)!;
+    const potential = find(derived.children, (n) => n.iri === `${M}/d/2`)!;
+    expect([valid.derivation, valid.detail]).toEqual(['valid', 'DR3']);
+    expect([potential.derivation, potential.detail]).toEqual(['potential', 'PDR8']);
+    expect(find(root.children[2].children, (n) => n.iri === `${M}/d/1`)).toBeUndefined();
+
+    const actions = (n: TreeNode) => actionsFor(n).map((a) => a.action);
+    expect(actions(potential)).toContain('confirm-derivation');
+    expect(actions(valid)).not.toContain('confirm-derivation');
+    expect(actions(valid)).not.toContain('rename');
+    expect(actions(find(root.children[2].children, (n) => n.iri === `${M}/rel/1`)!)).not.toContain('confirm-derivation');
+  });
+
   it('adds an Unclassified folder only when there is something in it', () => {
     const c = contents();
     expect(buildModelTree(c, undefined)[0].children).toHaveLength(3);

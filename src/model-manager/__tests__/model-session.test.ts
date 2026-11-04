@@ -11,6 +11,7 @@ import { ModelSession, DEFAULT_VIEW_LABEL } from '../model-session.js';
 import { readModelContents, modelQuads } from '../model-queries.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { tripleTerm } from '../vocabulary.js';
+import { confirmationQuads, derivationDetails, derivationStatus } from '../derivations.js';
 
 const { namedNode, literal, quad } = DataFactory;
 const ARCH = NAMESPACES.arch;
@@ -297,6 +298,95 @@ describe('ModelSession', () => {
     ] as never);
     session.adopt();
     expect(members('urn:p:proposed')).toHaveLength(1);
+  });
+
+  it('keeps derivations out of what the model states, lists them apart, and confirms a potential one', () => {
+    const DERIV = 'https://meta.linked.archi/archimate4/derivation#';
+    const PROV = NAMESPACES.prov;
+    const a = namedNode('urn:d:a');
+    const b = namedNode('urn:d:b');
+    const c = namedNode('urn:d:c');
+    const derivation = (iri: string, certainty: 'Valid' | 'Potential', rule: string, premise: string) => [
+      quad(namedNode(iri), namedNode(DERIV + 'derivationCertainty'), namedNode(DERIV + certainty)),
+      quad(namedNode(iri), namedNode(PROV + 'wasDerivedFrom'), namedNode(premise)),
+      quad(namedNode(iri), namedNode(PROV + 'wasGeneratedBy'), namedNode(iri + '-activity')),
+      quad(namedNode(iri + '-activity'), namedNode(PROV + 'qualifiedAssociation'), namedNode(iri + '-association')),
+      quad(namedNode(iri + '-association'), namedNode(PROV + 'hadPlan'), namedNode(DERIV + rule)),
+    ];
+    store.addQuads([
+      ...[a, b, c].map((e) => quad(e, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent'))),
+      // Stated: a serves b.
+      quad(namedNode('urn:d:stated'), namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(namedNode('urn:d:stated'), namedNode(ARCH + 'source'), a),
+      quad(namedNode('urn:d:stated'), namedNode(ARCH + 'target'), b),
+      quad(a, namedNode(AM4 + 'serves'), b),
+      quad(a, namedNode(AM4 + 'qualifiedServing'), namedNode('urn:d:stated')),
+      // Valid: its triple and qualified predicate asserted, nobody stating it.
+      quad(namedNode('urn:d:valid'), namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(namedNode('urn:d:valid'), namedNode(ARCH + 'source'), a),
+      quad(namedNode('urn:d:valid'), namedNode(ARCH + 'target'), c),
+      quad(namedNode('urn:d:valid'), namedNode(RDF_REIFIES), tripleTerm(a as never, namedNode(AM4 + 'serves') as never, c as never) as never),
+      quad(a, namedNode(AM4 + 'serves'), c),
+      quad(a, namedNode(AM4 + 'qualifiedServing'), namedNode('urn:d:valid')),
+      ...derivation('urn:d:valid', 'Valid', 'DR3', 'urn:d:stated'),
+      // Potential: the resource alone.
+      quad(namedNode('urn:d:potential'), namedNode(RDF_TYPE), namedNode(AM4 + 'Flow')),
+      quad(namedNode('urn:d:potential'), namedNode(ARCH + 'source'), b),
+      quad(namedNode('urn:d:potential'), namedNode(ARCH + 'target'), c),
+      quad(namedNode('urn:d:potential'), namedNode(RDF_REIFIES), tripleTerm(b as never, namedNode(AM4 + 'flowsTo') as never, c as never) as never),
+      ...derivation('urn:d:potential', 'Potential', 'PDR8', 'urn:d:stated'),
+    ] as never);
+
+    session.adopt({ fallbackLabel: 'Derived' });
+
+    const members = (rel: string) => store.getQuads(nn(rel), nn(ARCH + 'inModel'));
+    const links = (rel: string) => store.getQuads(null, nn(VIS + 'archRelationship'), nn(rel));
+    expect(members('urn:d:stated')).toHaveLength(1);
+    expect(links('urn:d:stated')).toHaveLength(1);
+    for (const derived of ['urn:d:valid', 'urn:d:potential']) {
+      expect(members(derived)).toEqual([]);
+      expect(links(derived)).toEqual([]);
+    }
+
+    const listed = () => new Map(readModelContents(store, []).relationships.map((r) => [r.iri, r.derivation]));
+    expect(listed().get('urn:d:stated')).toBeUndefined();
+    expect(listed().get('urn:d:valid')).toEqual({ certainty: 'valid', rule: 'DR3' });
+    expect(listed().get('urn:d:potential')).toEqual({ certainty: 'potential', rule: 'PDR8' });
+    expect(derivationDetails(store, 'urn:d:valid')).toEqual({ certainty: 'valid', confirmed: false, rule: DERIV + 'DR3', premises: ['urn:d:stated'] });
+    expect(confirmationQuads(store, 'urn:d:valid', 'urn:d:model')).toEqual([]);
+
+    // Confirmed: its triple, its qualified predicate and its membership — then a relationship of the model.
+    const model = session.modelIri!;
+    const confirming = confirmationQuads(store, 'urn:d:potential', model);
+    expect(confirming.map((q) => [q.subject.value, q.predicate.value, q.object.value])).toEqual([
+      ['urn:d:b', AM4 + 'flowsTo', 'urn:d:c'],
+      ['urn:d:b', AM4 + 'qualifiedFlow', 'urn:d:potential'],
+      ['urn:d:potential', ARCH + 'inModel', model],
+    ]);
+    store.addQuads(confirming);
+    expect(derivationStatus(store, 'urn:d:potential')).toEqual({ certainty: 'potential', confirmed: true });
+    expect(listed().get('urn:d:potential')).toBeUndefined();
+    expect(confirmationQuads(store, 'urn:d:potential', model)).toEqual([]);
+    session.linkAllPlaced(session.activeViewIri!);
+    expect(links('urn:d:potential')).toHaveLength(1);
+    expect(links('urn:d:valid')).toEqual([]);
+
+    // Another rule's derivation of the same triple: its triple now asserted, it is still only proposed —
+    // nothing leads to it — and opening the model again does not half-confirm it.
+    store.addQuads([
+      quad(namedNode('urn:d:sibling'), namedNode(RDF_TYPE), namedNode(AM4 + 'Flow')),
+      quad(namedNode('urn:d:sibling'), namedNode(ARCH + 'source'), b),
+      quad(namedNode('urn:d:sibling'), namedNode(ARCH + 'target'), c),
+      quad(namedNode('urn:d:sibling'), namedNode(RDF_REIFIES), tripleTerm(b as never, namedNode(AM4 + 'flowsTo') as never, c as never) as never),
+      ...derivation('urn:d:sibling', 'Potential', 'PDR9', 'urn:d:stated'),
+    ] as never);
+    session.adopt();
+    expect(derivationStatus(store, 'urn:d:sibling')).toEqual({ certainty: 'potential', confirmed: false });
+    expect(listed().get('urn:d:sibling')).toEqual({ certainty: 'potential', rule: 'PDR9' });
+    expect(members('urn:d:sibling')).toEqual([]);
+    expect(store.getQuads(null, null, nn('urn:d:sibling')).map((q) => q.predicate.value)).toEqual([]);
+    // Confirming it adds what it lacks: the triple is there already.
+    expect(confirmationQuads(store, 'urn:d:sibling', model).map((q) => q.predicate.value)).toEqual([AM4 + 'qualifiedFlow', ARCH + 'inModel']);
   });
 
   it('migrates retired vocabulary and element-level geometry on adopt', () => {

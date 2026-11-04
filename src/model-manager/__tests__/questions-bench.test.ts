@@ -57,7 +57,7 @@ describe('model questions on a large model', () => {
     };
 
     const questions = listQuestions(store);
-    expect(questions).toHaveLength(36);
+    expect(questions).toHaveLength(38);
     const slow: string[] = [];
     for (const q of questions) {
       const started = performance.now();
@@ -94,7 +94,7 @@ describe('model questions on a large model', () => {
     };
 
     const questions = listQuestions(store);
-    expect(questions).toHaveLength(35);
+    expect(questions).toHaveLength(37);
     // A question that finds nothing on a model this size is not being timed.
     expect(store.query(buildQuery(questions.find((q) => q.iri.endsWith('#elements-by-layer'))!, bindings)))
       .toMatchObject({ type: 'bindings', results: expect.arrayContaining([expect.anything()]) });

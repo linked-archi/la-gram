@@ -42,6 +42,7 @@ import type { NamedNode } from '@rdfjs/types';
 /** The default graph: the model. */
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 import { isQualifiedPredicate, qualifiedFormOf, relationshipClassOf, unqualifiedFormOf } from './cascade.js';
+import { certaintyNamed, isCertaintyPredicate, isLedTo } from './derivations.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -197,10 +198,10 @@ export class ModelSession {
 
     const migration = migrateLegacyModel(this.store, { viewManager: this.views, defaultView: ensureDefaultView });
     // Before the repairs: the `rdf:reifies` they give an older relationship does not make it one.
-    const propositions = this.propositions();
-    this.ensureMembership(modelIri, propositions);
+    const unstated = this.unstated();
+    this.ensureMembership(modelIri, unstated);
     this.ensureReifies();
-    this.ensureQualifiedPointers(propositions);
+    this.ensureQualifiedPointers(unstated);
 
     // A view to open: the first diagram, else a new one.
     const viewIri = ensureDefaultView();
@@ -436,10 +437,29 @@ export class ModelSession {
   }
 
   /**
+   * The resources that are not relationships the model states: its
+   * propositions; its valid derivations, which hold but which nobody stated; and
+   * its potential derivations no qualified predicate leads to, though another
+   * derivation of the same triple was confirmed (`derivations.ts`). A potential
+   * derivation a modeller confirmed is stated.
+   */
+  private unstated(): Set<string> {
+    const found = this.propositions();
+    for (const q of this.store.getQuads(null, null, null, MODEL_GRAPH)) {
+      if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode' || !isCertaintyPredicate(q.predicate.value)) continue;
+      const certainty = certaintyNamed(q.object.value);
+      if (certainty === 'valid' || (certainty === 'potential' && !isLedTo(this.store, q.subject.value))) found.add(q.subject.value);
+    }
+    return found;
+  }
+
+  /**
    * Every element, relationship and view names its model (DD-15: membership is
    * asserted, not implied by the graph). Data from another tool often omits it.
+   * A derivation the model does not state gets none: it is not part of what was
+   * modelled.
    */
-  private ensureMembership(modelIri: string, propositions: ReadonlySet<string>): void {
+  private ensureMembership(modelIri: string, unstated: ReadonlySet<string>): void {
     const closure = typeClosure(this.store);
     const typesOf = new Map<string, string[]>();
     const members = new Set<string>();
@@ -456,7 +476,7 @@ export class ModelSession {
     const add: Quad[] = [];
     const model = nn(modelIri);
     for (const [iri, types] of typesOf) {
-      if (members.has(iri) || propositions.has(iri)) continue;
+      if (members.has(iri) || unstated.has(iri)) continue;
       const kind = classify(types, closure, false);
       if (kind === 'element' || kind === 'relationship' || kind === 'view' || kind === 'unclassified') {
         add.push(triple(nn(iri), T.inModel, model));
@@ -494,9 +514,10 @@ export class ModelSession {
    * from its source (`am4:qualifiedServing`, else core's
    * `arch:hasQualifiedRelationship`), where it has none — a model saved before
    * la-gram wrote it, or made by another tool. One it has, of whichever
-   * predicate, is kept. A proposition gets none.
+   * predicate, is kept. A derivation the model does not state gets none: for a
+   * potential one, that would be half of confirming it.
    */
-  private ensureQualifiedPointers(propositions: ReadonlySet<string>): void {
+  private ensureQualifiedPointers(unstated: ReadonlySet<string>): void {
     const add: Quad[] = [];
     const formOf = new Map<string, string>();
     const qualified = new Map<string, boolean>();
@@ -509,7 +530,7 @@ export class ModelSession {
     for (const q of this.store.getQuads(null, T.source, null, model)) {
       if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
       const rel = q.subject.value;
-      if (propositions.has(rel)) continue;
+      if (unstated.has(rel)) continue;
       if (this.store.getQuads(nn(q.object.value), null, nn(rel), model).some((p) => isQualified(p.predicate.value))) continue;
       const classIri = relationshipClassOf(this.store, rel) ?? IRI.QualifiedRelationship;
       if (!formOf.has(classIri)) formOf.set(classIri, qualifiedFormOf(this.store, classIri));
@@ -556,12 +577,15 @@ export class ModelSession {
     return elements.length;
   }
 
-  /** Draw every qualified relationship whose two ends are placed in the view; a proposition is not one. */
+  /**
+   * Draw every relationship the model states whose two ends are placed in the
+   * view. A derivation it does not state is drawn only when asked for.
+   */
   linkAllPlaced(viewIri: string): number {
     let drawn = 0;
-    const propositions = this.propositions();
+    const unstated = this.unstated();
     for (const q of this.store.getQuads(null, T.source, null)) {
-      if (q.graph.termType !== 'DefaultGraph' || propositions.has(q.subject.value)) continue;
+      if (q.graph.termType !== 'DefaultGraph' || unstated.has(q.subject.value)) continue;
       if (this.views.addRelationshipToView(viewIri, q.subject.value)) drawn += 1;
     }
     return drawn;

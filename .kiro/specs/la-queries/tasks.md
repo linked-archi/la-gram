@@ -76,7 +76,8 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [x] meta: what runs the rules records its run, and derivations are kept in their own graph in a store or beside the model in a file (D31) — DD-27 and DD-28 rewritten, the 4.0 guide's "Which Rule, and What Ran It" and "Where Derivations Are Kept" with examples, the 3.2 and TIME guides, the ontology reference, the README and the TIME rules' description
 - [x] meta: a valid derivation is a statement, a potential one a proposition (D32) — the 4.0 and 3.2 rules regenerated: a valid rule asserts the triple and qualified predicate; a premise's triple is asserted, not an unconfirmed potential derivation; the five targets back to `sh:targetSubjectsOf`; the namespace `urn:linked-archi:` with no model or several. `DeriveRules` checks a valid derivation's triple and qualified predicate. Same derivations: 37, 37 and 38, the expected results untouched. DD-27, DD-28 (with `{base}graph/derived` across models) and DD-29, both ArchiMate guides, the relationship modelling and TIME guides, validation, the ontology reference, core's `arch:QualifiedRelationship` note, the README and the merged-dataset diagram
 - [x] la-gram: opening a model leaves a proposition as it is (D32) — loading gave each potential derivation a qualified predicate, half of confirming it, and `arch:inModel`, and laying out a model with no geometry drew it (`ModelSession.propositions()`); on NordFreight with its derivations none of the 88 now gets any of them, where all 88 got the predicate and `arch:inModel`, and valid ones still load as relationships. The bundled core and catalogue are synced, the catalogue from a scratch copy of meta
-- [ ] la-gram: how a derivation shows, and confirming one (D32) — the tree and what else reads `arch:source` list a potential derivation as a relationship (168 on NordFreight with its derivations, 35 without), and no action asserts its triple with its qualified predicate
+- [x] la-gram: how a derivation shows, and confirming one (D32) — `derivations.ts`: a derivation by its certainty, confirmed by a qualified predicate leading to it (not its triple, which a confirmed sibling asserts too); valid derivations and unconfirmed potential ones get no `arch:inModel` and no automatic link; the explorer lists them under *Derived relationships* (Valid, Potential) with the rule; drawn on purpose, faded with a D or P badge; the properties panel gives rule and premises; *Confirm* asserts triple, qualified predicate and membership as one undoable step. NordFreight with its derivations: 35 stated, 45 valid, 88 potential, the layout drawing 35; one confirmed, 36 / 45 / 87, unchanged on reopening
+- [x] meta: what the potential rules propose, asked — *Where could the model be more concrete?* and *Which relationships give rise to the most potential derivations?* in the 4.0 and 3.2 question sets, with two potential derivations beside each question example to check them on (NordFreight: 88 rows; the ranking led by a composition behind 14); DD-33 records how questions follow relationships; both ArchiMate guides
 - [x] meta and la-gram: what the questions read with derivations loaded (D33) — core's `neighbours` and `dependents` and twelve ArchiMate questions in each version read direct triples, seven of them along the chains the valid rules follow and four, too slow to walk on the benchmark model, by their fixed steps; `reifies-audit` leaves propositions alone; the identifiers `core/neighbours` and `core/dependents`; the expected answers of both question examples updated where the rules derive more; the relationship guide and both ArchiMate guides; BPMN and UML direct predicates, with the converters writing them. Synced to la-gram. Not done: the APM templates, which still read the resources
 - [ ] la-gram: record a run if it comes to derive — it does not: the rules are not bundled, needing a server-side engine. Then a `prov:Activity` with itself as the agent (`prov:agent` on the run's association, a `prov:SoftwareAgent`) and when it ran, each derivation activity `dcterms:isPartOf` it — D31
 - [x] meta docgen: an ontology that also holds viewpoints or a concept scheme is documented by WIDOCO — the core ontology, and four extension ontologies (built in a scratch copy)
@@ -104,3 +105,79 @@ See [requirements.md](requirements.md) and [design.md](design.md).
 - [x] la-gram: the 3.2 set bundled (`questions`, `archimate3`) and synced; `questions.test` (the 3.2 suite on Oxigraph, the 4.0 example updated); `bench-model.mjs --language 3.2` and a 3.2 benchmark (every question under 0.3 s at 350 000 triples); `workbench.test` (an imported 3.2 model: 35 questions, 14 model checks, `amq:capability-realisation` asked) (Req 16.3)
 - [x] Docs: validation guide, modelling-languages guide, `.scripts/README.md`
 - [x] Converter: accesses typed by kind (`am:ReadAccess`, `am:WriteAccess` — also when the attribute is absent — `am:ReadWriteAccess`, `am:Access`), the deprecated `am:accessType` no longer written; a `relationships:` entry wins; `ArchiMateAccessKindTest`, every converter test passes, the jar rebuilt; a converted sample answers the 3.2 questions as expected
+
+## 9. linked-archi-query after D33 — open
+
+For linked-archi-apm (`tools/ai-enablement/linked-archi-apm`). Since `c9b4dc4`, meta changed how the questions
+read relationships (D33; meta's DD-33): they follow direct triples, so a valid derivation is one hop and a
+potential one, which asserts no triple, is never read as a relationship; a question about the relationship itself
+reads its qualified resource. Converters 1.3.0 also write BPMN's direct predicates. Take meta at its commit with
+the two derivation questions; run every step against it with `META=…/linked-archi-meta`.
+
+- [ ] Re-bundle the question sets: `make questions` refreshes `skills/linked-archi-query/assets/questions/`
+      (`core-questions.ttl`, `archimate4-questions.ttl`, `archimate3.2-questions.ttl`, `index.json`). What arrives:
+      - `core/neighbours-qualified` → `core/neighbours` and `core/dependents-qualified` → `core/dependents` (IRIs
+        `archq:neighbours`, `archq:reaches-in-two-hops` unchanged): direct triples, the relationship predicates
+        read from the metamodel (`arch:unqualifiedForm` on a subclass of `arch:QualifiedRelationship`, the most
+        general), so both now need `arch:ModelAndMetamodelDataset`; `neighbours` has no `?relationship` column;
+      - `core/reifies-audit` (`archq:relationship-integrity`) no longer reports a proposition — `rdf:reifies` of a
+        triple not asserted, nothing leading to it;
+      - per ArchiMate version, twelve questions on direct triples: seven along the chains the valid derivation rules
+        follow (`responsibility-assignments`, `capability-realisation`, `unassigned-behaviour`,
+        `unrealised-services`, `unrealised-requirements`, `principles-without-requirements`,
+        `work-package-deliverables`), anchored on the relationship asked about; four by their fixed steps
+        (`application-dependencies`, `applications-without-technology`, `requirement-traceability`,
+        `unrealised-capabilities`); the domain or layer crossings counting pairs of elements;
+        `responsibility-assignments` now asks only of active structure and has no `?assignment` column;
+      - two new questions per version, `notation/archimate4/potential-derivations` and
+        `notation/archimate4/potential-derivation-premises` (`notation/archimate/…` for 3.2), declaring `prov` and
+        `am4deriv` (`amderiv`) in `sh:declare`.
+- [ ] The requirement checks (D17, D18): what the re-bundled questions need — `neighbours` and `dependents` the
+      metamodel's `arch:unqualifiedForm`; the questions on direct triples `direct_rel_triples`; the two derivation
+      questions nothing a profile claims (they answer nothing until derivations are loaded; say so rather than
+      refuse). Check that none is refused on `linked-archi-default`, and that `linked-archi-qualified` refuses what
+      needs direct triples, naming the remedy.
+- [ ] `tests/test_questions.py`: meta's two expected files changed — `capability-realisation` gains `ex:clerk
+      ex:customer` (both versions), 3.2's `work-package-deliverables` gains `ex:crmFunction ex:customerService`,
+      `requirement-traceability` is as before, and four cases for the derivation questions. Each question example
+      now has two potential derivations beside the model, with `rdf:reifies` triple terms and `prov:` provenance:
+      the flattened and converter-graph variants have to carry them (a derivation is model data; in a store it
+      would be in `…/graph/derived`).
+- [ ] One entry, two implementations (D19): `core/neighbours-qualified` and `core/dependents-qualified` are no
+      longer meta questions. Decide per template: keep it as the qualified reading under its own name (it then
+      answers differently from meta's `core/neighbours`/`core/dependents`: resource IRIs, two relationships of one
+      type between one pair counted twice, and a potential derivation listed), or retire it for the question.
+      `core/dependents-direct` (transitive, `PREDICATE_PATH`) is not meta's `core/dependents` (two hops, every
+      relationship predicate): keep the names apart. Update `catalog.json`, `catalog show`/`dump`, the analyse
+      patterns that pick these by name (`skills/linked-archi-analyse/assets/patterns.json`,
+      `references/patterns/impact-and-dependency.md`, `references/machine-contract.md`), the query skill
+      (`SKILL.md`, `references/execution.md`, `references/troubleshooting.md`, `scripts/linked_archi_query/cli.py`)
+      and the docs (`docs/templates.md`, `docs/concepts/profile.md`, `docs/skills/query.md`). meta's
+      `doc/tools/apm.md` and `doc/guide/ontology-guided-conversational-analysis.md` quote a refusal that suggests
+      `core/dependents-qualified, core/neighbours-qualified` (and its diagram,
+      `zero-rows-four-meanings.svg`): change them with the templates if the names change.
+- [ ] Templates that read the relationship resource (`ROLE:rel_source`/`rel_target`): `core/neighbours-qualified`,
+      `core/dependents-qualified`, `core/reifies-audit`, `core/orphans`, `core/traceability`, `core/define-term`,
+      `core/discover-relationship-types`, `notation/archimate/layer-crossing`, `notation/bpmn/process-flow`,
+      `notation/backstage/ownership`. With a model's derivations loaded (`la-connect` reads the union, derived graph
+      included) a potential derivation is listed as a relationship, and `reifies-audit` reports each as a violation
+      (88 on NordFreight). Bring `reifies-audit` in line with meta's (skip a resource whose triple is not asserted
+      and to which nothing leads); move each listing that needs no resource to direct triples, as meta did; for the
+      rest, say in its `Does NOT prove` that a potential derivation is listed when derivations are loaded.
+      `notation/archimate/layer-crossing` shares its name with meta's 3.2 question, which now counts direct
+      triples: one name, one answer.
+- [ ] `core/dependents-direct`: its header says the converters write direct triples "only with
+      `--emit-direct-rel-triples`, which is off by default" — on by default since converters 1.3.0, which the
+      0.10.0 profile already claims. Reword the comment, and check what still refuses it.
+- [ ] BPMN from converters 1.3.0: direct triples by default (`bpmn:sequenceFlow`, `bpmn:messageFlow`,
+      `bpmn:association`, `bpmn:conversationLink`, `bpmn:dataAssociation`), each bridged with `rdf:reifies`, and the
+      qualified property published for it (`bpmn:qualifiedSequenceFlow` …) where `arch:hasQualifiedRelationship`
+      was. Re-extract the fixtures (`fixtures/build_fixtures.py`, `fixtures/converter-1.3.trig`), revisit the
+      profile's `partial` `rdf_reifies` for BPMN, and `notation/bpmn/process-flow`, which could now follow
+      `bpmn:sequenceFlow`. UML's control, object and information flows gained direct predicates too
+      (`uml:controlFlowsTo`, `uml:objectFlowsTo`, `uml:informationFlowsTo`).
+- [ ] Derivations in an answer: in `docs/answering-a-question.md` (and the analyse skill), what a store's derived
+      graph changes — a question on direct triples gives what holds (the union) or what was stated (`FROM` the
+      model and semantic graphs, DD-28); the two derivation questions as the way to ask what the rules propose.
+- [ ] Changelog, version (0.11.0), `make questions`, the test suite, the docs site.
+

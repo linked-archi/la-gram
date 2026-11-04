@@ -61,7 +61,9 @@ concern the ArchiMate 4.0 viewpoints frame is not met. Each is executable SPARQL
         [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ],
         [ sh:prefix "rdfs" ; sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ],
         [ sh:prefix "skos" ; sh:namespace "http://www.w3.org/2004/02/skos/core#"^^xsd:anyURI ],
-        [ sh:prefix "am4" ; sh:namespace "https://meta.linked.archi/archimate4/onto#"^^xsd:anyURI ] ;
+        [ sh:prefix "am4" ; sh:namespace "https://meta.linked.archi/archimate4/onto#"^^xsd:anyURI ],
+        [ sh:prefix "prov" ; sh:namespace "http://www.w3.org/ns/prov#"^^xsd:anyURI ],
+        [ sh:prefix "am4deriv" ; sh:namespace "https://meta.linked.archi/archimate4/derivation#"^^xsd:anyURI ] ;
 .
 
 # ── Orientation ─────────────────────────────────────────────────
@@ -1094,5 +1096,84 @@ domain-specific type the same viewpoint admits; every other element belongs when
         }
         GROUP BY ?element ?type
         ORDER BY ?type ?label
+    """ ;
+.
+
+# ── Derivations ─────────────────────────────────────────────────
+# What the derivation rules propose (archimate4-derivation-rules.ttl), read when the model's
+# derivations are loaded with it — beside it in a file, in its derived graph
+# in a store. Without them, nothing.
+
+:potential-derivations
+    a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
+    dcterms:identifier            "notation/archimate4/potential-derivations" ;
+    skos:prefLabel                "Where could the model be more concrete?"@en ;
+    dcterms:description           "The potential derivations no modeller has confirmed: relationships the derivation rules say may hold between elements the model relates only through others, each with the rule that proposed it. Each is the model's to state, or to make more precise, where a relationship drawn to a whole is meant for one of its parts."@en ;
+    arch:answers                  "One row per potential derivation not confirmed: its source, type and target, and the rule that proposed it."@en ;
+    arch:doesNotProve             "That the relationship holds: a potential derivation may hold, depending on the model. Nothing is listed unless the model's derivations are loaded with it."@en ;
+    arch:questionStage            arch:QualityStage ;
+    arch:questionAddressesConcern am4vp:Completeness ;
+    arch:resultIsFinding          false ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                "potentialDerivations" ;
+    arch:defaultLimit             500 ;
+    sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
+    sh:select """
+        SELECT DISTINCT ?derivation ?source ?sourceLabel ?relationshipType ?target ?targetLabel ?rule
+        WHERE {
+          # A potential derivation not confirmed: no qualified predicate leads to it.
+          ?derivation am4deriv:derivationCertainty am4deriv:Potential ;
+                      arch:source ?source ;
+                      arch:target ?target ;
+                      rdf:type ?relationshipType .
+          FILTER NOT EXISTS { ?source ?leads ?derivation }
+          FILTER(?relationshipType NOT IN (arch:ModelConcept, arch:Element, arch:QualifiedRelationship))
+          MINUS { SELECT DISTINCT ?relationshipType WHERE { { ?relationshipType arch:isAbstractClass true }
+                                                            UNION { GRAPH ?abstractClassGraph { ?relationshipType arch:isAbstractClass true } } } }
+          OPTIONAL { ?derivation prov:wasGeneratedBy/prov:qualifiedAssociation/prov:hadPlan ?rule }
+          OPTIONAL { ?source skos:prefLabel ?sourceLabel . FILTER(lang(?sourceLabel) = "" || langMatches(lang(?sourceLabel), "en")) }
+          OPTIONAL { ?target skos:prefLabel ?targetLabel . FILTER(lang(?targetLabel) = "" || langMatches(lang(?targetLabel), "en")) }
+        }
+        ORDER BY ?sourceLabel ?targetLabel ?relationshipType
+    """ ;
+.
+
+:potential-derivation-premises
+    a                             arch:ModelQuestion, sh:SPARQLSelectExecutable ;
+    dcterms:identifier            "notation/archimate4/potential-derivation-premises" ;
+    skos:prefLabel                "Which relationships give rise to the most potential derivations?"@en ;
+    dcterms:description           "The relationships the model states that the most potential derivations not confirmed rest on. A relationship drawn to a whole where one of its parts is meant gives rise to a proposal for each part; stating the part's own relationship makes the model more concrete."@en ;
+    arch:answers                  "One row per relationship the model states that a potential derivation rests on, with how many rest on it, the most first."@en ;
+    arch:doesNotProve             "That the relationship is wrong: one drawn to a whole may be meant so. Nothing is listed unless the model's derivations are loaded with it."@en ;
+    arch:questionStage            arch:QualityStage ;
+    arch:questionAddressesConcern am4vp:Completeness ;
+    arch:resultIsFinding          false ;
+    arch:requiresDataset          arch:ModelAndMetamodelDataset ;
+    arch:requiresMetamodel        <https://meta.linked.archi/archimate4/onto#> ;
+    arch:resultKey                "potentialDerivationPremises" ;
+    arch:defaultLimit             200 ;
+    sh:prefixes                   <https://meta.linked.archi/archimate4/questions#> ;
+    sh:select """
+        SELECT ?relationship ?source ?sourceLabel ?relationshipType ?target ?targetLabel (COUNT(DISTINCT ?derivation) AS ?derivations)
+        WHERE {
+          # Each potential derivation not confirmed, and what it was derived from that the model states: not a
+          # derivation itself.
+          ?derivation am4deriv:derivationCertainty am4deriv:Potential ;
+                      arch:source ?proposedSource ;
+                      prov:wasDerivedFrom ?relationship .
+          FILTER NOT EXISTS { ?proposedSource ?leads ?derivation }
+          FILTER NOT EXISTS { ?relationship am4deriv:derivationCertainty ?anyCertainty }
+          ?relationship arch:source ?source ;
+                        arch:target ?target ;
+                        rdf:type ?relationshipType .
+          FILTER(?relationshipType NOT IN (arch:ModelConcept, arch:Element, arch:QualifiedRelationship))
+          MINUS { SELECT DISTINCT ?relationshipType WHERE { { ?relationshipType arch:isAbstractClass true }
+                                                            UNION { GRAPH ?abstractClassGraph { ?relationshipType arch:isAbstractClass true } } } }
+          OPTIONAL { ?source skos:prefLabel ?sourceLabel . FILTER(lang(?sourceLabel) = "" || langMatches(lang(?sourceLabel), "en")) }
+          OPTIONAL { ?target skos:prefLabel ?targetLabel . FILTER(lang(?targetLabel) = "" || langMatches(lang(?targetLabel), "en")) }
+        }
+        GROUP BY ?relationship ?source ?sourceLabel ?relationshipType ?target ?targetLabel
+        ORDER BY DESC(?derivations) ?sourceLabel ?targetLabel
     """ ;
 .

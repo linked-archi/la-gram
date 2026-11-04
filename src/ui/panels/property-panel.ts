@@ -147,10 +147,18 @@ export interface PropertyAnalysis {
 
 /** What the header says about the selected concept. */
 export interface PropertyHeading {
-  /** "Element", "Relationship", "View", "Model". */
+  /** "Element", "Relationship", "View", "Model"; "Derived relationship", "Potential relationship". */
   kind: string;
   typeLabel?: string;
   typeIri?: string;
+  /** For a relationship a rule derived: how surely, by which rule, from what, and whether it is confirmed. */
+  derivation?: {
+    certainty: 'valid' | 'potential';
+    confirmed: boolean;
+    /** The rule, by local name (`DR3`). */
+    rule?: string;
+    premises: Array<{ iri: string; label: string }>;
+  };
 }
 
 /** Predicates whose values are human text: edited with a language tag. */
@@ -783,6 +791,16 @@ export class PropertyPanel extends LitElement {
       width: 12px;
     }
 
+    .derivation {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+    }
+    .derivation .confirm-derivation {
+      align-self: flex-start;
+      margin-top: 2px;
+    }
     .muted {
       padding: 2px 12px 6px;
       color: #80868b;
@@ -1368,6 +1386,48 @@ export class PropertyPanel extends LitElement {
   }
 
   /** The ID row: the concept's short identifier; clicked, its IRI. */
+  /** What derived the relationship, from what — and, for a potential one not confirmed, the way to confirm it. */
+  private _renderDerivation() {
+    const d = this.heading?.derivation;
+    if (!d) return nothing;
+    const what =
+      d.certainty === 'valid'
+        ? 'Derived, valid: it holds, though the model does not state it'
+        : d.confirmed
+          ? 'Confirmed: proposed as a potential derivation, now stated in the model'
+          : 'Potential: may hold, for the modeller to confirm';
+    return html`
+      <li class="property-row derivation-row" data-derivation=${d.certainty}>
+        <div class="property-label"><span class="field-name">Derivation</span></div>
+        <div class="derivation">
+          <div>${what}${d.rule ? html` — <strong>${d.rule}</strong>` : nothing}</div>
+          ${d.premises.length > 0
+            ? html`<div class="muted">
+                From
+                ${d.premises.map(
+                  (p, i) => html`${i > 0 ? ', ' : ''}<a
+                      href="#"
+                      class="premise"
+                      title=${p.iri}
+                      @click=${(e: Event) => {
+                        e.preventDefault();
+                        this._emit('panel-navigate', { iri: p.iri });
+                      }}
+                      >${p.label}</a
+                    >`,
+                )}
+              </div>`
+            : nothing}
+          ${d.certainty === 'potential' && !d.confirmed
+            ? html`<button class="confirm-derivation" @click=${() => this._emit('confirm-derivation', { iri: this.selectedIri })}>
+                Confirm — state it in the model
+              </button>`
+            : nothing}
+        </div>
+      </li>
+    `;
+  }
+
   private _renderId() {
     const shown = this._irisShown(ID_ROW);
     return html`
@@ -1517,7 +1577,7 @@ export class PropertyPanel extends LitElement {
         <div class="pane" role="tabpanel" data-tab=${active}>
           ${active === 'info'
             ? html`<ul class="property-list">
-                ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
+                ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0

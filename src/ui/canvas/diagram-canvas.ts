@@ -324,6 +324,10 @@ export interface ConceptDescription {
   /** The label is a name the concept has, not one made from its IRI. */
   named?: boolean;
   iconUrl?: string;
+  /** A relationship derived by a rule that the model does not state, by its certainty. */
+  derivation?: 'valid' | 'potential';
+  /** The rule that derived it, by local name. */
+  derivationRule?: string;
 }
 
 /** What {@link DiagramCanvasOptions.confirmDeleteFromModel} is asked about. */
@@ -1090,6 +1094,15 @@ export class DiagramCanvas {
           if (record) record.typeIri = typeIri;
           services.eventBus.fire('elements.changed', { elements: [existing] });
         }
+        // Confirmed, or the confirmation undone: drawn as what it now is.
+        const derived = this.derivationOf(link.relationshipIri);
+        const drawn = existing.businessObject;
+        if (drawn && (drawn.derivation !== derived.derivation || drawn.derivationRule !== derived.derivationRule)) {
+          delete drawn.derivation;
+          delete drawn.derivationRule;
+          Object.assign(drawn, derived);
+          services.eventBus.fire('elements.changed', { elements: [existing] });
+        }
         continue;
       }
       this.addRelationship(
@@ -1245,7 +1258,7 @@ export class DiagramCanvas {
     const target = services.elementRegistry.get(rel.targetIri);
     if (!source || !target) return false;
     const typeIri = this.describeElement?.(relationshipIri)?.typeIri ?? rel.classIri;
-    const businessObject: RdfBusinessObject = { iri: relationshipIri, typeIri, kind: 'relationship' };
+    const businessObject: RdfBusinessObject = { iri: relationshipIri, typeIri, kind: 'relationship', ...this.derivationOf(relationshipIri) };
     services.modeling.createConnection(
       source,
       target,
@@ -1502,6 +1515,7 @@ export class DiagramCanvas {
       iri: relationshipIri ?? key,
       typeIri,
       kind: 'relationship',
+      ...(relationshipIri ? this.derivationOf(relationshipIri) : {}),
     };
 
     // Store-led, so added directly rather than through `modeling` (see
@@ -2727,12 +2741,21 @@ export class DiagramCanvas {
    * element already in the view — what users of Archi expect, and what makes
    * "add to view" useful for exploring a model.
    */
+  /** What a relationship's connection carries of its derivation: nothing for one the model states. */
+  private derivationOf(relationshipIri: string): Pick<RdfBusinessObject, 'derivation' | 'derivationRule'> {
+    const description = this.describeElement?.(relationshipIri);
+    if (!description?.derivation) return {};
+    return { derivation: description.derivation, ...(description.derivationRule ? { derivationRule: description.derivationRule } : {}) };
+  }
+
   private drawRelationshipsOf(shape: DjsShape): void {
     const services = this.services();
     const iri = shape.businessObject?.iri;
     if (!services || !iri || !this.relationshipManager.getRelationshipsOf) return;
     for (const rel of this.relationshipManager.getRelationshipsOf(iri)) {
       if (this.findConnection(rel.iri)) continue;
+      // A derivation the model does not state is drawn when asked for, not with its ends.
+      if (this.describeElement?.(rel.iri)?.derivation) continue;
       const source = services.elementRegistry.get(rel.sourceIri);
       const target = services.elementRegistry.get(rel.targetIri);
       if (!source || !target) continue;

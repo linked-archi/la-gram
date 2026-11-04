@@ -23,7 +23,7 @@ import {
   NOTATION_DEFAULTS,
   SHAPE_TYPES,
 } from '../notation-shapes.js';
-import { RENDER_CLASSES } from '../rdf-renderer.js';
+import { RENDER_CLASSES, midpointOf } from '../rdf-renderer.js';
 import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
 import { archimateShape } from './notation-shape-fixtures.js';
 
@@ -547,6 +547,47 @@ describe('connection rendering', () => {
     const line = drawRelationship('SolidLine', 'CircleDot', 'ClosedArrowhead');
     expect(line.getAttribute('marker-start')).toContain('CircleDot');
     expect(line.getAttribute('marker-end')).toContain('ClosedArrowhead');
+  });
+
+  it('draws a derived relationship faded, its line style kept, with a badge saying what it is', () => {
+    harness = createRenderHarness(paletteWith([]));
+    const stated = harness.drawConnection({ iri: 'https://example.org/model/r1', typeIri: RELATION_IRI, kind: 'relationship' });
+    expect(stated.getAttribute('stroke-opacity')).toBeNull();
+    expect(stated.parentElement?.querySelector('.la-derivation-badge')).toBeNull();
+
+    const valid = harness.drawConnection({
+      iri: 'https://example.org/model/d1',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+      derivation: 'valid',
+      derivationRule: 'DR3',
+    });
+    expect(valid.getAttribute('class')).toContain('la-connection-derived');
+    expect(valid.getAttribute('class')).toContain('la-connection-valid');
+    expect(valid.getAttribute('stroke-opacity')).toBe('0.6');
+    const badge = [...(valid.parentElement?.querySelectorAll('.la-derivation-badge') ?? [])].find(
+      (b) => b.getAttribute('data-derivation') === 'valid',
+    );
+    expect(badge?.querySelector('text')?.textContent).toBe('D');
+    expect(badge?.querySelector('title')?.textContent).toBe('Derived (valid) — DR3');
+
+    const potential = harness.drawConnection({
+      iri: 'https://example.org/model/d2',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+      derivation: 'potential',
+    });
+    expect(potential.getAttribute('stroke-opacity')).toBe('0.4');
+    const potentialBadge = [...(potential.parentElement?.querySelectorAll('.la-derivation-badge') ?? [])].find(
+      (b) => b.getAttribute('data-derivation') === 'potential',
+    );
+    expect(potentialBadge?.querySelector('text')?.textContent).toBe('P');
+  });
+
+  it('finds the middle of a line by its length', () => {
+    expect(midpointOf([{ x: 0, y: 0 }, { x: 200, y: 0 }])).toEqual({ x: 100, y: 0 });
+    expect(midpointOf([{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 300, y: 100 }])).toEqual({ x: 100, y: 100 });
+    expect(midpointOf([{ x: 5, y: 5 }])).toBeUndefined();
   });
 
   it('draws an unstyled relationship type as a plain solid line', () => {

@@ -27,6 +27,7 @@ import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import type { ViewInfo } from './interfaces.js';
 import { IRI, T, humanize, localName, nn } from './vocabulary.js';
+import { certaintyNamed, isCertaintyPredicate, isLedTo, ruleOf, type DerivationCertainty } from './derivations.js';
 
 /** What names a concept, in the order {@link labelOf} prefers them. */
 const NAMING_PREDICATES = [T.prefLabel, T.rdfsLabel, nn(IRI.dctermsTitle)];
@@ -52,6 +53,11 @@ export interface ConceptSummary {
 export interface RelationshipSummary extends ConceptSummary {
   sourceIri?: string;
   targetIri?: string;
+  /**
+   * Set for a derivation the model does not state: a valid one, or a potential
+   * one not confirmed (`derivations.ts`) — with the rule's local name.
+   */
+  derivation?: { certainty: DerivationCertainty; rule?: string };
 }
 
 /** Everything the explorer shows. */
@@ -188,6 +194,8 @@ interface ConceptFacts {
   names: Map<string, Term[]>;
   /** Its first end by end predicate. */
   ends: Map<string, string>;
+  /** Its derivation certainty, when it is a derivation. */
+  certainty?: DerivationCertainty;
 }
 
 const NAMING = new Set(NAMING_PREDICATES.map((p) => p.value));
@@ -214,6 +222,9 @@ function collectFacts(quads: Iterable<Quad>): Map<string, ConceptFacts> {
     } else if (ENDS.has(p)) {
       const ends = of(q.subject.value).ends;
       if (!ends.has(p)) ends.set(p, q.object.value);
+    } else if (isCertaintyPredicate(p) && q.object.termType === 'NamedNode') {
+      const certainty = certaintyNamed(q.object.value);
+      if (certainty) of(q.subject.value).certainty = certainty;
     }
   }
   return facts;
@@ -225,6 +236,16 @@ export type Summarised =
   | { kind: 'element' | 'unclassified'; summary: ConceptSummary }
   | { kind: 'relationship'; summary: RelationshipSummary };
 
+/**
+ * How a derivation is listed, from the store: `undefined` when the model states
+ * it — a potential derivation a modeller confirmed.
+ */
+function derivationOf(store: RdfStore, iri: string, certainty: DerivationCertainty): RelationshipSummary['derivation'] {
+  if (certainty === 'potential' && isLedTo(store, iri)) return undefined;
+  const rule = ruleOf(store, iri);
+  return { certainty, ...(rule ? { rule: localName(rule) } : {}) };
+}
+
 /** What the tree lists of a concept, from its facts. */
 function summarize(
   iri: string,
@@ -232,6 +253,7 @@ function summarize(
   closure: TypeClosure,
   nameOf: (iri: string) => string,
   typeLabel: (typeIri: string) => string,
+  store?: RdfStore,
 ): Summarised | undefined {
   const { types } = facts;
   if (types.length === 0) return undefined;
@@ -250,6 +272,7 @@ function summarize(
       const targetIri = facts.ends.get(IRI.target) ?? facts.ends.get(IRI.legacyRelTarget);
       const explicit = facts.names.get(T.prefLabel.value)?.[0]?.value;
       const label = explicit ?? `${sourceIri ? nameOf(sourceIri) : '?'} → ${targetIri ? nameOf(targetIri) : '?'}`;
+      const derivation = facts.certainty && store ? derivationOf(store, iri, facts.certainty) : undefined;
       return {
         kind,
         summary: {
@@ -259,6 +282,7 @@ function summarize(
           label,
           ...(sourceIri ? { sourceIri } : {}),
           ...(targetIri ? { targetIri } : {}),
+          ...(derivation ? { derivation } : {}),
         },
       };
     }
@@ -304,7 +328,7 @@ export function readModelContents(store: RdfStore, views: ViewInfo[], closure: T
   const typeLabel = typeLabels(store);
   const contents: ModelContents = { views, elements: [], relationships: [], unclassified: [] };
   for (const [iri, f] of facts) {
-    const concept = summarize(iri, f, closure, nameOf, typeLabel);
+    const concept = summarize(iri, f, closure, nameOf, typeLabel, store);
     if (!concept) continue;
     if (concept.kind === 'model') contents.model = concept.summary;
     else if (concept.kind === 'relationship') contents.relationships.push(concept.summary);
@@ -352,6 +376,8 @@ export class ModelContentsIndex {
           return;
         }
         if (q.subject.termType === 'NamedNode') this.changed.add(q.subject.value);
+        // A qualified predicate leading to a relationship decides whether a potential derivation is confirmed.
+        if (q.object.termType === 'NamedNode' && isQualifiedPointer(q.predicate.value)) this.changed.add(q.object.value);
       }
     }
     if (this.changed.size > ModelContentsIndex.WHOLE_AFTER) this.whole = true;
@@ -413,7 +439,7 @@ export class ModelContentsIndex {
     const nameOf = (iri: string) => labelOf(this.store, iri);
     for (const iri of affected) {
       const facts = collectFacts(this.store.getQuads(nn(iri), null, null, MODEL_GRAPH)).get(iri);
-      this.place(iri, facts ? summarize(iri, facts, closure, nameOf, this.typeLabel) : undefined);
+      this.place(iri, facts ? summarize(iri, facts, closure, nameOf, this.typeLabel, this.store) : undefined);
     }
   }
 
@@ -436,6 +462,14 @@ export class ModelContentsIndex {
   private listOf(kind: 'element' | 'unclassified' | 'relationship'): ConceptSummary[] {
     return kind === 'element' ? this.lists.elements : kind === 'unclassified' ? this.lists.unclassified : this.lists.relationships;
   }
+}
+
+/**
+ * Whether a predicate leads to a relationship's resource: a notation's
+ * `qualified…` property (named after the class it leads to), or core's fallback.
+ */
+function isQualifiedPointer(predicateIri: string): boolean {
+  return predicateIri === IRI.hasQualifiedRelationship || localName(predicateIri).startsWith('qualified');
 }
 
 /** Where a summary goes in a sorted list: the index of the first not before it. */

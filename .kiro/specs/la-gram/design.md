@@ -1458,6 +1458,23 @@ dialog; the modules' section).
    not a relationship of the model, and loading leaves it as it is: a qualified
    predicate leading to it would be half of confirming it, so it gets none, nor
    `arch:inModel`, nor a link when a model with no geometry is laid out.
+   **Derived relationships are shown as derived** (`derivations.ts`). A resource
+   with a derivation certainty (`…/derivation#derivationCertainty`) is one; it is
+   stated only once a modeller has confirmed it, which takes a qualified predicate
+   leading to it — its triple alone does not say so, as another derivation of the
+   same triple, confirmed, asserts it too. A valid derivation, which holds though
+   nobody stated it, and a potential one not confirmed get no `arch:inModel` and
+   no link from a layout, are not drawn with their ends when an element is
+   placed, and are listed apart in the explorer, under *Derived relationships* by
+   certainty (Valid, Potential) and type, in italics, with the rule. Drawn on
+   purpose (*Add to current view*), a derived link keeps its notation's line,
+   faded, with a badge at its middle — D for valid, P for potential — whose
+   tooltip names the rule; the properties panel says what derived it and from
+   which relationships. *Confirm* (the explorer's menu, the properties panel)
+   states a potential one — its triple, the qualified predicate leading to it,
+   `arch:inModel` — as one undoable step (`confirmationQuads`), and it is then a
+   relationship of the model, its certainty kept as the record of the rule that
+   proposed it. la-gram does not derive: the rules need a server-side engine.
 4. **Offline first, network when asked.** ArchiMate 4.0 and 3.2 are bundled;
    every other published metamodel is one click away when online.
 5. **Undo = inverse diff.** One mechanism for every model change a gesture

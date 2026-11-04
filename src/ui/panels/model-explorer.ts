@@ -11,6 +11,9 @@
  *     ▾ Application Component (3)
  *         Order Service        ●        ● = placed in the open view
  *   ▾ Relationships                     grouped by type: "Source → Target"
+ *   ▸ Derived relationships             what derivation rules concluded and the model
+ *     ▸ Valid                           does not state, by certainty, then type
+ *     ▸ Potential                       (a potential one confirmed is a relationship)
  *   ▸ Unclassified                      types no loaded metamodel defines
  * ```
  *
@@ -31,7 +34,7 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { ModelContents, ConceptSummary } from '../../model-manager/model-queries.js';
+import type { ModelContents, ConceptSummary, RelationshipSummary } from '../../model-manager/model-queries.js';
 import type { ViewInfo } from '../../model-manager/interfaces.js';
 import type { EventBus, ModelEventHandler, ModelEventType } from '../event-bus.js';
 
@@ -53,6 +56,8 @@ export interface TreeNode {
   placed?: boolean;
   /** The view on the canvas. */
   active?: boolean;
+  /** A derivation the model does not state, by its certainty. */
+  derivation?: 'valid' | 'potential';
   children: TreeNode[];
 }
 
@@ -82,7 +87,8 @@ export type ExplorerAction =
   | 'rename'
   | 'delete-from-model'
   | 'show-source'
-  | 'show-target';
+  | 'show-target'
+  | 'confirm-derivation';
 
 /** Detail of `explorer-action`. */
 export interface ExplorerActionDetail {
@@ -112,7 +118,7 @@ export function iriFragment(iri: string): string {
 
 /** Group concepts by type label into folder nodes. */
 function groupByType(
-  items: ConceptSummary[],
+  items: ReadonlyArray<ConceptSummary & Pick<RelationshipSummary, 'derivation'>>,
   kind: 'element' | 'relationship' | 'unclassified',
   idPrefix: string,
   placed: ReadonlySet<string>,
@@ -131,6 +137,7 @@ function groupByType(
       label: item.label,
       typeIri: item.typeIri,
       placed: placed.has(item.iri),
+      ...(item.derivation ? { derivation: item.derivation.certainty, ...(item.derivation.rule ? { detail: item.derivation.rule } : {}) } : {}),
       children: [],
     });
   }
@@ -176,14 +183,32 @@ export function buildModelTree(
     detail: String(contents.elements.length),
     children: groupByType(contents.elements, 'element', 'elements', placed),
   };
+  // The relationships the model states; what derivation rules concluded besides, apart.
+  const stated = contents.relationships.filter((r) => !r.derivation);
   const relationships: TreeNode = {
     id: 'folder:relationships',
     kind: 'folder',
     label: 'Relationships',
-    detail: String(contents.relationships.length),
-    children: groupByType(contents.relationships, 'relationship', 'relationships', placed),
+    detail: String(stated.length),
+    children: groupByType(stated, 'relationship', 'relationships', placed),
   };
   const folders = [views, elements, relationships];
+  const derived = (certainty: 'valid' | 'potential', label: string): TreeNode[] => {
+    const list = contents.relationships.filter((r) => r.derivation?.certainty === certainty);
+    if (list.length === 0) return [];
+    const id = `derived-${certainty}`;
+    return [{ id: `folder:${id}`, kind: 'folder', label, detail: String(list.length), children: groupByType(list, 'relationship', id, placed) }];
+  };
+  const byCertainty = [...derived('valid', 'Valid'), ...derived('potential', 'Potential')];
+  if (byCertainty.length > 0) {
+    folders.push({
+      id: 'folder:derived',
+      kind: 'folder',
+      label: 'Derived relationships',
+      detail: String(contents.relationships.length - stated.length),
+      children: byCertainty,
+    });
+  }
   if (contents.unclassified.length > 0) {
     folders.push({
       id: 'folder:unclassified',
@@ -253,9 +278,12 @@ export function actionsFor(node: TreeNode): Array<{ action: ExplorerAction; labe
         node.placed
           ? { action: 'reveal', label: 'Select on canvas' }
           : { action: 'add-to-view', label: 'Add to current view' },
+        ...(node.derivation === 'potential'
+          ? [{ action: 'confirm-derivation' as const, label: 'Confirm — state it in the model' }]
+          : []),
         { action: 'show-source', label: 'Show source' },
         { action: 'show-target', label: 'Show target' },
-        { action: 'rename', label: 'Rename…' },
+        ...(node.derivation ? [] : [{ action: 'rename' as const, label: 'Rename…' }]),
         { action: 'delete-from-model', label: 'Delete from model…', danger: true },
       ];
     default:
@@ -363,6 +391,15 @@ export class ModelExplorer extends LitElement {
     .row.folder > .label {
       color: #3c4043;
     }
+    /* A derivation the model does not state: italic; a potential one, fainter still. */
+    .row.derived .label {
+      font-style: italic;
+      color: #5f6368;
+    }
+    .row.derived.potential .label,
+    .row.derived.potential .icon {
+      color: #80868b;
+    }
     .detail {
       font-size: 11px;
       color: #80868b;
@@ -428,7 +465,7 @@ export class ModelExplorer extends LitElement {
 
   @state() private _tree: TreeNode[] = [];
   @state() private _filterQuery = '';
-  @state() private _collapsed: Set<string> = new Set(['folder:relationships']);
+  @state() private _collapsed: Set<string> = new Set(['folder:relationships', 'folder:derived']);
   @state() private _menu: { x: number; y: number; node: TreeNode } | null = null;
 
   /**
@@ -608,7 +645,7 @@ export class ModelExplorer extends LitElement {
       case 'element':
         return '■';
       case 'relationship':
-        return '→';
+        return node.derivation ? '⇢' : '→';
       case 'unclassified':
         return '?';
       default:
@@ -623,10 +660,12 @@ export class ModelExplorer extends LitElement {
     return html`
       <li>
         <div
-          class="row ${node.kind} ${selected ? 'selected' : ''} ${node.active ? 'active' : ''}"
+          class="row ${node.kind} ${selected ? 'selected' : ''} ${node.active ? 'active' : ''} ${node.derivation ? `derived ${node.derivation}` : ''}"
           data-iri=${node.iri ?? nothing}
           data-kind=${node.kind}
-          title=${node.iri ?? node.label}
+          title=${node.derivation
+            ? `${node.derivation === 'valid' ? 'Derived (valid)' : 'Potential derivation, not confirmed'}${node.detail ? ` by ${node.detail}` : ''} — ${node.iri ?? node.label}`
+            : (node.iri ?? node.label)}
           @click=${() => (node.kind === 'folder' ? this._toggle(node.id) : this._select(node))}
           @dblclick=${() => this._activate(node)}
           @contextmenu=${(e: MouseEvent) => this._openMenu(e, node)}

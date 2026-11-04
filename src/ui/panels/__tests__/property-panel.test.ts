@@ -321,6 +321,7 @@ describe('PropertyPanel', () => {
         '_renderIris',
         '_renderNamed',
         '_renderId',
+        '_renderDerivation',
         '_takesLinks',
         '_renderRelationshipGroup',
         '_toggleRelationships',
@@ -367,6 +368,40 @@ describe('PropertyPanel', () => {
       expect(o).toContain('type');
       expect(o).toContain('prefLabel');
       expect(o).not.toContain('No element selected');
+    });
+
+    it('says what derived a relationship and from what, and offers to confirm a potential one', () => {
+      const premises = [
+        { iri: 'https://example.org/r1', label: 'K8s Cluster → Azure Cloud' },
+        { iri: 'https://example.org/r2', label: 'Azure Cloud → Postgres DB' },
+      ];
+      const potential = renderPanel({
+        selectedIri: 'https://example.org/d1',
+        heading: { kind: 'Potential relationship', derivation: { certainty: 'potential', confirmed: false, rule: 'PDR8', premises } },
+      });
+      expect(potential).toContain('Potential relationship information');
+      expect(potential).toContain('Potential: may hold');
+      expect(potential).toContain('PDR8');
+      expect(potential).toContain('K8s Cluster → Azure Cloud');
+      expect(potential).toContain('Azure Cloud → Postgres DB');
+      expect(potential).toContain('confirm-derivation');
+
+      const valid = renderPanel({
+        selectedIri: 'https://example.org/d2',
+        heading: { kind: 'Derived relationship', derivation: { certainty: 'valid', confirmed: false, rule: 'DR2', premises } },
+      });
+      expect(valid).toContain('Derived, valid');
+      expect(valid).toContain('DR2');
+      expect(valid).not.toContain('confirm-derivation');
+
+      const confirmed = renderPanel({
+        selectedIri: 'https://example.org/d1',
+        heading: { kind: 'Relationship', derivation: { certainty: 'potential', confirmed: true, rule: 'PDR8', premises } },
+      });
+      expect(confirmed).toContain('Confirmed: proposed as a potential derivation');
+      expect(confirmed).not.toContain('confirm-derivation');
+
+      expect(renderPanel({ selectedIri: 'https://example.org/r1', heading: { kind: 'Relationship' } })).not.toContain('Derivation');
     });
 
     const TABBED: PropertyEntry[] = [

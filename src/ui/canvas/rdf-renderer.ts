@@ -76,6 +76,24 @@ import {
 /** Priority above diagram-js's DefaultRenderer (1) so this one wins. */
 const RENDER_PRIORITY = 1500;
 
+/** The point halfway along a polyline, by length; `undefined` without two points. */
+export function midpointOf(waypoints: ReadonlyArray<{ x: number; y: number }>): { x: number; y: number } | undefined {
+  if (waypoints.length < 2) return undefined;
+  const lengths = waypoints.slice(1).map((p, i) => Math.hypot(p.x - waypoints[i]!.x, p.y - waypoints[i]!.y));
+  let remaining = lengths.reduce((sum, l) => sum + l, 0) / 2;
+  for (let i = 0; i < lengths.length; i += 1) {
+    const length = lengths[i]!;
+    if (remaining <= length) {
+      const f = length === 0 ? 0 : remaining / length;
+      const a = waypoints[i]!;
+      const b = waypoints[i + 1]!;
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }
+    remaining -= length;
+  }
+  return waypoints[waypoints.length - 1];
+}
+
 /** What a diagram-js element carries about its RDF identity. */
 export interface RdfBusinessObject {
   /** IRI of the model element or relationship instance. */
@@ -105,6 +123,13 @@ export interface RdfBusinessObject {
    * new element.
    */
   placeExisting?: boolean;
+  /**
+   * A relationship derived by a rule that the model does not state: a valid
+   * derivation, or a potential one not confirmed. Drawn faded, with a badge.
+   */
+  derivation?: 'valid' | 'potential';
+  /** The rule that derived it, by local name (`DR3`), for the badge's tooltip. */
+  derivationRule?: string;
 }
 
 /** The subset of a diagram-js element this renderer reads. */
@@ -127,6 +152,9 @@ export const RENDER_CLASSES = {
   label: 'la-shape-label',
   hitContainer: 'la-icon-container',
   connection: 'la-connection',
+  /** A derived relationship's line, with `la-connection-valid` or `la-connection-potential`. */
+  derivedConnection: 'la-connection-derived',
+  derivationBadge: 'la-derivation-badge',
 } as const;
 
 export class RdfRenderer extends BaseRenderer {
@@ -390,7 +418,53 @@ export class RdfRenderer extends BaseRenderer {
     this.applyDecoration(parentGfx, line, style?.targetDecor, 'target', lineColor);
 
     parentGfx.appendChild(line);
+    const derivation = businessObject?.derivation;
+    if (derivation) {
+      // The notation's line, faded; and a badge saying what it is — the line style stays the notation's.
+      line.setAttribute('class', `${RENDER_CLASSES.connection} ${RENDER_CLASSES.derivedConnection} la-connection-${derivation}`);
+      line.setAttribute('stroke-opacity', derivation === 'valid' ? '0.6' : '0.4');
+      line.setAttribute('data-derivation', derivation);
+      this.drawDerivationBadge(parentGfx, waypoints, derivation, businessObject?.derivationRule, lineColor);
+    }
     return line;
+  }
+
+  /** A small badge at the middle of a derived relationship's line: D for valid, P for potential. */
+  private drawDerivationBadge(
+    parentGfx: SVGElement,
+    waypoints: ReadonlyArray<{ x: number; y: number }>,
+    derivation: 'valid' | 'potential',
+    rule: string | undefined,
+    lineColor: string,
+  ): void {
+    const middle = midpointOf(waypoints);
+    if (!middle) return;
+    const badge = svgEl('g', { class: RENDER_CLASSES.derivationBadge, 'data-derivation': derivation });
+    const title = svgEl('title');
+    title.textContent = `${derivation === 'valid' ? 'Derived (valid)' : 'Potential derivation, not confirmed'}${rule ? ` — ${rule}` : ''}`;
+    badge.appendChild(title);
+    badge.appendChild(
+      svgEl('circle', {
+        cx: middle.x,
+        cy: middle.y,
+        r: 7,
+        fill: '#ffffff',
+        stroke: lineColor,
+        'stroke-width': 1,
+        ...(derivation === 'potential' ? { 'stroke-dasharray': '2 2' } : {}),
+      }),
+    );
+    const letter = svgEl('text', {
+      x: middle.x,
+      y: middle.y + 3.5,
+      'text-anchor': 'middle',
+      'font-size': 9,
+      'font-family': 'sans-serif',
+      fill: lineColor,
+    });
+    letter.textContent = derivation === 'valid' ? 'D' : 'P';
+    badge.appendChild(letter);
+    parentGfx.appendChild(badge);
   }
 
   /** Install the marker in the canvas `<defs>` and reference it from the line. */

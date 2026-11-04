@@ -36,6 +36,8 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
+import { localName as localNameOf } from '../model-manager/vocabulary.js';
 import {
   listQuestions,
   offeredQuestions,
@@ -347,6 +349,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       get named() {
         return hasLabel(store, iri);
       },
+      // A derivation the model does not state: a valid one, or a potential one not confirmed.
+      get derivation() {
+        const status = derivationStatus(store, iri);
+        return status && !status.confirmed ? status.certainty : undefined;
+      },
+      get derivationRule() {
+        const rule = ruleOf(store, iri);
+        return rule ? localNameOf(rule) : undefined;
+      },
     };
   };
 
@@ -610,7 +621,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         : all.has(NAMESPACES.arch + 'QualifiedRelationship')
           ? 'Relationship'
           : 'Element';
-    return { kind, ...(typeIri ? { typeIri, typeLabel: labelOf(store, typeIri) } : {}) };
+    // A derived relationship: what derived it, from what, and whether it is confirmed.
+    const details = kind === 'Relationship' ? derivationDetails(store, iri) : undefined;
+    const derivation = details && {
+      certainty: details.certainty,
+      confirmed: details.confirmed,
+      ...(details.rule ? { rule: localNameOf(details.rule) } : {}),
+      premises: details.premises.map((premise) => ({ iri: premise, label: labelOf(store, premise) })),
+    };
+    const shown = derivation && !derivation.confirmed ? (derivation.certainty === 'valid' ? 'Derived relationship' : 'Potential relationship') : kind;
+    return { kind: shown, ...(typeIri ? { typeIri, typeLabel: labelOf(store, typeIri) } : {}), ...(derivation ? { derivation } : {}) };
   };
 
   // ── Under the tree: what the metamodel says about the selected type ──
@@ -850,6 +870,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   propertyPanel.addEventListener('property-add', onPropertyAdd);
   propertyPanel.addEventListener('property-remove', onPropertyRemove);
   propertyPanel.addEventListener('panel-navigate', onPanelNavigate);
+  const onConfirmDerivation = (e: Event): void => confirmDerivation((e as CustomEvent<{ iri: string }>).detail.iri);
+  propertyPanel.addEventListener('confirm-derivation', onConfirmDerivation);
   propertyPanel.addEventListener('panel-open-view', onPanelOpenView);
 
   // ── Palette → diagram-js `create` ────────────────────────────────────
@@ -992,7 +1014,20 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         if (rel) void revealAnywhere(action === 'show-source' ? rel.sourceIri : rel.targetIri);
         return;
       }
+      case 'confirm-derivation':
+        confirmDerivation(iri);
+        return;
     }
+  };
+
+  /**
+   * Confirm a potential derivation: state its triple and the qualified predicate
+   * leading to it, and its membership of the model — one undoable step.
+   */
+  const confirmDerivation = (iri: string): void => {
+    const quads = confirmationQuads(store, iri, session.modelIri);
+    if (quads.length === 0) return;
+    changeProperties(iri, () => store.addQuads(quads));
   };
 
   /** Delete from the model — through the canvas when it is drawn, so it is undoable. */
@@ -2292,6 +2327,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel.removeEventListener('property-add', onPropertyAdd);
     propertyPanel.removeEventListener('property-remove', onPropertyRemove);
     propertyPanel.removeEventListener('panel-navigate', onPanelNavigate);
+    propertyPanel.removeEventListener('confirm-derivation', onConfirmDerivation);
     propertyPanel.removeEventListener('panel-open-view', onPanelOpenView);
     modelExplorer.eventBus = undefined;
     diagramCanvas.destroy();
