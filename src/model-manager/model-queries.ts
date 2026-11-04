@@ -60,6 +60,23 @@ export interface RelationshipSummary extends ConceptSummary {
   derivation?: { certainty: DerivationCertainty; rule?: string };
 }
 
+/**
+ * One folder of the model's own organisation (`arch:Folder`): where the tool a
+ * model came from kept its concepts — Archi's folders, as the converters carry
+ * them over. Navigation only: a folder is not a model concept.
+ */
+export interface FolderSummary {
+  iri: string;
+  label: string;
+  /** The folder it is in; absent for a top-level folder. */
+  parentIri?: string;
+  /**
+   * What it holds besides folders — by the member's `dcterms:isPartOf` or the
+   * folder's `schema:itemListElement` — by IRI.
+   */
+  members: string[];
+}
+
 /** Everything the explorer shows. */
 export interface ModelContents {
   model?: { iri: string; label: string };
@@ -67,6 +84,8 @@ export interface ModelContents {
   elements: ConceptSummary[];
   relationships: RelationshipSummary[];
   unclassified: ConceptSummary[];
+  /** The model's folders, when it has any ({@link readFolders}). */
+  folders?: FolderSummary[];
 }
 
 /**
@@ -175,6 +194,69 @@ export function hasLabel(store: RdfStore, iri: string): boolean {
 export function statementsOf(store: RdfStore, subject: NamedNode, predicate: NamedNode): Quad[] {
   const own = store.getQuads(subject, predicate, null, MODEL_GRAPH);
   return own.length > 0 ? own : store.getQuads(subject, predicate);
+}
+
+/** schema.org, as converters write it, and its older `http:` form. */
+const SCHEMA_NAMESPACES = ['https://schema.org/', 'http://schema.org/'];
+const schemaTerms = (local: string): NamedNode[] => SCHEMA_NAMESPACES.map((ns) => nn(ns + local));
+const SCHEMA_NAME = schemaTerms('name');
+const SCHEMA_ITEM_LIST_ELEMENT = schemaTerms('itemListElement');
+const SCHEMA_ITEM = schemaTerms('item');
+
+/** The predicates a folder is read from: a change to one of them may change the folders. */
+const FOLDER_PREDICATES = new Set([IRI.dctermsIsPartOf, ...[SCHEMA_NAME, SCHEMA_ITEM_LIST_ELEMENT, SCHEMA_ITEM].flat().map((p) => p.value)]);
+
+/**
+ * The model's folders (`arch:Folder`), each with the folder it is in and what
+ * it holds.
+ *
+ * A converter states a folder's contents from both ends — the member's
+ * `dcterms:isPartOf` and the folder's `schema:itemListElement` — and either is
+ * enough here: their union is read. The list's `schema:position` is not: it is
+ * the order the source file happened to hold (Archi's, say, which its own tree
+ * does not show), not an order anybody arranged. A folder with several parent
+ * folders is placed under one of them, the same one every time.
+ */
+export function readFolders(store: RdfStore): FolderSummary[] {
+  const iris = store
+    .getQuads(null, T.rdfType, T.Folder, MODEL_GRAPH)
+    .filter((q) => q.subject.termType === 'NamedNode')
+    .map((q) => q.subject.value);
+  if (iris.length === 0) return [];
+  const isFolder = new Set(iris);
+  const folders: FolderSummary[] = [...isFolder].sort().map((iri) => ({ iri, label: folderLabel(store, iri), members: [] }));
+  const parents = new Map<string, string>();
+  for (const folder of folders) {
+    const held = new Set<string>();
+    for (const q of store.getQuads(null, T.dctermsIsPartOf, nn(folder.iri), MODEL_GRAPH)) {
+      if (q.subject.termType === 'NamedNode') held.add(q.subject.value);
+    }
+    for (const listed of SCHEMA_ITEM_LIST_ELEMENT.flatMap((p) => store.getQuads(nn(folder.iri), p, null, MODEL_GRAPH))) {
+      // The list entry is a blank node, which the store takes back as a subject.
+      const entry = listed.object as NamedNode;
+      const item = SCHEMA_ITEM.flatMap((p) => store.getQuads(entry, p, null, MODEL_GRAPH))[0]?.object;
+      if (item?.termType === 'NamedNode') held.add(item.value);
+    }
+    held.delete(folder.iri);
+    for (const member of held) {
+      if (!isFolder.has(member)) folder.members.push(member);
+      // Folders are visited in IRI order: a folder's parent is the first that holds it.
+      else if (!parents.has(member)) parents.set(member, folder.iri);
+    }
+  }
+  for (const folder of folders) {
+    const parentIri = parents.get(folder.iri);
+    if (parentIri) folder.parentIri = parentIri;
+  }
+  return folders;
+}
+
+/** A folder's name: `schema:name`, then the names a concept has, then its IRI's local name. */
+function folderLabel(store: RdfStore, iri: string): string {
+  const names = SCHEMA_NAME.flatMap((p) => store.getQuads(nn(iri), p, null, MODEL_GRAPH))
+    .map((q) => q.object)
+    .filter((o) => o.termType === 'Literal');
+  return names.length > 0 ? preferredLiteral(names, 'en').value : labelOf(store, iri);
 }
 
 /** The model's `arch:Model` resource, if the data declares one. */
@@ -337,6 +419,7 @@ export function readModelContents(store: RdfStore, views: ViewInfo[], closure: T
   contents.elements.sort(byLabel);
   contents.relationships.sort(byLabel);
   contents.unclassified.sort(byLabel);
+  contents.folders = readFolders(store);
   return contents;
 }
 
@@ -348,6 +431,7 @@ export function readModelContents(store: RdfStore, views: ViewInfo[], closure: T
  * each from its own triples, and moves it in its sorted list. It reads the
  * whole model at first, when the metamodels change ({@link invalidate}), when
  * the class hierarchy changes, and when a change touches too many concepts.
+ * The folders are read again, all of them, after a change that touches one.
  */
 export class ModelContentsIndex {
   private concepts = new Map<string, Summarised>();
@@ -355,6 +439,9 @@ export class ModelContentsIndex {
   private changed = new Set<string>();
   private whole = true;
   private typeLabel: (typeIri: string) => string;
+  private folders: FolderSummary[] = [];
+  private folderIris = new Set<string>();
+  private foldersStale = true;
 
   /** More concepts touched than this: the whole model is read again. */
   static readonly WHOLE_AFTER = 2000;
@@ -378,9 +465,17 @@ export class ModelContentsIndex {
         if (q.subject.termType === 'NamedNode') this.changed.add(q.subject.value);
         // A qualified predicate leading to a relationship decides whether a potential derivation is confirmed.
         if (q.object.termType === 'NamedNode' && isQualifiedPointer(q.predicate.value)) this.changed.add(q.object.value);
+        if (!this.foldersStale && this.touchesFolders(q)) this.foldersStale = true;
       }
     }
     if (this.changed.size > ModelContentsIndex.WHOLE_AFTER) this.whole = true;
+  }
+
+  /** Whether a statement may change the folders: what they hold, where they sit, their names. */
+  private touchesFolders(q: Quad): boolean {
+    if (FOLDER_PREDICATES.has(q.predicate.value)) return true;
+    if (q.predicate.value === IRI.rdfType && q.object.value === IRI.Folder) return true;
+    return this.folderIris.has(q.subject.value);
   }
 
   /** The metamodels changed — classes, their labels: everything is read again. */
@@ -392,13 +487,21 @@ export class ModelContentsIndex {
   /** The model's contents now. The lists are the caller's to keep or change. */
   contents(views: ViewInfo[]): ModelContents {
     this.catchUp();
+    if (this.foldersStale) this.keepFolders(readFolders(this.store));
     return {
       ...(this.lists.model ? { model: this.lists.model } : {}),
       views,
       elements: this.lists.elements.slice(),
       relationships: this.lists.relationships.slice(),
       unclassified: this.lists.unclassified.slice(),
+      folders: this.folders.slice(),
     };
+  }
+
+  private keepFolders(folders: FolderSummary[]): void {
+    this.folders = folders;
+    this.folderIris = new Set(folders.map((f) => f.iri));
+    this.foldersStale = false;
   }
 
   /** One concept as the tree lists it — its kind, name and type — or `undefined` when it is none (a view, a diagram node). */
@@ -415,6 +518,7 @@ export class ModelContentsIndex {
   private readWhole(): void {
     const all = readModelContents(this.store, [], this.closure());
     this.lists = { ...(all.model ? { model: all.model } : {}), elements: all.elements, relationships: all.relationships, unclassified: all.unclassified };
+    this.keepFolders(all.folders ?? []);
     this.concepts = new Map();
     if (all.model) this.concepts.set(all.model.iri, { kind: 'model', summary: all.model });
     for (const summary of all.elements) this.concepts.set(summary.iri, { kind: 'element', summary });

@@ -91,8 +91,10 @@ export const IRI = {
   dctermsDescription: NAMESPACES.dcterms + 'description',
   dctermsCreated: NAMESPACES.dcterms + 'created',
   dctermsModified: NAMESPACES.dcterms + 'modified',
+  dctermsIsPartOf: NAMESPACES.dcterms + 'isPartOf',
 
   Model: ARCH + 'Model',
+  Folder: ARCH + 'Folder',
   View: ARCH + 'View',
   Diagram: ARCH + 'Diagram',
   Catalog: ARCH + 'Catalog',

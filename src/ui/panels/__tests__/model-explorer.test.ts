@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import type { ModelContents } from '../../../model-manager/model-queries.js';
 import {
   ModelExplorer,
@@ -31,6 +31,21 @@ const contents = (): ModelContents => ({
   ],
   unclassified: [],
 });
+
+/** The same model, kept in folders of its own as a converter brings them over from Archi. */
+const withFolders = (): ModelContents => ({
+  ...contents(),
+  folders: [
+    { iri: `${M}/folder/apps`, label: 'Applications', members: [`${M}/element/a`, `${M}/element/b`] },
+    { iri: `${M}/folder/business`, label: 'Business', members: [] },
+    { iri: `${M}/folder/actors`, label: 'Actors', parentIri: `${M}/folder/business`, members: [`${M}/element/c`] },
+    // A member no longer in the model is not listed.
+    { iri: `${M}/folder/views`, label: 'Views', members: [`${M}/view/1`, `${M}/element/deleted`] },
+  ],
+});
+
+/** Labels, nested: a row with children as `[label, children]`. */
+const outline = (nodes: TreeNode[]): unknown[] => nodes.map((n) => (n.children.length > 0 ? [n.label, outline(n.children)] : n.label));
 
 function find(nodes: TreeNode[], pred: (n: TreeNode) => boolean): TreeNode | undefined {
   for (const n of nodes) {
@@ -103,6 +118,77 @@ describe('buildModelTree', () => {
   });
 });
 
+describe('buildModelTree, by folder', () => {
+  it("shows the model's own folders — folders first, then by name, each folded — and what no folder holds apart", () => {
+    const [root] = buildModelTree(withFolders(), `${M}/view/1`, new Set([`${M}/element/a`]), 'folders');
+    expect(outline(root.children)).toEqual([
+      ['Applications', ['API', 'Web']],
+      ['Business', [['Actors', ['Customer']]]],
+      ['Views', ['Main']],
+      ['Not in a folder', [['Views', ['Inventory']], ['Relationships', [['Serving', ['API → Web']]]]]],
+    ]);
+    expect(root.children.map((f) => f.detail)).toEqual(['2', '1', '1', '2']);
+    const folders = root.children.slice(0, 3);
+    expect(folders.every((f) => f.folded)).toBe(true);
+    expect(find(folders, (n) => n.label === 'Actors')?.folded).toBe(true);
+    // What no folder holds starts open, its relationships folded, as by type.
+    const unfiled = root.children[3];
+    expect(unfiled.folded).toBeUndefined();
+    expect(unfiled.children.map((g) => [g.label, g.folded ?? false])).toEqual([
+      ['Views', false],
+      ['Relationships', true],
+    ]);
+    // A concept's row is the same as by type: the open view marked, placement shown.
+    expect(find(root.children, (n) => n.iri === `${M}/view/1`)?.active).toBe(true);
+    expect(find(root.children, (n) => n.iri === `${M}/element/a`)).toMatchObject({ kind: 'element', placed: true });
+  });
+
+  it('keeps derivations apart, last', () => {
+    const c = withFolders();
+    c.relationships.push({ iri: `${M}/d/1`, typeIri: 'urn:t#Serving', typeLabel: 'Serving', label: 'Customer → Web', derivation: { certainty: 'valid' } });
+    const [root] = buildModelTree(c, undefined, new Set(), 'folders');
+    expect(root.children.map((f) => f.label).slice(-2)).toEqual(['Not in a folder', 'Derived relationships']);
+  });
+
+  it("shows a converter's folder for the model itself as the model: its folders at the top", () => {
+    const c = contents();
+    c.folders = [
+      { iri: `${M}/folder`, label: 'shop', members: [] },
+      { iri: `${M}/folder/Elements`, label: 'Elements', parentIri: `${M}/folder`, members: [`${M}/element/a`, `${M}/element/b`, `${M}/element/c`] },
+      { iri: `${M}/folder/Relationships`, label: 'Relationships', parentIri: `${M}/folder`, members: [`${M}/rel/1`] },
+      { iri: `${M}/folder/Views`, label: 'Views', parentIri: `${M}/folder`, members: [`${M}/view/1`, `${M}/view/2`] },
+    ];
+    const [root] = buildModelTree(c, undefined, new Set(), 'folders');
+    expect(root.children.map((f) => [f.label, f.detail])).toEqual([
+      ['Elements', '3'],
+      ['Relationships', '1'],
+      ['Views', '2'],
+    ]);
+  });
+
+  it('lists what folders in a cycle hold as in no folder', () => {
+    const c = contents();
+    c.folders = [
+      { iri: `${M}/folder/x`, label: 'X', parentIri: `${M}/folder/y`, members: [`${M}/element/a`] },
+      { iri: `${M}/folder/y`, label: 'Y', parentIri: `${M}/folder/x`, members: [] },
+    ];
+    const [root] = buildModelTree(c, undefined, new Set(), 'folders');
+    expect(root.children.map((f) => f.label)).toEqual(['Not in a folder']);
+    expect(find(root.children, (n) => n.iri === `${M}/element/a`)).toBeDefined();
+  });
+
+  it('groups by type when asked, or when the model has no folders', () => {
+    const byType = outline(buildModelTree(contents(), undefined));
+    expect(outline(buildModelTree(withFolders(), undefined, new Set(), 'types'))).toEqual(byType);
+    expect(outline(buildModelTree(contents(), undefined, new Set(), 'folders'))).toEqual(byType);
+  });
+
+  it('filters through folders', () => {
+    const tree = filterTree(buildModelTree(withFolders(), undefined, new Set(), 'folders'), 'cust');
+    expect(outline(tree[0].children)).toEqual([['Business', [['Actors', ['Customer']]]]]);
+  });
+});
+
 describe('filterTree', () => {
   it('keeps matches with their ancestors', () => {
     const tree = filterTree(buildModelTree(contents(), undefined), 'cust');
@@ -153,13 +239,27 @@ describe('iriFragment', () => {
 });
 
 describe('<model-explorer>', () => {
-  afterEach(() => {
-    document.body.innerHTML = '';
+  // Node's own localStorage stub shadows jsdom's: remembered choices go here.
+  const remembered = new Map<string, string>();
+  beforeEach(() => {
+    remembered.clear();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => remembered.get(key) ?? null,
+      setItem: (key: string, value: string) => void remembered.set(key, value),
+      removeItem: (key: string) => void remembered.delete(key),
+    });
+    // jsdom has no CSS.escape, which revealing a row uses to find it.
+    vi.stubGlobal('CSS', { escape: (value: string) => value.replace(/["\\]/g, '\\$&') });
   });
 
-  async function mount(): Promise<ModelExplorer> {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  });
+
+  async function mount(provider: () => ModelContents = contents): Promise<ModelExplorer> {
     const el = document.createElement('model-explorer');
-    el.contentsProvider = contents;
+    el.contentsProvider = provider;
     el.activeViewIri = `${M}/view/1`;
     el.eventBus = new EventBus();
     document.body.appendChild(el);
@@ -213,6 +313,82 @@ describe('<model-explorer>', () => {
     expect(provider).not.toHaveBeenCalled();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a model with folders', () => {
+    const switchOf = (el: ModelExplorer) => el.shadowRoot!.querySelector('.grouping');
+    const pressed = (el: ModelExplorer) => el.shadowRoot!.querySelector('.grouping [aria-pressed="true"]')?.getAttribute('data-grouping');
+    const pick = async (el: ModelExplorer, grouping: 'folders' | 'types') => {
+      el.shadowRoot!.querySelector<HTMLButtonElement>(`.grouping [data-grouping="${grouping}"]`)!.click();
+      await el.updateComplete;
+    };
+    const folderRow = (el: ModelExplorer, label: string) =>
+      [...el.shadowRoot!.querySelectorAll<HTMLElement>('.row.folder')].find((r) => r.querySelector('.label')?.textContent === label)!;
+
+    it('offers Folders | Types only when the model has folders', async () => {
+      expect(switchOf(await mount())).toBeNull();
+      document.body.innerHTML = '';
+      const el = await mount(withFolders);
+      expect(switchOf(el)).not.toBeNull();
+      expect(pressed(el)).toBe('folders');
+    });
+
+    it('starts with the folders folded, and unfolds one on a click', async () => {
+      const el = await mount(withFolders);
+      expect(el.shadowRoot!.querySelector(`.row[data-iri="${M}/element/a"]`)).toBeNull();
+      folderRow(el, 'Applications').click();
+      await el.updateComplete;
+      expect(row(el, `${M}/element/a`)).not.toBeNull();
+      folderRow(el, 'Applications').click();
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(`.row[data-iri="${M}/element/a"]`)).toBeNull();
+    });
+
+    it('switches to by type and back, and remembers the pick', async () => {
+      const el = await mount(withFolders);
+      await pick(el, 'types');
+      expect(pressed(el)).toBe('types');
+      // By type: Elements open, its concepts shown.
+      expect(row(el, `${M}/element/a`)).not.toBeNull();
+      expect(folderRow(el, 'Applications')).toBeUndefined();
+      document.body.innerHTML = '';
+      const again = await mount(withFolders);
+      expect(pressed(again)).toBe('types');
+      await pick(again, 'folders');
+      expect(folderRow(again, 'Applications')).toBeDefined();
+      expect(remembered.get('la-gram:explorer-grouping')).toBe('folders');
+    });
+
+    it('shows what folded folders hold while filtering', async () => {
+      const el = await mount(withFolders);
+      const input = el.shadowRoot!.querySelector<HTMLInputElement>('.filter-input')!;
+      input.value = 'cust';
+      input.dispatchEvent(new Event('input'));
+      await el.updateComplete;
+      expect(row(el, `${M}/element/c`)).not.toBeNull();
+    });
+
+    it('unfolds the folders around a concept it reveals', async () => {
+      const el = await mount(withFolders);
+      // jsdom does not scroll.
+      const scrolled: Element[] = [];
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value(this: HTMLElement) {
+          scrolled.push(this);
+        },
+      });
+      try {
+        el.revealIri(`${M}/element/c`);
+        await el.updateComplete;
+        expect(row(el, `${M}/element/c`)).not.toBeNull();
+        expect(el.selectedIri).toBe(`${M}/element/c`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(scrolled).toEqual([row(el, `${M}/element/c`)]);
+      } finally {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+    });
   });
 
   it('marks another active view without reading the model again', async () => {
