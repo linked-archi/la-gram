@@ -247,7 +247,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 #### Acceptance Criteria
 
 1. The model tree is the left column, full height
-2. Model → Views + Elements (grouped by type) + Relationships (grouped by type) + Unclassified
+2. Model → Views + Elements (grouped by type) + Relationships (grouped by type) + Unclassified — or, for a model with folders of its own, those folders (10.10)
 3. The open view is highlighted; concepts placed in it are marked
 4. Double-click opens a view; single click selects
 5. Right-click menus:
@@ -259,6 +259,9 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 7. Every concept is in the tree regardless of the open view; dragging one onto the canvas places it (and draws its relationships to what is already placed)
 8. Views are created (with a viewpoint), renamed and deleted from the tree or the toolbar
 9. The tree filters by name or type
+10. **A model's own folders.** A model with folders (`arch:Folder` — the organisation the Linked.Archi converters bring over from Archi and other tools) is shown in them: each folder holds its subfolders, then its concepts, each by name, as Archi's own tree lists them, and shows how many concepts it holds, its subfolders' included. A concept is in a folder by its `dcterms:isPartOf` or by the folder's `schema:itemListElement` entry (`schema:item`); either alone is enough. Folders start folded. What no folder holds is under *Not in a folder*, grouped as in 10.2; derived relationships stay apart, last. A single top folder holding only folders — the converters put Elements, Relationships and Views in one named after the model — is left out, and its folders take its place. The folders are shown, not edited: a concept made in la-gram is in no folder
+11. **Folders | Types.** A switch in the tree's header picks the grouping — the model's folders (10.10) or kind and type (10.2) — remembered in this browser, folders by default. It is there for every model; on one without folders, *Folders* is greyed out ("This model has no folders") and the tree is by type, while the pick is kept for the next model that has them
+12. A filter searches inside folded folders, and revealing a concept (10.6) unfolds the folders around it
 
 ---
 

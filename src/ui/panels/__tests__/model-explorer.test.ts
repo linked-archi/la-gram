@@ -325,12 +325,19 @@ describe('<model-explorer>', () => {
     const folderRow = (el: ModelExplorer, label: string) =>
       [...el.shadowRoot!.querySelectorAll<HTMLElement>('.row.folder')].find((r) => r.querySelector('.label')?.textContent === label)!;
 
-    it('offers Folders | Types only when the model has folders', async () => {
-      expect(switchOf(await mount())).toBeNull();
+    it('offers Folders | Types — Folders greyed out, the tree by type, when the model has none', async () => {
+      const plain = await mount();
+      expect(switchOf(plain)).not.toBeNull();
+      expect(pressed(plain)).toBe('types');
+      const greyed = plain.shadowRoot!.querySelector<HTMLButtonElement>('.grouping [data-grouping="folders"]')!;
+      expect(greyed.disabled).toBe(true);
+      expect(greyed.title).toBe('This model has no folders');
+      // Greyed out, not forgotten: a model with folders still opens in them.
+      expect(remembered.get('la-gram:explorer-grouping')).toBeUndefined();
       document.body.innerHTML = '';
       const el = await mount(withFolders);
-      expect(switchOf(el)).not.toBeNull();
       expect(pressed(el)).toBe('folders');
+      expect(el.shadowRoot!.querySelector<HTMLButtonElement>('.grouping [data-grouping="folders"]')!.disabled).toBe(false);
     });
 
     it('starts with the folders folded, and unfolds one on a click', async () => {

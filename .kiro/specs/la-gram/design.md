@@ -642,6 +642,33 @@ reads the whole model at first, when the metamodels or the class hierarchy
 change, and when a change touches more than 2 000 concepts. The RDF panel's
 counts and the Graph tab's types read the same.
 
+**Folders** (Req 10.10–10.12; key decision 13). `readFolders` (`model-queries.ts`)
+reads the model's `arch:Folder`s: a folder's name is its `schema:name`, else its
+label; its members are what says `dcterms:isPartOf` it together with the
+`schema:item` of its `schema:itemListElement` entries — the converters state
+both, but either alone is enough. A folder held by another is inside it; held
+by several, it is inside the first by IRI. `ModelContentsIndex` keeps the folders with the contents and reads them
+again — all of them, there are few — only after a change that touches one: a
+triple of `dcterms:isPartOf`, `schema:itemListElement`, `schema:item` or
+`schema:name`, a type `arch:Folder`, or any triple about a known folder. A
+rename elsewhere does not read them.
+
+`buildModelTree(contents, activeView, placed, grouping)` makes the tree from
+them (`model-explorer.ts`, a pure function): with `folders` and a model that has
+any, each top folder and the folders in it — subfolders first, then the members
+the contents list, each by name — and *Not in a folder* for the rest, grouped by
+kind and type as the `types` grouping groups the whole model; derived
+relationships last. Folders in a cycle, with no way up to a top folder, are not
+shown, and what they hold is under *Not in a folder*. One top folder holding
+only folders — a converter's folder for the model itself, around Elements,
+Relationships and Views — is the model again, so its folders take its place.
+A folder node is `folded` and its detail is the number of
+concepts under it. The component starts a folded node closed unless the user
+opened it or a filter is typed, and `revealIri` opens the folders around the
+concept it reveals. The grouping is the component's state, kept in
+`localStorage` (`la-gram:explorer-grouping`), read and written in `try`/`catch`
+so a browser without storage still shows the tree.
+
 A view of thousands of shapes (Task 22): a sync indexes the connections drawn
 once, and `findConnection` looks a relationship up by id or among the few
 connections the user drew (diagram-js names those itself); a view already drawn
@@ -1605,6 +1632,17 @@ dialog; the modules' section).
     display; side by side with the canvas is the resizable panel's job. The
     reason to revisit: a second monitor. Then a synced second window, over the
     collaboration channel, is the path.
+13. **A model's folders are shown by name, and the switch is always there**
+    (2026-11-04). `arch:Folder` is, in the core, a navigation container that
+    keeps a tool's own organisation; la-gram shows it and does not edit it.
+    The converters also give each folder entry a `schema:position`, but that is
+    the order the source file lists them in — for an Archi model, the order the
+    concepts were made in, not what Archi's tree shows, which is by name
+    (ArchiSurance's views came out "Phase D" before "Phase A"). So la-gram sorts
+    by name, subfolders first, as Archi does, and ignores the position. The
+    Folders | Types switch is shown for a model without folders too, *Folders*
+    greyed out: a switch that appeared only with folders left a user looking
+    for it on a model whose export had none, with nothing to say why.
 
 ---
 

@@ -29,8 +29,8 @@
  *   ▸ Derived relationships
  * ```
  *
- * The header's Folders | Types switch picks either, remembered per browser; it
- * is shown only when the model has folders.
+ * The header's Folders | Types switch picks either, remembered per browser; on
+ * a model without folders, Folders is greyed out and the tree is by type.
  *
  * ## Interactions
  *
@@ -521,8 +521,12 @@ export class ModelExplorer extends LitElement {
     .grouping button + button {
       border-left: 1px solid #dadce0;
     }
-    .grouping button:hover {
+    .grouping button:hover:not(:disabled) {
       background: #f1f3f4;
+    }
+    .grouping button:disabled {
+      color: #9aa0a6;
+      cursor: default;
     }
     .grouping button[aria-pressed='true'] {
       background: #e8f0fe;
@@ -924,11 +928,15 @@ export class ModelExplorer extends LitElement {
 
   override render() {
     const tree = filterTree(this._tree, this._filterQuery);
-    const grouping = (value: TreeGrouping, label: string, title: string) => html`<button
+    // What the tree shows: by type when the model has no folders, whatever was picked.
+    const folders = hasFolders(this._contents);
+    const shown: TreeGrouping = folders ? this._grouping : 'types';
+    const grouping = (value: TreeGrouping, label: string, title: string, disabled = false) => html`<button
       type="button"
       data-grouping=${value}
-      aria-pressed=${this._grouping === value ? 'true' : 'false'}
+      aria-pressed=${shown === value ? 'true' : 'false'}
       title=${title}
+      ?disabled=${disabled}
       @click=${() => this._setGrouping(value)}
     >
       ${label}
@@ -936,11 +944,11 @@ export class ModelExplorer extends LitElement {
     return html`
       <div class="explorer-header">
         <span>Model</span>
-        ${hasFolders(this._contents)
-          ? html`<span class="grouping" role="group" aria-label="Group the model">
-              ${grouping('folders', 'Folders', "In the model's own folders")}${grouping('types', 'Types', 'By kind and type')}
-            </span>`
-          : nothing}
+        <span class="grouping" role="group" aria-label="Group the model">
+          ${folders
+            ? grouping('folders', 'Folders', "In the model's own folders")
+            : grouping('folders', 'Folders', 'This model has no folders', true)}${grouping('types', 'Types', 'By kind and type')}
+        </span>
       </div>
       <input
         class="filter-input"
