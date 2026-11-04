@@ -117,3 +117,37 @@ describe('a form of several parts, as tabs', () => {
     expect(dialog().querySelector('.la-dialog-error')!.textContent).toBe('Git storage: no such folder');
   });
 });
+
+describe('the choice dialog', () => {
+  it('puts a filter over a long list — rows and the groups left empty hidden — and none over a short one', async () => {
+    const short = domDialogs.choose('Viewpoint', [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]);
+    expect(dialog().querySelector('.la-choice-filter')).toBeNull();
+    ok();
+    expect(await short).toBe('a');
+    document.querySelector('.la-dialog-backdrop')?.remove();
+
+    const names = ['Actors', 'Applications', 'Business', 'Data', 'Devices', 'Goals', 'Motivation', 'Nodes', 'Roles', 'Strategy', 'Views'];
+    const answer = domDialogs.choose(
+      'Move to folder',
+      names.map((name, i) => ({ value: name, label: name, group: i < 3 ? 'First' : 'Rest', ...(name === 'Roles' ? { detail: 'in Business' } : {}) })),
+      'Views',
+    );
+    const filter = dialog().querySelector<HTMLInputElement>('.la-choice-filter')!;
+    const shown = () => [...dialog().querySelectorAll<HTMLElement>('.la-choice')].filter((r) => !r.hidden).map((r) => r.dataset.value);
+    const groups = () => [...dialog().querySelectorAll<HTMLElement>('.la-choice-group')].filter((g) => !g.hidden).map((g) => g.textContent);
+    filter.value = 'bus';
+    filter.dispatchEvent(new Event('input'));
+    // By name, or by what is said under it.
+    expect(shown()).toEqual(['Business', 'Roles']);
+    expect(groups()).toEqual(['First', 'Rest']);
+    filter.value = 'dev';
+    filter.dispatchEvent(new Event('input'));
+    expect(shown()).toEqual(['Devices']);
+    expect(groups()).toEqual(['Rest']);
+    filter.value = '';
+    filter.dispatchEvent(new Event('input'));
+    expect(shown()).toHaveLength(names.length);
+    ok();
+    expect(await answer).toBe('Views');
+  });
+});

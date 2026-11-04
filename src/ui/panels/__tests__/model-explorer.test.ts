@@ -7,6 +7,7 @@ import {
   buildModelTree,
   filterTree,
   iriFragment,
+  modelFolderOf,
   type ExplorerActionDetail,
   type ExplorerDragDetail,
   type ExplorerSelectDetail,
@@ -166,6 +167,23 @@ describe('buildModelTree, by folder', () => {
     ]);
   });
 
+  it('keeps a folder of the user\'s own that holds only folders: it is not named after the model', () => {
+    const c = contents();
+    c.folders = [
+      { iri: `${M}/folder/business`, label: 'Business', members: [] },
+      { iri: `${M}/folder/actors`, label: 'Actors', parentIri: `${M}/folder/business`, members: [`${M}/element/c`] },
+    ];
+    expect(modelFolderOf(c)).toBeUndefined();
+    const [root] = buildModelTree(c, undefined, new Set(), 'folders');
+    expect(root.children.map((f) => f.label)).toEqual(['Business', 'Not in a folder']);
+    // A folder row carries the folder it shows.
+    expect(root.children[0]).toMatchObject({ kind: 'folder', folderIri: `${M}/folder/business` });
+    // Named as the model is: the converter's, shown as the model.
+    c.folders[0].label = 'shop';
+    expect(modelFolderOf(c)?.iri).toBe(`${M}/folder/business`);
+    expect(buildModelTree(c, undefined, new Set(), 'folders')[0].children.map((f) => f.label)).toEqual(['Actors', 'Not in a folder']);
+  });
+
   it('lists what folders in a cycle hold as in no folder', () => {
     const c = contents();
     c.folders = [
@@ -228,6 +246,26 @@ describe('actionsFor', () => {
     expect(actionsFor({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] }).map((a) => a.action)).toContain(
       'new-diagram',
     );
+  });
+
+  it('makes a folder from the model and from a folder of its own; moves a concept only when there are folders', () => {
+    const actions = (n: TreeNode, folders = false) => actionsFor(n, { folders }).map((a) => a.action);
+    expect(actions({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] })).toContain('new-folder');
+    expect(actions({ id: 'folder-iri:f', folderIri: 'f', kind: 'folder', label: 'F', children: [] }, true)).toEqual([
+      'new-folder',
+      'rename-folder',
+      'move-to-folder',
+      'delete-folder',
+    ]);
+    // The tree's own groupings are no folders of the model's.
+    expect(actions({ id: 'folder:elements', kind: 'folder', label: 'Elements', children: [] }, true)).toEqual([]);
+    const element: TreeNode = { id: 'a', iri: 'a', kind: 'element', label: 'A', children: [] };
+    expect(actions(element)).not.toContain('move-to-folder');
+    expect(actions(element, true)).toContain('move-to-folder');
+    expect(actions({ id: 'v', iri: 'v', kind: 'view', label: 'V', children: [] }, true)).toContain('move-to-folder');
+    expect(actions({ id: 'r', iri: 'r', kind: 'relationship', label: 'R', children: [] }, true)).toContain('move-to-folder');
+    // A derivation is not the model's: nothing to file.
+    expect(actions({ id: 'd', iri: 'd', kind: 'relationship', label: 'D', derivation: 'potential', children: [] }, true)).not.toContain('move-to-folder');
   });
 });
 
@@ -373,6 +411,38 @@ describe('<model-explorer>', () => {
       input.dispatchEvent(new Event('input'));
       await el.updateComplete;
       expect(row(el, `${M}/element/c`)).not.toBeNull();
+    });
+
+    it("reports a folder's menu picks with the folder it shows", async () => {
+      const el = await mount(withFolders);
+      const actions: ExplorerActionDetail[] = [];
+      el.addEventListener('explorer-action', (e) => actions.push((e as CustomEvent<ExplorerActionDetail>).detail));
+      folderRow(el, 'Business').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="new-folder"]')!.click();
+      expect(actions).toEqual([{ action: 'new-folder', iri: `${M}/folder/business`, kind: 'folder' }]);
+      // A concept's menu offers to move it, now that there are folders.
+      folderRow(el, 'Applications').click();
+      await el.updateComplete;
+      row(el, `${M}/element/a`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector('.menu [data-action="move-to-folder"]')).not.toBeNull();
+    });
+
+    it('reveals a folder — in the folders, switching to them', async () => {
+      const el = await mount(withFolders);
+      await pick(el, 'types');
+      // jsdom does not scroll.
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value() {} });
+      try {
+        el.revealIri(`${M}/folder/actors`);
+        await el.updateComplete;
+        expect(pressed(el)).toBe('folders');
+        expect(row(el, `${M}/folder/actors`).classList.contains('selected')).toBe(true);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      } finally {
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
     });
 
     it('unfolds the folders around a concept it reveals', async () => {

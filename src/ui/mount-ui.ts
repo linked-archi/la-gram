@@ -36,6 +36,7 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { applyFolderChange, deleteFolder, isFolder, moveToFolder, newFolder, renameFolder, type FolderChange } from '../model-manager/folders.js';
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
 import { localName as localNameOf } from '../model-manager/vocabulary.js';
 import {
@@ -62,7 +63,7 @@ import './panels/palette-panel.js';
 import './panels/canvas-toolbar.js';
 import './panels/property-panel.js';
 import { fieldName } from './panels/property-panel.js';
-import './panels/model-explorer.js';
+import { modelFolderOf } from './panels/model-explorer.js';
 import './panels/validation-panel.js';
 import './panels/sparql-editor.js';
 import './views/catalog-view.js';
@@ -1017,7 +1018,110 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'confirm-derivation':
         confirmDerivation(iri);
         return;
+      case 'new-folder':
+        return newFolderIn(detail.kind === 'folder' ? iri : undefined);
+      case 'rename-folder':
+        return renameFolderAt(iri);
+      case 'move-to-folder':
+        return moveToFolderAsked(iri);
+      case 'delete-folder':
+        return deleteFolderAsked(iri);
     }
+  };
+
+  // ── The model's folders (Req 10.13–10.15) ────────────────────────────
+
+  /** Make a folder change as one step on the open view's undo stack, then show `reveal` in the tree. */
+  const changeFolders = (change: FolderChange, reveal?: string): void => {
+    if (change.remove.length === 0 && change.add.length === 0) return;
+    changeProperties(session.modelIri ?? '', () => applyFolderChange(store, change));
+    modelExplorer.refresh();
+    if (reveal) modelExplorer.revealIri(reveal);
+  };
+
+  /** The folder the tree shows as the model — a converter's — where what goes to the top goes. */
+  const topFolder = (): string | undefined => modelFolderOf(modelContents())?.iri;
+
+  const newFolderIn = async (parentIri?: string): Promise<void> => {
+    const modelIri = session.modelIri;
+    if (!modelIri) return;
+    const name = await dialogs.prompt('New folder', 'Name', 'New folder');
+    if (!name) return;
+    const made = newFolder(store, modelIri, name, parentIri ?? topFolder());
+    changeFolders(made.change, made.iri);
+  };
+
+  const renameFolderAt = async (iri: string): Promise<void> => {
+    const current = modelContents().folders?.find((f) => f.iri === iri)?.label ?? '';
+    const name = await dialogs.prompt('Rename folder', 'Name', current);
+    if (!name || name === current) return;
+    changeFolders(renameFolder(store, iri, name), iri);
+  };
+
+  /** Ask which folder a concept or a folder goes into — any but itself and those inside it — and move it. */
+  const moveToFolderAsked = async (iri: string): Promise<void> => {
+    const modelIri = session.modelIri;
+    if (!modelIri) return;
+    const contents = modelContents();
+    const folders = contents.folders ?? [];
+    const top = modelFolderOf(contents)?.iri;
+    const byIri = new Map(folders.map((f) => [f.iri, f]));
+    /** The folders a folder is in, outermost first — up to the one shown as the model. */
+    const trail = (folderIri: string | undefined): string[] => {
+      const names: string[] = [];
+      const seen = new Set<string>();
+      for (let at = folderIri; at && at !== top && byIri.has(at) && !seen.has(at); at = byIri.get(at)!.parentIri) {
+        seen.add(at);
+        names.unshift(byIri.get(at)!.label);
+      }
+      return names;
+    };
+    const moving = isFolder(store, iri);
+    /** Whether a folder is the one moving or inside it. */
+    const inside = (folderIri: string): boolean => {
+      const seen = new Set<string>();
+      for (let at: string | undefined = folderIri; at && !seen.has(at); at = byIri.get(at)?.parentIri) {
+        if (at === iri) return true;
+        seen.add(at);
+      }
+      return false;
+    };
+    const choices = folders
+      .filter((f) => f.iri !== top && !(moving && inside(f.iri)))
+      .map((f) => ({ f, path: trail(f.parentIri) }))
+      .sort((a, b) => [...a.path, a.f.label].join('\u0000').localeCompare([...b.path, b.f.label].join('\u0000')))
+      .map(({ f, path }) => ({ value: f.iri, label: f.label, ...(path.length > 0 ? { detail: `in ${path.join(' ▸ ')}` } : {}) }));
+    const current = moving ? byIri.get(iri)?.parentIri : folders.find((f) => f.members.includes(iri))?.iri;
+    const choice = await dialogs.choose(
+      'Move to folder',
+      [
+        moving
+          ? { value: '', label: '— At the top —', detail: 'Not inside another folder' }
+          : { value: '', label: '— No folder —', detail: 'Listed under "Not in a folder"' },
+        ...choices,
+      ],
+      current && current !== top ? current : '',
+    );
+    if (choice === null) return;
+    changeFolders(moveToFolder(store, iri, choice || undefined, modelIri, top), iri);
+  };
+
+  const deleteFolderAsked = async (iri: string): Promise<void> => {
+    const modelIri = session.modelIri;
+    if (!modelIri) return;
+    const contents = modelContents();
+    const folder = contents.folders?.find((f) => f.iri === iri);
+    const parent = folder?.parentIri ? contents.folders?.find((f) => f.iri === folder.parentIri) : undefined;
+    const top = modelFolderOf(contents)?.iri;
+    const ok = await dialogs.confirm(
+      'Delete folder',
+      parent && parent.iri !== top
+        ? `Delete the folder "${folder?.label ?? iri}"? What it holds stays in the model and moves to "${parent.label}".`
+        : `Delete the folder "${folder?.label ?? iri}"? What it holds stays in the model: its folders move to the top, the rest to "Not in a folder".`,
+      { confirmLabel: 'Delete folder', danger: true },
+    );
+    if (!ok) return;
+    changeFolders(deleteFolder(store, iri, modelIri, top), parent && parent.iri !== top ? parent.iri : undefined);
   };
 
   /**

@@ -199,9 +199,10 @@ export function statementsOf(store: RdfStore, subject: NamedNode, predicate: Nam
 /** schema.org, as converters write it, and its older `http:` form. */
 const SCHEMA_NAMESPACES = ['https://schema.org/', 'http://schema.org/'];
 const schemaTerms = (local: string): NamedNode[] => SCHEMA_NAMESPACES.map((ns) => nn(ns + local));
-const SCHEMA_NAME = schemaTerms('name');
-const SCHEMA_ITEM_LIST_ELEMENT = schemaTerms('itemListElement');
-const SCHEMA_ITEM = schemaTerms('item');
+/** A folder's name, its list entries and an entry's item — the `https:` form first, the one la-gram writes. */
+export const SCHEMA_NAME = schemaTerms('name');
+export const SCHEMA_ITEM_LIST_ELEMENT = schemaTerms('itemListElement');
+export const SCHEMA_ITEM = schemaTerms('item');
 
 /** The predicates a folder is read from: a change to one of them may change the folders. */
 const FOLDER_PREDICATES = new Set([IRI.dctermsIsPartOf, ...[SCHEMA_NAME, SCHEMA_ITEM_LIST_ELEMENT, SCHEMA_ITEM].flat().map((p) => p.value)]);

@@ -659,15 +659,40 @@ any, each top folder and the folders in it — subfolders first, then the member
 the contents list, each by name — and *Not in a folder* for the rest, grouped by
 kind and type as the `types` grouping groups the whole model; derived
 relationships last. Folders in a cycle, with no way up to a top folder, are not
-shown, and what they hold is under *Not in a folder*. One top folder holding
-only folders — a converter's folder for the model itself, around Elements,
-Relationships and Views — is the model again, so its folders take its place.
+shown, and what they hold is under *Not in a folder*. A converter's folder for
+the model itself, around Elements, Relationships and Views, is the model again,
+so its folders take its place (`modelFolderOf`): the one top folder, holding
+folders and none of the model's concepts, and named as the model is — its name,
+or its IRI's last segment, the model id the converters name it by. The name is
+what tells it from a folder of the user's: *Business* holding only *Actors* is
+shown.
 A folder node is `folded` and its detail is the number of
 concepts under it. The component starts a folded node closed unless the user
 opened it or a filter is typed, and `revealIri` opens the folders around the
-concept it reveals. The grouping is the component's state, kept in
+concept it reveals — or the folder: one is shown only in the folders, so the
+tree switches to them for it. The grouping is the component's state, kept in
 `localStorage` (`la-gram:explorer-grouping`), read and written in `try`/`catch`
 so a browser without storage still shows the tree.
+
+**Folders changed** (Req 10.13–10.15). The tree's menu offers *New folder…*,
+*Rename…*, *Move to folder…* and *Delete folder* (`actionsFor`; *Move to
+folder…* on a concept only when the model has folders), and the picks reach
+`mount-ui` as `explorer-action`s with the folder's IRI — a folder row carries
+it as `folderIri`, as a concept row carries `iri`. `model-manager/folders.ts`
+works each out as a `FolderChange`, the quads to remove and to add, and
+`mount-ui` makes it inside `recordChange` — one step on the open view's undo
+stack, whose `rdf.store.edit` replays the diff — then refreshes the tree and
+reveals the folder or the concept. A folder is written as the converters write
+one; a membership from the member's end alone, `dcterms:isPartOf` (key decision
+13). Moving a concept removes every membership it has — its `dcterms:isPartOf`
+a folder and any folder's list entry naming it, the entry's blank node with all
+it says — and adds the one picked; a folder moved is first checked not to go
+into itself or one inside it. Deleting a folder removes it, its list entries
+and what names it, and moves what it held — found from both ends — to the
+folder around it, or to the top: folders `dcterms:isPartOf` the model (or the
+converter's folder shown as the model), concepts into no folder. *Move to
+folder…* asks with `Dialogs.choose`, which puts a filter over a list of more
+than ten — a model converted from Archi can have thousands of folders.
 
 A view of thousands of shapes (Task 22): a sync indexes the connections drawn
 once, and `findConnection` looks a relationship up by id or among the few
@@ -1634,7 +1659,11 @@ dialog; the modules' section).
     collaboration channel, is the path.
 13. **A model's folders are shown by name, and the switch is always there**
     (2026-11-04). `arch:Folder` is, in the core, a navigation container that
-    keeps a tool's own organisation; la-gram shows it and does not edit it.
+    keeps a tool's own organisation. la-gram shows it, and makes and changes
+    it as the converters write it — but states a membership from the member's
+    end only, `dcterms:isPartOf`: the folder's end, `schema:itemListElement`,
+    takes a list entry, a blank node, which la-gram writes into no model, and
+    a position, which nothing it shows uses.
     The converters also give each folder entry a `schema:position`, but that is
     the order the source file lists them in — for an Archi model, the order the
     concepts were made in, not what Archi's tree shows, which is by name

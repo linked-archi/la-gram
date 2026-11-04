@@ -80,6 +80,9 @@ export interface Dialogs {
   toast(message: string, level?: 'info' | 'warning' | 'error'): void;
 }
 
+/** Options from which {@link Dialogs.choose} puts a filter over its list. */
+const CHOICE_FILTER_FROM = 10;
+
 /** Build a DOM element with attributes and children. */
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -373,11 +376,15 @@ export const domDialogs: Dialogs = {
   choose(title, options, initial) {
     let selected = initial ?? options.find((o) => !o.disabled)?.value ?? null;
     const list = el('div', { class: 'la-choice-list', role: 'listbox' });
+    /** Each group's header and its rows, for the filter to hide a group left empty. */
+    const groups: Array<{ header?: HTMLElement; rows: Array<{ row: HTMLElement; text: string }> }> = [{ rows: [] }];
     let group: string | undefined;
     for (const option of options) {
       if (option.group && option.group !== group) {
         group = option.group;
-        list.append(el('div', { class: 'la-choice-group', text: group }));
+        const header = el('div', { class: 'la-choice-group', text: group });
+        list.append(header);
+        groups.push({ header, rows: [] });
       }
       const row = el('div', {
         class: `la-choice${option.value === selected ? ' selected' : ''}${option.disabled ? ' disabled' : ''}`,
@@ -397,15 +404,30 @@ export const domDialogs: Dialogs = {
         });
       }
       list.append(row);
+      groups[groups.length - 1].rows.push({ row, text: `${option.label}\n${option.detail ?? ''}`.toLowerCase() });
+    }
+    // A long list — the model's folders, the viewpoints — gets a filter over it.
+    let filter: HTMLInputElement | undefined;
+    if (options.length > CHOICE_FILTER_FROM) {
+      const input = el('input', { class: 'la-input la-choice-filter', type: 'search', placeholder: 'Filter…', 'aria-label': 'Filter' });
+      input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+        for (const { header, rows } of groups) {
+          for (const { row, text } of rows) row.hidden = query !== '' && !text.includes(query);
+          if (header) header.hidden = rows.every(({ row }) => row.hidden);
+        }
+      });
+      filter = input;
     }
     return modal<string | null>(
       title,
-      [list],
+      filter ? [filter, list] : [list],
       [
         { label: 'Cancel', value: () => null },
         { label: 'OK', value: () => selected, primary: true },
       ],
       null,
+      filter,
     );
   },
 

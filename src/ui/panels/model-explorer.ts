@@ -31,6 +31,10 @@
  *
  * The header's Folders | Types switch picks either, remembered per browser; on
  * a model without folders, Folders is greyed out and the tree is by type.
+ * Folders are made from the right-click menu — the model's *New folder…*, a
+ * folder's *New folder…*, *Rename…*, *Move to folder…* and *Delete folder* —
+ * and a concept filed by its *Move to folder…* once the model has folders
+ * (`model-manager/folders.ts` makes the change).
  *
  * ## Interactions
  *
@@ -62,6 +66,8 @@ export interface TreeNode {
   id: string;
   /** IRI of the concept, absent for folders. */
   iri?: string;
+  /** The model's own folder (`arch:Folder`) a folder row shows. */
+  folderIri?: string;
   kind: TreeNodeKind;
   label: string;
   /** Secondary text: a type, a count, a view kind. */
@@ -84,6 +90,31 @@ export type TreeGrouping = 'folders' | 'types';
 /** Whether the model has folders of its own to show. */
 export function hasFolders(contents: ModelContents | undefined): boolean {
   return (contents?.folders?.length ?? 0) > 0;
+}
+
+/**
+ * A converter's folder for the model itself: the one folder at the top, named
+ * as the model is — its name, or its IRI's last segment, the model id the
+ * converters name it by — holding folders and none of the model's concepts.
+ * The tree shows its folders in its place, and a folder made at the top goes
+ * in it. A folder of the user's own holding only folders is not one: it is not
+ * named after the model.
+ */
+export function modelFolderOf(contents: ModelContents | undefined): FolderSummary | undefined {
+  const folders = contents?.folders ?? [];
+  const known = new Set(folders.map((f) => f.iri));
+  const top = folders.filter((f) => !f.parentIri || !known.has(f.parentIri));
+  if (!contents || top.length !== 1) return undefined;
+  const [folder] = top;
+  const names = [contents.model?.label, contents.model ? iriFragment(contents.model.iri) : undefined]
+    .filter((n): n is string => Boolean(n))
+    .map((n) => n.toLowerCase());
+  if (!names.includes(folder.label.toLowerCase())) return undefined;
+  if (!folders.some((f) => f.parentIri === folder.iri)) return undefined;
+  const listed = new Set(
+    [...contents.views, ...contents.elements, ...contents.relationships, ...contents.unclassified].map((c) => c.iri),
+  );
+  return folder.members.some((m) => listed.has(m)) ? undefined : folder;
 }
 
 /** localStorage key of the grouping. */
@@ -133,9 +164,16 @@ export type ExplorerAction =
   | 'delete-from-model'
   | 'show-source'
   | 'show-target'
-  | 'confirm-derivation';
+  | 'confirm-derivation'
+  | 'new-folder'
+  | 'rename-folder'
+  | 'move-to-folder'
+  | 'delete-folder';
 
-/** Detail of `explorer-action`. */
+/**
+ * Detail of `explorer-action`: the row's concept — for a folder row, the
+ * model's folder it shows; for the model, the model.
+ */
 export interface ExplorerActionDetail {
   action: ExplorerAction;
   iri: string;
@@ -338,19 +376,27 @@ function folderGroups(contents: ModelContents, activeViewIri: string | undefined
       .sort(byName((n) => n.id));
     const count = members.length + subfolders.reduce((n, b) => n + b.count, 0);
     return {
-      node: { id: `folder-iri:${f.iri}`, kind: 'folder', label: f.label, detail: String(count), folded: true, children: [...subfolders.map((b) => b.node), ...members] },
+      node: {
+        id: `folder-iri:${f.iri}`,
+        folderIri: f.iri,
+        kind: 'folder',
+        label: f.label,
+        detail: String(count),
+        folded: true,
+        children: [...subfolders.map((b) => b.node), ...members],
+      },
       count,
     };
   };
-  let top = (inside.get(undefined) ?? [])
+  // A converter's folder for the model itself, around Elements, Relationships and Views, is the model again.
+  const modelFolder = modelFolderOf(contents);
+  if (modelFolder) built.add(modelFolder.iri);
+  const top = (modelFolder ? (inside.get(modelFolder.iri) ?? []) : (inside.get(undefined) ?? []))
     .slice()
     .sort(byName((f) => f.iri))
     .map(build)
     .filter((b): b is { node: TreeNode; count: number } => b !== undefined)
     .map((b) => b.node);
-  // One folder at the top holding only folders — a converter's folder for the
-  // model itself, around Elements, Relationships and Views — is the model again.
-  if (top.length === 1 && top[0].children.length > 0 && top[0].children.every((c) => c.kind === 'folder')) top = top[0].children;
 
   const unfiled: Stated = {
     views: stated.views.filter((v) => !filed.has(v.iri)),
@@ -421,8 +467,17 @@ export function filterTree(nodes: TreeNode[], query: string): TreeNode[] {
   return nodes.map(visit).filter((n): n is TreeNode => n !== null);
 }
 
-/** Context menu entries for a row. */
-export function actionsFor(node: TreeNode): Array<{ action: ExplorerAction; label: string; danger?: boolean }> {
+/**
+ * Context menu entries for a row.
+ *
+ * @param options.folders Whether the model has folders: a concept is offered
+ *   *Move to folder…* only then.
+ */
+export function actionsFor(
+  node: TreeNode,
+  options: { folders?: boolean } = {},
+): Array<{ action: ExplorerAction; label: string; danger?: boolean }> {
+  const move = options.folders ? [{ action: 'move-to-folder' as const, label: 'Move to folder…' }] : [];
   switch (node.kind) {
     case 'model':
       return [
@@ -431,13 +486,25 @@ export function actionsFor(node: TreeNode): Array<{ action: ExplorerAction; labe
         { action: 'new-diagram', label: 'New diagram view' },
         { action: 'new-catalog', label: 'New catalog view' },
         { action: 'new-matrix', label: 'New matrix view' },
+        { action: 'new-folder', label: 'New folder…' },
       ];
+    case 'folder':
+      // The model's own folders; the tree's groupings (Views, Elements, …) have no menu.
+      return node.folderIri
+        ? [
+            { action: 'new-folder', label: 'New folder…' },
+            { action: 'rename-folder', label: 'Rename…' },
+            { action: 'move-to-folder', label: 'Move to folder…' },
+            { action: 'delete-folder', label: 'Delete folder (keeps its contents)', danger: true },
+          ]
+        : [];
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
         { action: 'rename-view', label: 'Rename…' },
         { action: 'set-viewpoint', label: 'Set viewpoint…' },
         { action: 'duplicate-view', label: 'Duplicate' },
+        ...move,
         { action: 'delete-view', label: 'Delete view (keeps its elements)', danger: true },
       ];
     case 'element':
@@ -447,6 +514,7 @@ export function actionsFor(node: TreeNode): Array<{ action: ExplorerAction; labe
           ? { action: 'reveal', label: 'Select on canvas' }
           : { action: 'add-to-view', label: 'Add to current view' },
         { action: 'rename', label: 'Rename…' },
+        ...move,
         { action: 'delete-from-model', label: 'Delete from model…', danger: true },
       ];
     case 'relationship':
@@ -459,7 +527,7 @@ export function actionsFor(node: TreeNode): Array<{ action: ExplorerAction; labe
           : []),
         { action: 'show-source', label: 'Show source' },
         { action: 'show-target', label: 'Show target' },
-        ...(node.derivation ? [] : [{ action: 'rename' as const, label: 'Rename…' }]),
+        ...(node.derivation ? [] : [{ action: 'rename' as const, label: 'Rename…' }, ...move]),
         { action: 'delete-from-model', label: 'Delete from model…', danger: true },
       ];
     default:
@@ -752,12 +820,16 @@ export class ModelExplorer extends LitElement {
     this._build();
   }
 
-  /** Expand the ancestors of a concept and scroll it into view. */
+  /**
+   * Expand the ancestors of a concept — or of one of the model's folders — and
+   * scroll it into view. A folder is shown only in the folders: the tree
+   * switches to them for one.
+   */
   revealIri(iri: string): void {
     const path: string[] = [];
     const find = (nodes: TreeNode[], trail: string[]): boolean => {
       for (const n of nodes) {
-        if (n.iri === iri) {
+        if (n.iri === iri || (n.kind === 'folder' && n.folderIri === iri)) {
           path.push(...trail);
           return true;
         }
@@ -765,7 +837,12 @@ export class ModelExplorer extends LitElement {
       }
       return false;
     };
-    if (!find(this._tree, [])) return;
+    let found = find(this._tree, []);
+    if (!found && this._grouping === 'types' && this._contents?.folders?.some((f) => f.iri === iri)) {
+      this._setGrouping('folders');
+      found = find(this._tree, []);
+    }
+    if (!found) return;
     const collapsed = new Set(this._collapsed);
     const expanded = new Set(this._expanded);
     for (const id of path) {
@@ -834,7 +911,7 @@ export class ModelExplorer extends LitElement {
 
   private _openMenu(e: MouseEvent, node: TreeNode): void {
     e.preventDefault();
-    if (actionsFor(node).length === 0) return;
+    if (actionsFor(node, { folders: hasFolders(this._contents) }).length === 0) return;
     this._select(node);
     this._menu = { x: e.clientX, y: e.clientY, node };
   }
@@ -842,8 +919,10 @@ export class ModelExplorer extends LitElement {
   private _pick(action: ExplorerAction): void {
     const node = this._menu?.node;
     this._menu = null;
-    if (!node?.iri && node?.kind !== 'model') return;
-    this._emit<ExplorerActionDetail>('explorer-action', { action, iri: node.iri ?? '', kind: node.kind });
+    if (!node) return;
+    const iri = node.iri ?? node.folderIri;
+    if (!iri && node.kind !== 'model') return;
+    this._emit<ExplorerActionDetail>('explorer-action', { action, iri: iri ?? '', kind: node.kind });
   }
 
   private _onRowDown(e: MouseEvent, node: TreeNode): void {
@@ -893,12 +972,13 @@ export class ModelExplorer extends LitElement {
   private _renderNode(node: TreeNode): unknown {
     const collapsed = this._isFolded(node);
     const hasChildren = node.children.length > 0;
-    const selected = node.iri !== undefined && node.iri === this.selectedIri;
+    const shown = node.iri ?? (node.kind === 'folder' ? node.folderIri : undefined);
+    const selected = shown !== undefined && shown === this.selectedIri;
     return html`
       <li>
         <div
           class="row ${node.kind} ${selected ? 'selected' : ''} ${node.active ? 'active' : ''} ${node.derivation ? `derived ${node.derivation}` : ''}"
-          data-iri=${node.iri ?? nothing}
+          data-iri=${node.iri ?? node.folderIri ?? nothing}
           data-kind=${node.kind}
           title=${node.derivation
             ? `${node.derivation === 'valid' ? 'Derived (valid)' : 'Potential derivation, not confirmed'}${node.detail ? ` by ${node.detail}` : ''} — ${node.iri ?? node.label}`
@@ -964,7 +1044,7 @@ export class ModelExplorer extends LitElement {
       </div>
       ${this._menu
         ? html`<div class="menu" style="left:${this._menu.x}px;top:${this._menu.y}px" role="menu">
-            ${actionsFor(this._menu.node).map(
+            ${actionsFor(this._menu.node, { folders: hasFolders(this._contents) }).map(
               (entry) => html`<button
                 role="menuitem"
                 class=${entry.danger ? 'danger' : ''}
