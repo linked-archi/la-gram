@@ -76,9 +76,11 @@ export class SparqlViewpointManager implements ViewpointManager {
    * use it and `arch:permitsElement` / `arch:permitsRelationship` never appear.
    * Those two are still read so older or hand-written data keeps working.
    *
-   * Because `arch:includesConcept` does not say which kind a concept is, its
-   * values are reported under `elements`. Relationship types only reach
-   * `relationships` when the data uses the legacy `arch:permitsRelationship`.
+   * `arch:includesConcept` does not say which kind a concept is, so its class
+   * does: a subclass of `arch:QualifiedRelationship` is reported under
+   * `relationships`, anything else under `elements`. ArchiMate 4.0's viewpoints
+   * name element types only, so theirs come back with no relationships — which
+   * the palette reads as "any the metamodel permits between them".
    *
    * A viewpoint that names a class includes its subclasses (`rdfs:subClassOf*`):
    * one naming `c4:Container` offers `c4:Database`, one naming `am4:Access` its
@@ -98,17 +100,22 @@ export class SparqlViewpointManager implements ViewpointManager {
       PREFIX arch: <${NAMESPACES.arch}>
       PREFIX rdfs: <${NAMESPACES.rdfs}>
 
-      SELECT ?element ?relationship ?named
+      SELECT ?concept ?relationshipClass ?named
       ${from}
       WHERE {
         {
           { <${viewpointIri}> arch:includesConcept ?named . }
           UNION
           { <${viewpointIri}> arch:permitsElement ?named . }
-          ?element rdfs:subClassOf* ?named .
+          ?concept rdfs:subClassOf* ?named .
+          OPTIONAL {
+            ?concept rdfs:subClassOf+ arch:QualifiedRelationship .
+            BIND(true AS ?relationshipClass)
+          }
         } UNION {
           <${viewpointIri}> arch:permitsRelationship ?named .
-          ?relationship rdfs:subClassOf* ?named .
+          ?concept rdfs:subClassOf* ?named .
+          BIND(true AS ?relationshipClass)
         }
       }
     `,
@@ -123,10 +130,10 @@ export class SparqlViewpointManager implements ViewpointManager {
     // The two passes overlap when the same triple sits in both the default graph
     // and a named graph, so membership is checked before appending.
     for (const row of rows) {
-      const elem = row['element']?.value;
-      const rel = row['relationship']?.value;
-      if (elem && !elements.includes(elem)) elements.push(elem);
-      if (rel && !relationships.includes(rel)) relationships.push(rel);
+      const concept = row['concept']?.value;
+      if (!concept) continue;
+      const into = row['relationshipClass'] ? relationships : elements;
+      if (!into.includes(concept)) into.push(concept);
     }
 
     return { elements, relationships };
@@ -136,5 +143,5 @@ export class SparqlViewpointManager implements ViewpointManager {
 /** A row a subclass of a named class contributed, rather than the named class itself. */
 function isSubclassRow(row: SparqlBindings): boolean {
   const named = row['named']?.value;
-  return (row['element'] ?? row['relationship'])?.value !== named;
+  return row['concept']?.value !== named;
 }

@@ -74,10 +74,22 @@ graph TB
 | **Relationship** | `arch:QualifiedRelationship` subclass instance: `arch:source`, `arch:target`, `arch:inModel` — **plus** the unqualified triple (`arch:unqualifiedForm`), which it `rdf:reifies` (RDF 1.2, `<<( s p o )>>`), and the qualified predicate from the source to it (`am4:qualifiedServing`; `arch:hasQualifiedRelationship` for a class with none) | default graph | yes |
 | **View** | `arch:View` + `arch:Diagram`/`Catalog`/`Matrix`, `arch:inModel`, `arch:viewConformsToViewpoint` | default graph | yes |
 | **Membership** | `arch:inView` on each concept a view presents | default graph | yes |
-| **Geometry** | `arch-vis:ArchNode` (bounds, `archElement`, `view`), `arch-vis:Link` (`archRelationship`, `source`/`target` nodes, `points` list with IRI cells) | default graph | yes (droppable profile) |
+| **Geometry** | `arch-vis:ArchNode` (bounds, `archElement`, `view`), `arch-vis:Link` (`archRelationship`, `source`/`target` nodes — or, for an end on a relationship, its Link — `points` list with IRI cells) | default graph | yes (droppable profile) |
 | **Canvas** | diagram-js elements, keyed by concept IRI | memory | no |
 
 One placement per element per view (the canvas keys shapes by element IRI).
+
+A link ends at the node of the element its relationship has at that end — or,
+where that end is a relationship, at that relationship's link (core-vis 0.6
+widened `arch-vis:source` / `arch-vis:target` to `arch-vis:DiagElement`, and
+core-vis-shapes accepts a Node or a Link). `view-manager.ts` resolves an end so
+(`endFor`), lists a view's links each after the links it ends on (`endsFirst`,
+which is what lets the canvas draw them in one pass), and draws a list of
+relationships in passes (`addRelationshipsToView`: copying a view, drawing what
+placed elements have, a diagram from results, the exchange import). A link goes
+with the link it ends on, from the view and from the model: `cascade.ts` deletes
+the relationships ending on a deleted relationship, as deleting an element
+deletes those at its ends.
 
 ### IRIs
 
@@ -261,6 +273,20 @@ the palette — and the canvas's menus, without redrawing the shapes
 (`updatePaletteDefinition(…, { iconsOnly: true })`) — take the drawn one. The
 swap waits on the network: a few seconds for a link that does not resolve.
 
+**The palette panel** (Req 2.8, 2.22). `palette-panel.ts` lists the
+relationship types first, above the element groups — a short list, kept in
+reach — in a section that folds by its header as a group does; its state is
+kept apart from the groups', since a category could share its name. A search
+opens whatever is folded. The open view's viewpoint filters the element types to
+those it names and the relationship types to those it names — all of them when
+it names element types and none, which is every ArchiMate 4.0 viewpoint: they
+name element types, and a relationship the metamodel permits between those is in
+the viewpoint (connect still asks the rules for each pair). What a viewpoint
+names, `viewpoint-manager.ts` (`getPermittedTypes`) sorts by class: a named class
+and its subclasses, relationship types being those under
+`arch:QualifiedRelationship`, whether named with `arch:includesConcept` or the
+older `arch:permitsElement` / `arch:permitsRelationship`.
+
 **Element shapes** (Req 2.18). `notation-shapes.ts` turns a shape into one
 geometry with two encodings: the drawn body (`shapeGeometry`: a `rect`,
 `ellipse`, `circle`, `polygon` or `path`, plus `details`, a path of inner lines)
@@ -386,7 +412,7 @@ model runs its model operation inside a nested command:
 | Change an element's type (property panel, right-click menu) | `rdf.element.retype` | `rdf.store.change` → the `rdf:type` (and the default name); also redraws the shape in the new notation, on undo too |
 | Rename in the box (double-click, F2) | `rdf.element.relabel` | `rdf.store.change` → the `skos:prefLabel` in the shown language; also relabels the shape, on undo too |
 | Move / resize | `shape.move` / `shape.resize` | `rdf.store.change` → node bounds |
-| Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list |
+| Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list; relationships ending on the line follow it (nested `connection.layout`, see Routes and docking) |
 | Reconnect end | `connection.reconnect` | `rdf.store.change` → ends, triple, links in other views |
 | Delete (key, pad ×) | `shape.delete` / `connection.delete` | `rdf.store.change` → remove from **view** |
 | Delete from model (pad ✖, tree) | `rdf.model.delete` | removes shapes, then the concept everywhere |
@@ -451,6 +477,52 @@ drawn name meanwhile (a marker), and selects the whole name. Completing with a
 changed, non-empty name runs `rdf.element.relabel`; canvas commands are not
 followed by a re-read of the store, so the command relabels the shape itself on
 execute and on revert.
+
+### Routes and docking
+
+diagram-js leaves docking to the application: its `features/modeling` binds
+`modeling` and `layouter` only, and its `BaseLayouter` runs a line centre to
+centre. `rdfModelingModule` binds three services that belong together
+(`connection-docking.ts`, `straight-docking.ts`; Req 4.6, 4.10, 4.16):
+
+- **`layouter` — `CroppingLayouter`.** `MoveShapeHandler`, `MoveHelper`,
+  `ResizeShapeHandler` and `ReconnectConnectionHandler` lay a connection out
+  again on postExecute, passing the moved end as `connectionStart` /
+  `connectionEnd`, and expect the route kept — bpmn-js's `BpmnLayouter` repairs
+  it. The layouter keeps a connection's bends as they are and moves only its
+  ends: an end with a hint goes where the hint says; one without keeps its
+  reference — the uncropped point its last docking recorded as `original`, or
+  the end itself for a route read from the store — unless that lies off its
+  element, when it is the element's centre. A resize that grows an element over
+  bends hands the last (or first) of them over as the end
+  (`getResizedSourceAnchor` / `getResizedTargetAnchor`), and the bends from
+  there to the element go. A connection with no route yet is laid out centre to
+  centre; both ends are then cropped by the docking service.
+- **`connectionDocking` — `FastCroppingConnectionDocking`.** diagram-js's
+  cropping assumes an end's reference lies inside the element, and keeps the
+  reference as the end when the line misses the outline. A shape is hit-tested on
+  its bounding box with a 15 px stroke, so a reattach dropped beside an element,
+  or in the empty corner of a diamond or an ellipse, hands over such a reference
+  — as can a segment drag or a resize, which decide "inside" by the bounds. A
+  reference outside the outline (by the parity of the crossings on the way to
+  the element's centre) is moved just inside it, on that way, before cropping,
+  and recorded as the end's `original`. An end on a relationship goes on the
+  nearest point of its line: a connection has no outline (the renderer's
+  `getShapePath` reads bounds a connection does not have).
+- **`attachedConnectionBehavior` — `AttachedConnectionBehavior`.** diagram-js
+  re-lays out the connections attached to a shape, not those attached to a
+  connection. Before any command that re-routes a connection
+  (`connection.layout`, `updateWaypoints`, `move`, `reconnect`) it records how
+  far along the line each attached end lies, as a fraction of its length; after
+  it (`postExecuted`, which follows a reconnect's own layout) it lays each
+  attached connection out with that end at the same fraction — nested, so one
+  undo takes back both, and in turn for lines attached to those. A line already
+  being followed is skipped, which ends a cycle.
+
+The reconnect rule (`RdfRules.checkReconnect`) answers `false`, not
+`undefined`, for an end with no type: diagram-js's `Rules` reads `undefined` as
+allowed, and a reattach let go over empty canvas — the diagram's root — was
+attached to it.
 
 ### Which relationships are permitted
 
@@ -555,7 +627,9 @@ ArchiMate exchange format, and so the ArchiMate converter, keeps the bends
 alone); one point is one bend. Whether a point is on the outline: a 3-pixel
 probe across it meets the outline docking crops against (the bounds' edge for
 an outline with curves) — inside the shape is not enough, a bend may be there,
-on a line to a nested node.
+on a line to a nested node. An end on a relationship is on that relationship's
+line, within the same 3 pixels; otherwise it is a bend, and the line runs on to
+the nearest point of the other.
 
 The model tree reads the model once after the events of one task (opening a
 model fires several), in one pass for each concept's types, names and ends;

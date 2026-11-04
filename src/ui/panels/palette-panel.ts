@@ -60,8 +60,8 @@ function matches(text: string | undefined, query: string): boolean {
 /**
  * Palette panel Lit component — the app's one and only palette.
  *
- * Displays element types grouped by category and relationship types from a
- * PaletteDefinition, with a search box and a "Group by" axis selector. Supports
+ * Displays relationship types and then element types grouped by category from
+ * a PaletteDefinition, with a search box and a "Group by" axis selector. Supports
  * collapsible groups and drag-to-canvas for element creation.
  *
  * ## Why this owns the element types
@@ -204,13 +204,25 @@ export class PalettePanel extends LitElement {
       color: #5f6368;
     }
 
+    /* First, above the element groups: a short list, so it stays in reach. */
+    .relationships {
+      border-bottom: 1px solid #ddd;
+    }
+
     .section-divider {
+      display: flex;
+      align-items: center;
       padding: 8px 12px 4px;
+      cursor: pointer;
       font-weight: 600;
       font-size: 12px;
       text-transform: uppercase;
       color: #666;
       border-top: 1px solid #ddd;
+    }
+
+    .section-divider:hover {
+      background: #eaeaea;
     }
 
     .palette-notice {
@@ -295,8 +307,12 @@ export class PalettePanel extends LitElement {
   palette: PaletteDefinition = { elementGroups: [], relationshipTypes: [] };
 
   /**
-   * Optional active viewpoint. When set, the palette is filtered to only
-   * show element and relationship types permitted by this viewpoint.
+   * Optional active viewpoint. When set, the palette shows only the element
+   * types it names, and the relationship types it names — all of them when it
+   * names element types and no relationship types, as ArchiMate 4.0's
+   * viewpoints do: any relationship the metamodel permits between those
+   * elements is in the viewpoint. Which type a pair admits is still for the
+   * connect rules to decide. A viewpoint naming nothing offers nothing.
    */
   @property({ attribute: false })
   activeViewpoint?: ViewpointInfo;
@@ -314,6 +330,10 @@ export class PalettePanel extends LitElement {
 
   @state()
   private _collapsedGroups: Set<string> = new Set();
+
+  /** Whether the relationships section is collapsed — apart from the groups, which a category could share a name with. */
+  @state()
+  private _relationshipsCollapsed = false;
 
   /**
    * Current search text, exactly as typed. Empty means "no filter".
@@ -341,9 +361,9 @@ export class PalettePanel extends LitElement {
     const query = this._normalisedQuery;
     const viewpoint = this.activeViewpoint;
     const permittedElements = viewpoint ? new Set(viewpoint.permittedElements) : undefined;
-    const permittedRelationships = viewpoint
-      ? new Set(viewpoint.permittedRelationships)
-      : undefined;
+    // Element types named and no relationship types: every relationship type.
+    const everyRelationship = viewpoint && viewpoint.permittedRelationships.length === 0 && viewpoint.permittedElements.length > 0;
+    const permittedRelationships = viewpoint && !everyRelationship ? new Set(viewpoint.permittedRelationships) : undefined;
 
     const named = (label: string, iri: string): boolean =>
       matches(label, query) || (Boolean(query) && Boolean(this.prefixedName) && matches(this.prefixedName!(iri), query));
@@ -549,6 +569,26 @@ export class PalettePanel extends LitElement {
    * shown open, because a hit hidden inside a group the user collapsed earlier
    * reads as "no results".
    */
+  /**
+   * The relationships section: collapsible as a group is, and opened by a
+   * search the same way, so a hit is never hidden.
+   */
+  private _renderRelationships(relationshipTypes: readonly RelationshipTypeInfo[]): unknown {
+    const collapsed = !this._normalisedQuery && this._relationshipsCollapsed;
+    return html`
+      <section class="relationships">
+        <div class="section-divider" @click=${() => (this._relationshipsCollapsed = !this._relationshipsCollapsed)}>
+          <span class="group-toggle ${collapsed ? 'collapsed' : ''}">▾</span>
+          <span class="section-label">Relationships</span>
+          <span class="group-count">${relationshipTypes.length}</span>
+        </div>
+        <ul class="group-items ${collapsed ? 'hidden' : ''}">
+          ${relationshipTypes.map((r) => this._renderRelationship(r))}
+        </ul>
+      </section>
+    `;
+  }
+
   private _renderGroup(group: ElementGroup): unknown {
     const collapsed = !this._normalisedQuery && this._collapsedGroups.has(group.category);
     return html`
@@ -607,15 +647,8 @@ export class PalettePanel extends LitElement {
               : 'No metamodel loaded.'}
           </div>`
         : nothing}
+      ${relationshipTypes.length > 0 ? this._renderRelationships(relationshipTypes) : nothing}
       ${elementGroups.map((g) => this._renderGroup(g))}
-      ${relationshipTypes.length > 0
-        ? html`
-            <div class="section-divider">Relationships</div>
-            <ul class="group-items">
-              ${relationshipTypes.map((r) => this._renderRelationship(r))}
-            </ul>
-          `
-        : nothing}
     `;
   }
 }

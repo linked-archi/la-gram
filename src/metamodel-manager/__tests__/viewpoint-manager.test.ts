@@ -147,3 +147,39 @@ describe('SparqlViewpointManager', () => {
     });
   });
 });
+
+describe('a viewpoint that names its concepts with arch:includesConcept', () => {
+  const DATA = `
+    @prefix rdf:  <${NAMESPACES.rdf}> .
+    @prefix rdfs: <${NAMESPACES.rdfs}> .
+    @prefix arch: <${NAMESPACES.arch}> .
+    @prefix skos: <${NAMESPACES.skos}> .
+    @prefix ex:   <${EX}> .
+
+    ex:Actor rdfs:subClassOf arch:Element .
+    ex:Serving rdfs:subClassOf arch:QualifiedRelationship .
+    ex:Cooperation rdf:type arch:Viewpoint ; skos:prefLabel "Cooperation" ;
+      arch:includesConcept ex:Actor .
+    ex:Serves rdf:type arch:Viewpoint ; skos:prefLabel "Serves" ;
+      arch:includesConcept ex:Actor, ex:Serving .
+  `;
+
+  function viewpoints() {
+    const store = new OxigraphRdfStore();
+    const result = new N3TtlParser().parse(DATA);
+    if (result.ok) store.addQuads(result.quads);
+    return new SparqlViewpointManager(store).getViewpoints();
+  }
+
+  it('naming element types only — as ArchiMate 4.0’s do — has them as elements, and no relationships', () => {
+    const cooperation = viewpoints().find((v) => v.label === 'Cooperation');
+    expect(cooperation?.permittedElements).toEqual([`${EX}Actor`]);
+    expect(cooperation?.permittedRelationships).toEqual([]);
+  });
+
+  it('naming a relationship class has it as a relationship, not an element', () => {
+    const serves = viewpoints().find((v) => v.label === 'Serves');
+    expect(serves?.permittedElements).toEqual([`${EX}Actor`]);
+    expect(serves?.permittedRelationships).toEqual([`${EX}Serving`]);
+  });
+});
