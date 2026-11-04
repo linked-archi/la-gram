@@ -91,6 +91,7 @@
  */
 
 import { lineOutlineIntersections } from './straight-docking.js';
+import { closestPointOnPolyline, pointAlong } from './connection-docking.js';
 import Diagram from 'diagram-js';
 import { DataFactory } from 'n3';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
@@ -957,20 +958,31 @@ export class DiagramCanvas {
    * BPMN diagram has it; otherwise they are bends — as the ArchiMate converter
    * writes Archi's bend points — and the line runs from the shape through them,
    * docked to the outline as a line drawn here is. One point is one bend.
+   *
+   * An end on a relationship — a relationship whose source or target is a
+   * relationship — is on that relationship's line rather than an outline.
    */
   private drawnRoute(points: readonly Point[], source: DjsShape, target: DjsShape): Array<{ x: number; y: number }> {
     const first = points[0];
     const last = points[points.length - 1];
-    const fromSource = points.length >= 2 && this.onOutline(first, source);
-    const toTarget = points.length >= 2 && this.onOutline(last, target);
+    const fromSource = points.length >= 2 && this.atEnd(first, source);
+    const toTarget = points.length >= 2 && this.atEnd(last, target);
     if (fromSource && toTarget) return points.map((p) => ({ x: p.x, y: p.y }));
-    const centre = (shape: DjsShape) => ({ x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 });
+    const centre = (shape: DjsShape) =>
+      shape.waypoints ? pointAlong(shape.waypoints, 0.5) : { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 };
     const bends = points.slice(fromSource ? 1 : 0, toTarget ? points.length - 1 : points.length).map((p) => ({ x: p.x, y: p.y }));
     const route = [fromSource ? { x: first.x, y: first.y } : centre(source), ...bends, toTarget ? { x: last.x, y: last.y } : centre(target)];
     const docking = this.diagram?.get('connectionDocking') as
       | { getCroppedWaypoints(connection: unknown, source?: unknown, target?: unknown): Array<{ x: number; y: number }> }
       | undefined;
     return docking ? docking.getCroppedWaypoints({ waypoints: route, source, target }, source, target) : route;
+  }
+
+  /** Whether a stored route's end point is where it meets `end`: its outline, or its line. */
+  private atEnd(point: Point, end: DjsShape): boolean {
+    if (!end.waypoints) return this.onOutline(point, end);
+    const on = closestPointOnPolyline(end.waypoints, point);
+    return Math.hypot(on.x - point.x, on.y - point.y) <= 3;
   }
 
   /**
@@ -2752,6 +2764,17 @@ export class DiagramCanvas {
     const services = this.services();
     const iri = shape.businessObject?.iri;
     if (!services || !iri || !this.relationshipManager.getRelationshipsOf) return;
+    // Then those ending on a relationship just drawn, and so on.
+    const ends = [iri];
+    for (let at = 0; at < ends.length; at++) {
+      this.drawRelationshipsAt(ends[at], ends);
+    }
+  }
+
+  /** Draw the relationships at one end that both ends allow; note each drawn in `drawn`. */
+  private drawRelationshipsAt(iri: string, drawn: string[]): void {
+    const services = this.services();
+    if (!services || !this.relationshipManager.getRelationshipsOf) return;
     for (const rel of this.relationshipManager.getRelationshipsOf(iri)) {
       if (this.findConnection(rel.iri)) continue;
       // A derivation the model does not state is drawn when asked for, not with its ends.
@@ -2776,6 +2799,7 @@ export class DiagramCanvas {
         predicateIri: rel.predicateIri,
         relationshipIri: rel.iri,
       });
+      drawn.push(rel.iri);
     }
   }
 

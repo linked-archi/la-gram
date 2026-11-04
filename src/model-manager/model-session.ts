@@ -27,6 +27,7 @@ import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
 import type { Bounds, ElementManager, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
 import { migrateLegacyModel, type MigrationReport } from './legacy-migration.js';
+import { addRelationshipsToView } from './view-manager.js';
 import { classify, findModelIri, labelOf, modelQuads, typeClosure } from './model-queries.js';
 import {
   DEFAULT_MODEL_PREFIX,
@@ -363,7 +364,7 @@ export class ModelSession {
         ...(this.currentModel ? { modelIri: this.currentModel } : {}),
       }).value;
       for (const node of nodes) this.views.addElementToView(viewIri, node.iri, node.bounds);
-      for (const relationship of relationships) this.views.addRelationshipToView(viewIri, relationship);
+      addRelationshipsToView(this.views, viewIri, relationships);
       this.touch();
     });
     this.events?.emit('views-changed', { viewIri });
@@ -582,13 +583,13 @@ export class ModelSession {
    * view. A derivation it does not state is drawn only when asked for.
    */
   linkAllPlaced(viewIri: string): number {
-    let drawn = 0;
     const unstated = this.unstated();
-    for (const q of this.store.getQuads(null, T.source, null)) {
-      if (q.graph.termType !== 'DefaultGraph' || unstated.has(q.subject.value)) continue;
-      if (this.views.addRelationshipToView(viewIri, q.subject.value)) drawn += 1;
-    }
-    return drawn;
+    const stated = this.store
+      .getQuads(null, T.source, null)
+      .filter((q) => q.graph.termType === 'DefaultGraph' && !unstated.has(q.subject.value))
+      .map((q) => q.subject.value);
+    // In passes: a relationship ending on another is drawn once that one is.
+    return addRelationshipsToView(this.views, viewIri, stated);
   }
 
   /** The element manager, for callers that received the session only. */

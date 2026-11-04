@@ -86,9 +86,17 @@ export function relationshipClassOf(store: RdfStore, relationshipIri: string): s
   return types.find((t) => t !== IRI.QualifiedRelationship) ?? types[0];
 }
 
-/** The quads of a link: its own, its point list cells and points. */
-function linkQuads(store: RdfStore, link: Term): Quad[] {
+/**
+ * The quads of a link: its own, its point list cells and points — and those of
+ * every link ending on it (core-vis 0.6), which cannot outlive it.
+ */
+function linkQuads(store: RdfStore, link: Term, seen: Set<string> = new Set()): Quad[] {
+  if (seen.has(link.value)) return [];
+  seen.add(link.value);
   const quads = [...store.getQuads(link as NamedNode, null, null)];
+  for (const end of [T.visSource, T.visTarget]) {
+    for (const attached of store.getQuads(null, end, link as NamedNode)) quads.push(...linkQuads(store, attached.subject, seen));
+  }
   let cell = objects(store, link, T.points)[0];
   const guard = new Set<string>();
   while (cell && cell !== IRI.rdfNil && !guard.has(cell)) {
@@ -102,8 +110,14 @@ function linkQuads(store: RdfStore, link: Term): Quad[] {
   return quads;
 }
 
-/** Everything that goes when a qualified relationship is deleted from the model. */
-export function collectRelationshipQuads(store: RdfStore, relationshipIri: string): Quad[] {
+/**
+ * Everything that goes when a qualified relationship is deleted from the model —
+ * with every relationship whose source or target it is, as an element takes the
+ * relationships at its ends.
+ */
+export function collectRelationshipQuads(store: RdfStore, relationshipIri: string, seen: Set<string> = new Set()): Quad[] {
+  if (seen.has(relationshipIri)) return [];
+  seen.add(relationshipIri);
   const rel = nn(relationshipIri);
   const quads: Quad[] = [...store.getQuads(rel, null, null)];
 
@@ -133,6 +147,11 @@ export function collectRelationshipQuads(store: RdfStore, relationshipIri: strin
   // Every link drawing it, in every view.
   for (const q of store.getQuads(null, T.archRelationship, rel)) {
     quads.push(...linkQuads(store, q.subject));
+  }
+
+  // A relationship ending on this one cannot outlive it.
+  for (const other of relationshipsTouching(store, relationshipIri)) {
+    quads.push(...collectRelationshipQuads(store, other, seen));
   }
   return dedupe(quads);
 }

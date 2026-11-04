@@ -481,3 +481,98 @@ describe('nesting', () => {
     expect(rules.allowed('elements.move', { shapes: [shapeOf(f, linux)], target: shapeOf(f, junction) })).toBe(false);
   });
 });
+
+describe('a relationship drawn onto a relationship', () => {
+  type Point = { x: number; y: number };
+  type Drawn = { waypoints: Point[]; target?: unknown; businessObject: { iri: string } };
+
+  /** Distance from `p` to the polyline through `points`. */
+  function offLine(p: Point, points: readonly Point[]): number {
+    let best = Infinity;
+    for (let i = 1; i < points.length; i++) {
+      const [a, b] = [points[i - 1], points[i]];
+      const [dx, dy] = [b.x - a.x, b.y - a.y];
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      best = Math.min(best, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)));
+    }
+    return best;
+  }
+
+  /** Web → API (Serving) drawn in the view; Clerk placed below it, not yet connected. */
+  function scene() {
+    const f = mount();
+    const web = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web' }).value;
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    const clerk = f.elements.createElement(ACTOR, f.modelIri, { label: 'Clerk' }).value;
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: web, targetIri: api }).iri;
+    f.views.addElementToView(f.viewIri, web, { x: 0, y: 0, width: 120, height: 55 });
+    f.views.addElementToView(f.viewIri, api, { x: 400, y: 0, width: 120, height: 55 });
+    f.views.addElementToView(f.viewIri, clerk, { x: 200, y: 300, width: 120, height: 55 });
+    f.views.addRelationshipToView(f.viewIri, serving);
+    f.canvas.showView(f.viewIri);
+    const registry = f.service<{ get(id: string): Drawn | undefined }>('elementRegistry');
+    const association = palette.relationshipTypes.find((r) => r.iri === `${AM4}Association`);
+    if (!association) throw new Error('the bundled metamodel has no Association');
+    // As the connect tool's drop on a line does: the end snapped onto the line.
+    const drawn = f.service<{ connect(s: unknown, t: unknown, attrs: unknown, hints: unknown): Drawn }>('modeling').connect(
+      registry.get(clerk),
+      registry.get(serving),
+      { typeIri: association.iri, unqualifiedPredicateIri: association.unqualifiedPredicateIri },
+      { connectionStart: { x: 260, y: 327 }, connectionEnd: { x: 200, y: 27 } },
+    );
+    return { f, web, api, clerk, serving, registry, carried: drawn.businessObject.iri };
+  }
+
+  it('is a relationship in the model whose target is the relationship, and a link in the view ending on its link', () => {
+    const { f, serving, carried } = scene();
+    expect(f.store.getQuads(nn(carried), nn(NAMESPACES.arch + 'target')).map((q) => q.object.value)).toEqual([serving]);
+    const links = f.views.getLinks(f.viewIri);
+    const servingLink = links.find((l) => l.relationshipIri === serving);
+    expect(links.find((l) => l.relationshipIri === carried)).toMatchObject({
+      targetElementIri: serving,
+      targetNodeIri: servingLink?.linkIri,
+    });
+  });
+
+  it('is drawn again, docked on the line, when the view is reopened', () => {
+    const { f, serving, carried, registry } = scene();
+    const saved = f.views.getLinks(f.viewIri).find((l) => l.relationshipIri === carried)?.waypoints ?? [];
+    expect(saved.length).toBeGreaterThanOrEqual(2);
+
+    const other = f.views.createView('Diagram', undefined, { modelIri: f.modelIri }).value;
+    f.canvas.showView(other);
+    expect(registry.get(carried)).toBeUndefined();
+    f.canvas.showView(f.viewIri);
+
+    const line = registry.get(serving);
+    const redrawn = registry.get(carried);
+    expect(redrawn?.target).toBe(line);
+    const end = redrawn!.waypoints[redrawn!.waypoints.length - 1];
+    expect(offLine(end, line!.waypoints)).toBeLessThan(1);
+    expect(end).toMatchObject(saved[saved.length - 1]);
+  });
+
+  it('keeps its saved end on the line when the line moves', () => {
+    const { f, api, serving, carried, registry } = scene();
+    f.service<{ moveElements(e: unknown[], d: Point): void }>('modeling').moveElements([registry.get(api)], { x: 0, y: 200 });
+    const lineRoute = f.views.getLinks(f.viewIri).find((l) => l.relationshipIri === serving)?.waypoints ?? [];
+    const route = f.views.getLinks(f.viewIri).find((l) => l.relationshipIri === carried)?.waypoints ?? [];
+    expect(offLine(route[route.length - 1], lineRoute)).toBeLessThan(1);
+  });
+
+  it('goes from the view with the relationship it ends on', () => {
+    const { f, serving, registry } = scene();
+    f.service<{ removeElements(e: unknown[]): void }>('modeling').removeElements([registry.get(serving)]);
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    f.commandStack.undo();
+    expect(f.views.getLinks(f.viewIri)).toHaveLength(2);
+  });
+
+  it('is drawn with the element it starts at when that element is placed in the view', () => {
+    const { f, clerk, serving, carried, registry } = scene();
+    f.service<{ removeElements(e: unknown[]): void }>('modeling').removeElements([registry.get(clerk)]);
+    expect(f.views.getLinks(f.viewIri).map((l) => l.relationshipIri)).toEqual([serving]);
+    expect(f.canvas.placeExisting(clerk, { x: 260, y: 327 })).toBe(true);
+    expect(f.views.getLinks(f.viewIri).map((l) => l.relationshipIri)).toEqual([serving, carried]);
+  });
+});

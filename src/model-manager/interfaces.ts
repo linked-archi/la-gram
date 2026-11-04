@@ -57,9 +57,13 @@ export interface NodeInfo {
 export interface LinkInfo {
   linkIri: string;
   relationshipIri: string;
+  /** What the link starts at: a node, or the link of the relationship it starts at. */
   sourceNodeIri: string;
+  /** What the link ends at: a node, or the link of the relationship it ends at. */
   targetNodeIri: string;
+  /** The concept it starts at: an element, or a relationship. */
   sourceElementIri: string;
+  /** The concept it ends at: an element, or a relationship. */
   targetElementIri: string;
   /** Persisted route, empty when the layouter should compute one. */
   waypoints: Point[];
@@ -201,7 +205,11 @@ export interface ViewManager {
   getNode(viewIri: string, elementIri: string): NodeInfo | undefined;
   updateNodeBounds(viewIri: string, elementIri: string, bounds: Bounds): void;
 
-  /** Draw a relationship between two placed elements. `undefined` if an end is missing. */
+  /**
+   * Draw a relationship between its two ends: placed elements, or — for an end
+   * that is a relationship — that relationship's link. `undefined` if an end is
+   * not drawn in the view.
+   */
   addRelationshipToView(viewIri: string, relationshipIri: string, waypoints?: Point[]): string | undefined;
   removeRelationshipFromView(viewIri: string, relationshipIri: string): void;
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[];

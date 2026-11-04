@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { OxigraphViewManager } from '../view-manager.js';
+import { OxigraphViewManager, addRelationshipsToView } from '../view-manager.js';
 import { OxigraphElementManager } from '../element-manager.js';
 import { OxigraphRelationshipManager } from '../relationship-manager.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
@@ -356,5 +356,101 @@ describe('a view read once, over a store that tells of its writes (Task 22)', ()
     expect(again[0]).toBe(first[0]);
     again.pop();
     expect(views.getNodes(view)).toHaveLength(1);
+  });
+});
+
+describe('a link ending on a link (core-vis 0.6)', () => {
+  // r1: a → b. r2: c → r1, a relationship whose target is a relationship.
+  const modelIri = 'https://example.org/model';
+  const typeIri = 'https://example.org/lang#Component';
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let rels: OxigraphRelationshipManager;
+  let a: string;
+  let b: string;
+  let c: string;
+  let r1: string;
+  let r2: string;
+  let v: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    rels = new OxigraphRelationshipManager(store);
+    [a, b, c] = [0, 1, 2].map(() => elements.createElement(typeIri, modelIri).value);
+    r1 = rels.createQualifiedRelationship({ typeIri: ARCH + 'rel', sourceIri: a, targetIri: b }).iri;
+    r2 = rels.createQualifiedRelationship({ typeIri: ARCH + 'rel', sourceIri: c, targetIri: r1 }).iri;
+    v = views.createView('Diagram', undefined, { modelIri }).value;
+    for (const element of [a, b, c]) views.addElementToView(v, element);
+  });
+
+  it('is stored with the other link as its arch-vis:target, and read back so', () => {
+    const l1 = views.addRelationshipToView(v, r1) as string;
+    const l2 = views.addRelationshipToView(v, r2, [{ x: 10, y: 10 }]) as string;
+    expect(l2).toBeDefined();
+    expect(objects(store, l2, VIS + 'target')).toEqual([l1]);
+    expect(views.getLinks(v).find((link) => link.relationshipIri === r2)).toMatchObject({
+      linkIri: l2,
+      targetNodeIri: l1,
+      sourceElementIri: c,
+      targetElementIri: r1,
+      waypoints: [{ x: 10, y: 10 }],
+    });
+  });
+
+  it('is not drawn before the link it ends on', () => {
+    expect(views.addRelationshipToView(v, r2)).toBeUndefined();
+  });
+
+  it('comes after the link it ends on, whatever order the store has them in', () => {
+    views.addRelationshipToView(v, r1);
+    views.addRelationshipToView(v, r2);
+    const fresh = new OxigraphViewManager(store);
+    expect(fresh.getLinks(v).map((link) => link.relationshipIri)).toEqual([r1, r2]);
+  });
+
+  it('is drawn in passes when added together with what it ends on, in any order', () => {
+    expect(addRelationshipsToView(views, v, [r2, r1])).toBe(2);
+    expect(views.getLinks(v)).toHaveLength(2);
+  });
+
+  it('goes when the link it ends on is removed from the view, or that link’s node', () => {
+    views.addRelationshipToView(v, r1);
+    views.addRelationshipToView(v, r2);
+    views.removeRelationshipFromView(v, r1);
+    expect(views.getLinks(v)).toEqual([]);
+    expect(objects(store, r2, ARCH + 'inView')).toEqual([]);
+
+    views.addRelationshipToView(v, r1);
+    views.addRelationshipToView(v, r2);
+    views.removeElementFromView(v, a);
+    expect(views.getLinks(v)).toEqual([]);
+  });
+
+  it('follows its relationship when that is reattached to an element', () => {
+    views.addRelationshipToView(v, r1);
+    const l2 = views.addRelationshipToView(v, r2) as string;
+    rels.reconnectRelationship(r2, c, b);
+    views.refreshLinksOf(r2);
+    expect(objects(store, l2, VIS + 'target')).toEqual([views.getNode(v, b)?.nodeIri]);
+  });
+
+  it('is copied with its view', () => {
+    views.addRelationshipToView(v, r1);
+    views.addRelationshipToView(v, r2);
+    const copy = views.duplicateView(v).value;
+    const links = views.getLinks(copy);
+    expect(links.map((link) => link.relationshipIri)).toEqual([r1, r2]);
+    expect(links[1].targetNodeIri).toBe(links[0].linkIri);
+  });
+
+  it('goes with its relationship when the relationship it ends on is deleted from the model', () => {
+    views.addRelationshipToView(v, r1);
+    views.addRelationshipToView(v, r2);
+    rels.deleteRelationship(r1);
+    expect(objects(store, r2, ARCH + 'target')).toEqual([]);
+    expect(store.getQuads(null, nn(VIS + 'archRelationship'))).toHaveLength(0);
+    expect(views.getLinks(v)).toEqual([]);
   });
 });

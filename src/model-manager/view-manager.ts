@@ -27,6 +27,10 @@
  *         arch-vis:points m:link-…-points-0 .         # optional route: m:link-…-p0, -p1 …
  * ```
  *
+ * A relationship whose source or target is another relationship is drawn to
+ * that relationship's link: the end is the link, not a node (core-vis 0.6). A
+ * link therefore needs the links it ends on drawn first, and goes with them.
+ *
  * Nodes and links are minted in the view's model's namespace, like everything
  * else in the model (`rdf-engine/iri.ts`).
  *
@@ -246,9 +250,8 @@ export class OxigraphViewManager implements ViewManager {
     for (const node of nodes) {
       if (node.parentElementIri) this.setNodeParent(copy.value, node.elementIri, node.parentElementIri);
     }
-    for (const link of this.getLinks(viewIri)) {
-      this.addRelationshipToView(copy.value, link.relationshipIri, link.waypoints);
-    }
+    const routes = new Map(this.getLinks(viewIri).map((link) => [link.relationshipIri, link.waypoints]));
+    addRelationshipsToView(this, copy.value, [...routes.keys()], (iri) => routes.get(iri));
     // A catalog or matrix lists concepts without geometry: copy the membership.
     for (const q of this.read(null, T.inView, nn(viewIri))) {
       this.store.addQuads([triple(q.subject, T.inView, copy)]);
@@ -360,8 +363,8 @@ export class OxigraphViewManager implements ViewManager {
     const sourceIri = this.objects(relationship, T.source)[0];
     const targetIri = this.objects(relationship, T.target)[0];
     if (!sourceIri || !targetIri) return undefined;
-    const [sourceNode] = this.nodeIrisFor(viewIri, sourceIri);
-    const [targetNode] = this.nodeIrisFor(viewIri, targetIri);
+    const sourceNode = this.endFor(viewIri, sourceIri);
+    const targetNode = this.endFor(viewIri, targetIri);
     // A link needs both ends drawn; the canvas adds the link once they are.
     if (!sourceNode || !targetNode) return undefined;
 
@@ -401,8 +404,9 @@ export class OxigraphViewManager implements ViewManager {
       const info = this.readLink(q.subject);
       if (info) links.push(info);
     }
-    this.remember(viewIri, { links });
-    return links.slice();
+    const ordered = endsFirst(links);
+    this.remember(viewIri, { links: ordered });
+    return ordered.slice();
   }
 
   updateLinkWaypoints(viewIri: string, relationshipIri: string, waypoints: Point[]): void {
@@ -421,8 +425,8 @@ export class OxigraphViewManager implements ViewManager {
       const link = q.subject as NamedNode;
       const viewIri = this.objects(link, T.visView)[0];
       if (!viewIri) continue;
-      const [sourceNode] = sourceIri ? this.nodeIrisFor(viewIri, sourceIri) : [];
-      const [targetNode] = targetIri ? this.nodeIrisFor(viewIri, targetIri) : [];
+      const sourceNode = sourceIri ? this.endFor(viewIri, sourceIri) : undefined;
+      const targetNode = targetIri ? this.endFor(viewIri, targetIri) : undefined;
       if (!sourceNode || !targetNode) {
         // An end is not placed in this view: the link cannot stay.
         this.remove(this.linkQuads(link, nn(viewIri)));
@@ -505,8 +509,8 @@ export class OxigraphViewManager implements ViewManager {
     const sourceNode = this.objectTerms(link, T.visSource)[0];
     const targetNode = this.objectTerms(link, T.visTarget)[0];
     if (!relationshipIri || !sourceNode || !targetNode) return undefined;
-    const sourceElementIri = this.objects(sourceNode, T.archElement)[0];
-    const targetElementIri = this.objects(targetNode, T.archElement)[0];
+    const sourceElementIri = this.conceptOf(sourceNode);
+    const targetElementIri = this.conceptOf(targetNode);
     if (!sourceElementIri || !targetElementIri) return undefined;
     return {
       linkIri: link.value,
@@ -519,15 +523,37 @@ export class OxigraphViewManager implements ViewManager {
     };
   }
 
-  /** The link's own quads, its route, and the relationship's membership in the view. */
-  private linkQuads(link: Term, view: NamedNode): Quad[] {
+  /**
+   * The link's own quads, its route, and the relationship's membership in the
+   * view — and the same for every link ending on it, which cannot outlive it.
+   */
+  private linkQuads(link: Term, view: NamedNode, seen: Set<string> = new Set()): Quad[] {
+    if (seen.has(link.value)) return [];
+    seen.add(link.value);
     const quads = [...this.subjectQuads(link), ...this.pointListQuads(link)];
     for (const relationshipIri of this.objects(link, T.archRelationship)) {
       // Only drop inView when this is the relationship's last link in the view.
       const others = this.linkIrisFor(view.value, relationshipIri).filter((iri) => iri !== link.value);
       if (others.length === 0) quads.push(...this.read(nn(relationshipIri), T.inView, view));
     }
+    for (const end of [T.visSource, T.visTarget]) {
+      for (const attached of this.read(null, end, link)) quads.push(...this.linkQuads(attached.subject, view, seen));
+    }
     return quads;
+  }
+
+  /**
+   * What stands for a concept in a view, for a link to end on: the element's
+   * node, or — for a relationship whose end is a relationship — that
+   * relationship's link.
+   */
+  private endFor(viewIri: string, conceptIri: string): string | undefined {
+    return this.nodeIrisFor(viewIri, conceptIri)[0] ?? this.linkIrisFor(viewIri, conceptIri)[0];
+  }
+
+  /** The concept a link's end stands for: a node's element, or a link's relationship. */
+  private conceptOf(end: Term): string | undefined {
+    return this.objects(end, T.archElement)[0] ?? this.objects(end, T.archRelationship)[0];
   }
 
   private nodeIrisFor(viewIri: string, elementIri: string): string[] {
@@ -641,4 +667,53 @@ function boundsQuads(node: NamedNode, bounds: Bounds): Quad[] {
     triple(node, T.boundsW, doubleLiteral(Math.round(bounds.width))),
     triple(node, T.boundsH, doubleLiteral(Math.round(bounds.height))),
   ];
+}
+
+/**
+ * Links in an order a canvas can draw them in: each after the links it ends on.
+ * A link ending on one that is not in the list, or in a cycle, keeps its place
+ * at the end.
+ */
+export function endsFirst(links: readonly LinkInfo[]): LinkInfo[] {
+  const byRelationship = new Map(links.map((link) => [link.relationshipIri, link]));
+  const ordered: LinkInfo[] = [];
+  const placed = new Set<LinkInfo>();
+  const visiting = new Set<LinkInfo>();
+  const visit = (link: LinkInfo): void => {
+    if (placed.has(link) || visiting.has(link)) return;
+    visiting.add(link);
+    for (const end of [link.sourceElementIri, link.targetElementIri]) {
+      const under = byRelationship.get(end);
+      if (under && under !== link) visit(under);
+    }
+    visiting.delete(link);
+    placed.add(link);
+    ordered.push(link);
+  };
+  for (const link of links) visit(link);
+  return ordered;
+}
+
+/**
+ * Add relationships to a view, each once the links it ends on are there: a
+ * relationship ending on another is drawn after it, whatever order they come
+ * in. Returns how many were drawn.
+ */
+export function addRelationshipsToView(
+  views: Pick<ViewManager, 'addRelationshipToView'>,
+  viewIri: string,
+  relationshipIris: readonly string[],
+  waypointsOf: (relationshipIri: string) => Point[] | undefined = () => undefined,
+): number {
+  let pending = [...relationshipIris];
+  let drawn = 0;
+  for (;;) {
+    const waiting = pending.filter((iri) => {
+      if (!views.addRelationshipToView(viewIri, iri, waypointsOf(iri))) return true;
+      drawn += 1;
+      return false;
+    });
+    if (waiting.length === pending.length) return drawn;
+    pending = waiting;
+  }
 }

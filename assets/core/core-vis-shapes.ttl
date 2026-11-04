@@ -40,12 +40,16 @@ clean. The two load-bearing rules here are ArchNodeShape (a diagram node that cl
 stand for a model element must say which one) and PlacedDiagElementShape (a shape or edge
 must belong to exactly one view); the remainder is cardinality and datatype hygiene.'''@en ;
     dcterms:created               "2026-08-13"^^xsd:date ;
-    dcterms:modified              "2026-10-11"^^xsd:date ;
+    dcterms:modified              "2026-11-04"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.1.0#> ;
-    owl:versionInfo               "0.1.0"@en ;
+    owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.2.0#> ;
+    owl:versionInfo               "0.2.0"@en ;
+    owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.1.0#> ;
+    skos:historyNote              '''0.2.0 — LinkShape accepts a Link as well as a Node at either end of
+a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
+relationship ends on that relationship's edge.'''@en ;
     sh:declare [
         sh:prefix    "arch-vis" ;
         sh:namespace "https://meta.linked.archi/core-vis#"^^xsd:anyURI ;
@@ -91,6 +95,11 @@ reasoner should use, not a closed-world check.'''@en ;
 #     BPMNEdge-label, a named sequence flow. Before 0.3 the domain was
 #     Node and asserting it on an edge entailed that the edge was a
 #     Node, which the disjointness axiom now contradicts.
+#
+#  4. Inventing a node for a line. A relationship whose source or target
+#     is a relationship is drawn as a Link whose arch-vis:source or
+#     arch-vis:target is the Link drawn for that relationship (core-vis
+#     0.6). Point the end at that Link; do not mint a Node for it.
 #
 # Bounds are not required. A LabelNode whose position a renderer derives
 # from its owner has no bounds of its own, and a notation is free to
@@ -282,16 +291,16 @@ to hang is the single most common diagram-layer defect.'''@en ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
         sh:nodeKind sh:IRI ;
-        sh:class    arch-vis:Node ;
-        sh:message  "A Link has exactly one arch-vis:source, and it must be a Node."@en ;
+        sh:or       ( [ sh:class arch-vis:Node ] [ sh:class arch-vis:Link ] ) ;
+        sh:message  "A Link has exactly one arch-vis:source, and it must be a Node or another Link."@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:target ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
         sh:nodeKind sh:IRI ;
-        sh:class    arch-vis:Node ;
-        sh:message  "A Link has exactly one arch-vis:target, and it must be a Node."@en ;
+        sh:or       ( [ sh:class arch-vis:Node ] [ sh:class arch-vis:Link ] ) ;
+        sh:message  "A Link has exactly one arch-vis:target, and it must be a Node or another Link."@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:points ;

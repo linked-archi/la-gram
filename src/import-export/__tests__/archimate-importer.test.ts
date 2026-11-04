@@ -236,6 +236,54 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     expect(views.getNode(viewIri, `${ns}element-id-node`)?.parentElementIri).toBeUndefined();
   });
 
+  it('draws a connection that ends on a connection on that connection’s link, whatever their order', () => {
+    const ON_LINE = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
+  <name xml:lang="en">Flow</name>
+  <elements>
+    <element identifier="id-a" xsi:type="ApplicationComponent"><name xml:lang="en">A</name></element>
+    <element identifier="id-b" xsi:type="ApplicationComponent"><name xml:lang="en">B</name></element>
+    <element identifier="id-d" xsi:type="DataObject"><name xml:lang="en">Order</name></element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-flow" xsi:type="Flow" source="id-a" target="id-b"/>
+    <relationship identifier="id-carried" xsi:type="Association" source="id-d" target="id-flow"/>
+  </relationships>
+  <views><diagrams>
+    <view identifier="id-v" xsi:type="Diagram"><name xml:lang="en">Flows</name>
+      <node identifier="n-a" elementRef="id-a" xsi:type="Element" x="0" y="0" w="120" h="55"/>
+      <node identifier="n-b" elementRef="id-b" xsi:type="Element" x="400" y="0" w="120" h="55"/>
+      <node identifier="n-d" elementRef="id-d" xsi:type="Element" x="200" y="200" w="120" h="55"/>
+      <connection identifier="c-carried" relationshipRef="id-carried" xsi:type="Relationship" source="n-d" target="c-flow">
+        <bendpoint x="260" y="120"/>
+      </connection>
+      <connection identifier="c-flow" relationshipRef="id-flow" xsi:type="Relationship" source="n-a" target="n-b"/>
+    </view>
+  </diagrams></views>
+</model>`;
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/on-line/';
+    const report = applyExchangeModel(parseArchiMateExchange(ON_LINE), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    expect(report.connectionCount).toBe(2);
+    const viewIri = views.getViews().find((v) => v.label === 'Flows')!.iri;
+    const [flow, carried] = views.getLinks(viewIri);
+    expect(flow.relationshipIri).toBe(`${ns}relationship-id-flow`);
+    expect(carried).toMatchObject({
+      relationshipIri: `${ns}relationship-id-carried`,
+      targetElementIri: `${ns}relationship-id-flow`,
+      targetNodeIri: flow.linkIri,
+    });
+    // Clipped at the node it starts at; at the line, the route stops at its bend.
+    expect(carried.waypoints).toHaveLength(2);
+    expect(carried.waypoints[1]).toEqual({ x: 260, y: 120 });
+  });
+
   it('writes each kind of access and association as its class, with the shared predicate', () => {
     const ns = 'https://example.org/archimate/kinds/';
     const knownClass = (iri: string) =>

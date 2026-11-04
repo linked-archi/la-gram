@@ -503,16 +503,34 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       if (ancestor) deps.views.setNodeParent?.(viewIri, elementIri, nodeElement.get(ancestor));
     }
 
-    for (const conn of view.connections) {
-      const relIri = conn.relationshipRef ? iriOf.get(conn.relationshipRef) : undefined;
-      const src = nodeRect.get(conn.source);
-      const tgt = nodeRect.get(conn.target);
-      if (!relIri || !src || !tgt) continue;
-      const route =
-        conn.bendpoints.length > 0
-          ? [clipToRect(src, conn.bendpoints[0]), ...conn.bendpoints, clipToRect(tgt, conn.bendpoints[conn.bendpoints.length - 1])]
-          : undefined;
-      if (deps.views.addRelationshipToView(viewIri, relIri, route)) report.connectionCount += 1;
+    // A connection may end on another connection — a relationship whose source
+    // or target is a relationship — and is drawn once that one is: in passes.
+    // An end on a connection has no rectangle to clip to, so the route stops at
+    // the last bend and the canvas docks it onto the line.
+    const drawnConnections = new Set<string>();
+    let pending = view.connections;
+    for (;;) {
+      const waiting = pending.filter((conn) => {
+        const relIri = conn.relationshipRef ? iriOf.get(conn.relationshipRef) : undefined;
+        const src = nodeRect.get(conn.source);
+        const tgt = nodeRect.get(conn.target);
+        const srcReady = src || drawnConnections.has(conn.source);
+        const tgtReady = tgt || drawnConnections.has(conn.target);
+        if (!relIri || !srcReady || !tgtReady) return true;
+        const first = conn.bendpoints[0];
+        const last = conn.bendpoints[conn.bendpoints.length - 1];
+        const route =
+          first && last
+            ? [...(src ? [clipToRect(src, first)] : []), ...conn.bendpoints, ...(tgt ? [clipToRect(tgt, last)] : [])]
+            : undefined;
+        if (deps.views.addRelationshipToView(viewIri, relIri, route)) {
+          report.connectionCount += 1;
+          drawnConnections.add(conn.id);
+        }
+        return false;
+      });
+      if (waiting.length === pending.length) break;
+      pending = waiting;
     }
   }
 

@@ -24,13 +24,19 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-10-11"^^xsd:date ;
+    dcterms:modified     "2026-11-04"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.5"@en ;
+    owl:versionInfo "0.6"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.5: Nesting. arch-vis:inNode places a node inside another on the same
+    skos:historyNote '''0.6: A Link may end on another Link. A relationship can have a relationship as
+its arch:source or arch:target, and its edge on a diagram then ends on the edge drawn for that
+relationship — as a connection may end on a connection in the ArchiMate exchange format. The
+range of arch-vis:source and arch-vis:target is widened from arch-vis:Node to
+arch-vis:DiagElement; core-vis-shapes restricts both to a Node or a Link, since a Point is
+never an end.
+0.5: Nesting. arch-vis:inNode places a node inside another on the same
 diagram — a grouping around its members, a node around the system software it hosts. And
 arch-vis:nestedEnd says, on a relationship's notation, that nesting may draw the relationship
 and which end goes inside the other (arch-vis:SourceEnd, arch-vis:TargetEnd): an editor that
@@ -100,8 +106,9 @@ arch-vis:Link
     a               owl:Class ;
     rdfs:subClassOf arch-vis:DiagElement ;
     rdfs:label      "Link"@en ;
-    rdfs:comment    '''An edge on a diagram: it joins a source Node to a target Node, may route
-through a PointList, and may carry a LabelNode.'''@en ;
+    rdfs:comment    '''An edge on a diagram: it joins a source to a target, may route through a
+PointList, and may carry a LabelNode. Each end is a Node, or another Link where the relationship
+the edge draws has a relationship as its source or target.'''@en ;
 .
 
 arch-vis:Point
@@ -246,18 +253,20 @@ arch-vis:source
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "source"@en ;
-    rdfs:comment ""@en ;
+    rdfs:comment '''The diagram element a Link starts from: a Node, or another Link where the
+relationship the Link draws starts at a relationship.'''@en ;
     rdfs:domain  arch-vis:Link ;
-    rdfs:range   arch-vis:Node ;
+    rdfs:range   arch-vis:DiagElement ;
 .
 
 arch-vis:target
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "target"@en ;
-    rdfs:comment ""@en ;
+    rdfs:comment '''The diagram element a Link ends at: a Node, or another Link where the
+relationship the Link draws ends at a relationship.'''@en ;
     rdfs:domain  arch-vis:Link ;
-    rdfs:range   arch-vis:Node ;
+    rdfs:range   arch-vis:DiagElement ;
 .
 
 #TODO link all elements to arch:View ... or use quads ?

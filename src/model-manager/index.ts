@@ -15,7 +15,7 @@ export type {
 } from './interfaces.js';
 export { OxigraphElementManager, resetElementCounter } from './element-manager.js';
 export { OxigraphRelationshipManager, resetQrCounter } from './relationship-manager.js';
-export { OxigraphViewManager } from './view-manager.js';
+export { OxigraphViewManager, addRelationshipsToView, endsFirst } from './view-manager.js';
 export { ModelOperations, resetModelCounter } from './model-operations.js';
 export type { LoadModelResult } from './model-operations.js';
 export { ModelSession, DEFAULT_VIEW_LABEL, type SessionEvents, type AdoptResult } from './model-session.js';
