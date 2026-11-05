@@ -140,6 +140,10 @@ describe('the choice dialog', () => {
     // By name, or by what is said under it.
     expect(shown()).toEqual(['Business', 'Roles']);
     expect(groups()).toEqual(['First', 'Rest']);
+    // Every word, in the name or under it: a folder by its path.
+    filter.value = 'busi  ro';
+    filter.dispatchEvent(new Event('input'));
+    expect(shown()).toEqual(['Roles']);
     filter.value = 'dev';
     filter.dispatchEvent(new Event('input'));
     expect(shown()).toEqual(['Devices']);

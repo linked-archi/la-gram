@@ -67,7 +67,7 @@ const FOLDERED = `
 `;
 
 describe('a model from the converters that keeps its folders', () => {
-  it('shows in the tree in its folders — nested, by name — with what no folder holds apart, or by type', async () => {
+  it('shows each folder under the group of what it holds — nested, by name — what none holds by type, or all by type', async () => {
     const app = await createApp();
     await app.openModel(FOLDERED, 'shop.trig');
     const contents = readModelContents(app.components.store, app.components.viewManager.getViews());
@@ -75,10 +75,10 @@ describe('a model from the converters that keeps its folders', () => {
     const [root] = buildModelTree(contents, undefined, new Set(), 'folders');
     expect(root.label).toBe('Shop');
     expect(outline(root.children)).toEqual([
-      ['Business', [['Actors', ['Clerk', 'Teller']]]],
-      ['Relations', ['Web shop → Clerk']],
+      // "Views" is the group itself: what it holds is directly in it.
       ['Views', ['Main']],
-      ['Not in a folder', [['Elements', [['Application Component', ['Web shop']]]]]],
+      ['Elements', [['Business', [['Actors', ['Clerk', 'Teller']]]], ['Application Component', ['Web shop']]]],
+      ['Relationships', [['Relations', ['Web shop → Clerk']]]],
     ]);
 
     const [byType] = buildModelTree(contents, undefined, new Set(), 'types');
@@ -89,16 +89,21 @@ describe('a model from the converters that keeps its folders', () => {
     ]);
   }, 60_000);
 
-  it("shows the ArchiMate converter's flat folders, the concepts it leaves out of them apart", async () => {
+  it("shows the ArchiMate converter's flat folders under Elements, the concepts it leaves out of them by type", async () => {
     const app = await createApp();
     await app.openModel(fixture('archimate-payment-platform.trig'), 'payment-platform.trig');
     const contents = readModelContents(app.components.store, app.components.viewManager.getViews());
     const [root] = buildModelTree(contents, undefined, new Set(), 'folders');
-    expect(root.children.map((f) => [f.label, f.detail])).toEqual([
-      ['Application', '3'],
-      ['Business', '4'],
-      ['Technology', '4'],
-      ['Not in a folder', '11'],
+    // Every element in a folder; the view and the relationships, which none holds, directly in their groups.
+    expect(root.children.map((g) => [g.label, g.detail])).toEqual([
+      ['Views', '1'],
+      ['Elements', '11'],
+      ['Relationships', '10'],
+    ]);
+    expect(root.children[1].children.map((f) => [f.label, f.detail, f.folderKind])).toEqual([
+      ['Application', '3', 'element'],
+      ['Business', '4', 'element'],
+      ['Technology', '4', 'element'],
     ]);
   }, 60_000);
 });

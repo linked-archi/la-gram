@@ -642,7 +642,7 @@ reads the whole model at first, when the metamodels or the class hierarchy
 change, and when a change touches more than 2 000 concepts. The RDF panel's
 counts and the Graph tab's types read the same.
 
-**Folders** (Req 10.10–10.12; key decision 13). `readFolders` (`model-queries.ts`)
+**Folders** (Req 10.10–10.12; key decisions 13, 14). `readFolders` (`model-queries.ts`)
 reads the model's `arch:Folder`s: a folder's name is its `schema:name`, else its
 label; its members are what says `dcterms:isPartOf` it together with the
 `schema:item` of its `schema:itemListElement` entries — the converters state
@@ -653,46 +653,84 @@ triple of `dcterms:isPartOf`, `schema:itemListElement`, `schema:item` or
 `schema:name`, a type `arch:Folder`, or any triple about a known folder. A
 rename elsewhere does not read them.
 
-`buildModelTree(contents, activeView, placed, grouping)` makes the tree from
-them (`model-explorer.ts`, a pure function): with `folders` and a model that has
-any, each top folder and the folders in it — subfolders first, then the members
-the contents list, each by name — and *Not in a folder* for the rest, grouped by
-kind and type as the `types` grouping groups the whole model; derived
-relationships last. Folders in a cycle, with no way up to a top folder, are not
-shown, and what they hold is under *Not in a folder*. A converter's folder for
-the model itself, around Elements, Relationships and Views, is the model again,
-so its folders take its place (`modelFolderOf`): the one top folder, holding
-folders and none of the model's concepts, and named as the model is — its name,
-or its IRI's last segment, the model id the converters name it by. The name is
-what tells it from a folder of the user's: *Business* holding only *Actors* is
-shown.
-A folder node is `folded` and its detail is the number of
-concepts under it. The component starts a folded node closed unless the user
-opened it or a filter is typed, and `revealIri` opens the folders around the
-concept it reveals — or the folder: one is shown only in the folders, so the
-tree switches to them for it. The grouping is the component's state, kept in
-`localStorage` (`la-gram:explorer-grouping`), read and written in `try`/`catch`
-so a browser without storage still shows the tree.
+**By kind** (Req 10.10; key decision 14). `folderLayout` (`model-manager/folders.ts`, pure over
+the contents) puts the folders in the tree's three groups, as Archi keeps them
+— a kind of concept in folders of its own — without knowing any tool's folder
+names. A converter's folder for the model itself (`modelFolderOf`: the one top
+folder, holding folders and none of the model's concepts, named as the model is
+— its name, or its IRI's last segment, the model id the converters name it by;
+the name is what tells it from a user's *Business* holding only *Actors*) is the
+model again, and the folders inside it are the top. A top folder named as a
+group — *Elements*, *Relationships*, *Views*: what la-gram writes, and the
+converters inside their folder for the model — stands for the group: its
+folders are the group's top folders, everything inside them is of the group,
+and what it holds directly is in no folder of it. Any other top folder is under
+the groups of what it holds at any depth (concepts by the contents' kind, an
+unclassified one with the elements), each folder inside likewise, and an empty
+one under its parent's groups, or under Elements at the top. So an Archi model's
+layer folders fall under Elements, its relations folder under Relationships,
+and its *Views* folder is the Views group. Folders in a cycle, with no way up to
+a top folder, are in no group, and what they hold is in no folder.
 
-**Folders changed** (Req 10.13–10.15). The tree's menu offers *New folder…*,
-*Rename…*, *Move to folder…* and *Delete folder* (`actionsFor`; *Move to
-folder…* on a concept only when the model has folders), and the picks reach
-`mount-ui` as `explorer-action`s with the folder's IRI — a folder row carries
-it as `folderIri`, as a concept row carries `iri`. `model-manager/folders.ts`
-works each out as a `FolderChange`, the quads to remove and to add, and
-`mount-ui` makes it inside `recordChange` — one step on the open view's undo
+`buildModelTree(contents, activeView, placed, grouping)` makes the tree
+(`model-explorer.ts`, a pure function). With `folders` and a model that has
+any, each group (`folderKind` on its row) holds its folders first — each folder
+row a `folderKind` and `folderIri`, id `folder-iri:{kind}:{iri}` (a folder may
+be under two groups), its subfolders of the group then its members of the
+group's kind, each by name, `folded`, its detail the number of the group's
+concepts under it — then the group's concepts in none of them, by type as the
+`types` grouping has the whole model; the group's detail counts both. Derived
+relationships after the groups. The component starts a folded node closed
+unless the user opened it or a filter is typed, and `revealIri` opens the
+folders around the concept it reveals — or the folder: one is shown only in the
+folders, so the tree switches to them for it. The grouping is the component's
+state, kept in `localStorage` (`la-gram:explorer-grouping`), read and written in
+`try`/`catch` so a browser without storage still shows the tree.
+
+**Folders changed** (Req 10.13–10.15). The tree's menu offers a group's *New
+folder…*, a folder's *New folder…*, *Rename…*, *Move to folder…* and *Delete
+folder*, and a concept's *Move to folder…* once the model has folders
+(`actionsFor`); the picks reach `mount-ui` as `explorer-action`s with the
+folder's IRI, and the group (`folderKind`) for the folder actions. New in a
+group goes into the folder standing for it — made in the same step when the
+model has none (`groupFolder`, at the top of the model or in a converter's
+folder for the model). `model-manager/folders.ts` works each change out as a
+`FolderChange`, the quads to remove and to add (`combine` makes several one),
+and `mount-ui` makes it inside `recordChange` — one step on the open view's undo
 stack, whose `rdf.store.edit` replays the diff — then refreshes the tree and
-reveals the folder or the concept. A folder is written as the converters write
-one; a membership from the member's end alone, `dcterms:isPartOf` (key decision
-13). Moving a concept removes every membership it has — its `dcterms:isPartOf`
-a folder and any folder's list entry naming it, the entry's blank node with all
-it says — and adds the one picked; a folder moved is first checked not to go
-into itself or one inside it. Deleting a folder removes it, its list entries
-and what names it, and moves what it held — found from both ends — to the
-folder around it, or to the top: folders `dcterms:isPartOf` the model (or the
-converter's folder shown as the model), concepts into no folder. *Move to
-folder…* asks with `Dialogs.choose`, which puts a filter over a list of more
-than ten — a model converted from Archi can have thousands of folders.
+reveals the folder or the (first) concept. A folder is written as the converters
+write one; a membership from the member's end alone, `dcterms:isPartOf` (key
+decision 13). Moving a concept removes every membership it has — its
+`dcterms:isPartOf` a folder and any folder's list entry naming it, the entry's
+blank node with all it says — and adds the one picked; a folder moved is first
+checked not to go into itself or one inside it, and moved to the top of its
+group goes into the folder standing for the group. Deleting a folder removes it,
+its list entries and what names it, and moves what it held — found from both
+ends — to the folder around it, or to the top: folders `dcterms:isPartOf` the
+model (or the converter's folder shown as the model), concepts into no folder.
+
+**Finding the folder** (Req 10.14). *Move to folder…* asks with
+`Dialogs.choose`: the group's folders only (`folderLayout`'s kinds), each with
+its path under it (`folderPath`, up to the group), sorted by path; the five
+folders last moved into this session first, under *Recent*; the one the
+concept is in picked. `choose` puts a filter over a list of more than ten that
+keeps a row when every word typed is in its name or what is under it — "busi
+act" finds *Actors* in *Business*; a model from Archi can have thousands of
+folders. The tree also takes a drop: a press on a concept or folder row past
+the drag threshold, while the folders are shown, drags it — with the rows
+selected of its group — and the row under the pointer (from the event's
+composed path, by its `data-id`) is a target when it is a folder of the group,
+not inside a folder dragged, or the group itself (out of their folders); it is
+marked, and one folded unfolds after 600 ms. Letting go there fires
+`explorer-move`; anywhere else, or Escape, nothing. An element's drag still
+starts diagram-js's `create` too, which places it if it is let go on the
+canvas. Several are selected in the tree with Ctrl/Cmd-click (one added or
+taken) and Shift-click (the concept rows shown between the last clicked and
+this, in the order shown); a selection from outside — the canvas, a reveal —
+replaces it. The canvas keeps its selection when right-clicked on one of
+several of a kind (elements, or relationships) and the model has folders
+(`canMoveToFolder`), and its menu is then *Move N elements to folder…* alone,
+handed to the host (`move-to-folder`), which moves the selected of that kind.
 
 A view of thousands of shapes (Task 22): a sync indexes the connections drawn
 once, and `findConnection` looks a relationship up by id or among the few
@@ -1672,6 +1710,22 @@ dialog; the modules' section).
     Folders | Types switch is shown for a model without folders too, *Folders*
     greyed out: a switch that appeared only with folders left a user looking
     for it on a model whose export had none, with nothing to say why.
+14. **Folders by kind, under Views, Elements and Relationships** (2026-11-04).
+    Archi keeps each kind in folders of its own — its layer folders hold
+    elements, *Relations* relationships, *Views* views — and the other
+    converters write Elements, Relationships and Views folders; a tree that
+    mixed them in one folder list, with a *Not in a folder* bucket, matched
+    neither. So the groups are fixed and each holds its own folders. An empty
+    folder has to remember its group: la-gram writes the converters' folders
+    — a top folder named *Elements*, *Relationships* or *Views*, made the first
+    time one is needed — and puts the user's folders in them, which needs no
+    new vocabulary. The alternative, a core property giving a folder's kind,
+    would have meant a change to the published core and a term to name. Any
+    other folder is placed by what it holds, never by its name: nothing of
+    Archi's (or any tool's) folder names is known, and an empty one goes
+    with its parent, or with the elements, the commonest. Filing keeps the
+    kinds apart: *Move to folder…* lists the group's folders only, and a drop
+    is taken only by a folder of the dragged rows' group.
 
 ---
 

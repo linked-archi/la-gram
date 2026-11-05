@@ -912,58 +912,111 @@ describe('the workbench', () => {
     expect(script.confirms).toContain('Delete element from model');
   });
 
-  it('makes, fills, renames and deletes folders from the tree — undoably — and saves them with the model', async () => {
+  it('makes folders in a group and files concepts — several at once, from the tree, by a drop, from the canvas — undoably, saved with the model', async () => {
     const modelIri = app.session.modelIri!;
-    const act = (action: string, iri: string, kind: string) =>
-      ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action, iri, kind } }));
+    const view = app.session.activeViewIri!;
+    const act = (detail: Record<string, unknown>) => ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail }));
+    const drop = (detail: Record<string, unknown>) => ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-move', { detail }));
     const folders = () => contents().folders ?? [];
     const folder = (label: string) => folders().find((f) => f.label === label);
-    const shownFolders = () =>
-      [...ui.modelExplorer.shadowRoot!.querySelectorAll<HTMLElement>('.row.folder')].map((r) => r.querySelector('.label')?.textContent);
+    const members = (label: string) => (folder(label)?.members ?? []).slice().sort();
+    const els = app.components.elementManager;
+    const clerk = els.createElement(`${AM4}BusinessActor`, modelIri, { label: 'Clerk' }).value;
+    const teller = els.createElement(`${AM4}BusinessActor`, modelIri, { label: 'Teller' }).value;
 
-    // A model without folders: one made from the model's menu, another inside it.
+    // A model without folders: one made in the Elements group — in an Elements folder made with it — and one inside it.
     expect(folders()).toEqual([]);
     script.answers.push('Business');
-    act('new-folder', modelIri, 'model');
+    act({ action: 'new-folder', iri: '', kind: 'folder', folderKind: 'element' });
     await vi.waitFor(() => expect(folder('Business')).toBeDefined());
+    expect(folder('Business')?.parentIri).toBe(folder('Elements')?.iri);
+    expect(folder('Elements')).toMatchObject({ members: [] });
+    expect(folder('Elements')?.parentIri).toBeUndefined();
     script.answers.push('Actors');
-    act('new-folder', folder('Business')!.iri, 'folder');
+    act({ action: 'new-folder', iri: folder('Business')!.iri, kind: 'folder', folderKind: 'element' });
     await vi.waitFor(() => expect(folder('Actors')?.parentIri).toBe(folder('Business')!.iri));
-    // The tree shows them — the new one revealed inside the other.
-    await vi.waitFor(() => expect(shownFolders()).toEqual(expect.arrayContaining(['Business', 'Actors', 'Not in a folder'])));
+    expect(folder('Actors')?.parentIri).toBeDefined();
+    // In the tree, the Elements folder is the group, not a row of its own.
+    const shown = () =>
+      [...ui.modelExplorer.shadowRoot!.querySelectorAll<HTMLElement>('.row.folder[data-iri]')].map((r) => r.querySelector('.label')?.textContent);
+    await vi.waitFor(() => expect(shown()).toEqual(['Business', 'Actors']));
 
-    // An element moved in, from its menu; undone and done again.
-    const element = { iri: app.components.elementManager.createElement(`${AM4}BusinessActor`, modelIri, { label: 'Filed' }).value };
+    // Two at once, from the tree's menu; undone and done again.
     script.answers.push(folder('Actors')!.iri);
-    act('move-to-folder', element.iri, 'element');
-    await vi.waitFor(() => expect(folder('Actors')?.members).toEqual([element.iri]));
+    act({ action: 'move-to-folder', iri: clerk, kind: 'element', folderKind: 'element', iris: [clerk, teller] });
+    await vi.waitFor(() => expect(members('Actors')).toEqual([clerk, teller].sort()));
+    // What was offered: no folder, and the group's folders by their path, each with the folders it is in.
+    const asked = () => vi.mocked(script.dialogs.choose).mock.lastCall!;
+    expect(asked()[0]).toBe('Move 2 elements to folder');
+    expect(asked()[1].map((o) => [o.label, o.detail ?? '', o.group ?? ''])).toEqual([
+      ['— No folder —', 'Directly under Elements', ''],
+      ['Business', '', ''],
+      ['Actors', 'in Business', ''],
+    ]);
     await ui.runCommand({ command: 'undo' });
-    expect(folder('Actors')?.members).toEqual([]);
+    expect(members('Actors')).toEqual([]);
     await ui.runCommand({ command: 'redo' });
-    expect(folder('Actors')?.members).toEqual([element.iri]);
+    expect(members('Actors')).toEqual([clerk, teller].sort());
 
+    // Dropped on a folder in the tree.
+    drop({ iris: [teller], kind: 'element', folderIri: folder('Business')!.iri });
+    expect(members('Business')).toEqual([teller]);
+    expect(members('Actors')).toEqual([clerk]);
+
+    // On the canvas: right-clicked among several selected, they go together — here out of their folders.
+    app.components.viewManager.addElementToView(view, clerk, { x: 600, y: 300, width: 120, height: 55 });
+    app.components.viewManager.addElementToView(view, teller, { x: 800, y: 300, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const registry = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry');
+    await vi.waitFor(() => expect(registry.get(teller)).toBeDefined());
+    const menu = () => ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(clerk)) as Record<string, { label: string; action: () => void }>;
+    ui.diagramCanvas.selectIris([clerk, teller]);
+    expect(Object.entries(menu()).map(([id, e]) => [id, e.label])).toEqual([['move-to-folder', 'Move 2 elements to folder…']]);
+    script.answers.push('');
+    menu()['move-to-folder']!.action();
+    await vi.waitFor(() => expect(members('Business')).toEqual([]));
+    // The folders last moved into first.
+    expect(asked()[1].map((o) => [o.label, o.group ?? ''])).toEqual([
+      ['— No folder —', ''],
+      ['Business', 'Recent'],
+      ['Actors', 'Recent'],
+      ['Business', 'All folders'],
+      ['Actors', 'All folders'],
+    ]);
+    expect(members('Actors')).toEqual([]);
+    // One selected: among its other actions.
+    ui.diagramCanvas.selectIris([clerk]);
+    expect(Object.keys(menu())).toContain('move-to-folder');
+
+    // Renamed; deleted, what it holds kept — Actors, now People, goes up to the Elements group with what is in it.
+    drop({ iris: [clerk], kind: 'element', folderIri: folder('Actors')!.iri });
     script.answers.push('People');
-    act('rename-folder', folder('Actors')!.iri, 'folder');
+    act({ action: 'rename-folder', iri: folder('Actors')!.iri, kind: 'folder', folderKind: 'element' });
     await vi.waitFor(() => expect(folder('People')).toBeDefined());
-
-    // Deleted, what it holds kept: People goes to the top, with the element.
-    act('delete-folder', folder('Business')!.iri, 'folder');
+    act({ action: 'delete-folder', iri: folder('Business')!.iri, kind: 'folder', folderKind: 'element' });
     await vi.waitFor(() => expect(folder('Business')).toBeUndefined());
     expect(script.confirms).toContain('Delete folder');
-    expect(folder('People')).toMatchObject({ members: [element.iri] });
-    expect(folder('People')?.parentIri).toBeUndefined();
+    expect(folder('People')).toMatchObject({ parentIri: folder('Elements')!.iri, members: [clerk] });
 
     // Saved and opened again: still in its folder.
     const saved = app.saveModel('trig');
     const again = await createApp({ assetMode: 'offline', validationDelayMs: 1e9 });
     await again.openModel(saved.text, saved.fileName);
-    const reopened = readModelContents(again.components.store, again.components.viewManager.getViews()).folders;
-    expect(reopened?.map((f) => [f.label, f.members])).toEqual([['People', [element.iri]]]);
+    const reopened = readModelContents(again.components.store, again.components.viewManager.getViews()).folders ?? [];
+    expect(reopened.map((f) => [f.label, f.members]).sort()).toEqual([
+      ['Elements', []],
+      ['People', [clerk]],
+    ]);
 
     // Left as found for the tests after.
-    act('delete-folder', folder('People')!.iri, 'folder');
-    await vi.waitFor(() => expect(folders()).toEqual([]));
-    app.components.elementManager.deleteElement(element.iri);
+    for (const f of ['People', 'Elements']) {
+      act({ action: 'delete-folder', iri: folder(f)!.iri, kind: 'folder', folderKind: 'element' });
+      await vi.waitFor(() => expect(folder(f)).toBeUndefined());
+    }
+    for (const iri of [clerk, teller]) {
+      act({ action: 'delete-from-model', iri, kind: 'element' });
+      await vi.waitFor(() => expect(app.components.store.getQuads(nn(iri))).toHaveLength(0));
+    }
   }, 60_000);
 
   it('imports an ArchiMate exchange file as an ArchiMate 3.2 model with its diagram', async () => {

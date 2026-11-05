@@ -291,6 +291,12 @@ export interface DiagramCanvasOptions {
    * graph, ask the questions about it, copy its IRI.
    */
   onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  /**
+   * Whether the model has folders to file concepts in: the right-click menu
+   * then offers *Move to folder…* — and, on one of several selected, moving
+   * them all (Req 10.14), the selection kept.
+   */
+  canMoveToFolder?: () => boolean;
 }
 
 /** A right-click menu action the host carries out. */
@@ -303,6 +309,7 @@ export type CanvasContextAction =
   | 'rename'
   | 'show-source'
   | 'show-target'
+  | 'move-to-folder'
   | 'rename-view'
   | 'set-viewpoint'
   | 'duplicate-view'
@@ -595,6 +602,7 @@ export class DiagramCanvas {
   private confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
   private confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
   private onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  private canMoveToFolder?: () => boolean;
   /** Where the right-click menu was opened, for the menus it opens in turn. */
   private contextMenuAt: { x: number; y: number } | undefined;
 
@@ -686,6 +694,7 @@ export class DiagramCanvas {
     this.confirmDeleteFromModel = options.confirmDeleteFromModel;
     this.confirmRetypeElement = options.confirmRetypeElement;
     this.onContextAction = options.onContextAction;
+    this.canMoveToFolder = options.canMoveToFolder;
 
     this.notationStyles = new NotationStyleRegistry(options.paletteDefinition);
     this.paletteDefinition = options.paletteDefinition;
@@ -1186,6 +1195,19 @@ export class DiagramCanvas {
     } catch {
       /* jsdom has no layout */
     }
+  }
+
+  /**
+   * The shapes selected with `element` showing concepts of its kind — elements
+   * or relationships — when the model has folders to move them to; none when
+   * it is not selected.
+   */
+  private selectedAlike(element: DjsShape): DjsShape[] {
+    if (!this.onContextAction || !this.canMoveToFolder?.()) return [];
+    const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+    if (!selected.includes(element)) return [];
+    const kind = element.businessObject?.kind;
+    return selected.filter((s) => s.businessObject?.iri && s.businessObject.kind === kind);
   }
 
   /** The concepts selected on the canvas. */
@@ -2051,15 +2073,18 @@ export class DiagramCanvas {
   }
 
   /**
-   * Open the right-click menu on an element or a relationship — selecting it —
-   * or on the canvas root, for the open view (clearing the selection), at a
-   * point on the page.
+   * Open the right-click menu on an element or a relationship — selecting it,
+   * unless it is one of several selected that can be moved to a folder
+   * together — or on the canvas root, for the open view (clearing the
+   * selection), at a point on the page.
    */
   openContextMenu(element: DjsShape, at: { x: number; y: number }): void {
     const services = this.services();
     if (!services) return;
     const onCanvas = element === services.canvas.getRootElement();
-    this.service<{ select(element: unknown): void }>('selection')?.select(onCanvas ? null : element);
+    if (onCanvas || this.selectedAlike(element).length < 2) {
+      this.service<{ select(element: unknown): void }>('selection')?.select(onCanvas ? null : element);
+    }
     this.contextMenuAt = at;
     services.popupMenu.open(element, CONTEXT_MENU_ID, at, { width: 240 });
   }
@@ -2085,6 +2110,12 @@ export class DiagramCanvas {
     const shown = element?.businessObject;
     if (!element || !shown?.iri) return [];
     const iri = shown.iri;
+    // One of several selected: moving them to a folder together.
+    const alike = this.selectedAlike(element);
+    if (alike.length > 1) {
+      const words = shown.kind === 'relationship' ? 'relationships' : 'elements';
+      return [{ id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit', run: () => this.onContextAction?.('move-to-folder', iri) }];
+    }
     const at = this.contextMenuAt ?? { x: 0, y: 0 };
     const pad = toContextPadElement(element as never);
     // A menu opened from this one's action would be closed with it: open it next.
@@ -2119,6 +2150,9 @@ export class DiagramCanvas {
       }
     }
 
+    if (this.onContextAction && this.canMoveToFolder?.()) {
+      actions.push({ id: 'move-to-folder', label: 'Move to folder…', section: 'edit', run: host('move-to-folder') });
+    }
     if (this.onContextAction) {
       actions.push({ id: 'properties', label: 'Properties', section: 'show', run: host('properties') });
       actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });

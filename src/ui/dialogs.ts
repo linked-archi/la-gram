@@ -411,9 +411,10 @@ export const domDialogs: Dialogs = {
     if (options.length > CHOICE_FILTER_FROM) {
       const input = el('input', { class: 'la-input la-choice-filter', type: 'search', placeholder: 'Filter…', 'aria-label': 'Filter' });
       input.addEventListener('input', () => {
-        const query = input.value.trim().toLowerCase();
+        // Every word, anywhere in the name or what is under it: "busi act" finds Actors, in Business.
+        const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
         for (const { header, rows } of groups) {
-          for (const { row, text } of rows) row.hidden = query !== '' && !text.includes(query);
+          for (const { row, text } of rows) row.hidden = !words.every((word) => text.includes(word));
           if (header) header.hidden = rows.every(({ row }) => row.hidden);
         }
       });

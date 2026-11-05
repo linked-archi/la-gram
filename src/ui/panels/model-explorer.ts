@@ -17,34 +17,45 @@
  *   ▸ Unclassified                      types no loaded metamodel defines
  * ```
  *
- * A model with folders of its own (`arch:Folder` — the organisation a converter
- * brings over from Archi and the like) is shown in them instead, each folder
- * starting folded, with what no folder holds apart:
+ * A model with folders of its own (`arch:Folder` — made here, or the
+ * organisation a converter brings over from Archi and the like) has them in
+ * those groups, each kind its own, each folder starting folded:
  *
  * ```
  * ▾ ArchiSurance
- *   ▸ Business                          its folders, then its concepts, each by
- *   ▸ Views                             name, as Archi's own tree has them
- *   ▸ Not in a folder                   Views, Elements and Relationships, as above
+ *   ▾ Views
+ *     ▸ Phase A                         a group's folders first, then its
+ *       Main                            concepts in none of them, as above
+ *   ▾ Elements
+ *     ▸ Business                        a folder is under the groups of what it
+ *     ▸ Strategy                        holds; an empty one with its parent's
+ *     ▸ Application Component (3)
+ *   ▸ Relationships
  *   ▸ Derived relationships
  * ```
  *
  * The header's Folders | Types switch picks either, remembered per browser; on
  * a model without folders, Folders is greyed out and the tree is by type.
- * Folders are made from the right-click menu — the model's *New folder…*, a
+ * Folders are made from the right-click menu — a group's *New folder…*, a
  * folder's *New folder…*, *Rename…*, *Move to folder…* and *Delete folder* —
- * and a concept filed by its *Move to folder…* once the model has folders
- * (`model-manager/folders.ts` makes the change).
- *
+ * and concepts filed by their *Move to folder…*, or dragged onto a folder of
+ * their group (onto the group: out of their folders). How the folders fall into
+ * the groups, and the changes, are `model-manager/folders.ts`'s.
+
  * ## Interactions
  *
- * - click selects (`explorer-select`); double-click opens a view or reveals an
- *   element on the canvas (`explorer-activate`);
+ * - click selects (`explorer-select`); Ctrl/Cmd-click adds or takes a concept,
+ *   Shift-click the rows shown from the last one clicked; double-click opens a
+ *   view or reveals an element on the canvas (`explorer-activate`);
  * - right-click opens a context menu whose picks are `explorer-action` events —
- *   the component does no model work itself, `mount-ui` does;
- * - pressing on an element and dragging past a small threshold starts placing
- *   it on the canvas (`explorer-drag-start`, carrying the pointer event for
- *   diagram-js's `create` gesture). The threshold is what keeps a click a click.
+ *   the component does no model work itself, `mount-ui` does; on one of several
+ *   selected, the menu moves those of its group to a folder;
+ * - pressing on a row and dragging past a small threshold drags it — with those
+ *   selected of its group — onto a folder of the group (`explorer-move`); a
+ *   folder rested on unfolds. An element dragged also starts placing it on the
+ *   canvas (`explorer-drag-start`, carrying the pointer event for diagram-js's
+ *   `create` gesture), which takes it if let go there. The threshold is what
+ *   keeps a click a click.
  *
  * The tree is rebuilt from a {@link ModelContents} snapshot the host supplies
  * (`contentsProvider`), once after the events that can change it; another
@@ -54,6 +65,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { ModelContents, ConceptSummary, FolderSummary, RelationshipSummary } from '../../model-manager/model-queries.js';
+import { FOLDER_KINDS, folderLayout, folderWithin, type FolderKind } from '../../model-manager/folders.js';
 import type { ViewInfo } from '../../model-manager/interfaces.js';
 import type { EventBus, ModelEventHandler, ModelEventType } from '../event-bus.js';
 
@@ -68,6 +80,8 @@ export interface TreeNode {
   iri?: string;
   /** The model's own folder (`arch:Folder`) a folder row shows. */
   folderIri?: string;
+  /** The group a group row is, or a folder row is shown in: what goes in it. */
+  folderKind?: FolderKind;
   kind: TreeNodeKind;
   label: string;
   /** Secondary text: a type, a count, a view kind. */
@@ -90,31 +104,6 @@ export type TreeGrouping = 'folders' | 'types';
 /** Whether the model has folders of its own to show. */
 export function hasFolders(contents: ModelContents | undefined): boolean {
   return (contents?.folders?.length ?? 0) > 0;
-}
-
-/**
- * A converter's folder for the model itself: the one folder at the top, named
- * as the model is — its name, or its IRI's last segment, the model id the
- * converters name it by — holding folders and none of the model's concepts.
- * The tree shows its folders in its place, and a folder made at the top goes
- * in it. A folder of the user's own holding only folders is not one: it is not
- * named after the model.
- */
-export function modelFolderOf(contents: ModelContents | undefined): FolderSummary | undefined {
-  const folders = contents?.folders ?? [];
-  const known = new Set(folders.map((f) => f.iri));
-  const top = folders.filter((f) => !f.parentIri || !known.has(f.parentIri));
-  if (!contents || top.length !== 1) return undefined;
-  const [folder] = top;
-  const names = [contents.model?.label, contents.model ? iriFragment(contents.model.iri) : undefined]
-    .filter((n): n is string => Boolean(n))
-    .map((n) => n.toLowerCase());
-  if (!names.includes(folder.label.toLowerCase())) return undefined;
-  if (!folders.some((f) => f.parentIri === folder.iri)) return undefined;
-  const listed = new Set(
-    [...contents.views, ...contents.elements, ...contents.relationships, ...contents.unclassified].map((c) => c.iri),
-  );
-  return folder.members.some((m) => listed.has(m)) ? undefined : folder;
 }
 
 /** localStorage key of the grouping. */
@@ -172,13 +161,45 @@ export type ExplorerAction =
 
 /**
  * Detail of `explorer-action`: the row's concept — for a folder row, the
- * model's folder it shows; for the model, the model.
+ * model's folder it shows; for the model, the model; for a group (*New
+ * folder…*), none.
  */
 export interface ExplorerActionDetail {
   action: ExplorerAction;
   iri: string;
   kind: TreeNodeKind;
+  /** The group the row's concept or folder goes in, for the folder actions. */
+  folderKind?: FolderKind;
+  /** *Move to folder…* on several selected: all of them of the row's group, the row's first. */
+  iris?: string[];
 }
+
+/**
+ * Detail of `explorer-move`: rows dropped on a folder — or on their group, out
+ * of their folders (a folder: to the top of its group).
+ */
+export interface ExplorerMoveDetail {
+  iris: string[];
+  kind: FolderKind;
+  /** The folder dropped on; none for the group. */
+  folderIri?: string;
+}
+
+/** The group a row's concept is filed in: an unclassified concept with the elements. */
+export function folderKindOf(node: TreeNode): FolderKind | undefined {
+  if (node.kind === 'folder') return node.folderIri ? node.folderKind : undefined;
+  if (node.kind === 'view') return 'view';
+  if (node.kind === 'element' || node.kind === 'unclassified') return 'element';
+  if (node.kind === 'relationship' && !node.derivation) return 'relationship';
+  return undefined;
+}
+
+/** What a group's concepts are called, one or several. */
+const KIND_WORDS: Record<FolderKind, [string, string]> = {
+  view: ['view', 'views'],
+  element: ['element', 'elements'],
+  relationship: ['relationship', 'relationships'],
+};
 
 /** Detail of `explorer-drag-start`. */
 export interface ExplorerDragDetail {
@@ -189,6 +210,12 @@ export interface ExplorerDragDetail {
 
 /** Pixels the pointer must travel with the button down before a press becomes a drag. */
 const DRAG_THRESHOLD = 5;
+
+/** How long a drag rests on a folded folder before it unfolds. */
+const HOVER_UNFOLD_MS = 600;
+
+/** The actions that take the folder's group along. */
+const FOLDER_ACTIONS: ReadonlySet<ExplorerAction> = new Set(['new-folder', 'rename-folder', 'move-to-folder', 'delete-folder']);
 
 /** Local name of an IRI, for fallbacks. */
 export function iriFragment(iri: string): string {
@@ -257,47 +284,35 @@ interface Stated {
 
 /**
  * Views, Elements, Relationships — by type — and Unclassified, when there is
- * any. With `prefix`, the groups of what no folder holds: only those with
- * something in them, the relationships folded.
+ * any. `folders` puts each group's folders first ({@link folderGroups}), and
+ * its count is then of everything in it.
  */
-function typeGroups(stated: Stated, activeViewIri: string | undefined, placed: ReadonlySet<string>, prefix = ''): TreeNode[] {
-  const apart = prefix !== '';
-  const groups: TreeNode[] = [];
-  if (!apart || stated.views.length > 0) {
-    groups.push({
-      id: `${prefix}folder:views`,
-      kind: 'folder',
-      label: 'Views',
-      detail: String(stated.views.length),
-      children: stated.views.map((v) => viewNode(v, activeViewIri)),
-    });
-  }
-  if (!apart || stated.elements.length > 0) {
-    groups.push({
-      id: `${prefix}folder:elements`,
-      kind: 'folder',
-      label: 'Elements',
-      detail: String(stated.elements.length),
-      children: groupByType(stated.elements, 'element', `${prefix}elements`, placed),
-    });
-  }
-  if (!apart || stated.relationships.length > 0) {
-    groups.push({
-      id: `${prefix}folder:relationships`,
-      kind: 'folder',
-      label: 'Relationships',
-      detail: String(stated.relationships.length),
-      ...(apart ? { folded: true } : {}),
-      children: groupByType(stated.relationships, 'relationship', `${prefix}relationships`, placed),
-    });
-  }
+function typeGroups(
+  stated: Stated,
+  activeViewIri: string | undefined,
+  placed: ReadonlySet<string>,
+  folders?: { nodes: Record<FolderKind, TreeNode[]>; counts: Record<FolderKind, number> },
+): TreeNode[] {
+  const group = (folderKind: FolderKind, label: string, own: TreeNode[], count: number): TreeNode => ({
+    id: `folder:${folderKind === 'view' ? 'views' : folderKind === 'element' ? 'elements' : 'relationships'}`,
+    kind: 'folder',
+    folderKind,
+    label,
+    detail: String(count + (folders?.counts[folderKind] ?? 0)),
+    children: [...(folders?.nodes[folderKind] ?? []), ...own],
+  });
+  const groups: TreeNode[] = [
+    group('view', 'Views', stated.views.map((v) => viewNode(v, activeViewIri)), stated.views.length),
+    group('element', 'Elements', groupByType(stated.elements, 'element', 'elements', placed), stated.elements.length),
+    group('relationship', 'Relationships', groupByType(stated.relationships, 'relationship', 'relationships', placed), stated.relationships.length),
+  ];
   if (stated.unclassified.length > 0) {
     groups.push({
-      id: `${prefix}folder:unclassified`,
+      id: 'folder:unclassified',
       kind: 'folder',
       label: 'Unclassified',
       detail: String(stated.unclassified.length),
-      children: groupByType(stated.unclassified, 'unclassified', `${prefix}unclassified`, placed),
+      children: groupByType(stated.unclassified, 'unclassified', 'unclassified', placed),
     });
   }
   return groups;
@@ -333,11 +348,13 @@ function byName<T extends { label: string }>(key: (item: T) => string): (a: T, b
 }
 
 /**
- * The model's own folders, each starting folded: its folders, then its
- * concepts, each by name. What no folder holds follows, by kind and type.
+ * The groups with the model's own folders in them ({@link folderLayout}): in
+ * each, its folders first — each starting folded, its folders then its concepts
+ * of the group's kind, by name — then what none of them holds, by type.
  */
 function folderGroups(contents: ModelContents, activeViewIri: string | undefined, placed: ReadonlySet<string>): TreeNode[] {
   const stated = statedOf(contents);
+  const layout = folderLayout(contents);
   // A concept's row, made afresh where it is listed: a concept may be in two folders.
   const rows = new Map<string, () => TreeNode>();
   for (const v of stated.views) rows.set(v.iri, () => viewNode(v, activeViewIri));
@@ -347,28 +364,16 @@ function folderGroups(contents: ModelContents, activeViewIri: string | undefined
   stated.relationships.forEach(concept('relationship'));
   stated.unclassified.forEach(concept('unclassified'));
 
-  const folders = contents.folders ?? [];
-  const known = new Set(folders.map((f) => f.iri));
-  const inside = new Map<string | undefined, FolderSummary[]>();
-  for (const f of folders) {
-    const parent = f.parentIri && known.has(f.parentIri) ? f.parentIri : undefined;
-    const list = inside.get(parent);
-    if (list) list.push(f);
-    else inside.set(parent, [f]);
-  }
   const filed = new Set<string>();
-  const built = new Set<string>();
-  /** A folder's row and how many concepts it holds, in it and below; `undefined` for one already shown (a cycle). */
-  const build = (f: FolderSummary): { node: TreeNode; count: number } | undefined => {
-    if (built.has(f.iri)) return undefined;
-    built.add(f.iri);
-    const subfolders = (inside.get(f.iri) ?? [])
-      .slice()
+  /** A folder's row in a group and how many of the group's concepts it holds, in it and below. */
+  const build = (f: FolderSummary, kind: FolderKind, trail: ReadonlySet<string>): { node: TreeNode; count: number } => {
+    const within = new Set([...trail, f.iri]);
+    const subfolders = (layout.inside.get(f.iri) ?? [])
+      .filter((s) => layout.kinds.get(s.iri)?.has(kind) && !within.has(s.iri))
       .sort(byName((s) => s.iri))
-      .map(build)
-      .filter((b): b is { node: TreeNode; count: number } => b !== undefined);
+      .map((s) => build(s, kind, within));
     const members = f.members
-      .filter((iri) => rows.has(iri))
+      .filter((iri) => layout.kindOf.get(iri) === kind && rows.has(iri))
       .map((iri) => {
         filed.add(iri);
         return rows.get(iri)!();
@@ -377,8 +382,9 @@ function folderGroups(contents: ModelContents, activeViewIri: string | undefined
     const count = members.length + subfolders.reduce((n, b) => n + b.count, 0);
     return {
       node: {
-        id: `folder-iri:${f.iri}`,
+        id: `folder-iri:${kind}:${f.iri}`,
         folderIri: f.iri,
+        folderKind: kind,
         kind: 'folder',
         label: f.label,
         detail: String(count),
@@ -388,33 +394,20 @@ function folderGroups(contents: ModelContents, activeViewIri: string | undefined
       count,
     };
   };
-  // A converter's folder for the model itself, around Elements, Relationships and Views, is the model again.
-  const modelFolder = modelFolderOf(contents);
-  if (modelFolder) built.add(modelFolder.iri);
-  const top = (modelFolder ? (inside.get(modelFolder.iri) ?? []) : (inside.get(undefined) ?? []))
-    .slice()
-    .sort(byName((f) => f.iri))
-    .map(build)
-    .filter((b): b is { node: TreeNode; count: number } => b !== undefined)
-    .map((b) => b.node);
-
+  const nodes = {} as Record<FolderKind, TreeNode[]>;
+  const counts = {} as Record<FolderKind, number>;
+  for (const kind of FOLDER_KINDS) {
+    const built = layout.top[kind].slice().sort(byName((f) => f.iri)).map((f) => build(f, kind, new Set()));
+    nodes[kind] = built.map((b) => b.node);
+    counts[kind] = built.reduce((n, b) => n + b.count, 0);
+  }
   const unfiled: Stated = {
     views: stated.views.filter((v) => !filed.has(v.iri)),
     elements: stated.elements.filter((e) => !filed.has(e.iri)),
     relationships: stated.relationships.filter((r) => !filed.has(r.iri)),
     unclassified: stated.unclassified.filter((u) => !filed.has(u.iri)),
   };
-  const rest = unfiled.views.length + unfiled.elements.length + unfiled.relationships.length + unfiled.unclassified.length;
-  if (rest > 0) {
-    top.push({
-      id: 'folder:unfiled',
-      kind: 'folder',
-      label: 'Not in a folder',
-      detail: String(rest),
-      children: typeGroups(unfiled, activeViewIri, placed, 'unfiled:'),
-    });
-  }
-  return top;
+  return typeGroups(unfiled, activeViewIri, placed, { nodes, counts });
 }
 
 /**
@@ -435,7 +428,7 @@ export function buildModelTree(
     grouping === 'folders' && hasFolders(contents)
       ? folderGroups(contents, activeViewIri, placed)
       : typeGroups(statedOf(contents), activeViewIri, placed);
-  // Derived relationships before Unclassified, by type; last, after what no folder holds, by folder.
+  // Derived relationships before Unclassified.
   const unclassified = groups.findIndex((g) => g.id === 'folder:unclassified');
   const derived = derivedGroup(contents, placed);
   if (unclassified >= 0) groups.splice(unclassified, 0, ...derived);
@@ -472,12 +465,18 @@ export function filterTree(nodes: TreeNode[], query: string): TreeNode[] {
  *
  * @param options.folders Whether the model has folders: a concept is offered
  *   *Move to folder…* only then.
+ * @param options.many How many rows of the row's group are selected, it among
+ *   them: more than one, and moving them is all there is.
  */
 export function actionsFor(
   node: TreeNode,
-  options: { folders?: boolean } = {},
+  options: { folders?: boolean; many?: number } = {},
 ): Array<{ action: ExplorerAction; label: string; danger?: boolean }> {
   const move = options.folders ? [{ action: 'move-to-folder' as const, label: 'Move to folder…' }] : [];
+  const kind = folderKindOf(node);
+  if (options.many && options.many > 1 && options.folders && kind) {
+    return [{ action: 'move-to-folder', label: `Move ${options.many} ${KIND_WORDS[kind][1]} to folder…` }];
+  }
   switch (node.kind) {
     case 'model':
       return [
@@ -486,18 +485,19 @@ export function actionsFor(
         { action: 'new-diagram', label: 'New diagram view' },
         { action: 'new-catalog', label: 'New catalog view' },
         { action: 'new-matrix', label: 'New matrix view' },
-        { action: 'new-folder', label: 'New folder…' },
       ];
     case 'folder':
-      // The model's own folders; the tree's groupings (Views, Elements, …) have no menu.
-      return node.folderIri
-        ? [
-            { action: 'new-folder', label: 'New folder…' },
-            { action: 'rename-folder', label: 'Rename…' },
-            { action: 'move-to-folder', label: 'Move to folder…' },
-            { action: 'delete-folder', label: 'Delete folder (keeps its contents)', danger: true },
-          ]
-        : [];
+      // The model's own folders, and the groups (Views, Elements, Relationships) folders are made in;
+      // a type's grouping has no menu.
+      if (node.folderIri) {
+        return [
+          { action: 'new-folder', label: 'New folder…' },
+          { action: 'rename-folder', label: 'Rename…' },
+          { action: 'move-to-folder', label: 'Move to folder…' },
+          { action: 'delete-folder', label: 'Delete folder (keeps its contents)', danger: true },
+        ];
+      }
+      return node.folderKind ? [{ action: 'new-folder', label: 'New folder…' }] : [];
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
@@ -640,6 +640,10 @@ export class ModelExplorer extends LitElement {
     .row.selected {
       background: #d2e3fc;
     }
+    .row.drop-target {
+      background: #e8f0fe;
+      box-shadow: inset 0 0 0 2px #1a73e8;
+    }
     .toggle {
       width: 12px;
       flex: none;
@@ -744,7 +748,20 @@ export class ModelExplorer extends LitElement {
   /** Rows that start folded ({@link TreeNode.folded}) and were unfolded. */
   @state() private _expanded: Set<string> = new Set();
   @state() private _grouping: TreeGrouping = storedGrouping();
-  @state() private _menu: { x: number; y: number; node: TreeNode } | null = null;
+  @state() private _menu: { x: number; y: number; node: TreeNode; iris?: string[] } | null = null;
+  /** Concepts selected together — Ctrl/Cmd-click adds or takes one, Shift-click a range. */
+  @state() private _selection: Set<string> = new Set();
+  /** Rows being dragged to a folder, of one group; a folder's own IRI when it is one. */
+  @state() private _drag: { iris: string[]; kind: FolderKind; folderIri?: string } | null = null;
+  /** The row a drag would drop on: a folder of the group, or the group. */
+  @state() private _dropTarget: string | null = null;
+  /** Where a Shift-click's range starts. */
+  private _anchor?: string;
+  private _hoverTimer?: ReturnType<typeof setTimeout>;
+  /** Rows by id, as last rendered: what the pointer is over in a drag. */
+  private _rowNodes = new Map<string, TreeNode>();
+  /** The model's folders as last laid out. */
+  private _layout?: ReturnType<typeof folderLayout>;
 
   /**
    * A model event re-reads the model once, at the end of the task that changed
@@ -762,7 +779,7 @@ export class ModelExplorer extends LitElement {
   private _stale = false;
   /** The model as last read. */
   private _contents?: ModelContents;
-  private _press: { iri: string; x: number; y: number } | null = null;
+  private _press: { node: TreeNode; x: number; y: number } | null = null;
   private _subscribed?: EventBus;
 
   override connectedCallback(): void {
@@ -772,6 +789,7 @@ export class ModelExplorer extends LitElement {
     document.addEventListener('mousemove', this._onDocumentMove);
     document.addEventListener('mouseup', this._onDocumentUp);
     document.addEventListener('mousedown', this._onDocumentDown, true);
+    document.addEventListener('keydown', this._onDocumentKey);
   }
 
   override disconnectedCallback(): void {
@@ -780,6 +798,8 @@ export class ModelExplorer extends LitElement {
     document.removeEventListener('mousemove', this._onDocumentMove);
     document.removeEventListener('mouseup', this._onDocumentUp);
     document.removeEventListener('mousedown', this._onDocumentDown, true);
+    document.removeEventListener('keydown', this._onDocumentKey);
+    clearTimeout(this._hoverTimer);
   }
 
   override willUpdate(changed: Map<string, unknown>): void {
@@ -792,6 +812,10 @@ export class ModelExplorer extends LitElement {
     } else if (changed.has('activeViewIri') || changed.has('placedProvider')) {
       // Another view: the same model, marked for it.
       this._build();
+    }
+    // Selected from outside — the canvas, a reveal: that one alone.
+    if (changed.has('selectedIri') && !this._selection.has(this.selectedIri)) {
+      this._selection = new Set(this.selectedIri ? [this.selectedIri] : []);
     }
   }
 
@@ -806,9 +830,11 @@ export class ModelExplorer extends LitElement {
   private _build(): void {
     if (!this._contents) {
       this._tree = [];
+      this._layout = undefined;
       return;
     }
     const placed = this.placedProvider?.() ?? new Set<string>();
+    this._layout = folderLayout(this._contents);
     this._tree = buildModelTree(this._contents, this.activeViewIri, placed, this._grouping);
   }
 
@@ -896,8 +922,55 @@ export class ModelExplorer extends LitElement {
 
   private _select(node: TreeNode): void {
     if (!node.iri) return;
+    this._selection = new Set([node.iri]);
+    this._anchor = node.iri;
     this.selectedIri = node.iri;
     this._emit<ExplorerSelectDetail>('explorer-select', { iri: node.iri, kind: node.kind });
+  }
+
+  /** A click on a concept: selects it — or, with Ctrl/Cmd, adds or takes it; with Shift, the rows from the last one clicked. */
+  private _click(e: MouseEvent, node: TreeNode): void {
+    if (!node.iri) return;
+    const together = folderKindOf(node) !== undefined;
+    if (together && (e.metaKey || e.ctrlKey)) {
+      const next = new Set(this._selection);
+      if (next.has(node.iri)) next.delete(node.iri);
+      else next.add(node.iri);
+      this._selection = next;
+      this._anchor = node.iri;
+      return;
+    }
+    if (together && e.shiftKey && this._anchor) {
+      const order = this._shownConcepts();
+      const from = order.indexOf(this._anchor);
+      const to = order.indexOf(node.iri);
+      if (from >= 0 && to >= 0) {
+        this._selection = new Set(order.slice(Math.min(from, to), Math.max(from, to) + 1));
+        return;
+      }
+    }
+    this._select(node);
+  }
+
+  /** The concepts shown — in unfolded rows, through the filter — in order: what a Shift-click's range runs over. */
+  private _shownConcepts(): string[] {
+    const out: string[] = [];
+    const walk = (nodes: TreeNode[]): void => {
+      for (const n of nodes) {
+        if (n.iri && folderKindOf(n)) out.push(n.iri);
+        if (!this._isFolded(n)) walk(n.children);
+      }
+    };
+    walk(filterTree(this._tree, this._filterQuery));
+    return out;
+  }
+
+  /** A row's concept with the others selected of its group — the row's first — or the row's alone. */
+  private _selectedWith(node: TreeNode): string[] {
+    const kind = folderKindOf(node);
+    if (!node.iri || !kind || !this._selection.has(node.iri) || this._selection.size < 2) return node.iri ? [node.iri] : [];
+    const kindOf = this._layout?.kindOf;
+    return [node.iri, ...[...this._selection].filter((iri) => iri !== node.iri && kindOf?.get(iri) === kind)];
   }
 
   private _activate(node: TreeNode): void {
@@ -911,37 +984,113 @@ export class ModelExplorer extends LitElement {
 
   private _openMenu(e: MouseEvent, node: TreeNode): void {
     e.preventDefault();
-    if (actionsFor(node, { folders: hasFolders(this._contents) }).length === 0) return;
-    this._select(node);
-    this._menu = { x: e.clientX, y: e.clientY, node };
+    // Right-clicked among several selected: the menu is for all of them, and they stay selected.
+    const iris = this._selectedWith(node);
+    const options = { folders: hasFolders(this._contents), many: iris.length };
+    if (actionsFor(node, options).length === 0) return;
+    if (iris.length < 2) this._select(node);
+    this._menu = { x: e.clientX, y: e.clientY, node, ...(iris.length > 1 ? { iris } : {}) };
   }
 
   private _pick(action: ExplorerAction): void {
-    const node = this._menu?.node;
+    const menu = this._menu;
     this._menu = null;
-    if (!node) return;
+    if (!menu) return;
+    const { node, iris } = menu;
     const iri = node.iri ?? node.folderIri;
-    if (!iri && node.kind !== 'model') return;
-    this._emit<ExplorerActionDetail>('explorer-action', { action, iri: iri ?? '', kind: node.kind });
+    const folderKind = FOLDER_ACTIONS.has(action) ? (node.folderKind ?? folderKindOf(node)) : undefined;
+    if (!iri && node.kind !== 'model' && !folderKind) return;
+    this._emit<ExplorerActionDetail>('explorer-action', {
+      action,
+      iri: iri ?? '',
+      kind: node.kind,
+      ...(folderKind ? { folderKind } : {}),
+      ...(iris && action === 'move-to-folder' ? { iris } : {}),
+    });
+  }
+
+  /** Whether the tree shows the model's folders: rows can then be dropped on them. */
+  private _showsFolders(): boolean {
+    return this._grouping === 'folders' && hasFolders(this._contents);
   }
 
   private _onRowDown(e: MouseEvent, node: TreeNode): void {
-    if (e.button !== 0 || !node.iri) return;
-    if (node.kind === 'element' || node.kind === 'unclassified') {
-      this._press = { iri: node.iri, x: e.clientX, y: e.clientY };
+    if (e.button !== 0) return;
+    if (folderKindOf(node) || (node.iri && (node.kind === 'element' || node.kind === 'unclassified'))) {
+      this._press = { node, x: e.clientX, y: e.clientY };
     }
   }
 
   private _onDocumentMove = (e: MouseEvent): void => {
+    if (this._drag) {
+      this._dragOver(e);
+      return;
+    }
     const press = this._press;
     if (!press) return;
     if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_THRESHOLD) return;
     this._press = null;
-    this._emit<ExplorerDragDetail>('explorer-drag-start', { iri: press.iri, sourceEvent: e });
+    const { node } = press;
+    const kind = folderKindOf(node);
+    // Into a folder of the tree: what is selected with it, of its group.
+    if (kind && this._showsFolders()) {
+      this._drag = node.folderIri
+        ? { iris: [node.folderIri], kind, folderIri: node.folderIri }
+        : { iris: this._selectedWith(node), kind };
+    }
+    // An element onto the canvas, as before: the canvas takes it if it is let go there.
+    if (node.iri && (node.kind === 'element' || node.kind === 'unclassified')) {
+      this._emit<ExplorerDragDetail>('explorer-drag-start', { iri: node.iri, sourceEvent: e });
+    }
   };
+
+  /** Whether the dragged rows go in a row: a folder of their group — not one inside a folder dragged — or the group, out of their folders. */
+  private _accepts(target: TreeNode): boolean {
+    const drag = this._drag;
+    if (!drag || target.kind !== 'folder' || target.folderKind !== drag.kind) return false;
+    if (!target.folderIri) return true;
+    return !(drag.folderIri && this._layout && folderWithin(this._layout, target.folderIri, drag.folderIri));
+  }
+
+  private _dragOver(e: MouseEvent): void {
+    const row = e
+      .composedPath()
+      .find((t): t is HTMLElement => t instanceof HTMLElement && t.classList.contains('row'));
+    const target = row?.dataset.id ? this._rowNodes.get(row.dataset.id) : undefined;
+    const id = target && this._accepts(target) ? target.id : null;
+    if (id === this._dropTarget) return;
+    this._dropTarget = id;
+    clearTimeout(this._hoverTimer);
+    // Resting on a folded folder unfolds it, to go further in.
+    if (target && id && target.folderIri && this._isFolded(target)) {
+      this._hoverTimer = setTimeout(() => {
+        if (this._dropTarget === id && this._isFolded(target)) this._toggle(target);
+      }, HOVER_UNFOLD_MS);
+    }
+  }
+
+  private _endDrag(): void {
+    this._drag = null;
+    this._dropTarget = null;
+    clearTimeout(this._hoverTimer);
+  }
 
   private _onDocumentUp = (): void => {
     this._press = null;
+    const drag = this._drag;
+    if (!drag) return;
+    const target = this._dropTarget ? this._rowNodes.get(this._dropTarget) : undefined;
+    this._endDrag();
+    if (!target) return;
+    this._emit<ExplorerMoveDetail>('explorer-move', {
+      iris: drag.iris,
+      kind: drag.kind,
+      ...(target.folderIri ? { folderIri: target.folderIri } : {}),
+    });
+  };
+
+  private _onDocumentKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && this._drag) this._endDrag();
   };
 
   /** Close the menu on any press outside it. */
@@ -973,17 +1122,19 @@ export class ModelExplorer extends LitElement {
     const collapsed = this._isFolded(node);
     const hasChildren = node.children.length > 0;
     const shown = node.iri ?? (node.kind === 'folder' ? node.folderIri : undefined);
-    const selected = shown !== undefined && shown === this.selectedIri;
+    const selected = shown !== undefined && (this._selection.size > 0 ? this._selection.has(shown) : shown === this.selectedIri);
+    this._rowNodes.set(node.id, node);
     return html`
       <li>
         <div
-          class="row ${node.kind} ${selected ? 'selected' : ''} ${node.active ? 'active' : ''} ${node.derivation ? `derived ${node.derivation}` : ''}"
+          class="row ${node.kind} ${selected ? 'selected' : ''} ${node.active ? 'active' : ''} ${node.derivation ? `derived ${node.derivation}` : ''} ${this._dropTarget === node.id ? 'drop-target' : ''}"
+          data-id=${node.id}
           data-iri=${node.iri ?? node.folderIri ?? nothing}
           data-kind=${node.kind}
           title=${node.derivation
             ? `${node.derivation === 'valid' ? 'Derived (valid)' : 'Potential derivation, not confirmed'}${node.detail ? ` by ${node.detail}` : ''} — ${node.iri ?? node.label}`
             : (node.iri ?? node.label)}
-          @click=${() => (node.kind === 'folder' ? this._toggle(node) : this._select(node))}
+          @click=${(e: MouseEvent) => (node.kind === 'folder' ? this._toggle(node) : this._click(e, node))}
           @dblclick=${() => this._activate(node)}
           @contextmenu=${(e: MouseEvent) => this._openMenu(e, node)}
           @mousedown=${(e: MouseEvent) => this._onRowDown(e, node)}
@@ -1008,6 +1159,7 @@ export class ModelExplorer extends LitElement {
 
   override render() {
     const tree = filterTree(this._tree, this._filterQuery);
+    this._rowNodes.clear();
     // What the tree shows: by type when the model has no folders, whatever was picked.
     const folders = hasFolders(this._contents);
     const shown: TreeGrouping = folders ? this._grouping : 'types';
@@ -1044,7 +1196,7 @@ export class ModelExplorer extends LitElement {
       </div>
       ${this._menu
         ? html`<div class="menu" style="left:${this._menu.x}px;top:${this._menu.y}px" role="menu">
-            ${actionsFor(this._menu.node, { folders: hasFolders(this._contents) }).map(
+            ${actionsFor(this._menu.node, { folders: hasFolders(this._contents), many: this._menu.iris?.length }).map(
               (entry) => html`<button
                 role="menuitem"
                 class=${entry.danger ? 'danger' : ''}

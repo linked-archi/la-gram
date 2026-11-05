@@ -36,7 +36,21 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
-import { applyFolderChange, deleteFolder, isFolder, moveToFolder, newFolder, renameFolder, type FolderChange } from '../model-manager/folders.js';
+import {
+  KIND_FOLDER_NAMES,
+  applyFolderChange,
+  combine,
+  deleteFolder,
+  folderLayout,
+  folderPath,
+  folderWithin,
+  groupFolder,
+  moveToFolder,
+  newFolder,
+  renameFolder,
+  type FolderChange,
+  type FolderKind,
+} from '../model-manager/folders.js';
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
 import { localName as localNameOf } from '../model-manager/vocabulary.js';
 import {
@@ -63,7 +77,7 @@ import './panels/palette-panel.js';
 import './panels/canvas-toolbar.js';
 import './panels/property-panel.js';
 import { fieldName } from './panels/property-panel.js';
-import { modelFolderOf } from './panels/model-explorer.js';
+import { hasFolders } from './panels/model-explorer.js';
 import './panels/validation-panel.js';
 import './panels/sparql-editor.js';
 import './views/catalog-view.js';
@@ -94,6 +108,7 @@ import type {
   ExplorerSelectDetail,
   ExplorerActionDetail,
   ExplorerDragDetail,
+  ExplorerMoveDetail,
 } from './panels/model-explorer.js';
 import type { ValidationPanel, ValidationNavigateDetail } from './panels/validation-panel.js';
 import type { SparqlEditor } from './panels/sparql-editor.js';
@@ -126,6 +141,12 @@ const { namedNode } = DataFactory;
 
 /** Model IRI used for elements dropped onto the canvas before a model is loaded. */
 export const DEFAULT_MODEL_IRI = modelIriIn(DEFAULT_MODEL_BASE);
+
+/** How many folders last moved into *Move to folder…* offers first. */
+const RECENT_FOLDERS = 5;
+
+/** What a group's concepts are called, several of them. */
+const KIND_PLURALS: Record<FolderKind, string> = { view: 'views', element: 'elements', relationship: 'relationships' };
 
 /** CSS marker on shapes with SHACL violations. */
 export const VIOLATION_MARKER = 'la-violation';
@@ -465,6 +486,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         { confirmLabel: 'Change type', details: request.notPermitted },
       ),
     onContextAction: (action, iri) => onCanvasContextAction(action, iri),
+    canMoveToFolder: () => hasFolders(modelContents()),
     onToolChanged: (tool) => {
       canvasToolbar.activeTool = tool ?? undefined;
     },
@@ -794,6 +816,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'delete-view':
         void handleExplorerAction({ action, iri, kind: 'view' });
         return;
+      case 'move-to-folder': {
+        // The one right-clicked and the others selected of its kind.
+        const kind = kindOfConcept(iri);
+        if (!kind) return;
+        const kindOf = layoutNow().kindOf;
+        const selected = diagramCanvas.selectedIris();
+        const iris = selected.includes(iri) ? [iri, ...selected.filter((other) => other !== iri && kindOf.get(other) === kind)] : [iri];
+        void moveToFolderAsked(iris, kind);
+        return;
+      }
     }
   };
 
@@ -1019,17 +1051,25 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         confirmDerivation(iri);
         return;
       case 'new-folder':
-        return newFolderIn(detail.kind === 'folder' ? iri : undefined);
+        return newFolderIn(detail.folderKind, detail.kind === 'folder' && iri ? iri : undefined);
       case 'rename-folder':
         return renameFolderAt(iri);
-      case 'move-to-folder':
-        return moveToFolderAsked(iri);
+      case 'move-to-folder': {
+        const kind = detail.folderKind ?? kindOfConcept(iri);
+        return kind ? moveToFolderAsked(detail.iris ?? [iri], kind) : undefined;
+      }
       case 'delete-folder':
         return deleteFolderAsked(iri);
     }
   };
 
   // ── The model's folders (Req 10.13–10.15) ────────────────────────────
+
+  /** Folders moved into, most recent first: offered first the next time. */
+  let recentFolders: string[] = [];
+  const usedFolder = (iri: string | undefined): void => {
+    if (iri) recentFolders = [iri, ...recentFolders.filter((f) => f !== iri)].slice(0, RECENT_FOLDERS);
+  };
 
   /** Make a folder change as one step on the open view's undo stack, then show `reveal` in the tree. */
   const changeFolders = (change: FolderChange, reveal?: string): void => {
@@ -1039,16 +1079,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (reveal) modelExplorer.revealIri(reveal);
   };
 
-  /** The folder the tree shows as the model — a converter's — where what goes to the top goes. */
-  const topFolder = (): string | undefined => modelFolderOf(modelContents())?.iri;
+  const layoutNow = () => folderLayout(modelContents());
 
-  const newFolderIn = async (parentIri?: string): Promise<void> => {
+  /** A folder in another, or at the top of a group — in the folder standing for it, made with it when there is none. */
+  const newFolderIn = async (kind: FolderKind | undefined, parentIri?: string): Promise<void> => {
     const modelIri = session.modelIri;
-    if (!modelIri) return;
+    if (!modelIri || (!parentIri && !kind)) return;
     const name = await dialogs.prompt('New folder', 'Name', 'New folder');
     if (!name) return;
-    const made = newFolder(store, modelIri, name, parentIri ?? topFolder());
-    changeFolders(made.change, made.iri);
+    const group = parentIri ? undefined : groupFolder(store, modelIri, layoutNow(), kind!);
+    const made = newFolder(store, modelIri, name, parentIri ?? group!.iri);
+    changeFolders(group ? combine(group.change, made.change) : made.change, made.iri);
   };
 
   const renameFolderAt = async (iri: string): Promise<void> => {
@@ -1058,71 +1099,93 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     changeFolders(renameFolder(store, iri, name), iri);
   };
 
-  /** Ask which folder a concept or a folder goes into — any but itself and those inside it — and move it. */
-  const moveToFolderAsked = async (iri: string): Promise<void> => {
+  /**
+   * Move concepts of a group — or one folder — into a folder of the group, or
+   * out of their folders (a folder: to the top of its group). One step.
+   */
+  const moveInto = (iris: string[], kind: FolderKind, folderIri?: string): void => {
     const modelIri = session.modelIri;
-    if (!modelIri) return;
-    const contents = modelContents();
-    const folders = contents.folders ?? [];
-    const top = modelFolderOf(contents)?.iri;
-    const byIri = new Map(folders.map((f) => [f.iri, f]));
-    /** The folders a folder is in, outermost first — up to the one shown as the model. */
-    const trail = (folderIri: string | undefined): string[] => {
-      const names: string[] = [];
-      const seen = new Set<string>();
-      for (let at = folderIri; at && at !== top && byIri.has(at) && !seen.has(at); at = byIri.get(at)!.parentIri) {
-        seen.add(at);
-        names.unshift(byIri.get(at)!.label);
-      }
-      return names;
-    };
-    const moving = isFolder(store, iri);
-    /** Whether a folder is the one moving or inside it. */
-    const inside = (folderIri: string): boolean => {
-      const seen = new Set<string>();
-      for (let at: string | undefined = folderIri; at && !seen.has(at); at = byIri.get(at)?.parentIri) {
-        if (at === iri) return true;
-        seen.add(at);
-      }
-      return false;
-    };
-    const choices = folders
-      .filter((f) => f.iri !== top && !(moving && inside(f.iri)))
-      .map((f) => ({ f, path: trail(f.parentIri) }))
-      .sort((a, b) => [...a.path, a.f.label].join('\u0000').localeCompare([...b.path, b.f.label].join('\u0000')))
-      .map(({ f, path }) => ({ value: f.iri, label: f.label, ...(path.length > 0 ? { detail: `in ${path.join(' ▸ ')}` } : {}) }));
-    const current = moving ? byIri.get(iri)?.parentIri : folders.find((f) => f.members.includes(iri))?.iri;
+    if (!modelIri || iris.length === 0) return;
+    const layout = layoutNow();
+    const movingFolder = iris.length === 1 && layout.byIri.has(iris[0]);
+    const group = movingFolder && !folderIri ? groupFolder(store, modelIri, layout, kind) : undefined;
+    try {
+      const change = combine(...(group ? [group.change] : []), ...iris.map((iri) => moveToFolder(store, iri, folderIri ?? group?.iri, modelIri)));
+      usedFolder(folderIri);
+      changeFolders(change, iris[0]);
+    } catch (error) {
+      dialogs.toast((error as Error).message, 'warning');
+    }
+  };
+
+  /**
+   * Ask where concepts of a group — or a folder — go: the group's folders, any
+   * but the one moving and those inside it, each with the folders it is in; the
+   * ones last moved into first.
+   */
+  const moveToFolderAsked = async (iris: string[], kind: FolderKind): Promise<void> => {
+    if (!session.modelIri || iris.length === 0) return;
+    const layout = layoutNow();
+    const folder = iris.length === 1 && layout.byIri.has(iris[0]) ? iris[0] : undefined;
+    const candidates = [...layout.kinds]
+      .filter(([iri, kinds]) => kinds.has(kind) && !(folder && folderWithin(layout, iri, folder)))
+      .map(([iri]) => ({ f: layout.byIri.get(iri)!, path: folderPath(layout, iri) }))
+      .sort((a, b) => [...a.path, a.f.label].join('\u0000').localeCompare([...b.path, b.f.label].join('\u0000')));
+    const recent = recentFolders.map((iri) => candidates.find((c) => c.f.iri === iri)).filter((c): c is (typeof candidates)[number] => Boolean(c));
+    const option = (c: (typeof candidates)[number], group?: string) => ({
+      value: c.f.iri,
+      label: c.f.label,
+      ...(c.path.length > 0 ? { detail: `in ${c.path.join(' ▸ ')}` } : {}),
+      ...(group ? { group } : {}),
+    });
+    const groupName = KIND_FOLDER_NAMES[kind];
+    const current = folder
+      ? layout.byIri.get(folder)?.parentIri
+      : iris.length === 1
+        ? candidates.find((c) => c.f.members.includes(iris[0]))?.f.iri
+        : undefined;
     const choice = await dialogs.choose(
-      'Move to folder',
+      iris.length > 1 ? `Move ${iris.length} ${KIND_PLURALS[kind]} to folder` : 'Move to folder',
       [
-        moving
-          ? { value: '', label: '— At the top —', detail: 'Not inside another folder' }
-          : { value: '', label: '— No folder —', detail: 'Listed under "Not in a folder"' },
-        ...choices,
+        folder
+          ? { value: '', label: `— At the top of ${groupName} —` }
+          : { value: '', label: '— No folder —', detail: `Directly under ${groupName}` },
+        ...recent.map((c) => option(c, 'Recent')),
+        ...candidates.map((c) => option(c, recent.length > 0 ? 'All folders' : undefined)),
       ],
-      current && current !== top ? current : '',
+      current && layout.kinds.get(current)?.has(kind) ? current : '',
     );
     if (choice === null) return;
-    changeFolders(moveToFolder(store, iri, choice || undefined, modelIri, top), iri);
+    moveInto(iris, kind, choice || undefined);
   };
+
+  /** A concept's group, as the folders take it. */
+  const kindOfConcept = (iri: string): FolderKind | undefined => layoutNow().kindOf.get(iri);
 
   const deleteFolderAsked = async (iri: string): Promise<void> => {
     const modelIri = session.modelIri;
     if (!modelIri) return;
-    const contents = modelContents();
-    const folder = contents.folders?.find((f) => f.iri === iri);
-    const parent = folder?.parentIri ? contents.folders?.find((f) => f.iri === folder.parentIri) : undefined;
-    const top = modelFolderOf(contents)?.iri;
+    const layout = layoutNow();
+    const folder = layout.byIri.get(iri);
+    const parent = folder?.parentIri ? layout.byIri.get(folder.parentIri) : undefined;
+    // The parent is shown when it is a folder of its own, not one standing for a group or the model.
+    const shownParent = parent && layout.kinds.has(parent.iri) ? parent : undefined;
     const ok = await dialogs.confirm(
       'Delete folder',
-      parent && parent.iri !== top
-        ? `Delete the folder "${folder?.label ?? iri}"? What it holds stays in the model and moves to "${parent.label}".`
-        : `Delete the folder "${folder?.label ?? iri}"? What it holds stays in the model: its folders move to the top, the rest to "Not in a folder".`,
+      shownParent
+        ? `Delete the folder "${folder?.label ?? iri}"? What it holds stays in the model and moves to "${shownParent.label}".`
+        : `Delete the folder "${folder?.label ?? iri}"? What it holds stays in the model and moves up to the top of its group.`,
       { confirmLabel: 'Delete folder', danger: true },
     );
     if (!ok) return;
-    changeFolders(deleteFolder(store, iri, modelIri, top), parent && parent.iri !== top ? parent.iri : undefined);
+    changeFolders(deleteFolder(store, iri, modelIri, layout.modelFolder?.iri), shownParent?.iri);
   };
+
+  const onExplorerMove = (e: Event): void => {
+    const { iris, kind, folderIri } = (e as CustomEvent<ExplorerMoveDetail>).detail;
+    moveInto(iris, kind, folderIri);
+  };
+  modelExplorer.addEventListener('explorer-move', onExplorerMove);
 
   /**
    * Confirm a potential derivation: state its triple and the qualified predicate
@@ -2421,6 +2484,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);
     modelExplorer.removeEventListener('explorer-action', onExplorerAction);
+    modelExplorer.removeEventListener('explorer-move', onExplorerMove);
     catalogView.removeEventListener('catalog-select', onCatalogSelect);
     catalogView.removeEventListener('view-members-change', onViewMembersChange);
     matrixView.removeEventListener('view-members-change', onViewMembersChange);

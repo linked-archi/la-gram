@@ -1,6 +1,16 @@
 /**
- * The model's folders, changed (Req 10.13–10.15): a folder made, renamed or
- * deleted, a concept or a folder moved into another.
+ * The model's folders: how they are laid out under the tree's three groups —
+ * Views, Elements, Relationships (Req 10.10) — and changed (Req 10.13–10.15): a
+ * folder made, renamed or deleted, concepts or a folder moved into another.
+ *
+ * **Layout.** Each kind has its own folders, as Archi and the converters keep
+ * them. A top folder named as a group — *Elements*, *Relationships*, *Views*:
+ * what la-gram writes, and the converters inside their folder for the model —
+ * stands for that group; what it holds directly is in no folder of the group.
+ * Any other folder is shown under the groups of what it holds, at any depth —
+ * an Archi model's layer folders under Elements, its relations folder under
+ * Relationships — and an empty one under its parent's, or under Elements at the
+ * top. Nothing depends on a tool's own folder names.
  *
  * Each operation works out a {@link FolderChange} — the quads to remove and to
  * add — from the store, and {@link applyFolderChange} makes it, so the host runs
@@ -21,10 +31,173 @@ import type { NamedNode, Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { mintIri } from '../rdf-engine/iri.js';
 import { modelNamespace } from './model-namespace.js';
-import { SCHEMA_ITEM, SCHEMA_ITEM_LIST_ELEMENT, SCHEMA_NAME, readFolders } from './model-queries.js';
-import { T, dedupe, langLiteral, nn, triple } from './vocabulary.js';
+import { SCHEMA_ITEM, SCHEMA_ITEM_LIST_ELEMENT, SCHEMA_NAME, readFolders, type FolderSummary, type ModelContents } from './model-queries.js';
+import { T, dedupe, langLiteral, localName, nn, triple } from './vocabulary.js';
 
 const MODEL_GRAPH = DataFactory.defaultGraph() as unknown as NamedNode;
+
+/** What a folder holds: one of the tree's three groups. */
+export type FolderKind = 'view' | 'element' | 'relationship';
+
+/** The groups, in the tree's order. */
+export const FOLDER_KINDS: readonly FolderKind[] = ['view', 'element', 'relationship'];
+
+/** The name of the top folder that stands for each group — la-gram's and the converters'. */
+export const KIND_FOLDER_NAMES: Readonly<Record<FolderKind, string>> = {
+  view: 'Views',
+  element: 'Elements',
+  relationship: 'Relationships',
+};
+
+/** The model's folders as the tree lays them out under its groups. */
+export interface FolderLayout {
+  /** A converter's folder for the model itself, shown as the model ({@link modelFolderOf}). */
+  modelFolder?: FolderSummary;
+  /** The top folder standing for each group, where there is one. */
+  roots: Partial<Record<FolderKind, FolderSummary>>;
+  /** The groups each folder is shown under; a folder in none — a group's own, or one in a cycle — is not shown. */
+  kinds: Map<string, ReadonlySet<FolderKind>>;
+  /** The folders at the top of each group. */
+  top: Record<FolderKind, FolderSummary[]>;
+  /** The folders inside each folder. */
+  inside: Map<string, FolderSummary[]>;
+  /** Each concept's group: an unclassified concept is filed as an element. */
+  kindOf: Map<string, FolderKind>;
+  byIri: Map<string, FolderSummary>;
+}
+
+/**
+ * A converter's folder for the model itself: the one folder at the top, named
+ * as the model is — its name, or its IRI's last segment, the model id the
+ * converters name it by — holding folders and none of the model's concepts.
+ * The tree shows its folders in its place. A folder of the user's own holding
+ * only folders is not one: it is not named after the model.
+ */
+export function modelFolderOf(contents: ModelContents | undefined): FolderSummary | undefined {
+  const folders = contents?.folders ?? [];
+  const known = new Set(folders.map((f) => f.iri));
+  const top = folders.filter((f) => !f.parentIri || !known.has(f.parentIri));
+  if (!contents || top.length !== 1) return undefined;
+  const [folder] = top;
+  const names = [contents.model?.label, contents.model ? localName(contents.model.iri) : undefined]
+    .filter((n): n is string => Boolean(n))
+    .map((n) => n.toLowerCase());
+  if (!names.includes(folder.label.toLowerCase())) return undefined;
+  if (!folders.some((f) => f.parentIri === folder.iri)) return undefined;
+  const listed = new Set(
+    [...contents.views, ...contents.elements, ...contents.relationships, ...contents.unclassified].map((c) => c.iri),
+  );
+  return folder.members.some((m) => listed.has(m)) ? undefined : folder;
+}
+
+/** Lay the model's folders out under the tree's groups (see the module's comment). */
+export function folderLayout(contents: ModelContents): FolderLayout {
+  const folders = contents.folders ?? [];
+  const byIri = new Map(folders.map((f) => [f.iri, f]));
+  const inside = new Map<string, FolderSummary[]>();
+  const topLevel: FolderSummary[] = [];
+  for (const f of folders) {
+    if (f.parentIri && byIri.has(f.parentIri)) {
+      const list = inside.get(f.parentIri);
+      if (list) list.push(f);
+      else inside.set(f.parentIri, [f]);
+    } else topLevel.push(f);
+  }
+  const kindOf = new Map<string, FolderKind>();
+  for (const v of contents.views) kindOf.set(v.iri, 'view');
+  for (const e of contents.elements) kindOf.set(e.iri, 'element');
+  for (const u of contents.unclassified) kindOf.set(u.iri, 'element');
+  for (const r of contents.relationships) if (!r.derivation) kindOf.set(r.iri, 'relationship');
+
+  const modelFolder = modelFolderOf(contents);
+  const level = (modelFolder ? (inside.get(modelFolder.iri) ?? []) : topLevel).slice().sort((a, b) => a.iri.localeCompare(b.iri));
+  const roots: Partial<Record<FolderKind, FolderSummary>> = {};
+  for (const kind of FOLDER_KINDS) {
+    const root = level.find((f) => f.label.trim().toLowerCase() === KIND_FOLDER_NAMES[kind].toLowerCase());
+    if (root) roots[kind] = root;
+  }
+  const rootIris = new Set(Object.values(roots).map((f) => f.iri));
+
+  /** The groups of what a folder holds, at any depth. */
+  const held = new Map<string, Set<FolderKind>>();
+  const holds = (f: FolderSummary, trail: Set<string>): Set<FolderKind> => {
+    const known = held.get(f.iri);
+    if (known) return known;
+    const out = new Set<FolderKind>();
+    for (const m of f.members) {
+      const kind = kindOf.get(m);
+      if (kind) out.add(kind);
+    }
+    trail.add(f.iri);
+    for (const s of inside.get(f.iri) ?? []) if (!trail.has(s.iri)) for (const kind of holds(s, trail)) out.add(kind);
+    held.set(f.iri, out);
+    return out;
+  };
+  const kinds = new Map<string, ReadonlySet<FolderKind>>();
+  const place = (f: FolderSummary, around: ReadonlySet<FolderKind>, fixed: boolean): void => {
+    if (kinds.has(f.iri) || rootIris.has(f.iri)) return;
+    const own = holds(f, new Set());
+    const shown = fixed || own.size === 0 ? around : own;
+    kinds.set(f.iri, shown);
+    for (const s of inside.get(f.iri) ?? []) place(s, shown, fixed);
+  };
+  for (const kind of FOLDER_KINDS) {
+    const root = roots[kind];
+    if (root) for (const s of inside.get(root.iri) ?? []) place(s, new Set([kind]), true);
+  }
+  for (const f of level) place(f, new Set<FolderKind>(['element']), false);
+
+  const top = {} as Record<FolderKind, FolderSummary[]>;
+  for (const kind of FOLDER_KINDS) {
+    const root = roots[kind];
+    top[kind] = [...(root ? (inside.get(root.iri) ?? []) : []), ...level.filter((f) => !rootIris.has(f.iri))].filter((f) =>
+      kinds.get(f.iri)?.has(kind),
+    );
+  }
+  return { ...(modelFolder ? { modelFolder } : {}), roots, kinds, top, inside, kindOf, byIri };
+}
+
+/** The folders a folder is in, outermost first, up to its group — the names, for a path. */
+export function folderPath(layout: FolderLayout, folderIri: string): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const stop = new Set([...Object.values(layout.roots).map((f) => f.iri), ...(layout.modelFolder ? [layout.modelFolder.iri] : [])]);
+  for (let at = layout.byIri.get(folderIri)?.parentIri; at && layout.byIri.has(at) && !stop.has(at) && !seen.has(at); at = layout.byIri.get(at)!.parentIri) {
+    seen.add(at);
+    names.unshift(layout.byIri.get(at)!.label);
+  }
+  return names;
+}
+
+/** Whether a folder is `iri` or inside it, by the layout's folders. */
+export function folderWithin(layout: FolderLayout, folderIri: string, iri: string): boolean {
+  const seen = new Set<string>();
+  for (let at: string | undefined = folderIri; at && !seen.has(at); at = layout.byIri.get(at)?.parentIri) {
+    if (at === iri) return true;
+    seen.add(at);
+  }
+  return false;
+}
+
+/**
+ * The top folder standing for a group, made when the model has none — at the
+ * top of the model, or in a converter's folder for the model.
+ */
+export function groupFolder(
+  store: RdfStore,
+  modelIri: string,
+  layout: FolderLayout,
+  kind: FolderKind,
+): { iri: string; change: FolderChange } {
+  const root = layout.roots[kind];
+  if (root) return { iri: root.iri, change: { remove: [], add: [] } };
+  return newFolder(store, modelIri, KIND_FOLDER_NAMES[kind], layout.modelFolder?.iri);
+}
+
+/** Several changes as one. */
+export function combine(...changes: FolderChange[]): FolderChange {
+  return net({ remove: changes.flatMap((c) => c.remove), add: changes.flatMap((c) => c.add) });
+}
 
 /** What a folder operation removes and adds. */
 export interface FolderChange {
