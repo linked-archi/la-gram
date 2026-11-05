@@ -1,7 +1,7 @@
 # Pending: Git collaboration (merge, review, CI, shared rooms)
 
-Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1's first part (the merge, no UI) done 2026-11-05, at
-`96fc909`, not committed; its second part (the wiring) is next.
+Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1 done 2026-11-05 (the merge, then its wiring), at
+`96fc909`, not committed. Phase 2 is next.
 
 **Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in
 `docs/git-collaboration/reference/`. They were copied in by the user and aren't committed yet. This plan
@@ -39,6 +39,17 @@ two can be compared.
   the merged model keeps the node whose IRI sorts first.
 - Added while building it, to report: a relationship's connection (types, ends, `rdf:reifies`, the reified and
   qualified triples) and a concept's types merge as a whole too, reported as single-value conflicts.
+
+### Decided for Phase 1's wiring (2026-11-05)
+
+- ***Update from main* on GitLab:** its REST API makes commits of one parent only, so a commit there cannot
+  record main as merged, and the host's text merge could still conflict. la-gram commits the merged model to a
+  **new branch started from main's head** and binds the model to it; its merge request replaces the old one's.
+  On GitHub, a real merge commit (Git database API, both heads as parents) on the bound branch.
+- **The Conflicts tab's buttons:** *Keep mine* / *Take theirs*; for a deleted concept *Keep it* / *Delete it*.
+- **Saving with conflicts not chosen** asks first; it is not blocked.
+- **`dcterms:modified`** set on both sides takes the later stamp, in the room and the merge, with no conflict.
+- **Two placements:** the dropped side's links take their `arch:inView` with them.
 
 ## Hard constraints
 
@@ -125,20 +136,22 @@ two can be compared.
       added on the other side;
     - a node's bounds or a line's route changed on both sides, treated as one unit each;
     - a shape's count limit broken by the combined result, checked with the in-app SHACL validator.
-- [ ] **Blank nodes:** warn before a Git save of a model that has them (decided 2026-11-05; part 2).
-- [ ] ***Merge with the newer version***, offered first when a save conflicts:
+- [x] **Blank nodes:** warn before a Git save of a model that has them (decided 2026-11-05) — asked once a
+  session per model.
+- [x] ***Merge with the newer version***, offered first when a save conflicts:
   - the base is the file at `binding.commit`, theirs is the branch head, and ours is the model;
   - with no conflicts, commit with `expectedVersion` set to the head's version, merging again if the branch
     moves on in the meantime;
   - with conflicts, load the result and open a *Conflicts* panel, modelled on the Validation tab, showing
     both values to pick from. Save again once they're resolved.
-- [ ] ***Update from main*** (or from any branch): merge another branch into the bound one with the same
-  merge. On every host, this makes a merge request mergeable without a server-side driver.
-- [ ] **Tests:**
+- [x] ***Update from main*** (or from any branch): merge another branch into the bound one with the same
+  merge. On every host, this makes a merge request mergeable without a server-side driver — on GitHub by a
+  merge commit, on GitLab by a new branch from main (see *Decided for Phase 1's wiring*).
+- [x] **Tests:**
   - [x] a fixture for each kind of conflict (`src/__tests__/fixtures/merge/`, *model-merge.test*);
   - [x] fast-check properties: the result doesn't depend on which side is ours, merging a model with itself
     changes nothing, and changes that don't touch each other never conflict (*model-merge.property.test*);
-  - [ ] a browser test with two clients saving the same bound file (part 2).
+  - [x] a browser test with two clients saving the same bound file (`tests/browser/git-merge.spec.ts`).
 - [x] **Measure:** time the merge on a large model, made up or real but only with the user's agreement. If
   it is over about 1 s, consider splitting the model into its DD-15 graphs as files. Made up, 350 000 triples
   (*model-merge-bench.test*): merging about 0.5 s; reading one version from Turtle 0.5–0.6 s, so part 2's three

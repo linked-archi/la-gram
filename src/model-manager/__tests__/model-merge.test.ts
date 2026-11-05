@@ -115,6 +115,16 @@ describe('a single value changed differently on each side', () => {
     expect(merged.filter((l) => l.startsWith(`<${M}crm> <${RDF}type>`))).toHaveLength(1);
   });
 
+  it('the model’s dcterms:modified stamped on both sides is no conflict: the later one is kept', () => {
+    const f = fixture('modified.trig');
+    for (const result of [merge(f), mergeSnapshots(f.base, f.theirs, f.ours)]) {
+      expect(result.conflicts).toEqual([]);
+      expect(result.merged.filter((l) => l.includes('/terms/modified>'))).toEqual([
+        '<https://example.org/m/model> <http://purl.org/dc/terms/modified> "2026-11-05T14:30:00.000Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .',
+      ]);
+    }
+  });
+
   it('picking a side gives that side’s value', () => {
     const f = fixture('value.trig');
     const { merged, conflicts } = merge(f);
@@ -245,12 +255,17 @@ describe('the same element placed on a diagram by both sides', () => {
     expect(has(merged, '<https://example.org/m/node-crm-a>')).toBe(true);
     expect(has(merged, '<https://example.org/m/node-crm-b>')).toBe(false);
     expect(has(merged, '<https://example.org/m/link-flow>')).toBe(false);
-    // The relationship itself is no placement: it stays.
+    // The relationship itself is no placement: it stays — but not shown in the view without its link.
     expect(has(merged, '<https://example.org/m/flow> <https://meta.linked.archi/core#source>')).toBe(true);
+    expect(has(merged, '<https://example.org/m/flow> <https://meta.linked.archi/core#inView>')).toBe(false);
+    // CRM is in the view on both sides.
+    expect(has(merged, '<https://example.org/m/crm> <https://meta.linked.archi/core#inView>')).toBe(true);
     const theirs = applyChoice(merged, conflicts[0], 'theirs');
     expect(has(theirs, '<https://example.org/m/node-crm-a>')).toBe(false);
     expect(has(theirs, '<https://example.org/m/node-crm-b>')).toBe(true);
     expect(has(theirs, '<https://example.org/m/link-flow> <https://meta.linked.archi/core-vis#source> <https://example.org/m/node-crm-b>')).toBe(true);
+    expect(has(theirs, '<https://example.org/m/flow> <https://meta.linked.archi/core#inView>')).toBe(true);
+    expect(has(theirs, '<https://example.org/m/crm> <https://meta.linked.archi/core#inView>')).toBe(true);
   });
 
   it('keeps the same node whichever side is ours', () => {

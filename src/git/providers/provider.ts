@@ -44,6 +44,22 @@ export interface CommitResult {
   webUrl: string;
 }
 
+/**
+ * A file committed as the merge of another commit into a branch: a commit with
+ * two parents, so the host counts the other commit as merged — a merge request
+ * from the branch then merges cleanly (*Update from main*).
+ */
+export interface MergeCommitChange {
+  branch: string;
+  /** The commit the branch is at: the first parent. The branch moves only if it is still there. */
+  head: string;
+  /** The commit merged in: the second parent. */
+  mergeOf: string;
+  path: string;
+  text: string;
+  message: string;
+}
+
 /** The files of a branch. */
 export interface FileList {
   /** Every file's path, folders left out. */
@@ -69,6 +85,14 @@ export interface GitHostProvider {
   listFiles(ref: string): Promise<FileList>;
   /** The repository's branches, by name. */
   listBranches(): Promise<string[]>;
+  /** The last commit two commits have in common. */
+  mergeBase(a: string, b: string): Promise<string>;
+  /**
+   * Commit a file as a merge — a commit with two parents. Only where the host's
+   * API can make one: GitHub's Git database API can, GitLab's REST API cannot
+   * (a commit there has one parent).
+   */
+  commitMerge?(change: MergeCommitChange): Promise<CommitResult>;
 }
 
 /** `fetch`, injectable for tests. */
@@ -88,6 +112,7 @@ export abstract class RestProvider implements GitHostProvider {
   abstract commitFile(change: FileChange): Promise<CommitResult>;
   abstract listFiles(ref: string): Promise<FileList>;
   abstract listBranches(): Promise<string[]>;
+  abstract mergeBase(a: string, b: string): Promise<string>;
 
   /**
    * Every entry of a paged listing (`per_page=100&page=N`), reading pages until

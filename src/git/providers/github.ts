@@ -13,6 +13,8 @@
  * | commit | `PUT /repos/{repo}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = the version replaced; 409 when the file moved on |
  * | files | `GET /repos/{repo}/git/trees/{ref}?recursive=1` — the whole tree in one answer, `truncated` past GitHub's limit |
  * | branches | `GET /repos/{repo}/branches`, paged |
+ * | merge base | `GET /repos/{repo}/compare/{a}...{b}` → `merge_base_commit.sha` |
+ * | merge commit | the Git database API: the head commit's tree, `POST …/git/blobs`, `POST …/git/trees` (on that tree), `POST …/git/commits` with both parents, then `PATCH …/git/refs/heads/{branch}` without force — 422 when the branch moved on |
  */
 import { GitError } from '../errors.js';
 import {
@@ -22,6 +24,7 @@ import {
   toBase64,
   type CommitResult,
   type FileChange,
+  type MergeCommitChange,
   type FileList,
   type GitFile,
 } from './provider.js';
@@ -106,5 +109,31 @@ export class GitHubProvider extends RestProvider {
   async listBranches(): Promise<string[]> {
     const { items } = await this.paged<{ name: string }>(`/repos/${this.repo}/branches`, `the repository ${this.link.repository}`);
     return items.map((b) => b.name);
+  }
+
+  async mergeBase(a: string, b: string): Promise<string> {
+    const compared = await this.request<{ merge_base_commit: { sha: string } }>(
+      'GET',
+      `/repos/${this.repo}/compare/${encodeURIComponent(a)}...${encodeURIComponent(b)}`,
+      `the commits ${a.slice(0, 8)} and ${b.slice(0, 8)}`,
+    );
+    return compared!.merge_base_commit.sha;
+  }
+
+  async commitMerge(change: MergeCommitChange): Promise<CommitResult> {
+    const git = `/repos/${this.repo}/git`;
+    const head = await this.request<{ tree: { sha: string } }>('GET', `${git}/commits/${encodeURIComponent(change.head)}`, `the commit ${change.head.slice(0, 8)}`);
+    const blob = await this.request<{ sha: string }>('POST', `${git}/blobs`, change.path, {
+      body: { content: toBase64(change.text), encoding: 'base64' },
+    });
+    const tree = await this.request<{ sha: string }>('POST', `${git}/trees`, change.path, {
+      body: { base_tree: head!.tree.sha, tree: [{ path: change.path, mode: '100644', type: 'blob', sha: blob!.sha }] },
+    });
+    const commit = await this.request<{ sha: string; html_url: string }>('POST', `${git}/commits`, change.path, {
+      body: { message: change.message, tree: tree!.sha, parents: [change.head, change.mergeOf] },
+    });
+    // Without force: refused (422, not a fast-forward) when the branch moved on meanwhile.
+    await this.request('PATCH', `${git}/refs/heads/${encodePath(change.branch)}`, change.path, { body: { sha: commit!.sha, force: false } });
+    return { version: blob!.sha, commit: commit!.sha, branch: change.branch, webUrl: commit!.html_url };
   }
 }

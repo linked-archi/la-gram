@@ -9,6 +9,11 @@
  * plan would split a model into its DD-15 graphs as files. The limit leaves
  * room for a slower machine, and still catches a merge that grows with the
  * square of the model.
+ *
+ * In the suite it runs on 100 000 triples: at 350 000 it loads the machine
+ * enough, beside the other tests, to push `questions-bench.test` past its
+ * limits now and then. `MERGE_BENCH_TRIPLES=350000 npx vitest --run …` measures
+ * the large one.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,8 +21,9 @@ import { mergeSnapshots, snapshotOfText } from '../model-merge.js';
 // @ts-expect-error — the benchmark generator is a plain script
 import { generateModel } from '../../../scripts/bench-model.mjs';
 
-const LIMIT_MS = 3000;
-const TRIPLES = 350_000;
+const TRIPLES = Number(process.env.MERGE_BENCH_TRIPLES ?? 100_000);
+/** 3 s at 350 000 triples, in proportion below that (1 s at least). */
+const LIMIT_MS = Math.max(1000, Math.round((3000 * TRIPLES) / 350_000));
 const PREF_LABEL = '<http://www.w3.org/2004/02/skos/core#prefLabel>';
 const BOUNDS_X = '<https://meta.linked.archi/core-vis#bounds-x>';
 

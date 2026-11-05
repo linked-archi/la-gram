@@ -29,6 +29,7 @@ describe('the built-in rules', () => {
     expect(rules.limitOf(NAMESPACES.rdf + 'first', types())).toBe('one');
     expect(rules.limitOf(ARCH + 'target', types())).toBe('one');
     expect(rules.limitOf(SKOS + 'prefLabel', types())).toBe('one-per-language');
+    expect(rules.limitOf(NAMESPACES.dcterms + 'modified', types())).toBe('latest');
     expect(rules.limitOf(VIS + 'fillColor', types())).toBeUndefined();
     expect(rules.mayLimit(ARCH + 'inView')).toBe(false);
   });

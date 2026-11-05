@@ -208,6 +208,15 @@ describe('RdfYjsBinding', () => {
       return { a: values_(a), b: values_(b) };
     }
 
+    it('settle the model’s dcterms:modified to the later stamp', () => {
+      const { a, b } = concurrently('urn:m', 'https://meta.linked.archi/core#Model', 'http://purl.org/dc/terms/modified', [
+        '2026-11-05T10:15:00.000Z',
+        '2026-11-05T14:30:00.000Z',
+      ]);
+      expect(a).toEqual(['2026-11-05T14:30:00.000Z']);
+      expect(b).toEqual(a);
+    });
+
     it('settle a functional property to one value on both clients', () => {
       const { a, b } = concurrently('urn:x', `${EX}Team`, `${EX}colour`, ['red', 'blue']);
       expect(a).toHaveLength(1);

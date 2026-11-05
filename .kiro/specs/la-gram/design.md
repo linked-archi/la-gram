@@ -1320,8 +1320,9 @@ The Y.Doc holds one `Y.Map<true>` keyed by canonical N-Triples: an RDF graph is 
 set of triples, and a map-as-set is its CRDT. Single-valued predicates are
 normalised deterministically after remote changes, so concurrent moves converge:
 the built-in ones (bounds, points, list cells, endpoints, `skos:prefLabel` per
-language) and the loaded metamodels' — `owl:FunctionalProperty` for every
-subject, `sh:maxCount 1` and `sh:uniqueLang` for the classes a shape targets —
+language, the model's `dcterms:modified` the later stamp) and the loaded
+metamodels' — `owl:FunctionalProperty` for every subject, `sh:maxCount 1` and
+`sh:uniqueLang` for the classes a shape targets —
 defined once in `rdf-engine/single-valued.ts` for the room and the Git merge
 alike (*Merging versions*). `App.singleValued()` reads them from every graph but
 the model's, cached until the metamodels change. Awareness
@@ -1446,6 +1447,9 @@ src/git/                    imported only when the module is on — a chunk of i
   credentials.ts            tokens per host: the session; the keychain (desktop) or, if asked, localStorage (web)
   bindings.ts               model IRI → the file it is bound to (localStorage)
   git-save.ts               Save to Git: dialog, token, version, commit, conflict
+  git-merge.ts              Merge with the newer version; Update from main; a merged model's commit
+  merge-support.ts          what merging needs of la-gram: rules, the model replaced, the Conflicts tab
+  conflicts-panel.ts        the Conflicts tab (<git-conflicts>)
   git-open.ts               Open from Git: address, files to choose, read, open, bind
   errors.ts                 failures in words, from the status — never the request or the host's text
 src/platform/secret-file.ts the desktop's secrets file (main process)
@@ -1463,6 +1467,10 @@ interface GitHostProvider {
   }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
   listFiles(ref: string): Promise<{ paths: string[]; truncated: boolean }>;
   listBranches(): Promise<string[]>;
+  mergeBase(a: string, b: string): Promise<string>;
+  commitMerge?(change: {                                       // GitHub only: two parents
+    branch: string; head: string; mergeOf: string; path: string; text: string; message: string;
+  }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
 }
 ```
 
@@ -1474,6 +1482,8 @@ interface GitHostProvider {
 | Default branch, head | `GET /repos/{o}/{r}`, `…/branches/{b}` | `GET /projects/{id}`, `…/repository/branches/{b}` |
 | Files | `GET /repos/{o}/{r}/git/trees/{commit}?recursive=1` — one answer, `truncated` past GitHub's limit | `GET /projects/{id}/repository/tree?recursive=true&ref=`, paged |
 | Branches | `GET /repos/{o}/{r}/branches`, paged | `GET /projects/{id}/repository/branches`, paged |
+| Merge base | `GET /repos/{o}/{r}/compare/{a}...{b}` → `merge_base_commit` | `GET /projects/{id}/repository/merge_base?refs[]=a&refs[]=b` |
+| Merge commit | the head commit's tree; `POST …/git/blobs`, `…/git/trees`, `…/git/commits` (both parents); `PATCH …/git/refs/heads/{b}` without force — 422 when the branch moved on | none: a commit through the REST API has one parent |
 
 GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`). Both
 take the token as `Authorization: Bearer`. A paged listing is read 100 at a
@@ -1512,10 +1522,13 @@ address does not say (GitHub Enterprise, self-managed GitLab), the branch
 asked when the host has none. A path the model is not bound to is read first:
 a file there is replaced only on confirmation, naming its version. Bound: the
 message only, and the commit names the binding's version. When the host
-refuses (the file moved on), the choice is a new branch — from the commit the
+refuses (the file moved on), the choice is — for the bound file, first — *Merge
+with the newer version* (*Merging versions*); a new branch — from the commit the
 model was opened or last saved at, replacing the version it saw, so it cannot
 conflict — overwrite (naming the newer version, on confirmation), or open the
-newer version instead (asking first: what changed here is lost). A commit binds the model {host, provider, API base,
+newer version instead (asking first: what changed here is lost). Before anything
+is asked, a model with conflicts not chosen, or with blank nodes (once a
+session), is saved only on confirmation. A commit binds the model {host, provider, API base,
 repository, branch, path, version, commit} in `localStorage`
 (`la-gram:git-bindings`), emits `model-saved` (the dirty marker clears) and
 reports the commit with its URL.
@@ -1548,8 +1561,8 @@ unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
 
 ### Merging versions
 
-Phase 1 of the Git collaboration plan (`.agents/tasks/git-collaboration/tasks.md`),
-its first part: the merge, not yet offered in the UI. `model-manager/model-merge.ts`
+Phase 1 of the Git collaboration plan (`.agents/tasks/git-collaboration/tasks.md`).
+`model-manager/model-merge.ts`
 merges two versions of a model made from a common one — the file at the commit
 the model was opened at, the branch's head, the model — three-way, over canonical
 N-Triples (`snapshotOf`), and returns the conflicts as data. It lives outside
@@ -1575,7 +1588,7 @@ Each changed triple merges in the first unit that applies:
 | Bounds | A subject's four `arch-vis:bounds-*` |
 | A connection | A relationship's types, `arch:source`, `arch:target`, `rdf:reifies`, the triple it reifies, the qualified predicate from its source |
 | Types | A concept's `rdf:type`s |
-| A single value | `rdf-engine/single-valued.ts`: one value, or one per language |
+| A single value | `rdf-engine/single-valued.ts`: one value, or one per language; the model's `dcterms:modified` takes the later stamp, no conflict |
 | A triple | Kept when either side added it, dropped when either removed it |
 
 A unit changed on one side takes that side's version; changed alike on both,
@@ -1589,8 +1602,8 @@ for the same reason (a retarget changes four triples, a retype several).
 Then on the merged model: **two placements** — both sides placed the same
 element (or drew the same relationship) in a view, each with a node of its own;
 the canvas shows one per view (*Known limitations* 1), so the merged model keeps
-the one whose IRI sorts first, with what its side drew at it, and offers the
-other — and **count limits** the combination breaks (each side added a value to a
+the one whose IRI sorts first, with what its side drew at it (its links, their
+routes, the `arch:inView` written with them), and offers the other — and **count limits** the combination breaks (each side added a value to a
 `sh:maxCount 2` property; each removed a different one of the values a
 `sh:minCount` requires), checked on the nodes both sides changed and reported
 only where neither side alone breaks them.
@@ -1604,12 +1617,44 @@ everything the other side hung on it — its new relationships to it, nodes for 
 and their links — so nothing is left pointing at nothing.
 
 Blank nodes do not match between versions (their labels are not kept), so both
-sides' copies end up in the merged model; la-gram makes none, and a Git save will
-warn about an imported model that has them (part 2).
+sides' copies end up in the merged model; la-gram makes none, and a Git save asks
+first for an imported model that has them.
+
+**In the editor** (`src/git/git-merge.ts`, Req 18.18–18.21). The three versions
+are read alike — the model through its own serialization, `snapshotOfText` —
+so a difference of form is never a change.
+
+- *Merge with the newer version*, the first choice when a save of the bound file
+  is refused: base the file at `binding.commit`, theirs at the branch's head.
+  Without conflicts the merged model replaces the model (`MergeSupport.replace`:
+  the difference, as one `rdf.store.edit` step) and is committed naming the
+  head's version, merged again from that one when the branch moved on meanwhile
+  (three tries); everything already there commits nothing and binds to the head.
+  With conflicts it is not committed: the model is bound to the head and the
+  Conflicts tab opens, so the save after choosing commits on top of it.
+- *Update from main…* (bound models): another branch, the default offered first.
+  The model's own branch first, when it moved on; then base the file at the two
+  heads' merge base, theirs at the other head. The binding keeps the other head
+  (`GitBinding.update`) until a commit records it: `commitMerge` on GitHub — the
+  branch's head and the other's as parents, so the merge base moves and the
+  pull request merges cleanly — and on GitLab, whose REST API has no merge
+  commit, a new branch started from the other head (named on asking), the model
+  bound to it, its merge request to open in place of the old one's. Without
+  conflicts the save follows at once (the message asked, `Merge main into …`).
+- The Conflicts tab (`<git-conflicts>`, added with `MountedUi.addBottomTab` — the
+  module's own tab after la-gram's, with a badge — and gone after a commit or
+  another model's opening): a row per conflict, named by `MountedUi.describeConcept`
+  and `propertyName`; each side's version in words (a value, `source → target`,
+  `at x, y · w × h`, the route's bends, the count's values); *Keep mine* /
+  *Take theirs*, *Keep it* / *Delete it* for a deletion. A choice swaps the
+  lines that stand for the conflict for the chosen side's, as one undoable step;
+  it can be changed.
 
 **Measured** (*model-merge-bench.test*): 350 000 triples, a few hundred renames,
 moves and deletions on each side — reading one version from Turtle 0.5–0.6 s,
-merging about 0.5 s; under the plan's 1 s for splitting a model into files.
+merging about 0.5 s; under the plan's 1 s for splitting a model into files. The
+suite runs it on 100 000 (`MERGE_BENCH_TRIPLES` for more): the large one, beside
+the other tests, pushed *questions-bench.test* past its limits.
 
 **Tests.** *model-merge.test* — a fixture per kind (`src/__tests__/fixtures/merge/`,
 each side's additions and removals on one base model): changes that combine;
@@ -1621,6 +1666,15 @@ build and edit): the result does not depend on which side is ours; a version
 merged with itself or an unchanged base comes back; edits on disjoint halves
 never conflict and are all kept (`MERGE_RUNS` for a longer search).
 *single-valued.test*, *rdf-yjs-binding.test*, *create-app.test* for the rules.
+*git-merge.test* (a repository in memory, its commits with their parents, as
+GitHub and as GitLab): the merge committed to the same branch; again when the
+branch moves on; conflicts listed, then committed after choosing; asked before
+saving with conflicts or blank nodes; *Update from main* as a merge commit and
+as a new branch, with conflicts, after catching up, up to date. *providers.test*:
+the merge base and GitHub's merge commit, recorded. *conflicts-panel.test*,
+*git-module.test* (the tab in the mounted UI). *git-merge.spec* (Chrome, two
+browser contexts, a fake GitHub): the second save merged on the same branch,
+then a conflict chosen in the tab and saved.
 
 
 ### Configuration

@@ -32,14 +32,23 @@
  *
  * Where several rules name a property, the stricter wins: one value overall
  * over one per language.
+ *
+ * One property is settled rather than chosen: `dcterms:modified`, which
+ * la-gram stamps on the model when it renames it, moves its namespace or makes
+ * a view. Two stamps made apart are no disagreement, so it takes the later of
+ * them (`latest`) — in the room as in the merge, which reports no conflict for
+ * it.
  */
 
 import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import { NAMESPACES } from './namespaces.js';
 
-/** How many values a property takes per subject. */
-export type ValueLimit = 'one' | 'one-per-language';
+/**
+ * How many values a property takes per subject: one; one per language; or one,
+ * the latest (`xsd:dateTime` values in one form, so the greatest is the latest).
+ */
+export type ValueLimit = 'one' | 'one-per-language' | 'latest';
 
 /** Where the metamodel rules are read from: the metamodel graphs, not the model's. */
 export interface QuadSource {
@@ -73,12 +82,14 @@ export const BUILT_IN_LIMITS: ReadonlyMap<string, ValueLimit> = new Map<string, 
   [NAMESPACES.arch + 'source', 'one'],
   [NAMESPACES.arch + 'target', 'one'],
   [NAMESPACES.skos + 'prefLabel', 'one-per-language'],
+  [NAMESPACES.dcterms + 'modified', 'latest'],
 ]);
 
 const nn = (iri: string) => DataFactory.namedNode(iri) as unknown as NamedNode;
 
-/** The stricter of two limits. */
+/** The stricter of two limits; `latest` is one value too, and says how to settle it. */
 function stricter(a: ValueLimit | undefined, b: ValueLimit | undefined): ValueLimit | undefined {
+  if (a === 'latest' || b === 'latest') return 'latest';
   return a === 'one' || b === 'one' ? 'one' : (a ?? b);
 }
 
@@ -178,12 +189,12 @@ export class SingleValued {
    */
   limitOf(predicate: string, types: () => Iterable<string>): ValueLimit | undefined {
     let limit = this.everywhere.get(predicate);
-    if (limit === 'one') return limit;
+    if (limit === 'one' || limit === 'latest') return limit;
     const scoped = this.byClass.get(predicate);
     if (!scoped) return limit;
     for (const cls of this.closure(types())) {
       limit = stricter(limit, scoped.get(cls));
-      if (limit === 'one') return limit;
+      if (limit === 'one' || limit === 'latest') return limit;
     }
     return limit;
   }

@@ -6,6 +6,7 @@
  * the model clean after, File → Modules…, and stopping.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { DataFactory } from 'n3';
 import { createApp, type App } from '../../app.js';
 import { mountUi, type MountedUi } from '../../ui/mount-ui.js';
 import type { Dialogs, FormField, FormOptions, FormValues } from '../../ui/dialogs.js';
@@ -99,11 +100,12 @@ describe('the Git module in the File menu', () => {
     expect(app.isDirty()).toBe(false);
   });
 
-  it('bound now: Save to Git names where, and Save to Git as… is offered', () => {
+  it('bound now: Save to Git names where, and Save to Git as… and Update from main… are offered', () => {
     expect(entries()).toEqual([
       'git:open Open from Git… [GitHub, GitLab]',
       'git:save Save to Git [acme/arch · main]',
       'git:save-as Save to Git as… [another branch or file]',
+      'git:update Update from main… [merge another branch into main]',
     ]);
   });
 
@@ -148,6 +150,54 @@ describe('the Git module in the File menu', () => {
     const fields = vi.mocked(ui.dialogs.form).mock.calls.at(-1)![1];
     expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'Git storage', 'Modules']);
     expect(toggle).toHaveBeenCalledWith('git', false);
+  });
+
+  it('a merge’s conflicts: the Conflicts tab, with how many are left; a choice changes the model; done, the tab goes', async () => {
+    const merge = git.context.merge!;
+    const model = app.session.modelIri!;
+    const name = (label: string) => `<${model}> <http://www.w3.org/2004/02/skos/core#prefLabel> "${label}"@en .`;
+    const held = [name('Shop Floor')];
+    merge.conflicts(
+      [{ kind: 'value', subjects: [model], predicate: 'http://www.w3.org/2004/02/skos/core#prefLabel', language: 'en', held, options: { ours: held, theirs: [name('Shop Floor (theirs)')] } }],
+      { branch: 'main', commit: 'abc1234def' },
+    );
+    expect(ui.shell.moduleTabs).toEqual([{ id: 'conflicts', label: 'Conflicts' }]);
+    expect(ui.shell.bottomTab).toBe('conflicts');
+    expect(ui.shell.tabBadges['conflicts']).toBe('1');
+    expect(merge.unresolved()).toBe(1);
+
+    const panel = ui.shell.querySelector('git-conflicts')!;
+    await panel.updateComplete;
+    (panel.shadowRoot!.querySelector('button[data-side="theirs"]') as HTMLButtonElement).click();
+    expect(app.session.modelLabel()).toBe('Shop Floor (theirs)');
+    expect(merge.unresolved()).toBe(0);
+    expect(ui.shell.tabBadges['conflicts']).toBeUndefined();
+    // Changed back to mine.
+    await panel.updateComplete;
+    (panel.shadowRoot!.querySelector('button[data-side="ours"]') as HTMLButtonElement).click();
+    expect(app.session.modelLabel()).toBe('Shop Floor');
+
+    merge.clear();
+    expect(ui.shell.moduleTabs).toEqual([]);
+    expect(ui.shell.querySelector('git-conflicts')).toBeNull();
+    expect(ui.shell.bottomTab).toBe('properties');
+  });
+
+  it('another model opened: its conflicts are not shown', () => {
+    const merge = git.context.merge!;
+    merge.conflicts([{ kind: 'route', subjects: ['urn:x'], held: [], options: { ours: [], theirs: [] } }], { branch: 'main', commit: 'abc' });
+    expect(merge.unresolved()).toBe(1);
+    app.newModel('Another');
+    expect(merge.unresolved()).toBe(0);
+    expect(ui.shell.moduleTabs).toEqual([]);
+  });
+
+  it('counts the triples with a blank node, for the warning before a save', () => {
+    expect(git.context.merge!.blankNodes()).toBe(0);
+    app.components.store.addQuads([
+      DataFactory.quad(DataFactory.namedNode('urn:a'), DataFactory.namedNode('urn:p'), DataFactory.blankNode('b1')) as never,
+    ]);
+    expect(git.context.merge!.blankNodes()).toBe(1);
   });
 
   it('stopped: its entries are gone', () => {

@@ -228,7 +228,7 @@ export function shaclCountCheck(validator: RdfShaclValidator, shapes: Quad[], co
       const { s, p } = parseLine(line);
       if (p === RDF_TYPE && named.has(s) && !nodes.has(s)) near.push(line);
     }
-    const data = new N3Store([...parseSnapshot(near), ...context] as never[]);
+    const data = new N3Store([...quadsOfSnapshot(near), ...context] as never[]);
     const report = validator.validateNodes(data, shapes, focus.map(termOf));
     const findings: CountFinding[] = [];
     for (const result of report.results) {
@@ -268,7 +268,8 @@ type Unit =
   | { kind: 'connection'; subject: string }
   /** A concept's types. */
   | { kind: 'types'; subject: string }
-  | { kind: 'value'; subject: string; predicate: string; language?: string };
+  /** `latest`: changed differently on each side, the later value is taken (`dcterms:modified`). */
+  | { kind: 'value'; subject: string; predicate: string; language?: string; latest?: boolean };
 
 /** A deletion kept for now, until the person decides. */
 interface PendingDeletion {
@@ -606,7 +607,13 @@ class ThreeWay {
     if (!this.rules.mayLimit(p)) return undefined;
     const limit = this.rules.limitOf(p, () => this.typesOf(s));
     if (!limit) return undefined;
-    return { kind: 'value', subject: s, predicate: p, ...(limit === 'one-per-language' ? { language: lang } : {}) };
+    return {
+      kind: 'value',
+      subject: s,
+      predicate: p,
+      ...(limit === 'one-per-language' ? { language: lang } : {}),
+      ...(limit === 'latest' ? { latest: true } : {}),
+    };
   }
 
   /**
@@ -738,6 +745,7 @@ class ThreeWay {
     let result: string[];
     if (sameList(ours, base)) result = theirs;
     else if (sameList(theirs, base) || sameList(ours, theirs)) result = ours;
+    else if (unit.kind === 'value' && unit.latest) result = latestOf(ours) >= latestOf(theirs) ? ours : theirs;
     else {
       result = base;
       const predicate =
@@ -793,8 +801,9 @@ class ThreeWay {
 
   /**
    * What `side` drew at a node or link it added: the lines about it, its parts,
-   * and the links it added that end at it (with their parts) — and the lines
-   * pointing at any of them.
+   * and the links it added that end at it (with their parts) — the lines
+   * pointing at any of them, and the `arch:inView` it added for what they draw
+   * there (`view-manager.ts` writes it with the node or link).
    */
   private drawnAt(side: MergeSide, element: string): string[] {
     const scope = new Set([element]);
@@ -814,7 +823,16 @@ class ThreeWay {
         if (reach.length > 0) grew = true;
       }
     }
-    return this.added[side].filter((line) => this.nodesOf(line).some((n) => scope.has(n))).sort();
+    // What they draw, and where: an `arch:inView` the side added for it goes with them.
+    const shown = new Set<string>();
+    for (const line of this.added[side]) {
+      const { s, p, o } = this.parse(line);
+      if (scope.has(s) && (p === IRI.archElement || p === IRI.archRelationship)) {
+        const view = this.side[side].of(s).find((l) => this.parse(l).p === IRI.visView);
+        if (view) shown.add(`${o} <${IRI.inView}> ${this.parse(view).o} .`);
+      }
+    }
+    return this.added[side].filter((line) => shown.has(line) || this.nodesOf(line).some((n) => scope.has(n))).sort();
   }
 
   // ── Count limits ─────────────────────────────────────────────────────
@@ -911,10 +929,18 @@ function termOf(term: string): Term {
   return (term.startsWith('_:') ? DataFactory.blankNode(term.slice(2)) : DataFactory.namedNode(iriOf(term))) as unknown as Term;
 }
 
-/** Snapshot lines back as quads, blank-node labels as they are. */
-function parseSnapshot(lines: readonly string[]): Quad[] {
+/**
+ * Snapshot lines back as quads, blank-node labels as they are — so they match
+ * the quads of the store the snapshot was taken from.
+ */
+export function quadsOfSnapshot(lines: readonly string[]): Quad[] {
   if (lines.length === 0) return [];
   return new N3Parser({ format: 'N-Triples', blankNodePrefix: '' }).parse(lines.join('\n')) as unknown as Quad[];
+}
+
+/** A side's latest value: its greatest line — `xsd:dateTime`s in one form sort as they fall in time. */
+function latestOf(lines: readonly string[]): string {
+  return lines.reduce((max, line) => (line > max ? line : max), '');
 }
 
 /** Which of a relationship's ends two connections differ in (its type when neither). */

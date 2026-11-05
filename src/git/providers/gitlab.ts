@@ -13,6 +13,11 @@
  * | commit | `POST /projects/{id}/repository/commits` — one `create` or `update` action with `last_commit_id` = the version replaced (400 when the file moved on); `start_sha` / `start_branch` for a new branch. The commit is the file's new version |
  * | files | `GET /projects/{id}/repository/tree?recursive=true&ref=`, paged |
  * | branches | `GET /projects/{id}/repository/branches`, paged |
+ * | merge base | `GET /projects/{id}/repository/merge_base?refs[]=a&refs[]=b` → `id` |
+ *
+ * No merge commit: a commit made through the REST API has one parent, so
+ * *Update from main* commits to a new branch started from the other one's head
+ * instead (`git-merge.ts`).
  *
  * The Commits API rather than the Repository Files API's `PUT`: it answers with
  * the commit, which is the file's version from then on.
@@ -94,5 +99,14 @@ export class GitLabProvider extends RestProvider {
   async listBranches(): Promise<string[]> {
     const { items } = await this.paged<{ name: string }>(`/projects/${this.project}/repository/branches`, `the project ${this.link.repository}`);
     return items.map((b) => b.name);
+  }
+
+  async mergeBase(a: string, b: string): Promise<string> {
+    const commit = await this.request<{ id: string }>(
+      'GET',
+      `/projects/${this.project}/repository/merge_base?refs%5B%5D=${encodeURIComponent(a)}&refs%5B%5D=${encodeURIComponent(b)}`,
+      `the commits ${a.slice(0, 8)} and ${b.slice(0, 8)}`,
+    );
+    return commit!.id;
   }
 }

@@ -111,7 +111,7 @@ import type {
   ExplorerDragDetail,
   ExplorerMoveDetail,
 } from './panels/model-explorer.js';
-import type { ValidationPanel, ValidationNavigateDetail } from './panels/validation-panel.js';
+import type { ValidationPanel, ValidationNavigateDetail, FocusDescription } from './panels/validation-panel.js';
 import type { SparqlEditor } from './panels/sparql-editor.js';
 import type { TypeGuidePanel } from './panels/type-guide-panel.js';
 import type { CatalogView, CatalogSelectDetail } from './views/catalog-view.js';
@@ -234,10 +234,29 @@ export interface MountedUi {
   setModuleSwitches(list: () => ModuleSwitch[], toggle: (id: string, on: boolean) => Promise<void>): void;
   /** A part's own section of File › Settings…. Returns what takes it away. */
   addSettingsSection(section: SettingsSection): () => void;
+  /**
+   * A module's tab in the bottom panel, after la-gram's own: `element` is shown
+   * in it. Returns what shows it, sets its badge, and takes it away.
+   */
+  addBottomTab(tab: { id: string; label: string; element: HTMLElement }): BottomTabHandle;
+  /** A concept as the model tree and the Validation tab name it: its name, its type in words. */
+  describeConcept(iri: string): FocusDescription;
+  /** A property as the Properties tab names it (`Name`, `Documentation`). */
+  propertyName(predicate: string): string;
   /** Refresh every panel from the store. */
   refresh(): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
+}
+
+/** A module's tab of the bottom panel ({@link MountedUi.addBottomTab}). */
+export interface BottomTabHandle {
+  /** Open it, unfolding the panel. */
+  show(): void;
+  /** A small count on it; none for `undefined`. */
+  setBadge(text: string | undefined): void;
+  /** Take it away (another tab opens if it was open). */
+  remove(): void;
 }
 
 /** A part's section of File › Settings… ({@link MountedUi.addSettingsSection}, Req 19.5). */
@@ -1817,6 +1836,26 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     moduleSwitches = { list, toggle };
     updateSettingsMenu();
   };
+  const addBottomTab = ({ id, label, element }: { id: string; label: string; element: HTMLElement }): BottomTabHandle => {
+    element.slot = id;
+    shell.appendChild(element);
+    shell.moduleTabs = [...shell.moduleTabs.filter((t) => t.id !== id), { id, label }];
+    const setBadge = (text: string | undefined): void => {
+      const { [id]: _old, ...others } = shell.tabBadges;
+      shell.tabBadges = text ? { ...others, [id]: text } : others;
+    };
+    return {
+      show: () => shell.showTab(id),
+      setBadge,
+      remove: () => {
+        setBadge(undefined);
+        element.remove();
+        shell.moduleTabs = shell.moduleTabs.filter((t) => t.id !== id);
+        if (shell.bottomTab === id) shell.bottomTab = 'properties';
+      },
+    };
+  };
+
   const addSettingsSection = (section: SettingsSection): (() => void) => {
     settingsSections.set(section.id, section);
     updateSettingsMenu();
@@ -2227,7 +2266,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const viewIri = session.activeViewIri;
     validationPanel.viewIris = viewIri ? viewMembers(store, viewIri) : undefined;
     const violations = validationPanel.shownResults.filter((r) => r.severity === 'Violation').length;
-    shell.tabBadges = violations > 0 ? { validation: String(violations) } : {};
+    const { validation: _shown, ...others } = shell.tabBadges;
+    shell.tabBadges = violations > 0 ? { ...others, validation: String(violations) } : others;
   };
   const onValidationScopeChange = (): void => scopeValidation();
 
@@ -2560,6 +2600,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     addFileMenu,
     setModuleSwitches,
     addSettingsSection,
+    addBottomTab,
+    describeConcept: (iri) => validationPanel.describe?.(iri) ?? { name: labelOf(store, iri) },
+    propertyName: (predicate) => fieldName(predicate, undefined, propertyPanel.nameOf),
     refresh,
     dispose,
   };

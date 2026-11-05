@@ -1,7 +1,8 @@
 # Both place CRM on the diagram, each with a node of its own, and theirs draws a
 # new flow from CRM to Portal at its node. The canvas shows one node per element
 # and diagram, so the merged model keeps one: m:node-crm-a, whose IRI sorts
-# first (ours). Theirs' node is offered, with the link theirs drew at it.
+# first (ours). Theirs' node is offered, with the link theirs drew at it — and
+# the flow's arch:inView, written with that link, goes with it.
 
 @prefix m:      <https://example.org/m/> .
 @prefix ex:     <https://example.org/vocab#> .
@@ -35,7 +36,8 @@
         arch:source m:crm ;
         arch:target m:portal ;
         rdf:reifies <<( m:crm am4:flowsTo m:portal )>> ;
-        arch:inModel m:model .
+        arch:inModel m:model ;
+        arch:inView m:view .
     m:link-flow a vis:Link ;
         vis:view m:view ;
         vis:archRelationship m:flow ;
