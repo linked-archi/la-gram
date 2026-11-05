@@ -164,6 +164,7 @@ In three parts, each reviewed before the next.
   - [x] Docs: README, design, tool spec §5.11
 
 ### Task 21: The History tab shows the Git history too — recorded (2026-10-23), not started
+Part of Phase 2 of the Git collaboration plan (2026-11-05), `.agents/tasks/git-collaboration/tasks.md`: a commit's changes are shown by element there, with the same diff as a branch compared with main.
 When the model is bound to a file in Git (Req 18.8), the History tab lists that file's commits from the repository beside the local checkpoints, so History is the one place for a model's versions: Git commits for what is shared and reviewed, checkpoints for quick points between Git saves.
 - [ ] Providers: a file's commits — GitHub `GET /repos/{o}/{r}/commits?path=&sha={branch}`, GitLab `GET /projects/{id}/repository/commits?path=&ref_name={branch}` (paged; author, date, message, web link) — and the file at a commit (`readFile(commit, path)`, there)
 - [ ] The tab: two kinds of entry, told apart (a Git commit with its author, short id and a link to it on the host; a checkpoint as now), newest first; Git's read when the tab opens and on demand, not polled; the token as Save and Open use it (a public repository without one)
@@ -300,7 +301,15 @@ Agreed order; relationship visuals come first.
 - [x] **Move a relationship's name** — done (2026-11-05): drag a name off the middle of its line, kept in the view as an `arch-vis:LabelNode` on the link, following the line. See the change log.
 - [ ] **Converter relationships grouped as "ModelConcept"** — recorded (2026-11-04), not started: in the tree by type, every relationship of a converter model sits in one group, *ModelConcept*. The converters type a relationship `arch:QualifiedRelationship`, `arch:ModelConcept` and its own class, and `summarize` (`model-queries.ts`) takes the first type that is not `arch:QualifiedRelationship` as its type — here the core's `arch:ModelConcept`, not the relationship's class. It should take the most specific relationship class, as elements do.
 - [ ] **A file with several models** — recorded (2026-11-04), not started: opening a file that holds more than one `arch:Model` — the BPMN converter's ArchiSurance example has three processes, the PlantUML one five diagrams — merges them into one: the tree's root holds every model's concepts and is named after one of them, not always the one la-gram opened as the model. Pick one model, or show each.
-- [ ] **The History tab shows the Git history too** (Task 21) — recorded (2026-10-23): for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes and *Open this version*.
+- [ ] **Derivation in la-gram, and derived relationships in the matrix** — recorded (2026-11-05), not started. la-gram would run meta's valid ArchiMate derivation rules (DR1–DR8) itself, so that a matrix of applications can show the relationships that run through their functions, services and parts. **Derivation runs only when the modeller asks for it, never on its own.** A probe ran the rules in la-gram's Oxigraph with the same results and, with two rewrites in a working copy, 9,099 relationships in 14 s. The brief, the findings and the decisions to take are in `.agents/tasks/derivation-in-la-gram/tasks.md`.
+- [ ] **Git collaboration: merge, review, CI** — recorded (2026-11-05), not started. On GitHub, GitLab.com and self-managed GitLab:
+  - la-gram merges a conflicting save with the newer version, triple by triple (*Merge with the newer version*, *Update from main*), and shows the conflicts that need a choice;
+  - an element-level diff for review, and *Open merge request*;
+  - a CI tool built from la-gram's engine, for parsing, the canonical form, SHACL including `sh:sparql`, and dangling references;
+  - a shared room committed to Git by the person who shares it.
+
+  Planned from `docs/git-collaboration-spec.md`, with its corrections; the plan is in `.agents/tasks/git-collaboration/tasks.md`.
+- [ ] **The History tab shows the Git history too** (Task 21) — recorded (2026-10-23), now Phase 2 of the Git collaboration plan: for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes and *Open this version*.
 - [x] **Configuration** (Task 20, Req 19) — done (2026-10-19): the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). See the change log.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
 

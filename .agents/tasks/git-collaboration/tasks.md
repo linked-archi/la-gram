@@ -1,0 +1,204 @@
+# Pending: Git collaboration (merge, review, CI, shared rooms)
+
+Recorded 2026-11-05. Nothing here has been started. la-gram was at `3ca4759`.
+
+**Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in
+`docs/git-collaboration/reference/`. They were copied in by the user and aren't committed yet. This plan
+keeps the spec's ideas where they hold for la-gram, and corrects or reshapes the rest (see *Corrections to
+the spec*). Where the two disagree, this plan applies. The spec's component ids (C1–C8) are cited so the
+two can be compared.
+
+## Decisions taken (2026-11-05)
+
+- **Hosts:** GitHub, GitLab.com and self-managed GitLab, all three supported.
+  - Only a self-managed GitLab whose administrator configures the driver on its Git servers (Gitaly) can run
+    a custom merge driver when a merge request is merged; GitHub and GitLab.com never can.
+  - So **la-gram's own merge is the main path everywhere**, and CI is the check that holds everywhere.
+  - A merge driver configured in Gitaly is an optional extra for self-managed GitLab.
+- **The CI tool lives in la-gram's repository**, as a package built from the same source as the editor, so
+  that what CI checks can't drift from what la-gram writes.
+- **Shared rooms:** the person who shares a room commits it to Git from their own la-gram, with their token
+  and as the author. A server that commits for the room comes only after the room server has
+  authentication.
+- **Deferred:**
+  - history committed into the repository by hooks (C6) and a SPARQL server for any commit (C7), see
+    *Deferred*;
+  - splitting a model across files;
+  - the Flexo comparison harness.
+
+## Hard constraints
+
+- Never commit, stage, stash or push. Run `git status` first, and never revert changes you didn't make.
+- Tokens:
+  - Tokens follow Req 18.5: sent only to their host, and never in the model, a file, the URL, the room, a log
+    or an error message.
+  - No token is ever configured on the room server.
+  - Tests use no real tokens or real repositories; use mocked providers, as `src/git/__tests__` does.
+- Names of new vocabulary, menus and packages are the user's decisions; ask before choosing them.
+- Finish each change with tests, then docs (`README.md`, and the requirements, design and tasks in
+  `.kiro/specs/la-gram/`, including the change log), then `npm run build`, then tell the user to reload.
+
+## What exists today (verified 2026-11-05)
+
+- **Identity:** IRIs are minted once and kept: `{ns}element-{uuid}` and the like (`src/rdf-engine/iri.ts`).
+- **Serialisation:**
+  - The output is deterministic (`compareQuads`, Req 9.12).
+  - Formats that hold graphs carry the DD-15 split (`partitionModel`, `src/import-export/model-io.ts`).
+  - The default Git format is Turtle, one file per model (Req 18.6).
+- **Save to Git:**
+  - A save names the version of the file it replaces (`expectedVersion`).
+  - On a conflict la-gram offers only a new branch, overwrite, or open the newer version (`resolveConflict`,
+    `src/git/git-save.ts:215`).
+  - The binding keeps the file's version and the commit it was opened at (`binding.commit`, used as
+    `startFrom`).
+- **Providers** (`src/git/providers/provider.ts`): `readFile(ref, path)` (line 65) reads a file at any
+  commit, so the merge base can be fetched. There are also `branchHead`, `defaultBranch` and `commitFile`
+  (one file per commit).
+- **Single values in the room:** `SINGLE_VALUED` (`src/collab/rdf-yjs-binding.ts:59`) lists bounds, point
+  coordinates, link ends, list cells (`rdf:first`/`rdf:rest`), `arch:source`/`arch:target`, and
+  `skos:prefLabel` (one per language).
+- **Routes:** a route is an `rdf:List` whose cells are named by position, `m:link-…-points-<i>` and
+  `m:link-…-p<i>` (`src/model-manager/view-manager.ts:633`).
+- **Local history:** `snapshotOf` and `diffSnapshots` compare canonical N-Triples
+  (`src/model-manager/version-history.ts:121`, `:134`). Checkpoints are kept in IndexedDB.
+- **SHACL:** the validator skips `sh:sparql` constraints (`src/rdf-engine/shacl-validator.ts:25`), so those
+  rules run nowhere today.
+- **The room server** (`server/collab-server.mjs`) has no authentication.
+
+## Corrections to the spec
+
+1. **Hosted merges don't run custom merge drivers.**
+   - §9 step 7 and C3 assume GitLab runs `merge=rdf` and that a clean filter makes the canonical form
+     "impossible to bypass".
+   - GitHub and GitLab.com never run custom drivers, and self-managed GitLab does only if an administrator
+     configures them in Gitaly.
+   - A clean filter runs only where it's installed.
+   - So the merge lives in la-gram (Phase 1), and CI checks the canonical form (Phase 3).
+2. **The reference merge (`rdf_merge.py`) doesn't match la-gram's model:**
+   - It looks for geometry predicates that don't exist, `core-vis#x`, `width` and `point` (line 236);
+     la-gram's are `bounds-x/-y/-w/-h` and `point-x/-y`.
+   - It checks positions only for TriG files (line 223), but la-gram saves Turtle, with geometry, by default.
+   - For TriG it merges everything into the default graph (lines 147–149), which loses the DD-15 graphs.
+   - It doesn't treat labels as single-valued per language, although the spec's own acceptance test expects
+     it.
+3. **Routes must merge as a whole.** Merged triple by triple, two reroutes of one line make a route neither
+   person drew. The same goes for a node's bounds.
+4. **Deleted concepts left referenced.** The delete-versus-change check (line 156) looks only at the
+   element's own triples. A relationship end, view node or folder entry added on the other side that points
+   to the deleted concept would be left pointing at nothing.
+5. **The room server holding a token (C8, DR-9):** with no authentication, it would break Req 18.5, and
+   every commit would be the server's rather than its author's.
+6. **History committed into the repository (C6):**
+   - Hooks don't run for la-gram's commits (they go through the hosts' APIs) nor for merges on the host.
+   - Each record needs another commit, and it duplicates Git.
+7. **Smaller points:**
+   - New vocabulary in meta's namespace (`https://meta.linked.archi/mms#`) is the user's naming decision;
+     prefer PROV-O, as meta's DD-27 does.
+   - The examples use `model.linked.archi`, not a reserved example domain; change that before publishing.
+   - la-gram's browser tests run on Vitest with Playwright, not on Playwright's own test runner.
+
+## Phase 1: merging in la-gram (C2 and C4, in TypeScript)
+
+- [ ] **Single values, defined once:** move `SINGLE_VALUED` out of the room binding into a module the room
+  and the merge share. Add the loaded metamodels' `owl:FunctionalProperty` and `sh:maxCount 1` paths, and
+  make labels single-valued per language (`sh:uniqueLang`, `skos:prefLabel`).
+- [ ] **The merge module:** a three-way merge over canonical N-Triples (base, ours, theirs), reusing
+  `snapshotOf` and `diffSnapshots`.
+  - Changes that don't touch each other are combined.
+  - Conflicts are returned as data, never written into a file as `<<<<<<<` markers. Their kinds:
+    - a single value changed differently on each side;
+    - a concept deleted on one side and changed or referred to on the other, including references to it
+      added on the other side;
+    - a node's bounds or a line's route changed on both sides, treated as one unit each;
+    - a shape's count limit broken by the combined result, checked with the in-app SHACL validator.
+- [ ] **Blank nodes:** give imported blank nodes IRIs on import, or warn before a Git save of a model that
+  has them. (Decide which.)
+- [ ] ***Merge with the newer version***, offered first when a save conflicts:
+  - the base is the file at `binding.commit`, theirs is the branch head, and ours is the model;
+  - with no conflicts, commit with `expectedVersion` set to the head's version, merging again if the branch
+    moves on in the meantime;
+  - with conflicts, load the result and open a *Conflicts* panel, modelled on the Validation tab, showing
+    both values to pick from. Save again once they're resolved.
+- [ ] ***Update from main*** (or from any branch): merge another branch into the bound one with the same
+  merge. On every host, this makes a merge request mergeable without a server-side driver.
+- [ ] **Tests:**
+  - a fixture for each kind of conflict;
+  - fast-check properties: the result doesn't depend on which side is ours, merging a model with itself
+    changes nothing, and changes that don't touch each other never conflict;
+  - a browser test with two clients saving the same bound file.
+- [ ] **Measure:** time the merge on a large model, made up or real but only with the user's agreement. If
+  it is over about 1 s, consider splitting the model into its DD-15 graphs as files.
+
+## Phase 2: review in la-gram
+
+- [ ] **A diff by element** (from the spec's `semantic_diff.py`): added, removed and changed concepts, single
+  values shown as old → new. For a branch compared with main, and for a commit compared with its parent.
+- [ ] **Task 21:** the History tab shows the file's Git commits beside the checkpoints, with their changes in
+  this diff and *Open this version*. Its sub-tasks are in `.kiro/specs/la-gram/tasks.md` (Task 21).
+- [ ] ***Open merge request*** after saving to a branch:
+  - GitHub: `POST /repos/{owner}/{repo}/pulls`. GitLab: `POST /projects/:id/merge_requests`.
+  - A provider method for each host, with the result's link shown.
+  - Req 18.4 gains the scopes: on GitHub *Pull requests: read and write*; on GitLab, `api` already covers it.
+
+## Phase 3: CI as the safety net (C5, and C1's checker)
+
+- [ ] **A command-line tool** in la-gram's repository, built from la-gram's engine (package name is the user's
+  call). It checks:
+  - that every model file parses;
+  - that each file is exactly as la-gram writes it, which replaces the clean filter as the enforcement;
+  - SHACL against the model's metamodel shapes, with the same messages as the editor;
+  - the `sh:sparql` constraints, run with Oxigraph, closing the gap in the in-app validator;
+  - that no relationship end, view node or folder entry points to something missing.
+- [ ] **The diff by element** (Phase 2's), posted as a comment on the merge or pull request.
+- [ ] **CI templates for both hosts:** a GitLab CI template, which also serves self-managed GitLab, and a
+  GitHub Actions workflow.
+  - GitHub Actions' own token can comment on a pull request.
+  - On GitLab, posting a note needs a project or group access token in a masked CI variable, since the job
+    token can't.
+- [ ] **A local merge driver:** the same merge for people who use `git` on the command line, set up by a
+  documented init script. For self-managed GitLab, document how an administrator configures it in Gitaly,
+  as an option and never a requirement.
+
+## Phase 4: shared rooms and branches (C8, reshaped)
+
+- [ ] A room bound to a branch: the person who shared it saves the room's model to Git from their la-gram,
+  with Phase 1's merge.
+  - Others in the room see that it was saved, with the commit.
+  - No token goes to the server or to the other participants.
+- [ ] ***Update from main*** in a room: the merge's result applies to the shared model as one change, and its
+  conflicts are shown to everyone in the room.
+- [ ] Revisit a server that commits for the room only after the room server has authentication. That needs a
+  design of its own: whose identity, and how authorship is kept.
+
+## Deferred
+
+- **C6, history committed into the repository:** if queryable history is needed, CI publishes each commit's
+  snapshot or delta to a store as an artefact, never as a commit.
+- **C7, SPARQL at any commit:** la-gram opens any commit (Task 21) and queries it in its SPARQL tab. A server
+  only if tools outside la-gram need it.
+- **Splitting a model across files (DR-4):** one file per model until Phase 1's measurements say otherwise.
+  Then the DD-15 three-file split first.
+- **The Flexo comparison (`pilot_harness.py`):** only if Flexo becomes a real option.
+- **Optional:** a Turtle layout that keeps each subject's final `.` on a line of its own, so that adding a
+  triple doesn't change its neighbour's line. This gives fewer text conflicts where the host merges as
+  text, but every saved file changes once.
+
+## Still to decide
+
+- The menu names: *Merge with the newer version*, *Update from main*, *Open merge request*.
+- Blank nodes: give them IRIs on import, or warn.
+- The CI tool's package name, and where its templates are published.
+- Whether `docs/git-collaboration-spec.md` and `docs/git-collaboration/` are committed as they are, or with a
+  note pointing to the corrections above.
+
+## Done when (per phase)
+
+- **Phase 1:** two la-gram clients saving the same bound file merge without a new branch on GitHub, GitLab.com
+  and self-managed GitLab (mocked providers). A real conflict is resolved in the panel and saved. All
+  fixtures and property tests pass.
+- **Phase 2:** a branch's and a commit's changes are shown by element, and a merge or pull request is opened
+  on both host kinds.
+- **Phase 3:** a merge or pull request with a SHACL violation, a non-canonical file or a dangling reference
+  fails in CI on both hosts, and a good one gets the diff as a comment.
+- **Phase 4:** a room's save commits as the person who shared it, and *Update from main* reaches everyone in
+  the room.
