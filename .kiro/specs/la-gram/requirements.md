@@ -252,9 +252,12 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 4. Double-click opens a view; single click selects
 5. Right-click menus:
    - **Model**: Rename, Model settings (name, namespace, prefix — also on double-click), New diagram / catalog / matrix
-   - **View**: Open, Rename, Set viewpoint, Duplicate, Delete (concepts stay)
-   - **Element**: Select on canvas / Add to current view, Rename, Delete from model
-   - **Relationship**: Select on canvas / Add to current view, Show source, Show target, Rename, Delete from model
+   - **Group** (Views, Elements, Relationships): New folder… (10.13)
+   - **Folder**: New folder…, Rename…, Move to folder…, Delete folder (keeps its contents) (10.13–10.14)
+   - **View**: Open, Rename, Set viewpoint, Duplicate, Move to folder… (once the model has folders, 10.14), Delete (concepts stay)
+   - **Element**: Select on canvas / Add to current view, Rename, Move to folder… (likewise), Delete from model
+   - **Relationship**: Select on canvas / Add to current view, Show source, Show target, Rename, Move to folder… (likewise), Delete from model
+   - **One of several selected** of a group: *Move N … to folder…* alone (10.14)
 6. Selecting on the canvas reveals the concept in the tree
 7. Every concept is in the tree regardless of the open view; dragging one onto the canvas places it (and draws its relationships to what is already placed)
 8. Views are created (with a viewpoint), renamed and deleted from the tree or the toolbar
@@ -283,7 +286,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 6. Panels hideable — the model tree, the palette and the RDF panel; the bottom panel folds to its tabs and maximizes; the RDF panel maximizes too (⤢ in its header; Esc or ⤡ restores; one panel at a time)
 7. Panels resizable with persisted sizes — the model tree by its right edge, the palette and the RDF panel by their left edge, the bottom panel by its top edge (remembered per browser; the canvas keeps at least 240 × 160 px)
 8. Selecting on the canvas updates the property panel and the tree
-9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, a relationship's change type) and a **right-click menu** on elements and relationships, at the pointer — on a line wherever it is clicked, its handles included: Rename (F2) or a relationship's Rename…, Change type… (Req 3.11) or Change relationship type…, Append…; Properties, Show in model tree, Show relationship graph, Ask about this element… (the questions taking the element, in the SPARQL Query tab) or a relationship's Show source and Show target; Copy IRI; Delete from view, Delete from model… On the empty canvas, the open view's: Rename view…, Set viewpoint…, Duplicate view; Select all, Zoom to fit; View properties, Show in model tree; Copy IRI; Delete view…
+9. Canvas context actions are diagram-js's context pad (delete from view, delete from model, connect, append, a relationship's change type) and a **right-click menu** on elements and relationships, at the pointer — on a line wherever it is clicked, its handles included: Rename (F2) or a relationship's Rename…, Change type… (Req 3.11) or Change relationship type…, Move to folder… (once the model has folders, Req 10.14), Append…; Properties, Show in model tree, Show relationship graph, Ask about this element… (the questions taking the element, in the SPARQL Query tab) or a relationship's Show source and Show target; Copy IRI; Delete from view, Delete from model… On the empty canvas, the open view's: Rename view…, Set viewpoint…, Duplicate view; Select all, Zoom to fit; View properties, Show in model tree; Copy IRI; Delete view… On one of several selected elements (or relationships), when the model has folders, the selection is kept and the menu is *Move N elements to folder…* alone (Req 10.14)
 10. Keyboard: Delete, Ctrl/Cmd+Z/Y, zoom; keys typed in panel fields never reach the canvas
 11. **Back and forward between views**, as a browser does pages: every view opened — from the toolbar, the model tree, the property panel's *Appears in views*, a revealed concept — is a visit; ← and → in the toolbar (named after the view they go to) and Alt+← / Alt+→ (not in a text field) move along them, and a view comes back as it was left — its zoom, scroll and selection. Opening another view from an earlier visit drops the later ones; a deleted view is skipped; another model starts afresh
 
