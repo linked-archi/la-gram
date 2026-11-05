@@ -171,6 +171,22 @@ export function labelOf(store: RdfStore, iri: string, preferredLanguage = 'en'):
   return humanize(localName(iri));
 }
 
+/**
+ * The name the model gives `iri` — `skos:prefLabel`, then `rdfs:label`, then
+ * `dcterms:title`, in the preferred language — or `undefined` when it gives
+ * none. Read from the model graph alone, which the application's store answers
+ * from its copy in JavaScript: a relationship's name, read for every line each
+ * time a view is drawn, is never in a metamodel's graph (Task 22).
+ */
+export function modelNameOf(store: RdfStore, iri: string, preferredLanguage = 'en'): string | undefined {
+  const subject = nn(iri);
+  for (const predicate of NAMING_PREDICATES) {
+    const literals = store.getQuads(subject, predicate, null, MODEL_GRAPH).map((q) => q.object);
+    if (literals.length > 0) return preferredLiteral(literals, preferredLanguage).value;
+  }
+  return undefined;
+}
+
 /** Of a name's literals, the one in the preferred language, else one without a language, else the first. */
 function preferredLiteral<T extends { value: string }>(literals: readonly T[], preferredLanguage: string): T {
   return (

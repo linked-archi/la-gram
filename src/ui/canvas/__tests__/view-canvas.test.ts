@@ -29,7 +29,7 @@ import { OxigraphElementManager } from '../../../model-manager/element-manager.j
 import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
 import { OxigraphViewManager } from '../../../model-manager/view-manager.js';
 import { ModelSession } from '../../../model-manager/model-session.js';
-import { labelOf, modelQuads } from '../../../model-manager/model-queries.js';
+import { labelOf, modelNameOf, modelQuads } from '../../../model-manager/model-queries.js';
 import { EventBus } from '../../event-bus.js';
 import { DiagramCanvas, OUTSIDE_VIEWPOINT_MARKER } from '../diagram-canvas.js';
 import { buildClassClosure } from '../relationship-resolution.js';
@@ -89,7 +89,7 @@ function mount() {
     describeElement: (iri) => {
       const types = store.getQuads(nn(iri), nn(NAMESPACES.rdf + 'type')).map((q) => q.object.value);
       const typeIri = types.find((t) => t !== NAMESPACES.arch + 'QualifiedRelationship') ?? types[0];
-      return { typeIri, label: labelOf(store, iri) };
+      return { typeIri, label: labelOf(store, iri), modelName: modelNameOf(store, iri) };
     },
     confirmDeleteFromModel: confirm,
   });
@@ -574,5 +574,84 @@ describe('a relationship drawn onto a relationship', () => {
     expect(f.views.getLinks(f.viewIri).map((l) => l.relationshipIri)).toEqual([serving]);
     expect(f.canvas.placeExisting(clerk, { x: 260, y: 327 })).toBe(true);
     expect(f.views.getLinks(f.viewIri).map((l) => l.relationshipIri)).toEqual([serving, carried]);
+  });
+});
+
+describe('a relationship’s name on its line', () => {
+  const PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+
+  it('is drawn when names are shown, follows a rename made elsewhere, and is renamed and removed on the line, undoably', () => {
+    const f = mount();
+    const web = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web' }).value;
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: api, targetIri: web }).iri;
+    const name = (value: string) => DataFactory.quad(nn(serving), nn(PREF_LABEL), DataFactory.literal(value, 'en'));
+    f.store.addQuads([name('Serves pages') as never]);
+    f.views.addElementToView(f.viewIri, web, { x: 0, y: 0, width: 120, height: 55 });
+    f.views.addElementToView(f.viewIri, api, { x: 400, y: 0, width: 120, height: 55 });
+    f.views.addRelationshipToView(f.viewIri, serving);
+    f.canvas.showView(f.viewIri);
+    const drawnName = () =>
+      [...(f.container.querySelector(`[data-element-id="${serving}"]`)?.querySelectorAll('.la-connection-label tspan') ?? [])]
+        .map((t) => t.textContent)
+        .join(' ');
+
+    // Hidden until switched on.
+    expect(f.canvas.relationshipNamesShown()).toBe(false);
+    expect(drawnName()).toBe('');
+    f.canvas.setRelationshipNamesShown(true);
+    expect(drawnName()).toBe('Serves pages');
+    // The export's crop takes the name in.
+    expect(f.canvas.toSvg()).toContain('Serves pages');
+
+    // Renamed elsewhere — the property panel, the model tree's dialog, a collaborator.
+    f.store.removeQuads([name('Serves pages') as never]);
+    f.store.addQuads([name('Serves all pages') as never]);
+    f.canvas.syncFromStore();
+    expect(drawnName()).toBe('Serves all pages');
+
+    // Renamed on the line: the box opens with the name in it.
+    const connection = f.service<{ get(id: string): unknown }>('elementRegistry').get(serving);
+    const directEditing = f.service<{ activate(e: unknown): boolean; complete(): void; isActive(): boolean }>('directEditing');
+    const typeIn = (current: string, text: string) => {
+      expect(directEditing.activate(connection)).toBe(true);
+      const box = f.container.querySelector('.djs-direct-editing-content') as HTMLElement & { innerText: string };
+      expect(box.innerText).toBe(current);
+      box.innerText = text;
+      directEditing.complete();
+    };
+    typeIn('Serves all pages', 'Serves the web');
+    expect(modelNameOf(f.store, serving)).toBe('Serves the web');
+    expect(drawnName()).toBe('Serves the web');
+    f.commandStack.undo();
+    expect(modelNameOf(f.store, serving)).toBe('Serves all pages');
+    expect(drawnName()).toBe('Serves all pages');
+    f.commandStack.redo();
+    expect(drawnName()).toBe('Serves the web');
+
+    // Emptied: the name is removed; undo brings it back.
+    typeIn('Serves the web', '');
+    expect(modelNameOf(f.store, serving)).toBeUndefined();
+    expect(drawnName()).toBe('');
+    f.commandStack.undo();
+    expect(modelNameOf(f.store, serving)).toBe('Serves the web');
+    expect(drawnName()).toBe('Serves the web');
+
+    // Switched off: gone from the line, kept in the model.
+    f.canvas.setRelationshipNamesShown(false);
+    expect(drawnName()).toBe('');
+    expect(modelNameOf(f.store, serving)).toBe('Serves the web');
+  });
+
+  it('is read from the model alone', () => {
+    const f = mount();
+    const web = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web' }).value;
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: api, targetIri: web }).iri;
+    const elsewhere = nn('https://example.org/some-graph');
+    f.store.addQuads([DataFactory.quad(nn(serving), nn(PREF_LABEL), DataFactory.literal('From another graph', 'en'), elsewhere as never) as never]);
+    expect(modelNameOf(f.store, serving)).toBeUndefined();
+    expect(labelOf(f.store, serving)).toBe('From another graph');
+    f.store.removeQuads(f.store.getQuads(null, null, null, elsewhere));
   });
 });

@@ -39,6 +39,16 @@
  * glyph, which the ArchiMate notation never asks for: the guide draws the badge
  * as published. The trade-off is that a 404 is only visible at load time, so an
  * `error` listener removes the badge node when the browser reports one.
+ *
+ * ## A relationship's name
+ *
+ * Drawn only when {@link RenderOptions.relationshipNames} says so (the canvas
+ * toolbar's switch, off by default) and the relationship has a name of its
+ * own: centred on the middle of its route, wrapped as a shape's name is, on a
+ * white box so the line stops at the name — or just under the derivation
+ * badge, which sits on that middle. {@link connectionLabelLayout} is
+ * the one place the geometry is worked out: the renaming text box and the
+ * export's crop read it too.
  */
 
 // diagram-js ships JSDoc-generated declarations alongside its ESM source; the
@@ -71,10 +81,81 @@ import {
   type Box,
   svgEl,
   type DecorationEnd,
+  wrapLabel,
 } from './notation-shapes.js';
 
 /** Priority above diagram-js's DefaultRenderer (1) so this one wins. */
 const RENDER_PRIORITY = 1500;
+
+/** Radius of the D/P badge on a derived relationship's line. */
+const DERIVATION_BADGE_RADIUS = 7;
+
+/** Room around a relationship's name: between it and the badge above it, and around its lines. */
+const CONNECTION_LABEL_GAP = 2;
+
+/** What the renderer draws beyond the notation; the canvas changes it, then redraws. */
+export interface RenderOptions {
+  /**
+   * Draw a relationship's name on its line. Off by default: a view reads its
+   * relationships from their lines' notation, and names on all of them crowd it.
+   */
+  relationshipNames: boolean;
+}
+
+/** Where a relationship's name goes. */
+export interface ConnectionLabelLayout {
+  /** The name's lines, wrapped as a shape's name is; none for an empty name. */
+  lines: string[];
+  /** Horizontal centre of the lines (`text-anchor: middle`). */
+  x: number;
+  /** Baseline of the first line. */
+  y: number;
+  lineHeight: number;
+  /** What the lines take, at least one line high: where the name is clicked and typed. */
+  box: Box;
+}
+
+/**
+ * Where a relationship's name goes on its route: centred on the route's middle,
+ * or — with a derivation badge there — its top just under the badge.
+ * `undefined` without two waypoints.
+ */
+export function connectionLabelLayout(
+  waypoints: ReadonlyArray<{ x: number; y: number }>,
+  label: string,
+  options: { badge?: boolean } = {},
+): ConnectionLabelLayout | undefined {
+  const middle = midpointOf(waypoints);
+  if (!middle) return undefined;
+  const { fontSize } = NOTATION_DEFAULTS;
+  const lineHeight = Math.round(fontSize * 1.2);
+  const lines = wrapLabel(label, NOTATION_DEFAULTS.width, fontSize);
+  // wrapLabel's own estimate of a character's width.
+  const textWidth = Math.max(0, ...lines.map((line) => line.length)) * fontSize * 0.55;
+  const width = textWidth + 2 * CONNECTION_LABEL_GAP;
+  const height = Math.max(1, lines.length) * lineHeight;
+  const top = options.badge ? middle.y + DERIVATION_BADGE_RADIUS + CONNECTION_LABEL_GAP : middle.y - height / 2;
+  return {
+    lines,
+    x: round2(middle.x),
+    y: round2(top + fontSize * 0.85),
+    lineHeight,
+    box: { x: round2(middle.x - width / 2), y: round2(top), width: round2(width), height },
+  };
+}
+
+/** The name drawn on a relationship's line: when names are shown and it has one of its own. */
+export function drawnConnectionLabel(
+  connection: Pick<RenderableElement, 'waypoints' | 'businessObject'>,
+  options: RenderOptions,
+): ConnectionLabelLayout | undefined {
+  const businessObject = connection.businessObject;
+  if (!options.relationshipNames || businessObject?.kind !== 'relationship' || !businessObject.named || !businessObject.label) {
+    return undefined;
+  }
+  const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, { badge: !!businessObject.derivation });
+  return layout && layout.lines.length > 0 ? layout : undefined;
+}
 
 /** The point halfway along a polyline, by length; `undefined` without two points. */
 export function midpointOf(waypoints: ReadonlyArray<{ x: number; y: number }>): { x: number; y: number } | undefined {
@@ -100,12 +181,12 @@ export interface RdfBusinessObject {
   iri: string;
   /** IRI of its metamodel type. */
   typeIri: string;
-  /** Display label. */
+  /** Display label. A relationship's is its own name, when it has one, and nothing else. */
   label?: string;
   /**
    * The label is the element's own name. Absent, `label` shows its type — a
    * shape too small to hold its label then draws none rather than repeat the
-   * type under every junction.
+   * type under every junction. A relationship without it has no name to draw.
    */
   named?: boolean;
   /** `element` for shapes, `relationship` for connections. */
@@ -155,12 +236,15 @@ export const RENDER_CLASSES = {
   /** A derived relationship's line, with `la-connection-valid` or `la-connection-potential`. */
   derivedConnection: 'la-connection-derived',
   derivationBadge: 'la-derivation-badge',
+  /** A relationship's name on its line. */
+  connectionLabel: 'la-connection-label',
 } as const;
 
 export class RdfRenderer extends BaseRenderer {
-  static $inject = ['eventBus', 'notationStyles'];
+  static $inject = ['eventBus', 'notationStyles', 'rdfRenderOptions'];
 
   private notationStyles: NotationStyleRegistry;
+  private readonly renderOptions: RenderOptions;
 
   /** Marker ids already added to the canvas `<defs>`. */
   private installedMarkers = new Set<string>();
@@ -169,10 +253,11 @@ export class RdfRenderer extends BaseRenderer {
   /** Published decoration symbols by URL: loaded, failed (`null`) or loading. */
   private symbols = new Map<string, DecorationSymbol | null | Promise<void>>();
 
-  constructor(eventBus: unknown, notationStyles: NotationStyleRegistry) {
+  constructor(eventBus: unknown, notationStyles: NotationStyleRegistry, renderOptions: RenderOptions) {
     // BaseRenderer's constructor wires the render.* listeners.
     super(eventBus as never, RENDER_PRIORITY);
     this.notationStyles = notationStyles;
+    this.renderOptions = renderOptions;
   }
 
   /** This renderer draws every element on an RDF diagram. */
@@ -419,14 +504,60 @@ export class RdfRenderer extends BaseRenderer {
 
     parentGfx.appendChild(line);
     const derivation = businessObject?.derivation;
-    if (derivation) {
+    const opacity = derivation ? (derivation === 'valid' ? '0.6' : '0.4') : undefined;
+    if (derivation && opacity) {
       // The notation's line, faded; and a badge saying what it is — the line style stays the notation's.
       line.setAttribute('class', `${RENDER_CLASSES.connection} ${RENDER_CLASSES.derivedConnection} la-connection-${derivation}`);
-      line.setAttribute('stroke-opacity', derivation === 'valid' ? '0.6' : '0.4');
+      line.setAttribute('stroke-opacity', opacity);
       line.setAttribute('data-derivation', derivation);
       this.drawDerivationBadge(parentGfx, waypoints, derivation, businessObject?.derivationRule, lineColor);
     }
+    const label = drawnConnectionLabel(connection, this.renderOptions);
+    if (label) this.drawConnectionLabel(parentGfx, label, lineColor, opacity);
     return line;
+  }
+
+  /**
+   * A relationship's name: the lines on a white box, so the route stops at the
+   * name rather than running through it — between the words too, which a halo
+   * round the letters alone leaves crossed — in the line's colour (faded as a
+   * derived line is). The halo stays for a letter wider than the box's estimate.
+   *
+   * diagram-js leaves its drawn graphics deaf to the pointer and hits a line on
+   * its stroke alone; the box, open to the pointer as an IconCentric shape's
+   * container is, lets a click or a double-click on the name reach the
+   * relationship too.
+   */
+  private drawConnectionLabel(
+    parentGfx: SVGElement,
+    layout: ConnectionLabelLayout,
+    color: string,
+    opacity: string | undefined,
+  ): void {
+    const group = svgEl('g', { class: RENDER_CLASSES.connectionLabel });
+    if (opacity) group.setAttribute('opacity', opacity);
+    const box = svgEl('rect', { ...layout.box, fill: '#ffffff', stroke: 'none' });
+    box.setAttribute('pointer-events', 'all');
+    group.appendChild(box);
+    const text = svgEl('text', {
+      x: layout.x,
+      y: layout.y,
+      'text-anchor': 'middle',
+      'font-size': NOTATION_DEFAULTS.fontSize,
+      'font-family': NOTATION_DEFAULTS.fontFamily,
+      fill: color,
+      stroke: '#ffffff',
+      'stroke-width': 3,
+      'stroke-linejoin': 'round',
+      'paint-order': 'stroke',
+    });
+    layout.lines.forEach((line, index) => {
+      const span = svgEl('tspan', { x: layout.x, dy: index === 0 ? 0 : layout.lineHeight });
+      span.textContent = line;
+      text.appendChild(span);
+    });
+    group.appendChild(text);
+    parentGfx.appendChild(group);
   }
 
   /** A small badge at the middle of a derived relationship's line: D for valid, P for potential. */
@@ -447,7 +578,7 @@ export class RdfRenderer extends BaseRenderer {
       svgEl('circle', {
         cx: middle.x,
         cy: middle.y,
-        r: 7,
+        r: DERIVATION_BADGE_RADIUS,
         fill: '#ffffff',
         stroke: lineColor,
         'stroke-width': 1,
@@ -635,6 +766,11 @@ function offset(origin: number, value: number): number {
   return Math.round((origin + value) * 100) / 100;
 }
 
+/** To two decimals, as the geometry is. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function closestSvg(node: Element | null): SVGSVGElement | null {
   let current: Element | null = node;
   while (current) {
@@ -657,16 +793,22 @@ function localName(iri: string): string {
 }
 
 /**
- * diagram-js module registering the renderer and the style registry.
+ * diagram-js module registering the renderer, the style registry and the
+ * render options.
  *
- * `notationStyles` is a `value` binding rather than a `type`, so `DiagramCanvas`
- * can keep a reference and re-index it when the palette changes.
+ * `notationStyles` and `renderOptions` are `value` bindings rather than types,
+ * so `DiagramCanvas` can keep a reference to each — re-index the styles when the
+ * palette changes, switch relationship names on and off — and redraw.
  */
-export function rdfRendererModule(notationStyles: NotationStyleRegistry): Record<string, unknown> {
+export function rdfRendererModule(
+  notationStyles: NotationStyleRegistry,
+  renderOptions: RenderOptions = { relationshipNames: false },
+): Record<string, unknown> {
   return {
     __init__: ['rdfRenderer'],
     rdfRenderer: ['type', RdfRenderer],
     notationStyles: ['value', notationStyles],
+    rdfRenderOptions: ['value', renderOptions],
   };
 }
 

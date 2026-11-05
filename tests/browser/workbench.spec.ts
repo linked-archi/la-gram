@@ -937,6 +937,93 @@ describe('renaming on the canvas', () => {
     expect(await drawn()).toBe('Front desk clerk');
     findings.push('rename on canvas: double-click/F2, Enter, Esc, undo/redo, empty refused: ok');
   }, 60_000);
+
+  it('names a relationship on its line, shows names only when switched on, and removes an emptied one, undoably', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const rel = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string, x: number) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y: 100, width: 120, height: 55 });
+        return iri;
+      };
+      const a = make('ApplicationComponent', 'Portal', 100);
+      const b = make('BusinessActor', 'Clerk', 500);
+      const r = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: a, targetIri: b, modelIri: m }).iri;
+      app.components.viewManager.addRelationshipToView(v, r);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return r as string;
+    });
+    const names = async () =>
+      page.evaluate(
+        (iri) =>
+          (window as any).__LA_GRAM_APP__.components.store
+            .getQuads({ termType: 'NamedNode', value: iri }, { termType: 'NamedNode', value: 'http://www.w3.org/2004/02/skos/core#prefLabel' })
+            .map((q: any) => `${q.object.value}@${q.object.language}`) as string[],
+        rel,
+      );
+    const drawn = async () =>
+      (await page.locator(`.djs-connection[data-element-id="${rel}"] .la-connection-label tspan`).allTextContents()).join(' ');
+    // The middle of the line, on the page.
+    const mid = await page.evaluate((r) => {
+      const d = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram();
+      const line = d.get('elementRegistry').get(r);
+      const canvas = d.get('canvas');
+      const vb = canvas.viewbox();
+      const svg = canvas._svg.getBoundingClientRect();
+      const [p, q] = [line.waypoints[0], line.waypoints[line.waypoints.length - 1]];
+      return { x: svg.x + ((p.x + q.x) / 2 - vb.x) * vb.scale, y: svg.y + ((p.y + q.y) / 2 - vb.y) * vb.scale };
+    }, rel);
+    const editor = page.locator('.djs-direct-editing-content');
+    const namesSwitch = page.locator('canvas-toolbar button[data-switch="relationship-names"]');
+    const blank = async () => page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+
+    // Unnamed, and names are off: the box opens empty — not with the type's name.
+    expect(await namesSwitch.getAttribute('aria-pressed')).toBe('false');
+    await page.mouse.dblclick(mid.x, mid.y);
+    await editor.waitFor({ state: 'visible' });
+    expect(await editor.innerText()).toBe('');
+    await page.keyboard.type('Serves the clerk');
+    await page.keyboard.press('Enter');
+    await editor.waitFor({ state: 'hidden' });
+    await until(async () => (await names())[0] === 'Serves the clerk@en', 'the name in the model');
+    expect(await drawn()).toBe('');
+
+    // Switched on: the name is on the line; the switch is remembered.
+    await namesSwitch.click();
+    expect(await namesSwitch.getAttribute('aria-pressed')).toBe('true');
+    expect(await drawn()).toBe('Serves the clerk');
+    expect(await page.evaluate(() => localStorage.getItem('la-gram:canvas-relationship-names'))).toBe('true');
+    await session.screenshot('workbench-relationship-name');
+
+    // Undo takes the name away, from the model and the line; redo brings it back.
+    await blank();
+    await page.keyboard.press('Control+z');
+    await until(async () => (await names()).length === 0, 'the name undone');
+    expect(await drawn()).toBe('');
+    await page.keyboard.press('Control+y');
+    await until(async () => (await names())[0] === 'Serves the clerk@en', 'redone');
+    expect(await drawn()).toBe('Serves the clerk');
+
+    // F2 on the selected line; emptied, the name is removed.
+    await page.mouse.click(mid.x, mid.y);
+    await page.keyboard.press('F2');
+    await editor.waitFor({ state: 'visible' });
+    expect(await editor.innerText()).toBe('Serves the clerk');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Enter');
+    await editor.waitFor({ state: 'hidden' });
+    await until(async () => (await names()).length === 0, 'the name removed');
+    expect(await drawn()).toBe('');
+
+    // Switched off again for the pages after.
+    await namesSwitch.click();
+    expect(await namesSwitch.getAttribute('aria-pressed')).toBe('false');
+    findings.push('relationship name on its line: double-click/F2, names switch, undo/redo, emptied removed: ok');
+  }, 60_000);
 });
 
 describe('changing an element’s type', () => {
@@ -1117,7 +1204,7 @@ describe('changing an element’s type', () => {
     await page.mouse.click(mid.x, mid.y, { button: 'right' });
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
-      'Rename…', 'Change relationship type…', 'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
+      'Rename', 'Change relationship type…', 'Properties', 'Show in model tree', 'Show source', 'Show target', 'Copy IRI',
       'Delete from view', 'Delete from model…',
     ]);
     await page.keyboard.press('Escape');

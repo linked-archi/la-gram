@@ -287,3 +287,12 @@ export function appendableTargetTypes(
 export function relationshipKey(sourceIri: string, targetIri: string, typeIri: string): string {
   return `${sourceIri}--${typeIri}-->${targetIri}`;
 }
+
+/**
+ * Whether a connection's `iri` is a {@link relationshipKey} — a bare triple with
+ * no relationship resource to name — rather than a relationship's IRI. An IRI
+ * cannot hold `>` (RFC 3987), so the key's `-->` never occurs in one.
+ */
+export function isRelationshipKey(iri: string): boolean {
+  return iri.includes('-->');
+}

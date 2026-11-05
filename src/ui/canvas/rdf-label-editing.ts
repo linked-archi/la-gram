@@ -1,10 +1,18 @@
 /**
- * Editing an element's name on the canvas.
+ * Editing an element's or a relationship's name on the canvas.
  *
  * Double-click an element — or select it and press F2 — and its name becomes an
  * editable text box over the shape; Enter or a click elsewhere keeps the new
  * name, Esc drops it. The name is the element's `skos:prefLabel`: the same
  * value the property panel and the model tree show and edit.
+ *
+ * A relationship is named the same way, on its line or on its name: the box
+ * opens where the name is drawn, at the middle of the route
+ * ({@link connectionLabelLayout}), whether names are shown or not. Emptied, a
+ * relationship's name is removed — most relationships have none — where an
+ * element's cannot be. A derivation the model does not state is not named
+ * (confirm it first, as the model tree has it), nor a bare triple with no
+ * relationship resource to carry the name.
  *
  * The text box is `diagram-js-direct-editing`, the editor bpmn-js uses for its
  * labels. Its package entry imports a diagram-js folder without `/index.js`,
@@ -21,22 +29,23 @@ import DirectEditing, { type DirectEditingContext } from 'diagram-js-direct-edit
 import InteractionEventsModule from 'diagram-js/lib/features/interaction-events/index.js';
 import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { RdfChangeHandler, type RdfChangeContext } from './rdf-modeling.js';
-import type { RdfBusinessObject } from './rdf-renderer.js';
+import { connectionLabelLayout, type RdfBusinessObject } from './rdf-renderer.js';
+import { isRelationshipKey } from './relationship-resolution.js';
 import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
 
-/** Command id of a rename on the canvas. */
+/** Command id of a rename on the canvas — an element's or a relationship's. */
 export const RELABEL_ELEMENT_COMMAND = 'rdf.element.relabel';
 
-/** Writes an element's name to the model. */
+/** Writes a concept's name to the model; an empty one removes it (a relationship's — an element's is never emptied). */
 export type LabelWriter = (elementIri: string, label: string) => void;
 
-/** A shape, as far as a rename reads it. */
+/** A shape or a line, as far as a rename reads it. */
 interface LabelledShape {
   id: string;
   width?: number;
   height?: number;
   businessObject?: RdfBusinessObject;
-  waypoints?: unknown;
+  waypoints?: ReadonlyArray<{ x: number; y: number }>;
   labelTarget?: unknown;
   parent?: unknown;
 }
@@ -71,7 +80,30 @@ function isElementShape(element: LabelledShape | undefined): element is Labelled
   );
 }
 
-/** Renames as one undoable step; the shape shows the name in force. */
+/**
+ * Whether a diagram element is a relationship's line that can be named: one with
+ * a relationship resource of its own (not a bare triple), stated by the model
+ * (not a derivation it does not state).
+ */
+function isNameableLine(element: LabelledShape | undefined): boolean {
+  const businessObject = element?.businessObject;
+  return (
+    !!element?.waypoints &&
+    !!element.parent &&
+    businessObject?.kind === 'relationship' &&
+    !!businessObject.iri &&
+    !isRelationshipKey(businessObject.iri) &&
+    !businessObject.derivation
+  );
+}
+
+/** Whether the canvas renames this: an element's shape or a relationship's line. */
+export function isRenamable(element: unknown): boolean {
+  const shape = element as LabelledShape | undefined;
+  return isElementShape(shape) || isNameableLine(shape);
+}
+
+/** Renames as one undoable step; the shape or line shows the name in force. */
 export class RelabelElementHandler extends RdfChangeHandler {
   static override $inject = ['rdfChangeStore', 'rdfLabelWriter'];
 
@@ -89,8 +121,9 @@ export class RelabelElementHandler extends RdfChangeHandler {
     relabel.previousNamed ??= businessObject.named;
     relabel.apply ??= () => this.writer(businessObject.iri, relabel.label);
     super.execute(relabel);
-    businessObject.label = relabel.label;
-    businessObject.named = true;
+    // Emptied (a relationship's): no name left to draw.
+    businessObject.label = relabel.label || undefined;
+    businessObject.named = relabel.label !== '';
     return [relabel.element];
   }
 
@@ -158,14 +191,14 @@ export class RdfLabelEditingProvider {
     directEditing.registerProvider(this);
 
     eventBus.on('element.dblclick', (event) => {
-      if (isElementShape(event.element)) directEditing.activate(event.element);
+      if (isRenamable(event.element)) directEditing.activate(event.element);
     });
 
-    // F2 renames the one selected element, as in most tools.
+    // F2 renames the one selected element or relationship, as in most tools.
     eventBus.on('keyboard.keydown', 1500, (event) => {
       if (event.keyEvent?.key !== 'F2') return;
       const [only, ...more] = selection.get();
-      if (more.length > 0 || !isElementShape(only)) return;
+      if (more.length > 0 || !only || !isRenamable(only)) return;
       event.keyEvent.preventDefault();
       directEditing.activate(only);
       return true;
@@ -205,6 +238,7 @@ export class RdfLabelEditingProvider {
 
   activate(element: unknown): DirectEditingContext | null {
     const shape = element as LabelledShape;
+    if (isNameableLine(shape)) return this.lineContext(shape);
     if (!isElementShape(shape)) return null;
     const zoom = this.canvas.zoom();
     const box = this.canvas.getAbsoluteBBox(shape);
@@ -251,9 +285,53 @@ export class RdfLabelEditingProvider {
     };
   }
 
+  /**
+   * A relationship's name is typed where it is drawn — at the middle of the
+   * route, under a derivation badge — on white, over the line, at least an
+   * element's width wide and growing downwards as the name does.
+   */
+  private lineContext(line: LabelledShape): DirectEditingContext | null {
+    const businessObject = line.businessObject;
+    const text = businessObject?.named ? (businessObject.label ?? '') : '';
+    const layout = connectionLabelLayout(line.waypoints ?? [], text, { badge: !!businessObject?.derivation });
+    if (!layout) return null;
+    const zoom = this.canvas.zoom();
+    const px = (n: number) => `${Math.round(n * zoom * 100) / 100}px`;
+    const pad = 4;
+    const width = Math.max(layout.box.width, NOTATION_DEFAULTS.width);
+    // `getAbsoluteBBox` maps a diagram box onto the page; a line's own box is the whole route's.
+    const bounds = this.canvas.getAbsoluteBBox({
+      x: layout.x - width / 2,
+      y: layout.box.y - pad,
+      width,
+      height: layout.box.height + 2 * pad,
+    });
+    return {
+      text,
+      bounds,
+      style: {
+        fontFamily: NOTATION_DEFAULTS.fontFamily,
+        fontSize: px(NOTATION_DEFAULTS.fontSize),
+        lineHeight: '1.2',
+        paddingTop: px(pad),
+        paddingBottom: px(pad),
+        textAlign: 'center',
+        backgroundColor: '#ffffff',
+      },
+      options: { centerVertically: false, autoResize: true, resizable: false },
+    };
+  }
+
   update(element: unknown, newText: string): void {
     const shape = element as LabelledShape;
     const label = normalizeLabel(newText);
+    if (isNameableLine(shape)) {
+      // Emptied, a relationship's name is removed; an unchanged one is no edit.
+      const current = shape.businessObject?.named ? (shape.businessObject.label ?? '') : '';
+      if (label === current) return;
+      this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });
+      return;
+    }
     // A name cannot be emptied (as in the property panel), and an unchanged one is no edit.
     if (!label || label === shape.businessObject?.label) return;
     this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });

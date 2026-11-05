@@ -410,7 +410,7 @@ model runs its model operation inside a nested command:
 | Connect | `connection.create` | `rdf.relationship.create` → qualified resource + triple + link |
 | Change type | `rdf.relationship.retype` | retype in place (same IRI) |
 | Change an element's type (property panel, right-click menu) | `rdf.element.retype` | `rdf.store.change` → the `rdf:type` (and the default name); also redraws the shape in the new notation, on undo too |
-| Rename in the box (double-click, F2) | `rdf.element.relabel` | `rdf.store.change` → the `skos:prefLabel` in the shown language; also relabels the shape, on undo too |
+| Rename in the box (double-click, F2) — an element's, or a relationship's on its line | `rdf.element.relabel` | `rdf.store.change` → the `skos:prefLabel` in the shown language (a relationship's, emptied, removed); also relabels the shape or the line, on undo too |
 | Move / resize | `shape.move` / `shape.resize` | `rdf.store.change` → node bounds |
 | Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list; relationships ending on the line follow it (nested `connection.layout`, see Routes and docking) |
 | Reconnect end | `connection.reconnect` | `rdf.store.change` → ends, triple, links in other views |
@@ -451,7 +451,8 @@ on top of it, and they belong to no diagram element, so a right-click there
 reaches the root: the handles' group (`.djs-bendpoints[data-element-id]`) names
 the line, and the menu opens for it. The canvas decides the actions
 (`contextMenuActions`) in sections — edit (Rename, Change type… / a
-relationship's Rename… and Change relationship type…, then Move to folder… when
+relationship's Rename — not a derivation the model does not state, as in the
+model tree — and Change relationship type…, then Move to folder… when
 the host's `canMoveToFolder` says the model has folders), relate (Append…), show
 (Properties, Show in model tree, Show relationship graph and Ask about this
 element… / a relationship's Show source and Show target), copy (Copy IRI), delete (Delete from view, Delete from
@@ -461,8 +462,7 @@ view…, Set viewpoint…, Duplicate view), view (Select all, Zoom to fit), show
 what the model tree offers for a view — and hands all but the canvas's own
 (rename on the canvas, the type menus, append, select all, zoom, delete from
 view) to the host (`onContextAction`), which runs the model tree's actions for
-them (a relationship's name is edited in the tree's dialog: the canvas edits
-shapes' labels only). On one of several selected of a kind, with folders, the
+them. On one of several selected of a kind, with folders, the
 selection is kept and the menu is *Move N … to folder…* alone (see *Finding the
 folder*). A menu an action opens (the type
 menu, the append menu) is opened on the next tick: diagram-js closes the menu
@@ -474,12 +474,52 @@ Renaming in the box (`ui/canvas/rdf-label-editing.ts`) uses
 `diagram-js-direct-editing`, the text box bpmn-js edits its labels with (its
 `DirectEditing` class, declared in la-gram's own module: the package entry
 imports a diagram-js folder without `/index.js`, which Node's ESM loader
-refuses). The provider offers element shapes only, lays the box over the shape
-with the renderer's font scaled by the zoom and room for the badge, hides the
-drawn name meanwhile (a marker), and selects the whole name. Completing with a
-changed, non-empty name runs `rdf.element.relabel`; canvas commands are not
-followed by a re-read of the store, so the command relabels the shape itself on
-execute and on revert.
+refuses). The provider offers element shapes and relationships' lines
+(`isRenamable`). Over a shape, it lays the box over the shape with the
+renderer's font scaled by the zoom and room for the badge, hides the drawn name
+meanwhile (a marker), and selects the whole name. Completing with a changed,
+non-empty name runs `rdf.element.relabel`; canvas commands are not followed by a
+re-read of the store, so the command relabels the shape itself on execute and
+on revert.
+
+A relationship is named the same way: a double-click on its line — on its
+handles too, which diagram-js's bendpoints forward to the line — or on its drawn
+name, or F2 with it selected. The box opens where the name is drawn
+(`connectionLabelLayout`: the middle of the route, under a derivation badge), on
+white, at least an element's width wide and growing downwards as the name does,
+holding the name — or nothing, for a relationship without one: its type is not
+offered as a name. It opens whether names are shown or not. Emptied, the name is
+removed (the writer removes the `skos:prefLabel` in the shown language): most
+relationships have none, so having none is a state to go back to, where an
+element's name is never emptied. Not offered: a derivation the model does not
+state (confirm it first — the model tree offers no Rename on one either), and a
+bare triple with no relationship resource to carry the name (a connection whose
+`iri` is a `relationshipKey`, `isRelationshipKey`).
+
+**A relationship's name on its line** (`rdf-renderer.ts`) is drawn when the
+canvas toolbar's *Relationship names* switch is on — off by default, remembered
+in the browser (`relationship-names.ts`) — and the relationship has a name of
+its own (`named`): its type, which `labelOf` would give one without a name, is
+never drawn. The renderer reads the switch from `RenderOptions`, a value the
+canvas holds (`rdfRendererModule(styles, options)`); flipping it
+(`DiagramCanvas.setRelationshipNamesShown`) redraws every line alone
+(`element.changed`, not `elements.changed`, which re-stacks). The name is
+centred on the middle of the route (`midpointOf`), wrapped at an element's
+default width to at most three lines as a shape's name is (`wrapLabel`), in the
+line's colour on a white box — the line stops at the name, between its words
+too — or, on a derived line, just under the badge and faded as the line is. The
+box is open to the pointer, so a click or a double-click on the name reaches the
+relationship: diagram-js leaves drawn graphics deaf to the pointer and hits a
+line on its stroke alone. diagram-js measures a line by its waypoints only, so
+the export's crop (`toSvg`) adds each drawn name's box. The canvas puts the name
+on a line's business object when it draws the line and when it reconciles with
+the store (`syncFromStore`), so a rename in the dialog, the property panel or by
+a collaborator, and its undo, show on the line. It is read through
+`ConceptDescription.modelName` — `modelNameOf`, the model graph alone, which the
+store answers from its copy in JavaScript — not `label`, which looks in every
+graph for a concept the model does not name: that read, for every line each
+time a view is drawn, is what Task 22 took out. Nothing about the name is stored
+in the view: see key decision 15.
 
 ### Routes and docking
 
@@ -1729,6 +1769,19 @@ dialog; the modules' section).
     with its parent, or with the elements, the commonest. Filing keeps the
     kinds apart: *Move to folder…* lists the group's folders only, and a drop
     is taken only by a folder of the dragged rows' group.
+
+15. **A relationship's name belongs to the relationship, and is hidden by
+    default** (2026-11-05). The name is the relationship resource's
+    `skos:prefLabel`, as an element's is, so every view that draws the
+    relationship shows the same name and the property panel, the tree and the
+    canvas edit one value. Drawn at the middle of the route, its place follows
+    the route and needs nothing in the view. A view reads its relationships from
+    their lines' notation — line style and ends — and a name on every line
+    crowds one of any size, so the names are off unless the *Relationship names*
+    switch is on (the user's call); a relationship without a name shows nothing,
+    not its type. Moving a name off the middle will need the view to keep its
+    place: an `arch-vis:LabelNode` hung on the `arch-vis:Link` with
+    `arch-vis:label`, as core-vis provides — queued (see tasks).
 
 ---
 

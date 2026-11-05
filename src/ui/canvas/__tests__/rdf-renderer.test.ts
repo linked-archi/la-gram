@@ -23,7 +23,7 @@ import {
   NOTATION_DEFAULTS,
   SHAPE_TYPES,
 } from '../notation-shapes.js';
-import { RENDER_CLASSES, midpointOf } from '../rdf-renderer.js';
+import { RENDER_CLASSES, connectionLabelLayout, drawnConnectionLabel, midpointOf, type RdfBusinessObject } from '../rdf-renderer.js';
 import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
 import { archimateShape } from './notation-shape-fixtures.js';
 
@@ -582,6 +582,86 @@ describe('connection rendering', () => {
       (b) => b.getAttribute('data-derivation') === 'potential',
     );
     expect(potentialBadge?.querySelector('text')?.textContent).toBe('P');
+  });
+
+  describe('a relationship’s name', () => {
+    const named = (label: string, extra: Partial<RdfBusinessObject> = {}): RdfBusinessObject => ({
+      iri: 'https://example.org/model/r1',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+      label,
+      named: true,
+      ...extra,
+    });
+    const labelOf = (line: SVGElement) => line.parentElement?.querySelector(`.${RENDER_CLASSES.connectionLabel}`) ?? null;
+    const linesOf = (line: SVGElement) => [...(labelOf(line)?.querySelectorAll('tspan') ?? [])].map((t) => t.textContent);
+
+    it('is not drawn unless names are shown', () => {
+      harness = createRenderHarness(paletteWith([]));
+      expect(labelOf(harness.drawConnection(named('Serves orders')))).toBeNull();
+    });
+
+    it('is drawn at the middle of the route, on a white box, in the line colour, and takes the pointer', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const line = harness.drawConnection(named('Serves orders'), [
+        { x: 0, y: 0 },
+        { x: 0, y: 100 },
+        { x: 300, y: 100 },
+      ]);
+      const label = labelOf(line)!;
+      expect(linesOf(line)).toEqual(['Serves orders']);
+      const text = label.querySelector('text')!;
+      // Half of 400 along the route: 100 into its last segment.
+      expect(text.getAttribute('x')).toBe('100');
+      expect(text.getAttribute('text-anchor')).toBe('middle');
+      expect(text.getAttribute('fill')).toBe(NOTATION_DEFAULTS.lineColor);
+      expect(text.getAttribute('stroke')).toBe('#ffffff');
+      expect(text.getAttribute('paint-order')).toBe('stroke');
+      const hit = label.querySelector('rect')!;
+      expect(hit.getAttribute('pointer-events')).toBe('all');
+      // The line stops at the name: between its words too.
+      expect(hit.getAttribute('fill')).toBe('#ffffff');
+      const box = connectionLabelLayout([{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 300, y: 100 }], 'Serves orders')!.box;
+      // Centred on the middle, both ways.
+      expect(box.x + box.width / 2).toBeCloseTo(100);
+      expect(box.y + box.height / 2).toBeCloseTo(100);
+      expect(Number(hit.getAttribute('y'))).toBe(box.y);
+    });
+
+    it('draws nothing for a relationship without a name of its own', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      expect(labelOf(harness.drawConnection({ iri: 'https://example.org/model/r1', typeIri: RELATION_IRI, kind: 'relationship' }))).toBeNull();
+      expect(labelOf(harness.drawConnection(named('Serving', { named: false })))).toBeNull();
+    });
+
+    it('wraps a long name as a shape’s is, dropping what does not fit in three lines', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const lines = linesOf(harness.drawConnection(named('Delivers the monthly invoices to every customer of the retail branch network')));
+      expect(lines.length).toBe(NOTATION_DEFAULTS.maxLabelLines);
+      expect(lines.join(' ')).toMatch(/^Delivers the monthly invoices/);
+    });
+
+    it('goes under the derivation badge on a derived line, faded as the line is', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const line = harness.drawConnection(named('Serves orders', { derivation: 'valid' }));
+      const label = labelOf(line)!;
+      expect(label.getAttribute('opacity')).toBe('0.6');
+      // The badge is a circle of radius 7 on the middle (100, 0): the name starts below it.
+      expect(Number(label.querySelector('rect')!.getAttribute('y'))).toBeGreaterThan(7);
+    });
+
+    it('is laid out by connectionLabelLayout, which drawnConnectionLabel applies only when shown and named', () => {
+      const route = [{ x: 0, y: 0 }, { x: 200, y: 0 }];
+      expect(connectionLabelLayout([{ x: 5, y: 5 }], 'x')).toBeUndefined();
+      const empty = connectionLabelLayout(route, '')!;
+      expect(empty.lines).toEqual([]);
+      // At least a line high, for a name to be typed into.
+      expect(empty.box.height).toBeGreaterThan(0);
+      const connection = { waypoints: route, businessObject: named('Serves orders') };
+      expect(drawnConnectionLabel(connection, { relationshipNames: false })).toBeUndefined();
+      expect(drawnConnectionLabel(connection, { relationshipNames: true })?.lines).toEqual(['Serves orders']);
+      expect(drawnConnectionLabel({ ...connection, businessObject: named('', { named: true }) }, { relationshipNames: true })).toBeUndefined();
+    });
   });
 
   it('finds the middle of a line by its length', () => {

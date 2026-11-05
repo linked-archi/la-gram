@@ -35,7 +35,8 @@ import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/i
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
-import { ModelContentsIndex, hasLabel, labelOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
 import {
   KIND_FOLDER_NAMES,
   applyFolderChange,
@@ -361,8 +362,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const describe = (iri: string): ConceptDescription | undefined => {
     const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     if (types.length === 0) return undefined;
-    // The name only when asked for: drawing a view asks a link only its type,
-    // and a relationship's name is looked for in every graph (Task 22).
+    // The name only when asked for: drawing a view asks a link its type and its
+    // name in the model (`modelName`), never `label`, which looks in every graph (Task 22).
     return {
       typeIri: mainType(types, closure),
       get label() {
@@ -370,6 +371,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       },
       get named() {
         return hasLabel(store, iri);
+      },
+      // A relationship's line is labelled from the model alone: cheap enough for every line of a view.
+      get modelName() {
+        return modelNameOf(store, iri);
       },
       // A derivation the model does not state: a valid one, or a potential one not confirmed.
       get derivation() {
@@ -1232,6 +1237,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     diagramCanvas.activateTool(detail.tool, detail.sourceEvent);
   };
   canvasToolbar.addEventListener('toolbar-tool', onToolbarTool);
+
+  // Relationships' names on their lines: off unless switched on, remembered per browser.
+  const showRelationshipNames = (shown: boolean): void => {
+    canvasToolbar.relationshipNames = shown;
+    diagramCanvas.setRelationshipNamesShown(shown);
+  };
+  showRelationshipNames(relationshipNamesShown());
+  const onRelationshipNames = (event: Event): void => {
+    const shown = (event as CustomEvent<{ shown: boolean }>).detail?.shown === true;
+    rememberRelationshipNamesShown(shown);
+    showRelationshipNames(shown);
+  };
+  canvasToolbar.addEventListener('relationship-names', onRelationshipNames);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -2480,6 +2498,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     palettePanel.removeEventListener('palette-hover', onPaletteHover);
     clearTimeout(paletteHover);
     canvasToolbar.removeEventListener('toolbar-tool', onToolbarTool);
+    canvasToolbar.removeEventListener('relationship-names', onRelationshipNames);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);

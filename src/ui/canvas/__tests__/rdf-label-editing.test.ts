@@ -1,9 +1,12 @@
+// @vitest-environment jsdom
+
 import { describe, it, expect } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
 import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { RelabelElementHandler, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
+import { RdfLabelEditingProvider, RelabelElementHandler, isRenamable, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
+import { NOTATION_DEFAULTS } from '../notation-shapes.js';
 import type { RdfChangeContext } from '../rdf-modeling.js';
 
 const { namedNode, literal, quad } = DataFactory;
@@ -48,3 +51,88 @@ describe('RelabelElementHandler', () => {
     expect(shape.businessObject.label).toBe('Front desk clerk');
   });
 });
+
+describe('naming a relationship on its line', () => {
+  const REL = 'https://example.org/m/relationship-1';
+  const line = (extra: Record<string, unknown> = {}) => ({
+    id: REL,
+    parent: {},
+    waypoints: [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+    ],
+    businessObject: { iri: REL, typeIri: 'x', kind: 'relationship' as const, ...extra },
+  });
+
+  it('is offered on a stated relationship’s line, not on a derivation, a bare triple or the root', () => {
+    expect(isRenamable(line())).toBe(true);
+    expect(isRenamable({ ...line(), parent: undefined })).toBe(false);
+    expect(isRenamable(line({ derivation: 'valid' }))).toBe(false);
+    expect(isRenamable(line({ iri: 'https://example.org/m/a--https://example.org/mm#Serving-->https://example.org/m/b' }))).toBe(false);
+    expect(isRenamable({ id: IRI, parent: {}, businessObject: { iri: IRI, typeIri: 'x', kind: 'element' } })).toBe(true);
+  });
+
+  it('opens the box where the name is drawn, holding the name — or nothing for an unnamed one', () => {
+    const { provider } = providerWith();
+    const named = provider.activate(line({ label: 'Serves orders', named: true }))!;
+    expect(named.text).toBe('Serves orders');
+    // Centred on the middle of the route (100, 0), at least an element wide, on white.
+    expect(named.bounds.x + named.bounds.width / 2).toBeCloseTo(100);
+    expect(named.bounds.y).toBeLessThan(0);
+    expect(named.bounds.y + named.bounds.height).toBeGreaterThan(0);
+    expect(named.bounds.width).toBeGreaterThanOrEqual(NOTATION_DEFAULTS.width);
+    expect(named.style?.backgroundColor).toBe('#ffffff');
+    // Unnamed: its type is not offered as a name.
+    expect(provider.activate(line({ label: 'Serving' }))!.text).toBe('');
+    expect(provider.activate(line({ derivation: 'potential' }))).toBeNull();
+  });
+
+  it('names, renames and — emptied — removes the name; an unchanged one is no edit; an element’s is never emptied', () => {
+    const { provider, executed } = providerWith();
+    provider.update(line(), '  Serves\n orders ');
+    provider.update(line({ label: 'Serves orders', named: true }), 'Serves orders');
+    provider.update(line({ label: 'Serves orders', named: true }), '');
+    provider.update(line(), '');
+    provider.update({ id: IRI, parent: {}, businessObject: { iri: IRI, typeIri: 'x', kind: 'element', label: 'Clerk' } }, '');
+    expect(executed.map((c) => c.label)).toEqual(['Serves orders', '']);
+  });
+
+  it('removing the name is one undoable step: the line has no name, then has it back', () => {
+    const store = new ObservableRdfStore(new OxigraphRdfStore());
+    store.addQuads([quad(namedNode(REL), namedNode(PREF_LABEL), literal('Serves orders', 'en')) as unknown as Quad]);
+    const writer = (iri: string, label: string) => {
+      store.removeQuads(store.getQuads(namedNode(iri) as never, namedNode(PREF_LABEL) as never));
+      if (label) store.addQuads([quad(namedNode(iri), namedNode(PREF_LABEL), literal(label, 'en')) as unknown as Quad]);
+    };
+    const handler = new RelabelElementHandler(store, writer);
+    const drawn = line({ label: 'Serves orders', named: true });
+    const context = { element: drawn, label: '' } as RelabelContext & RdfChangeContext;
+
+    handler.execute(context);
+    expect(store.getQuads(namedNode(REL) as never, namedNode(PREF_LABEL) as never)).toHaveLength(0);
+    expect(drawn.businessObject).toMatchObject({ label: undefined, named: false });
+
+    handler.revert(context);
+    expect(store.getQuads(namedNode(REL) as never, namedNode(PREF_LABEL) as never).map((q) => q.object.value)).toEqual(['Serves orders']);
+    expect(drawn.businessObject).toMatchObject({ label: 'Serves orders', named: true });
+  });
+});
+
+/** The provider over stand-ins for diagram-js's services; the canvas at zoom 1, unscrolled. */
+function providerWith() {
+  const executed: RelabelContext[] = [];
+  const provider = new RdfLabelEditingProvider(
+    { on: () => undefined },
+    {
+      getAbsoluteBBox: (box) => box as { x: number; y: number; width: number; height: number },
+      zoom: () => 1,
+      getContainer: () => document.createElement('div'),
+      addMarker: () => undefined,
+      removeMarker: () => undefined,
+    },
+    { registerProvider: () => undefined } as never,
+    { registerHandler: () => undefined, execute: (_command, context) => void executed.push(context) },
+    { get: () => [] },
+  );
+  return { provider, executed };
+}

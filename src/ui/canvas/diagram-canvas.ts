@@ -138,10 +138,10 @@ import type { EventBus } from '../event-bus.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
-import { RdfRenderer, rdfRendererModule, type RdfBusinessObject } from './rdf-renderer.js';
+import { RdfRenderer, drawnConnectionLabel, rdfRendererModule, type RdfBusinessObject, type RenderOptions } from './rdf-renderer.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
-import { rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
+import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
 import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
 import { RdfContextMenuProvider, CONTEXT_MENU_ID, type ContextMenuAction } from './rdf-context-menu-provider.js';
@@ -331,6 +331,12 @@ export interface ConceptDescription {
   label?: string;
   /** The label is a name the concept has, not one made from its IRI. */
   named?: boolean;
+  /**
+   * The name the model gives the concept, read from the model alone; absent
+   * when it gives none. What a relationship's line is labelled with: read for
+   * every line each time a view is drawn, so kept cheap (Task 22).
+   */
+  modelName?: string;
   iconUrl?: string;
   /** A relationship derived by a rule that the model does not state, by its certainty. */
   derivation?: 'valid' | 'potential';
@@ -605,6 +611,8 @@ export class DiagramCanvas {
   private canMoveToFolder?: () => boolean;
   /** Where the right-click menu was opened, for the menus it opens in turn. */
   private contextMenuAt: { x: number; y: number } | undefined;
+  /** What the renderer draws beyond the notation — relationships' names — kept here to switch and redraw. */
+  private readonly renderOptions: RenderOptions = { relationshipNames: false };
 
   /** The `arch:View` on the canvas, when a view manager is in use. */
   private viewIri: string | undefined;
@@ -824,7 +832,7 @@ export class DiagramCanvas {
         KeyboardModule,
         MoveCanvasModule,
         ZoomScrollModule,
-        rdfRendererModule(this.notationStyles),
+        rdfRendererModule(this.notationStyles, this.renderOptions),
         rdfRulesModule(this.ruleProvider),
         rdfAutoResizeModule,
         // Last, so its `modeling` binding replaces the one ModelingModule made.
@@ -1099,8 +1107,18 @@ export class DiagramCanvas {
 
     for (const link of links) {
       const existing = services.elementRegistry.get(link.relationshipIri) ?? drawnLinks.get(link.relationshipIri);
-      const typeIri = this.describeElement?.(link.relationshipIri)?.typeIri ?? '';
+      const description = this.describeElement?.(link.relationshipIri);
+      const typeIri = description?.typeIri ?? '';
       if (existing) {
+        // Renamed — in the dialog, the property panel, by a collaborator, or undone:
+        // its line shows the name in force. Redrawn alone, as a renamed shape is.
+        const name = description?.modelName;
+        const drawnName = existing.businessObject?.named ? existing.businessObject.label : undefined;
+        if (existing.businessObject && name !== drawnName) {
+          existing.businessObject.label = name;
+          existing.businessObject.named = name !== undefined;
+          services.eventBus.fire('element.changed', { element: existing });
+        }
         const route =
           link.waypoints.length > 0 && existing.source && existing.target
             ? this.drawnRoute(link.waypoints, existing.source as DjsShape, existing.target as DjsShape)
@@ -1292,7 +1310,13 @@ export class DiagramCanvas {
     const target = services.elementRegistry.get(rel.targetIri);
     if (!source || !target) return false;
     const typeIri = this.describeElement?.(relationshipIri)?.typeIri ?? rel.classIri;
-    const businessObject: RdfBusinessObject = { iri: relationshipIri, typeIri, kind: 'relationship', ...this.derivationOf(relationshipIri) };
+    const businessObject: RdfBusinessObject = {
+      iri: relationshipIri,
+      typeIri,
+      kind: 'relationship',
+      ...this.relationshipNameOf(relationshipIri),
+      ...this.derivationOf(relationshipIri),
+    };
     services.modeling.createConnection(
       source,
       target,
@@ -1549,7 +1573,7 @@ export class DiagramCanvas {
       iri: relationshipIri ?? key,
       typeIri,
       kind: 'relationship',
-      ...(relationshipIri ? this.derivationOf(relationshipIri) : {}),
+      ...(relationshipIri ? { ...this.relationshipNameOf(relationshipIri), ...this.derivationOf(relationshipIri) } : {}),
     };
 
     // Store-led, so added directly rather than through `modeling` (see
@@ -1856,6 +1880,23 @@ export class DiagramCanvas {
    * @param options.iconsOnly Only icons changed — what the menus show, nothing
    *   drawn: the shapes are not redrawn.
    */
+  /**
+   * Show relationships' names on their lines, or not (the canvas toolbar's
+   * switch, off by default): every line is redrawn, alone — no re-stacking.
+   */
+  setRelationshipNamesShown(shown: boolean): void {
+    if (this.renderOptions.relationshipNames === shown) return;
+    this.renderOptions.relationshipNames = shown;
+    const services = this.services();
+    if (!services) return;
+    for (const connection of this.connections()) services.eventBus.fire('element.changed', { element: connection });
+  }
+
+  /** Whether relationships' names are shown on their lines. */
+  relationshipNamesShown(): boolean {
+    return this.renderOptions.relationshipNames;
+  }
+
   updatePaletteDefinition(paletteDefinition: PaletteDefinition, options: { iconsOnly?: boolean } = {}): void {
     this.paletteDefinition = paletteDefinition;
     // The palette is what the append offer is derived from, so every memoized
@@ -1890,10 +1931,18 @@ export class DiagramCanvas {
     let maxY = -Infinity;
     for (const element of services.elementRegistry.getAll()) {
       if (!element.parent) continue;
-      const points = element.waypoints ?? [
-        { x: element.x, y: element.y },
-        { x: element.x + element.width, y: element.y + element.height },
+      // A copy: a line's own waypoints are not to be added to.
+      const points = [
+        ...(element.waypoints ?? [
+          { x: element.x, y: element.y },
+          { x: element.x + element.width, y: element.y + element.height },
+        ]),
       ];
+      // A line's name reaches past its route's box: the crop takes it in.
+      const label = element.waypoints ? drawnConnectionLabel(element as never, this.renderOptions)?.box : undefined;
+      if (label) {
+        points.push({ x: label.x, y: label.y }, { x: label.x + label.width, y: label.y + label.height });
+      }
       for (const p of points) {
         minX = Math.min(minX, p.x);
         minY = Math.min(minY, p.y);
@@ -2138,8 +2187,16 @@ export class DiagramCanvas {
         actions.push({ id: 'append', label: 'Append…', section: 'relate', run: then(() => this.openAppendMenu(pad, { clientX: at.x, clientY: at.y })) });
       }
     } else if (shown.kind === 'relationship') {
-      // A relationship's name is edited in a dialog, as from the model tree: the canvas edits shapes' labels only.
-      if (this.onContextAction) actions.push({ id: 'rename', label: 'Rename…', section: 'edit', run: host('rename') });
+      // Named on its line, as an element in its box; a derivation the model does not state is not (as in the model tree).
+      if (isRenamable(element)) {
+        actions.push({
+          id: 'rename',
+          label: 'Rename',
+          section: 'edit',
+          shortcut: 'F2',
+          run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
+        });
+      }
       if (this.canReplaceRelationshipType(pad)) {
         actions.push({
           id: 'change-type',
@@ -2788,6 +2845,12 @@ export class DiagramCanvas {
    * "add to view" useful for exploring a model.
    */
   /** What a relationship's connection carries of its derivation: nothing for one the model states. */
+  /** A relationship's own name, for its line: none when the model gives it none. */
+  private relationshipNameOf(relationshipIri: string): Pick<RdfBusinessObject, 'label' | 'named'> {
+    const name = this.describeElement?.(relationshipIri)?.modelName;
+    return name ? { label: name, named: true } : {};
+  }
+
   private derivationOf(relationshipIri: string): Pick<RdfBusinessObject, 'derivation' | 'derivationRule'> {
     const description = this.describeElement?.(relationshipIri);
     if (!description?.derivation) return {};
@@ -2817,7 +2880,7 @@ export class DiagramCanvas {
       const target = services.elementRegistry.get(rel.targetIri);
       if (!source || !target) continue;
       const typeIri = this.describeElement?.(rel.iri)?.typeIri ?? rel.classIri;
-      const businessObject: RdfBusinessObject = { iri: rel.iri, typeIri, kind: 'relationship' };
+      const businessObject: RdfBusinessObject = { iri: rel.iri, typeIri, kind: 'relationship', ...this.relationshipNameOf(rel.iri) };
       services.modeling.createConnection(
         source,
         target,
@@ -3468,7 +3531,8 @@ export class DiagramCanvas {
   /**
    * Writes a name typed on the canvas: the `skos:prefLabel` in the language
    * shown (the English one, else an untagged one, else English is added), leaving
-   * the element's names in other languages as they are.
+   * the element's names in other languages as they are. An empty name — a
+   * relationship's, emptied — removes the one in that language.
    */
   private labelWriter(): LabelWriter {
     return (iri: string, label: string) => {
@@ -3482,6 +3546,7 @@ export class DiagramCanvas {
       const language = shown ? (shown.object.language ?? '') : 'en';
       const replaced = inModel.filter((q) => (q.object.language ?? '') === language);
       if (replaced.length > 0) this.rdfStore?.removeQuads(replaced as never[]);
+      if (label === '') return;
       this.rdfStore?.addQuads?.([
         DataFactory.quad(namedNode(iri), namedNode(prefLabel), DataFactory.literal(label, language || undefined)) as never,
       ]);

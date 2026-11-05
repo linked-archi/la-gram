@@ -27,8 +27,15 @@ function root(): ShadowRoot {
   return shadow;
 }
 
+/** The tools' buttons — not the switch after them. */
 const buttons = (): HTMLButtonElement[] =>
-  Array.from(root().querySelectorAll('button')) as HTMLButtonElement[];
+  Array.from(root().querySelectorAll('button[data-tool]')) as HTMLButtonElement[];
+
+const namesSwitch = (): HTMLButtonElement => {
+  const found = root().querySelector<HTMLButtonElement>('button[data-switch="relationship-names"]');
+  if (!found) throw new Error('no Relationship names switch');
+  return found;
+};
 
 const button = (tool: string): HTMLButtonElement => {
   const found = buttons().find((b) => b.dataset.tool === tool);
@@ -115,6 +122,25 @@ describe('CanvasToolbar', () => {
     toolbar.activeTool = undefined;
     await toolbar.updateComplete;
     expect(buttons().every((b) => b.getAttribute('aria-pressed') === 'false')).toBe(true);
+  });
+
+  it('has a Relationship names switch after the tools: off by default, asking for the other state, pressed as it is told', async () => {
+    await mount();
+    expect(namesSwitch().textContent?.trim()).toBe('Relationship names');
+    expect(namesSwitch().getAttribute('aria-pressed')).toBe('false');
+    const asked: boolean[] = [];
+    document.body.addEventListener('relationship-names', (e) => asked.push((e as CustomEvent<{ shown: boolean }>).detail.shown));
+
+    namesSwitch().click();
+    expect(asked).toEqual([true]);
+    // Not flipped by the click itself: the host decides, and tells it.
+    expect(namesSwitch().getAttribute('aria-pressed')).toBe('false');
+
+    toolbar.relationshipNames = true;
+    await toolbar.updateComplete;
+    expect(namesSwitch().getAttribute('aria-pressed')).toBe('true');
+    namesSwitch().click();
+    expect(asked).toEqual([true, false]);
   });
 });
 
