@@ -67,6 +67,12 @@ export interface LinkInfo {
   targetElementIri: string;
   /** Persisted route, empty when the layouter should compute one. */
   waypoints: Point[];
+  /**
+   * Where the relationship's name was moved to: its `arch-vis:LabelNode`'s
+   * bounds, in the diagram's coordinates. Absent, the name is at the middle of
+   * the route.
+   */
+  label?: Bounds;
 }
 
 /** A qualified relationship as read from the store. */
@@ -215,6 +221,12 @@ export interface ViewManager {
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[];
   getLinks(viewIri: string): LinkInfo[];
   updateLinkWaypoints(viewIri: string, relationshipIri: string, waypoints: Point[]): void;
+  /**
+   * Keep where a relationship's name is drawn in a view — an
+   * `arch-vis:LabelNode` hung on its link with `arch-vis:label` — or, with no
+   * bounds, drop it: the name goes back to the middle of the route.
+   */
+  setLinkLabel?(viewIri: string, relationshipIri: string, bounds: Bounds | undefined): void;
 
   /** Views presenting a concept (by `arch:inView` or by geometry). */
   viewsContaining(conceptIri: string): string[];

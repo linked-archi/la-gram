@@ -138,7 +138,17 @@ import type { EventBus } from '../event-bus.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
-import { RdfRenderer, drawnConnectionLabel, rdfRendererModule, type RdfBusinessObject, type RenderOptions } from './rdf-renderer.js';
+import {
+  RdfRenderer,
+  connectionLabelLayout,
+  drawnConnectionLabel,
+  labelOffsetOf,
+  rdfRendererModule,
+  type LabelOffset,
+  type RdfBusinessObject,
+  type RenderOptions,
+} from './rdf-renderer.js';
+import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
@@ -839,6 +849,8 @@ export class DiagramCanvas {
         rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null),
         // Renaming on the canvas: double-click or F2 (needs `rdfChangeStore` from the line above).
         rdfLabelEditingModule(this.labelWriter()),
+        // Moving a relationship's name along with its line, kept in the view.
+        rdfLinkLabelModule(this.linkLabelWriter(), (line) => this.canMoveLinkLabel(line)),
       ] as never[],
     });
 
@@ -1127,6 +1139,16 @@ export class DiagramCanvas {
           existing.waypoints = route;
           services.eventBus.fire('elements.changed', { elements: [existing] });
         }
+        // Its name moved, or back at the middle — by a collaborator, or an edit undone.
+        // Measured from the route as now drawn; a pixel is the bounds' rounding, not a move.
+        const kept = link.label ? labelOffsetOf(existing.waypoints ?? [], link.label) : undefined;
+        const shown = existing.businessObject?.labelOffset;
+        const moved = !kept || !shown ? kept !== shown : Math.abs(kept.x - shown.x) > 1 || Math.abs(kept.y - shown.y) > 1;
+        if (existing.businessObject && moved) {
+          if (kept) existing.businessObject.labelOffset = kept;
+          else delete existing.businessObject.labelOffset;
+          services.eventBus.fire('element.changed', { element: existing });
+        }
         if (typeIri && existing.businessObject && existing.businessObject.typeIri !== typeIri) {
           existing.businessObject.typeIri = typeIri;
           const record = this.relationships.get(existing.id);
@@ -1150,6 +1172,7 @@ export class DiagramCanvas {
         typeIri,
         link.relationshipIri,
         link.waypoints,
+        link.label,
       );
     }
 
@@ -1545,6 +1568,7 @@ export class DiagramCanvas {
     typeIri: string,
     relationshipIri?: string,
     waypoints?: Point[],
+    labelBounds?: Bounds,
   ): void {
     // A qualified relationship is keyed by its own IRI, so two relationships of
     // one type between one pair are two connections; a bare triple has only the
@@ -1590,6 +1614,9 @@ export class DiagramCanvas {
       waypoints && waypoints.length > 0
         ? this.drawnRoute(waypoints, source, target)
         : services.layouter.layoutConnection(connection, { source, target });
+    // Its name where the view keeps it: the same offset from the middle of the route as drawn.
+    const labelOffset = labelBounds ? labelOffsetOf(connection.waypoints, labelBounds) : undefined;
+    if (labelOffset) businessObject.labelOffset = labelOffset;
     services.canvas.addConnection(connection, services.canvas.getRootElement());
     this.applyKeptMarkers(connection);
   }
@@ -2195,6 +2222,15 @@ export class DiagramCanvas {
           section: 'edit',
           shortcut: 'F2',
           run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
+        });
+      }
+      // A name shown off the middle of its line: back to the middle, undoably.
+      if (shown.labelOffset && drawnConnectionLabel(element, this.renderOptions) && this.canMoveLinkLabel(element)) {
+        actions.push({
+          id: 'name-to-middle',
+          label: 'Move name back to the middle',
+          section: 'edit',
+          run: () => this.services()?.commandStack.execute(MOVE_LINK_LABEL_COMMAND, { connection: element, offset: undefined }),
         });
       }
       if (this.canReplaceRelationshipType(pad)) {
@@ -2836,7 +2872,41 @@ export class DiagramCanvas {
       : viewManager.getLinks(viewIri).some((l) => l.relationshipIri === relationshipIri);
     if (!drawn) return;
     const route = this.routeOf(connection);
-    this.change(() => viewManager.updateLinkWaypoints(viewIri, relationshipIri, route));
+    // A name moved off the middle follows the line: its bounds are written with the route.
+    const offset = connection.businessObject?.labelOffset;
+    const label = offset ? this.labelBoundsAt(connection, offset) : undefined;
+    this.change(() => {
+      viewManager.updateLinkWaypoints(viewIri, relationshipIri, route);
+      if (label) viewManager.setLinkLabel?.(viewIri, relationshipIri, label);
+    });
+  }
+
+  /** The box a line's name takes at `offset` from the middle of its route, as the view keeps it. */
+  private labelBoundsAt(line: LabelledLine, offset: LabelOffset): Bounds | undefined {
+    const businessObject = line.businessObject;
+    const name = businessObject?.named ? (businessObject.label ?? '') : '';
+    const box = connectionLabelLayout(line.waypoints ?? [], name, { offset })?.box;
+    if (!box) return undefined;
+    // Whole pixels, as the view keeps bounds, around the centre rounded: the centre is what is read back.
+    const width = 2 * Math.round(box.width / 2);
+    const height = 2 * Math.round(box.height / 2);
+    const centre = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+    return { x: centre.x - width / 2, y: centre.y - height / 2, width, height };
+  }
+
+  /** Keeps where a line's name was moved to in the open view, or drops it (`rdf.link.label.move`). */
+  private linkLabelWriter(): LinkLabelWriter {
+    return (line, offset) => {
+      const relationshipIri = line.businessObject?.iri;
+      if (!relationshipIri || !this.viewIri) return;
+      this.viewManager?.setLinkLabel?.(this.viewIri, relationshipIri, offset ? this.labelBoundsAt(line, offset) : undefined);
+    };
+  }
+
+  /** A line's name moves in an open view, unless a collaborator holds the line. */
+  private canMoveLinkLabel(line: LabelledLine): boolean {
+    const iri = line.businessObject?.iri;
+    return this.hasViewContext() && !!this.viewManager?.setLinkLabel && !!iri && !this.locked.has(iri);
   }
 
   /**

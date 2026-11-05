@@ -302,6 +302,92 @@ describe('OxigraphViewManager', () => {
       expect(store.getQuads(null, nn(VIS + 'point-x'))).toHaveLength(0);
       expect(objects(store, relIri, ARCH + 'source')).toEqual([a]);
     });
+
+    describe('where its name was moved to (arch-vis:LabelNode)', () => {
+      const box = { x: 210, y: 40, width: 90, height: 13 };
+      const labelNodes = () => store.getQuads(null, nn(RDF_TYPE), nn(VIS + 'LabelNode')).map((q) => q.subject.value);
+
+      it('is kept as a LabelNode hung on the link, in the view, with its bounds — and read back', () => {
+        views.addElementToView(v, a);
+        views.addElementToView(v, b);
+        const linkIri = views.addRelationshipToView(v, relIri) as string;
+        expect(views.getLinks(v)[0].label).toBeUndefined();
+
+        views.setLinkLabel(v, relIri, box);
+        const label = `${linkIri}-label`;
+        expect(objects(store, linkIri, VIS + 'label')).toEqual([label]);
+        expect(objects(store, label, RDF_TYPE)).toEqual([VIS + 'LabelNode']);
+        expect(objects(store, label, VIS + 'view')).toEqual([v]);
+        expect(objects(store, label, VIS + 'bounds-w')).toEqual(['90']);
+        expect(views.getLinks(v)[0].label).toEqual(box);
+        // Not a node of the view: it places no element.
+        expect(views.getNodes(v).map((n) => n.elementIri).sort()).toEqual([a, b].sort());
+
+        // Moved again: one label node, the new bounds.
+        views.setLinkLabel(v, relIri, { ...box, x: 300 });
+        expect(labelNodes()).toEqual([label]);
+        expect(views.getLinks(v)[0].label?.x).toBe(300);
+
+        // Back to the middle: gone.
+        views.setLinkLabel(v, relIri, undefined);
+        expect(labelNodes()).toEqual([]);
+        expect(objects(store, linkIri, VIS + 'label')).toEqual([]);
+        expect(views.getLinks(v)[0].label).toBeUndefined();
+      });
+
+      it('goes with its link — removed from the view, its view deleted, the relationship deleted from the model — and is collected for undo', () => {
+        views.addElementToView(v, a);
+        views.addElementToView(v, b);
+        views.addRelationshipToView(v, relIri);
+        views.setLinkLabel(v, relIri, box);
+        const label = labelNodes()[0];
+        expect(views.collectLinkQuads(v, relIri).some((q) => q.subject.value === label)).toBe(true);
+        views.removeRelationshipFromView(v, relIri);
+        expect(store.getQuads(nn(label))).toHaveLength(0);
+
+        views.addRelationshipToView(v, relIri);
+        views.setLinkLabel(v, relIri, box);
+        rels.deleteRelationship(relIri);
+        expect(labelNodes()).toEqual([]);
+
+        const again = rels.createQualifiedRelationship({ typeIri: ARCH + 'rel', sourceIri: a, targetIri: b }).iri;
+        views.addRelationshipToView(v, again);
+        views.setLinkLabel(v, again, box);
+        views.deleteView(v);
+        expect(labelNodes()).toEqual([]);
+      });
+
+      it('is copied with its view', () => {
+        views.addElementToView(v, a);
+        views.addElementToView(v, b);
+        views.addRelationshipToView(v, relIri);
+        views.setLinkLabel(v, relIri, box);
+        const copy = views.duplicateView(v).value;
+        expect(views.getLinks(copy)[0].label).toEqual(box);
+        expect(labelNodes()).toHaveLength(2);
+      });
+
+      it('reads a label node another tool wrote as a blank node, and replaces it', () => {
+        const { blankNode, literal, quad } = DataFactory;
+        views.addElementToView(v, a);
+        views.addElementToView(v, b);
+        const linkIri = views.addRelationshipToView(v, relIri) as string;
+        const d = (n: number) => literal(String(n), namedNode('http://www.w3.org/2001/XMLSchema#double'));
+        const label = blankNode('l0');
+        store.addQuads([
+          quad(namedNode(linkIri), namedNode(VIS + 'label'), label),
+          quad(label, namedNode(RDF_TYPE), namedNode(VIS + 'LabelNode')),
+          quad(label, namedNode(VIS + 'bounds-x'), d(5)),
+          quad(label, namedNode(VIS + 'bounds-y'), d(6)),
+          quad(label, namedNode(VIS + 'bounds-w'), d(70)),
+          quad(label, namedNode(VIS + 'bounds-h'), d(12)),
+        ] as never);
+        expect(views.getLinks(v)[0].label).toEqual({ x: 5, y: 6, width: 70, height: 12 });
+        views.setLinkLabel(v, relIri, box);
+        expect(views.getLinks(v)[0].label).toEqual(box);
+        expect(store.getQuads().some((q) => q.subject.termType === 'BlankNode')).toBe(false);
+      });
+    });
   });
 });
 

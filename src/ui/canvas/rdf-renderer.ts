@@ -46,7 +46,8 @@
  * toolbar's switch, off by default) and the relationship has a name of its
  * own: centred on the middle of its route, wrapped as a shape's name is, on a
  * white box so the line stops at the name — or just under the derivation
- * badge, which sits on that middle. {@link connectionLabelLayout} is
+ * badge, which sits on that middle; moved (`rdf-link-label.ts`), at its offset
+ * from that middle, so it follows the line. {@link connectionLabelLayout} is
  * the one place the geometry is worked out: the renaming text box and the
  * export's crop read it too.
  */
@@ -115,15 +116,22 @@ export interface ConnectionLabelLayout {
   box: Box;
 }
 
+/** Where a name's centre is from the middle of its route. */
+export interface LabelOffset {
+  x: number;
+  y: number;
+}
+
 /**
  * Where a relationship's name goes on its route: centred on the route's middle,
- * or — with a derivation badge there — its top just under the badge.
+ * or — with a derivation badge there — its top just under the badge; moved, its
+ * centre `offset` from the route's middle, which it keeps as the route changes.
  * `undefined` without two waypoints.
  */
 export function connectionLabelLayout(
   waypoints: ReadonlyArray<{ x: number; y: number }>,
   label: string,
-  options: { badge?: boolean } = {},
+  options: { badge?: boolean; offset?: LabelOffset } = {},
 ): ConnectionLabelLayout | undefined {
   const middle = midpointOf(waypoints);
   if (!middle) return undefined;
@@ -134,14 +142,34 @@ export function connectionLabelLayout(
   const textWidth = Math.max(0, ...lines.map((line) => line.length)) * fontSize * 0.55;
   const width = textWidth + 2 * CONNECTION_LABEL_GAP;
   const height = Math.max(1, lines.length) * lineHeight;
-  const top = options.badge ? middle.y + DERIVATION_BADGE_RADIUS + CONNECTION_LABEL_GAP : middle.y - height / 2;
+  const { offset } = options;
+  const centreX = middle.x + (offset?.x ?? 0);
+  const top = offset
+    ? middle.y + offset.y - height / 2
+    : options.badge
+      ? middle.y + DERIVATION_BADGE_RADIUS + CONNECTION_LABEL_GAP
+      : middle.y - height / 2;
   return {
     lines,
-    x: round2(middle.x),
+    x: round2(centreX),
     y: round2(top + fontSize * 0.85),
     lineHeight,
-    box: { x: round2(middle.x - width / 2), y: round2(top), width: round2(width), height },
+    box: { x: round2(centreX - width / 2), y: round2(top), width: round2(width), height },
   };
+}
+
+/**
+ * The offset of a box's centre from the middle of a route: where a name kept in
+ * the view (`arch-vis:LabelNode`, in the diagram's coordinates) is, relative to
+ * the line it follows. `undefined` without two waypoints.
+ */
+export function labelOffsetOf(
+  waypoints: ReadonlyArray<{ x: number; y: number }>,
+  box: { x: number; y: number; width: number; height: number },
+): LabelOffset | undefined {
+  const middle = midpointOf(waypoints);
+  if (!middle) return undefined;
+  return { x: round2(box.x + box.width / 2 - middle.x), y: round2(box.y + box.height / 2 - middle.y) };
 }
 
 /** The name drawn on a relationship's line: when names are shown and it has one of its own. */
@@ -153,7 +181,10 @@ export function drawnConnectionLabel(
   if (!options.relationshipNames || businessObject?.kind !== 'relationship' || !businessObject.named || !businessObject.label) {
     return undefined;
   }
-  const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, { badge: !!businessObject.derivation });
+  const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, {
+    badge: !!businessObject.derivation,
+    offset: businessObject.labelOffset,
+  });
   return layout && layout.lines.length > 0 ? layout : undefined;
 }
 
@@ -211,6 +242,12 @@ export interface RdfBusinessObject {
   derivation?: 'valid' | 'potential';
   /** The rule that derived it, by local name (`DR3`), for the badge's tooltip. */
   derivationRule?: string;
+  /**
+   * Where a relationship's name was moved to in this view: its centre's offset
+   * from the middle of the route, so it follows the line. Absent, the name is at
+   * the middle.
+   */
+  labelOffset?: LabelOffset;
 }
 
 /** The subset of a diagram-js element this renderer reads. */

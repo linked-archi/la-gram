@@ -293,7 +293,10 @@ export class RdfLabelEditingProvider {
   private lineContext(line: LabelledShape): DirectEditingContext | null {
     const businessObject = line.businessObject;
     const text = businessObject?.named ? (businessObject.label ?? '') : '';
-    const layout = connectionLabelLayout(line.waypoints ?? [], text, { badge: !!businessObject?.derivation });
+    const layout = connectionLabelLayout(line.waypoints ?? [], text, {
+      badge: !!businessObject?.derivation,
+      offset: businessObject?.labelOffset,
+    });
     if (!layout) return null;
     const zoom = this.canvas.zoom();
     const px = (n: number) => `${Math.round(n * zoom * 100) / 100}px`;

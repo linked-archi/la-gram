@@ -32,6 +32,7 @@ import { ModelSession } from '../../../model-manager/model-session.js';
 import { labelOf, modelNameOf, modelQuads } from '../../../model-manager/model-queries.js';
 import { EventBus } from '../../event-bus.js';
 import { DiagramCanvas, OUTSIDE_VIEWPOINT_MARKER } from '../diagram-canvas.js';
+import { MOVE_LINK_LABEL_COMMAND } from '../rdf-link-label.js';
 import { buildClassClosure } from '../relationship-resolution.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
 import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
@@ -653,5 +654,99 @@ describe('a relationship’s name on its line', () => {
     expect(modelNameOf(f.store, serving)).toBeUndefined();
     expect(labelOf(f.store, serving)).toBe('From another graph');
     f.store.removeQuads(f.store.getQuads(null, null, null, elsewhere));
+  });
+});
+
+describe('a relationship’s name moved on its line', () => {
+  const PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+
+  function scene() {
+    const f = mount();
+    const web = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web' }).value;
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: api, targetIri: web }).iri;
+    f.store.addQuads([DataFactory.quad(nn(serving), nn(PREF_LABEL), DataFactory.literal('Serves pages', 'en')) as never]);
+    f.views.addElementToView(f.viewIri, web, { x: 0, y: 0, width: 120, height: 55 });
+    f.views.addElementToView(f.viewIri, api, { x: 400, y: 0, width: 120, height: 55 });
+    f.views.addRelationshipToView(f.viewIri, serving);
+    f.canvas.showView(f.viewIri);
+    f.canvas.setRelationshipNamesShown(true);
+    const registry = f.service<{ get(id: string): any }>('elementRegistry');
+    const line = () => registry.get(serving);
+    const kept = () => f.views.getLinks(f.viewIri)[0].label;
+    const centreOf = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    const middle = () => {
+      const w = line().waypoints as Array<{ x: number; y: number }>;
+      return { x: (w[0].x + w[w.length - 1].x) / 2, y: (w[0].y + w[w.length - 1].y) / 2 };
+    };
+    const drawnX = () =>
+      Number(f.container.querySelector(`[data-element-id="${serving}"] .la-connection-label text`)?.getAttribute('x'));
+    /** Within a pixel: the view keeps whole pixels. */
+    const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
+    const move = (offset: { x: number; y: number } | undefined) =>
+      f.service<{ execute(c: string, ctx: unknown): void }>('commandStack').execute(MOVE_LINK_LABEL_COMMAND, { connection: line(), offset });
+    return { f, web, api, serving, registry, line, kept, centreOf, middle, drawnX, move, near };
+  }
+
+  it('is kept in the view where it was put, as one undoable step', () => {
+    const { f, kept, centreOf, middle, drawnX, move, line, near } = scene();
+    expect(kept()).toBeUndefined();
+    const before = drawnX();
+
+    move({ x: 30, y: -40 });
+    expect(line().businessObject.labelOffset).toEqual({ x: 30, y: -40 });
+    expect(drawnX()).toBeCloseTo(before + 30);
+    const centre = centreOf(kept()!);
+    near(centre.x - middle().x, 30);
+    near(centre.y - middle().y, -40);
+
+    f.commandStack.undo();
+    expect(kept()).toBeUndefined();
+    expect(line().businessObject.labelOffset).toBeUndefined();
+    expect(drawnX()).toBeCloseTo(before);
+    f.commandStack.redo();
+    expect(kept()).toBeDefined();
+    expect(drawnX()).toBeCloseTo(before + 30);
+
+    // Back to the middle: the label node goes; undo puts it back.
+    move(undefined);
+    expect(kept()).toBeUndefined();
+    expect(drawnX()).toBeCloseTo(before);
+    f.commandStack.undo();
+    expect(kept()).toBeDefined();
+  });
+
+  it('follows its line when an end moves, in the same step, and is drawn there when the view is reopened', () => {
+    const { f, api, registry, kept, centreOf, middle, move, line, near } = scene();
+    move({ x: 0, y: -40 });
+    f.service<{ moveElements(e: unknown[], d: unknown): void }>('modeling').moveElements([registry.get(api)], { x: 0, y: 200 });
+    // Kept at the same offset from the middle of the re-laid route.
+    const centre = centreOf(kept()!);
+    near(centre.x - middle().x, 0);
+    near(centre.y - middle().y, -40);
+    // One undo takes the move and the name's new place back together.
+    const movedTo = kept();
+    f.commandStack.undo();
+    expect(kept()).not.toEqual(movedTo);
+    f.commandStack.redo();
+    expect(kept()).toEqual(movedTo);
+
+    // Reopened: the same offset, read from the view.
+    f.canvas.showView(f.viewIri);
+    const offset = line().businessObject.labelOffset;
+    near(offset.x, 0);
+    near(offset.y, -40);
+  });
+
+  it('follows a move made elsewhere — a collaborator, or an edit undone', () => {
+    const { f, serving, drawnX, line, middle } = scene();
+    const m = middle();
+    f.views.setLinkLabel(f.viewIri, serving, { x: m.x + 50 - 45, y: m.y + 60 - 6, width: 90, height: 12 });
+    f.canvas.syncFromStore();
+    expect(line().businessObject.labelOffset).toEqual({ x: 50, y: 60 });
+    expect(drawnX()).toBeCloseTo(m.x + 50);
+    f.views.setLinkLabel(f.viewIri, serving, undefined);
+    f.canvas.syncFromStore();
+    expect(line().businessObject.labelOffset).toBeUndefined();
   });
 });

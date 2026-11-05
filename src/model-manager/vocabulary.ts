@@ -114,7 +114,10 @@ export const IRI = {
   ArchNode: VIS + 'ArchNode',
   Link: VIS + 'Link',
   Point: VIS + 'Point',
+  LabelNode: VIS + 'LabelNode',
   visView: VIS + 'view',
+  /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
+  visLabel: VIS + 'label',
   archElement: VIS + 'archElement',
   inNode: VIS + 'inNode',
   archRelationship: VIS + 'archRelationship',

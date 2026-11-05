@@ -24,8 +24,18 @@
  *         arch-vis:view m:view-… ;
  *         arch-vis:archRelationship m:relationship-… ;
  *         arch-vis:source m:node-… ; arch-vis:target m:node-… ;
- *         arch-vis:points m:link-…-points-0 .         # optional route: m:link-…-p0, -p1 …
+ *         arch-vis:points m:link-…-points-0 ;         # optional route: m:link-…-p0, -p1 …
+ *         arch-vis:label m:link-…-label .             # optional: where its name was moved to
+ *
+ * m:link-…-label  a arch-vis:LabelNode ;
+ *         arch-vis:view m:view-… ;
+ *         arch-vis:bounds-x 210.0 ; … bounds-y, bounds-w, bounds-h .
  * ```
+ *
+ * A link's `arch-vis:LabelNode` keeps where the relationship's name was moved
+ * to, in the diagram's coordinates, as core-vis gives a node's bounds; without
+ * one the name is at the middle of the route. It goes with its link — removed,
+ * restored and copied with it.
  *
  * A relationship whose source or target is another relationship is drawn to
  * that relationship's link: the end is the link, not a node (core-vis 0.6). A
@@ -230,6 +240,8 @@ export class OxigraphViewManager implements ViewManager {
     for (const node of this.read(null, T.visView, view)) {
       quads.push(...this.subjectQuads(node.subject));
       quads.push(...this.pointListQuads(node.subject));
+      // A label node another tool wrote without a view of its own goes with what it labels.
+      quads.push(...this.labelNodeQuads(node.subject));
     }
     // …and every membership statement naming it. The concepts themselves stay.
     quads.push(...this.read(null, T.inView, view));
@@ -250,8 +262,13 @@ export class OxigraphViewManager implements ViewManager {
     for (const node of nodes) {
       if (node.parentElementIri) this.setNodeParent(copy.value, node.elementIri, node.parentElementIri);
     }
-    const routes = new Map(this.getLinks(viewIri).map((link) => [link.relationshipIri, link.waypoints]));
+    const links = this.getLinks(viewIri);
+    const routes = new Map(links.map((link) => [link.relationshipIri, link.waypoints]));
     addRelationshipsToView(this, copy.value, [...routes.keys()], (iri) => routes.get(iri));
+    // Names moved off the middle of their lines stay where they were put.
+    for (const link of links) {
+      if (link.label) this.setLinkLabel(copy.value, link.relationshipIri, link.label);
+    }
     // A catalog or matrix lists concepts without geometry: copy the membership.
     for (const q of this.read(null, T.inView, nn(viewIri))) {
       this.store.addQuads([triple(q.subject, T.inView, copy)]);
@@ -417,6 +434,22 @@ export class OxigraphViewManager implements ViewManager {
     if (waypoints.length > 0) this.writePoints(link, waypoints);
   }
 
+  setLinkLabel(viewIri: string, relationshipIri: string, bounds: Bounds | undefined): void {
+    const [linkIri] = this.linkIrisFor(viewIri, relationshipIri);
+    if (!linkIri) return;
+    const link = nn(linkIri);
+    this.remove(this.labelNodeQuads(link));
+    if (!bounds) return;
+    // Named after the link, flat like its route's cells: `m:link-…-label`.
+    const label = nn(`${linkIri}-label`);
+    this.store.addQuads([
+      triple(link, T.visLabel, label),
+      triple(label, T.rdfType, T.LabelNode),
+      triple(label, T.visView, nn(viewIri)),
+      ...boundsQuads(label, bounds),
+    ]);
+  }
+
   refreshLinksOf(relationshipIri: string): void {
     const rel = nn(relationshipIri);
     const sourceIri = this.objects(rel, T.source)[0];
@@ -520,7 +553,27 @@ export class OxigraphViewManager implements ViewManager {
       sourceElementIri,
       targetElementIri,
       waypoints: this.readPoints(link),
+      ...this.readLabel(link),
     };
+  }
+
+  /** Where a link's `arch-vis:LabelNode` puts its text, when it has one with a position. */
+  private readLabel(link: Term): Pick<LinkInfo, 'label'> {
+    // As a term: another tool's label node may be a blank node.
+    const label = this.objectTerms(link, T.visLabel)[0];
+    if (!label) return {};
+    const bound = (predicate: NamedNode) => numberOf(this.read(label as NamedNode, predicate)[0]?.object);
+    const x = bound(T.boundsX);
+    const y = bound(T.boundsY);
+    if (x === undefined || y === undefined) return {};
+    return { label: { x, y, width: bound(T.boundsW) ?? 0, height: bound(T.boundsH) ?? 0 } };
+  }
+
+  /** A link's `arch-vis:label` statements and its label nodes' own quads. */
+  private labelNodeQuads(link: Term): Quad[] {
+    const quads = this.read(link as NamedNode, T.visLabel);
+    for (const q of [...quads]) quads.push(...this.read(q.object as NamedNode));
+    return quads;
   }
 
   /**
@@ -530,7 +583,7 @@ export class OxigraphViewManager implements ViewManager {
   private linkQuads(link: Term, view: NamedNode, seen: Set<string> = new Set()): Quad[] {
     if (seen.has(link.value)) return [];
     seen.add(link.value);
-    const quads = [...this.subjectQuads(link), ...this.pointListQuads(link)];
+    const quads = [...this.subjectQuads(link), ...this.pointListQuads(link), ...this.labelNodeQuads(link)];
     for (const relationshipIri of this.objects(link, T.archRelationship)) {
       // Only drop inView when this is the relationship's last link in the view.
       const others = this.linkIrisFor(view.value, relationshipIri).filter((iri) => iri !== link.value);

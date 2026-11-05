@@ -15,7 +15,7 @@
  * - its unqualified triple `source predicate target` — unless another qualified
  *   resource of the same kind still connects the same pair, in which case the
  *   triple is still true and stays;
- * - every `arch-vis:Link` drawing it, in any view, with its route;
+ * - every `arch-vis:Link` drawing it, in any view, with its route and its label node;
  * - its `arch:inView` statements (they are its own triples, covered above).
  *
  * ## An element
@@ -94,6 +94,8 @@ function linkQuads(store: RdfStore, link: Term, seen: Set<string> = new Set()): 
   if (seen.has(link.value)) return [];
   seen.add(link.value);
   const quads = [...store.getQuads(link as NamedNode, null, null)];
+  // Its label node — where its name was moved to — goes with it.
+  for (const label of store.getQuads(link as NamedNode, T.visLabel)) quads.push(...store.getQuads(label.object as NamedNode, null, null));
   for (const end of [T.visSource, T.visTarget]) {
     for (const attached of store.getQuads(null, end, link as NamedNode)) quads.push(...linkQuads(store, attached.subject, seen));
   }

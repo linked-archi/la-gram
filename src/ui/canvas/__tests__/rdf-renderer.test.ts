@@ -23,7 +23,7 @@ import {
   NOTATION_DEFAULTS,
   SHAPE_TYPES,
 } from '../notation-shapes.js';
-import { RENDER_CLASSES, connectionLabelLayout, drawnConnectionLabel, midpointOf, type RdfBusinessObject } from '../rdf-renderer.js';
+import { RENDER_CLASSES, connectionLabelLayout, drawnConnectionLabel, labelOffsetOf, midpointOf, type RdfBusinessObject } from '../rdf-renderer.js';
 import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
 import { archimateShape } from './notation-shape-fixtures.js';
 
@@ -648,6 +648,25 @@ describe('connection rendering', () => {
       expect(label.getAttribute('opacity')).toBe('0.6');
       // The badge is a circle of radius 7 on the middle (100, 0): the name starts below it.
       expect(Number(label.querySelector('rect')!.getAttribute('y'))).toBeGreaterThan(7);
+    });
+
+    it('moved, is drawn at its offset from the middle of the route — and keeps it as the route changes', () => {
+      const route = [{ x: 0, y: 0 }, { x: 200, y: 0 }];
+      const moved = connectionLabelLayout(route, 'Serves orders', { offset: { x: 30, y: -40 } })!;
+      expect(moved.x).toBe(130);
+      expect(moved.box.y + moved.box.height / 2).toBeCloseTo(-40);
+      // What the view keeps (the box) gives the offset back.
+      expect(labelOffsetOf(route, moved.box)).toEqual({ x: 30, y: -40 });
+      // The route longer: the same offset from its new middle.
+      const longer = connectionLabelLayout([{ x: 0, y: 0 }, { x: 400, y: 0 }], 'Serves orders', { offset: { x: 30, y: -40 } })!;
+      expect(longer.x).toBe(230);
+      // A derived line's name, moved, is where it was put — not under the badge.
+      const derived = connectionLabelLayout(route, 'Serves orders', { badge: true, offset: { x: 0, y: -40 } })!;
+      expect(derived.box.y + derived.box.height / 2).toBeCloseTo(-40);
+
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const line = harness.drawConnection(named('Serves orders', { labelOffset: { x: 30, y: -40 } }));
+      expect(labelOf(line)!.querySelector('text')!.getAttribute('x')).toBe('130');
     });
 
     it('is laid out by connectionLabelLayout, which drawnConnectionLabel applies only when shown and named', () => {

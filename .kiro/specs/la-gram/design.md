@@ -412,7 +412,8 @@ model runs its model operation inside a nested command:
 | Change an element's type (property panel, right-click menu) | `rdf.element.retype` | `rdf.store.change` → the `rdf:type` (and the default name); also redraws the shape in the new notation, on undo too |
 | Rename in the box (double-click, F2) — an element's, or a relationship's on its line | `rdf.element.relabel` | `rdf.store.change` → the `skos:prefLabel` in the shown language (a relationship's, emptied, removed); also relabels the shape or the line, on undo too |
 | Move / resize | `shape.move` / `shape.resize` | `rdf.store.change` → node bounds |
-| Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list; relationships ending on the line follow it (nested `connection.layout`, see Routes and docking) |
+| Route change | `connection.layout` / `updateWaypoints` / `move` | `rdf.store.change` → point list, and a moved name's bounds; relationships ending on the line follow it (nested `connection.layout`, see Routes and docking) |
+| Move a relationship's name (drag it; right-click › Move name back to the middle) | `rdf.link.label.move` | `rdf.store.change` → the link's `arch-vis:LabelNode`, or its removal; also places the name on the line, on undo too |
 | Reconnect end | `connection.reconnect` | `rdf.store.change` → ends, triple, links in other views |
 | Delete (key, pad ×) | `shape.delete` / `connection.delete` | `rdf.store.change` → remove from **view** |
 | Delete from model (pad ✖, tree) | `rdf.model.delete` | removes shapes, then the concept everywhere |
@@ -518,8 +519,33 @@ a collaborator, and its undo, show on the line. It is read through
 `ConceptDescription.modelName` — `modelNameOf`, the model graph alone, which the
 store answers from its copy in JavaScript — not `label`, which looks in every
 graph for a concept the model does not name: that read, for every line each
-time a view is drawn, is what Task 22 took out. Nothing about the name is stored
-in the view: see key decision 15.
+time a view is drawn, is what Task 22 took out. The name is the model's; where
+it is drawn, once moved, is the view's: see key decisions 15 and 16.
+
+**Moving a relationship's name** (`rdf-link-label.ts`). A press on a drawn name
+starts diagram-js's `dragging` (`rdf.linkLabel.*`), the selection kept. The press
+reaches the line as `element.mousedown` whatever node it landed on — the name's
+box, or the segment handle diagram-js's bendpoints draw over the line's middle,
+on top of it, which forwards its press to the line — so the listener sits above
+`Bendpoints`' own (1500 over 1000) and takes the press only when the pointer, in
+diagram coordinates, is inside the name's box (`drawnConnectionLabel`); anywhere
+else on the line the bendpoints take it as before. The name follows the pointer
+(redrawn through `graphicsFactory.update`, no command); let go, it is moved by
+`rdf.link.label.move`, a recorded store change whose writer
+(`ViewManager.setLinkLabel`) keeps the link's `arch-vis:LabelNode` —
+`{link}-label`, typed, in the view, with bounds — or, moved to nowhere (*Move
+name back to the middle*), drops it. On the line the name is an offset from the
+route's middle (`RdfBusinessObject.labelOffset`): read from the kept bounds'
+centre when the line is drawn (`labelOffsetOf`, `addRelationship`) and when the
+store changes (`syncFromStore`, which takes a difference of a pixel or less for
+the bounds' rounding), and kept as the route changes, so the name follows the
+line; `writeRoute` writes the bounds again at the new middle, in the route's own
+nested change, so one undo takes both back. The bounds are written in whole
+pixels around the centre rounded (`labelBoundsAt`), the centre being what is
+read back. Not while a collaborator holds the line, and not without an open view
+(`canMoveLinkLabel`). The view manager removes the label node with its link
+(`collectLinkQuads`; the model cascade's own `linkQuads` too), with its view, and
+copies it with the view.
 
 ### Routes and docking
 
@@ -1779,9 +1805,24 @@ dialog; the modules' section).
     their lines' notation — line style and ends — and a name on every line
     crowds one of any size, so the names are off unless the *Relationship names*
     switch is on (the user's call); a relationship without a name shows nothing,
-    not its type. Moving a name off the middle will need the view to keep its
-    place: an `arch-vis:LabelNode` hung on the `arch-vis:Link` with
-    `arch-vis:label`, as core-vis provides — queued (see tasks).
+    not its type. A name moved off the middle is the view's: see 16.
+
+16. **A moved name is kept as bounds, and follows its line as an offset**
+    (2026-11-05). core-vis gives a label node bounds in the diagram's
+    coordinates, as BPMN DI gives a label, and nothing relative to a route. So
+    the view keeps the bounds — an `arch-vis:LabelNode` on the link with
+    `arch-vis:label`, as core-vis and its shapes describe it, needing no change
+    to them — and the canvas reads the name's offset from the route's middle out
+    of them, keeps that offset as the route changes, and writes the bounds again
+    with each new route. The alternative, a property for an offset from the
+    route, would have meant a change to the published core-vis and a term to
+    name. A tool that moves the line without writing the bounds again leaves the
+    name where it was, as bounds say. The label node is named after its link
+    (`{link}-label`), as the route's cells are (`{link}-points-0`), so it has an
+    identity collaborators share; a press on the name drags the name — the
+    line's handles keep the rest of it — rather than a separate diagram-js
+    label element, which would put a second element per line in every place
+    that walks the canvas.
 
 ---
 

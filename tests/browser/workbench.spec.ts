@@ -1026,6 +1026,114 @@ describe('renaming on the canvas', () => {
   }, 60_000);
 });
 
+describe('moving a relationship’s name', () => {
+  it('drags the name off the middle — not the line — keeps it in the view, follows the line, and moves it back, undoably', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const ids = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string, x: number) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x, y: 100, width: 120, height: 55 });
+        return iri;
+      };
+      const a = make('ApplicationComponent', 'Portal', 100);
+      const b = make('BusinessActor', 'Clerk', 500);
+      const r = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: a, targetIri: b, modelIri: m }).iri;
+      app.components.store.addQuads([
+        {
+          termType: 'Quad', value: '',
+          subject: { termType: 'NamedNode', value: r },
+          predicate: { termType: 'NamedNode', value: 'http://www.w3.org/2004/02/skos/core#prefLabel' },
+          object: { termType: 'Literal', value: 'Serves the clerk', language: 'en', datatype: { termType: 'NamedNode', value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString' } },
+          graph: { termType: 'DefaultGraph', value: '' },
+        },
+      ]);
+      app.components.viewManager.addRelationshipToView(v, r);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { a, b, r, v };
+    });
+    const namesSwitch = page.locator('canvas-toolbar button[data-switch="relationship-names"]');
+    await namesSwitch.click();
+    const name = page.locator(`.djs-connection[data-element-id="${ids.r}"] .la-connection-label rect`);
+    await name.waitFor({ state: 'attached' });
+    const facts = async () =>
+      page.evaluate(({ r, v }) => {
+        const ui = (window as any).__LA_GRAM_UI__;
+        const app = (window as any).__LA_GRAM_APP__;
+        const line = ui.diagramCanvas.getDiagram().get('elementRegistry').get(r);
+        const link = app.components.viewManager.getLinks(v).find((l: any) => l.relationshipIri === r);
+        const w = line.waypoints;
+        return {
+          route: w.map((p: any) => `${Math.round(p.x)},${Math.round(p.y)}`).join(' '),
+          middle: { x: (w[0].x + w[w.length - 1].x) / 2, y: (w[0].y + w[w.length - 1].y) / 2 },
+          kept: link?.label as { x: number; y: number; width: number; height: number } | undefined,
+        };
+      }, ids);
+    const centre = async () => {
+      const box = (await name.boundingBox())!;
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const before = await facts();
+    expect(before.kept).toBeUndefined();
+    const at = await centre();
+
+    // Pressed on the name — over the segment handle diagram-js draws on the line's middle — and dragged up.
+    await page.mouse.move(at.x, at.y);
+    await page.waitForTimeout(150);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 10, at.y - 30, { steps: 5 });
+    await page.mouse.move(at.x + 20, at.y - 60, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+    const moved = await facts();
+    // The line stayed where it was; the name went, and the view keeps where.
+    expect(moved.route).toBe(before.route);
+    expect(moved.kept).toBeDefined();
+    const now = await centre();
+    expect(now.y).toBeLessThan(at.y - 40);
+    expect(now.x).toBeGreaterThan(at.x + 10);
+    await session.screenshot('workbench-relationship-name-moved');
+
+    // Undo puts it back at the middle; redo where it was put.
+    const blank = async () => page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    await blank();
+    await page.keyboard.press('Control+z');
+    await until(async () => (await facts()).kept === undefined, 'the move undone');
+    expect(Math.abs((await centre()).y - at.y)).toBeLessThan(2);
+    await page.keyboard.press('Control+y');
+    await until(async () => (await facts()).kept !== undefined, 'the move redone');
+
+    // An end moves: the name keeps its place relative to the middle of the line.
+    const offsetOf = (f: Awaited<ReturnType<typeof facts>>) => ({
+      x: f.kept!.x + f.kept!.width / 2 - f.middle.x,
+      y: f.kept!.y + f.kept!.height / 2 - f.middle.y,
+    });
+    const kept = offsetOf(await facts());
+    await page.evaluate((b) => {
+      const d = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram();
+      d.get('modeling').moveElements([d.get('elementRegistry').get(b)], { x: 0, y: 120 });
+    }, ids.b);
+    const after = await facts();
+    expect(after.route).not.toBe(moved.route);
+    expect(Math.abs(offsetOf(after).x - kept.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(offsetOf(after).y - kept.y)).toBeLessThanOrEqual(1);
+
+    // The right-click menu on the name: back to the middle.
+    const c = await centre();
+    await page.mouse.click(c.x, c.y, { button: 'right' });
+    const menu = page.locator('.djs-popup.la-context-menu');
+    await menu.waitFor({ state: 'visible' });
+    await menu.locator('.entry', { hasText: 'Move name back to the middle' }).click();
+    await until(async () => (await facts()).kept === undefined, 'the name back at the middle');
+
+    await namesSwitch.click();
+    findings.push('relationship name moved: drag (not the line), kept in the view, undo/redo, follows its line, back to the middle: ok');
+  }, 60_000);
+});
+
 describe('changing an element’s type', () => {
   it('offers the loaded types from the right-click menu and the property panel, keeps the element, warns about relationships, and undoes', async () => {
     const { page, session } = await openPage();
