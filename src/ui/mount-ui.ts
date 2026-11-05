@@ -34,7 +34,7 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
-import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
+import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
 import {
@@ -243,6 +243,13 @@ export interface MountedUi {
   describeConcept(iri: string): FocusDescription;
   /** A property as the Properties tab names it (`Name`, `Documentation`). */
   propertyName(predicate: string): string;
+  /** A class as the palette and the model tree name it (`Application Component`). */
+  typeName(iri: string): string;
+  /**
+   * The bound file's Git history for the History tab (Task 21): `source` gives
+   * it for a model, `undefined` for one not bound. Returns what takes it away.
+   */
+  setGitHistory(source: (modelIri: string) => HistoryGitSource | undefined): () => void;
   /** Refresh every panel from the store. */
   refresh(): void;
   /** Detach listeners and remove the shell from the document. */
@@ -1500,14 +1507,25 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const shown = shell.visibleBottomTab === 'history';
     if (shown !== historyShown) {
       historyShown = shown;
-      void refreshHistory();
+      void refreshHistory(shown);
     }
   };
 
   // ── History: commit, compare, restore ────────────────────────────────
   let historyShown = false;
+  /** The bound file's Git history, from the Git module while it runs. */
+  let gitHistory: ((modelIri: string) => HistoryGitSource | undefined) | undefined;
+  historyPanel.diffOptions = () => ({ singleValued: app.singleValued() });
+  historyPanel.words = { typeName: typeLabelOf, propertyName: (p) => fieldName(p, undefined, propertyPanel.nameOf) };
+  /** While the tab is shown: the bound file's Git history — read again when the tab opens (`opened`). */
+  const showGitHistory = (opened = false): void => {
+    if (!historyShown) return;
+    const modelIri = session.modelIri;
+    historyPanel.git = modelIri ? gitHistory?.(modelIri) : undefined;
+    if (opened) historyPanel.reloadGit();
+  };
   /** The open model's commits, and — while the tab is shown — its working state to compare with. */
-  const refreshHistory = async (): Promise<void> => {
+  const refreshHistory = async (opened = false): Promise<void> => {
     const modelIri = session.modelIri;
     historyPanel.canCommit = Boolean(modelIri);
     historyPanel.prefixes = app.modelIO.collectPrefixes(modelIri);
@@ -1518,6 +1536,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       historyPanel.commits = [];
     }
     historyPanel.working = historyShown && modelIri ? versionHistory.workingSnapshot() : undefined;
+    showGitHistory(opened);
+  };
+  const setGitHistory = (source: (modelIri: string) => HistoryGitSource | undefined): (() => void) => {
+    gitHistory = source;
+    showGitHistory(true);
+    return () => {
+      if (gitHistory !== source) return;
+      gitHistory = undefined;
+      historyPanel.git = undefined;
+    };
+  };
+  const onDiffSelect = (e: Event): void => {
+    const { iri } = (e as CustomEvent<{ iri: string }>).detail;
+    // Only what the model has now: a concept the version compared had, and the model no longer does, is not there to show.
+    if (store.getQuads(namedNode(iri) as never, null, null, DataFactory.defaultGraph() as never).length > 0) selectConcept(iri);
   };
   const onHistoryCommit = async (e: Event): Promise<void> => {
     const modelIri = session.modelIri;
@@ -1550,6 +1583,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   historyPanel.addEventListener('history-commit', onHistoryCommit);
   historyPanel.addEventListener('history-restore', onHistoryRestore);
+  historyPanel.addEventListener('diff-select', onDiffSelect);
   shell.addEventListener('bottom-panel-changed', onBottomPanelChanged);
   // The Graph tab may be the one left open last time.
   queueMicrotask(onBottomPanelChanged);
@@ -2408,8 +2442,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onModelChanged: ModelEventHandler = (event) => {
     if (event.detail?.origin !== 'canvas') diagramCanvas.syncFromStore();
     propertyPanel.reload();
-    // What is not committed yet, while the History tab shows it.
-    if (historyShown && session.modelIri) historyPanel.working = versionHistory.workingSnapshot();
+    // What is not committed yet, while the History tab shows it — and where the model is bound now (a merge rebinds it).
+    if (historyShown && session.modelIri) {
+      historyPanel.working = versionHistory.workingSnapshot();
+      showGitHistory();
+    }
     if (propertyPanel.selectedIri) {
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
@@ -2433,7 +2470,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     refreshToolbar();
   };
 
-  const onSaved: ModelEventHandler = () => refreshToolbar();
+  const onSaved: ModelEventHandler = () => {
+    refreshToolbar();
+    // Saved to Git: a new commit to list.
+    showGitHistory();
+  };
 
   // Anything that changes the model changes the RDF text. The panel ignores
   // this while hidden and debounces it while shown.
@@ -2532,6 +2573,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     shell.removeEventListener('bottom-panel-changed', onBottomPanelChanged);
     historyPanel.removeEventListener('history-commit', onHistoryCommit);
     historyPanel.removeEventListener('history-restore', onHistoryRestore);
+    historyPanel.removeEventListener('diff-select', onDiffSelect);
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
@@ -2603,6 +2645,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     addBottomTab,
     describeConcept: (iri) => validationPanel.describe?.(iri) ?? { name: labelOf(store, iri) },
     propertyName: (predicate) => fieldName(predicate, undefined, propertyPanel.nameOf),
+    typeName: typeLabelOf,
+    setGitHistory,
     refresh,
     dispose,
   };

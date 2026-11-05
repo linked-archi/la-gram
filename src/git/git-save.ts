@@ -34,6 +34,7 @@ import type { GitConfig } from '../config.js';
 import { learnKind, readLink, type HostKinds } from './host-kinds.js';
 import type { CommitResult, FileChange, GitHostProvider } from './providers/provider.js';
 import { commitUpdate, mergeWithNewer, type MergeSupport } from './git-merge.js';
+import type { DiffWords } from '../model-manager/model-diff-text.js';
 
 /** What the Save flow needs from la-gram, injected so it is tested without the UI. */
 export interface GitSaveContext {
@@ -65,6 +66,15 @@ export interface GitSaveContext {
   reopen?(link: RepositoryLink, branch: string, path: string): Promise<boolean>;
   /** Merging with another version (`git-merge.ts`); absent, la-gram does not merge. */
   merge?: MergeSupport;
+  /** Whether the model has changes not saved (*Open merge request* asks first). */
+  isDirty?(): boolean;
+  /** Names of types and properties, for a merge request's changes by element. */
+  words?: DiffWords;
+  /**
+   * Open a merge request from the bound branch into `target` (`git-review.ts`) —
+   * offered after a save to a new branch; absent, it is not offered.
+   */
+  review?(target?: string): Promise<unknown>;
 }
 
 /** Where a save goes. */
@@ -278,6 +288,19 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     });
     ctx.saved(target.path.split('/').pop() ?? target.path);
     ctx.report(`Committed ${result.commit.slice(0, 8)} to ${target.link.repository} · ${result.branch} · ${target.path} — ${result.webUrl}`);
+    if (result.branch !== branch && ctx.review) {
+      // A new branch is made to be merged: offer the merge request. One started
+      // from another branch's head (*Update from main* on GitLab) goes to the
+      // default branch, as the one it replaces did.
+      const updated = sameFile && binding.update !== undefined;
+      const kind = target.link.provider === 'github' ? 'pull request' : 'merge request';
+      const go = await ctx.dialogs.confirm(
+        `Open ${kind}`,
+        `Committed to the new branch ${result.branch}. Open a ${kind} to merge it into ${updated ? 'the default branch' : branch}?`,
+        { confirmLabel: `Open ${kind}` },
+      );
+      if (go) await ctx.review(updated ? undefined : branch);
+    }
     return result;
   } catch (err: unknown) {
     if (err instanceof GitError && err.kind === 'auth') {
@@ -439,7 +462,7 @@ export async function tokenFor(
         ? 'The repository is private, or not there. A fine-grained personal access token with Contents: read on it opens it (read and write saves too).'
         : 'The project is private, or not there. An access token with read_repository opens it (api saves too).'
       : link.provider === 'github'
-        ? 'A fine-grained personal access token with Contents: read and write on this repository.'
+        ? 'A fine-grained personal access token with Contents: read and write on this repository — and Pull requests: read and write, to open pull requests.'
         : 'A personal, project or group access token with the api scope.';
   const values = await ctx.dialogs.form(
     `Access token for ${link.host}`,

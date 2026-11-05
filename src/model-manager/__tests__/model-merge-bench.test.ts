@@ -8,7 +8,8 @@
  * 0.5–0.6 s, merging about 0.5 s with 11 conflicts — under the 1 s past which the
  * plan would split a model into its DD-15 graphs as files. The limit leaves
  * room for a slower machine, and still catches a merge that grows with the
- * square of the model.
+ * square of the model. The diff by element (`model-diff.ts`) of one side
+ * against base is timed against the same limit.
  *
  * In the suite it runs on 100 000 triples: at 350 000 it loads the machine
  * enough, beside the other tests, to push `questions-bench.test` past its
@@ -18,6 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { mergeSnapshots, snapshotOfText } from '../model-merge.js';
+import { diffByElement } from '../model-diff.js';
 // @ts-expect-error — the benchmark generator is a plain script
 import { generateModel } from '../../../scripts/bench-model.mjs';
 
@@ -73,11 +75,19 @@ describe('the three-way merge on a large model', () => {
     const { merged, conflicts } = mergeSnapshots(base, ours, theirs);
     const mergeMs = performance.now() - merge0;
 
+    // What a review shows: one side against base, by element.
+    const diff0 = performance.now();
+    const diff = diffByElement(base, theirs);
+    const diffMs = performance.now() - diff0;
+
     console.log(
-      `merge bench: ${base.length} lines; reading one version ${readMs.toFixed(0)} ms; merging ${mergeMs.toFixed(0)} ms; ${conflicts.length} conflicts`,
+      `merge bench: ${base.length} lines; reading one version ${readMs.toFixed(0)} ms; merging ${mergeMs.toFixed(0)} ms; ${conflicts.length} conflicts; ` +
+        `diff by element ${diffMs.toFixed(0)} ms, ${diff.changes.length} concepts`,
     );
     expect(merged.length).toBeGreaterThan(base.length * 0.9);
     expect(conflicts.length).toBeGreaterThan(0);
     expect(mergeMs).toBeLessThan(LIMIT_MS);
+    expect(diff.changes.length).toBeGreaterThan(0);
+    expect(diffMs).toBeLessThan(LIMIT_MS);
   }, 60_000);
 });

@@ -11,9 +11,9 @@ import { GitBindings, type GitBinding } from '../bindings.js';
 import { WebTokenStore } from '../credentials.js';
 import { GitError } from '../errors.js';
 import type { Dialogs, FormField, FormValues } from '../../ui/dialogs.js';
-import type { CommitResult, FileChange, GitHostProvider, MergeCommitChange } from '../providers/provider.js';
 import { applyChoice, type MergeConflict } from '../../model-manager/model-merge.js';
 import { MemoryStorage } from './memory-storage.js';
+import { Repository } from './memory-repository.js';
 
 const MODEL = 'https://example.org/m/model';
 const PATH = 'models/shop.nt';
@@ -23,110 +23,6 @@ const BASE = [line('e1', 'One'), line('e2', 'Two'), line('e3', 'Three')].sort();
 const renamed = (lines: string[], subject: string, name: string) =>
   lines.map((l) => (l.startsWith(`<https://example.org/m/${subject}> `) ? line(subject, name) : l)).sort();
 const text = (lines: string[]) => `${lines.join('\n')}\n`;
-
-/** A repository in memory: commits with their parents and files, branches, file versions by content. */
-class Repository implements GitHostProvider {
-  readonly commits = new Map<string, { parents: string[]; files: Map<string, string> }>();
-  readonly branches = new Map<string, string>();
-  readonly made: Array<{ kind: 'file' | 'merge'; branch: string; commit: string; parents: string[] }> = [];
-  /** Run before the next commit — another client committing meanwhile. */
-  beforeCommit?: () => void;
-  commitMerge?: (change: MergeCommitChange) => Promise<CommitResult>;
-  private n = 0;
-
-  constructor(readonly kind: 'github' | 'gitlab') {
-    this.commit('main', [], new Map([[PATH, text(BASE)]]), 'root');
-    if (kind === 'github') {
-      this.commitMerge = async (change) => {
-        this.beforeCommit?.();
-        this.beforeCommit = undefined;
-        if (this.branches.get(change.branch) !== change.head) throw new GitError('conflict', `${change.path} changed.`, 422);
-        const files = new Map(this.commits.get(change.head)!.files).set(change.path, change.text);
-        const commit = this.commit(change.branch, [change.head, change.mergeOf], files);
-        this.made.push({ kind: 'merge', branch: change.branch, commit, parents: [change.head, change.mergeOf] });
-        return { version: this.version(change.text), commit, branch: change.branch, webUrl: `https://host/commit/${commit}` };
-      };
-    }
-  }
-
-  /** A commit on a branch, as someone else would push it. */
-  commit(branch: string, parents: string[], files: Map<string, string>, id = `c${++this.n}`): string {
-    this.commits.set(id, { parents, files });
-    this.branches.set(branch, id);
-    return id;
-  }
-
-  /** Someone else changes the file on a branch. */
-  push(branch: string, lines: string[]): string {
-    const head = this.branches.get(branch)!;
-    return this.commit(branch, [head], new Map(this.commits.get(head)!.files).set(PATH, text(lines)));
-  }
-
-  fileAt(ref: string): string | undefined {
-    return this.commits.get(this.branches.get(ref) ?? ref)?.files.get(PATH);
-  }
-
-  version(content: string): string {
-    return `blob-${content.length}-${[...content].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7)}`;
-  }
-
-  async defaultBranch() {
-    return 'main';
-  }
-  async branchHead(branch: string) {
-    const head = this.branches.get(branch);
-    if (!head) throw new GitError('not-found', `The branch ${branch} was not found.`, 404);
-    return head;
-  }
-  async readFile(ref: string, path: string) {
-    const content = this.commits.get(this.branches.get(ref) ?? ref)?.files.get(path);
-    return content === undefined ? undefined : { text: content, version: this.kind === 'github' ? this.version(content) : this.lastChange(ref, path) };
-  }
-  async commitFile(change: FileChange): Promise<CommitResult> {
-    this.beforeCommit?.();
-    this.beforeCommit = undefined;
-    const branch = change.newBranch ?? change.branch;
-    if (change.newBranch && this.branches.has(change.newBranch)) throw new GitError('exists', 'A branch of that name is already in the repository.', 400);
-    const start = change.newBranch ? (change.startFrom ?? this.branches.get(change.branch)!) : this.branches.get(branch)!;
-    const there = await this.readFile(start, change.path);
-    if ((there?.version ?? undefined) !== change.expectedVersion) throw new GitError('conflict', `${change.path} changed.`, 409);
-    const commit = this.commit(branch, [start], new Map(this.commits.get(start)!.files).set(change.path, change.text));
-    this.made.push({ kind: 'file', branch, commit, parents: [start] });
-    return { version: (await this.readFile(commit, change.path))!.version, commit, branch, webUrl: `https://host/commit/${commit}` };
-  }
-  async listFiles() {
-    return { paths: [PATH], truncated: false };
-  }
-  async listBranches() {
-    return [...this.branches.keys()];
-  }
-  async mergeBase(a: string, b: string) {
-    const ancestors = (from: string) => {
-      const seen: string[] = [];
-      const queue = [from];
-      while (queue.length) {
-        const c = queue.shift()!;
-        if (seen.includes(c)) continue;
-        seen.push(c);
-        queue.push(...this.commits.get(c)!.parents);
-      }
-      return seen;
-    };
-    const ofA = new Set(ancestors(a));
-    return ancestors(b).find((c) => ofA.has(c))!;
-  }
-
-  /** GitLab's version: the last commit that changed the file, on the way to `ref`. */
-  private lastChange(ref: string, path: string): string {
-    let commit = this.branches.get(ref) ?? ref;
-    for (;;) {
-      const { parents, files } = this.commits.get(commit)!;
-      const parent = parents[0];
-      if (!parent || this.commits.get(parent)!.files.get(path) !== files.get(path)) return commit;
-      commit = parent;
-    }
-  }
-}
 
 let repo: Repository;
 let model: string[];
@@ -143,7 +39,7 @@ let bindings: GitBindings;
 let ctx: GitSaveContext;
 
 function context(kind: 'github' | 'gitlab'): void {
-  repo = new Repository(kind);
+  repo = new Repository(kind, PATH, text(BASE));
   model = [...BASE];
   shown = undefined;
   picked = 0;

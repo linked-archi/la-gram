@@ -1429,7 +1429,7 @@ describe('model questions', () => {
     const titles = await menu.locator('.group-title').allInnerTexts();
     expect(titles.map((t) => t.toLowerCase())).toEqual(expect.arrayContaining(['orientation', 'analysis', 'quality', 'views']));
     const all = await menu.locator('button.question').count();
-    expect(all).toBe(36);
+    expect(all).toBe(38);
     const concern = menu.locator('select.concern');
     const firstConcern = await concern.locator('option').nth(1).getAttribute('value');
     await concern.selectOption(firstConcern!);

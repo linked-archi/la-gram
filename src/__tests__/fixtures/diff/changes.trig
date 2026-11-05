@@ -1,0 +1,76 @@
+# One version of ../merge/model.trig changed in each way the diff by element
+# tells apart:
+#   Billing renamed in English (its French name kept);
+#   ERP added, placed on the diagram;
+#   CRM deleted;
+#   the serving relationship retargeted from Portal to ERP — its link
+#   reconnected and rerouted;
+#   Billing's node moved, Portal's resized;
+#   Portal given a definition; ERP filed in the folder.
+#
+#   <urn:added>    what the new version adds
+#   <urn:removed>  what it removes
+
+@prefix m:      <https://example.org/m/> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+
+<urn:removed> {
+    m:billing skos:prefLabel "Billing"@en ;
+        am4:serves m:portal .
+
+    m:crm a am4:ApplicationComponent ;
+        skos:prefLabel "CRM"@en ;
+        arch:inModel m:model .
+
+    m:serving arch:target m:portal ;
+        rdf:reifies <<( m:billing am4:serves m:portal )>> .
+
+    m:node-billing vis:bounds-x "0"^^xsd:double .
+    m:node-portal vis:bounds-w "120"^^xsd:double .
+
+    m:link-serving vis:target m:node-portal ;
+        vis:points m:link-serving-points-0 .
+    m:link-serving-points-0 rdf:first m:link-serving-p0 ; rdf:rest m:link-serving-points-1 .
+    m:link-serving-p0 a vis:Point ; vis:point-x "150"^^xsd:double ; vis:point-y "100"^^xsd:double .
+    m:link-serving-points-1 rdf:first m:link-serving-p1 ; rdf:rest rdf:nil .
+    m:link-serving-p1 a vis:Point ; vis:point-x "250"^^xsd:double ; vis:point-y "100"^^xsd:double .
+}
+
+<urn:added> {
+    m:billing skos:prefLabel "Invoicing"@en ;
+        am4:serves m:erp .
+
+    m:portal skos:definition "Where customers sign in"@en .
+
+    m:erp a am4:ApplicationComponent ;
+        skos:prefLabel "ERP"@en ;
+        arch:inModel m:model ;
+        arch:inView m:view .
+
+    m:serving arch:target m:erp ;
+        rdf:reifies <<( m:billing am4:serves m:erp )>> .
+
+    m:node-billing vis:bounds-x "40"^^xsd:double .
+    m:node-portal vis:bounds-w "160"^^xsd:double .
+
+    m:node-erp a vis:ArchNode ;
+        vis:view m:view ;
+        vis:archElement m:erp ;
+        vis:bounds-x "300"^^xsd:double ;
+        vis:bounds-y "200"^^xsd:double ;
+        vis:bounds-w "120"^^xsd:double ;
+        vis:bounds-h "55"^^xsd:double .
+
+    m:link-serving vis:target m:node-erp ;
+        vis:points m:link-serving-points-0 .
+    m:link-serving-points-0 rdf:first m:link-serving-p0 ; rdf:rest rdf:nil .
+    m:link-serving-p0 a vis:Point ; vis:point-x "150"^^xsd:double ; vis:point-y "230"^^xsd:double .
+
+    m:folder schema:itemListElement m:erp .
+}

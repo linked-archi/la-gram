@@ -24,12 +24,12 @@ export interface FormField {
   name: string;
   label: string;
   /**
-   * A line of text (default), a checkbox, a secret (typed unseen, never
-   * pre-filled or autocompleted), one of `options` — or a section's heading
-   * (`label`, with `hint` under it), or a group's within a section; neither has
-   * a value.
+   * A line of text (default), lines of text (`textarea`: Enter starts a new
+   * line), a checkbox, a secret (typed unseen, never pre-filled or
+   * autocompleted), one of `options` — or a section's heading (`label`, with
+   * `hint` under it), or a group's within a section; neither has a value.
    */
-  type?: 'text' | 'checkbox' | 'password' | 'select' | 'section' | 'group';
+  type?: 'text' | 'textarea' | 'checkbox' | 'password' | 'select' | 'section' | 'group';
   value?: string | boolean;
   /** Help shown under the field. */
   hint?: string;
@@ -176,7 +176,7 @@ export const domDialogs: Dialogs = {
   form(title, fields, options = {}) {
     const body: Node[] = [];
     if (options.message) body.push(el('p', { text: options.message }));
-    const inputs = new Map<string, HTMLInputElement | HTMLSelectElement>();
+    const inputs = new Map<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>();
 
     /** One field's row; its input is kept by name. */
     const row = (field: FormField): HTMLElement => {
@@ -190,6 +190,15 @@ export const domDialogs: Dialogs = {
         line.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), select);
         if (field.hint) line.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
         inputs.set(field.name, select);
+        return line;
+      }
+      if (field.type === 'textarea') {
+        const area = el('textarea', { id, name: field.name, class: 'la-input la-textarea', rows: '8', 'aria-label': field.label });
+        area.value = typeof field.value === 'string' ? field.value : '';
+        area.disabled = field.disabled === true;
+        line.append(el('label', { class: 'la-dialog-label', for: id, text: field.label }), area);
+        if (field.hint) line.append(el('div', { class: 'la-dialog-hint', text: field.hint }));
+        inputs.set(field.name, area);
         return line;
       }
       const type = field.type === 'checkbox' ? 'checkbox' : field.type === 'password' ? 'password' : 'text';

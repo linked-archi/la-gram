@@ -82,6 +82,7 @@ import { detectFormat } from '../metamodel-manager/asset-sources.js';
 import { parseModelText } from '../import-export/model-io.js';
 import { diffSnapshots, snapshotOf } from './version-history.js';
 import { BOUNDS_PREDICATES, IRI } from './vocabulary.js';
+import { iriOf, parseLine, predicateOf, subjectOf, type Line } from './snapshot-lines.js';
 
 /** One of the two versions merged into base. */
 export type MergeSide = 'ours' | 'theirs';
@@ -248,17 +249,6 @@ export function shaclCountCheck(validator: RdfShaclValidator, shapes: Quad[], co
 }
 
 // ── The merge ─────────────────────────────────────────────────────────────
-
-/** A line taken apart: terms as N-Triples (`<iri>`, `_:b`, a literal), the predicate as an IRI. */
-interface Line {
-  s: string;
-  p: string;
-  o: string;
-  /** A literal's language, lower case; `''` for none. */
-  lang: string;
-  /** The IRIs and blank nodes the object names — itself, or those inside a triple term. */
-  refs: readonly string[];
-}
 
 /** A unit merged as a whole. */
 type Unit =
@@ -873,57 +863,6 @@ class ThreeWay {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-/** Take an N-Triples line apart (as `snapshotOf` writes them: `<s> <p> o .`). */
-function parseLine(line: string): Line {
-  const i1 = line.indexOf(' ');
-  const i2 = line.indexOf(' ', i1 + 1);
-  const s = line.slice(0, i1);
-  const p = line.slice(i1 + 2, i2 - 1);
-  const o = line.slice(i2 + 1, line.endsWith(' .') ? line.length - 2 : line.length);
-  if (o.startsWith('"')) {
-    const tail = o.slice(o.lastIndexOf('"') + 1);
-    return { s, p, o, lang: tail.startsWith('@') ? tail.slice(1).toLowerCase() : '', refs: [] };
-  }
-  return { s, p, o, lang: '', refs: o.startsWith('<<') ? nodesIn(o) : [o] };
-}
-
-/** The IRIs and blank nodes in a triple term, its literals' contents and datatypes skipped. */
-function nodesIn(text: string): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < text.length; i++) {
-    if (text.startsWith('<<(', i)) {
-      i += 2;
-    } else if (text[i] === '"') {
-      for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === '\\') i++;
-      if (text.startsWith('^^<', i + 1)) i = text.indexOf('>', i + 3);
-    } else if (text[i] === '<') {
-      const end = text.indexOf('>', i);
-      out.push(text.slice(i, end + 1));
-      i = end;
-    } else if (text.startsWith('_:', i)) {
-      let end = i + 2;
-      while (end < text.length && !/[\s)]/.test(text[end])) end++;
-      out.push(text.slice(i, end));
-      i = end - 1;
-    }
-  }
-  return out;
-}
-
-function subjectOf(line: string): string {
-  return line.slice(0, line.indexOf(' '));
-}
-
-function predicateOf(line: string): string {
-  const i1 = line.indexOf(' ');
-  return line.slice(i1 + 2, line.indexOf(' ', i1 + 1) - 1);
-}
-
-/** `<iri>` → the IRI; a blank node stays `_:label`. */
-function iriOf(term: string): string {
-  return term.startsWith('<') ? term.slice(1, -1) : term;
-}
 
 function termOf(term: string): Term {
   return (term.startsWith('_:') ? DataFactory.blankNode(term.slice(2)) : DataFactory.namedNode(iriOf(term))) as unknown as Term;

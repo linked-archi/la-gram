@@ -7,6 +7,10 @@
  * - the result does not depend on which side is "ours";
  * - merging a version with itself, or with an unchanged base, gives it back;
  * - changes that do not touch each other never conflict, and are all kept.
+ *
+ * And of the diff by element (`model-diff.ts`) on the same edits: every line
+ * changed is under one concept, never under a shape or a route cell of its own;
+ * compared the other way round, what was added is removed.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -19,6 +23,7 @@ import { modelQuads } from '../model-queries.js';
 import { quadsOf, snapshotOf } from '../version-history.js';
 import { IRI, langLiteral, nn, triple } from '../vocabulary.js';
 import { mergeSnapshots, type MergeConflict } from '../model-merge.js';
+import { diffByElement } from '../model-diff.js';
 
 const MODEL = 'https://example.org/m/model';
 const COMPONENT = 'https://meta.linked.archi/archimate4/onto#ApplicationComponent';
@@ -261,6 +266,26 @@ describe('the three-way merge', () => {
         const { merged, conflicts } = mergeSnapshots(base.snapshot, ours, theirs);
         expect(conflicts).toEqual([]);
         expect(merged).toEqual(bothApplied(base.snapshot, ours, theirs));
+      }),
+      RUNS,
+    );
+  });
+});
+
+describe('the diff by element, on the same edits', () => {
+  it('puts every line changed under one concept — an element, relationship, view or the model — and reads the same both ways', () => {
+    fc.assert(
+      fc.property(scenario([0, ELEMENTS], [0, ELEMENTS]), ({ spec, ours: edits }) => {
+        const base = build(spec.placed, spec.pairs, spec.routed);
+        const version = edited(base, edits);
+        const diff = diffByElement(base.snapshot, version);
+        expect(diff.changes.flatMap((c) => c.lines.added).sort()).toEqual([...diff.lines.added].sort());
+        expect(diff.changes.flatMap((c) => c.lines.removed).sort()).toEqual([...diff.lines.removed].sort());
+        expect(diff.changes.filter((c) => !['element', 'relationship', 'view', 'model'].includes(c.kind))).toEqual([]);
+
+        const back = diffByElement(version, base.snapshot);
+        const flip = { added: 'removed', removed: 'added', changed: 'changed' } as const;
+        expect(back.changes.map((c) => `${c.subject} ${c.status}`).sort()).toEqual(diff.changes.map((c) => `${c.subject} ${flip[c.status]}`).sort());
       }),
       RUNS,
     );

@@ -1,7 +1,7 @@
 # Pending: Git collaboration (merge, review, CI, shared rooms)
 
-Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1 done 2026-11-05 (the merge, then its wiring), at
-`96fc909`, not committed. Phase 2 is next.
+Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1 done 2026-11-05 (the merge, then its wiring), committed
+as `06d6ba2`. Phase 2 done 2026-11-05 on top of it, not committed. Phase 3 is next.
 
 **Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in
 `docs/git-collaboration/reference/`. They were copied in by the user and aren't committed yet. This plan
@@ -50,6 +50,20 @@ two can be compared.
 - **Saving with conflicts not chosen** asks first; it is not blocked.
 - **`dcterms:modified`** set on both sides takes the later stamp, in the room and the merge, with no conflict.
 - **Two placements:** the dropped side's links take their `arch:inView` with them.
+
+### Decided while building Phase 2 (2026-11-05), to report
+
+- **Where the branch's diff is shown:** in the History tab, as its first entry when the model is bound to a branch
+  other than the default (the branch against the default since they parted: committed, or with the model now) —
+  no new menu entry. And in the merge request's description.
+- **The merge request's dialog** says the host's word: *Open pull request* on GitHub, *Open merge request* on
+  GitLab; the File-menu entry is *Open merge request…* on both, as decided. Its title is the branch's last commit of
+  the file; its description the changes by element in Markdown, editable, as they are when it is opened.
+- **Offered after a save that made a new branch**, into the branch it started from (the default branch for GitLab's
+  *Update from main*). Not after a save to an existing branch: *File › Open merge request…* is there.
+- **Checkpoints are shown by element too**, with *As triples* for the old view.
+- **The History tab reads Git without asking for a token**: a host that wants one says so in the tab, and
+  *Read again* asks.
 
 ## Hard constraints
 
@@ -159,13 +173,17 @@ two can be compared.
 
 ## Phase 2: review in la-gram
 
-- [ ] **A diff by element** (from the spec's `semantic_diff.py`): added, removed and changed concepts, single
-  values shown as old → new. For a branch compared with main, and for a commit compared with its parent.
-- [ ] **Task 21:** the History tab shows the file's Git commits beside the checkpoints, with their changes in
+- [x] **A diff by element** (from the spec's `semantic_diff.py`): added, removed and changed concepts, single
+  values shown as old → new. For a branch compared with main, and for a commit compared with its parent
+  (`src/model-manager/model-diff.ts`, worded by `model-diff-text.ts`; 200 ms on 350 000 triples). Unlike the
+  reference, a line is put under the concept it is about — a view's shapes and route cells under the view, a
+  relationship's triple under the relationship — rather than under its subject.
+- [x] **Task 21:** the History tab shows the file's Git commits beside the checkpoints, with their changes in
   this diff and *Open this version*. Its sub-tasks are in `.kiro/specs/la-gram/tasks.md` (Task 21).
-- [ ] ***Open merge request*** after saving to a branch:
+- [x] ***Open merge request*** after saving to a branch:
   - GitHub: `POST /repos/{owner}/{repo}/pulls`. GitLab: `POST /projects/:id/merge_requests`.
-  - A provider method for each host, with the result's link shown.
+  - A provider method for each host, with the result's link shown (`fileCommits`, `findMergeRequest`,
+    `openMergeRequest`; `src/git/git-review.ts`).
   - Req 18.4 gains the scopes: on GitHub *Pull requests: read and write*; on GitLab, `api` already covers it.
 
 ## Phase 3: CI as the safety net (C5, and C1's checker)

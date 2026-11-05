@@ -599,9 +599,18 @@ describe('the workbench', () => {
     await commit('Renamed');
     expect(history.commits.map((c) => c.message)).toEqual(['Renamed', 'Teller added']);
 
-    // The second commit's changes are the rename: one name out, one in.
+    // The second commit's changes are the rename: by element, the name old → new…
     await history.updateComplete;
     history.shadowRoot!.querySelector<HTMLElement>(`[data-commit="${history.commits[0].id}"]`)!.click();
+    await history.updateComplete;
+    const byElement = history.shadowRoot!.querySelector('model-diff-view')!;
+    await byElement.updateComplete;
+    const row = byElement.shadowRoot!.querySelector(`li.change[data-subject="${placed}"]`)!;
+    expect(row.querySelector('.name')!.textContent!.trim()).toBe('Cashier');
+    expect(row.querySelector('.type')!.textContent).toBe('Business Actor');
+    expect(row.querySelector('ul.details')!.textContent!.trim()).toBe('Name (en): “Teller” → “Cashier”');
+    // …and as triples: one name out, one in.
+    history.shadowRoot!.querySelector<HTMLInputElement>('input[name="view"][value="triples"]')!.click();
     await history.updateComplete;
     expect(history.shadowRoot!.querySelector('pre.added')!.textContent).toContain('"Cashier"@en');
     expect(history.shadowRoot!.querySelector('pre.removed')!.textContent).toContain('"Teller"@en');

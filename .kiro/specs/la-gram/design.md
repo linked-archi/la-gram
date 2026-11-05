@@ -1419,11 +1419,32 @@ Git save does not push them. Each records its time (strictly after the model's
 previous one), message, author (the collaboration name, when in a room) and
 the one before it. The History tab (*Save checkpoint*, its tooltip saying it is
 not a Git commit) lists them with +/− triple counts against the one before,
-shows a checkpoint's triples added and removed — against the one before or
-against the model now — with prefixed names, and restores one: the default graph is replaced as one `rdf.store.edit`
+shows what a checkpoint changed — against the one before or against the model
+now — by element (*Comparing versions by element*) or as triples added and
+removed, with prefixed names, and restores one: the default graph is replaced as one `rdf.store.edit`
 step, so undo takes it back while the view is open; in a room, collaborators
 receive it like any other change. Blank-node labels are not stable across
 sessions, so a triple about a blank node may show as removed and added again.
+
+**The bound file's Git commits** (Task 21, Req 18.23). The Git module gives the
+tab a `HistoryGitSource` through `MountedUi.setGitHistory` — one per bound file
+and commit (`git/git-history.ts`) — and the tab lists the file's commits on the
+branch (`fileCommits`, 100 a page, *Older commits…* for more) beside the
+checkpoints, newest first by date, a Git commit marked as one, with its author
+and short id linked to the host. Git is read when the tab opens and on *Read
+again*, never polled, and again after a save (`model-saved`) or a merge rebinds
+the model (the source's key — host, repository, branch, path, commit —
+changes). A first read asks for nothing: a host that refuses without a token
+says so in the tab, and *Read again* asks for one, as Open does (`Access`). A
+selected commit's comparison reads its file and its first parent's — kept, the
+last 8 read — and shows the same diff as a checkpoint's; *Open this version*
+asks, then replaces the model with that file through the merge's
+`MergeSupport.replace` (one undoable step), takes a merge's conflicts away, and
+leaves the binding: the next save names the version it last saw, so it commits
+the old version as a change, or meets the conflict choice. For a model bound to
+another branch than the default, the first entry is that branch against the
+default: the file where they parted (`mergeBase` of the two heads) against the
+branch's head, or against the model now — what merging it would bring.
 
 ### Git storage (optional module)
 
@@ -1446,8 +1467,10 @@ src/git/                    imported only when the module is on — a chunk of i
   providers/gitlab.ts       REST v4: gitlab.com, or https://HOST/api/v4 (self-managed)
   credentials.ts            tokens per host: the session; the keychain (desktop) or, if asked, localStorage (web)
   bindings.ts               model IRI → the file it is bound to (localStorage)
-  git-save.ts               Save to Git: dialog, token, version, commit, conflict
+  git-save.ts               Save to Git: dialog, token, version, commit, conflict; offers a merge request after a new branch
   git-merge.ts              Merge with the newer version; Update from main; a merged model's commit
+  git-review.ts             Open merge request: the bound branch into the default, described by element
+  git-history.ts            the bound file's commits for the History tab; Open this version
   merge-support.ts          what merging needs of la-gram: rules, the model replaced, the Conflicts tab
   conflicts-panel.ts        the Conflicts tab (<git-conflicts>)
   git-open.ts               Open from Git: address, files to choose, read, open, bind
@@ -1471,7 +1494,14 @@ interface GitHostProvider {
   commitMerge?(change: {                                       // GitHub only: two parents
     branch: string; head: string; mergeOf: string; path: string; text: string; message: string;
   }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
+  fileCommits(ref: string, path: string, page?: number): Promise<{   // newest first, 100 a page
+    commits: Array<{ commit: string; parents: string[]; author: string; date: string; message: string; webUrl: string }>;
+    more: boolean;
+  }>;
+  findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined>;   // an open one
+  openMergeRequest(change: { source: string; target: string; title: string; description: string }): Promise<MergeRequest>;
 }
+// MergeRequest: { number, title, webUrl, source, target } — GitHub's pull number, GitLab's iid
 ```
 
 | | GitHub | GitLab |
@@ -1484,6 +1514,9 @@ interface GitHostProvider {
 | Branches | `GET /repos/{o}/{r}/branches`, paged | `GET /projects/{id}/repository/branches`, paged |
 | Merge base | `GET /repos/{o}/{r}/compare/{a}...{b}` → `merge_base_commit` | `GET /projects/{id}/repository/merge_base?refs[]=a&refs[]=b` |
 | Merge commit | the head commit's tree; `POST …/git/blobs`, `…/git/trees`, `…/git/commits` (both parents); `PATCH …/git/refs/heads/{b}` without force — 422 when the branch moved on | none: a commit through the REST API has one parent |
+| A file's commits | `GET /repos/{o}/{r}/commits?sha={ref}&path=`, 100 a page | `GET /projects/{id}/repository/commits?ref_name={ref}&path=`, 100 a page |
+| Open request | `GET /repos/{o}/{r}/pulls?state=open&head={owner}:{b}&base={t}` | `GET /projects/{id}/merge_requests?state=opened&source_branch=&target_branch=` |
+| Open one | `POST /repos/{o}/{r}/pulls` — `title`, `head`, `base`, `body`; the token needs *Pull requests: read and write* | `POST /projects/{id}/merge_requests` — `source_branch`, `target_branch`, `title`, `description` |
 
 GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`). Both
 take the token as `Authorization: Bearer`. A paged listing is read 100 at a
@@ -1533,6 +1566,20 @@ repository, branch, path, version, commit} in `localStorage`
 (`la-gram:git-bindings`), emits `model-saved` (the dirty marker clears) and
 reports the commit with its URL.
 
+**Review.** *Open merge request…* (bound models, `git-review.ts`, Req 18.22):
+the token; the default branch, or the branch given; an open request from the
+bound branch into it is named and none opened; changes not saved to Git are
+asked about (the request shows what is committed); a branch whose head is the
+merge base has nothing to merge. The dialog — titled *Open pull request* on
+GitHub, *Open merge request* on GitLab, the hosts' own words — offers a title
+(the branch's last commit of the file) and a description: the file at the merge
+base against the branch's head, by element, as Markdown (`markdownOfDiff`, at
+most 100 concepts), editable (a form's `textarea` field). A save that made a new
+branch offers it at once, into the branch it started from — the default branch
+for *Update from main* on GitLab, whose new branch replaces the old one's
+request. Refused for want of permission, it says which permission; refused as
+one opened meanwhile, it names that one.
+
 **Open.** *Open from Git…* asks for an address (and, when it does not say, the
 host kind and a branch); `?git=<link>` opens one at startup, once. A link to a
 model file opens it; a link to a repository, branch or folder lists the model
@@ -1556,8 +1603,18 @@ nowhere it must not be); *git-open.test* (a file link, a repository's files by
 folder, another branch, a folder, a private repository, a refused token, the
 newer version on a conflict); *modules.test*; *module-boundary.test*;
 *git-module.test* (the module in the mounted UI, the network stubbed: save,
-then open what was saved); *workbench.spec* (Chrome: the menu, the token typed
-unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
+then open what was saved; the History tab's Git commits); *workbench.spec*
+(Chrome: the menu, the token typed unseen, the Open dialog; `?git=off` — no
+entries, the chunk never fetched). Review: *git-review.test* (as GitHub and as
+GitLab, a repository in memory: opened, titled and described; one open
+already; unsaved changes; nothing to merge; no permission; offered after a new
+branch, not after a save to the same one); *git-history.test* (commits a page at
+a time, a file at a commit read once, the branch range, a token asked only on
+demand, *Open this version*); *history-panel.test* (Git commits and checkpoints
+together, a commit's changes either way, the branch entry, a failure and *Read
+again*, older commits); *providers.test* (both hosts' history and request
+endpoints, recorded); *git-merge.spec* (Chrome: a save to a new branch, the pull
+request it offers, described by element; the History tab's branch entry).
 
 ### Merging versions
 
@@ -1675,6 +1732,44 @@ the merge base and GitHub's merge commit, recorded. *conflicts-panel.test*,
 *git-module.test* (the tab in the mounted UI). *git-merge.spec* (Chrome, two
 browser contexts, a fake GitHub): the second save merged on the same branch,
 then a conflict chosen in the tab and saved.
+
+### Comparing versions by element
+
+`model-manager/model-diff.ts` (Phase 2 of the Git collaboration plan). Two
+snapshots compared as a reviewer reads a change: which concepts were added,
+removed or changed, and how — not 400 lines of Turtle. Every line added or
+removed is put under the concept it is about: a concept's own lines under it; a
+relationship's unqualified triple (the one its `rdf:reifies` names) and the
+qualified predicate leading to it from its source under the relationship; a
+diagram's shapes — nodes, links, their route cells, points and label nodes,
+found by `arch-vis:view` and the owning predicates the merge uses — under their
+view; `X arch:inView V` under the view, shown only where no shape placed or
+removed says it already. Each line is read in the version that has it, so a
+deletion is attributed by the version it was deleted from.
+
+A property that takes one value — or one per language — by the same rules as
+the merge and the room (`SingleValued`, the metamodels' included) shows as old →
+new; a changed type too; any other property as values added and removed. A
+relationship's `rdf:reifies` is not shown (its ends say it), nor a concept's
+types and `arch:inModel` when it is added or removed whole. A view's shapes
+are placed, removed, or changed: moved, resized (from the bounds before and
+after), rerouted, reconnected, restyled. Names are read from the versions
+compared (`about`: name and types of every concept and value named), so a
+concept removed is still named. The order: model, elements, relationships,
+views, folders, the rest; by name within each.
+
+`model-diff-text.ts` words it — `Name (en): “Billing” → “Invoicing”`, `placed
+ERP`, `rerouted and reconnected Serving`, a relationship as `Billing → ERP` —
+for the History tab's `<model-diff-view>` and as Markdown for a merge request's
+description; CI's comment (Phase 3) is to use the same. 200 ms on 350 000 triples
+(*model-merge-bench.test*).
+
+**Tests.** *model-diff.test* (a fixture with each kind of change,
+`src/__tests__/fixtures/diff/`: a rename in one language, an element added and
+placed, one deleted, a retarget, moves and resizes, a value added, a folder
+entry; a retype; a metamodel's single-valued property; the Markdown);
+*model-merge.property.test* (on random edits: every line under one concept, no
+shape or cell a concept of its own, the same concepts compared either way).
 
 
 ### Configuration
