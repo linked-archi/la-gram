@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { DataFactory } from 'n3';
 import { createApp } from '../app.js';
 import { configureAssetRoot } from '../metamodel-manager/bundled-assets.js';
 
@@ -32,6 +33,31 @@ describe('createApp', () => {
     expect(palette.elementGroups.flatMap((g) => g.elements).length).toBeGreaterThan(0);
     expect(palette.elementGroups.length).toBeGreaterThan(1);
     expect(palette.relationshipTypes.length).toBeGreaterThan(0);
+  });
+
+  it('reads which properties take one value from the loaded metamodels, not from the model', async () => {
+    const app = await createApp();
+    const VIS = 'https://meta.linked.archi/core-vis#';
+    const ARCH = 'https://meta.linked.archi/core#';
+    const EX = 'https://example.org/vocab#';
+    const component = () => ['https://meta.linked.archi/archimate4/onto#ApplicationComponent'];
+    // A model claiming a property functional is not a rule.
+    app.components.store.addQuads([
+      DataFactory.quad(
+        DataFactory.namedNode(`${EX}colour`),
+        DataFactory.namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+        DataFactory.namedNode('http://www.w3.org/2002/07/owl#FunctionalProperty'),
+      ) as never,
+    ]);
+    const rules = app.singleValued();
+    expect(rules.limitOf(`${VIS}fillColor`, component)).toBe('one');
+    expect(rules.limitOf(`${ARCH}inModel`, component)).toBe('one');
+    expect(rules.limitOf(`${ARCH}inView`, component)).toBeUndefined();
+    expect(rules.limitOf(`${EX}colour`, component)).toBeUndefined();
+    // Kept until the metamodels change.
+    expect(app.singleValued()).toBe(rules);
+    await app.loadMetamodel('https://meta.linked.archi/basic/metamodel#Basic');
+    expect(app.singleValued()).not.toBe(rules);
   });
 
   it('emits metamodel-loaded once the UI has had a chance to subscribe', async () => {

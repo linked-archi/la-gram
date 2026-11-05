@@ -1,6 +1,7 @@
 # Pending: Git collaboration (merge, review, CI, shared rooms)
 
-Recorded 2026-11-05. Nothing here has been started. la-gram was at `3ca4759`.
+Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1's first part (the merge, no UI) done 2026-11-05, at
+`96fc909`, not committed; its second part (the wiring) is next.
 
 **Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in
 `docs/git-collaboration/reference/`. They were copied in by the user and aren't committed yet. This plan
@@ -25,6 +26,19 @@ two can be compared.
     *Deferred*;
   - splitting a model across files;
   - the Flexo comparison harness.
+
+### Decided when Phase 1 started (2026-11-05)
+
+- **Blank nodes:** warn before a Git save of a model that has them; no IRIs given on import.
+- **Menu names:** as below — *Merge with the newer version*, *Update from main*, *Open merge request*.
+- **A conflict holds base's version** in the merged model (a deleted concept: the version that keeps it), not
+  neither side's as `rdf_merge.py` does — neither would leave a retargeted relationship without its end.
+- **`sh:maxCount 1` is read per target class**, not as a rule for every subject; shapes nested in `sh:or`,
+  `sh:xone` and the like, and `sh:maxCount 0`, are not read.
+- **Two placements** of one element (or relationship) in one view, one by each side, are a conflict of their own:
+  the merged model keeps the node whose IRI sorts first.
+- Added while building it, to report: a relationship's connection (types, ends, `rdf:reifies`, the reified and
+  qualified triples) and a concept's types merge as a whole too, reported as single-value conflicts.
 
 ## Hard constraints
 
@@ -99,10 +113,10 @@ two can be compared.
 
 ## Phase 1: merging in la-gram (C2 and C4, in TypeScript)
 
-- [ ] **Single values, defined once:** move `SINGLE_VALUED` out of the room binding into a module the room
+- [x] **Single values, defined once:** move `SINGLE_VALUED` out of the room binding into a module the room
   and the merge share. Add the loaded metamodels' `owl:FunctionalProperty` and `sh:maxCount 1` paths, and
   make labels single-valued per language (`sh:uniqueLang`, `skos:prefLabel`).
-- [ ] **The merge module:** a three-way merge over canonical N-Triples (base, ours, theirs), reusing
+- [x] **The merge module:** a three-way merge over canonical N-Triples (base, ours, theirs), reusing
   `snapshotOf` and `diffSnapshots`.
   - Changes that don't touch each other are combined.
   - Conflicts are returned as data, never written into a file as `<<<<<<<` markers. Their kinds:
@@ -111,8 +125,7 @@ two can be compared.
       added on the other side;
     - a node's bounds or a line's route changed on both sides, treated as one unit each;
     - a shape's count limit broken by the combined result, checked with the in-app SHACL validator.
-- [ ] **Blank nodes:** give imported blank nodes IRIs on import, or warn before a Git save of a model that
-  has them. (Decide which.)
+- [ ] **Blank nodes:** warn before a Git save of a model that has them (decided 2026-11-05; part 2).
 - [ ] ***Merge with the newer version***, offered first when a save conflicts:
   - the base is the file at `binding.commit`, theirs is the branch head, and ours is the model;
   - with no conflicts, commit with `expectedVersion` set to the head's version, merging again if the branch
@@ -122,12 +135,14 @@ two can be compared.
 - [ ] ***Update from main*** (or from any branch): merge another branch into the bound one with the same
   merge. On every host, this makes a merge request mergeable without a server-side driver.
 - [ ] **Tests:**
-  - a fixture for each kind of conflict;
-  - fast-check properties: the result doesn't depend on which side is ours, merging a model with itself
-    changes nothing, and changes that don't touch each other never conflict;
-  - a browser test with two clients saving the same bound file.
-- [ ] **Measure:** time the merge on a large model, made up or real but only with the user's agreement. If
-  it is over about 1 s, consider splitting the model into its DD-15 graphs as files.
+  - [x] a fixture for each kind of conflict (`src/__tests__/fixtures/merge/`, *model-merge.test*);
+  - [x] fast-check properties: the result doesn't depend on which side is ours, merging a model with itself
+    changes nothing, and changes that don't touch each other never conflict (*model-merge.property.test*);
+  - [ ] a browser test with two clients saving the same bound file (part 2).
+- [x] **Measure:** time the merge on a large model, made up or real but only with the user's agreement. If
+  it is over about 1 s, consider splitting the model into its DD-15 graphs as files. Made up, 350 000 triples
+  (*model-merge-bench.test*): merging about 0.5 s; reading one version from Turtle 0.5–0.6 s, so part 2's three
+  reads cost more than the merge.
 
 ## Phase 2: review in la-gram
 
@@ -185,8 +200,6 @@ two can be compared.
 
 ## Still to decide
 
-- The menu names: *Merge with the newer version*, *Update from main*, *Open merge request*.
-- Blank nodes: give them IRIs on import, or warn.
 - The CI tool's package name, and where its templates are published.
 - Whether `docs/git-collaboration-spec.md` and `docs/git-collaboration/` are committed as they are, or with a
   note pointing to the corrections above.

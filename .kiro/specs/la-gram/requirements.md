@@ -194,7 +194,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 5. Local changes are pushed with echo prevention (transaction origins)
 6. Connection status and collaborators (avatars) are shown in the toolbar
 7. Sync latency ≤ 200 ms in the same region
-8. Edits made while disconnected are merged on reconnect (Yjs); concurrent edits of single-valued properties (bounds, labels, routes) converge deterministically on every client
+8. Edits made while disconnected are merged on reconnect (Yjs); concurrent edits of single-valued properties converge deterministically on every client — bounds, points, routes, a diagram element's ends, labels (one per language), and what the loaded metamodels make single: an `owl:FunctionalProperty`, and a `sh:maxCount 1` or `sh:uniqueLang` property shape for the classes its shape targets. The same definition decides the conflicts of the Git merge (design, *Merging versions*)
 9. A concept another user has selected is highlighted and locked (cannot be moved, resized, deleted or re-routed) until they deselect it
 10. Awareness carries identity, colour, open view and selection
 11. Joining a room with content adopts the room's model; sharing into an empty room pushes the local one; replacing a shared model (New/Open/Import) asks first

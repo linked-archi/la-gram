@@ -1,0 +1,81 @@
+# The base model every merge fixture starts from, as la-gram writes one: two
+# application components related by a serving relationship, both on a diagram
+# with the relationship drawn along a two-point route, a third component on no
+# diagram, and a folder.
+#
+# Each fixture next to this file changes it on each side, in named graphs:
+#   <urn:base-added>      what that fixture's base has besides this model
+#   <urn:ours-added>      <urn:ours-removed>
+#   <urn:theirs-added>    <urn:theirs-removed>
+#   <urn:shapes>          shapes to check count limits against (count.trig)
+
+@prefix m:      <https://example.org/m/> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+
+m:model a arch:Model ;
+    skos:prefLabel "Shop"@en .
+
+m:billing a am4:ApplicationComponent ;
+    skos:prefLabel "Billing"@en , "Facturation"@fr ;
+    arch:inModel m:model ;
+    arch:inView m:view ;
+    am4:serves m:portal ;
+    arch:hasQualifiedRelationship m:serving .
+
+m:portal a am4:ApplicationComponent ;
+    skos:prefLabel "Portal"@en ;
+    arch:inModel m:model ;
+    arch:inView m:view .
+
+m:crm a am4:ApplicationComponent ;
+    skos:prefLabel "CRM"@en ;
+    arch:inModel m:model .
+
+m:serving a am4:Serving ;
+    arch:source m:billing ;
+    arch:target m:portal ;
+    rdf:reifies <<( m:billing am4:serves m:portal )>> ;
+    arch:inModel m:model ;
+    arch:inView m:view .
+
+m:view a arch:View , arch:Diagram ;
+    skos:prefLabel "Overview"@en ;
+    arch:inModel m:model .
+
+m:node-billing a vis:ArchNode ;
+    vis:view m:view ;
+    vis:archElement m:billing ;
+    vis:bounds-x "0"^^xsd:double ;
+    vis:bounds-y "0"^^xsd:double ;
+    vis:bounds-w "120"^^xsd:double ;
+    vis:bounds-h "55"^^xsd:double .
+
+m:node-portal a vis:ArchNode ;
+    vis:view m:view ;
+    vis:archElement m:portal ;
+    vis:bounds-x "300"^^xsd:double ;
+    vis:bounds-y "0"^^xsd:double ;
+    vis:bounds-w "120"^^xsd:double ;
+    vis:bounds-h "55"^^xsd:double .
+
+m:link-serving a vis:Link ;
+    vis:view m:view ;
+    vis:archRelationship m:serving ;
+    vis:source m:node-billing ;
+    vis:target m:node-portal ;
+    vis:points m:link-serving-points-0 .
+
+m:link-serving-points-0 rdf:first m:link-serving-p0 ; rdf:rest m:link-serving-points-1 .
+m:link-serving-p0 a vis:Point ; vis:point-x "150"^^xsd:double ; vis:point-y "100"^^xsd:double .
+m:link-serving-points-1 rdf:first m:link-serving-p1 ; rdf:rest rdf:nil .
+m:link-serving-p1 a vis:Point ; vis:point-x "250"^^xsd:double ; vis:point-y "100"^^xsd:double .
+
+m:folder a arch:Folder ;
+    skos:prefLabel "Applications"@en ;
+    schema:itemListElement m:portal .

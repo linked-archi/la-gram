@@ -1,0 +1,38 @@
+# A line's route merges as a whole. Both reroute the serving line — ours through
+# one point, theirs through three. The cells and points are named by position,
+# so merged triple by triple the two would mix into a route neither drew; it is
+# a conflict, and the merged model keeps base's two-point route.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-added> {
+    m:link-serving-points-0 rdf:rest rdf:nil .
+    m:link-serving-p0 vis:point-x "200"^^xsd:double ; vis:point-y "50"^^xsd:double .
+}
+<urn:ours-removed> {
+    m:link-serving-points-0 rdf:rest m:link-serving-points-1 .
+    m:link-serving-p0 vis:point-x "150"^^xsd:double ; vis:point-y "100"^^xsd:double .
+    m:link-serving-points-1 rdf:first m:link-serving-p1 ; rdf:rest rdf:nil .
+    m:link-serving-p1 a vis:Point ; vis:point-x "250"^^xsd:double ; vis:point-y "100"^^xsd:double .
+}
+<urn:theirs-added> {
+    m:link-serving-p0 vis:point-y "120"^^xsd:double .
+    m:link-serving-p1 vis:point-x "200"^^xsd:double ; vis:point-y "140"^^xsd:double .
+    m:link-serving-points-1 rdf:rest m:link-serving-points-2 .
+    m:link-serving-points-2 rdf:first m:link-serving-p2 ; rdf:rest rdf:nil .
+    m:link-serving-p2 a vis:Point ; vis:point-x "250"^^xsd:double ; vis:point-y "120"^^xsd:double .
+}
+<urn:theirs-removed> {
+    m:link-serving-p0 vis:point-y "100"^^xsd:double .
+    m:link-serving-p1 vis:point-x "250"^^xsd:double ; vis:point-y "100"^^xsd:double .
+    m:link-serving-points-1 rdf:rest rdf:nil .
+}

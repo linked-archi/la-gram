@@ -1317,9 +1317,14 @@ other clients as one update; `ModelSession.resync` re-points them at the model
 and at the same view under its new IRI.
 
 The Y.Doc holds one `Y.Map<true>` keyed by canonical N-Triples: an RDF graph is a
-set of triples, and a map-as-set is its CRDT. Single-valued predicates (bounds,
-points, list cells, endpoints, `skos:prefLabel` per language) are normalised
-deterministically after remote changes, so concurrent moves converge. Awareness
+set of triples, and a map-as-set is its CRDT. Single-valued predicates are
+normalised deterministically after remote changes, so concurrent moves converge:
+the built-in ones (bounds, points, list cells, endpoints, `skos:prefLabel` per
+language) and the loaded metamodels' — `owl:FunctionalProperty` for every
+subject, `sh:maxCount 1` and `sh:uniqueLang` for the classes a shape targets —
+defined once in `rdf-engine/single-valued.ts` for the room and the Git merge
+alike (*Merging versions*). `App.singleValued()` reads them from every graph but
+the model's, cached until the metamodels change. Awareness
 carries name, colour, open view and selection; what others select is marked and
 locked (a rule at priority 3000 denies move/resize/delete/re-route).
 
@@ -1540,6 +1545,82 @@ newer version on a conflict); *modules.test*; *module-boundary.test*;
 *git-module.test* (the module in the mounted UI, the network stubbed: save,
 then open what was saved); *workbench.spec* (Chrome: the menu, the token typed
 unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
+
+### Merging versions
+
+Phase 1 of the Git collaboration plan (`.agents/tasks/git-collaboration/tasks.md`),
+its first part: the merge, not yet offered in the UI. `model-manager/model-merge.ts`
+merges two versions of a model made from a common one — the file at the commit
+the model was opened at, the branch's head, the model — three-way, over canonical
+N-Triples (`snapshotOf`), and returns the conflicts as data. It lives outside
+`src/git/` so that the room (Phase 4) and a command-line tool (Phase 3) can use it.
+
+```
+mergeSnapshots(base, ours, theirs, { singleValued?, counts? }) → { merged, conflicts }
+applyChoice(merged, conflict, 'ours' | 'theirs') → merged       // one conflict resolved
+snapshotOfText(text, fileName) → snapshot                         // a file read as opening it reads it
+shaclCountCheck(validator, shapes, context) → CountCheck          // count limits, by the in-app validator
+```
+
+A file is read into one model, every graph flattened, as *Open* reads it, so a
+TriG file's DD-15 graphs are not lost: the merged model is saved like any other,
+and the save partitions it again.
+
+Each changed triple merges in the first unit that applies:
+
+| Unit | What |
+|---|---|
+| A deleted concept | Triples in base, none on one side. A conflict when the other side *added* a triple about it or pointing to it — changed it, related something to it, placed it, filed it; removals agree with a deletion. Kept while open: the deletion is undone, with what went with it (its relationships, nodes, links, routes — by `arch:source`/`target`, `arch-vis:archElement`, `archRelationship`, `view`, `source`, `target`, and the parts a link owns) where those can come back whole |
+| A route | A link's `arch-vis:points` and every cell and point reached from it |
+| Bounds | A subject's four `arch-vis:bounds-*` |
+| A connection | A relationship's types, `arch:source`, `arch:target`, `rdf:reifies`, the triple it reifies, the qualified predicate from its source |
+| Types | A concept's `rdf:type`s |
+| A single value | `rdf-engine/single-valued.ts`: one value, or one per language |
+| A triple | Kept when either side added it, dropped when either removed it |
+
+A unit changed on one side takes that side's version; changed alike on both,
+that; changed differently, it is a conflict and the merged model holds base's
+version — neither side's change wins unseen, the model stays as valid as base,
+and the result is the same whichever side is "ours". Routes and bounds merge as
+units because their triples only mean something together (two reroutes of one
+line merged triple by triple make a route neither drew); a connection and types
+for the same reason (a retarget changes four triples, a retype several).
+
+Then on the merged model: **two placements** — both sides placed the same
+element (or drew the same relationship) in a view, each with a node of its own;
+the canvas shows one per view (*Known limitations* 1), so the merged model keeps
+the one whose IRI sorts first, with what its side drew at it, and offers the
+other — and **count limits** the combination breaks (each side added a value to a
+`sh:maxCount 2` property; each removed a different one of the values a
+`sh:minCount` requires), checked on the nodes both sides changed and reported
+only where neither side alone breaks them.
+
+A conflict — kind `deleted`, `placement`, `value` (connections and types
+included), `bounds`, `route` or `count` — names its subjects, the property and
+language where it has them, the side that deleted, the validator's message, the
+lines of the merged model that stand for it (`held`) and, per side, the lines
+that replace them. For a deleted concept the deleting side's lines take with it
+everything the other side hung on it — its new relationships to it, nodes for it
+and their links — so nothing is left pointing at nothing.
+
+Blank nodes do not match between versions (their labels are not kept), so both
+sides' copies end up in the merged model; la-gram makes none, and a Git save will
+warn about an imported model that has them (part 2).
+
+**Measured** (*model-merge-bench.test*): 350 000 triples, a few hundred renames,
+moves and deletions on each side — reading one version from Turtle 0.5–0.6 s,
+merging about 0.5 s; under the plan's 1 s for splitting a model into files.
+
+**Tests.** *model-merge.test* — a fixture per kind (`src/__tests__/fixtures/merge/`,
+each side's additions and removals on one base model): changes that combine;
+a name per language; a retype; a retarget kept whole; a concept deleted against
+a rename, a new relationship, a placement, a folder entry, and deletions that
+agree; bounds; a route; two placements; count limits; TriG read whole; blank
+nodes. *model-merge.property.test* (fast-check, on models la-gram's managers
+build and edit): the result does not depend on which side is ours; a version
+merged with itself or an unchanged base comes back; edits on disjoint halves
+never conflict and are all kept (`MERGE_RUNS` for a longer search).
+*single-valued.test*, *rdf-yjs-binding.test*, *create-app.test* for the rules.
 
 
 ### Configuration

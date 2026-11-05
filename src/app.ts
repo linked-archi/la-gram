@@ -28,6 +28,7 @@ import { N3TtlParser } from './rdf-engine/ttl-parser.js';
 import { N3TtlSerializer } from './rdf-engine/ttl-serializer.js';
 import { RdfShaclValidator } from './rdf-engine/shacl-validator.js';
 import { NAMESPACES } from './rdf-engine/namespaces.js';
+import { SingleValued } from './rdf-engine/single-valued.js';
 
 // Metamodel Manager
 import type {
@@ -179,6 +180,7 @@ export class App {
   private coreGraphs: Partial<Record<BundledAssetRole, string[]>>;
   private readonly catalogueSource: AssetSource | undefined;
   private shapesCache: Quad[] | null = null;
+  private singleValuedCache: SingleValued | null = null;
   /** The shapes split for validation: what SHACL checks, what the relationship tables check. */
   private relationshipCheckCache: { shapes: Quad[]; split: TableShapes; tables: TablePermissions; closure: TypeClosure } | null = null;
   private validationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -556,6 +558,21 @@ export class App {
   }
 
   /**
+   * Which properties take one value, or one per language — for the room and
+   * the Git merge: the built-in rules and the loaded metamodels'
+   * (`rdf-engine/single-valued.ts`), read from every graph but the model's.
+   * Cached until the metamodels change.
+   */
+  singleValued(): SingleValued {
+    if (this.singleValuedCache) return this.singleValuedCache;
+    const store = this.components.store;
+    this.singleValuedCache = SingleValued.from({
+      getQuads: (s, p, o) => store.getQuads(s, p, o).filter((q) => q.graph.termType !== 'DefaultGraph'),
+    });
+    return this.singleValuedCache;
+  }
+
+  /**
    * The data to validate: the model, plus the `rdfs:subClassOf` axioms — a
    * shape targeting `am4:ActiveStructureElement` reaches an
    * `am4:ApplicationComponent` only through them, and SHACL reads class
@@ -729,6 +746,7 @@ export class App {
 
   private afterMetamodelsChanged(): void {
     this.shapesCache = null;
+    this.singleValuedCache = null;
     this.validationSetupDirty = true;
     this.session.setMetamodels(this.metamodels.map((m) => m.metamodelIri));
     this.components.eventBus.emit('metamodels-changed', {

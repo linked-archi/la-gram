@@ -1,0 +1,33 @@
+# Count limits broken by the combination, checked against the shapes below:
+# - a component has at most two owners: Billing has one, each side adds another
+#   — three;
+# - a component has at least one steward: Portal has two, each side removes a
+#   different one — none.
+# Billing and CRM have no steward in any version: that limit is broken already,
+# not by the merge, and is not reported.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:shapes> {
+    ex:ComponentShape a sh:NodeShape ;
+        sh:targetClass am4:ApplicationComponent ;
+        sh:property [ sh:path ex:owner ; sh:maxCount 2 ] ,
+                    [ sh:path ex:steward ; sh:minCount 1 ] .
+}
+<urn:base-added> {
+    m:billing ex:owner m:alice .
+    m:portal ex:steward m:ann , m:bob .
+}
+<urn:ours-added>     { m:billing ex:owner m:bob . }
+<urn:ours-removed>   { m:portal ex:steward m:ann . }
+<urn:theirs-added>   { m:billing ex:owner m:carol . }
+<urn:theirs-removed> { m:portal ex:steward m:bob . }

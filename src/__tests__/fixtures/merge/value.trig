@@ -1,0 +1,38 @@
+# A single value changed differently on each side is a conflict, and the merged
+# model keeps base's value until someone picks one:
+# - Billing's English name: "Invoicing" (ours), "Accounts" (theirs) — a conflict;
+# - Billing's French name changed by theirs, a German one added by ours — no
+#   conflict: a name is one per language;
+# - Portal's English name changed by ours, a French one added by theirs — none;
+# - CRM retyped differently on each side — a conflict over its types.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-added> {
+    m:billing skos:prefLabel "Invoicing"@en , "Abrechnung"@de .
+    m:portal skos:prefLabel "Web portal"@en .
+    m:crm a am4:ApplicationInterface .
+}
+<urn:ours-removed> {
+    m:billing skos:prefLabel "Billing"@en .
+    m:portal skos:prefLabel "Portal"@en .
+    m:crm a am4:ApplicationComponent .
+}
+<urn:theirs-added> {
+    m:billing skos:prefLabel "Accounts"@en , "Comptabilité"@fr .
+    m:portal skos:prefLabel "Portail"@fr .
+    m:crm a am4:DataObject .
+}
+<urn:theirs-removed> {
+    m:billing skos:prefLabel "Billing"@en , "Facturation"@fr .
+    m:crm a am4:ApplicationComponent .
+}
