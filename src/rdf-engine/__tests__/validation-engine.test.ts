@@ -291,6 +291,32 @@ describe('what the engine validates besides the model', () => {
     expect(engine.validate().timing.nodes).toBe('all');
   });
 
+  it('what a shape finds of an outside resource itself is left out — unless the model says something of it', () => {
+    const SH = 'http://www.w3.org/ns/shacl#';
+    const shape = namedNode('https://ex.org/ViewpointShape');
+    const property = blankNode('includes');
+    const shapes = [
+      quad(shape, RDF_TYPE, namedNode(SH + 'NodeShape')),
+      quad(shape, namedNode(SH + 'targetClass'), ex('Viewpoint')),
+      quad(shape, namedNode(SH + 'property'), property),
+      quad(property, namedNode(SH + 'path'), ex('includes')),
+      quad(property, namedNode(SH + 'minCount'), literal('1', namedNode('http://www.w3.org/2001/XMLSchema#integer'))),
+    ] as unknown as Quad[];
+    const engine = engineWith([view]);
+    engine.setup({
+      shapes: encodeQuads(shapes),
+      hierarchy: [],
+      outsideTypes: encodeQuads([quad(ex('vp'), RDF_TYPE, ex('Viewpoint'), meta) as unknown as Quad]),
+      unqualifiedForms: [],
+      tables: null,
+    });
+    // The viewpoint's other statements are its metamodel's, not validated: it would be found to include nothing.
+    expect(engine.validate()).toMatchObject({ conforms: true, results: [] });
+    // The model describes it: then it is the model's.
+    engine.apply(encodeQuads([quad(ex('vp'), ex('note'), literal('ours')) as unknown as Quad]), []);
+    expect(engine.validate().results.map((r) => r.focusNode)).toEqual(['https://ex.org/vp']);
+  });
+
   it('a type in the model is not a reference', () => {
     const engine = engineWith([quad(ex('x'), RDF_TYPE, ex('vp')) as unknown as Quad]);
     expect(holds(engine, viewpointType)).toBe(false);

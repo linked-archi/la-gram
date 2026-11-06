@@ -1185,15 +1185,18 @@ turn a click on statements into a selection.
 Shapes: every `shapes` graph of the loaded metamodels + core + core-vis shapes
 (+ legacy `urn:la-gram:shapes`), cached as one array so the validator keeps its
 compiled engine. Data: the model + all `rdfs:subClassOf` axioms + the types of
-referenced resources. `sh:sparql` is taken out of what the SHACL library is
+referenced resources — only their types, so what a shape finds of such a
+resource itself is left out of the report (a catalogue's viewpoint, a view's
+viewpoint, would be found to include no concept: `ValidationEngine.outsideOnly`),
+unless the model says something of it. `sh:sparql` is taken out of what the SHACL library is
 given, and run with Oxigraph instead (below). Debounced 300 ms. Results go to
 the Validation tab; the tab carries the number of Violations (Warnings and
 Infos are listed, not counted), and violating concepts are marked on the canvas.
 
 **SPARQL-based constraints** (Req 6.4; Git collaboration plan, Phase 3,
 `rdf-engine/sparql-constraints.ts`). The shapes' `sh:sparql` constraints —
-ArchiMate's self-loops and cycles, its principles, the viewpoints' rules,
-core-vis's nesting: 36 in ArchiMate 4.0 with core, 38 more in 3.2 — which
+ArchiMate's self-loops and cycles, its principles, core's viewpoint rules,
+core-vis's nesting: 36 in ArchiMate 4.0 with core, 35 more in 3.2 — which
 rdf-validate-shacl cannot run, and which therefore ran nowhere. The validation
 engine keeps a copy of its data in Oxigraph, made only when the shapes have
 such constraints and Oxigraph is loaded (the worker loads its WebAssembly
@@ -1223,7 +1226,14 @@ rejected relationships the tables permit — flow and triggering between active
 structure elements among them; which types a relationship may connect is the
 tables check's alone (`relationship-validity.ts`). Archisurance, both ArchiMate
 languages loaded: validated in 1.7 s (9.4 s before), 13 violations, none from
-the rules.
+the rules. Each language's `OrphanedElementShape` targets its own elements and
+junctions (it targeted `arch:Element`, and with both languages loaded found
+each orphan twice). The viewpoint conformance rules — a view declares one
+viewpoint, its type, elements and relationships' ends fit it, a viewpoint says
+what it admits — are core's (`core-shapes`): they name no ArchiMate term, and
+each ArchiMate version had a copy, so with both loaded each finding came twice.
+Core's shapes are loaded for every model, so a view of any notation without a
+viewpoint is a Warning.
 
 **The shape a finding points to** (Req 6.5, `rdf-engine/finding-shape.ts`).
 A finding names its source shape, as SHACL reports it; most of a metamodel's

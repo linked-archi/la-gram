@@ -13,7 +13,8 @@
  *
  * What it validates is what `App.validationDataGraph` describes: the model, the
  * `rdfs:subClassOf` axioms, and the types of resources the model refers to from
- * outside it (a view's viewpoint). How: the relationship shapes the tables cover
+ * outside it (a view's viewpoint) — what is found of such a resource itself is
+ * left out of the report: only its types are there to validate. How: the relationship shapes the tables cover
  * by lookup in the tables (`relationship-validity.ts`), the rest by SHACL; the
  * shapes' SPARQL-based constraints (`sh:sparql`), which the SHACL library cannot
  * run, with Oxigraph (`sparql-constraints.ts`) on a copy of the same data and
@@ -312,11 +313,12 @@ export class ValidationEngine {
     return { shacl: Math.round(t1 - t0), tables: Math.round(t2 - t1), sparql: Math.round(t3 - t2), references: Math.round(t4 - t3), nodes: nodes.size };
   }
 
-  /** The report from the findings kept. */
+  /** The report from the findings kept — none about a resource the model only refers to. */
   private report(timing: PlainReport['timing']): PlainReport {
     const findings = this.findings as NonNullable<ValidationEngine['findings']>;
-    const shacl = [...findings.shacl.values()].flat();
-    const others = [...findings.tables.values(), ...findings.sparql.values(), ...findings.references.values()].flat();
+    const keep = (r: ValidationResult) => !this.outsideOnly(r.focusNode.value);
+    const shacl = [...findings.shacl.values()].flat().filter(keep);
+    const others = [...findings.tables.values(), ...findings.sparql.values(), ...findings.references.values()].flat().filter(keep);
     return {
       // As SHACL reports it: conforming with no result at all; the rest with no violation.
       conforms: shacl.length === 0 && !others.some((r) => r.severity === 'Violation'),
@@ -461,6 +463,22 @@ export class ValidationEngine {
     this.touch(q);
     if (this.alsoModel.delete(k)) return; // the model holds it
     this.drop(q);
+  }
+
+  /**
+   * Whether a node is a resource the model only refers to: outside it, its types
+   * among the extras, nothing else said of it in the data. What the shapes find
+   * of it is not the model's to fix — and not true either: only its types are
+   * validated, not the rest of what its metamodel says (a catalogue's viewpoint
+   * found to declare no concepts).
+   */
+  private outsideOnly(iri: string): boolean {
+    if (!this.references.has(iri)) return false;
+    for (const q of this.data.getQuads(DataFactory.namedNode(iri), null, null, null)) {
+      const k = extraKey(q as unknown as Quad);
+      if (k === undefined || !this.extras.has(k) || this.alsoModel.has(k)) return false;
+    }
+    return true;
   }
 
   /** A node's name in the model (`skos:prefLabel`, English first), for the SPARQL-based constraints' messages. */

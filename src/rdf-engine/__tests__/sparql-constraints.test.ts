@@ -137,7 +137,8 @@ describe('SPARQL-based constraints', () => {
     );
     const all = sparqlConstraintsOf(files.flatMap((f) => parse(readFileSync(f, 'utf8'))));
     expect(all.skipped).toEqual([]);
-    // 74 since 2026-11-06, when meta took out the rules that restated its relationship tables.
+    // 71 since 2026-11-06: meta took out the rules that restated its relationship tables, and
+    // stated the viewpoint conformance rules once, in core, where each ArchiMate version had a copy.
     expect(all.constraints.length).toBeGreaterThanOrEqual(70);
     const empty = new oxigraph.Store();
     const runner = new SparqlRunner(all.constraints, { select: (query) => empty.query(query) as Array<Map<string, Term>> });

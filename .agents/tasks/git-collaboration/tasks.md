@@ -241,8 +241,14 @@ Found on the way, to report (2026-11-06):
   Archisurance now: 13 violations, none from meta's rules; validation 1.7 s, from 9.4 s.
 - With both ArchiMate languages loaded, each language's generic rules (`OrphanedElementShape`, the
   viewpoint conformance rules) target `arch:Element` or every view, so Archisurance gets each such finding
-  twice — once per language. For meta: scope them to the language's own classes, as
-  `ArchiMateElementShape` is.
+  twice — once per language. **`OrphanedElementShape` scoped to each language's elements and junctions
+  (2026-11-06, in meta and `assets/`).** The engine also leaves out findings about resources the model
+  only refers to (the catalogue's viewpoints, found incomplete because only their types are validated).
+  **The viewpoint rules are in core now (2026-11-06, the user's choice; in meta and `assets/`):** the
+  five shapes moved to `core-shapes.ttl` under the 4.0 names, kept generic (any viewpoint, custom or
+  another framework's); each ArchiMate version's viewpoint shapes imports core and adds none. Meta's
+  `core-vis`, `archimate4` and `backstage` profiles load their viewpoint catalogue as data, and the
+  diagram example's view declares a viewpoint. Archisurance: no finding twice.
 - `core/core-vis-onto.ttl` states CC BY-SA 3.0, where meta's README says CC BY 4.0 for the whole.
 - la-gram's public `main` on GitLab is at "sync" (2026-09-24); the work is on the local branch `refine-storage`.
 
