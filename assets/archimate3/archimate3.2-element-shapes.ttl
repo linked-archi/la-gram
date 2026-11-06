@@ -22,12 +22,23 @@
     vann:preferredNamespaceUri    "https://meta.linked.archi/archimate3/element-shapes#" ;
     vann:preferredNamespacePrefix "amelsh" ;
     dcterms:title                      "Linked.Archi ArchiMate 3.2 Element & Metamodel Shapes"@en ;
-    dcterms:description                '''SHACL shapes for validating ArchiMate element instances and
-metamodel patterns. Covers structural integrity, assignment/access/serving direction,
-cross-layer constraints, specialization rules, junction homogeneity, motivation
-realization direction, strategy realization targets, and deep specialization warnings.
-Based on ArchiMate 3.2 spec Figures 5, 34, 45, 46, 51, 52, 70, 82, 99, 104-106.
-For relationship pair validation, see archimate3.2-relationship-shapes.ttl.'''@en ;
+    dcterms:description                '''SHACL shapes for validating ArchiMate 3.2 element instances and
+the metamodel patterns the relationship tables cannot express: element names, self-loops
+and cycles of composition and aggregation, a part in one whole only, the direction of
+serving between layers (a warning), a gap associated with plateaus, attribute values,
+junctions joining relationships of one type, and deep specialization chains. Which
+element types a relationship may connect is checked by archimate3.2-relationship-shapes.ttl,
+generated from the specification's relationship tables (Appendix B), and is not repeated
+here.'''@en ;
+    skos:historyNote              '''2026-11-06: removed the shapes that restated which element types a
+relationship may connect — assignment, access, triggering and flow source and target in the
+core layers, same-type specialization, realization across layers, the strategy, core,
+physical, implementation and motivation layer pairs. They rejected relationships the
+specification's tables permit — flow and triggering between active structure elements,
+which its derivation rules give; a device assigned to an artifact; an application interface
+realizing a business interface; a contract specializing a business object; a work package
+realizing a deliverable, which the specification draws — and the relationship shapes check
+those types already.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html>,
                                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html>,
                                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html>,
@@ -43,7 +54,7 @@ For relationship pair validation, see archimate3.2-relationship-shapes.ttl.'''@e
                                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html>,
                                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Cross-Layer-Dependencies.html> ;
     dcterms:created               "2022-11-14"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/element-shapes/3.2#> ;
@@ -193,189 +204,7 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
 .
 
 #################################################################
-# 3. Specialization same-type constraint
-#################################################################
-
-:SpecializationSameTypeShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:specializes ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Specialization must connect elements of the same ArchiMate type."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:specializes ?target .
-                $this rdf:type ?sourceType .
-                ?target rdf:type ?targetType .
-                ?sourceType rdfs:subClassOf* arch:Element .
-                ?targetType rdfs:subClassOf* arch:Element .
-                FILTER NOT EXISTS {
-                    $this rdf:type ?commonType .
-                    ?target rdf:type ?commonType .
-                    ?commonType rdfs:subClassOf* arch:Element .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# 4. Generic Metamodel — Figure 5 (core layers only)
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html
-#################################################################
-
-## A1: Assignment: ActiveStructure → BehaviorAspect
-:AssignmentSourceConstraint
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, assignment can only originate from active structure elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:assignedTo ?target .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-:AssignmentTargetConstraint
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, assignment can only target behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:assignedTo $this .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A2: Access: BehaviorAspect → PassiveStructure
-:AccessSourceConstraint
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:accesses ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, access can only originate from behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:accesses ?target .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-:AccessTargetConstraint
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:accesses ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, access can only target passive structure elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:accesses $this .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:PassiveStructureElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A4: Triggering: BehaviorAspect → BehaviorAspect (core layers)
-:TriggeringSourceConstraint
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:triggers ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, triggering can only originate from behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:triggers ?target .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-:TriggeringTargetConstraint
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:triggers ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, triggering can only target behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:triggers $this .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A5: Flow: BehaviorAspect → BehaviorAspect (core layers)
-:FlowSourceConstraint
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:flowsTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, flow can only originate from behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:flowsTo ?target .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-:FlowTargetConstraint
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:flowsTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In core layers, flow can only target behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:flowsTo $this .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# 5. Serving layer direction — Figures 104/105
+# 3. Serving layer direction — Figures 104/105
 # Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Cross-Layer-Dependencies.html
 #################################################################
 
@@ -406,213 +235,9 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
 .
 
 #################################################################
-# 6. Cross-layer constraints — Section 11.1
-#################################################################
-
-## A7: No realization of Business ActiveStructure from App/Tech
-:NoRealizationOfBusinessActiveStructureShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:realizes ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Application and Technology elements cannot realize Business active structure elements — only Business behavior can be realized by lower layers."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:realizes ?target .
-                ?target rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                ?target rdf:type/rdfs:subClassOf* am:BusinessLayerElement .
-                {
-                    $this rdf:type/rdfs:subClassOf* am:ApplicationLayerElement .
-                } UNION {
-                    $this rdf:type/rdfs:subClassOf* am:TechnologyLayerElement .
-                } UNION {
-                    $this rdf:type/rdfs:subClassOf* am:PhysicalLayerElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-#################################################################
-# 7. Strategy Layer — Figure 46
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html
-#################################################################
-
-## A8: Resource assigned to Capability/ValueStream only
-:StrategyAssignmentTargetShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Within Strategy layer, Resource can only be assigned to Capability or ValueStream."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:assignedTo ?target .
-                $this rdf:type/rdfs:subClassOf* am:StructureElement .
-                $this rdf:type/rdfs:subClassOf* am:StrategyLayerElement .
-                ?target rdf:type/rdfs:subClassOf* am:StrategyLayerElement .
-                FILTER NOT EXISTS {
-                    { ?target a am:Capability . }
-                    UNION
-                    { ?target a am:ValueStream . }
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A9: CourseOfAction cannot realize Capability/ValueStream
-:StrategyRealizationDirectionShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:realizes ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "CourseOfAction should not realize Capability or ValueStream — realization flows the other direction."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:realizes ?target .
-                $this a am:CourseOfAction .
-                {
-                    ?target a am:Capability .
-                } UNION {
-                    ?target a am:ValueStream .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-#################################################################
-# 8. Core Layer — Figures 52/70/82
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Business-Layer.html
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Application-Layer.html
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html
-#################################################################
-
-## A10: Interface → Service assignment (same layer)
-:CoreInterfaceAssignmentShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Interface assignment target must be an external behavior element (service) in the same layer."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:assignedTo ?target .
-                $this rdf:type/rdfs:subClassOf* am:ExternalActiveStructureElement .
-                $this rdf:type/rdfs:subClassOf* am:CoreLayerElement .
-                VALUES ?layer {
-                    am:BusinessLayerElement
-                    am:ApplicationLayerElement
-                    am:TechnologyLayerElement
-                }
-                $this rdf:type/rdfs:subClassOf* ?layer .
-                FILTER NOT EXISTS {
-                    ?target rdf:type/rdfs:subClassOf* am:ExternalBehaviorElement .
-                    ?target rdf:type/rdfs:subClassOf* ?layer .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A11: Service should not realize InternalBehavior
-:CoreServiceRealizationDirectionShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:realizes ;
-    sh:severity sh:Info ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Service should not realize internal behavior — realization flows from process/function toward service."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:realizes ?target .
-                $this rdf:type/rdfs:subClassOf* am:ExternalBehaviorElement .
-                VALUES ?layer {
-                    am:BusinessLayerElement
-                    am:ApplicationLayerElement
-                    am:TechnologyLayerElement
-                }
-                $this rdf:type/rdfs:subClassOf* ?layer .
-                ?target rdf:type/rdfs:subClassOf* am:BehaviorElement .
-                ?target rdf:type/rdfs:subClassOf* ?layer .
-                FILTER NOT EXISTS {
-                    ?target rdf:type/rdfs:subClassOf* am:ExternalBehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-#################################################################
-# 9. Physical Layer — Figure 99
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html
-#################################################################
-
-## A12: Physical assignment source must be ActiveStructure
-:PhysicalAssignmentSourceShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In Physical layer, assignment can only originate from active structure elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:assignedTo ?target .
-                $this rdf:type/rdfs:subClassOf* am:PhysicalLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A13: Physical assignment target must be Structure
-:PhysicalAssignmentTargetShape
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "In Physical layer, assignment can only target active or passive structure elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:assignedTo $this .
-                $this rdf:type/rdfs:subClassOf* am:PhysicalLayerElement .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                }
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am:PassiveStructureElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# 10. Implementation & Migration — Figure 106
+# 4. Implementation & Migration — Figure 106
 # Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html
 #################################################################
-
-## A14: WorkPackage→Deliverable realization deprecated
-:DeprecatedWorkPackageRealizesDeliverableShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:realizes ;
-    sh:severity sh:Warning ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "WorkPackage → Deliverable realization is deprecated per ArchiMate 3.2 — use an access relationship instead."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:realizes ?target .
-                $this a am:WorkPackage .
-                ?target a am:Deliverable .
-            }
-        """ ;
-    ] ;
-.
 
 ## A15: Gap should associate with Plateaus
 :GapPlateauAssociationShape
@@ -639,63 +264,7 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
 .
 
 #################################################################
-# 11. Motivation — Figures 34, 45
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html
-#################################################################
-
-## A16: Only Business ActiveStructure → Stakeholder assignment
-:MotivationAssignmentShape
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:assignedTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Only Business active structure elements can be assigned to Stakeholder."@en ;
-        sh:select """
-            SELECT $this ?source WHERE {
-                ?source am:assignedTo $this .
-                $this a am:Stakeholder .
-                FILTER NOT EXISTS {
-                    ?source rdf:type/rdfs:subClassOf* am:ActiveStructureElement .
-                    ?source rdf:type/rdfs:subClassOf* am:BusinessLayerElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A17: Motivation elements — no triggering or flow
-:MotivationNoTriggeringShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:triggers ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Motivation elements cannot participate in triggering relationships."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:triggers ?target .
-                $this rdf:type/rdfs:subClassOf* am:MotivationElement .
-            }
-        """ ;
-    ] ;
-.
-
-:MotivationNoFlowShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:flowsTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Motivation elements cannot participate in flow relationships."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am:flowsTo ?target .
-                $this rdf:type/rdfs:subClassOf* am:MotivationElement .
-            }
-        """ ;
-    ] ;
-.
-
-#################################################################
-# 12. Attribute constraints
+# 5. Attribute constraints
 #################################################################
 
 ## A18: Access type — deprecated: the kind of access is the class (am:ReadAccess, …)
@@ -725,7 +294,7 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
 
 
 #################################################################
-# 13. Junction validation — Section 5.5
+# 6. Junction validation — Section 5.5
 #################################################################
 
 ## A20: Junction type must be and/or
@@ -787,97 +356,7 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
 
 
 #################################################################
-# 14. Motivation realization direction — Figure 45
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html
-#################################################################
-
-## A21: Motivation should not realize non-Motivation elements
-:MotivationRealizationDirectionShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:realizes ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Motivation elements should not realize non-Motivation elements — realization flows from core/strategy toward Motivation."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:realizes ?target .
-                $this rdf:type/rdfs:subClassOf* am:MotivationElement .
-                FILTER NOT EXISTS {
-                    ?target rdf:type/rdfs:subClassOf* am:MotivationElement .
-                }
-                FILTER NOT EXISTS {
-                    ?target a am:Grouping .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## A22: Motivation elements — no triggering or flow as target
-:MotivationNoTriggeringTargetShape
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:triggers ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Motivation elements cannot be targets of triggering relationships."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:triggers $this .
-                $this rdf:type/rdfs:subClassOf* am:MotivationElement .
-            }
-        """ ;
-    ] ;
-.
-
-:MotivationNoFlowTargetShape
-    a sh:NodeShape ;
-    sh:targetObjectsOf am:flowsTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Motivation elements cannot be targets of flow relationships."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am:flowsTo $this .
-                $this rdf:type/rdfs:subClassOf* am:MotivationElement .
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# 15. Strategy realization target — Figure 51
-# Source: https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html
-#################################################################
-
-## A23: Strategy elements can only realize Strategy or Motivation
-:StrategyRealizationTargetShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am:realizes ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Strategy elements can only realize other Strategy elements or Motivation elements — not Core layer elements."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am:realizes ?target .
-                $this rdf:type/rdfs:subClassOf* am:StrategyLayerElement .
-                FILTER NOT EXISTS {
-                    ?target rdf:type/rdfs:subClassOf* am:StrategyLayerElement .
-                }
-                FILTER NOT EXISTS {
-                    ?target rdf:type/rdfs:subClassOf* am:MotivationElement .
-                }
-                FILTER NOT EXISTS {
-                    ?target a am:Grouping .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# 16. Deep specialization chain — informational
+# 7. Deep specialization chain — informational
 #################################################################
 
 ## A24: Warn on deep specialization chains (5+ levels)

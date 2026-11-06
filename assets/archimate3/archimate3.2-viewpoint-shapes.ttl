@@ -51,7 +51,7 @@ Usage: load
   archimate3.2-viewpoints.ttl + your-model-data.ttl
 '''@en ;
     dcterms:created               "2022-11-14"^^xsd:date ;
-    dcterms:modified              "2026-09-25"^^xsd:date ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
     skos:editorialNote '''The element and relationship conformance constraints key on arch:inView
 (core 0.4.0, DD-30). sh:severity is stated on the property shapes of :ViewMustDeclareViewpointShape and
 :ViewpointCompletenessShape, not only on the node shapes: SHACL gives a result the severity of the shape
@@ -191,7 +191,9 @@ its severity.'''@en ;
                 FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
 
                 # The element's type (or any of its superclasses) must match
-                FILTER NOT EXISTS {
+                # MINUS, not FILTER NOT EXISTS: the same results (?element and ?vp are bound
+                # above), and much faster on a large model.
+                MINUS {
                     ?element rdf:type/rdfs:subClassOf* ?allowedType .
                     ?vp arch:includesConcept ?allowedType .
                 }
@@ -237,7 +239,9 @@ its severity.'''@en ;
 
                 FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
 
-                FILTER NOT EXISTS {
+                # MINUS, not FILTER NOT EXISTS: the same results (?endpoint and ?vp are bound
+                # above), and much faster on a large model.
+                MINUS {
                     ?endpoint rdf:type/rdfs:subClassOf* ?allowedType .
                     ?vp arch:includesConcept ?allowedType .
                 }

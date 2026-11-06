@@ -222,8 +222,8 @@ Found on the way, to report (2026-11-06):
 - **Three of meta's rule kinds are slow in Oxigraph** — `FILTER NOT EXISTS` over a property path:
   `OrphanedElementShape` (ArchiMate 4.0 and 3.2) grows with the square of the model (31 s at 100 000 triples);
   `RelationshipEndpointConformanceShape`, `ViewElementConformanceShape` / `ElementConformanceShape` take 1–3 s on
-  Archisurance. Written with `MINUS` (the same results, checked): 70 ms and 11–15 ms. A change to
-  linked-archi-meta — agreed by the user (2026-11-06), to make with the fix below.
+  Archisurance. Written with `MINUS` (the same results, checked): 70 ms and 11–15 ms. **Done in
+  linked-archi-meta (2026-11-06, uncommitted there), and copied into `assets/`.**
 - **Meta's relationship rules disagree with its relationship tables**: `TriggeringSourceConstraint` and the
   like (triggering and flow only between behaviour elements) flag relationships the ArchiMate 4.0 tables
   permit — hundreds on the benchmark model, 20 on Archisurance. Analysed 2026-11-06: hand-written for 3.2
@@ -235,7 +235,14 @@ Found on the way, to report (2026-11-06):
   `NoRealizationOfBusinessActiveStructureShape`, `MotivationAssignmentShape`, `CoreInterfaceAssignmentShape`.
   The relationship shapes generated from the tables already check every relationship's ends. Proposed:
   remove the rules that restate the tables; keep those the tables cannot say (self-loops, cycles, one
-  whole, junctions, deep specialization). Awaiting the user's go-ahead.
+  whole, junctions, deep specialization). **Done in linked-archi-meta (2026-11-06, uncommitted there), and
+  copied into `assets/`**: 11 shapes out of 4.0's element shapes, 24 out of 3.2's (a work package realizing
+  a deliverable, which 3.2's rule called deprecated, is one 3.2's figures draw); meta's docs updated.
+  Archisurance now: 13 violations, none from meta's rules; validation 1.7 s, from 9.4 s.
+- With both ArchiMate languages loaded, each language's generic rules (`OrphanedElementShape`, the
+  viewpoint conformance rules) target `arch:Element` or every view, so Archisurance gets each such finding
+  twice — once per language. For meta: scope them to the language's own classes, as
+  `ArchiMateElementShape` is.
 - `core/core-vis-onto.ttl` states CC BY-SA 3.0, where meta's README says CC BY 4.0 for the whole.
 - la-gram's public `main` on GitLab is at "sync" (2026-09-24); the work is on the local branch `refine-storage`.
 

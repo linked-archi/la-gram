@@ -364,8 +364,8 @@ describe('render template', () => {
 
   it("links a finding's shape to its IRI — or, written inline, the shape it is written in — without showing the concept", () => {
     const flow = {
-      ...makeResult('Violation', 'urn:a', 'Flow …'),
-      sourceShape: nn('https://meta.linked.archi/archimate4/element-shapes#FlowSourceConstraint'),
+      ...makeResult('Violation', 'urn:a', 'An element cannot compose itself.'),
+      sourceShape: nn('https://meta.linked.archi/archimate4/element-shapes#NoSelfCompositionShape'),
     };
     const inline = {
       ...makeResult('Violation', 'urn:b', 'Name it'),
@@ -376,7 +376,7 @@ describe('render template', () => {
     const ctx = makeCtx({ conforms: false, results: [flow, inline, own] });
     const o = flat(ctx.render());
     expect(o).toMatch(
-      /Shape: <a class="shape" href=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#FlowSourceConstraint target="_blank" rel="noopener noreferrer" title=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#FlowSourceConstraint[\s\S]*?>FlowSourceConstraint<\/a/,
+      /Shape: <a class="shape" href=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#NoSelfCompositionShape target="_blank" rel="noopener noreferrer" title=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#NoSelfCompositionShape[\s\S]*?>NoSelfCompositionShape<\/a/,
     );
     expect(o).toMatch(/href=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#ArchiMateElementShape [\s\S]*?>ArchiMateElementShape<\/a/);
     expect(o).not.toContain('n3-17');

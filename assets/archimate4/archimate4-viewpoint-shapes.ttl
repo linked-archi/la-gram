@@ -50,7 +50,7 @@ the data: the shapes target arch:View and arch:Viewpoint, and RDF4J resolves the
 rdfs:subClassOf closure for sh:targetClass and sh:class from the shapes graph.
 Without it nothing fires on an arch:Diagram instance.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
-    dcterms:modified              "2026-10-11"^^xsd:date ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
     skos:editorialNote '''ViewElementConformanceShape keys on arch:inView (core 0.4.0, DD-30). The five
 shapes match the 3.2 ones and target arch:View, so catalogues and matrices are checked as well as diagrams.
 sh:severity is stated on the
@@ -194,7 +194,9 @@ shapes state sh:sparql on the node shape, so they take its severity.'''@en ;
 
                 FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
 
-                FILTER NOT EXISTS {
+                # MINUS, not FILTER NOT EXISTS: the same results (?element and ?vp are bound
+                # above), and much faster on a large model.
+                MINUS {
                     ?element rdf:type/rdfs:subClassOf* ?allowedType .
                     ?vp arch:includesConcept ?allowedType .
                 }
@@ -240,7 +242,9 @@ shapes state sh:sparql on the node shape, so they take its severity.'''@en ;
 
                 FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
 
-                FILTER NOT EXISTS {
+                # MINUS, not FILTER NOT EXISTS: the same results (?endpoint and ?vp are bound
+                # above), and much faster on a large model.
+                MINUS {
                     ?endpoint rdf:type/rdfs:subClassOf* ?allowedType .
                     ?vp arch:includesConcept ?allowedType .
                 }

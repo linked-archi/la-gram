@@ -1193,7 +1193,7 @@ Infos are listed, not counted), and violating concepts are marked on the canvas.
 **SPARQL-based constraints** (Req 6.4; Git collaboration plan, Phase 3,
 `rdf-engine/sparql-constraints.ts`). The shapes' `sh:sparql` constraints —
 ArchiMate's self-loops and cycles, its principles, the viewpoints' rules,
-core-vis's nesting: 47 in ArchiMate 4.0 with core, 62 in 3.2 — which
+core-vis's nesting: 36 in ArchiMate 4.0 with core, 38 more in 3.2 — which
 rdf-validate-shacl cannot run, and which therefore ran nowhere. The validation
 engine keeps a copy of its data in Oxigraph, made only when the shapes have
 such constraints and Oxigraph is loaded (the worker loads its WebAssembly
@@ -1208,13 +1208,22 @@ of what changed, both ways, are validated again — the shapes' reach does not
 bound a query's; more than the engine's limit, all of them. Results report
 `sh:SPARQLConstraintComponent`. Memory: about 0.7 KB a triple in the copy
 (78 MB at 100 000). Time — whole model, Node: the 46 fast rules 0.16 s at
-25 000 triples, 1.0 s at 100 000; for 20 nodes after an edit, 8–14 ms. Three
-of meta's rule kinds are slow in Oxigraph because they use `FILTER NOT EXISTS`
-over a property path: `OrphanedElementShape` grows with the square of the
-model (2.2 s at 25 000 triples, 31 s at 100 000), the viewpoint conformance
-rules take 1–3 s on Archisurance; written with `MINUS` they give the same
-results in 70 ms and 11–15 ms — a change to linked-archi-meta's shapes, not
-made here.
+25 000 triples, 1.0 s at 100 000; for 20 nodes after an edit, 8–14 ms
+(measured with the rules of 2026-11-05). Three of meta's rule kinds were slow
+in Oxigraph, using `FILTER NOT EXISTS` over a property path:
+`OrphanedElementShape` grew with the square of the model (2.2 s at 25 000
+triples, 31 s at 100 000), the viewpoint conformance rules took 1–3 s on
+Archisurance. Meta writes them with `MINUS` since 2026-11-06: the same results
+(compared on Archisurance, the benchmark model and meta's viewpoint example),
+17 ms at 25 000 triples and about 12 ms on Archisurance. A `MINUS` group is
+evaluated over the whole data, not only the nodes validated, so after an edit
+these three cost what the whole model does (17–23 ms at 25 000 triples). The
+same day meta took out the rules that restated its relationship tables, which
+rejected relationships the tables permit — flow and triggering between active
+structure elements among them; which types a relationship may connect is the
+tables check's alone (`relationship-validity.ts`). Archisurance, both ArchiMate
+languages loaded: validated in 1.7 s (9.4 s before), 13 violations, none from
+the rules.
 
 **The shape a finding points to** (Req 6.5, `rdf-engine/finding-shape.ts`).
 A finding names its source shape, as SHACL reports it; most of a metamodel's
