@@ -1969,6 +1969,20 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
 
     await shape.click();
     await page.waitForTimeout(200);
+    // Selected, the panel shows its text and its colours — no definition, no type.
+    const panel = page.locator('property-panel');
+    await expect(panel.locator('.panel-header').textContent()).resolves.toContain('Note');
+    expect(await panel.locator('.figure-colour').count()).toBe(3);
+    expect(await panel.getByText('Definition').count()).toBe(0);
+    await panel.locator('.figure-colour[data-colour="fillColor"] input').evaluate((input: HTMLInputElement) => {
+      input.value = '#ffd6e0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await until(
+      async () => (await shape.locator('.la-shape-body').getAttribute('fill')) === '#ffd6e0',
+      'the note drawn in its new colour',
+    );
+    expect((await figures())[0]).toMatchObject({ kind: 'note' });
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
 
@@ -1990,6 +2004,54 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
     await dropFigure('Ellipse', 800, 400);
     const ellipse = (await figures()).find((f) => f.kind === 'shape')!;
     expect(await page.locator(`.djs-shape[data-element-id="${ellipse.iri}"] [data-figure="shape"] ellipse`).count()).toBe(1);
+    expect(session.diagnostics.pageErrors).toEqual([]);
+    expect(session.diagnostics.unexpectedConsoleErrors).toEqual([]);
+  });
+
+  it('a line drawn from the note to an element with the pad stands for no relationship; selected, the panel says what it joins', async () => {
+    const note = (await figures()).find((f) => f.kind === 'note')!;
+    const m = await model(page);
+    const actor = m.actors[m.actors.length - 1]!;
+    const relationshipsOf = () =>
+      page.evaluate((iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.relationshipManager.getRelationshipsOf(iri).length as number;
+      }, actor);
+    const before = await relationshipsOf();
+
+    const noteShape = page.locator(`.djs-shape[data-element-id="${note.iri}"]`);
+    await noteShape.click({ position: { x: 20, y: 60 } });
+    const connect = page.locator('.djs-context-pad .context-pad-connect');
+    await connect.waitFor({ state: 'visible' });
+    // Clicked, the pad's connect follows the pointer to the click on the target.
+    await connect.click();
+    const to = await page.locator(`.djs-shape[data-element-id="${actor}"]`).boundingBox();
+    await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 12 });
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+
+    const connectors = () =>
+      page.evaluate(() => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager
+          .getLinks(app.session.activeViewIri)
+          .filter((l: any) => l.connector)
+          .map((l: any) => ({ iri: l.linkIri, from: l.sourceElementIri, to: l.targetElementIri }));
+      }) as Promise<Array<{ iri: string; from: string; to: string }>>;
+    await until(async () => (await connectors()).length === 1, 'the note’s line written in the view');
+    const [line] = await connectors();
+    expect(line).toMatchObject({ from: note.iri, to: actor });
+    expect(await relationshipsOf()).toBe(before);
+    expect(await page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connector`).count()).toBe(1);
+
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_UI__.diagramCanvas.reveal(iri);
+    }, line!.iri);
+    await page.waitForTimeout(200);
+    const panel = page.locator('property-panel');
+    await until(async () => ((await panel.locator('.panel-header').textContent()) ?? '').includes('Line'), 'the panel showing the line');
+    expect(await panel.locator('.line-note').textContent()).toContain('Ask the CFO');
     await session.screenshot('workbench-figures');
     expect(session.diagnostics.pageErrors).toEqual([]);
     expect(session.diagnostics.unexpectedConsoleErrors).toEqual([]);

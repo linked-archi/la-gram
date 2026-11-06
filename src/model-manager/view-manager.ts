@@ -63,6 +63,7 @@
  * triples", not "re-run some inverse logic".
  */
 
+import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { mintIri } from '../rdf-engine/iri.js';
@@ -70,6 +71,7 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
 import type {
   Bounds,
+  FigureColours,
   FigureInfo,
   LinkInfo,
   NodeInfo,
@@ -278,21 +280,38 @@ export class OxigraphViewManager implements ViewManager {
       const parent = node.parentNodeIri ? copies.get(node.parentNodeIri) : undefined;
       if (parent) this.setNodeParent(copy.value, copies.get(node.nodeIri)!, parent);
     }
+    // Link by link — a relationship drawn twice is drawn twice in the copy — in
+    // passes: a link ending on another link waits for that one's copy.
     const links = this.getLinks(viewIri);
-    const routes = new Map(links.map((link) => [link.relationshipIri, link.waypoints]));
-    const endsOf = new Map(
-      links.map((link) => [
-        link.relationshipIri,
-        {
-          ...(copies.get(link.sourceNodeIri) ? { sourceNodeIri: copies.get(link.sourceNodeIri) } : {}),
-          ...(copies.get(link.targetNodeIri) ? { targetNodeIri: copies.get(link.targetNodeIri) } : {}),
-        },
-      ]),
-    );
-    addRelationshipsToView(this, copy.value, [...routes.keys()], (iri) => routes.get(iri), (iri) => endsOf.get(iri));
-    // Names moved off the middle of their lines stay where they were put.
-    for (const link of links) {
-      if (link.label) this.setLinkLabel(copy.value, link.relationshipIri, link.label);
+    const linkCopies = new Map<string, string>();
+    let pending = links;
+    for (;;) {
+      const waiting = pending.filter((link) => {
+        const end = (iri: string) => copies.get(iri) ?? linkCopies.get(iri);
+        const sourceNodeIri = end(link.sourceNodeIri);
+        const targetNodeIri = end(link.targetNodeIri);
+        // A connector joins nodes, copied already.
+        if (link.connector) {
+          const copied =
+            sourceNodeIri && targetNodeIri ? this.addConnector(copy.value, { sourceNodeIri, targetNodeIri }, link.waypoints) : undefined;
+          if (copied) linkCopies.set(link.linkIri, copied);
+          return false;
+        }
+        const copied = this.addRelationshipToView(
+          copy.value,
+          link.relationshipIri,
+          link.waypoints,
+          { ...(sourceNodeIri ? { sourceNodeIri } : {}), ...(targetNodeIri ? { targetNodeIri } : {}) },
+          { another: true },
+        );
+        if (!copied) return true;
+        linkCopies.set(link.linkIri, copied);
+        // A name moved off the middle of its line stays where it was put.
+        if (link.label) this.setLinkLabel(copy.value, copied, link.label);
+        return false;
+      });
+      if (waiting.length === 0 || waiting.length === pending.length) break;
+      pending = waiting;
     }
     // A catalog or matrix lists concepts without geometry: copy the membership.
     for (const q of this.read(null, T.inView, nn(viewIri))) {
@@ -338,6 +357,9 @@ export class OxigraphViewManager implements ViewManager {
     const [parentNode] = figure.parentIri ? this.nodeIrisFor(viewIri, figure.parentIri) : [];
     if (parentNode && parentNode !== nodeIri) quads.push(triple(node, T.inNode, nn(parentNode)));
     this.store.addQuads(quads);
+    // Its colours, as a copied view's figure has them.
+    const colours = { fillColor: figure.fillColor, lineColor: figure.lineColor, fontColor: figure.fontColor };
+    if (Object.values(colours).some(Boolean)) this.setFigureColours(viewIri, nodeIri, colours);
     return nodeIri;
   }
 
@@ -443,8 +465,9 @@ export class OxigraphViewManager implements ViewManager {
     relationshipIri: string,
     waypoints?: Point[],
     ends: { sourceNodeIri?: string; targetNodeIri?: string } = {},
+    options: { another?: boolean } = {},
   ): string | undefined {
-    const existing = this.linkIrisFor(viewIri, relationshipIri)[0];
+    const existing = options.another ? undefined : this.linkIrisFor(viewIri, relationshipIri)[0];
     if (existing) {
       if (waypoints) this.updateLinkWaypoints(viewIri, relationshipIri, waypoints);
       return existing;
@@ -479,6 +502,43 @@ export class OxigraphViewManager implements ViewManager {
 
   removeRelationshipFromView(viewIri: string, relationshipIri: string): void {
     this.remove(this.collectLinkQuads(viewIri, relationshipIri));
+  }
+
+  addConnector(
+    viewIri: string,
+    ends: { sourceNodeIri: string; targetNodeIri: string },
+    waypoints?: Point[],
+    iri?: string,
+  ): string | undefined {
+    // A node, or an element (its first placement), or a figure.
+    const sourceNodeIri = this.nodeIrisFor(viewIri, ends.sourceNodeIri)[0];
+    const targetNodeIri = this.nodeIrisFor(viewIri, ends.targetNodeIri)[0];
+    if (!sourceNodeIri || !targetNodeIri || sourceNodeIri === targetNodeIri) return undefined;
+    const linkIri = iri ?? mintIri(viewNamespace(this.store, viewIri), 'link');
+    const link = nn(linkIri);
+    // A link with no arch-vis:archRelationship: drawing, no relationship in the model, no arch:inView.
+    this.store.addQuads([
+      triple(link, T.rdfType, T.Link),
+      triple(link, T.visView, nn(viewIri)),
+      triple(link, T.visSource, nn(sourceNodeIri)),
+      triple(link, T.visTarget, nn(targetNodeIri)),
+    ]);
+    if (waypoints && waypoints.length > 0) this.writePoints(link, waypoints);
+    return linkIri;
+  }
+
+  reconnectConnector(viewIri: string, linkIri: string, ends: { sourceNodeIri: string; targetNodeIri: string }): void {
+    const link = nn(linkIri);
+    if (!this.isConnector(link) || !this.objects(link, T.visView).includes(viewIri)) return;
+    const sourceNodeIri = this.nodeIrisFor(viewIri, ends.sourceNodeIri)[0];
+    const targetNodeIri = this.nodeIrisFor(viewIri, ends.targetNodeIri)[0];
+    if (!sourceNodeIri || !targetNodeIri || sourceNodeIri === targetNodeIri) return;
+    const stale: Quad[] = [];
+    if (this.objects(link, T.visSource)[0] !== sourceNodeIri) stale.push(...this.read(link, T.visSource));
+    if (this.objects(link, T.visTarget)[0] !== targetNodeIri) stale.push(...this.read(link, T.visTarget));
+    if (stale.length === 0) return;
+    this.remove(stale);
+    this.store.addQuads([triple(link, T.visSource, nn(sourceNodeIri)), triple(link, T.visTarget, nn(targetNodeIri))]);
   }
 
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[] {
@@ -618,16 +678,20 @@ export class OxigraphViewManager implements ViewManager {
   private readLink(link: Term): LinkInfo | undefined {
     const types = this.objects(link, T.rdfType);
     if (!types.includes(IRI.Link)) return undefined;
-    const relationshipIri = this.objects(link, T.archRelationship)[0];
+    // A link standing for no relationship is a connector: its own key, its ends nodes.
+    const connector = this.objects(link, T.archRelationship).length === 0;
+    const relationshipIri = connector ? link.value : this.objects(link, T.archRelationship)[0];
     const sourceNode = this.objectTerms(link, T.visSource)[0];
     const targetNode = this.objectTerms(link, T.visTarget)[0];
     if (!relationshipIri || !sourceNode || !targetNode) return undefined;
-    const sourceElementIri = this.conceptOf(sourceNode);
-    const targetElementIri = this.conceptOf(targetNode);
+    const endOf = (node: Term) => (connector ? this.nodeConceptOf(node) : this.conceptOf(node));
+    const sourceElementIri = endOf(sourceNode);
+    const targetElementIri = endOf(targetNode);
     if (!sourceElementIri || !targetElementIri) return undefined;
     return {
       linkIri: link.value,
       relationshipIri,
+      ...(connector ? { connector: true } : {}),
       sourceNodeIri: sourceNode.value,
       targetNodeIri: targetNode.value,
       sourceElementIri,
@@ -689,6 +753,16 @@ export class OxigraphViewManager implements ViewManager {
     return this.objects(end, T.archElement)[0] ?? this.objects(end, T.archRelationship)[0];
   }
 
+  /** What a connector's end, a node, is keyed by: its element — or, a figure, the node itself. */
+  private nodeConceptOf(node: Term): string | undefined {
+    return this.objects(node, T.archElement)[0] ?? (this.figureOf(node) ? node.value : undefined);
+  }
+
+  /** Whether a link stands for no relationship: a connector. */
+  private isConnector(link: Term): boolean {
+    return this.objects(link, T.rdfType).includes(IRI.Link) && this.objects(link, T.archRelationship).length === 0;
+  }
+
   private nodeIrisFor(viewIri: string, elementIri: string): string[] {
     const view = viewIri;
     // A node — an element's placement — keys itself.
@@ -712,17 +786,41 @@ export class OxigraphViewManager implements ViewManager {
    */
   private figureOf(node: Term): FigureInfo | undefined {
     const types = this.objects(node, T.rdfType);
+    const style = this.read(node as NamedNode, T.visStyle)[0]?.object;
+    // Its colours, from its style.
+    const colours: FigureColours = {};
+    if (style) {
+      for (const [key, predicate] of [['fillColor', T.fillColor], ['lineColor', T.lineColor], ['fontColor', T.fontColor]] as const) {
+        const value = this.read(style as NamedNode, predicate)[0]?.object.value;
+        if (value) colours[key] = value;
+      }
+    }
     if (types.includes(IRI.ContainerNode) && this.objects(node, T.archElement).length === 0) {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
-      const style = this.read(node as NamedNode, T.visStyle)[0]?.object;
       const shapeType = style ? this.objects(style, T.shapeType)[0] : undefined;
-      return { kind: shapeType ? 'shape' : 'group', ...(shapeType ? { shapeType } : {}), ...(text !== undefined ? { text } : {}) };
+      return { kind: shapeType ? 'shape' : 'group', ...(shapeType ? { shapeType } : {}), ...(text !== undefined ? { text } : {}), ...colours };
     }
     if (types.includes(IRI.LabelNode) && this.read(null, T.visLabel, node as NamedNode).length === 0) {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
-      return { kind: 'note', ...(text !== undefined ? { text } : {}) };
+      return { kind: 'note', ...(text !== undefined ? { text } : {}), ...colours };
     }
     return undefined;
+  }
+
+  setFigureColours(viewIri: string, nodeIri: string, colours: { [K in keyof FigureColours]?: string | null }): void {
+    if (!this.nodeIrisFor(viewIri, nodeIri).includes(nodeIri) || !this.figureOf(nn(nodeIri))) return;
+    const node = nn(nodeIri);
+    // Its own style — made when it is first given a colour, named after it so it goes with it.
+    const style = nn(this.figureStyleIri(nodeIri));
+    if (this.read(node, T.visStyle).length === 0) {
+      this.store.addQuads([triple(node, T.visStyle, style), triple(style, T.rdfType, T.Style)]);
+    }
+    for (const [key, predicate] of [['fillColor', T.fillColor], ['lineColor', T.lineColor], ['fontColor', T.fontColor]] as const) {
+      const value = colours[key];
+      if (value === undefined) continue;
+      this.remove(this.read(style, predicate));
+      if (value) this.store.addQuads([triple(style, predicate, DataFactory.literal(value))]);
+    }
   }
 
   /** A figure's own style — its shape type — named after the figure, so it goes with it. */
@@ -731,6 +829,13 @@ export class OxigraphViewManager implements ViewManager {
   }
 
   private linkIrisFor(viewIri: string, relationshipIri: string): string[] {
+    // A link — one line of a relationship — keys itself.
+    const asLink = nn(relationshipIri);
+    if (
+      (this.objects(asLink, T.archRelationship).length > 0 || this.isConnector(asLink)) &&
+      this.objects(asLink, T.visView).includes(viewIri)
+    )
+      return [relationshipIri];
     return this.store
       .getQuads(null, T.archRelationship, nn(relationshipIri))
       .map((q) => q.subject)

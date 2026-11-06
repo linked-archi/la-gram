@@ -123,10 +123,13 @@ export class RelabelElementHandler extends RdfChangeHandler {
     relabel.previous ??= businessObject.label;
     relabel.previousNamed ??= businessObject.named;
     relabel.apply ??= () => this.writer(businessObject.iri, relabel.label);
-    // An element placed more than once is renamed on every placement.
+    // An element placed more than once is renamed on every placement; a relationship drawn more than once, on every line.
+    const line = businessObject.kind === 'relationship';
     relabel.others ??=
-      businessObject.kind === 'element'
-        ? (this.registry?.filter((e) => e !== relabel.element && !e.waypoints && e.businessObject?.iri === businessObject.iri) ?? [])
+      businessObject.kind === 'element' || line
+        ? (this.registry?.filter(
+            (e) => e !== relabel.element && Boolean(e.waypoints) === line && e.businessObject?.iri === businessObject.iri,
+          ) ?? [])
         : [];
     super.execute(relabel);
     for (const shape of [relabel.element, ...relabel.others]) {

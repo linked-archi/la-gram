@@ -151,6 +151,8 @@ export interface RdfRelationshipRequest extends RdfRelationship {
   /** The placements the connection was drawn between, when its ends are placed elements. */
   sourceNodeIri?: string;
   targetNodeIri?: string;
+  /** Set by the writer: the view's link it drew the relationship with. */
+  linkIri?: string;
   /**
    * IRI a previous `execute` minted, reused on redo so the relationship keeps
    * its identity across any number of undo/redo cycles.
@@ -186,7 +188,7 @@ export interface RdfRelationshipWriter {
    * Draw an *existing* relationship in the open view (an `arch-vis:Link`),
    * without creating anything in the model.
    */
-  draw?(relationshipIri: string, ends?: { sourceNodeIri?: string; targetNodeIri?: string }): void;
+  draw?(relationshipIri: string, ends?: { sourceNodeIri?: string; targetNodeIri?: string }): string | undefined;
 }
 
 /** Minimal view of the diagram-js elements this module touches. */
@@ -508,6 +510,8 @@ export class CreateRelationshipHandler {
       context.previousIri = connection.businessObject.iri;
       connection.businessObject.iri = relationshipIri;
     }
+    // Which line of it in the view: the link the writer drew.
+    if (relationship.linkIri && connection.businessObject) connection.businessObject.linkIri = relationship.linkIri;
   }
 
   revert(context: RelationshipCommandContext): void {
@@ -569,14 +573,14 @@ export class RetypeRelationshipHandler {
     if (this.writer.retype && fromRelationshipIri) {
       this.writer.retype(fromRelationshipIri, from, to);
       context.toRelationshipIri = fromRelationshipIri;
-      connection.businessObject = businessObjectFor(to, fromRelationshipIri);
+      connection.businessObject = businessObjectFor(to, fromRelationshipIri, connection.businessObject?.linkIri);
       return [connection];
     }
 
     this.writer.remove(from, fromRelationshipIri);
     context.toRelationshipIri = this.writer.create(to);
 
-    connection.businessObject = businessObjectFor(to, context.toRelationshipIri);
+    connection.businessObject = businessObjectFor(to, context.toRelationshipIri, connection.businessObject?.linkIri);
     return [connection];
   }
 
@@ -585,7 +589,7 @@ export class RetypeRelationshipHandler {
 
     if (this.writer.retype && toRelationshipIri && toRelationshipIri === context.fromRelationshipIri) {
       this.writer.retype(toRelationshipIri, to, from);
-      connection.businessObject = businessObjectFor(from, toRelationshipIri);
+      connection.businessObject = businessObjectFor(from, toRelationshipIri, connection.businessObject?.linkIri);
       return [connection];
     }
 
@@ -595,15 +599,16 @@ export class RetypeRelationshipHandler {
     // resource rather than a stale IRI.
     context.fromRelationshipIri = this.writer.create(from);
 
-    connection.businessObject = businessObjectFor(from, context.fromRelationshipIri);
+    connection.businessObject = businessObjectFor(from, context.fromRelationshipIri, connection.businessObject?.linkIri);
     return [connection];
   }
 }
 
-/** The business object a connection carries for `relationship`. */
+/** The business object a connection carries for `relationship` — the line's link kept. */
 function businessObjectFor(
   relationship: RdfRelationship,
   relationshipIri: string | undefined,
+  linkIri?: string,
 ): RdfBusinessObject {
   return {
     iri:
@@ -611,6 +616,7 @@ function businessObjectFor(
       relationshipKey(relationship.sourceIri, relationship.targetIri, relationship.typeIri),
     typeIri: relationship.typeIri,
     kind: 'relationship',
+    ...(linkIri ? { linkIri } : {}),
   };
 }
 
@@ -623,12 +629,13 @@ function businessObjectFor(
  * spelling it out reads better than inheriting it.
  */
 export class RdfRelationshipBehavior {
-  static $inject = ['eventBus', 'commandStack', 'rdfRelationshipWriter'];
+  static $inject = ['eventBus', 'commandStack', 'rdfRelationshipWriter', 'elementRegistry'];
 
   constructor(
     eventBus: DjsEventBus,
     commandStack: DjsCommandStack,
     relationshipWriter: RdfRelationshipWriter,
+    elementRegistry: { get(id: string): unknown } | null = null,
   ) {
     eventBus.on<{ context?: ConnectionCreateContext }>(
       'commandStack.connection.create.preExecute',
@@ -645,7 +652,13 @@ export class RdfRelationshipBehavior {
         const existing = context?.hints?.[RDF_EXISTING_RELATIONSHIP_HINT];
         if (existing && connection) {
           commandStack.execute(RDF_CHANGE_COMMAND, {
-            apply: () => relationshipWriter.draw?.(existing, ends),
+            apply: () => {
+              const link = relationshipWriter.draw?.(existing, ends);
+              if (!link || !connection.businessObject) return;
+              connection.businessObject.linkIri = link;
+              // Drawn again: its relationship's IRI keys its first line, its link this one.
+              if (connection.id === existing && elementRegistry?.get(existing)) connection.id = link;
+            },
           } satisfies RdfChangeContext);
           return;
         }
@@ -790,6 +803,13 @@ export class RdfModeling extends ModelingBase {
       attrs ??
       this.consultRules(source.businessObject?.typeIri, target.businessObject?.typeIri);
     if (!resolved) return undefined;
+
+    // A line from or to a figure stands for no relationship: the view's link is
+    // written as the line is created (the canvas's `connection.create` hook).
+    if (resolved.connector) {
+      const connector: RdfBusinessObject = { iri: '', typeIri: '', kind: 'connector' };
+      return this.createConnection(source, target, { businessObject: connector }, source.parent, { ...hints });
+    }
 
     const typeIri = resolved.typeIri ?? resolved.businessObject?.typeIri;
 

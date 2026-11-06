@@ -72,7 +72,7 @@ export interface ContextPadElement {
   iri: string;
   typeIri: string;
   /** `element` for shapes, `relationship` for connections. */
-  kind?: 'element' | 'relationship' | 'figure';
+  kind?: 'element' | 'relationship' | 'figure' | 'connector';
   /** The diagram-js element, when the pad was opened from the canvas. */
   diagramElement?: unknown;
 }
@@ -178,14 +178,26 @@ export class RdfContextPadProvider {
     const element = toContextPadElement(target);
     const entries: Record<string, ContextPadEntry> = {};
 
-    // A figure is drawing, in no model: it can only be taken off the view.
-    if (element.kind === 'figure') {
+    // A figure, or a line drawn from one, is drawing, in no model: it can only
+    // be taken off the view — and a line drawn from a figure to what it is about.
+    if (element.kind === 'figure' || element.kind === 'connector') {
       entries['delete'] = {
         group: 'edit',
         title: 'Delete',
         className: 'context-pad-delete',
         action: () => this.onDelete?.(element),
       };
+      if (element.kind === 'figure') {
+        const startConnect = (event: unknown, _target?: unknown, autoActivate?: boolean): void => {
+          this.onStartConnect?.(element, event, autoActivate);
+        };
+        entries['connect'] = {
+          group: 'connect',
+          title: 'Draw a line to…',
+          className: 'context-pad-connect',
+          action: { click: startConnect, dragstart: startConnect },
+        };
+      }
       return entries;
     }
 

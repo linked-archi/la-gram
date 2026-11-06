@@ -1553,8 +1553,27 @@ id); its relationships are drawn with its first placement only. Selecting or
 revealing it selects every placement; a rename and a type change on one
 placement show on all (the relabel and retype commands carry the others, undo
 included); deleting it from the model takes every placement. Lines between a
-nested placement and its container are those between those two shapes. A
-relationship is still drawn once per view.
+nested placement and its container are those between those two shapes.
+
+A relationship may be drawn more than once too, each line a link
+(`arch-vis:Link`): a link's IRI keys it wherever a relationship's does
+(`linkIrisFor`: `updateLinkWaypoints`, `setLinkLabel`,
+`removeRelationshipFromView`), `addRelationshipToView(…, { another: true })`
+draws again, a copied view copies link by link. A line carries its link
+(`RdfBusinessObject.linkIri`): its relationship's IRI keys its first line, a
+further one its link's; an index of each relationship's lines and each line by
+its link (`linesOf`, `lineOfLink`, `lineBetween`) is kept from `connection.added`
+/ `.removed`, at a priority above every other listener — diagram-js stops an
+event at the first listener that returns a value, and one of la-gram's did
+(`Set.delete`), so later listeners missed every removed line. The view is synced
+link by link; a route, a moved name and a deletion write that line's link; a
+line drawn gets its link from the writer (`RdfRelationshipRequest.linkIri`), one
+drawn of an existing relationship from `draw`, which reuses a link joining the
+same placements and otherwise draws another. The reuse question (Req 4.20) asks
+unless the relationship is drawn between the two placements already; using it
+draws it again there. A rename or a type change on one line shows on every line.
+Taken out of a container, a relationship with a line elsewhere in the view gets
+no second one.
 
 ### Figures
 
@@ -1580,10 +1599,43 @@ the node is written in the `shape.create` command, the shape taking the node's
 IRI before it is drawn. Rules: no relationship ends on a figure; a group or a
 shape holds as an element does, a note nothing. The context pad offers Delete;
 renaming writes `skos:prefLabel` as for an element. Selected, the heading is
-*Group*, *Note* or *Shape* — no type, analysis or guide. The toolbar's second
+*Group*, *Note* or *Shape* — no type, analysis or guide — and the property
+panel draws `_renderFigure`: the `skos:prefLabel` entry labelled *Text* and a
+colour picker each for fill, line and text, with a reset. A colour is written on
+the figure's own style (`setFigureColours`, `<node>-style`, created when the
+figure has none: `arch-vis:fillColor`, `lineColor`, `fontColor`, `#rrggbb`
+strings), through `recordChange`, so it is undone as a canvas step;
+`syncFigure` redraws a figure whose colours changed. Unset, a figure is drawn
+in its kind's (`FIGURE_DEFAULT_COLOURS`, `figureColours`). The toolbar's second
 row (`canvas-toolbar`, `figure-bar.ts`) is opened by *Shapes*, remembered per
 browser. The Exchange importer draws a `Container` as a group and a `Label` as
 a note, with their `<label>`, and what was nested inside one inside it.
+
+A line from a figure — a note's, to what it is about — is a *connector*: an
+`arch-vis:Link` with no `arch-vis:archRelationship` (core-vis permits one: the
+property has no minimum), its ends nodes of the view, placements or figures,
+and no `arch:inView` for anything. As a figure's node is its key, a connector's
+link is its own: `LinkInfo.connector` says what it is and its `relationshipIri`
+is the link's IRI, so `linkIrisFor` resolves the link to itself and routing
+(`updateLinkWaypoints`), removal and the removal of a node's links go the ways
+a relationship's line's go; `addConnector` writes one (an element's IRI names
+its first placement) and `reconnectConnector` re-points it; `duplicateView`
+copies it between the copies of its ends. On the canvas its business object is
+`kind: 'connector'` (`syncConnector`), drawn thin, dashed and grey with no
+decorations (`drawConnector`). The rules answer a connect with a figure at an
+end with `{ connector: true }` (`checkConnector`: two different shapes, no
+relationship type picked in the palette), and `connection.start` allows a
+figure; `RdfModeling.connect` creates the line with no relationship hint, and
+the canvas writes its link in `connection.create`'s `preExecute`, the line
+taking the link's IRI — one undo step. A reconnect keeps a figure at an end
+(`checkReconnect`) and re-points the link. The pad offers a figure Connect and
+a connector Delete. The Exchange importer draws a `connection` with no
+`relationshipRef` between the nodes it joins as one.
+
+A line taken off the canvas by the store (`removeConnectionDirect`) is also
+taken off its ends: diagram-js's canvas unsets a removed connection's parent
+but not its `source`/`target`, so its ends kept it in `incoming`/`outgoing`,
+and deleting one of them later deleted the parentless line again and threw.
 
 ### Version history
 

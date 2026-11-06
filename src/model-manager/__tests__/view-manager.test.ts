@@ -686,3 +686,156 @@ describe('an element placed more than once in a view', () => {
     expect(copiedSource.bounds).toEqual({ x: 400, y: 0, width: 120, height: 55 });
   });
 });
+
+describe('a relationship drawn more than once in a view', () => {
+  const ARCH_NS = NAMESPACES.arch;
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let view: string;
+  let serving: string;
+  let first: string;
+  let second: string;
+  let webNode: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const rels = new OxigraphRelationshipManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    const api = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'API' }).value;
+    const web = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'Web' }).value;
+    first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    second = views.addElementToView(view, api, { x: 0, y: 300, width: 120, height: 55 }, { another: true });
+    webNode = views.addElementToView(view, web, { x: 400, y: 150, width: 120, height: 55 });
+    serving = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: api, targetIri: web }).iri;
+  });
+
+  it('is drawn again only when asked, each line a link of its own: routed, named and removed on its own', () => {
+    const one = views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: first, targetNodeIri: webNode })!;
+    expect(views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode })).toBe(one);
+    const two = views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode }, { another: true })!;
+    expect(two).not.toBe(one);
+    expect(views.getLinks(view).map((l) => [l.linkIri, l.sourceNodeIri]).sort()).toEqual([[one, first], [two, second]].sort());
+
+    views.updateLinkWaypoints(view, two, [{ x: 60, y: 327 }, { x: 460, y: 177 }]);
+    views.setLinkLabel(view, two, { x: 200, y: 240, width: 40, height: 14 });
+    const byLink = new Map(views.getLinks(view).map((l) => [l.linkIri, l]));
+    expect(byLink.get(two)?.waypoints).toHaveLength(2);
+    expect(byLink.get(one)?.waypoints).toEqual([]);
+    expect(byLink.get(two)?.label).toBeDefined();
+    expect(byLink.get(one)?.label).toBeUndefined();
+
+    views.removeRelationshipFromView(view, two);
+    expect(views.getLinks(view).map((l) => l.linkIri)).toEqual([one]);
+    expect(objects(store, serving, ARCH_NS + 'inView')).toEqual([view]);
+    views.removeRelationshipFromView(view, one);
+    expect(objects(store, serving, ARCH_NS + 'inView')).toEqual([]);
+  });
+
+  it('a copy of the view draws it as often, between the copies of its placements', () => {
+    views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: first, targetNodeIri: webNode });
+    views.addRelationshipToView(view, serving, [{ x: 60, y: 327 }, { x: 460, y: 177 }], { sourceNodeIri: second, targetNodeIri: webNode }, { another: true });
+    const copy = views.duplicateView(view).value;
+    const nodes = new Map(views.getNodes(copy).map((n) => [n.nodeIri, n]));
+    const links = views.getLinks(copy);
+    expect(links).toHaveLength(2);
+    expect(links.map((l) => nodes.get(l.sourceNodeIri)?.bounds.y).sort((a, b) => a! - b!)).toEqual([0, 300]);
+    expect(links.find((l) => nodes.get(l.sourceNodeIri)?.bounds.y === 300)?.waypoints).toHaveLength(2);
+  });
+});
+
+describe('a figure’s colours', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  it('are kept on its own style, taken back to the default with null, and copied with its view', () => {
+    const store = new OxigraphRdfStore();
+    const views = new OxigraphViewManager(store);
+    const view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setFigureColours(view, note, { fillColor: '#ffd6e0', fontColor: '#7a0019' });
+    expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n', fillColor: '#ffd6e0', fontColor: '#7a0019' });
+    expect(objects(store, `${note}-style`, VIS_NS + 'fillColor')).toEqual(['#ffd6e0']);
+
+    views.setFigureColours(view, note, { fontColor: null, lineColor: '#333333' });
+    expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n', fillColor: '#ffd6e0', lineColor: '#333333' });
+
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy)[0]?.figure).toMatchObject({ fillColor: '#ffd6e0', lineColor: '#333333' });
+    views.removeElementFromView(view, note);
+    expect(store.getQuads(nn(`${note}-style`), null, null)).toEqual([]);
+  });
+});
+
+describe('a line from a note: a link standing for no relationship', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const setup = () => {
+    const store = new OxigraphRdfStore();
+    const views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    const app = elements.createElement('https://example.org/am4#ApplicationComponent', 'https://example.org/model', { label: 'App' }).value;
+    const db = elements.createElement('https://example.org/am4#ApplicationComponent', 'https://example.org/model', { label: 'DB' }).value;
+    const appNode = views.addElementToView(view, app, { x: 300, y: 0, width: 120, height: 55 });
+    views.addElementToView(view, db, { x: 300, y: 300, width: 120, height: 55 });
+    return { store, views, view, note, app, appNode, db };
+  };
+
+  it('is an arch-vis:Link with no archRelationship, its own key; no concept enters the view', () => {
+    const { store, views, view, note, app, appNode } = setup();
+    const link = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode }, [{ x: 200, y: 30 }])!;
+    expect(objects(store, link, RDF_TYPE)).toEqual([VIS_NS + 'Link']);
+    expect(objects(store, link, VIS_NS + 'archRelationship')).toEqual([]);
+    expect(views.getLinks(view)).toEqual([
+      {
+        linkIri: link,
+        relationshipIri: link,
+        connector: true,
+        sourceNodeIri: note,
+        targetNodeIri: appNode,
+        sourceElementIri: note,
+        targetElementIri: app,
+        waypoints: [{ x: 200, y: 30 }],
+      },
+    ]);
+    expect(views.placedIn(view).has(link)).toBe(false);
+    expect(store.getQuads(nn(link), nn(NAMESPACES.arch + 'inView'), null)).toEqual([]);
+    // Keyed by its link, as a relationship's line is.
+    views.updateLinkWaypoints(view, link, [{ x: 250, y: 30 }]);
+    expect(views.getLinks(view)[0]?.waypoints).toEqual([{ x: 250, y: 30 }]);
+  });
+
+  it('joins two different nodes of the view — an element names its first placement — or nothing', () => {
+    const { views, view, note, app, appNode } = setup();
+    expect(views.addConnector(view, { sourceNodeIri: note, targetNodeIri: note })).toBeUndefined();
+    expect(views.addConnector(view, { sourceNodeIri: note, targetNodeIri: 'https://example.org/model/nowhere' })).toBeUndefined();
+    const other = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'W' }).value;
+    expect(views.addConnector(other, { sourceNodeIri: note, targetNodeIri: app })).toBeUndefined();
+    const link = views.addConnector(view, { sourceNodeIri: app, targetNodeIri: note })!;
+    expect(views.getLinks(view)[0]).toMatchObject({ linkIri: link, sourceNodeIri: appNode, targetNodeIri: note });
+  });
+
+  it('is re-pointed, removed on its own, and goes with an end', () => {
+    const { store, views, view, note, appNode, db } = setup();
+    const link = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode })!;
+    views.reconnectConnector(view, link, { sourceNodeIri: note, targetNodeIri: db });
+    expect(views.getLinks(view)[0]?.targetElementIri).toBe(db);
+    views.removeRelationshipFromView(view, link);
+    expect(views.getLinks(view)).toEqual([]);
+    expect(store.getQuads(nn(link), null, null)).toEqual([]);
+
+    const again = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode }, [{ x: 200, y: 30 }])!;
+    views.removeElementFromView(view, note);
+    expect(views.getLinks(view)).toEqual([]);
+    expect(store.getQuads(nn(again), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${again}-p0`), null, null)).toEqual([]);
+  });
+
+  it('is copied with its view, between the copies of its ends', () => {
+    const { views, view, note, app, appNode } = setup();
+    views.addConnector(view, { sourceNodeIri: appNode, targetNodeIri: note });
+    const copy = views.duplicateView(view).value;
+    const copiedNote = views.getNodes(copy).find((n) => n.figure)!.nodeIri;
+    expect(views.getLinks(copy)).toEqual([expect.objectContaining({ connector: true, sourceElementIri: app, targetNodeIri: copiedNote })]);
+  });
+});

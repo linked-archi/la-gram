@@ -65,6 +65,7 @@ import type {
   VisualStyle,
 } from '../../metamodel-manager/notation.js';
 import type { FigureInfo } from '../../model-manager/interfaces.js';
+import { figureColours } from '../figure-bar.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
   NOTATION_DEFAULTS,
@@ -225,8 +226,12 @@ export interface RdfBusinessObject {
    * type under every junction. A relationship without it has no name to draw.
    */
   named?: boolean;
-  /** `element` for an element's shape, `relationship` for connections, `figure` for drawing only. */
-  kind?: 'element' | 'relationship' | 'figure';
+  /**
+   * `element` for an element's shape, `relationship` for connections, `figure`
+   * for drawing only, `connector` for a line drawn only — from a note or
+   * another figure, standing for no relationship: its link is its `iri`.
+   */
+  kind?: 'element' | 'relationship' | 'figure' | 'connector';
   /** A figure — a group, a shape, a note — standing for no model element: its node is its `iri`. */
   figure?: FigureInfo;
   /**
@@ -234,6 +239,11 @@ export interface RdfBusinessObject {
    * its element, when the view places it more than once.
    */
   nodeIri?: string;
+  /**
+   * The view's link this line draws (`arch-vis:Link`): which line of its
+   * relationship, when the view draws it more than once.
+   */
+  linkIri?: string;
   /**
    * Per-instance icon override.
    *
@@ -289,14 +299,17 @@ export const RENDER_CLASSES = {
   connectionLabel: 'la-connection-label',
   /** A figure, with `la-figure-group`, `la-figure-shape` or `la-figure-note`. */
   figure: 'la-figure',
+  /** A line standing for no relationship: a note's, to what it is about. */
+  connector: 'la-connector',
 } as const;
 
-/** How figures are drawn: neutral, so the model's elements stand out. */
+/** How a line standing for no relationship is drawn. */
+const CONNECTOR_STYLE = { lineColor: '#5f6368', strokeWidth: 1, dashArray: '4 3' } as const;
+
+/** What a figure's colours do not say: a group's tab, a note's fold. */
 const FIGURE_STYLE = {
-  group: { fill: '#f1f3f4', tab: '#e3e7ea', line: '#8a9399', tabHeight: 20 },
-  shape: { fill: '#ffffff', line: '#5f6368' },
-  note: { fill: '#fff7b3', fold: '#f2e58a', line: '#d4b106' },
-  text: '#202124',
+  group: { tab: '#e3e7ea', tabHeight: 20 },
+  note: { fold: '#f2e58a' },
 } as const;
 
 export class RdfRenderer extends BaseRenderer {
@@ -391,53 +404,66 @@ export class RdfRenderer extends BaseRenderer {
     const width = element.width ?? NOTATION_DEFAULTS.width;
     const height = element.height ?? NOTATION_DEFAULTS.height;
     const text = businessObject.label ?? '';
+    // Its own colours, else its kind's.
+    const colours = figureColours(figure);
     const group = svgEl('g');
     group.setAttribute('class', `${RENDER_CLASSES.shape} ${RENDER_CLASSES.figure} ${RENDER_CLASSES.figure}-${figure.kind}`);
     if (businessObject.iri) group.setAttribute('data-element-iri', businessObject.iri);
     group.setAttribute('data-figure', figure.kind);
 
     if (figure.kind === 'group') {
-      const style = FIGURE_STYLE.group;
       const tabWidth = Math.min(width, Math.max(60, textWidth(text) + 16));
-      const tabHeight = Math.min(style.tabHeight, height);
-      const tab = svgEl('rect', { x: 0, y: 0, width: tabWidth, height: tabHeight, fill: style.tab, stroke: style.line });
+      const tabHeight = Math.min(FIGURE_STYLE.group.tabHeight, height);
+      // The tab its own grey, unless the group is given a colour.
+      const tabFill = figure.fillColor ?? FIGURE_STYLE.group.tab;
+      const tab = svgEl('rect', { x: 0, y: 0, width: tabWidth, height: tabHeight, fill: tabFill, stroke: colours.lineColor });
       tab.setAttribute('class', RENDER_CLASSES.details);
       group.appendChild(tab);
-      const body = svgEl('rect', { x: 0, y: tabHeight, width, height: Math.max(0, height - tabHeight), fill: style.fill, stroke: style.line });
+      const body = svgEl('rect', { x: 0, y: tabHeight, width, height: Math.max(0, height - tabHeight), fill: colours.fillColor, stroke: colours.lineColor });
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
-      this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1);
+      this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1, colours.fontColor);
     } else if (figure.kind === 'note') {
-      const style = FIGURE_STYLE.note;
       const fold = Math.min(14, width / 4, height / 4);
       const body = svgEl('path', {
         d: `M0,0 H${round2(width - fold)} L${round2(width)},${round2(fold)} V${round2(height)} H0 Z`,
-        fill: style.fill,
-        stroke: style.line,
+        fill: colours.fillColor,
+        stroke: colours.lineColor,
       });
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
+      // The fold a shade of the note: its own yellow, or the colour given, darkened.
       const corner = svgEl('path', {
         d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`,
-        fill: style.fold,
-        stroke: style.line,
+        fill: figure.fillColor ?? FIGURE_STYLE.note.fold,
+        stroke: colours.lineColor,
       });
       corner.setAttribute('class', RENDER_CLASSES.details);
       group.appendChild(corner);
+      if (figure.fillColor) {
+        const shade = svgEl('path', { d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`, fill: '#000000', 'fill-opacity': 0.12, stroke: 'none' });
+        group.appendChild(shade);
+      }
       const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
-      this.appendFigureText(group, text, { x: 6, y: 4, width: width - 12 - fold / 2, height: height - 8 }, Math.max(1, Math.floor((height - 8) / lineHeight)));
+      this.appendFigureText(
+        group,
+        text,
+        { x: 6, y: 4, width: width - 12 - fold / 2, height: height - 8 },
+        Math.max(1, Math.floor((height - 8) / lineHeight)),
+        colours.fontColor,
+      );
     } else {
       const shapeType = figureShapeType(figure);
-      this.drawShapeBody(group, { shapeType, fillColor: FIGURE_STYLE.shape.fill, lineColor: FIGURE_STYLE.shape.line } as VisualStyle, width, height);
+      this.drawShapeBody(group, { shapeType, fillColor: colours.fillColor, lineColor: colours.lineColor } as VisualStyle, width, height);
       const layout = containerLayout(shapeLayout(shapeType, width, height), element);
-      this.appendLabel(group, text, layout.label, { color: FIGURE_STYLE.text, ...(layout.maxLabelLines ? { maxLines: layout.maxLabelLines } : {}) });
+      this.appendLabel(group, text, layout.label, { color: colours.fontColor, ...(layout.maxLabelLines ? { maxLines: layout.maxLabelLines } : {}) });
     }
     parentGfx.appendChild(group);
     return group;
   }
 
   /** A figure's text, from the top left of `area`, wrapped to it, on at most `maxLines`. */
-  private appendFigureText(group: SVGElement, text: string, area: Box, maxLines: number): void {
+  private appendFigureText(group: SVGElement, text: string, area: Box, maxLines: number, color: string): void {
     const lines = text === '' ? [] : wrapLabel(text, Math.max(0, area.width), NOTATION_DEFAULTS.fontSize, maxLines);
     if (lines.length === 0) return;
     const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
@@ -446,7 +472,7 @@ export class RdfRenderer extends BaseRenderer {
       y: round2(area.y + (lines.length === 1 && maxLines === 1 ? (area.height + NOTATION_DEFAULTS.fontSize * 0.7) / 2 : NOTATION_DEFAULTS.fontSize)),
       'font-size': NOTATION_DEFAULTS.fontSize,
       'font-family': NOTATION_DEFAULTS.fontFamily,
-      fill: FIGURE_STYLE.text,
+      fill: color,
     });
     element.setAttribute('class', RENDER_CLASSES.label);
     lines.forEach((line, index) => {
@@ -618,6 +644,7 @@ export class RdfRenderer extends BaseRenderer {
 
   drawConnection(parentGfx: SVGElement, connection: RenderableElement): SVGElement {
     const businessObject = connection.businessObject;
+    if (businessObject?.kind === 'connector') return this.drawConnector(parentGfx, connection);
     const style: RelationshipVisualStyle | undefined = this.notationStyles.relationshipStyleFor(
       businessObject?.typeIri,
     );
@@ -654,6 +681,26 @@ export class RdfRenderer extends BaseRenderer {
     }
     const label = drawnConnectionLabel(connection, this.renderOptions);
     if (label) this.drawConnectionLabel(parentGfx, label, lineColor, opacity);
+    return line;
+  }
+
+  /**
+   * A line standing for no relationship — a note's, to what it is about: thin,
+   * dashed, grey, no ends drawn, so it is not read as a relationship (an
+   * association is solid).
+   */
+  private drawConnector(parentGfx: SVGElement, connection: RenderableElement): SVGElement {
+    const line = svgEl('polyline', {
+      points: (connection.waypoints ?? []).map((p) => `${p.x},${p.y}`).join(' '),
+      fill: 'none',
+      stroke: CONNECTOR_STYLE.lineColor,
+      'stroke-width': CONNECTOR_STYLE.strokeWidth,
+      'stroke-dasharray': CONNECTOR_STYLE.dashArray,
+      'stroke-linejoin': 'round',
+    });
+    line.setAttribute('class', `${RENDER_CLASSES.connection} ${RENDER_CLASSES.connector}`);
+    if (connection.businessObject?.iri) line.setAttribute('data-link-iri', connection.businessObject.iri);
+    parentGfx.appendChild(line);
     return line;
   }
 

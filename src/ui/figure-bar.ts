@@ -6,7 +6,7 @@
  */
 
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import type { FigureKind } from '../model-manager/interfaces.js';
+import type { FigureColours, FigureKind } from '../model-manager/interfaces.js';
 
 /** A figure the toolbar offers. */
 export interface FigureChoice {
@@ -31,6 +31,26 @@ export const FIGURE_CHOICES: readonly FigureChoice[] = [
   { kind: 'shape', shapeType: VIS + 'Octagon', label: 'Octagon' },
   { kind: 'shape', shapeType: VIS + 'Parallelogram', label: 'Parallelogram' },
 ];
+
+/**
+ * How a figure is drawn when it says nothing of its colours: neutral, so the
+ * model's elements stand out — a group grey, a shape white, a note yellow.
+ */
+export const FIGURE_DEFAULT_COLOURS: Record<FigureKind, Required<FigureColours>> = {
+  group: { fillColor: '#f1f3f4', lineColor: '#8a9399', fontColor: '#202124' },
+  shape: { fillColor: '#ffffff', lineColor: '#5f6368', fontColor: '#202124' },
+  note: { fillColor: '#fff7b3', lineColor: '#d4b106', fontColor: '#202124' },
+};
+
+/** A figure's colours: its own, else its kind's default. */
+export function figureColours(figure: FigureColours & { kind: FigureKind }): Required<FigureColours> {
+  const defaults = FIGURE_DEFAULT_COLOURS[figure.kind];
+  return {
+    fillColor: figure.fillColor ?? defaults.fillColor,
+    lineColor: figure.lineColor ?? defaults.lineColor,
+    fontColor: figure.fontColor ?? defaults.fontColor,
+  };
+}
 
 /** localStorage key of the setting. */
 const FIGURE_BAR_KEY = 'la-gram:canvas-figures';

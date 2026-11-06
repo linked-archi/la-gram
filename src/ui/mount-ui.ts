@@ -105,6 +105,7 @@ import type {
   PropertyChangeDetail,
   PropertyAnalysis,
   PropertyHeading,
+  FigureColoursDetail,
 } from './panels/property-panel.js';
 import type {
   ModelExplorer,
@@ -639,9 +640,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return viewIri ? viewManager.getNode?.(viewIri, iri)?.figure : undefined;
   };
 
+  /** A line drawn from a figure, in the open view: the link standing for no relationship. */
+  const connectorOf = (iri: string) => {
+    const viewIri = session.activeViewIri;
+    return viewIri ? viewManager.getLinks(viewIri).find((link) => link.linkIri === iri && link.connector) : undefined;
+  };
+
   const analysisFor = (iri: string): PropertyAnalysis | undefined => {
-    // A figure relates to nothing and appears in its one view.
-    if (figureOf(iri)) return undefined;
+    // A figure, or a line drawn from one, relates to nothing and appears in its one view.
+    if (figureOf(iri) || connectorOf(iri)) return undefined;
     const info = describe(iri);
     if (!info) return undefined;
     const views = (typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : []).map((v) => ({
@@ -676,11 +683,29 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const headingFor = (iri: string): PropertyHeading => {
+    // A line drawn from a figure: what it joins.
+    const connector = connectorOf(iri);
+    if (connector) {
+      const endName = (nodeIri: string, conceptIri: string): string => {
+        const figure = figureOf(nodeIri);
+        if (figure) return figure.text || (figure.kind === 'group' ? 'a group' : figure.kind === 'note' ? 'a note' : 'a shape');
+        return labelOf(store, conceptIri) || localNameOf(conceptIri);
+      };
+      return {
+        kind: 'Line',
+        line: { from: endName(connector.sourceNodeIri, connector.sourceElementIri), to: endName(connector.targetNodeIri, connector.targetElementIri) },
+      };
+    }
     // A figure says what it is — no type to change, no model element.
     const figure = figureOf(iri);
     if (figure) {
       const kind = figure.kind === 'group' ? 'Group' : figure.kind === 'note' ? 'Note' : 'Shape';
-      return { kind, ...(figure.kind === 'shape' && figure.shapeType ? { typeLabel: humanize(localNameOf(figure.shapeType)) } : {}) };
+      const { kind: figureKind, fillColor, lineColor, fontColor } = figure;
+      return {
+        kind,
+        ...(figure.kind === 'shape' && figure.shapeType ? { typeLabel: humanize(localNameOf(figure.shapeType)) } : {}),
+        figure: { kind: figureKind, ...(fillColor ? { fillColor } : {}), ...(lineColor ? { lineColor } : {}), ...(fontColor ? { fontColor } : {}) },
+      };
     }
     const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     const typeIri = mainType(types, closure);
@@ -1308,6 +1333,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     diagramCanvas.startCreateFigure(detail.kind, detail.shapeType, detail.sourceEvent);
   };
   canvasToolbar.addEventListener('figure-drag-start', onFigureDragStart);
+
+  // A figure's colours, from the property panel: one undoable step on the canvas.
+  const onFigureColours = (event: Event): void => {
+    const detail = (event as CustomEvent<FigureColoursDetail>).detail;
+    const viewIri = session.activeViewIri;
+    if (!detail?.iri || !viewIri || !viewManager.setFigureColours) return;
+    diagramCanvas.recordChange(() => viewManager.setFigureColours!(viewIri, detail.iri, detail.colours));
+    propertyPanel.heading = headingFor(detail.iri);
+  };
+  propertyPanel.addEventListener('figure-colours', onFigureColours);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -2615,6 +2650,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('relationship-names', onRelationshipNames);
     canvasToolbar.removeEventListener('figures-open', onFiguresOpen);
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
+    propertyPanel.removeEventListener('figure-colours', onFigureColours);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);

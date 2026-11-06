@@ -25,7 +25,8 @@ import { live } from 'lit/directives/live.js';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
-import type { ElementManager } from '../../model-manager/interfaces.js';
+import type { ElementManager, FigureColours, FigureKind } from '../../model-manager/interfaces.js';
+import { figureColours } from '../figure-bar.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
@@ -148,8 +149,12 @@ export interface PropertyAnalysis {
 
 /** What the header says about the selected concept. */
 export interface PropertyHeading {
-  /** "Element", "Relationship", "View", "Model"; "Derived relationship", "Potential relationship". */
+  /** "Element", "Relationship", "View", "Model"; "Derived relationship", "Potential relationship"; "Group", "Note", "Shape". */
   kind: string;
+  /** A figure — drawing, no model element: its text and its colours are all there is to it. */
+  figure?: FigureColours & { kind: FigureKind };
+  /** A line drawn from a figure — a note's to what it is about: no relationship, nothing to edit. */
+  line?: { from: string; to: string };
   typeLabel?: string;
   typeIri?: string;
   /** For a relationship a rule derived: how surely, by which rule, from what, and whether it is confirmed. */
@@ -160,6 +165,12 @@ export interface PropertyHeading {
     rule?: string;
     premises: Array<{ iri: string; label: string }>;
   };
+}
+
+/** A figure's colours changed in the panel: `null` takes one back to the default. */
+export interface FigureColoursDetail {
+  iri: string;
+  colours: { [K in keyof FigureColours]?: string | null };
 }
 
 /** Predicates whose values are human text: edited with a language tag. */
@@ -780,6 +791,35 @@ export class PropertyPanel extends LitElement {
       align-self: flex-start;
       margin-top: 2px;
     }
+    .line-note {
+      margin: 8px 0;
+      font-size: 12px;
+      color: var(--la-text-muted, #5f6368);
+    }
+
+    .figure-colours {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 8px 0;
+    }
+
+    .figure-colour {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .figure-colour input[type='color'] {
+      width: 32px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      background: none;
+    }
+
     .muted {
       padding: 2px 12px 6px;
       color: #80868b;
@@ -1407,6 +1447,64 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
+  /**
+   * A figure: its text — its name, labelled so — and its colours, each a
+   * colour picker with a way back to the figure's default. No type, definition,
+   * properties or analysis: a figure is drawing, not a model element.
+   */
+  private _renderFigure(figure: FigureColours & { kind: FigureKind }) {
+    const text: PropertyEntry = {
+      ...(this._entries.find((e) => e.predicate === SKOS_PREF_LABEL) ?? {
+        predicate: SKOS_PREF_LABEL,
+        value: '',
+        readonly: false,
+      }),
+      label: 'Text',
+    } as PropertyEntry;
+    const shown = figureColours(figure);
+    const rows: Array<{ key: keyof FigureColours; label: string }> = [
+      { key: 'fillColor', label: 'Fill' },
+      { key: 'lineColor', label: 'Line' },
+      { key: 'fontColor', label: 'Text colour' },
+    ];
+    return html`
+      <div class="layout">
+        <nav class="side">${this._renderHeading()}</nav>
+        <div class="pane" role="tabpanel" data-tab="figure">
+          <ul class="property-list">${this._renderEntry(text)}</ul>
+          <div class="figure-colours">
+            ${rows.map(
+              (row) => html`
+                <label class="figure-colour" data-colour=${row.key}>
+                  <span>${row.label}</span>
+                  <input
+                    type="color"
+                    .value=${live(shown[row.key])}
+                    @change=${(e: Event) => this._onFigureColour(row.key, (e.target as HTMLInputElement).value)}
+                  />
+                  ${figure[row.key]
+                    ? html`<button class="remove" title="Back to the default" @click=${() => this._onFigureColour(row.key, null)}>×</button>`
+                    : nothing}
+                </label>
+              `,
+            )}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /** A figure's colour picked, or taken back to the default (`null`): `figure-colours`, for the host to write undoably. */
+  private _onFigureColour(key: keyof FigureColours, value: string | null): void {
+    this.dispatchEvent(
+      new CustomEvent<FigureColoursDetail>('figure-colours', {
+        detail: { iri: this.selectedIri, colours: { [key]: value } },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   private _renderId() {
     const shown = this._irisShown(ID_ROW);
     return html`
@@ -1510,6 +1608,20 @@ export class PropertyPanel extends LitElement {
   override render() {
     if (!this.selectedIri) {
       return html`<div class="no-selection">No element selected — select an element, a relationship or a view.</div>`;
+    }
+    if (this.heading?.figure) return this._renderFigure(this.heading.figure);
+    if (this.heading?.line) {
+      return html`
+        <div class="layout">
+          <nav class="side">${this._renderHeading()}</nav>
+          <div class="pane" role="tabpanel" data-tab="line">
+            <p class="line-note">
+              From <strong>${this.heading.line.from}</strong> to <strong>${this.heading.line.to}</strong> — drawn in
+              this view only; no relationship in the model.
+            </p>
+          </div>
+        </div>
+      `;
     }
 
     const entries = this._entries ?? [];

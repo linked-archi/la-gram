@@ -71,11 +71,18 @@ export interface NodeInfo {
  */
 export type FigureKind = 'group' | 'shape' | 'note';
 
-export interface FigureInfo {
+export interface FigureInfo extends FigureColours {
   kind: FigureKind;
   /** The core-vis shape type of a `shape`. */
   shapeType?: string;
   text?: string;
+}
+
+/** A figure's colours (`#rrggbb`), on its own core-vis style; absent, the figure's default. */
+export interface FigureColours {
+  fillColor?: string;
+  lineColor?: string;
+  fontColor?: string;
 }
 
 /** One relationship drawn in a diagram view (`arch-vis:Link`). */
@@ -92,6 +99,13 @@ export interface LinkInfo {
   targetElementIri: string;
   /** Persisted route, empty when the layouter should compute one. */
   waypoints: Point[];
+  /**
+   * A line standing for no relationship — a core-vis `arch-vis:Link` with no
+   * `arch-vis:archRelationship`, drawn from a note or another figure to what it
+   * points at. Its `relationshipIri` is then the link's own IRI, and its ends'
+   * `…ElementIri` a figure's node where the end is a figure.
+   */
+  connector?: boolean;
   /**
    * Where the relationship's name was moved to: its `arch-vis:LabelNode`'s
    * bounds, in the diagram's coordinates. Absent, the name is at the middle of
@@ -251,6 +265,24 @@ export interface ViewManager {
   addFigure?(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string;
   /** A figure's text (`skos:prefLabel`), or none. */
   setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
+  /** Set a figure's colours on its own style — `null` takes one back to the default. */
+  setFigureColours?(viewIri: string, nodeIri: string, colours: { [K in keyof FigureColours]?: string | null }): void;
+  /**
+   * Draw a line standing for no relationship between two nodes of a diagram
+   * view (placements or figures; an element's IRI names its first placement)
+   * — a note pointing at what it is about.
+   * Returns the link's IRI, its key wherever a relationship's IRI keys a link
+   * (`updateLinkWaypoints`, `setLinkLabel`, `removeRelationshipFromView`), or
+   * `undefined` when an end is not a node of the view.
+   */
+  addConnector?(
+    viewIri: string,
+    ends: { sourceNodeIri: string; targetNodeIri: string },
+    waypoints?: Point[],
+    iri?: string,
+  ): string | undefined;
+  /** Re-point such a line's ends at other nodes of its view. */
+  reconnectConnector?(viewIri: string, linkIri: string, ends: { sourceNodeIri: string; targetNodeIri: string }): void;
   collectNodeQuads(viewIri: string, elementIri: string): Quad[];
   getNodes(viewIri: string): NodeInfo[];
   getNode(viewIri: string, elementIri: string): NodeInfo | undefined;
@@ -259,14 +291,20 @@ export interface ViewManager {
   /**
    * Draw a relationship between its two ends: placed elements, or — for an end
    * that is a relationship — that relationship's link. `ends` names the
-   * placements, when an element has several (its first otherwise). `undefined`
-   * if an end is not drawn in the view.
+   * placements, when an element has several (its first otherwise). Idempotent
+   * per view — the link it has — unless `another` asks for one more line of it.
+   * `undefined` if an end is not drawn in the view.
+   *
+   * Wherever a relationship's IRI keys a link (`updateLinkWaypoints`,
+   * `setLinkLabel`, `removeRelationshipFromView`, `collectLinkQuads`), a link's
+   * IRI does too, and names that one line.
    */
   addRelationshipToView(
     viewIri: string,
     relationshipIri: string,
     waypoints?: Point[],
     ends?: { sourceNodeIri?: string; targetNodeIri?: string },
+    options?: { another?: boolean },
   ): string | undefined;
   removeRelationshipFromView(viewIri: string, relationshipIri: string): void;
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[];

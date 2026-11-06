@@ -35,10 +35,12 @@
  * | `<node xsi:type="Label">`             | a note: `arch-vis:LabelNode`, its `<label>` its text |
  * | a `<node>` inside another             | `arch-vis:inNode` to it                         |
  * | `<connection relationshipRef>`        | `arch-vis:Link`, bendpoints as its route        |
+ * | `<connection>` with no `relationshipRef` | a line standing for no relationship (an `arch-vis:Link` with no `archRelationship`) — a note's to what it is about |
  *
  * Types the loaded ontology does not define are reported, not invented. An
  * element placed more than once in a view is placed so in the editor too, each
- * connection drawn between the placements it joins.
+ * connection drawn between the placements it joins — a relationship drawn twice,
+ * twice.
  */
 
 import { DataFactory } from 'n3';
@@ -522,9 +524,24 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     // An end on a connection has no rectangle to clip to, so the route stops at
     // the last bend and the canvas docks it onto the line.
     const drawnConnections = new Set<string>();
+    /** The relationships drawn in this view so far: one drawn again is another line of it. */
+    const drawnRelationships = new Set<string>();
     let pending = view.connections;
     for (;;) {
       const waiting = pending.filter((conn) => {
+        // A line standing for no relationship — a note's, to what it is about — between two nodes drawn.
+        if (!conn.relationshipRef) {
+          const sourceNodeIri = nodeElement.get(conn.source);
+          const targetNodeIri = nodeElement.get(conn.target);
+          const src = byId.get(conn.source);
+          const tgt = byId.get(conn.target);
+          if (!sourceNodeIri || !targetNodeIri || !src || !tgt || !deps.views.addConnector) return false;
+          const first = conn.bendpoints[0];
+          const last = conn.bendpoints[conn.bendpoints.length - 1];
+          const route = first && last ? [clipToRect(src, first), ...conn.bendpoints, clipToRect(tgt, last)] : undefined;
+          if (deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route)) report.connectionCount += 1;
+          return false;
+        }
         const relIri = conn.relationshipRef ? iriOf.get(conn.relationshipRef) : undefined;
         const src = nodeRect.get(conn.source);
         const tgt = nodeRect.get(conn.target);
@@ -542,9 +559,10 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           ...(nodeElement.get(conn.source) ? { sourceNodeIri: nodeElement.get(conn.source) } : {}),
           ...(nodeElement.get(conn.target) ? { targetNodeIri: nodeElement.get(conn.target) } : {}),
         };
-        if (deps.views.addRelationshipToView(viewIri, relIri, route, ends)) {
+        if (deps.views.addRelationshipToView(viewIri, relIri, route, ends, { another: drawnRelationships.has(relIri) })) {
           report.connectionCount += 1;
           drawnConnections.add(conn.id);
+          drawnRelationships.add(relIri);
         }
         return false;
       });

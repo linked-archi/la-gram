@@ -120,6 +120,9 @@ export const IRI = {
   visStyle: VIS + 'style',
   Style: VIS + 'Style',
   shapeType: VIS + 'shapeType',
+  fillColor: VIS + 'fillColor',
+  lineColor: VIS + 'lineColor',
+  fontColor: VIS + 'fontColor',
   visView: VIS + 'view',
   /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
   visLabel: VIS + 'label',
