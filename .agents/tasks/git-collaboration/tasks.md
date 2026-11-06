@@ -1,7 +1,8 @@
 # Pending: Git collaboration (merge, review, CI, shared rooms)
 
 Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1 done 2026-11-05 (the merge, then its wiring), committed
-as `06d6ba2`. Phase 2 done 2026-11-05 on top of it, not committed. Phase 3 is next.
+as `06d6ba2`. Phase 2 done 2026-11-05, committed as `12bdb91`. Phase 3 part 1 (the engine and the command) done 2026-11-06,
+not committed; part 2 (the release and the templates' docs) after the user's review.
 
 **Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in
 `docs/git-collaboration/reference/`. They were copied in by the user and aren't committed yet. This plan
@@ -64,6 +65,26 @@ two can be compared.
 - **Checkpoints are shown by element too**, with *As triples* for the old view.
 - **The History tab reads Git without asking for a token**: a host that wants one says so in the tab, and
   *Read again* asks.
+
+### Decided for Phase 3 (2026-11-05)
+
+- **Name:** `@linked-archi/la-gram-git`, command `la-gram-git` (the npm organisation `linked-archi` is the user's to
+  create).
+- **Licence:** Apache-2.0 (`LICENSE`, added 2026-11-05). The repository is public since 2026-11-05.
+- **Release:** from la-gram's own GitLab pipeline on a version tag: the npm package, and the image in the project's
+  container registry. Claude writes the jobs and never runs a publish.
+- **Distribution:** both a public npm package and a container image.
+- **Templates:** files in la-gram's repository, to copy, with docs.
+- **Shapes:** the metamodels bundled with the tool, plus `--shapes <dir>` for a repository's or organisation's own.
+- **Strictness:** a check fails only on SHACL findings the request adds (compared with the target branch); the
+  rest are listed. Parsing, the canonical form and missing references always fail.
+- **`sh:sparql`:** run with Oxigraph in la-gram's engine, so the editor's Validation tab shows them too, and CI.
+  Advisory at first in CI: they have never run on real models.
+- **The diff comment:** GitHub with the workflow's own token; GitLab with a project or group access token in a
+  masked CI variable, else the diff goes to the job's log.
+- **A file not as la-gram writes it:** fails, printing the command that fixes it; never fixed by CI.
+- **The local merge driver:** part of Phase 3, in the same package.
+- **Impact** (the spec's advisory stage): not now; maybe later, from la-gram's model questions.
 
 ## Hard constraints
 
@@ -188,14 +209,51 @@ two can be compared.
 
 ## Phase 3: CI as the safety net (C5, and C1's checker)
 
-- [ ] **A command-line tool** in la-gram's repository, built from la-gram's engine (package name is the user's
+Part 1 done 2026-11-06 (Req 6.4, 6.12, Req 20; design *Validation*, *la-gram-git*):
+
+- [x] `sh:sparql` in la-gram's validation engine, with Oxigraph — the editor and CI alike.
+- [x] Missing references, in the same engine.
+- [x] `la-gram-git` (`src/cli/`, `packages/la-gram-git/`): `check`, `fix`, `diff --comment`, `merge`, `init`;
+  `cli.test` on real Git repositories; the built tool run against real `git merge`s through the driver.
+- [x] The templates in `ci/` (their docs: part 2).
+
+Found on the way, to report (2026-11-06):
+
+- **Three of meta's rule kinds are slow in Oxigraph** — `FILTER NOT EXISTS` over a property path:
+  `OrphanedElementShape` (ArchiMate 4.0 and 3.2) grows with the square of the model (31 s at 100 000 triples);
+  `RelationshipEndpointConformanceShape`, `ViewElementConformanceShape` / `ElementConformanceShape` take 1–3 s on
+  Archisurance. Written with `MINUS` (the same results, checked): 70 ms and 11–15 ms. A change to
+  linked-archi-meta — agreed by the user (2026-11-06), to make with the fix below.
+- **Meta's relationship rules disagree with its relationship tables**: `TriggeringSourceConstraint` and the
+  like (triggering and flow only between behaviour elements) flag relationships the ArchiMate 4.0 tables
+  permit — hundreds on the benchmark model, 20 on Archisurance. Analysed 2026-11-06: hand-written for 3.2
+  (2026-04-13) from chapter 5's generic metamodel, copied to 4.0 (2026-05-03) without the "core layers"
+  condition and with "(not motivation elements)" added to the message only. Run against one relationship of
+  each pair the tables permit: in 4.0 the flow and triggering rules each reject about 410 (Plateau triggers
+  Plateau, which the tables give as direct, among them), assignment's two 146 and 51 (22 direct: a component
+  assigned to a data object or a role), access's two 93 and 24, `SpecializationSameTypeShape` 51 (10 direct); in 3.2 the same kinds, plus
+  `NoRealizationOfBusinessActiveStructureShape`, `MotivationAssignmentShape`, `CoreInterfaceAssignmentShape`.
+  The relationship shapes generated from the tables already check every relationship's ends. Proposed:
+  remove the rules that restate the tables; keep those the tables cannot say (self-loops, cycles, one
+  whole, junctions, deep specialization). Awaiting the user's go-ahead.
+- `core/core-vis-onto.ttl` states CC BY-SA 3.0, where meta's README says CC BY 4.0 for the whole.
+- la-gram's public `main` on GitLab is at "sync" (2026-09-24); the work is on the local branch `refine-storage`.
+
+Part 2:
+
+- [ ] Release from la-gram's GitLab pipeline on a version tag: the npm package, the container image.
+- [ ] The templates' docs; the package's README; self-managed GitLab's server-side driver, documented.
+
+The plan as first written:
+
+- [x] **A command-line tool** in la-gram's repository, built from la-gram's engine (package name is the user's
   call). It checks:
   - that every model file parses;
   - that each file is exactly as la-gram writes it, which replaces the clean filter as the enforcement;
   - SHACL against the model's metamodel shapes, with the same messages as the editor;
   - the `sh:sparql` constraints, run with Oxigraph, closing the gap in the in-app validator;
   - that no relationship end, view node or folder entry points to something missing.
-- [ ] **The diff by element** (Phase 2's), posted as a comment on the merge or pull request.
+- [x] **The diff by element** (Phase 2's), posted as a comment on the merge or pull request.
 - [ ] **CI templates for both hosts:** a GitLab CI template, which also serves self-managed GitLab, and a
   GitHub Actions workflow.
   - GitHub Actions' own token can comment on a pull request.
@@ -231,7 +289,6 @@ two can be compared.
 
 ## Still to decide
 
-- The CI tool's package name, and where its templates are published.
 - Whether `docs/git-collaboration-spec.md` and `docs/git-collaboration/` are committed as they are, or with a
   note pointing to the corrections above.
 

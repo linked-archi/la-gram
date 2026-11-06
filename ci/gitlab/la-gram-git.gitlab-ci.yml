@@ -1,0 +1,20 @@
+# la-gram-git on GitLab CI (gitlab.com and self-managed): checks the la-gram
+# models a merge request changes, and comments with their changes by element.
+#   https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/ci
+# Copy into .gitlab-ci.yml, or beside it and `include:` it
+# (`npx @linked-archi/la-gram-git init gitlab` does).
+#
+# The comment needs a project or group access token (role Reporter, scope api)
+# in a masked CI/CD variable named LA_GRAM_GIT_TOKEN: the job's own token cannot
+# comment. Without it the changes are written to the job's log instead.
+la-gram-git:
+  image: node:22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GIT_DEPTH: 0 # the branch the change goes into, to compare with
+  script:
+    - git fetch --quiet origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - npx --yes @linked-archi/la-gram-git@0 check --base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+  after_script:
+    - npx --yes @linked-archi/la-gram-git@0 diff "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" --comment

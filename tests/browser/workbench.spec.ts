@@ -367,7 +367,8 @@ describe('the layout and the property panel', () => {
       ).value as string;
     });
     await page.evaluate(() => (window as any).__LA_GRAM_APP__.scheduleValidation());
-    await until(async () => /1 more in the model/.test(await page.locator('validation-panel .summary').innerText()), 'the finding elsewhere');
+    // Its missing name, and — a SPARQL-based principle, run in the worker with Oxigraph, as Info — that it relates to nothing.
+    await until(async () => /2 more in the model/.test(await page.locator('validation-panel .summary').innerText()), 'the findings elsewhere');
     expect(await badge.count()).toBe(0);
     const scope = page.locator('validation-panel select.scope');
     await scope.selectOption('model');
@@ -1450,6 +1451,11 @@ describe('model questions', () => {
     await until(async () => (await validation.locator('.result-item', { hasText: 'Which elements take part in no relationship?' }).count()) > 0, 'the orphan finding');
     const finding = validation.locator('.result-item', { hasText: 'Which elements take part in no relationship?' }).first();
     expect(await finding.innerText()).toMatch(/Check: orphans/);
+    // The check, as a shape is, a link to its IRI — opened apart, the finding's concept not shown for it.
+    const link = finding.locator('a.shape');
+    expect(await link.getAttribute('href')).toMatch(/^https:\/\/meta\.linked\.archi\/.+#orphans$/);
+    expect(await link.getAttribute('target')).toBe('_blank');
+    expect(await validation.locator('.result-item a.shape[href^="https://meta.linked.archi/"]').count()).toBeGreaterThan(1);
     await session.screenshot('questions-model-checks');
     expect(actor).toBeTruthy();
     findings.push('questions: asked about an element from its right-click menu, picked from the Questions menu with a concern filter, model checks listed in Validation: ok');

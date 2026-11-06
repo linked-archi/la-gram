@@ -368,6 +368,8 @@ function toValidationReport(
     if (sourceComponent) {
       mapped.sourceConstraintComponent = namedNode(sourceComponent);
     }
+    const within = r.sourceShape?.termType === 'BlankNode' ? enclosingShape(shapesStore, r.sourceShape) : undefined;
+    if (within) mapped.withinShape = namedNode(within);
     return mapped;
   });
 
@@ -375,6 +377,53 @@ function toValidationReport(
     conforms: report.conforms,
     results,
   };
+}
+
+/** What writes a shape inside another: a property, a nested shape, a list of shapes. */
+const ENCLOSING = new Set(
+  ['property', 'node', 'not', 'qualifiedValueShape', 'or', 'and', 'xone'].map((p) => SH + p).concat(
+    ['first', 'rest'].map((p) => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#' + p),
+  ),
+);
+
+/** Per shapes graph, the named shape each inline shape is written in. */
+const enclosingCache = new WeakMap<N3Store, Map<string, string | undefined>>();
+
+/**
+ * The named shape an inline shape (a blank node) is written in: up through
+ * `sh:property`, `sh:node`, `sh:not`, `sh:qualifiedValueShape` and the lists of
+ * `sh:or`, `sh:and`, `sh:xone`, to the first named node. None when it is
+ * written in nothing named.
+ *
+ * Exported for direct testing.
+ */
+export function enclosingShape(shapesStore: N3Store, shape: Term): string | undefined {
+  let cache = enclosingCache.get(shapesStore);
+  if (!cache) enclosingCache.set(shapesStore, (cache = new Map()));
+  if (cache.has(shape.value)) return cache.get(shape.value);
+  const seen = new Set<string>([shape.value]);
+  let level: Term[] = [shape];
+  let found: string | undefined;
+  while (level.length > 0 && !found) {
+    const next: Term[] = [];
+    for (const term of level) {
+      for (const q of shapesStore.getQuads(null, null, term as never, null)) {
+        if (!ENCLOSING.has(q.predicate.value)) continue;
+        if (q.subject.termType === 'NamedNode') {
+          found = q.subject.value;
+          break;
+        }
+        if (!seen.has(q.subject.value)) {
+          seen.add(q.subject.value);
+          next.push(q.subject as Term);
+        }
+      }
+      if (found) break;
+    }
+    level = next;
+  }
+  cache.set(shape.value, found);
+  return found;
 }
 
 /**

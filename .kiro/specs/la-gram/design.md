@@ -1185,10 +1185,58 @@ turn a click on statements into a selection.
 Shapes: every `shapes` graph of the loaded metamodels + core + core-vis shapes
 (+ legacy `urn:la-gram:shapes`), cached as one array so the validator keeps its
 compiled engine. Data: the model + all `rdfs:subClassOf` axioms + the types of
-referenced resources. `sh:sparql` is stripped (server-side, Req 8). Debounced
-300 ms. Results go to the Validation tab; the tab carries the number of
-Violations (Warnings and Infos are listed, not counted), and violating concepts
-are marked on the canvas.
+referenced resources. `sh:sparql` is taken out of what the SHACL library is
+given, and run with Oxigraph instead (below). Debounced 300 ms. Results go to
+the Validation tab; the tab carries the number of Violations (Warnings and
+Infos are listed, not counted), and violating concepts are marked on the canvas.
+
+**SPARQL-based constraints** (Req 6.4; Git collaboration plan, Phase 3,
+`rdf-engine/sparql-constraints.ts`). The shapes' `sh:sparql` constraints —
+ArchiMate's self-loops and cycles, its principles, the viewpoints' rules,
+core-vis's nesting: 47 in ArchiMate 4.0 with core, 62 in 3.2 — which
+rdf-validate-shacl cannot run, and which therefore ran nowhere. The validation
+engine keeps a copy of its data in Oxigraph, made only when the shapes have
+such constraints and Oxigraph is loaded (the worker loads its WebAssembly
+before handling a message; where it cannot, the rest of validation goes on),
+with the metamodels' statements the queries name in a graph of their own
+(`EngineSetup.sparqlContext`, queried with the default graph as the union).
+One query per constraint: the shape's targets joined into its outer `WHERE`,
+binding `$this` (a sub-query; `VALUES` inside it when only some nodes are
+validated), `$PATH` a property shape's path; `{$this}`/`{?var}` in a message
+take the node's name where it has one. After an edit, the nodes within one hop
+of what changed, both ways, are validated again — the shapes' reach does not
+bound a query's; more than the engine's limit, all of them. Results report
+`sh:SPARQLConstraintComponent`. Memory: about 0.7 KB a triple in the copy
+(78 MB at 100 000). Time — whole model, Node: the 46 fast rules 0.16 s at
+25 000 triples, 1.0 s at 100 000; for 20 nodes after an edit, 8–14 ms. Three
+of meta's rule kinds are slow in Oxigraph because they use `FILTER NOT EXISTS`
+over a property path: `OrphanedElementShape` grows with the square of the
+model (2.2 s at 25 000 triples, 31 s at 100 000), the viewpoint conformance
+rules take 1–3 s on Archisurance; written with `MINUS` they give the same
+results in 70 ms and 11–15 ms — a change to linked-archi-meta's shapes, not
+made here.
+
+**The shape a finding points to** (Req 6.5, `rdf-engine/finding-shape.ts`).
+A finding names its source shape, as SHACL reports it; most of a metamodel's
+rules are written inline, though — a property shape inside a node shape, a
+member of an `sh:or` list — and a blank node has no IRI to show. For such a
+finding the validator also gives the named shape it is written in
+(`ValidationResult.withinShape`: up through `sh:property`, `sh:node`, `sh:not`,
+`sh:qualifiedValueShape` and the lists of `sh:or`, `sh:and`, `sh:xone`, to the
+first named node; cached per shapes graph), carried through the worker
+(`PlainResult.withinShape`). `shapeIriOf` picks the IRI to show: the source
+shape's, else that one. The Validation tab shows it by its local name, the IRI
+on hover, as a link when it is a web address — meta's pages have an anchor per
+shape, so the IRI itself opens the shape's documentation; a click on the link
+opens it and does not also select the concept. `la-gram-git check` writes the
+IRI after each finding, and keys a finding to the base version by it.
+
+**References to what is not there** (Req 6.12,
+`model-manager/missing-references.ts`): a relationship's end, a view node's
+element, a link's relationship or end shapes, a shape's view, a route's cells,
+`arch:inView`, `arch:inModel`, a folder entry, naming something no triple is
+about. Found by the same engine, for the nodes validated; reported without a
+shape (no vocabulary is made up), so the tab shows no shape line.
 
 **Scope** (Req 6.10). The Validation tab lists the open view's findings (the
 default) or the whole model's, remembered per browser
@@ -1732,6 +1780,50 @@ the merge base and GitHub's merge commit, recorded. *conflicts-panel.test*,
 *git-module.test* (the tab in the mounted UI). *git-merge.spec* (Chrome, two
 browser contexts, a fake GitHub): the second save merged on the same branch,
 then a conflict chosen in the tab and saved.
+
+### la-gram-git
+
+Req 20; Git collaboration plan, Phase 3. The command-line tool, from la-gram's
+source: `src/cli/` (`main.ts` the commands, `check.ts`, `diff.ts` with the
+comment, `merge.ts` the driver, `init.ts`, `models.ts` what they share,
+`git.ts`), built by webpack's `la-gram-git` configuration into
+`packages/la-gram-git/dist/la-gram-git.js` — an ES module for Node 20, its
+packages left as imports (n3, oxigraph, rdf-validate-shacl: the package's
+dependencies, each with its licence), `import.meta.url` left to Node so that
+`assets/` and `ci/`, copied beside `dist/` with `LICENSE`, are found from where
+it runs. `bin.ts` silences la-gram's logging on the standard output (`diff`
+writes Markdown there; `LA_GRAM_GIT_DEBUG` keeps it) and exits once its output
+is written — the engine's timers would keep Node running.
+
+Each model file is opened in an App of its own (`createApp`, offline, inline
+validation): its declared metamodels from the bundled copies, as File › Open
+does, so the findings are the editor's — whatever other files were opened
+before. "As la-gram writes it" is the file's triples loaded and serialized as
+Save does, with its declared metamodels' prefixes, and nothing more: what
+opening adds (a default view, a layout for unplaced elements, migrations) is
+not formatting, so `check` does not require it and `fix` does not add it. With
+`--base`, the file at the merge base of the branch and `HEAD` is validated too;
+a Violation fails when its key — node, path, constraint, message, and the
+shape when it is named (an inline shape is a blank node whose label changes
+from one reading to the next) — is not among the base's. `diff` reads the files
+with `git show` at the merge base and the head; `--comment` finds the request
+from GitHub Actions' or GitLab CI's environment and updates the comment that
+carries la-gram-git's marker, or adds one. The merge driver merges with
+`mergeSnapshots`, the rules of the metamodels "ours" declares, and writes the
+result as `fix` would.
+
+The CI templates are `ci/github/la-gram-git.yml` and
+`ci/gitlab/la-gram-git.gitlab-ci.yml`: the check against the branch the request
+goes into, then the diff as a comment (`if: always()`; GitLab's in
+`after_script`). Measured: a check of a small model takes about 1 s, most of it
+starting the engine.
+
+**Tests.** *cli.test* (real Git repositories in a temporary folder, model files
+la-gram writes: a good change passes; a file not as la-gram writes it, a
+missing reference, a violation the change adds fail — one already at the base
+does not; `fix`; `diff`; the comment's target and its update; the merge driver
+clean and with a conflict; `init`); the built tool run by hand against a
+repository with real `git merge`s through the driver.
 
 ### Comparing versions by element
 

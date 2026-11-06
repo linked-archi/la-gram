@@ -66,6 +66,7 @@ import { splitTableShapes, type TableShapes } from './model-manager/relationship
 import { createValidationService, type ValidationService } from './rdf-engine/validation-service.js';
 import type { EngineSetup } from './rdf-engine/validation-engine.js';
 import { encodeQuads } from './rdf-engine/term-codec.js';
+import { predicatesNamedBy, sparqlConstraintsOf } from './rdf-engine/sparql-constraints.js';
 import { isValidPrefix } from './model-manager/model-namespace.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from './rdf-engine/iri.js';
 
@@ -247,12 +248,20 @@ export class App {
       if (q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode') unqualifiedForms.push([q.subject.value, q.object.value]);
     }
     const tables = readPermittedPermissions(store);
+    // What the SPARQL-based constraints read of the metamodels, besides types and the hierarchy.
+    const read = new Set(sparqlConstraintsOf(shapes).constraints.flatMap(predicatesNamedBy));
+    read.delete(NAMESPACES.rdf + 'type');
+    read.delete(NAMESPACES.rdfs + 'subClassOf');
+    const sparqlContext = [...read].flatMap((p) =>
+      store.getQuads(null, namedNode(p) as unknown as NamedNode, null).filter((q) => q.graph.termType !== 'DefaultGraph'),
+    );
     return {
       shapes: encodeQuads(shapes),
       hierarchy: encodeQuads(store.getQuads(null, namedNode(NAMESPACES.rdfs + 'subClassOf') as unknown as NamedNode, null)),
       outsideTypes: encodeQuads(store.getQuads(null, rdfType, null).filter((q) => q.graph.termType !== 'DefaultGraph')),
       unqualifiedForms,
       tables: tables.size > 0 ? tables.toPlain() : null,
+      sparqlContext: encodeQuads(sparqlContext),
     };
   }
 

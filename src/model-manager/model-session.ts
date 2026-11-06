@@ -304,10 +304,17 @@ export class ModelSession {
     return true;
   }
 
-  /** Replace the model's metamodel conformance statements. */
+  /**
+   * Replace the model's metamodel conformance statements — while the model is
+   * there: a file being opened has replaced it already, and the metamodels the
+   * file declares are loaded before it is adopted, so writing them for the
+   * model being left would put a statement about it among the file's triples,
+   * saved with them.
+   */
   setMetamodels(metamodelIris: string[]): void {
     if (!this.currentModel) return;
     const model = nn(this.currentModel);
+    if (this.store.getQuads(model, T.rdfType, T.Model).length === 0) return;
     const stale = this.store.getQuads(model, T.modelConformsToMetamodel);
     if (stale.length > 0) this.store.removeQuads(stale);
     this.store.addQuads(metamodelIris.map((mm) => triple(model, T.modelConformsToMetamodel, nn(mm))));

@@ -60,6 +60,21 @@ describe('createApp', () => {
     expect(app.singleValued()).not.toBe(rules);
   });
 
+  it('opening a model that declares a metamodel not loaded yet leaves nothing of the model before it in the file it saves', async () => {
+    const app = await createApp({ assetMode: 'offline', validationDelayMs: 1e9 });
+    const before = app.session.modelIri!;
+    await app.openModel(
+      `@prefix arch: <https://meta.linked.archi/core#> .
+<https://example.org/m/model> a arch:Model ; arch:modelConformsToMetamodel <https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2> .
+`,
+      'old.ttl',
+    );
+    // Loading ArchiMate 3.2 for it once wrote "the model before conforms to 3.2 and 4.0" among its triples.
+    const saved = app.saveModel('turtle').text;
+    expect(saved).not.toContain(before.slice(0, before.lastIndexOf('/')));
+    expect(app.session.metamodelIris()).toEqual(['https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2']);
+  }, 60_000);
+
   it('emits metamodel-loaded once the UI has had a chance to subscribe', async () => {
     const app = await createApp();
 

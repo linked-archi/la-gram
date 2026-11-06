@@ -29,7 +29,8 @@ import type { ElementManager } from '../../model-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
-import { humanize, localName, sentenceCase } from '../../model-manager/vocabulary.js';
+import { localName } from '../../model-manager/vocabulary.js';
+import { fieldName, type NameOf } from '../../model-manager/field-names.js';
 import { isQualifiedPredicate } from '../../model-manager/cascade.js';
 import './named-picker.js';
 import './property-picker.js';
@@ -288,8 +289,7 @@ export function extractShaclShapes(
   return shapes;
 }
 
-/** The name an IRI has in the loaded data, if it has one (reference data's `skos:prefLabel`). */
-export type NameOf = (iri: string) => string | undefined;
+export type { NameOf } from '../../model-manager/field-names.js';
 
 /**
  * An allowed value's label: its name in the loaded data — reference data names
@@ -322,28 +322,7 @@ function iriLabel(iri: string): string {
   return iri;
 }
 
-/** The fields every concept has, by the names a modeller knows them by. */
-const FIELD_NAMES: Record<string, string> = {
-  [RDF_TYPE]: 'Type',
-  [NAMESPACES.arch + 'inModel']: 'Model',
-  [SKOS_PREF_LABEL]: 'Name',
-  [SKOS_DEFINITION]: 'Definition',
-  [NAMESPACES.skos + 'altLabel']: 'Other name',
-};
-
-/**
- * A field's name: a familiar one for the fields every concept has
- * ({@link FIELD_NAMES}); else the shape's (`sh:name`) or the vocabulary's,
- * when it is more than the property's local name again (`source`); else that
- * local name in words (`modelRepresentsSystem` → `Model represents system`).
- */
-export function fieldName(predicate: string, shape?: ShaclPropertyShape, nameOf?: NameOf): string {
-  const familiar = FIELD_NAMES[predicate];
-  if (familiar) return familiar;
-  const local = iriLabel(predicate);
-  const named = [shape?.name, nameOf?.(predicate)].find((name) => name && name !== local);
-  return named ? named.charAt(0).toUpperCase() + named.slice(1) : sentenceCase(humanize(local));
-}
+export { fieldName };
 
 /**
  * Builds the list of PropertyEntry objects for a given element IRI

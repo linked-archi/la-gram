@@ -100,23 +100,27 @@ describe.skipIf(!existsSync(MAIN) || !binaryInstalled)('the desktop build', () =
       ]);
       expect(renderer.csp).toContain("script-src 'self' 'wasm-unsafe-eval'");
 
-      // Validation runs in a worker, under the same policy: an element without a name is reported.
+      // Validation runs in a worker, under the same policy: an element without a name is reported — and,
+      // Oxigraph's WebAssembly loaded there too, the shapes' SPARQL-based rules run (it relates to nothing).
       const validation = await page.evaluate(async () => {
         const app = (window as any).__LA_GRAM_APP__;
         const unnamed: string = app.components.elementManager.createElement(
           'https://meta.linked.archi/archimate4/onto#BusinessActor',
           app.session.modelIri,
         ).value;
-        const reported = new Promise<boolean>((resolve) => {
+        const SPARQL = 'http://www.w3.org/ns/shacl#SPARQLConstraintComponent';
+        const reported = new Promise<{ shapes: boolean; rules: boolean }>((resolve) => {
           app.components.eventBus.on('validation-updated', (e: any) => {
-            if (e.detail.results.some((r: any) => r.focusNode.value === unnamed)) resolve(true);
+            const about = e.detail.results.filter((r: any) => r.focusNode.value === unnamed);
+            const found = { shapes: about.some((r: any) => r.sourceConstraintComponent?.value !== SPARQL), rules: about.some((r: any) => r.sourceConstraintComponent?.value === SPARQL) };
+            if (found.shapes && found.rules) resolve(found);
           });
-          setTimeout(() => resolve(false), 30_000);
+          setTimeout(() => resolve({ shapes: false, rules: false }), 30_000);
         });
         await app.runValidation();
         return { where: app.validation.where, reported: await reported };
       });
-      expect(validation).toEqual({ where: 'worker', reported: true });
+      expect(validation).toEqual({ where: 'worker', reported: { shapes: true, rules: true } });
 
       // The native dialogs, answered by the main process with a file in a temporary directory.
       await app.evaluate(({ dialog }, chosen) => {

@@ -18,7 +18,7 @@ rules, the notation and the validation all come from data.
 - **SPARQL** — the SPARQL Query tab shows results as tables with prefixed names that select the concept; *Render as new view* makes a diagram of the elements and relationships a result mentions.
 - **Model questions** — the questions the core and the model's language publish (ArchiMate 4.0 and 3.2 so far: "Which services does nothing realise?", "What is affected if this element changes?"): the SPARQL tab's *Questions* menu lists them by stage, those fitting the open view's viewpoint first, filterable by concern; picking one runs its query, bound to the open model, view and viewpoint and the selected element, and says what a row means and what it does not prove. Right-click an element › *Ask about this element…* for the questions about it. A view of the answer follows the question's viewpoint.
 - **Notation as published** — elements are drawn from the notation data in the shapes the published pictures show (ArchiMate's banded objects, 3D devices, wavy deliverables, the meaning cloud, the dashed grouping folder; EDGY's arrows and tag pills, C4's person…) — a notation declares its own shapes, with their geometry, in its own files — with their badges and label colours, and relationship ends from the published marker symbols. A kind of element with a look of its own is a class of its own (C4's Database, drawn as a cylinder); another audience's look is another notation set.
-- **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes, relationships checked against the relationship tables; it runs in a background worker, so editing never waits for it. The Validation tab shows the open view's findings or the whole model's, and counts the violations. *Model checks* adds, on request, the findings the loaded languages' questions state — orphans, unrealised services, unrealised requirements…
+- **Validation** — live SHACL against the loaded metamodels' shapes and the core shapes, relationships checked against the relationship tables, the shapes' SPARQL-based rules (ArchiMate's self-loops, principles and viewpoint rules) run with Oxigraph, and references to anything the model does not have; it runs in a background worker, so editing never waits for it. The Validation tab shows the open view's findings or the whole model's, and counts the violations; each finding links to the shape it comes from, on the metamodel's documentation. *Model checks* adds, on request, the findings the loaded languages' questions state — orphans, unrealised services, unrealised requirements…
 - **Change an element's type** — in the property panel, the *Type* field searches every element type of the loaded metamodels by name (or right-click › Change type…), their IRIs a switch away — types that share a name show theirs; the element keeps its identity, name, properties and placements, and relationships the new type does not permit are named before and kept after (validation flags them).
 - **Back and forward between views** — ← and → in the toolbar, or Alt+← / Alt+→, go back to the views you came from (the model tree, *Appears in views*, a revealed concept — any way you got there), each as you left it: zoom, scroll and selection.
 - **Right-click menu** — on an element or a relationship: rename, change type, move to a folder (when the model has folders), append; show its properties, its place in the model tree, its relationship graph, the questions about it, or a relationship's ends; copy its IRI; delete it from the view or the model. On one of several selected: move them all to a folder. On the empty canvas, the open view's: rename it, set its viewpoint, duplicate it, select all, zoom to fit, its properties, its place in the tree, its IRI, delete it.
@@ -113,6 +113,20 @@ comes from the checkout's last generated site (`.onto-docs/catalog.ttl`; run
 meta.linked.archi's. Asset fetches always revalidate, so after a rebuild a plain reload loads the
 new files.
 
+## la-gram-git — models in Git, on the command line and in CI
+
+`la-gram-git` is built from la-gram's own engine, so it says of a model file what la-gram would. It is to be published as the npm package `@linked-archi/la-gram-git` (Node 20 or later) and as a container image, from la-gram's GitLab pipeline:
+
+```sh
+npx @linked-archi/la-gram-git check --base origin/main    # every model file parses, is as la-gram writes it,
+                                                           # refers to nothing missing, adds no violation
+npx @linked-archi/la-gram-git fix                          # rewrite model files as la-gram writes them
+npx @linked-archi/la-gram-git diff origin/main --comment   # the change by element, on the pull or merge request
+npx @linked-archi/la-gram-git init github                  # or gitlab: the CI file; or merge-driver
+```
+
+The CI templates for GitHub Actions and GitLab CI are in [`ci/`](ci/). `npm run build:cli` builds the tool into `packages/la-gram-git/`; `node packages/la-gram-git/dist/la-gram-git.js --help` runs it from there.
+
 ## Test
 
 ```bash
@@ -153,3 +167,9 @@ and `DATA_DIR`.
 - `.kiro/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
 - `.kiro/steering/project-conventions.md` — principles and code conventions
 - `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification; Appendix D says what la-gram implements of it
+
+## Licence
+
+la-gram is licensed under the [Apache License, Version 2.0](LICENSE).
+
+The metamodel files it ships under `assets/` are copies of Linked.Archi's published definitions (`https://meta.linked.archi/`), each under the licence it states — Creative Commons Attribution 4.0 for most, Attribution-ShareAlike for a few (`core/core-vis-onto.ttl`; some entries of `catalog.ttl`, which describe other vocabularies).

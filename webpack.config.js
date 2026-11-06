@@ -213,5 +213,54 @@ export default (_env, argv) => {
     devtool,
   };
 
-  return [webConfig, electronMainConfig, electronPreloadConfig, electronRendererConfig];
+  /**
+   * la-gram-git (Phase 3 of the Git collaboration plan): the command-line tool,
+   * an ES module for Node, into `packages/la-gram-git/` — the npm package and
+   * the container image are made from that folder. Every package it imports
+   * stays an import (`externals`), so each installs with its own licence as a
+   * dependency of the package; `import.meta.url` is left for Node to answer
+   * (`importMeta: false`), so the bundled metamodels (`assets/`) and the CI
+   * templates (`ci/`), copied beside `dist/`, are found from where it runs.
+   */
+  const laGramGitRoot = path.resolve(__dirname, 'packages/la-gram-git');
+  const laGramGitConfig = {
+    name: 'la-gram-git',
+    target: 'node20',
+    entry: './src/cli/bin.ts',
+    experiments: { outputModule: true },
+    output: {
+      filename: 'la-gram-git.js',
+      path: path.join(laGramGitRoot, 'dist'),
+      module: true,
+      chunkFormat: 'module',
+      library: { type: 'module' },
+      clean: true,
+    },
+    externalsType: 'module',
+    externals: [
+      ({ request }, callback) =>
+        request && !request.startsWith('.') && !path.isAbsolute(request) ? callback(null, request) : callback(),
+    ],
+    resolve: { ...sharedResolve },
+    module: {
+      rules: [{ test: /\.ts$/, use: 'ts-loader', exclude: /node_modules/ }],
+      // Left for Node: `new URL(…, import.meta.url)` finds files beside the bundle; no worker runs in Node.
+      parser: { javascript: { importMeta: false, url: false, worker: false } },
+    },
+    plugins: [
+      new webpack.BannerPlugin({ banner: '#!/usr/bin/env node', raw: true, entryOnly: true }),
+      buildFlags(),
+      new CopyWebpackPlugin({
+        patterns: [
+          { from: path.resolve(__dirname, 'assets'), to: path.join(laGramGitRoot, 'assets'), globOptions: { ignore: ['**/.*'] } },
+          { from: path.resolve(__dirname, 'ci'), to: path.join(laGramGitRoot, 'ci') },
+          { from: path.resolve(__dirname, 'LICENSE'), to: path.join(laGramGitRoot, 'LICENSE') },
+        ],
+      }),
+    ],
+    optimization: { minimize: false },
+    devtool: 'source-map',
+  };
+
+  return [webConfig, electronMainConfig, electronPreloadConfig, electronRendererConfig, laGramGitConfig];
 };

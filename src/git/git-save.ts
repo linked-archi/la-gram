@@ -25,7 +25,7 @@
  * commit's diff is the change (Req 9.12).
  */
 import type { Dialogs, FormValues } from '../ui/dialogs.js';
-import { MODEL_FORMATS, type ModelFormat } from '../import-export/model-io.js';
+import { MODEL_FORMATS, formatOfPath, type ModelFormat } from '../import-export/model-io.js';
 import type { GitBinding, GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
@@ -134,13 +134,7 @@ export function commitMessage(
 }
 
 /** The model formats by the extension that names them. */
-const BY_EXTENSION = new Map(MODEL_FORMATS.map((f) => [f.extension, f.id]));
-
-/** The format a path's extension names, or `undefined`. */
-export function formatOfPath(path: string): ModelFormat | undefined {
-  const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase();
-  return extension ? BY_EXTENSION.get(extension) : undefined;
-}
+export { formatOfPath };
 
 /** The problem with a path in a repository, or `null`. */
 export function pathProblem(path: string): string | null {

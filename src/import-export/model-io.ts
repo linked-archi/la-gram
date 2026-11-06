@@ -271,6 +271,12 @@ export class ModelIO {
   }
 }
 
+/** The format a path's extension names (`models/shop.ttl` → Turtle), or `undefined`. */
+export function formatOfPath(path: string): ModelFormat | undefined {
+  const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase();
+  return extension ? MODEL_FORMATS.find((f) => f.extension === extension)?.id : undefined;
+}
+
 /** Parse any supported model format into quads. */
 export function parseModelText(text: string, format: AssetFormat): Quad[] {
   if (format === 'application/ld+json' || format === 'application/rdf+xml') return parseRdf(text, format);

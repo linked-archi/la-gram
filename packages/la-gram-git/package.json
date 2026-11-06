@@ -1,0 +1,32 @@
+{
+  "name": "@linked-archi/la-gram-git",
+  "version": "0.1.0",
+  "description": "la-gram's architecture models in Git: checked, rewritten as la-gram writes them, compared by element, merged — on the command line and in CI",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "la-gram-git": "dist/la-gram-git.js"
+  },
+  "files": [
+    "dist/",
+    "assets/",
+    "ci/",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "n3": "^2.13.12",
+    "oxigraph": "^0.5.11",
+    "rdf-validate-shacl": "^0.5.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram.git",
+    "directory": "packages/la-gram-git"
+  },
+  "homepage": "https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/packages/la-gram-git",
+  "keywords": ["architecture", "archimate", "rdf", "shacl", "git", "ci", "merge-driver", "linked-archi"]
+}

@@ -5,10 +5,12 @@
   "productName": "la-gram",
   "main": "dist/electron/main.cjs",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "webpack --mode production",
     "build:web": "webpack --mode production --config-name web",
+    "build:cli": "webpack --mode production --config-name la-gram-git",
     "build:electron": "webpack --mode production --config-name electron-main --config-name electron-preload --config-name electron-renderer",
     "build:dev": "webpack --mode development",
     "serve": "python3 -m http.server 8080 --directory dist/web",

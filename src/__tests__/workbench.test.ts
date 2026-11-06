@@ -181,7 +181,8 @@ describe('the workbench', () => {
     expect(ui.shell.tabBadges.validation).toBeUndefined();
     await ui.validationPanel.updateComplete;
     const summary = () => ui.validationPanel.shadowRoot!.querySelector('.summary')!.textContent!.replace(/\s+/g, ' ');
-    expect(summary()).toContain('1 more in the model');
+    // Its missing name, and — a SPARQL-based principle, as Info — that it relates to nothing.
+    expect(summary()).toContain('2 more in the model');
     ui.validationPanel.shadowRoot!.querySelector<HTMLButtonElement>('.summary .rest')!.click();
     expect(ui.validationPanel.scope).toBe('model');
     expect(ui.shell.tabBadges.validation).toBe('1');
@@ -1130,6 +1131,6 @@ describe('the workbench', () => {
     );
     const label = app.components.store.getQuads(nn(web.iri), nn(NAMESPACES.skos + 'prefLabel'))[0].object as { language?: string };
     expect(label.language).toBe('en');
-    expect(ui.validationPanel.results.some((r) => r.focusNode.value === web.iri)).toBe(false);
+    expect(ui.validationPanel.results.some((r) => r.focusNode.value === web.iri && r.resultPath.value === NAMESPACES.skos + 'prefLabel')).toBe(false);
   });
 });
