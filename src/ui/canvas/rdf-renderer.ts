@@ -66,6 +66,7 @@ import type {
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
   NOTATION_DEFAULTS,
+  containerNameBand,
   badgeBox,
   iconHref,
   labelFitsInside,
@@ -857,7 +858,6 @@ export function rdfRendererModule(
 function containerLayout(layout: ReturnType<typeof shapeLayout>, element: RenderableElement): ReturnType<typeof shapeLayout> {
   const children = (element as { children?: Array<{ waypoints?: unknown }> }).children ?? [];
   if (!children.some((child) => !child.waypoints) || layout.label !== layout.content) return layout;
-  const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
-  const band = Math.min(layout.content.height, 2 * lineHeight + 2 * NOTATION_DEFAULTS.badgePadding);
+  const band = Math.min(layout.content.height, containerNameBand(NOTATION_DEFAULTS.fontSize, NOTATION_DEFAULTS.badgePadding));
   return { ...layout, label: { ...layout.content, height: band }, maxLabelLines: 2, labelBesideBadge: true };
 }

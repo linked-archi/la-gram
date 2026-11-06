@@ -809,7 +809,9 @@ that its view is open); a shape renamed is redrawn alone (`element.changed` —
 `elements.changed` re-stacks every sibling, 30 000 in a view of 10 000), and
 after a move or a nesting only what changed is put back in its place among its
 siblings (diagram-js's `updateContainments` replaced; a parent where the sibling
-before is not in place is re-stacked whole). The view
+before is not in place is re-stacked whole), placed in their parent's order — a
+line laid out again after its container moved below it would otherwise go after
+the container's old place, to the front. The view
 manager keeps each view's nodes and links until a write touches geometry, a
 node's or link's type or a route (`ObservableRdfStore.onEveryWrite`, told inside
 a batch too), so the canvas and the tree read a view once between such writes;
@@ -1459,11 +1461,33 @@ bounds stay in diagram coordinates, so a renderer that ignores nesting still
 draws everything in place. On the canvas the container is the shape's
 diagram-js parent: moving it moves what is inside, `RdfAutoResize` (diagram-js
 `AutoResize`, margins for the name) grows it to fit, and its name moves to the
-top of its content box once it holds something. Any element can hold others
+top of its content box once it holds something. That band is two lines with the
+badge padding (`containerNameBand`, 34 px), and `RdfAutoResize`'s top trigger
+and margin are its height: what is dropped or moved into it makes the container
+grow above it, so it never covers the name (the trigger was 30 px, and the
+second line went under). The store-led drawing draws containers before what is
+inside them, so a container is drawn empty, its name in the middle; it is
+redrawn once the view is drawn (`redrawContainers`) — and when a collaborator
+empties it, so the name goes back to the middle. Before, the name went to the
+top on the canvas's own move and back to the middle whenever the view was
+opened again, under what was inside. Any element can hold others
 (`RdfRules`: not a relationship, not a junction, not itself or what it holds).
 `syncFromStore` draws containers first and re-parents a shape whose container
 changed in the store (`reparentDirect`, as diagram-js's own commands do); a
 removed container leaves what it held drawn.
+
+**What is drawn above what** (Req 4.19; `canvas/rdf-ordering.ts`). Every line
+is the root's and comes after the shapes, so it is drawn above every element,
+nested ones (inside their container's group) included, and its name with it.
+diagram-js on its own put a created or moved shape last among its parent's
+children, above the lines drawn before it, and gave a line drawn from a nested
+element that element's container as its parent. `RdfOrdering`, diagram-js's
+`OrderingProvider`, gives a line the root on create and move, and a shape the
+place after its parent's other shapes, before the first line (`shapeIndex`) —
+still above the shapes it is moved over. A connection being created has no
+waypoints yet: it is told by its `source` reference. The store-led drawing,
+which adds without commands, places a shape (`addShape`'s index) and a
+re-parented one (`reparentDirect`) the same way.
 
 What a nesting means is a relationship of its own. The notation says which
 relationships nesting may draw and which end goes inside (`arch-vis:nestedEnd`

@@ -33,7 +33,7 @@
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { IRI, T, dedupe, nn } from './vocabulary.js';
+import { IRI, T, dedupe, nn, relationshipClassAmong } from './vocabulary.js';
 
 const RDFS_RANGE = nn(NAMESPACES.rdfs + 'range');
 
@@ -80,10 +80,9 @@ export function qualifiedPointerQuads(store: RdfStore, relationshipIri: string, 
     .filter((q) => isQualifiedPredicate(store, q.predicate.value));
 }
 
-/** The relationship class of a qualified resource: its type other than the generic one. */
+/** The relationship class of a qualified resource: its type other than the core's generic ones. */
 export function relationshipClassOf(store: RdfStore, relationshipIri: string): string | undefined {
-  const types = objects(store, nn(relationshipIri), T.rdfType);
-  return types.find((t) => t !== IRI.QualifiedRelationship) ?? types[0];
+  return relationshipClassAmong(objects(store, nn(relationshipIri), T.rdfType));
 }
 
 /**

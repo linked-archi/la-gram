@@ -188,6 +188,7 @@ import {
 } from './rdf-append-menu-provider.js';
 import { NEST_MENU_ID, RdfNestMenuProvider, nestingOffers, nestingShownBy, type NestingOffer } from './nesting.js';
 import { rdfAutoResizeModule } from './rdf-auto-resize.js';
+import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
 import {
   appendableTargetTypes,
   shapesOf,
@@ -483,7 +484,7 @@ function fragmentLabel(iri: string): string {
 /** The diagram-js services this class resolves. Structural, not nominal. */
 interface DjsServices {
   canvas: {
-    addShape(shape: unknown, parent?: unknown): DjsShape;
+    addShape(shape: unknown, parent?: unknown, parentIndex?: number): DjsShape;
     addConnection(connection: unknown, parent?: unknown): DjsShape;
     removeShape(shape: unknown): unknown;
     removeConnection(connection: unknown): unknown;
@@ -845,6 +846,8 @@ export class DiagramCanvas {
         rdfRendererModule(this.notationStyles, this.renderOptions),
         rdfRulesModule(this.ruleProvider),
         rdfAutoResizeModule,
+        // Lines at the root, above every shape, whatever is created or moved.
+        rdfOrderingModule,
         // Last, so its `modeling` binding replaces the one ModelingModule made.
         rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null),
         // Renaming on the canvas: double-click or F2 (needs `rdfChangeStore` from the line above).
@@ -951,6 +954,12 @@ export class DiagramCanvas {
    * can be out of place: each is put right after its sibling before it, and a
    * parent where that sibling is not in place yet is re-stacked whole, as
    * diagram-js does.
+   *
+   * In each parent's order: an element is placed after its sibling before it,
+   * so that sibling — when it changed too — has to be in place first. Placed in
+   * the order the changes came, a line laid out again after a container moved
+   * below it went after the container's old place: to the front, under every
+   * shape.
    */
   private restackOnlyWhatChanged(): void {
     const graphics = this.diagram?.get('graphicsFactory') as
@@ -961,14 +970,19 @@ export class DiagramCanvas {
     const restackWhole = graphics.updateContainments.bind(graphics);
     graphics.updateContainments = (elements: DjsShape[]) => {
       const whole = new Set<DjsShape>();
-      for (const element of elements) {
+      // Each element's place looked up once, as before; then placed in that order.
+      const placed = elements
+        .map((element) => {
+          const siblings = (element.parent as { children?: DjsShape[] } | undefined)?.children;
+          return { element, siblings, at: siblings?.indexOf(element) ?? -1 };
+        })
+        .sort((a, b) => a.at - b.at);
+      for (const { element, siblings, at } of placed) {
         const parent = element.parent as DjsShape | undefined;
-        const siblings = (parent as { children?: DjsShape[] } | undefined)?.children;
         if (!parent || !siblings || whole.has(parent)) continue;
         const group = registry.getGraphics(element)?.parentNode as SVGElement | null | undefined;
         if (!group) continue;
         const container = graphics._getChildrenContainer(parent);
-        const at = siblings.indexOf(element);
         const before = at > 0 ? (registry.getGraphics(siblings[at - 1])?.parentNode as SVGElement | null | undefined) : null;
         if (at < 0 || (before && before.parentNode !== container)) {
           whole.add(parent);
@@ -1047,6 +1061,26 @@ export class DiagramCanvas {
 
   /** The view {@link showView} drew in the current task, if any. */
   private drawnThisTask: string | undefined;
+
+  /**
+   * Containers that got or lost something inside them while the store was
+   * drawn, to redraw once it is: a container is drawn before what is inside it
+   * (`containersFirst`), so it was drawn empty — its name in the middle, under
+   * what was then drawn there — until something moved it again.
+   */
+  private readonly containersToRedraw = new Set<DjsShape>();
+
+  /** Redraw the containers {@link containersToRedraw} holds: each alone, its name where its contents put it. */
+  private redrawContainers(): void {
+    const services = this.services();
+    const root = services?.canvas.getRootElement();
+    for (const container of this.containersToRedraw) {
+      if (services && container !== root && services.elementRegistry.get(container.id)) {
+        services.eventBus.fire('element.changed', { element: container });
+      }
+    }
+    this.containersToRedraw.clear();
+  }
 
   /**
    * Make the canvas match the open view in the store: draw what is missing,
@@ -1176,6 +1210,7 @@ export class DiagramCanvas {
       );
     }
 
+    this.redrawContainers();
     this.applyViewpointMarkers();
   }
 
@@ -1448,7 +1483,10 @@ export class DiagramCanvas {
       businessObject,
     });
 
-    services.canvas.addShape(shape, this.containerFor(parentIri));
+    // Under the lines already drawn (rdf-ordering.ts): added without a command, so placed here.
+    const container = this.containerFor(parentIri);
+    services.canvas.addShape(shape, container, shapeIndex(container));
+    if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
     if (this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri)) {
       services.canvas.addMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
     }
@@ -1487,6 +1525,7 @@ export class DiagramCanvas {
     } finally {
       this.removingFromStore = false;
     }
+    this.redrawContainers();
 
     // Drop bookkeeping for relationships that touched the element, whether or
     // not diagram-js had a connection for them.
@@ -2684,6 +2723,8 @@ export class DiagramCanvas {
     const container = (shape.parent as DjsShape | undefined) ?? (services.canvas.getRootElement() as DjsShape);
     for (const child of [...(shape.children ?? [])].filter((c) => !c.waypoints)) this.reparentDirect(child, container);
     services.canvas.removeShape(shape);
+    // Emptied, its name goes back to the middle.
+    if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
   }
 
   /** The shape an element is drawn inside — the element's, when drawn — else the diagram. */
@@ -2704,7 +2745,9 @@ export class DiagramCanvas {
     if (!services || previous === container) return;
     const at = previous?.children?.indexOf(shape) ?? -1;
     if (at >= 0) previous!.children!.splice(at, 1);
-    (container.children ??= []).push(shape);
+    // Before the first line, as a moved shape goes (rdf-ordering.ts).
+    const children = (container.children ??= []);
+    children.splice(shapeIndex(container) ?? children.length, 0, shape);
     shape.parent = container;
     services.eventBus.fire('elements.changed', { elements: [shape, ...(previous ? [previous] : []), container] });
   }

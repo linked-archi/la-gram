@@ -195,3 +195,20 @@ export function dedupe(quads: Quad[]): Quad[] {
   }
   return out;
 }
+
+/** The core's generic types, which a qualified relationship carries beside its class (the converters emit both). */
+const GENERIC_RELATIONSHIP_TYPES = new Set<string>([IRI.QualifiedRelationship, IRI.ModelConcept]);
+
+/**
+ * A relationship's class among its types: never a generic core type — a
+ * converter types a relationship `arch:QualifiedRelationship` and
+ * `arch:ModelConcept` besides its class, in any order — and, given the class
+ * hierarchy, the most specific of the rest. Only generic types: the qualified
+ * relationship class.
+ */
+export function relationshipClassAmong(types: readonly string[], closure?: (typeIri: string) => readonly string[]): string | undefined {
+  const own = types.filter((t) => !GENERIC_RELATIONSHIP_TYPES.has(t));
+  if (own.length === 0) return types.includes(IRI.QualifiedRelationship) ? IRI.QualifiedRelationship : types[0];
+  if (!closure || own.length === 1) return own[0];
+  return [...own].sort((a, b) => closure(b).length - closure(a).length)[0];
+}

@@ -338,9 +338,10 @@ function defaultSaveFile(content: string | Blob, fileName: string, mediaType: st
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Most specific type of a resource: the one whose closure is largest. */
+/** Most specific type of a resource: the one whose closure is largest, never the core's generic relationship types. */
 function mainType(types: string[], closure: TypeClosure): string | undefined {
-  const specific = types.filter((t) => t !== NAMESPACES.arch + 'QualifiedRelationship');
+  const generic = new Set([NAMESPACES.arch + 'QualifiedRelationship', NAMESPACES.arch + 'ModelConcept']);
+  const specific = types.filter((t) => !generic.has(t));
   return [...(specific.length > 0 ? specific : types)].sort((a, b) => closure(b).length - closure(a).length)[0];
 }
 

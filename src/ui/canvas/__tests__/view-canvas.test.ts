@@ -750,3 +750,163 @@ describe('a relationship’s name moved on its line', () => {
     expect(line().businessObject.labelOffset).toBeUndefined();
   });
 });
+
+describe('what is drawn above what', () => {
+  const NODE = `${AM4}Node`;
+  type El = { id: string; waypoints?: unknown; parent?: El; children?: El[]; x: number; y: number; width: number; height: number };
+
+  /** An element placed in the open view from the store — as a collaborator's edit arrives — and drawn, as the app syncs. */
+  const place = (f: ReturnType<typeof mount>, typeIri: string, label: string, bounds: { x: number; y: number; width: number; height: number }) => {
+    const iri = f.elements.createElement(typeIri, f.modelIri, { label }).value;
+    f.views.addElementToView(f.viewIri, iri, bounds);
+    f.canvas.syncFromStore();
+    return iri;
+  };
+  const registryOf = (f: ReturnType<typeof mount>) =>
+    f.service<{ get(id: string): El; getAll(): El[]; getGraphics(e: El): SVGElement }>('elementRegistry');
+  const rootOf = (f: ReturnType<typeof mount>) => f.service<{ getRootElement(): El }>('canvas').getRootElement();
+  const modelingOf = (f: ReturnType<typeof mount>) =>
+    f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void; connect(s: unknown, t: unknown): El }>('modeling');
+
+  /** What is out of place: a line not the root's, or drawn before — under — a shape, nested ones included. */
+  const misplaced = (f: ReturnType<typeof mount>): string[] => {
+    const registry = registryOf(f);
+    const root = rootOf(f);
+    const all = registry.getAll().filter((e) => e !== root);
+    const lines = all.filter((e) => e.waypoints);
+    const shapes = all.filter((e) => !e.waypoints);
+    const out: string[] = [];
+    for (const line of lines) {
+      if (line.parent !== root) out.push(`${line.id} is not the root's`);
+      const drawn = registry.getGraphics(line);
+      for (const shape of shapes) {
+        if (!(registry.getGraphics(shape).compareDocumentPosition(drawn) & 4 /* FOLLOWING */)) out.push(`${line.id} under ${shape.id}`);
+      }
+    }
+    return out;
+  };
+
+  /** Two elements and a relationship between them, drawn. */
+  const linked = () => {
+    const f = mount();
+    const web = place(f, COMPONENT, 'Web', { x: 100, y: 100, width: 120, height: 55 });
+    const api = place(f, COMPONENT, 'API', { x: 600, y: 100, width: 120, height: 55 });
+    const rel = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: api, targetIri: web });
+    f.views.addRelationshipToView(f.viewIri, rel.iri);
+    f.canvas.showView(f.viewIri);
+    return { f, web, api };
+  };
+
+  it('a shape moved over a line stays under it', () => {
+    const { f } = linked();
+    const box = place(f, NODE, 'Box', { x: 300, y: 300, width: 200, height: 150 });
+    expect(misplaced(f)).toEqual([]);
+    modelingOf(f).moveElements([registryOf(f).get(box)], { x: 0, y: -260 });
+    expect(misplaced(f)).toEqual([]);
+  });
+
+  it('a shape created after a line, or added by a collaborator, is drawn under it', () => {
+    const { f } = linked();
+    f.createOnCanvas(NODE, 'New', { x: 400, y: 120 });
+    expect(misplaced(f)).toEqual([]);
+    place(f, NODE, 'Theirs', { x: 380, y: 60, width: 160, height: 120 });
+    expect(misplaced(f)).toEqual([]);
+  });
+
+  it('nesting an element, or taking it out, keeps the lines above; a line from a nested element is the root’s', () => {
+    // As the nesting tests above: a Node holds System Software.
+    const f = mount();
+    const server = place(f, NODE, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const linux = place(f, `${AM4}SystemSoftware`, 'Linux', { x: 600, y: 100, width: 120, height: 55 });
+    const app = place(f, COMPONENT, 'App', { x: 600, y: 400, width: 120, height: 55 });
+    const rel = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: linux, targetIri: app });
+    f.views.addRelationshipToView(f.viewIri, rel.iri);
+    f.canvas.showView(f.viewIri);
+    const modeling = modelingOf(f);
+
+    modeling.moveElements([registryOf(f).get(linux)], { x: -450, y: 60 }, registryOf(f).get(server));
+    expect(registryOf(f).get(linux).parent?.id).toBe(server);
+    expect(misplaced(f)).toEqual([]);
+
+    const other = place(f, COMPONENT, 'Other', { x: 700, y: 250, width: 120, height: 55 });
+    modeling.connect(registryOf(f).get(linux), registryOf(f).get(other));
+    expect(misplaced(f)).toEqual([]);
+
+    // The container moved: its lines laid out again with it, after it in the drawing.
+    modeling.moveElements([registryOf(f).get(server)], { x: 30, y: 0 });
+    expect(misplaced(f)).toEqual([]);
+    modeling.moveElements([registryOf(f).get(linux)], { x: 500, y: 0 }, rootOf(f));
+    expect(registryOf(f).get(linux).parent?.id).toBe(rootOf(f).id);
+    expect(misplaced(f)).toEqual([]);
+    f.commandStack.undo();
+    expect(misplaced(f)).toEqual([]);
+  });
+});
+
+describe("a container's name", () => {
+  type El = { id: string; x: number; y: number; width: number; height: number; parent?: { id: string } };
+  const place = (f: ReturnType<typeof mount>, typeIri: string, label: string, bounds: { x: number; y: number; width: number; height: number }) => {
+    const iri = f.elements.createElement(typeIri, f.modelIri, { label }).value;
+    f.views.addElementToView(f.viewIri, iri, bounds);
+    f.canvas.syncFromStore();
+    return iri;
+  };
+  const registryOf = (f: ReturnType<typeof mount>) =>
+    f.service<{ get(id: string): El; getGraphics(e: El): SVGElement }>('elementRegistry');
+  /** Where the container's name is drawn, from its top: the first line's baseline. */
+  const nameAt = (f: ReturnType<typeof mount>, iri: string) => {
+    const text = registryOf(f).getGraphics(registryOf(f).get(iri)).querySelector('text');
+    return Number(text?.getAttribute('y') ?? text?.querySelector('tspan')?.getAttribute('y'));
+  };
+  /** A Node, Server, holding System Software, Linux — nested by a move, as on the canvas. */
+  const nested = () => {
+    const f = mount();
+    const server = place(f, `${AM4}Node`, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const linux = place(f, `${AM4}SystemSoftware`, 'Linux', { x: 600, y: 100, width: 120, height: 55 });
+    const middle = nameAt(f, server);
+    f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void }>('modeling').moveElements(
+      [registryOf(f).get(linux)],
+      { x: -450, y: 100 },
+      registryOf(f).get(server),
+    );
+    expect(registryOf(f).get(linux).parent?.id).toBe(server);
+    return { f, server, linux, middle };
+  };
+
+  it('is at the top once something is inside — and still there when the view is opened again', () => {
+    const { f, server, middle } = nested();
+    const top = nameAt(f, server);
+    expect(top).toBeLessThan(40);
+    expect(middle).toBeGreaterThan(80);
+
+    const other = f.views.createView('Diagram', undefined, { modelIri: f.modelIri }).value;
+    f.canvas.showView(other);
+    f.canvas.showView(f.viewIri);
+    expect(nameAt(f, server)).toBe(top);
+  });
+
+  it('goes back to the middle when a collaborator takes out what was inside', () => {
+    const { f, server, linux, middle } = nested();
+    f.views.removeElementFromView(f.viewIri, linux);
+    f.canvas.syncFromStore();
+    expect(nameAt(f, server)).toBe(middle);
+  });
+
+  it('is never covered: what is dropped into its band makes the container grow above it', () => {
+    const f = mount();
+    const server = place(f, `${AM4}Node`, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const linux = place(f, `${AM4}SystemSoftware`, 'Linux', { x: 600, y: 100, width: 120, height: 55 });
+    // Dropped 32 px below the container's top: inside the 34 px band the name takes
+    // (the trigger was 30 px, and the second line went under what was dropped).
+    f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void }>('modeling').moveElements(
+      [registryOf(f).get(linux)],
+      { x: -450, y: 32 },
+      registryOf(f).get(server),
+    );
+    const outer = registryOf(f).get(server);
+    const inner = registryOf(f).get(linux);
+    expect(inner.parent?.id).toBe(server);
+    // Two lines of the name, and the padding round them, fit above it.
+    expect(inner.y - outer.y).toBeGreaterThanOrEqual(2 * Math.round(11 * 1.2) + 2 * 4);
+  });
+});

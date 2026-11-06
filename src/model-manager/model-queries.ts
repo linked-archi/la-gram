@@ -26,7 +26,7 @@ import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import type { ViewInfo } from './interfaces.js';
-import { IRI, T, humanize, localName, nn } from './vocabulary.js';
+import { IRI, T, humanize, localName, nn, relationshipClassAmong } from './vocabulary.js';
 import { certaintyNamed, isCertaintyPredicate, isLedTo, ruleOf, type DerivationCertainty } from './derivations.js';
 
 /** What names a concept, in the order {@link labelOf} prefers them. */
@@ -366,7 +366,7 @@ function summarize(
     case 'unclassified':
       return { kind, summary: { iri, typeIri, typeLabel: typeLabel(typeIri), label: nameOf(iri) } };
     case 'relationship': {
-      const relType = types.find((t) => t !== IRI.QualifiedRelationship) ?? typeIri;
+      const relType = relationshipClassAmong(types, closure) ?? typeIri;
       const sourceIri = facts.ends.get(IRI.source) ?? facts.ends.get(IRI.legacyRelSource);
       const targetIri = facts.ends.get(IRI.target) ?? facts.ends.get(IRI.legacyRelTarget);
       const explicit = facts.names.get(T.prefLabel.value)?.[0]?.value;

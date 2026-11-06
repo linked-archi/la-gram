@@ -36,6 +36,16 @@ import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Fallbacks for style properties the notation data may leave out. */
+/**
+ * How tall a container's name band is: once something is drawn inside it, its
+ * name goes to the top of its content box, on at most two lines with the badge
+ * padding (`containerLayout` in the renderer). What is inside is kept below it
+ * (`RdfAutoResize`).
+ */
+export function containerNameBand(fontSize = 11, badgePadding = 4): number {
+  return 2 * Math.round(fontSize * 1.2) + 2 * badgePadding;
+}
+
 export const NOTATION_DEFAULTS = {
   /** `arch-vis:shapeType` absent → a plain rectangle, ArchiMate's base shape. */
   shapeType: 'Rectangle' as ShapeType,

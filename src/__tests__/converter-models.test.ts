@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { createApp } from '../app.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelQuads, readModelContents } from '../model-manager/model-queries.js';
+import { relationshipClassOf } from '../model-manager/cascade.js';
 import { buildModelTree, type TreeNode } from '../ui/panels/model-explorer.js';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'converters', name), 'utf8');
@@ -121,6 +122,13 @@ describe('a model from the ArchiMate converter', () => {
     expect(contents.elements).toHaveLength(11);
     expect(contents.relationships).toHaveLength(10);
     expect(contents.unclassified).toEqual([]);
+    // Typed arch:QualifiedRelationship and arch:ModelConcept before their class: listed, and handled, by
+    // the class — not all under "Model Concept".
+    const am = 'https://meta.linked.archi/archimate3/onto#';
+    expect(contents.relationships.filter((r) => !r.typeIri.startsWith(am))).toEqual([]);
+    const serving = contents.relationships.find((r) => r.iri.endsWith('/relationship/id-rel-1'))!;
+    expect([serving.typeIri, serving.typeLabel]).toEqual([am + 'Serving', 'Serving']);
+    expect(relationshipClassOf(app.components.store, serving.iri)).toBe(am + 'Serving');
     expect(app.components.viewManager.getViews()).toHaveLength(1);
 
     // The conversion's provenance stays out of the model: no membership was added to it.
