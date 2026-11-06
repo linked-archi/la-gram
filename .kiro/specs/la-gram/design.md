@@ -1504,8 +1504,10 @@ and gives each relationship the nesting may draw between them
 link removes `arch:inView` with the last one, so it is given back after. A
 relationship the model has between the two that the view does not show stays out. A
 move out of a container (`showAsLines`) draws as lines the relationships between
-the two that are the view's and have no line — only those, never the model's
-others between them. Both run inside the move or create command, so undo puts
+the two that are the view's and have no line, and those the nesting stood for
+though nothing recorded it (`relationshipsShownByNesting`: a model opened
+nested, converted from Archi, records no more) — never the model's others
+between them. Both run inside the move or create command, so undo puts
 lines and membership back; but at its end: a move of several lays out their
 lines after moving the shapes (diagram-js's `MoveHelper`), and a line removed
 halfway was laid out with no ends. The changes are noted at `shape.move` /
@@ -1522,6 +1524,66 @@ derivation the model does not state), the canvas opens a menu at the target —
 ‹type›* — and nothing is drawn now. Using one draws it (`drawExistingRelationship`,
 undoable); *New* connects again with `RDF_REUSE_ANSWERED_HINT`, which creates as
 before; Esc leaves nothing.
+
+### An element placed more than once
+
+Req 3.14. A view may place an element more than once; each placement is a node
+(`arch-vis:ArchNode`). The view manager keys a node by its IRI wherever it keys
+by an element's (`nodeIrisFor`): `updateNodeBounds`, `setNodeParent`,
+`removeElementFromView` and `getNode` take either, a node naming that one
+placement — removing one drops the element's `arch:inView` only with its last.
+`addElementToView(…, { another: true })` places again; `addRelationshipToView`
+takes the placements (`ends`) a link joins, its ends' first otherwise;
+`NodeInfo.parentNodeIri` says which placement a node is inside; a copied view
+copies node by node.
+
+On the canvas a placement's shape carries its node (`RdfBusinessObject.nodeIri`).
+The first placement of an element keeps the element's IRI as its id — a view
+placing each element once is drawn as before, ids and DOM included — and each
+further one takes its node's. An index kept from diagram-js's `shape.added` /
+`shape.removed` finds an element's placements and a node's shape
+(`shapesOf`, `shapeOf`, `shapeOfNode`), so no lookup scans a view. The view is
+synced node by node; layout, nesting and deletion write the placement's node
+(`writeLayout`, `containerIri`, `shape.delete`); a line created or drawn carries
+the placements of its ends to the link (`RdfRelationshipRequest.sourceNodeIri`,
+`draw(…, ends)`); a store-led line is drawn between the placements its link
+names. Dragging an element from the tree places it again (the element writer's
+`place` always adds a placement, the behaviour giving a further one its node as
+id); its relationships are drawn with its first placement only. Selecting or
+revealing it selects every placement; a rename and a type change on one
+placement show on all (the relabel and retype commands carry the others, undo
+included); deleting it from the model takes every placement. Lines between a
+nested placement and its container are those between those two shapes. A
+relationship is still drawn once per view.
+
+### Figures
+
+Req 3.13. Drawing with no model element behind it: a group, a sticky note, a
+core-vis shape. In the view they are core-vis nodes (`OxigraphViewManager.addFigure`):
+a group an `arch-vis:ContainerNode`; a shape a `ContainerNode` whose own
+`arch-vis:style` (`<node>-style`, removed with it) gives an `arch-vis:shapeType`;
+a note an `arch-vis:LabelNode` that no element's `arch-vis:label` points at — a
+relationship's moved name, which is one, is not read as a note. Their text is
+`skos:prefLabel`, language-tagged: core-vis names no text property for a node
+that stands for no element, and the canonical label is what every tool reads.
+
+A figure has no element, so its node is its key: `NodeInfo.elementIri` is the
+node's IRI and `NodeInfo.figure` says what it is, and the view manager resolves
+"the node of this IRI" to the node itself (`nodeIrisFor`), so moving, resizing,
+nesting (`setNodeParent` — a figure's `parentElementIri` is the figure's node),
+removal and duplication go the ways an element's go, undo included. A figure's
+text write clears the view cache (told by the node's type). The canvas draws a
+figure from `syncFromStore` (`syncFigure`) with `kind: 'figure'`; the renderer
+draws a group with its name in a tab, a shape by its shape type, a note folded
+at its top right (`drawFigure`). `startCreateFigure` starts the toolbar's drag;
+the node is written in the `shape.create` command, the shape taking the node's
+IRI before it is drawn. Rules: no relationship ends on a figure; a group or a
+shape holds as an element does, a note nothing. The context pad offers Delete;
+renaming writes `skos:prefLabel` as for an element. Selected, the heading is
+*Group*, *Note* or *Shape* — no type, analysis or guide. The toolbar's second
+row (`canvas-toolbar`, `figure-bar.ts`) is opened by *Shapes*, remembered per
+browser. The Exchange importer draws a `Container` as a group and a `Label` as
+a note, with their `<label>`, and what was nested inside one inside it.
 
 ### Version history
 

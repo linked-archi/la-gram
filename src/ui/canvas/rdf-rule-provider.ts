@@ -272,6 +272,8 @@ export class RdfRules extends RuleProvider {
    * unknown, which is the state during a drag before the target is hovered.
    */
   private checkConnect(context: ConnectContext): RdfConnectionAttrs | false | undefined {
+    // A figure — a group, a shape, a note — is drawing: no relationship has it as an end.
+    if (isFigure(context.source) || isFigure(context.target)) return false;
     const sourceType = context.source?.businessObject?.typeIri;
     const targetType = context.target?.businessObject?.typeIri;
     if (!sourceType || !targetType) return undefined;
@@ -339,15 +341,22 @@ function isElementShape(target: RuleTarget | undefined): boolean {
   return Boolean(target && !target.waypoints && target.businessObject?.typeIri && target.parent);
 }
 
+/** A figure: a group, a shape or a note, standing for no model element. */
+function isFigure(target: RuleTarget | undefined): boolean {
+  return target?.businessObject?.kind === 'figure';
+}
+
 /**
- * Whether shapes may be dropped into `target`: the diagram, or an element big
- * enough to hold them — not a relationship, not a junction, and not one of the
- * shapes moved or anything inside them.
+ * Whether shapes may be dropped into `target`: the diagram, or an element or a
+ * figure big enough to hold them — not a relationship, not a junction, not a
+ * note, and not one of the shapes moved or anything inside them.
  */
 function canContain(target: RuleTarget | undefined, moved: readonly RuleTarget[] = []): boolean {
   if (!target) return true;
   if (target.waypoints) return false;
-  if (!isElementShape(target)) return true;
+  const figure = isFigure(target);
+  if (!figure && !isElementShape(target)) return true;
+  if (figure && target.businessObject?.figure?.kind === 'note') return false;
   if (!labelFitsInside(target.width ?? 0, target.height ?? 0)) return false;
   for (let at: RuleTarget | undefined = target; at; at = at.parent) {
     if (moved.includes(at)) return false;

@@ -37,6 +37,7 @@ import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
+import { figureBarOpen, rememberFigureBarOpen } from './figure-bar.js';
 import {
   KIND_FOLDER_NAMES,
   applyFolderChange,
@@ -53,7 +54,7 @@ import {
   type FolderKind,
 } from '../model-manager/folders.js';
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
-import { localName as localNameOf } from '../model-manager/vocabulary.js';
+import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
 import {
   listQuestions,
   offeredQuestions,
@@ -97,12 +98,13 @@ import type {
   PaletteHoverDetail,
   PaletteAxisChangeDetail,
 } from './panels/palette-panel.js';
-import type { CanvasToolbar, ToolbarToolDetail } from './panels/canvas-toolbar.js';
+import type { CanvasToolbar, ToolbarFigureDetail, ToolbarToolDetail } from './panels/canvas-toolbar.js';
 import type {
   PropertyPanel,
   PropertyEditDetail,
   PropertyChangeDetail,
   PropertyAnalysis,
+  PropertyHeading,
 } from './panels/property-panel.js';
 import type {
   ModelExplorer,
@@ -631,7 +633,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   modelExplorer.activeViewIri = session.activeViewIri;
 
   // ── Selection routing ────────────────────────────────────────────────
+  /** A figure — a group, a shape, a note — in the open view: drawing, with no model element behind it. */
+  const figureOf = (iri: string) => {
+    const viewIri = session.activeViewIri;
+    return viewIri ? viewManager.getNode?.(viewIri, iri)?.figure : undefined;
+  };
+
   const analysisFor = (iri: string): PropertyAnalysis | undefined => {
+    // A figure relates to nothing and appears in its one view.
+    if (figureOf(iri)) return undefined;
     const info = describe(iri);
     if (!info) return undefined;
     const views = (typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : []).map((v) => ({
@@ -665,7 +675,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return { relationships, views };
   };
 
-  const headingFor = (iri: string) => {
+  const headingFor = (iri: string): PropertyHeading => {
+    // A figure says what it is — no type to change, no model element.
+    const figure = figureOf(iri);
+    if (figure) {
+      const kind = figure.kind === 'group' ? 'Group' : figure.kind === 'note' ? 'Note' : 'Shape';
+      return { kind, ...(figure.kind === 'shape' && figure.shapeType ? { typeLabel: humanize(localNameOf(figure.shapeType)) } : {}) };
+    }
     const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     const typeIri = mainType(types, closure);
     const all = new Set(types.flatMap((t) => closure(t)));
@@ -1277,6 +1293,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     showRelationshipNames(shown);
   };
   canvasToolbar.addEventListener('relationship-names', onRelationshipNames);
+
+  // Figures — groups, notes, shapes — from the toolbar's second row: open or closed, remembered per browser.
+  canvasToolbar.figuresOpen = figureBarOpen();
+  const onFiguresOpen = (event: Event): void => {
+    const open = (event as CustomEvent<{ open: boolean }>).detail?.open === true;
+    rememberFigureBarOpen(open);
+    canvasToolbar.figuresOpen = open;
+  };
+  canvasToolbar.addEventListener('figures-open', onFiguresOpen);
+  const onFigureDragStart = (event: Event): void => {
+    const detail = (event as CustomEvent<ToolbarFigureDetail>).detail;
+    if (!detail) return;
+    diagramCanvas.startCreateFigure(detail.kind, detail.shapeType, detail.sourceEvent);
+  };
+  canvasToolbar.addEventListener('figure-drag-start', onFigureDragStart);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -2582,6 +2613,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     clearTimeout(paletteHover);
     canvasToolbar.removeEventListener('toolbar-tool', onToolbarTool);
     canvasToolbar.removeEventListener('relationship-names', onRelationshipNames);
+    canvasToolbar.removeEventListener('figures-open', onFiguresOpen);
+    canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);

@@ -705,6 +705,36 @@ export function wrapLabel(
   return lines.slice(0, maxLines);
 }
 
+/** How wide a line of text is drawn, measured; `undefined` where nothing can measure it. */
+type TextMeasure = (text: string, font: string) => number;
+let textMeasure: TextMeasure | null | undefined;
+
+/**
+ * How wide a line of text is drawn at `fontSize` in the canvas's font: measured
+ * with the browser's canvas text metrics where there are any, else the wrapping
+ * estimate (0.55em a character) — jsdom has no canvas, and the tests lay out
+ * as before. Used where a box is fitted to text a wrapping estimate already
+ * chose: a relationship's name on its line.
+ */
+export function textWidth(text: string, fontSize: number = NOTATION_DEFAULTS.fontSize): number {
+  if (textMeasure === undefined) textMeasure = canvasTextMeasure();
+  return textMeasure ? textMeasure(text, `${fontSize}px ${NOTATION_DEFAULTS.fontFamily}`) : text.length * fontSize * 0.55;
+}
+
+function canvasTextMeasure(): TextMeasure | null {
+  try {
+    if (typeof document === 'undefined' || /jsdom/i.test(globalThis.navigator?.userAgent ?? '')) return null;
+    const context = document.createElement('canvas').getContext('2d');
+    if (!context) return null;
+    return (text, font) => {
+      context.font = font;
+      return context.measureText(text).width;
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Whether a shape this size holds one line of its label — a few characters'
  * width and a line's height. A junction's circle does not, so its name goes

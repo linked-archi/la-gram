@@ -1060,6 +1060,13 @@ describe('moving a relationship’s name', () => {
     await namesSwitch.click();
     const name = page.locator(`.djs-connection[data-element-id="${ids.r}"] .la-connection-label rect`);
     await name.waitFor({ state: 'attached' });
+    // The name's box fits the name as drawn — measured, not estimated: 2 px each side.
+    const fit = await page.evaluate((r) => {
+      const group = document.querySelector(`.djs-connection[data-element-id="${r}"] .la-connection-label`)!;
+      const text = (group.querySelector('text') as SVGTextElement).getBBox().width;
+      return { box: Number(group.querySelector('rect')!.getAttribute('width')), text };
+    }, ids.r);
+    expect(Math.abs(fit.box - (fit.text + 4))).toBeLessThan(1.5);
     const facts = async () =>
       page.evaluate(({ r, v }) => {
         const ui = (window as any).__LA_GRAM_UI__;
@@ -1903,5 +1910,122 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     );
     expect(fetched).toEqual([]);
     findings.push('git: ?git=off → no entries, no chunk fetched: ok');
+  });
+});
+
+describe('figures from the toolbar: groups, notes, shapes', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** The open view's figures, through the app's API. */
+  const figures = async () =>
+    page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      return app.components.viewManager
+        .getNodes(app.session.activeViewIri)
+        .filter((n: any) => n.figure)
+        .map((n: any) => ({ iri: n.elementIri, kind: n.figure.kind, text: n.figure.text, parent: n.parentElementIri }));
+    }) as Promise<Array<{ iri: string; kind: string; text?: string; parent?: string }>>;
+
+  /** Press a figure's button in the toolbar's second row and drag it onto the canvas. */
+  const dropFigure = async (figure: string, dx: number, dy: number) => {
+    const button = await page.locator(`canvas-toolbar .figures button[data-figure="${figure}"]`).boundingBox();
+    const host = await page.locator('.la-diagram-host').boundingBox();
+    await page.mouse.move(button!.x + button!.width / 2, button!.y + button!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(host!.x + dx - 40, host!.y + dy, { steps: 8 });
+    await page.mouse.move(host!.x + dx, host!.y + dy, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+  };
+
+  it('the Shapes switch opens a row of figures, remembered; a note is dragged on, drawn and kept in the view', async () => {
+    expect(await page.locator('canvas-toolbar .figures').count()).toBe(0);
+    await page.locator('canvas-toolbar button[data-switch="figures"]').click();
+    const buttons = await page.locator('canvas-toolbar .figures button').evaluateAll((all) => all.map((b) => b.getAttribute('data-figure')));
+    expect(buttons).toEqual(['group', 'note', 'Rectangle', 'RoundedRectangle', 'Ellipse', 'Circle', 'Diamond', 'Hexagon', 'Octagon', 'Parallelogram']);
+    expect(await page.evaluate(() => localStorage.getItem('la-gram:canvas-figures'))).toBe('true');
+
+    await dropFigure('note', 600, 120);
+    const [note] = await figures();
+    expect(note).toMatchObject({ kind: 'note' });
+    expect(await page.locator(`.djs-shape[data-element-id="${note!.iri}"] [data-figure="note"]`).count()).toBe(1);
+  });
+
+  it('a note is renamed on the canvas: its text is written and drawn; selected, the panels show it without errors', async () => {
+    const [note] = await figures();
+    const shape = page.locator(`.djs-shape[data-element-id="${note!.iri}"]`);
+    await shape.dblclick();
+    const editor = page.locator('.djs-direct-editing-content');
+    await editor.waitFor({ state: 'visible' });
+    await page.keyboard.type('Ask the CFO');
+    await page.locator('.la-diagram-host').click({ position: { x: 20, y: 400 } });
+    await until(async () => (await figures())[0]?.text === 'Ask the CFO', 'the note’s text written');
+    expect(await shape.locator('[data-figure="note"]').textContent()).toBe('Ask the CFO');
+
+    await shape.click();
+    await page.waitForTimeout(200);
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('a group holds an element dropped into it, and an ellipse is drawn as one', async () => {
+    await dropFigure('group', 300, 300);
+    const group = (await figures()).find((f) => f.kind === 'group')!;
+    await dropActor(page, 300, 320);
+    const m = await model(page);
+    const actor = m.actors[m.actors.length - 1]!;
+    const parent = await page.evaluate(
+      (iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getNode(app.session.activeViewIri, iri)?.parentElementIri;
+      },
+      actor,
+    );
+    expect(parent).toBe(group.iri);
+
+    await dropFigure('Ellipse', 800, 400);
+    const ellipse = (await figures()).find((f) => f.kind === 'shape')!;
+    expect(await page.locator(`.djs-shape[data-element-id="${ellipse.iri}"] [data-figure="shape"] ellipse`).count()).toBe(1);
+    await session.screenshot('workbench-figures');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+    expect(session.diagnostics.unexpectedConsoleErrors).toEqual([]);
+  });
+});
+
+describe('an element placed twice in one view', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** Drag a model tree row onto the canvas at an offset. */
+  const dragFromTree = async (iri: string, dx: number, dy: number) => {
+    const row = await page.locator(`model-explorer .row[data-iri="${iri}"]`).boundingBox();
+    const host = await page.locator('.la-diagram-host').boundingBox();
+    await page.mouse.move(row!.x + 40, row!.y + row!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(row!.x + 60, row!.y + row!.height / 2, { steps: 4 });
+    await page.mouse.move(host!.x + dx, host!.y + dy, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+  };
+
+  it('dragged from the tree again, it is placed again; selected in the tree, both placements are', async () => {
+    await dropActor(page, 200, 150);
+    const [actor] = (await model(page)).actors;
+    await dragFromTree(actor!, 500, 350);
+    await until(async () => ((await model(page)).nodesIn['Default View'] ?? []).length === 2, 'the second placement');
+    expect((await model(page)).nodesIn['Default View']).toEqual([actor, actor]);
+    expect(await page.locator('.djs-shape[data-element-id]').evaluateAll((all) => all.length)).toBe(2);
+
+    await page.locator(`model-explorer .row[data-iri="${actor}"]`).click();
+    await until(async () => (await page.locator('.djs-shape.selected').count()) === 2, 'both placements selected');
+    expect(session.diagnostics.pageErrors).toEqual([]);
   });
 });

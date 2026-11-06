@@ -44,13 +44,38 @@ export interface ViewInfo {
   modelIri?: string;
 }
 
-/** One element's placement in a diagram view (`arch-vis:ArchNode`). */
+/** One element's placement in a diagram view (`arch-vis:ArchNode`) — or a figure's. */
 export interface NodeInfo {
   nodeIri: string;
+  /** The element the node draws; for a figure, which stands for none, the node itself. */
   elementIri: string;
   bounds: Bounds;
-  /** The element whose node this one is drawn inside (`arch-vis:inNode`), if any. */
+  /** The element — or figure — whose node this one is drawn inside (`arch-vis:inNode`), if any. */
   parentElementIri?: string;
+  /** The node it is drawn inside — which of that element's placements, when it has several. */
+  parentNodeIri?: string;
+  /** Set when the node stands for no model element. */
+  figure?: FigureInfo;
+}
+
+/**
+ * What a figure is: drawing only, no model element behind it.
+ *
+ * - `group` — a box holding others, its name at the top (`arch-vis:ContainerNode`);
+ * - `shape` — a core-vis shape type (`arch-vis:ContainerNode` whose `arch-vis:style`
+ *   gives `arch-vis:shapeType`), which may hold others too;
+ * - `note` — a sticky note: free-standing text (`arch-vis:LabelNode` no element's
+ *   `arch-vis:label` points at).
+ *
+ * Its text is its `skos:prefLabel`.
+ */
+export type FigureKind = 'group' | 'shape' | 'note';
+
+export interface FigureInfo {
+  kind: FigureKind;
+  /** The core-vis shape type of a `shape`. */
+  shapeType?: string;
+  text?: string;
 }
 
 /** One relationship drawn in a diagram view (`arch-vis:Link`). */
@@ -197,15 +222,35 @@ export interface ViewManager {
   collectViewQuads(viewIri: string): Quad[];
   duplicateView(viewIri: string, label?: string): NamedNode;
 
-  /** Place an element (idempotent per view). Returns the node IRI. */
-  addElementToView(viewIri: string, elementIri: string, bounds?: Bounds): string;
-  /** Remove the element's node, its links, and its `arch:inView` for this view. */
+  /**
+   * Place an element: idempotent per view — the node it has — unless `another`
+   * asks for one more placement of it. Returns the node IRI.
+   *
+   * Wherever an element's IRI keys a node (`getNode`, `updateNodeBounds`,
+   * `setNodeParent`, `removeElementFromView`, `collectNodeQuads`), a node's IRI
+   * does too, and names that one placement.
+   */
+  addElementToView(viewIri: string, elementIri: string, bounds?: Bounds, options?: { another?: boolean }): string;
+  /**
+   * Remove the element's nodes, their links, and its `arch:inView` for this
+   * view — or, given a node, that placement alone (`arch:inView` with its last).
+   */
   removeElementFromView(viewIri: string, elementIri: string): void;
   /**
    * Draw an element's node inside another's in the view (`arch-vis:inNode`), or
    * — `undefined` — inside nothing. Bounds are not changed.
    */
   setNodeParent?(viewIri: string, elementIri: string, parentElementIri: string | undefined): void;
+  /**
+   * Draw a figure in a diagram view — a group, a shape, a note — standing for
+   * no model element; `parentIri` names the element or figure it is drawn
+   * inside. Returns the node's IRI, which is the figure's key wherever an
+   * element's IRI keys a node (`getNode`, `updateNodeBounds`, `setNodeParent`,
+   * `removeElementFromView`).
+   */
+  addFigure?(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string;
+  /** A figure's text (`skos:prefLabel`), or none. */
+  setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
   collectNodeQuads(viewIri: string, elementIri: string): Quad[];
   getNodes(viewIri: string): NodeInfo[];
   getNode(viewIri: string, elementIri: string): NodeInfo | undefined;
@@ -213,10 +258,16 @@ export interface ViewManager {
 
   /**
    * Draw a relationship between its two ends: placed elements, or — for an end
-   * that is a relationship — that relationship's link. `undefined` if an end is
-   * not drawn in the view.
+   * that is a relationship — that relationship's link. `ends` names the
+   * placements, when an element has several (its first otherwise). `undefined`
+   * if an end is not drawn in the view.
    */
-  addRelationshipToView(viewIri: string, relationshipIri: string, waypoints?: Point[]): string | undefined;
+  addRelationshipToView(
+    viewIri: string,
+    relationshipIri: string,
+    waypoints?: Point[],
+    ends?: { sourceNodeIri?: string; targetNodeIri?: string },
+  ): string | undefined;
   removeRelationshipFromView(viewIri: string, relationshipIri: string): void;
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[];
   getLinks(viewIri: string): LinkInfo[];

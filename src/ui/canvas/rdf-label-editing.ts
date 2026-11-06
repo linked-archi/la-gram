@@ -54,6 +54,8 @@ interface LabelledShape {
 export interface RelabelContext extends Partial<RdfChangeContext> {
   element: LabelledShape;
   label: string;
+  /** Filled in on first execute: the element's other placements, renamed with it. */
+  others?: LabelledShape[];
   /** Filled in on first execute: the name before. */
   previous?: string;
   /** Filled in on first execute: whether that was the element's own name. */
@@ -68,14 +70,14 @@ export function normalizeLabel(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** Whether a diagram element is an element's shape — not a relationship, the root or a label. */
+/** Whether a diagram element is an element's shape, or a figure's — not a relationship, the root or a label. */
 function isElementShape(element: LabelledShape | undefined): element is LabelledShape {
   return (
     !!element &&
     !element.waypoints &&
     !element.labelTarget &&
     !!element.parent &&
-    element.businessObject?.kind === 'element' &&
+    (element.businessObject?.kind === 'element' || element.businessObject?.kind === 'figure') &&
     !!element.businessObject.iri
   );
 }
@@ -105,11 +107,12 @@ export function isRenamable(element: unknown): boolean {
 
 /** Renames as one undoable step; the shape or line shows the name in force. */
 export class RelabelElementHandler extends RdfChangeHandler {
-  static override $inject = ['rdfChangeStore', 'rdfLabelWriter'];
+  static override $inject = ['rdfChangeStore', 'rdfLabelWriter', 'elementRegistry'];
 
   constructor(
     store: ObservableRdfStore | null,
     private readonly writer: LabelWriter,
+    private readonly registry: { filter(fn: (element: LabelledShape) => boolean): LabelledShape[] } | null = null,
   ) {
     super(store);
   }
@@ -120,21 +123,30 @@ export class RelabelElementHandler extends RdfChangeHandler {
     relabel.previous ??= businessObject.label;
     relabel.previousNamed ??= businessObject.named;
     relabel.apply ??= () => this.writer(businessObject.iri, relabel.label);
+    // An element placed more than once is renamed on every placement.
+    relabel.others ??=
+      businessObject.kind === 'element'
+        ? (this.registry?.filter((e) => e !== relabel.element && !e.waypoints && e.businessObject?.iri === businessObject.iri) ?? [])
+        : [];
     super.execute(relabel);
-    // Emptied (a relationship's): no name left to draw.
-    businessObject.label = relabel.label || undefined;
-    businessObject.named = relabel.label !== '';
-    return [relabel.element];
+    for (const shape of [relabel.element, ...relabel.others]) {
+      if (!shape.businessObject) continue;
+      // Emptied (a relationship's): no name left to draw.
+      shape.businessObject.label = relabel.label || undefined;
+      shape.businessObject.named = relabel.label !== '';
+    }
+    return [relabel.element, ...relabel.others];
   }
 
   override revert(context: RdfChangeContext): unknown[] {
     const relabel = context as RdfChangeContext & RelabelContext;
     super.revert(relabel);
-    if (relabel.element.businessObject) {
-      relabel.element.businessObject.label = relabel.previous;
-      relabel.element.businessObject.named = relabel.previousNamed;
+    for (const shape of [relabel.element, ...(relabel.others ?? [])]) {
+      if (!shape.businessObject) continue;
+      shape.businessObject.label = relabel.previous;
+      shape.businessObject.named = relabel.previousNamed;
     }
-    return [relabel.element];
+    return [relabel.element, ...(relabel.others ?? [])];
   }
 }
 

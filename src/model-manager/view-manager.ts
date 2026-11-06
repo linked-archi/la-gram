@@ -70,6 +70,7 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
 import type {
   Bounds,
+  FigureInfo,
   LinkInfo,
   NodeInfo,
   Point,
@@ -128,8 +129,14 @@ export class OxigraphViewManager implements ViewManager {
     const observed = store as RdfStore & { onEveryWrite?(listener: (diff: { added: Quad[]; removed: Quad[] }) => void): unknown };
     if (typeof observed.onEveryWrite === 'function') {
       this.cache = new Map();
+      // A figure's text is read with its node: a write of it is the view's too —
+      // told by the node's type, so an element renamed does not read a view again.
+      const figureText = (q: Quad) =>
+        q.predicate.value === IRI.prefLabel &&
+        this.objects(q.subject, T.rdfType).some((t) => t === IRI.ContainerNode || t === IRI.LabelNode);
+      const shapes = (q: Quad) => shapesAView(q) || figureText(q);
       observed.onEveryWrite((diff) => {
-        if (this.cache?.size && (diff.added.some(shapesAView) || diff.removed.some(shapesAView))) this.cache.clear();
+        if (this.cache?.size && (diff.added.some(shapes) || diff.removed.some(shapes))) this.cache.clear();
         if (this.members.size && (diff.added.some(placesInAView) || diff.removed.some(placesInAView))) this.members.clear();
       });
     }
@@ -256,15 +263,33 @@ export class OxigraphViewManager implements ViewManager {
       ...(source.modelIri ? { modelIri: source.modelIri } : {}),
     });
     const nodes = this.getNodes(viewIri);
+    // Node by node — an element placed twice is placed twice in the copy, a
+    // figure is a figure — what was inside one inside its copy.
+    const copies = new Map<string, string>();
     for (const node of nodes) {
-      this.addElementToView(copy.value, node.elementIri, node.bounds);
+      copies.set(
+        node.nodeIri,
+        node.figure
+          ? this.addFigure(copy.value, { ...node.figure, bounds: node.bounds })
+          : this.addElementToView(copy.value, node.elementIri, node.bounds, { another: true }),
+      );
     }
     for (const node of nodes) {
-      if (node.parentElementIri) this.setNodeParent(copy.value, node.elementIri, node.parentElementIri);
+      const parent = node.parentNodeIri ? copies.get(node.parentNodeIri) : undefined;
+      if (parent) this.setNodeParent(copy.value, copies.get(node.nodeIri)!, parent);
     }
     const links = this.getLinks(viewIri);
     const routes = new Map(links.map((link) => [link.relationshipIri, link.waypoints]));
-    addRelationshipsToView(this, copy.value, [...routes.keys()], (iri) => routes.get(iri));
+    const endsOf = new Map(
+      links.map((link) => [
+        link.relationshipIri,
+        {
+          ...(copies.get(link.sourceNodeIri) ? { sourceNodeIri: copies.get(link.sourceNodeIri) } : {}),
+          ...(copies.get(link.targetNodeIri) ? { targetNodeIri: copies.get(link.targetNodeIri) } : {}),
+        },
+      ]),
+    );
+    addRelationshipsToView(this, copy.value, [...routes.keys()], (iri) => routes.get(iri), (iri) => endsOf.get(iri));
     // Names moved off the middle of their lines stay where they were put.
     for (const link of links) {
       if (link.label) this.setLinkLabel(copy.value, link.relationshipIri, link.label);
@@ -278,8 +303,8 @@ export class OxigraphViewManager implements ViewManager {
 
   // ── Nodes ──────────────────────────────────────────────────────────────
 
-  addElementToView(viewIri: string, elementIri: string, bounds: Bounds = DEFAULT_BOUNDS): string {
-    const existing = this.getNode(viewIri, elementIri);
+  addElementToView(viewIri: string, elementIri: string, bounds: Bounds = DEFAULT_BOUNDS, options: { another?: boolean } = {}): string {
+    const existing = options.another ? undefined : this.getNode(viewIri, elementIri);
     if (existing) return existing.nodeIri;
 
     const view = nn(viewIri);
@@ -296,6 +321,33 @@ export class OxigraphViewManager implements ViewManager {
     return nodeIri;
   }
 
+  addFigure(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string {
+    const view = nn(viewIri);
+    const nodeIri = iri ?? mintIri(viewNamespace(this.store, viewIri), 'node');
+    const node = nn(nodeIri);
+    const quads: Quad[] = [
+      triple(node, T.rdfType, figure.kind === 'note' ? T.LabelNode : T.ContainerNode),
+      triple(node, T.visView, view),
+      ...boundsQuads(node, figure.bounds),
+    ];
+    if (figure.kind === 'shape' && figure.shapeType) {
+      const style = nn(this.figureStyleIri(nodeIri));
+      quads.push(triple(node, T.visStyle, style), triple(style, T.rdfType, T.Style), triple(style, T.shapeType, nn(figure.shapeType)));
+    }
+    if (figure.text) quads.push(triple(node, T.prefLabel, langLiteral(figure.text)));
+    const [parentNode] = figure.parentIri ? this.nodeIrisFor(viewIri, figure.parentIri) : [];
+    if (parentNode && parentNode !== nodeIri) quads.push(triple(node, T.inNode, nn(parentNode)));
+    this.store.addQuads(quads);
+    return nodeIri;
+  }
+
+  setFigureText(viewIri: string, nodeIri: string, text: string | undefined): void {
+    if (!this.nodeIrisFor(viewIri, nodeIri).includes(nodeIri)) return;
+    const node = nn(nodeIri);
+    this.remove(this.read(node, T.prefLabel));
+    if (text) this.store.addQuads([triple(node, T.prefLabel, langLiteral(text))]);
+  }
+
   removeElementFromView(viewIri: string, elementIri: string): void {
     this.remove(this.collectNodeQuads(viewIri, elementIri));
   }
@@ -304,9 +356,29 @@ export class OxigraphViewManager implements ViewManager {
     const view = nn(viewIri);
     const quads: Quad[] = [];
     const nodeIris = this.nodeIrisFor(viewIri, elementIri);
+    // Given one placement (a node), its element leaves the view with its last.
+    const element = this.objects(nn(elementIri), T.archElement)[0];
+    if (element) {
+      quads.push(...this.placementQuads(view, nodeIris));
+      const others = this.nodeIrisFor(viewIri, element).filter((n) => !nodeIris.includes(n));
+      if (others.length === 0) quads.push(...this.read(nn(element), T.inView, view));
+      return dedupe(quads);
+    }
+    quads.push(...this.placementQuads(view, nodeIris));
+    if (nodeIris.length > 0) {
+      quads.push(...this.read(nn(elementIri), T.inView, view));
+    }
+    return dedupe(quads);
+  }
+
+  /** The quads of these nodes: their own, a figure's style, what was inside them, links ending at them. */
+  private placementQuads(view: NamedNode, nodeIris: readonly string[]): Quad[] {
+    const quads: Quad[] = [];
     for (const nodeIri of nodeIris) {
       const node = nn(nodeIri);
       quads.push(...this.subjectQuads(node));
+      // A figure's own style goes with it.
+      quads.push(...this.read(nn(this.figureStyleIri(nodeIri)), null, null));
       // What was drawn inside it is no longer inside anything.
       quads.push(...this.read(null, T.inNode, node));
       // Links ending at this node cannot outlive it.
@@ -316,10 +388,7 @@ export class OxigraphViewManager implements ViewManager {
         }
       }
     }
-    if (nodeIris.length > 0) {
-      quads.push(...this.read(nn(elementIri), T.inView, view));
-    }
-    return dedupe(quads);
+    return quads;
   }
 
   getNodes(viewIri: string): NodeInfo[] {
@@ -369,7 +438,12 @@ export class OxigraphViewManager implements ViewManager {
 
   // ── Links ──────────────────────────────────────────────────────────────
 
-  addRelationshipToView(viewIri: string, relationshipIri: string, waypoints?: Point[]): string | undefined {
+  addRelationshipToView(
+    viewIri: string,
+    relationshipIri: string,
+    waypoints?: Point[],
+    ends: { sourceNodeIri?: string; targetNodeIri?: string } = {},
+  ): string | undefined {
     const existing = this.linkIrisFor(viewIri, relationshipIri)[0];
     if (existing) {
       if (waypoints) this.updateLinkWaypoints(viewIri, relationshipIri, waypoints);
@@ -380,8 +454,11 @@ export class OxigraphViewManager implements ViewManager {
     const sourceIri = this.objects(relationship, T.source)[0];
     const targetIri = this.objects(relationship, T.target)[0];
     if (!sourceIri || !targetIri) return undefined;
-    const sourceNode = this.endFor(viewIri, sourceIri);
-    const targetNode = this.endFor(viewIri, targetIri);
+    // The placements named, when they are the ends' in this view; else the ends' first.
+    const placed = (given: string | undefined, concept: string) =>
+      given && this.objects(nn(given), T.visView).includes(viewIri) && this.conceptOf(nn(given)) === concept ? given : undefined;
+    const sourceNode = placed(ends.sourceNodeIri, sourceIri) ?? this.endFor(viewIri, sourceIri);
+    const targetNode = placed(ends.targetNodeIri, targetIri) ?? this.endFor(viewIri, targetIri);
     // A link needs both ends drawn; the canvas adds the link once they are.
     if (!sourceNode || !targetNode) return undefined;
 
@@ -514,18 +591,21 @@ export class OxigraphViewManager implements ViewManager {
   // ── Private helpers ────────────────────────────────────────────────────
 
   private readNode(node: Term): NodeInfo | undefined {
-    const types = this.objects(node, T.rdfType);
-    if (!types.includes(IRI.ArchNode)) return undefined;
-    const elementIri = this.objects(node, T.archElement)[0];
-    if (!elementIri) return undefined;
+    const figure = this.figureOf(node);
+    const elementIri = figure ? node.value : this.objects(node, T.archElement)[0];
+    if (!elementIri || (!figure && !this.objects(node, T.rdfType).includes(IRI.ArchNode))) return undefined;
     const bound = (predicate: string, fallback: number) =>
       numberOf(this.read(node as NamedNode, nn(predicate))[0]?.object) ?? fallback;
     const parentNode = this.read(node as NamedNode, T.inNode)[0]?.object;
-    const parentElementIri = parentNode ? this.objects(parentNode, T.archElement)[0] : undefined;
+    // The element drawn there — or, a figure, the node itself.
+    const parentElementIri = parentNode
+      ? (this.objects(parentNode, T.archElement)[0] ?? (this.figureOf(parentNode) ? parentNode.value : undefined))
+      : undefined;
     return {
       nodeIri: node.value,
       elementIri,
-      ...(parentElementIri ? { parentElementIri } : {}),
+      ...(parentElementIri ? { parentElementIri, parentNodeIri: parentNode!.value } : {}),
+      ...(figure ? { figure } : {}),
       bounds: {
         x: bound(IRI.boundsX, DEFAULT_BOUNDS.x),
         y: bound(IRI.boundsY, DEFAULT_BOUNDS.y),
@@ -611,11 +691,43 @@ export class OxigraphViewManager implements ViewManager {
 
   private nodeIrisFor(viewIri: string, elementIri: string): string[] {
     const view = viewIri;
-    return this.store
+    // A node — an element's placement — keys itself.
+    const asNode = nn(elementIri);
+    if (this.objects(asNode, T.archElement).length > 0 && this.objects(asNode, T.visView).includes(view)) return [elementIri];
+    const nodes = this.store
       .getQuads(null, T.archElement, nn(elementIri))
       .map((q) => q.subject)
       .filter((node) => this.objects(node, T.visView).includes(view))
       .map((node) => node.value);
+    if (nodes.length > 0) return nodes;
+    // A figure stands for no element: its node is its own key.
+    const node = nn(elementIri);
+    return this.objects(node, T.visView).includes(view) && this.figureOf(node) ? [elementIri] : [];
+  }
+
+  /**
+   * What a node is when it stands for no model element: a group or a shape (an
+   * `arch-vis:ContainerNode`, with a shape type or without), or a note (an
+   * `arch-vis:LabelNode` that is no diagram element's `arch-vis:label`).
+   */
+  private figureOf(node: Term): FigureInfo | undefined {
+    const types = this.objects(node, T.rdfType);
+    if (types.includes(IRI.ContainerNode) && this.objects(node, T.archElement).length === 0) {
+      const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
+      const style = this.read(node as NamedNode, T.visStyle)[0]?.object;
+      const shapeType = style ? this.objects(style, T.shapeType)[0] : undefined;
+      return { kind: shapeType ? 'shape' : 'group', ...(shapeType ? { shapeType } : {}), ...(text !== undefined ? { text } : {}) };
+    }
+    if (types.includes(IRI.LabelNode) && this.read(null, T.visLabel, node as NamedNode).length === 0) {
+      const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
+      return { kind: 'note', ...(text !== undefined ? { text } : {}) };
+    }
+    return undefined;
+  }
+
+  /** A figure's own style — its shape type — named after the figure, so it goes with it. */
+  private figureStyleIri(nodeIri: string): string {
+    return `${nodeIri}-style`;
   }
 
   private linkIrisFor(viewIri: string, relationshipIri: string): string[] {
@@ -757,12 +869,13 @@ export function addRelationshipsToView(
   viewIri: string,
   relationshipIris: readonly string[],
   waypointsOf: (relationshipIri: string) => Point[] | undefined = () => undefined,
+  endsOf: (relationshipIri: string) => { sourceNodeIri?: string; targetNodeIri?: string } | undefined = () => undefined,
 ): number {
   let pending = [...relationshipIris];
   let drawn = 0;
   for (;;) {
     const waiting = pending.filter((iri) => {
-      if (!views.addRelationshipToView(viewIri, iri, waypointsOf(iri))) return true;
+      if (!views.addRelationshipToView(viewIri, iri, waypointsOf(iri), endsOf(iri))) return true;
       drawn += 1;
       return false;
     });

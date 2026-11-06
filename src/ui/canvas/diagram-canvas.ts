@@ -128,6 +128,9 @@ import type {
 } from '../../metamodel-manager/interfaces.js';
 import type {
   ElementManager,
+  FigureInfo,
+  FigureKind,
+  NodeInfo,
   RelationshipInfo,
   RelationshipManager,
   Bounds,
@@ -162,6 +165,7 @@ import {
   RDF_STORE_EDIT_COMMAND,
   RDF_EXISTING_RELATIONSHIP_HINT,
   RDF_MODEL_DELETE_COMMAND,
+  plannedBounds,
   RETYPE_RELATIONSHIP_COMMAND,
   type ModelDeleteContext,
   type RdfChangeContext,
@@ -912,7 +916,7 @@ export class DiagramCanvas {
 
   /** Get a specific element by IRI. */
   getElement(iri: string): CanvasElement | undefined {
-    const shape = this.services()?.elementRegistry.get(iri);
+    const shape = this.shapeOf(iri) ?? this.services()?.elementRegistry.get(iri);
     return shape ? (toCanvasElement(shape) ?? undefined) : undefined;
   }
 
@@ -1070,6 +1074,44 @@ export class DiagramCanvas {
   private drawnThisTask: string | undefined;
 
   /**
+   * Each element's placements on the canvas, and each placement by its node —
+   * an element may be placed more than once in a view. Kept as shapes are added
+   * and removed, so a lookup is not a scan of a view of thousands (Task 22).
+   * The first placement of an element keeps its element's IRI as its id; each
+   * further one takes its node's.
+   */
+  private readonly placements = new Map<string, Set<DjsShape>>();
+  private readonly placementByNode = new Map<string, DjsShape>();
+
+  /** Every placement of an element on the canvas. */
+  private shapesOf(elementIri: string): DjsShape[] {
+    return [...(this.placements.get(elementIri) ?? [])];
+  }
+
+  /** A placement of an element: the one its IRI keys, else the first. */
+  private shapeOf(elementIri: string): DjsShape | undefined {
+    const keyed = this.services()?.elementRegistry.get(elementIri);
+    if (keyed && !keyed.waypoints && keyed.businessObject?.iri === elementIri) return keyed;
+    return this.placements.get(elementIri)?.values().next().value;
+  }
+
+  /** The placement drawing a node; a figure's node keys its shape. */
+  private shapeOfNode(nodeIri: string | undefined): DjsShape | undefined {
+    if (!nodeIri) return undefined;
+    return this.placementByNode.get(nodeIri) ?? this.services()?.elementRegistry.get(nodeIri);
+  }
+
+  /** What draws a concept: an element's placement, or a relationship's line. */
+  private drawnOf(iri: string): DjsShape | undefined {
+    return this.shapeOf(iri) ?? this.findConnection(iri);
+  }
+
+  /** The node a placement draws: its own, or — a figure — the shape's IRI. */
+  private nodeKeyOf(shape: DjsShape): string | undefined {
+    return shape.businessObject?.nodeIri ?? shape.businessObject?.iri;
+  }
+
+  /**
    * Containers that got or lost something inside them while the store was
    * drawn, to redraw once it is: a container is drawn before what is inside it
    * (`containersFirst`), so it was drawn empty — its name in the middle, under
@@ -1105,7 +1147,7 @@ export class DiagramCanvas {
 
     const nodes = this.viewManager.getNodes(viewIri);
     const links = this.viewManager.getLinks(viewIri);
-    const wantedShapes = new Map(nodes.map((n) => [n.elementIri, n]));
+    const wantedShapes = new Set(nodes.map((n) => n.nodeIri));
     const wantedLinks = new Map(links.map((l) => [l.relationshipIri, l]));
 
     // The connections drawn, by relationship: looked up once, not a scan of the
@@ -1119,8 +1161,8 @@ export class DiagramCanvas {
         else if (!drawnLinks.has(iri)) drawnLinks.set(iri, connection);
       }
       for (const shape of this.shapes()) {
-        const iri = shape.businessObject?.iri;
-        if (!iri || !wantedShapes.has(iri)) this.removeShapeDirect(shape);
+        const node = this.nodeKeyOf(shape);
+        if (!node || !wantedShapes.has(node)) this.removeShapeDirect(shape);
       }
     } finally {
       this.removingFromStore = false;
@@ -1128,9 +1170,13 @@ export class DiagramCanvas {
 
     // Containers before what is drawn inside them.
     for (const node of containersFirst(nodes)) {
+      if (node.figure) {
+        this.syncFigure(node);
+        continue;
+      }
       const description = this.describeElement?.(node.elementIri);
-      const existing = services.elementRegistry.get(node.elementIri);
-      const container = this.containerFor(node.parentElementIri);
+      const existing = this.shapeOfNode(node.nodeIri);
+      const container = this.containerFor(node.parentNodeIri);
       if (existing && existing.parent !== container) this.reparentDirect(existing, container);
       if (existing) {
         const b = existing;
@@ -1140,7 +1186,7 @@ export class DiagramCanvas {
         const retyped = description?.typeIri !== undefined && description.typeIri !== b.businessObject?.typeIri;
         if (retyped && b.businessObject && description?.typeIri) b.businessObject.typeIri = description.typeIri;
         if (moved || relabelled || retyped) {
-          this.updateElement(node.elementIri, {
+          this.updateShape(existing, {
             ...(relabelled ? { label: description?.label, named: description?.named ?? true } : {}),
             ...(moved ? { bounds: node.bounds } : {}),
           });
@@ -1153,7 +1199,8 @@ export class DiagramCanvas {
           description?.label,
           description?.iconUrl,
           description?.named,
-          node.parentElementIri,
+          node.parentNodeIri,
+          node.nodeIri,
         );
       }
     }
@@ -1214,6 +1261,10 @@ export class DiagramCanvas {
         link.relationshipIri,
         link.waypoints,
         link.label,
+        {
+          source: this.shapeOfNode(link.sourceNodeIri) ?? this.drawnOf(link.sourceElementIri),
+          target: this.shapeOfNode(link.targetNodeIri) ?? this.drawnOf(link.targetElementIri),
+        },
       );
     }
 
@@ -1303,16 +1354,25 @@ export class DiagramCanvas {
   selectIris(iris: readonly string[]): void {
     const services = this.services();
     if (!services) return;
-    const elements = iris.map((iri) => services.elementRegistry.get(iri) ?? this.findConnection(iri)).filter(Boolean);
+    const elements = iris.flatMap((iri) => {
+      const placed = this.shapesOf(iri);
+      if (placed.length > 0) return placed;
+      const line = this.findConnection(iri);
+      return line ? [line] : [];
+    });
     services.selection.select(elements);
   }
 
-  /** Select a concept on the canvas and scroll it into view. Returns whether it is drawn. */
+  /**
+   * Select a concept on the canvas — every placement of an element — and scroll
+   * the first into view. Returns whether it is drawn.
+   */
   reveal(iri: string): boolean {
     const services = this.services();
-    const element = services?.elementRegistry.get(iri) ?? this.findConnection(iri);
+    const placed = this.shapesOf(iri);
+    const element = this.shapeOf(iri) ?? this.findConnection(iri);
     if (!services || !element) return false;
-    services.selection.select(element);
+    services.selection.select(placed.length > 1 ? placed : element);
     try {
       services.canvas.scrollToElement(element, { top: 80, bottom: 80, left: 80, right: 80 });
     } catch {
@@ -1330,7 +1390,7 @@ export class DiagramCanvas {
   startPlaceExisting(iri: string, event: unknown): void {
     const services = this.services();
     if (!services || !event || !this.viewIri) return;
-    if (this.reveal(iri)) return;
+    // Dragged in again, an element already here is placed once more.
     const shape = this.buildExistingShape(iri);
     if (shape) services.create.start(event, shape);
   }
@@ -1365,14 +1425,14 @@ export class DiagramCanvas {
    *
    * @returns whether it is drawn now (it may already have been).
    */
-  drawExistingRelationship(relationshipIri: string): boolean {
+  drawExistingRelationship(relationshipIri: string, ends: { source?: DjsShape; target?: DjsShape } = {}): boolean {
     const services = this.services();
     if (!services || !this.viewIri) return false;
     if (this.findConnection(relationshipIri)) return this.reveal(relationshipIri);
     const rel = this.relationshipManager.getRelationship?.(relationshipIri);
     if (!rel) return false;
-    const source = services.elementRegistry.get(rel.sourceIri);
-    const target = services.elementRegistry.get(rel.targetIri);
+    const source = ends.source ?? this.drawnOf(rel.sourceIri);
+    const target = ends.target ?? this.drawnOf(rel.targetIri);
     if (!source || !target) return false;
     const typeIri = this.describeElement?.(relationshipIri)?.typeIri ?? rel.classIri;
     const businessObject: RdfBusinessObject = {
@@ -1408,8 +1468,7 @@ export class DiagramCanvas {
    *   confirmation is asynchronous (a dialog).
    */
   deleteFromModel(iri: string): boolean | Promise<boolean> {
-    const services = this.services();
-    const drawn = services?.elementRegistry.get(iri) ?? this.findConnection(iri);
+    const drawn = this.drawnOf(iri);
     const isRelationship =
       drawn?.businessObject?.kind === 'relationship' ||
       (!drawn && this.relationshipManager.getRelationship?.(iri) !== undefined);
@@ -1427,13 +1486,14 @@ export class DiagramCanvas {
   /** The delete itself, once confirmed. Looks the concept up again: a dialog took time. */
   private performModelDelete(iri: string, isRelationship: boolean): boolean {
     const services = this.services();
-    const drawn = services?.elementRegistry.get(iri) ?? this.findConnection(iri);
+    const line = isRelationship ? this.findConnection(iri) : undefined;
+    const drawn = isRelationship ? (line ? [line] : []) : this.shapesOf(iri);
     const apply = isRelationship
       ? () => this.relationshipManager.deleteRelationship(iri)
       : () => this.elementManager.deleteElement(iri);
 
     if (services) {
-      const context: ModelDeleteContext = { elements: drawn ? [drawn] : [], apply };
+      const context: ModelDeleteContext = { elements: drawn, apply };
       services.commandStack.execute(RDF_MODEL_DELETE_COMMAND, context);
     } else {
       apply();
@@ -1460,14 +1520,17 @@ export class DiagramCanvas {
     label?: string,
     iconUrl?: string,
     named: boolean = label !== undefined,
-    parentIri?: string,
+    parentNodeIri?: string,
+    nodeIri?: string,
   ): void {
     const services = this.services();
     if (!services) return;
 
-    const existing = services.elementRegistry.get(iri);
+    // The placement this node draws — without a node, the element's (an event from elsewhere).
+    const node = nodeIri ?? (this.viewIri ? this.viewManager?.getNode(this.viewIri, iri)?.nodeIri : undefined);
+    const existing = node ? this.shapeOfNode(node) : this.shapeOf(iri);
     if (existing) {
-      this.updateElement(iri, { label, iconUrl, bounds });
+      this.updateShape(existing, { label, iconUrl, bounds });
       return;
     }
 
@@ -1479,10 +1542,12 @@ export class DiagramCanvas {
       named: label !== undefined && named,
       kind: 'element',
       iconUrl,
+      ...(node ? { nodeIri: node } : {}),
     };
 
     const shape = services.elementFactory.createShape({
-      id: iri,
+      // The element's IRI keys its first placement; a further one, its node.
+      id: services.elementRegistry.get(iri) && node ? node : iri,
       x: bounds.x,
       y: bounds.y,
       width: bounds.width || style?.defaultWidth || NOTATION_DEFAULTS.width,
@@ -1491,7 +1556,7 @@ export class DiagramCanvas {
     });
 
     // Under the lines already drawn (rdf-ordering.ts): added without a command, so placed here.
-    const container = this.containerFor(parentIri);
+    const container = this.containerFor(parentNodeIri);
     services.canvas.addShape(shape, container, shapeIndex(container));
     if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
     if (this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri)) {
@@ -1521,14 +1586,12 @@ export class DiagramCanvas {
     const services = this.services();
     if (!services) return;
 
-    const shape = services.elementRegistry.get(iri);
-
     // Store-led: straight off the canvas, not through `modeling` — a command
     // here would land on the undo stack, and undoing it would bring back a shape
     // whose triples are gone.
     this.removingFromStore = true;
     try {
-      if (shape) this.removeShapeDirect(shape);
+      for (const shape of this.shapesOf(iri)) this.removeShapeDirect(shape);
     } finally {
       this.removingFromStore = false;
     }
@@ -1563,6 +1626,57 @@ export class DiagramCanvas {
   }
 
   /**
+   * A figure from the store, as `syncFromStore` draws an element: drawn when it
+   * is not, moved, re-parented or given its new text when it is.
+   */
+  private syncFigure(node: NodeInfo): void {
+    const services = this.services();
+    const figure = node.figure;
+    if (!services || !figure) return;
+    const existing = this.shapeOfNode(node.nodeIri);
+    const container = this.containerFor(node.parentNodeIri);
+    if (!existing) {
+      const shape = services.elementFactory.createShape({
+        id: node.elementIri,
+        ...node.bounds,
+        businessObject: this.figureObject(node.elementIri, figure),
+      });
+      services.canvas.addShape(shape, container, shapeIndex(container));
+      if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
+      return;
+    }
+    if (existing.parent !== container) this.reparentDirect(existing, container);
+    const b = node.bounds;
+    const moved = existing.x !== b.x || existing.y !== b.y || existing.width !== b.width || existing.height !== b.height;
+    const retexted = (existing.businessObject?.label ?? '') !== (figure.text ?? '');
+    if (existing.businessObject) {
+      existing.businessObject.figure = figure;
+      existing.businessObject.label = figure.text;
+    }
+    if (moved) this.updateShape(existing, { bounds: b });
+    else if (retexted) services.eventBus.fire('element.changed', { element: existing });
+  }
+
+  /** What a figure's shape carries: its node as its IRI, its text as its name. */
+  private figureObject(iri: string, figure: FigureInfo): RdfBusinessObject {
+    return { iri, typeIri: '', kind: 'figure', figure, ...(figure.text ? { label: figure.text, named: true } : {}) };
+  }
+
+  /**
+   * Start a drag that draws a new figure where it is dropped — a group, a shape
+   * of a core-vis shape type, a note — as the toolbar's figures do. The node is
+   * written inside the resulting `shape.create` command, so one undo takes it
+   * back. A drop into an element or a figure draws it inside.
+   */
+  startCreateFigure(kind: FigureKind, shapeType: string | undefined, event: unknown): void {
+    const services = this.services();
+    if (!services || !event || !this.viewIri) return;
+    const figure: FigureInfo = { kind, ...(kind === 'shape' && shapeType ? { shapeType } : {}) };
+    const shape = services.elementFactory.createShape({ ...FIGURE_SIZES[kind], businessObject: this.figureObject('', figure) });
+    services.create.start(event, shape);
+  }
+
+  /**
    * Update an element's label, icon or bounds and redraw it.
    *
    * Deliberately not routed through the command stack: this is the store→canvas
@@ -1573,12 +1687,20 @@ export class DiagramCanvas {
     iri: string,
     updates: Partial<Pick<CanvasElement, 'label' | 'iconUrl' | 'bounds'>> & { named?: boolean },
   ): void {
+    // Its name and icon on every placement; bounds are a placement's own.
+    for (const shape of this.shapesOf(iri)) {
+      this.updateShape(shape, updates.bounds !== undefined && this.shapesOf(iri).length > 1 ? { ...updates, bounds: undefined } : updates);
+    }
+  }
+
+  /** Update one placement's label, icon or bounds and redraw it. */
+  private updateShape(
+    shape: DjsShape,
+    updates: Partial<Pick<CanvasElement, 'label' | 'iconUrl' | 'bounds'>> & { named?: boolean },
+  ): void {
     const services = this.services();
     if (!services) return;
-
-    const shape = services.elementRegistry.get(iri);
-    if (!shape) return;
-
+    const iri = shape.businessObject?.iri ?? shape.id;
     const businessObject: RdfBusinessObject = shape.businessObject ?? { iri, typeIri: '' };
     if (updates.label !== undefined) {
       businessObject.label = updates.label;
@@ -1615,6 +1737,7 @@ export class DiagramCanvas {
     relationshipIri?: string,
     waypoints?: Point[],
     labelBounds?: Bounds,
+    ends: { source?: DjsShape; target?: DjsShape } = {},
   ): void {
     // A qualified relationship is keyed by its own IRI, so two relationships of
     // one type between one pair are two connections; a bare triple has only the
@@ -1635,8 +1758,9 @@ export class DiagramCanvas {
     if (!services) return;
     if (services.elementRegistry.get(key)) return;
 
-    const source = services.elementRegistry.get(sourceIri);
-    const target = services.elementRegistry.get(targetIri);
+    // Between the placements given — the link's — else an end's first.
+    const source = ends.source ?? this.drawnOf(sourceIri);
+    const target = ends.target ?? this.drawnOf(targetIri);
     if (!source || !target) return;
 
     const businessObject: RdfBusinessObject = {
@@ -1688,7 +1812,7 @@ export class DiagramCanvas {
     const iri = typeof source === 'string' ? source : source.iri;
     const shape =
       (typeof source === 'string' ? undefined : (source.diagramElement as DjsShape | undefined)) ??
-      services.elementRegistry.get(iri);
+      this.shapeOf(iri);
     if (!shape) return;
 
     // A click on the pad button carries no drag, so arm the tool; a dragstart
@@ -1888,8 +2012,8 @@ export class DiagramCanvas {
     if (!services || !connection || !existing) return false;
     if (existing.typeIri === typeIri) return false;
 
-    const sourceType = services.elementRegistry.get(existing.sourceIri)?.businessObject?.typeIri;
-    const targetType = services.elementRegistry.get(existing.targetIri)?.businessObject?.typeIri;
+    const sourceType = (connection.source as DjsShape | undefined)?.businessObject?.typeIri ?? this.drawnOf(existing.sourceIri)?.businessObject?.typeIri;
+    const targetType = (connection.target as DjsShape | undefined)?.businessObject?.typeIri ?? this.drawnOf(existing.targetIri)?.businessObject?.typeIri;
     if (!sourceType || !targetType) return false;
 
     const candidates = this.relationshipManager.getValidRelationships(sourceType, targetType);
@@ -2141,7 +2265,7 @@ export class DiagramCanvas {
     const services = this.services();
     // In the open view, the change is a canvas command; otherwise (an element
     // selected in the tree) the same change is made in the store directly.
-    const shape = services?.elementRegistry.get(iri);
+    const shape = this.shapeOf(iri);
     const shown = shape?.businessObject?.kind === 'element' ? shape.businessObject : undefined;
     const described = shown ? undefined : this.describeElement?.(iri);
     const fromTypeIri = shown?.typeIri ?? described?.typeIri;
@@ -2184,6 +2308,8 @@ export class DiagramCanvas {
     }
     const context: RetypeElementContext = {
       element: shape,
+      // Its other placements are retyped with it.
+      others: this.shapesOf(iri).filter((placement) => placement !== shape),
       typeIri,
       ...(to.iconUrl ? { iconUrl: to.iconUrl } : {}),
       ...(label ? { label } : {}),
@@ -2391,7 +2517,7 @@ export class DiagramCanvas {
     const services = this.services();
     if (!services) return undefined;
 
-    if (typeof source === 'string') return services.elementRegistry.get(source);
+    if (typeof source === 'string') return this.drawnOf(source);
 
     const carried = (source as { diagramElement?: unknown }).diagramElement as
       | DjsShape
@@ -2399,7 +2525,7 @@ export class DiagramCanvas {
     if (carried && services.elementRegistry.get(carried.id)) return carried;
 
     const iri = (source as AppendMenuContext).sourceIri ?? (source as ContextPadElement).iri;
-    return iri ? services.elementRegistry.get(iri) : undefined;
+    return iri ? this.drawnOf(iri) : undefined;
   }
 
   /**
@@ -2476,7 +2602,7 @@ export class DiagramCanvas {
         otherLabel: description?.label ?? localName(other),
         ...(otherType ? { otherTypeLabel: otherType.label } : {}),
         ...(iconUrl ? { otherIconUrl: iconUrl } : {}),
-        otherInView: Boolean(services?.elementRegistry.get(other)),
+        otherInView: this.shapesOf(other).length > 0,
         drawn: Boolean(this.findConnection(rel.iri)),
       });
     }
@@ -2495,7 +2621,7 @@ export class DiagramCanvas {
     const source = this.resolveShape(context);
     if (!services || !source || !this.viewIri) return false;
     try {
-      if (!services.elementRegistry.get(row.otherIri)) {
+      if (!this.shapeOf(row.otherIri)) {
         const shape = this.buildExistingShape(row.otherIri);
         if (!shape) return false;
         const gap = 60;
@@ -2560,10 +2686,8 @@ export class DiagramCanvas {
     if (!relationship) return undefined;
 
     const services = this.services();
-    const sourceTypeIri = services?.elementRegistry.get(relationship.sourceIri)?.businessObject
-      ?.typeIri;
-    const targetTypeIri = services?.elementRegistry.get(relationship.targetIri)?.businessObject
-      ?.typeIri;
+    const sourceTypeIri = ((connection.source as DjsShape | undefined) ?? this.drawnOf(relationship.sourceIri))?.businessObject?.typeIri;
+    const targetTypeIri = ((connection.target as DjsShape | undefined) ?? this.drawnOf(relationship.targetIri))?.businessObject?.typeIri;
     if (!sourceTypeIri || !targetTypeIri) return undefined;
 
     return {
@@ -2734,10 +2858,10 @@ export class DiagramCanvas {
     if (container !== services.canvas.getRootElement()) this.containersToRedraw.add(container);
   }
 
-  /** The shape an element is drawn inside — the element's, when drawn — else the diagram. */
-  private containerFor(parentIri: string | undefined): DjsShape {
+  /** The shape a node is drawn inside — the placement drawing that node — else the diagram. */
+  private containerFor(parentNodeIri: string | undefined): DjsShape {
     const services = this.services()!;
-    const parent = parentIri ? (services.elementRegistry.get(parentIri) as DjsShape | undefined) : undefined;
+    const parent = this.shapeOfNode(parentNodeIri);
     return parent && !parent.waypoints ? parent : (services.canvas.getRootElement() as DjsShape);
   }
 
@@ -2888,14 +3012,15 @@ export class DiagramCanvas {
         }),
         useExisting: (iri) => {
           close();
-          this.drawExistingRelationship(iri);
+          // Between the placements the line was drawn between.
+          this.drawExistingRelationship(iri, { source: source as DjsShape, target: target as DjsShape });
         },
         createNew: () => {
           close();
           createNew();
         },
       };
-      const shape = services.elementRegistry.get(targetIri);
+      const shape = target as DjsShape;
       queueMicrotask(() => {
         if (!this.reuseMenuProvider.pending) return;
         const box = shape ? services.elementRegistry.getGraphics(shape)?.getBoundingClientRect?.() : undefined;
@@ -3065,12 +3190,13 @@ export class DiagramCanvas {
    * Not when it is drawn already, when an end is not drawn, or when it is a
    * derivation the model does not state (drawn when asked for, not with its ends).
    */
-  private drawLine(rel: RelationshipInfo): boolean {
+  private drawLine(rel: RelationshipInfo, ends: { source?: DjsShape; target?: DjsShape } = {}): boolean {
     const services = this.services();
     if (!services || this.findConnection(rel.iri)) return false;
     if (this.describeElement?.(rel.iri)?.derivation) return false;
-    const source = services.elementRegistry.get(rel.sourceIri);
-    const target = services.elementRegistry.get(rel.targetIri);
+    // Between the placements given, else an end's first.
+    const source = ends.source ?? this.drawnOf(rel.sourceIri);
+    const target = ends.target ?? this.drawnOf(rel.targetIri);
     if (!source || !target) return false;
     const typeIri = this.describeElement?.(rel.iri)?.typeIri ?? rel.classIri;
     const businessObject: RdfBusinessObject = { iri: rel.iri, typeIri, kind: 'relationship', ...this.relationshipNameOf(rel.iri) };
@@ -3128,7 +3254,10 @@ export class DiagramCanvas {
       ).map((r) => r.iri),
     );
     for (const rel of between) {
-      const line = this.findConnection(rel.iri);
+      const drawn = this.findConnection(rel.iri);
+      // A line between these two placements — not one drawn to another placement of either.
+      const line = drawn && ((drawn.source === inner && drawn.target === outer) || (drawn.source === outer && drawn.target === inner)) ? drawn : undefined;
+      if (drawn && !line) continue;
       if (!line && !shownByNesting.has(rel.iri)) continue;
       // Its link goes from the view (`connection.delete`), and with it, as its last, its arch:inView…
       if (line) services.modeling.removeElements([line]);
@@ -3140,8 +3269,11 @@ export class DiagramCanvas {
   /**
    * Taken out of a container: what the view showed by the nesting is drawn as
    * lines — the relationships between the two that are the view's
-   * (`arch:inView`) and have no line in it; never others the model has between
-   * them. In the same command as the move.
+   * (`arch:inView`) and have no line in it, and those the nesting stood for
+   * though the view never said so (of a type nesting may draw, the element the
+   * end drawn inside: a model nested as it was opened — converted from Archi,
+   * say — records no more). Never others the model has between them. In the
+   * same command as the move.
    */
   private showAsLines(inner: DjsShape, outer: DjsShape): void {
     const viewIri = this.viewIri;
@@ -3149,9 +3281,19 @@ export class DiagramCanvas {
     const innerIri = inner.businessObject?.iri;
     const outerIri = outer.businessObject?.iri;
     if (!viewIri || !viewManager || !innerIri || !outerIri || outer.businessObject?.kind !== 'element') return;
-    for (const rel of this.relationshipsBetween(innerIri, outerIri)) {
-      if (this.findConnection(rel.iri) || !viewManager.viewsContaining(rel.iri).includes(viewIri)) continue;
-      this.drawLine(rel);
+    const between = this.relationshipsBetween(innerIri, outerIri);
+    const shownByNesting = new Set(
+      relationshipsShownByNesting(
+        { iri: outerIri, typeIri: outer.businessObject.typeIri },
+        { iri: innerIri, typeIri: inner.businessObject?.typeIri ?? '' },
+        this.paletteDefinition.relationshipTypes,
+        between,
+      ).map((r) => r.iri),
+    );
+    for (const rel of between) {
+      if (this.findConnection(rel.iri)) continue;
+      if (!shownByNesting.has(rel.iri) && !viewManager.viewsContaining(rel.iri).includes(viewIri)) continue;
+      this.drawLine(rel, rel.sourceIri === innerIri ? { source: inner, target: outer } : { source: outer, target: inner });
     }
   }
 
@@ -3285,6 +3427,28 @@ export class DiagramCanvas {
     djs.on('connection.added', (event: { element: DjsShape }) => {
       if (event.element.id !== event.element.businessObject?.iri) this.otherwiseNamed.add(event.element);
     });
+    // Each element's placements, and each placement by its node.
+    djs.on('shape.added', (event: { element: DjsShape }) => {
+      const shape = event.element;
+      const iri = shape.businessObject?.iri;
+      if (!iri || shape.businessObject?.kind === 'relationship') return;
+      let set = this.placements.get(iri);
+      if (!set) this.placements.set(iri, (set = new Set()));
+      set.add(shape);
+      const node = shape.businessObject?.nodeIri;
+      if (node) this.placementByNode.set(node, shape);
+    });
+    djs.on('shape.removed', (event: { element: DjsShape }) => {
+      const shape = event.element;
+      const iri = shape.businessObject?.iri;
+      if (iri) {
+        const set = this.placements.get(iri);
+        set?.delete(shape);
+        if (set?.size === 0) this.placements.delete(iri);
+      }
+      const node = shape.businessObject?.nodeIri;
+      if (node && this.placementByNode.get(node) === shape) this.placementByNode.delete(node);
+    });
     djs.on('connection.removed', (event: { element: DjsShape }) => this.otherwiseNamed.delete(event.element));
 
     // Right-click on an element or a relationship: select it, and open the
@@ -3413,11 +3577,12 @@ export class DiagramCanvas {
     // the concept stays in the model. Nested, so undo restores the geometry.
     djs.on('commandStack.shape.delete.preExecute', (event: { context?: { shape?: DjsShape } }) => {
       const shape = event.context?.shape;
-      const iri = shape?.businessObject?.iri;
+      // That placement: the element leaves the view with its last.
+      const node = shape ? this.nodeKeyOf(shape) : undefined;
       const viewIri = this.viewIri;
       const viewManager = this.viewManager;
-      if (!iri || !viewIri || !viewManager || this.removingFromStore) return;
-      this.change(() => viewManager.removeElementFromView(viewIri, iri));
+      if (!node || !viewIri || !viewManager || this.removingFromStore) return;
+      this.change(() => viewManager.removeElementFromView(viewIri, node));
     });
     djs.on(
       'commandStack.connection.delete.preExecute',
@@ -3436,7 +3601,8 @@ export class DiagramCanvas {
       const shape = event.context?.shape;
       if (shape?.businessObject?.placeExisting && this.hasViewContext()) {
         delete shape.businessObject.placeExisting;
-        this.drawRelationshipsOf(shape);
+        // Its relationships are drawn with its first placement; a further one gets the lines drawn to it.
+        if (this.shapesOf(shape.businessObject.iri).length <= 1) this.drawRelationshipsOf(shape);
       }
     });
 
@@ -3474,6 +3640,28 @@ export class DiagramCanvas {
         this.syncFromStore();
       }
       this.eventBus.emit('model-changed', { origin: 'canvas', viewIri: this.viewIri });
+    });
+
+    // A figure drawn on the canvas: its node is written in the same command, and
+    // the shape takes the node's IRI before it is drawn — undo takes both back,
+    // redo puts the same node back.
+    djs.on('commandStack.shape.create.preExecute', (event: { context?: { shape?: DjsShape; position?: Partial<Bounds>; parent?: DjsShape } }) => {
+      const context = event.context;
+      const shape = context?.shape;
+      const businessObject = shape?.businessObject;
+      const viewIri = this.viewIri;
+      const viewManager = this.viewManager;
+      if (!shape || businessObject?.kind !== 'figure' || businessObject.iri || !businessObject.figure) return;
+      if (!viewIri || !viewManager?.addFigure) return;
+      const bounds = plannedBounds(shape, context?.position);
+      const parentKind = context?.parent?.businessObject?.kind;
+      const parentIri = parentKind === 'element' || parentKind === 'figure' ? context?.parent?.businessObject?.iri : undefined;
+      const figure = businessObject.figure;
+      this.change(() => {
+        const iri = viewManager.addFigure!(viewIri, { ...figure, bounds, ...(parentIri ? { parentIri } : {}) });
+        shape.id = iri;
+        businessObject.iri = iri;
+      });
     });
 
     // Nesting. The container an element is created in is written with it — after
@@ -3640,6 +3828,8 @@ export class DiagramCanvas {
   private writeLayout(shape: DjsShape): void {
     const iri = shape.businessObject?.iri;
     if (!iri) return;
+    // The placement this shape draws.
+    const node = this.nodeKeyOf(shape) ?? iri;
     const bounds: Bounds = {
       x: Math.round(shape.x),
       y: Math.round(shape.y),
@@ -3651,8 +3841,8 @@ export class DiagramCanvas {
     if (viewIri && viewManager) {
       const parentIri = containerIri(shape);
       this.change(() => {
-        viewManager.updateNodeBounds(viewIri, iri, bounds);
-        viewManager.setNodeParent?.(viewIri, iri, parentIri);
+        viewManager.updateNodeBounds(viewIri, node, bounds);
+        viewManager.setNodeParent?.(viewIri, node, parentIri);
       });
       return;
     }
@@ -3722,7 +3912,10 @@ export class DiagramCanvas {
             ...(request.iri ? { iri: request.iri } : {}),
           }).iri;
           if (this.viewManager && this.viewIri) {
-            this.viewManager.addRelationshipToView(this.viewIri, relationshipIri);
+            this.viewManager.addRelationshipToView(this.viewIri, relationshipIri, undefined, {
+              ...(request.sourceNodeIri ? { sourceNodeIri: request.sourceNodeIri } : {}),
+              ...(request.targetNodeIri ? { targetNodeIri: request.targetNodeIri } : {}),
+            });
           }
         } else {
           relationshipIri = this.relationshipManager.createRelationship(
@@ -3774,9 +3967,9 @@ export class DiagramCanvas {
           }
         : {}),
 
-      draw: (relationshipIri: string): void => {
+      draw: (relationshipIri: string, ends?: { sourceNodeIri?: string; targetNodeIri?: string }): void => {
         if (this.viewManager && this.viewIri) {
-          this.viewManager.addRelationshipToView(this.viewIri, relationshipIri);
+          this.viewManager.addRelationshipToView(this.viewIri, relationshipIri, undefined, ends);
         }
       },
 
@@ -3857,13 +4050,14 @@ export class DiagramCanvas {
           return { iri: request.iri, snapshot: request.snapshot };
         }
 
+        let nodeIri: string | undefined;
         const create = (): string | undefined => {
           const iri = this.elementManager.createElement(request.typeIri, this.modelIri, {
             ...(request.label ? { label: request.label } : {}),
           })?.value;
           if (!iri) return undefined;
           if (this.viewManager && this.viewIri) {
-            this.viewManager.addElementToView(this.viewIri, iri, request.bounds);
+            nodeIri = this.viewManager.addElementToView(this.viewIri, iri, request.bounds);
           } else {
             this.elementManager.updateLayout?.(iri, request.bounds);
           }
@@ -3874,7 +4068,7 @@ export class DiagramCanvas {
         // element *and* its node — so redo restores both.
         if (this.changeStore) {
           const { result: iri, added } = this.changeStore.record(create);
-          return iri ? { iri, snapshot: added } : undefined;
+          return iri ? { iri, snapshot: added, ...(nodeIri ? { nodeIri } : {}) } : undefined;
         }
 
         const iri = create();
@@ -3882,12 +4076,12 @@ export class DiagramCanvas {
         // Snapshot only when it can be replayed; an unusable one would be a lie.
         const snapshot =
           store?.addQuads !== undefined ? store.getQuads(namedNode(iri), null, null, null) : [];
-        return { iri, snapshot };
+        return { iri, snapshot, ...(nodeIri ? { nodeIri } : {}) };
       },
 
-      place: (iri: string, bounds: Bounds): void => {
-        if (this.viewManager && this.viewIri) this.viewManager.addElementToView(this.viewIri, iri, bounds);
-      },
+      // Dropped into the view: a placement — another, when it is placed already.
+      place: (iri: string, bounds: Bounds): string | undefined =>
+        this.viewManager && this.viewIri ? this.viewManager.addElementToView(this.viewIri, iri, bounds, { another: true }) : undefined,
 
       remove: (iri: string): void => {
         this.elementManager.deleteElement(iri);
@@ -4051,10 +4245,19 @@ function localName(iri: string): string {
 }
 
 /** The element a shape is drawn inside, when it is inside one rather than on the diagram. */
+/** The node of the shape a shape is drawn inside — an element's placement, a figure — if any. */
 function containerIri(shape: DjsShape): string | undefined {
   const parent = shape.parent as DjsShape | undefined;
-  return parent?.businessObject?.kind === 'element' ? parent.businessObject.iri : undefined;
+  const kind = parent?.businessObject?.kind;
+  return kind === 'element' || kind === 'figure' ? (parent!.businessObject!.nodeIri ?? parent!.businessObject!.iri) : undefined;
 }
+
+/** How big a figure is drawn when it is made: a group holds things, a note some text. */
+export const FIGURE_SIZES: Record<FigureKind, { width: number; height: number }> = {
+  group: { width: 400, height: 260 },
+  shape: { width: 120, height: 80 },
+  note: { width: 185, height: 80 },
+};
 
 /** Nodes ordered so every container comes before what is drawn inside it. */
 function containersFirst<T extends { elementIri: string; parentElementIri?: string }>(nodes: readonly T[]): T[] {

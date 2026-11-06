@@ -72,7 +72,7 @@ export interface ContextPadElement {
   iri: string;
   typeIri: string;
   /** `element` for shapes, `relationship` for connections. */
-  kind?: 'element' | 'relationship';
+  kind?: 'element' | 'relationship' | 'figure';
   /** The diagram-js element, when the pad was opened from the canvas. */
   diagramElement?: unknown;
 }
@@ -177,6 +177,17 @@ export class RdfContextPadProvider {
   getContextPadEntries(target: ContextPadElement | DiagramTarget): Record<string, ContextPadEntry> {
     const element = toContextPadElement(target);
     const entries: Record<string, ContextPadEntry> = {};
+
+    // A figure is drawing, in no model: it can only be taken off the view.
+    if (element.kind === 'figure') {
+      entries['delete'] = {
+        group: 'edit',
+        title: 'Delete',
+        className: 'context-pad-delete',
+        action: () => this.onDelete?.(element),
+      };
+      return entries;
+    }
 
     // Delete action — always available
     // With a model-delete handler the canvas has views, and the plain delete

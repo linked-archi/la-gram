@@ -540,3 +540,149 @@ describe('a link ending on a link (core-vis 0.6)', () => {
     expect(views.getLinks(v)).toEqual([]);
   });
 });
+
+describe('figures: groups, shapes and notes, standing for no model element', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let elements: OxigraphElementManager;
+  let view: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    elements = new OxigraphElementManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+  });
+
+  it('are drawn as core-vis nodes: a group and a shape as ContainerNodes, a note as a LabelNode; their text is their prefLabel', () => {
+    const group = views.addFigure(view, { kind: 'group', text: 'Back office', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const ellipse = views.addFigure(view, { kind: 'shape', shapeType: VIS_NS + 'Ellipse', bounds: { x: 500, y: 0, width: 120, height: 80 } });
+    const note = views.addFigure(view, { kind: 'note', text: 'Ask the CFO', bounds: { x: 700, y: 0, width: 185, height: 80 } });
+
+    expect(objects(store, group, RDF_TYPE)).toEqual([VIS_NS + 'ContainerNode']);
+    expect(objects(store, group, PREF_LABEL)).toEqual(['Back office']);
+    expect(objects(store, ellipse, RDF_TYPE)).toEqual([VIS_NS + 'ContainerNode']);
+    const [style] = objects(store, ellipse, VIS_NS + 'style');
+    expect(objects(store, style!, VIS_NS + 'shapeType')).toEqual([VIS_NS + 'Ellipse']);
+    expect(objects(store, note, RDF_TYPE)).toEqual([VIS_NS + 'LabelNode']);
+    // None stands for an element, or is presented in the view as one.
+    for (const figure of [group, ellipse, note]) expect(objects(store, figure, VIS_NS + 'archElement')).toEqual([]);
+    expect(views.placedIn(view).size).toBe(0);
+
+    expect(new Map(views.getNodes(view).map((n) => [n.elementIri, n.figure]))).toEqual(
+      new Map<string, unknown>([
+        [group, { kind: 'group', text: 'Back office' }],
+        [ellipse, { kind: 'shape', shapeType: VIS_NS + 'Ellipse' }],
+        [note, { kind: 'note', text: 'Ask the CFO' }],
+      ]),
+    );
+  });
+
+  it('are keyed by their node where an element is: moved, nested, holding elements, renamed, removed with their style', () => {
+    const group = views.addFigure(view, { kind: 'group', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const box = views.addFigure(view, { kind: 'shape', shapeType: VIS_NS + 'Rectangle', bounds: { x: 20, y: 40, width: 120, height: 80 }, parentIri: group });
+    const element = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'App' }).value;
+    views.addElementToView(view, element, { x: 30, y: 150, width: 120, height: 55 });
+    views.setNodeParent(view, element, group);
+    views.updateNodeBounds(view, box, { x: 25, y: 45, width: 130, height: 90 });
+    views.setFigureText(view, box, 'Inbox');
+
+    const nodes = new Map(views.getNodes(view).map((n) => [n.elementIri, n]));
+    expect(nodes.get(box)).toMatchObject({ parentElementIri: group, bounds: { x: 25, y: 45, width: 130, height: 90 }, figure: { text: 'Inbox' } });
+    expect(nodes.get(element)?.parentElementIri).toBe(group);
+    expect(views.getNode(view, box)?.nodeIri).toBe(box);
+
+    const before = store.getQuads(null, null, null).length;
+    views.removeElementFromView(view, box);
+    expect(store.getQuads(nn(box), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${box}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(null, null, null).length).toBeLessThan(before);
+    expect(views.getNodes(view).map((n) => n.elementIri).sort()).toEqual([element, group].sort());
+  });
+
+  it('a note is a free-standing LabelNode — a relationship’s name kept in a view is not one', () => {
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    store.addQuads([DataFactory.quad(nn('https://example.org/link'), nn(VIS_NS + 'label'), nn(note)) as never]);
+    expect(views.getNodes(view)).toEqual([]);
+  });
+
+  it('are copied with their view, each a figure of the copy, what was inside one inside its copy', () => {
+    const group = views.addFigure(view, { kind: 'group', text: 'G', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const element = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'App' }).value;
+    views.addElementToView(view, element, { x: 30, y: 150, width: 120, height: 55 });
+    views.setNodeParent(view, element, group);
+
+    const copy = views.duplicateView(view).value;
+    const nodes = views.getNodes(copy);
+    const copiedGroup = nodes.find((n) => n.figure)!;
+    expect(copiedGroup.elementIri).not.toBe(group);
+    expect(copiedGroup.figure).toEqual({ kind: 'group', text: 'G' });
+    expect(nodes.find((n) => n.elementIri === element)?.parentElementIri).toBe(copiedGroup.elementIri);
+  });
+});
+
+describe('an element placed more than once in a view', () => {
+  const ARCH_NS = NAMESPACES.arch;
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let elements: OxigraphElementManager;
+  let rels: OxigraphRelationshipManager;
+  let view: string;
+  let api: string;
+  let web: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    elements = new OxigraphElementManager(store);
+    rels = new OxigraphRelationshipManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    api = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'API' }).value;
+    web = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'Web' }).value;
+  });
+
+  it('is placed again only when asked; each placement is keyed by its node', () => {
+    const first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    expect(views.addElementToView(view, api, { x: 9, y: 9, width: 1, height: 1 })).toBe(first);
+    const second = views.addElementToView(view, api, { x: 400, y: 0, width: 120, height: 55 }, { another: true });
+    expect(second).not.toBe(first);
+    expect(views.getNodes(view).map((n) => n.elementIri)).toEqual([api, api]);
+
+    views.updateNodeBounds(view, second, { x: 410, y: 20, width: 130, height: 60 });
+    expect(views.getNode(view, second)?.bounds).toEqual({ x: 410, y: 20, width: 130, height: 60 });
+    expect(views.getNode(view, first)?.bounds).toEqual({ x: 0, y: 0, width: 120, height: 55 });
+  });
+
+  it('a placement is nested on its own, and removed on its own: the element leaves the view with its last', () => {
+    const first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    const second = views.addElementToView(view, api, { x: 400, y: 0, width: 120, height: 55 }, { another: true });
+    const container = views.addElementToView(view, web, { x: 380, y: -20, width: 300, height: 200 });
+    views.setNodeParent(view, second, container);
+    expect(views.getNode(view, second)).toMatchObject({ parentElementIri: web, parentNodeIri: container });
+    expect(views.getNode(view, first)?.parentNodeIri).toBeUndefined();
+
+    views.removeElementFromView(view, second);
+    expect(views.getNodes(view).filter((n) => n.elementIri === api).map((n) => n.nodeIri)).toEqual([first]);
+    expect(objects(store, api, ARCH_NS + 'inView')).toEqual([view]);
+    views.removeElementFromView(view, first);
+    expect(objects(store, api, ARCH_NS + 'inView')).toEqual([]);
+  });
+
+  it('a relationship is drawn between the placements named, else the first ones; a copy keeps them', () => {
+    views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    const second = views.addElementToView(view, api, { x: 400, y: 0, width: 120, height: 55 }, { another: true });
+    const webNode = views.addElementToView(view, web, { x: 200, y: 200, width: 120, height: 55 });
+    const serving = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: api, targetIri: web }).iri;
+    views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode });
+    expect(views.getLinks(view).map((l) => [l.sourceNodeIri, l.targetNodeIri])).toEqual([[second, webNode]]);
+
+    const copy = views.duplicateView(view).value;
+    const nodes = views.getNodes(copy);
+    expect(nodes.filter((n) => n.elementIri === api)).toHaveLength(2);
+    const [link] = views.getLinks(copy);
+    const copiedSource = nodes.find((n) => n.nodeIri === link!.sourceNodeIri)!;
+    expect(copiedSource.bounds).toEqual({ x: 400, y: 0, width: 120, height: 55 });
+  });
+});

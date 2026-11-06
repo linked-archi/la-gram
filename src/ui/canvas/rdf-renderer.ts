@@ -61,12 +61,15 @@ import type {
   Decoration,
   RelationshipVisualStyle,
   RenderingMode,
+  ShapeType,
   VisualStyle,
 } from '../../metamodel-manager/notation.js';
+import type { FigureInfo } from '../../model-manager/interfaces.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
   NOTATION_DEFAULTS,
   containerNameBand,
+  textWidth,
   badgeBox,
   iconHref,
   labelFitsInside,
@@ -79,6 +82,7 @@ import {
   shapeGeometry,
   shapeLayout,
   shapePath,
+  SHAPE_TYPES,
   strokeDashArray,
   type Box,
   svgEl,
@@ -139,9 +143,9 @@ export function connectionLabelLayout(
   const { fontSize } = NOTATION_DEFAULTS;
   const lineHeight = Math.round(fontSize * 1.2);
   const lines = wrapLabel(label, NOTATION_DEFAULTS.width, fontSize);
-  // wrapLabel's own estimate of a character's width.
-  const textWidth = Math.max(0, ...lines.map((line) => line.length)) * fontSize * 0.55;
-  const width = textWidth + 2 * CONNECTION_LABEL_GAP;
+  // The box fits the text as drawn: measured in a browser, estimated in jsdom.
+  const widest = Math.max(0, ...lines.map((line) => textWidth(line, fontSize)));
+  const width = widest + 2 * CONNECTION_LABEL_GAP;
   const height = Math.max(1, lines.length) * lineHeight;
   const { offset } = options;
   const centreX = middle.x + (offset?.x ?? 0);
@@ -221,8 +225,15 @@ export interface RdfBusinessObject {
    * type under every junction. A relationship without it has no name to draw.
    */
   named?: boolean;
-  /** `element` for shapes, `relationship` for connections. */
-  kind?: 'element' | 'relationship';
+  /** `element` for an element's shape, `relationship` for connections, `figure` for drawing only. */
+  kind?: 'element' | 'relationship' | 'figure';
+  /** A figure — a group, a shape, a note — standing for no model element: its node is its `iri`. */
+  figure?: FigureInfo;
+  /**
+   * The view's node this shape draws (`arch-vis:ArchNode`): which placement of
+   * its element, when the view places it more than once.
+   */
+  nodeIri?: string;
   /**
    * Per-instance icon override.
    *
@@ -276,6 +287,16 @@ export const RENDER_CLASSES = {
   derivationBadge: 'la-derivation-badge',
   /** A relationship's name on its line. */
   connectionLabel: 'la-connection-label',
+  /** A figure, with `la-figure-group`, `la-figure-shape` or `la-figure-note`. */
+  figure: 'la-figure',
+} as const;
+
+/** How figures are drawn: neutral, so the model's elements stand out. */
+const FIGURE_STYLE = {
+  group: { fill: '#f1f3f4', tab: '#e3e7ea', line: '#8a9399', tabHeight: 20 },
+  shape: { fill: '#ffffff', line: '#5f6368' },
+  note: { fill: '#fff7b3', fold: '#f2e58a', line: '#d4b106' },
+  text: '#202124',
 } as const;
 
 export class RdfRenderer extends BaseRenderer {
@@ -306,6 +327,7 @@ export class RdfRenderer extends BaseRenderer {
   // ── Shapes ───────────────────────────────────────────────────────────
 
   drawShape(parentGfx: SVGElement, element: RenderableElement): SVGElement {
+    if (element.businessObject?.kind === 'figure') return this.drawFigure(parentGfx, element);
     const businessObject = element.businessObject;
     const typeIri = businessObject?.typeIri;
     const style = this.notationStyles.styleFor(typeIri);
@@ -353,6 +375,86 @@ export class RdfRenderer extends BaseRenderer {
 
     parentGfx.appendChild(group);
     return group;
+  }
+
+  /**
+   * A figure: drawing only, no model element behind it.
+   *
+   * - a group: a box with its name in a tab at its top left, as Archi draws one;
+   * - a shape: its core-vis shape type, its text in the middle — or, holding
+   *   something, at its top, as an element's name is;
+   * - a note: a sticky note, folded at its top right, its text from the top left.
+   */
+  private drawFigure(parentGfx: SVGElement, element: RenderableElement): SVGElement {
+    const businessObject = element.businessObject!;
+    const figure = businessObject.figure ?? { kind: 'shape' };
+    const width = element.width ?? NOTATION_DEFAULTS.width;
+    const height = element.height ?? NOTATION_DEFAULTS.height;
+    const text = businessObject.label ?? '';
+    const group = svgEl('g');
+    group.setAttribute('class', `${RENDER_CLASSES.shape} ${RENDER_CLASSES.figure} ${RENDER_CLASSES.figure}-${figure.kind}`);
+    if (businessObject.iri) group.setAttribute('data-element-iri', businessObject.iri);
+    group.setAttribute('data-figure', figure.kind);
+
+    if (figure.kind === 'group') {
+      const style = FIGURE_STYLE.group;
+      const tabWidth = Math.min(width, Math.max(60, textWidth(text) + 16));
+      const tabHeight = Math.min(style.tabHeight, height);
+      const tab = svgEl('rect', { x: 0, y: 0, width: tabWidth, height: tabHeight, fill: style.tab, stroke: style.line });
+      tab.setAttribute('class', RENDER_CLASSES.details);
+      group.appendChild(tab);
+      const body = svgEl('rect', { x: 0, y: tabHeight, width, height: Math.max(0, height - tabHeight), fill: style.fill, stroke: style.line });
+      body.setAttribute('class', RENDER_CLASSES.body);
+      group.appendChild(body);
+      this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1);
+    } else if (figure.kind === 'note') {
+      const style = FIGURE_STYLE.note;
+      const fold = Math.min(14, width / 4, height / 4);
+      const body = svgEl('path', {
+        d: `M0,0 H${round2(width - fold)} L${round2(width)},${round2(fold)} V${round2(height)} H0 Z`,
+        fill: style.fill,
+        stroke: style.line,
+      });
+      body.setAttribute('class', RENDER_CLASSES.body);
+      group.appendChild(body);
+      const corner = svgEl('path', {
+        d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`,
+        fill: style.fold,
+        stroke: style.line,
+      });
+      corner.setAttribute('class', RENDER_CLASSES.details);
+      group.appendChild(corner);
+      const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
+      this.appendFigureText(group, text, { x: 6, y: 4, width: width - 12 - fold / 2, height: height - 8 }, Math.max(1, Math.floor((height - 8) / lineHeight)));
+    } else {
+      const shapeType = figureShapeType(figure);
+      this.drawShapeBody(group, { shapeType, fillColor: FIGURE_STYLE.shape.fill, lineColor: FIGURE_STYLE.shape.line } as VisualStyle, width, height);
+      const layout = containerLayout(shapeLayout(shapeType, width, height), element);
+      this.appendLabel(group, text, layout.label, { color: FIGURE_STYLE.text, ...(layout.maxLabelLines ? { maxLines: layout.maxLabelLines } : {}) });
+    }
+    parentGfx.appendChild(group);
+    return group;
+  }
+
+  /** A figure's text, from the top left of `area`, wrapped to it, on at most `maxLines`. */
+  private appendFigureText(group: SVGElement, text: string, area: Box, maxLines: number): void {
+    const lines = text === '' ? [] : wrapLabel(text, Math.max(0, area.width), NOTATION_DEFAULTS.fontSize, maxLines);
+    if (lines.length === 0) return;
+    const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
+    const element = svgEl('text', {
+      x: area.x,
+      y: round2(area.y + (lines.length === 1 && maxLines === 1 ? (area.height + NOTATION_DEFAULTS.fontSize * 0.7) / 2 : NOTATION_DEFAULTS.fontSize)),
+      'font-size': NOTATION_DEFAULTS.fontSize,
+      'font-family': NOTATION_DEFAULTS.fontFamily,
+      fill: FIGURE_STYLE.text,
+    });
+    element.setAttribute('class', RENDER_CLASSES.label);
+    lines.forEach((line, index) => {
+      const span = svgEl('tspan', { x: area.x, dy: index === 0 ? 0 : lineHeight });
+      span.textContent = line;
+      element.appendChild(span);
+    });
+    group.appendChild(element);
   }
 
   /**
@@ -741,6 +843,11 @@ export class RdfRenderer extends BaseRenderer {
    * full-bounds hit container, so that is what a connection docks against.
    */
   getShapePath(shape: RenderableElement): string {
+    const figure = shape.businessObject?.kind === 'figure' ? shape.businessObject.figure : undefined;
+    if (figure) {
+      const outline = figure.kind === 'shape' ? figureShapeType(figure) : 'Rectangle';
+      return shapePath(outline, (shape['x'] as number) ?? 0, (shape['y'] as number) ?? 0, shape.width ?? NOTATION_DEFAULTS.width, shape.height ?? NOTATION_DEFAULTS.height);
+    }
     const typeIri = shape.businessObject?.typeIri;
     // Asked for once a link end — four times a shape when a view is drawn
     // (Task 22) — so kept until the shape moves, resizes, is retyped or the
@@ -824,6 +931,12 @@ function cssEscapeId(id: string): string {
 }
 
 /** Last path/fragment segment of an IRI, used when nothing supplies a label. */
+/** A shape figure's core-vis shape type, by its local name — `arch-vis:Ellipse` is `Ellipse`; a rectangle without one. */
+function figureShapeType(figure: FigureInfo): ShapeType {
+  const name = figure.shapeType ? localName(figure.shapeType) : 'Rectangle';
+  return (SHAPE_TYPES as readonly string[]).includes(name) ? (name as ShapeType) : 'Rectangle';
+}
+
 function localName(iri: string): string {
   if (iri.includes('#')) return iri.slice(iri.lastIndexOf('#') + 1);
   const trimmed = iri.replace(/\/$/, '');

@@ -115,6 +115,11 @@ export const IRI = {
   Link: VIS + 'Link',
   Point: VIS + 'Point',
   LabelNode: VIS + 'LabelNode',
+  /** A node standing for no model element: a group, or a figure of a core-vis shape type. */
+  ContainerNode: VIS + 'ContainerNode',
+  visStyle: VIS + 'style',
+  Style: VIS + 'Style',
+  shapeType: VIS + 'shapeType',
   visView: VIS + 'view',
   /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
   visLabel: VIS + 'label',

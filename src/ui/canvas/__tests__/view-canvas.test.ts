@@ -1003,10 +1003,11 @@ describe('what a nesting shows', () => {
     expect(inView(f, serving.iri)).toEqual({ theViews: false, line: false, drawn: false });
   });
 
-  it('taken out, only the view’s are drawn — not what the model has between the two that this view does not show', () => {
+  it('nested as the model was opened, taken out: what the nesting stood for is drawn, not what it could not', () => {
     const { f, server, linux } = serverAndLinux();
-    // Nested in the store, as a model is opened: the composition is the model's, not this view's.
+    // Nested in the store, as a converted model is opened: nothing says what the nesting stands for.
     const composition = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Composition`, sourceIri: server, targetIri: linux });
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: linux, targetIri: server });
     f.views.updateNodeBounds(f.viewIri, linux, { x: 150, y: 160, width: 120, height: 55 });
     f.views.setNodeParent!(f.viewIri, linux, server);
     f.canvas.syncFromStore();
@@ -1014,6 +1015,10 @@ describe('what a nesting shows', () => {
     expect(inView(f, composition.iri).theViews).toBe(false);
 
     move(f, linux, { x: 500, y: 0 });
+    // The composition is what the nesting showed; the serving, the view never did.
+    expect(inView(f, composition.iri)).toEqual({ theViews: true, line: true, drawn: true });
+    expect(inView(f, serving.iri)).toEqual({ theViews: false, line: false, drawn: false });
+    f.commandStack.undo();
     expect(inView(f, composition.iri)).toEqual({ theViews: false, line: false, drawn: false });
   });
 });
@@ -1088,5 +1093,213 @@ describe('drawing a relationship the model already has', () => {
     f.canvas.syncFromStore();
     expect(draw(f, api, web)).toBeDefined();
     expect(f.canvas.reuseMenuProvider.pending).toBeUndefined();
+  });
+});
+
+describe('figures: groups, shapes and notes', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  type El = { id: string; x: number; y: number; width: number; height: number; parent?: El; businessObject?: { iri: string; kind?: string; label?: string } };
+  const registryOf = (f: ReturnType<typeof mount>) =>
+    f.service<{ get(id: string): El | undefined; getGraphics(e: El): SVGElement }>('elementRegistry');
+  const rootOf = (f: ReturnType<typeof mount>) => f.service<{ getRootElement(): El }>('canvas').getRootElement();
+  const drawFigure = (f: ReturnType<typeof mount>, figure: { kind: 'group' | 'shape' | 'note'; shapeType?: string }, at: { x: number; y: number }, into?: El) => {
+    const shape = f.service<{ createShape(a: Record<string, unknown>): El }>('elementFactory').createShape({
+      width: 200,
+      height: 120,
+      businessObject: { iri: '', typeIri: '', kind: 'figure', figure },
+    });
+    f.service<{ createShape(s: unknown, p: unknown, parent: unknown): El }>('modeling').createShape(shape, at, into ?? rootOf(f));
+    return shape;
+  };
+
+  it('are drawn from the store as figures — a group with its tab, a shape of its core-vis type, a note — not as elements', () => {
+    const f = mount();
+    const group = f.views.addFigure(f.viewIri, { kind: 'group', text: 'Back office', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const ellipse = f.views.addFigure(f.viewIri, { kind: 'shape', shapeType: VIS_NS + 'Ellipse', text: 'Idea', bounds: { x: 500, y: 0, width: 120, height: 80 } });
+    const note = f.views.addFigure(f.viewIri, { kind: 'note', text: 'Ask the CFO', bounds: { x: 700, y: 0, width: 185, height: 80 } });
+    f.canvas.syncFromStore();
+    const gfx = (iri: string) => registryOf(f).getGraphics(registryOf(f).get(iri)!);
+    expect(gfx(group).querySelector('[data-figure="group"]')?.textContent).toBe('Back office');
+    expect(gfx(ellipse).querySelector('[data-figure="shape"] ellipse')).not.toBeNull();
+    expect(gfx(note).querySelector('[data-figure="note"]')?.textContent).toBe('Ask the CFO');
+    // No element behind them: the model tree has nothing of them.
+    expect(f.elements.getElement?.(group)).toBeFalsy();
+  });
+
+  it('drawn on the canvas, one is written in the view in the same command: undo takes it back, redo the same one', () => {
+    const f = mount();
+    const shape = drawFigure(f, { kind: 'shape', shapeType: VIS_NS + 'Diamond' }, { x: 300, y: 200 });
+    const iri = shape.id;
+    expect(iri).toMatch(/node-/);
+    expect(f.views.getNodes(f.viewIri).map((n) => [n.elementIri, n.figure?.shapeType])).toEqual([[iri, VIS_NS + 'Diamond']]);
+    expect(f.views.getNode(f.viewIri, iri)?.bounds).toEqual({ x: 200, y: 140, width: 200, height: 120 });
+    f.commandStack.undo();
+    expect(f.views.getNodes(f.viewIri)).toEqual([]);
+    f.commandStack.redo();
+    expect(f.views.getNodes(f.viewIri).map((n) => n.elementIri)).toEqual([iri]);
+  });
+
+  it('a group holds elements: dropped in, carried with it, written as inside it; deleted, it goes and undo brings it back', () => {
+    const f = mount();
+    const group = drawFigure(f, { kind: 'group' }, { x: 300, y: 250 });
+    const app = f.elements.createElement(COMPONENT, f.modelIri, { label: 'App' }).value;
+    f.views.addElementToView(f.viewIri, app, { x: 700, y: 100, width: 120, height: 55 });
+    f.canvas.syncFromStore();
+    const modeling = f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void; removeElements(e: unknown[]): void }>('modeling');
+    modeling.moveElements([registryOf(f).get(app)], { x: -440, y: 160 }, registryOf(f).get(group.id));
+    expect(f.views.getNode(f.viewIri, app)?.parentElementIri).toBe(group.id);
+    modeling.moveElements([registryOf(f).get(group.id)], { x: 50, y: 0 });
+    expect(f.views.getNode(f.viewIri, app)?.bounds.x).toBe(310);
+
+    modeling.removeElements([registryOf(f).get(group.id)]);
+    expect(f.views.getNode(f.viewIri, group.id)).toBeUndefined();
+    f.commandStack.undo();
+    expect(f.views.getNode(f.viewIri, group.id)?.figure?.kind).toBe('group');
+    expect(f.views.getNode(f.viewIri, app)?.parentElementIri).toBe(group.id);
+  });
+
+  it('its text, changed by a collaborator, is drawn', () => {
+    const f = mount();
+    const note = f.views.addFigure(f.viewIri, { kind: 'note', text: 'Draft', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    f.canvas.syncFromStore();
+    f.views.setFigureText(f.viewIri, note, 'Final');
+    f.canvas.syncFromStore();
+    expect(registryOf(f).getGraphics(registryOf(f).get(note)!).textContent).toBe('Final');
+  });
+
+  it('is no end of a relationship, and a note holds nothing', () => {
+    const f = mount();
+    const shape = drawFigure(f, { kind: 'shape', shapeType: VIS_NS + 'Rectangle' }, { x: 300, y: 200 });
+    const note = drawFigure(f, { kind: 'note' }, { x: 700, y: 200 });
+    const app = f.elements.createElement(COMPONENT, f.modelIri, { label: 'App' }).value;
+    f.views.addElementToView(f.viewIri, app, { x: 300, y: 500, width: 120, height: 55 });
+    f.canvas.syncFromStore();
+    const rules = f.service<{ allowed(action: string, context: unknown): unknown }>('rules');
+    const el = registryOf(f).get(app)!;
+    expect(rules.allowed('connection.create', { source: el, target: registryOf(f).get(shape.id) })).toBe(false);
+    expect(rules.allowed('connection.create', { source: registryOf(f).get(shape.id), target: el })).toBe(false);
+    expect(rules.allowed('elements.move', { target: registryOf(f).get(note.id), shapes: [el] })).toBe(false);
+    expect(rules.allowed('elements.move', { target: registryOf(f).get(shape.id), shapes: [el] })).toBe(true);
+  });
+});
+
+describe('an element placed more than once in a view', () => {
+  const SERVING = `${AM4}Serving`;
+  type El = {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    waypoints?: unknown;
+    source?: El;
+    businessObject?: { iri: string; nodeIri?: string; label?: string; typeIri?: string };
+  };
+  const registryOf = (f: ReturnType<typeof mount>) =>
+    f.service<{ get(id: string): El | undefined; getAll(): El[] }>('elementRegistry');
+  const placementsOf = (f: ReturnType<typeof mount>, iri: string) =>
+    registryOf(f).getAll().filter((e) => !e.waypoints && e.businessObject?.iri === iri);
+  const modelingOf = (f: ReturnType<typeof mount>) =>
+    f.service<{
+      createShape(s: unknown, p: unknown, parent: unknown): El;
+      moveElements(e: unknown[], d: unknown, target?: unknown): void;
+      removeElements(e: unknown[]): void;
+      connect(s: unknown, t: unknown, attrs: unknown): El | undefined;
+    }>('modeling');
+  const rootOf = (f: ReturnType<typeof mount>) => f.service<{ getRootElement(): El }>('canvas').getRootElement();
+  /** API (placed twice from the store) and Web, API serving Web. */
+  const twice = () => {
+    const f = mount();
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    const web = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web' }).value;
+    const first = f.views.addElementToView(f.viewIri, api, { x: 100, y: 100, width: 120, height: 55 });
+    const second = f.views.addElementToView(f.viewIri, api, { x: 100, y: 400, width: 120, height: 55 }, { another: true });
+    const webNode = f.views.addElementToView(f.viewIri, web, { x: 500, y: 400, width: 120, height: 55 });
+    f.canvas.syncFromStore();
+    return { f, api, web, first, second, webNode };
+  };
+
+  it('is drawn once a placement, each its node; a line joins the placements its link names', () => {
+    const { f, api, web, second, webNode } = twice();
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: SERVING, sourceIri: api, targetIri: web }).iri;
+    f.views.addRelationshipToView(f.viewIri, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode });
+    f.canvas.syncFromStore();
+    const placed = placementsOf(f, api);
+    expect(placed.map((p) => p.businessObject?.nodeIri).sort()).toEqual(f.views.getNodes(f.viewIri).filter((n) => n.elementIri === api).map((n) => n.nodeIri).sort());
+    // The element's IRI keys one placement, the other its node.
+    expect(placed.map((p) => p.id).sort()).toEqual([api, second].sort());
+    expect(registryOf(f).get(serving)?.source?.businessObject?.nodeIri).toBe(second);
+  });
+
+  it('dragged in again, it gets another placement, with no lines of its own; undo takes that one back', () => {
+    const f = mount();
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    const web = f.elements.createElement(COMPONENT, f.modelIri, { label: 'Web' }).value;
+    f.views.addElementToView(f.viewIri, api, { x: 100, y: 100, width: 120, height: 55 });
+    f.views.addElementToView(f.viewIri, web, { x: 500, y: 100, width: 120, height: 55 });
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: SERVING, sourceIri: api, targetIri: web }).iri;
+    f.views.addRelationshipToView(f.viewIri, serving);
+    f.canvas.syncFromStore();
+
+    const shape = f.service<{ createShape(a: Record<string, unknown>): El }>('elementFactory').createShape({
+      id: api,
+      width: 120,
+      height: 55,
+      businessObject: { iri: api, typeIri: COMPONENT, label: 'API', kind: 'element', placeExisting: true },
+    });
+    modelingOf(f).createShape(shape, { x: 160, y: 450 }, rootOf(f));
+    expect(placementsOf(f, api)).toHaveLength(2);
+    expect(shape.id).toBe(shape.businessObject?.nodeIri);
+    expect(f.views.getNodes(f.viewIri).filter((n) => n.elementIri === api)).toHaveLength(2);
+    expect(f.views.getLinks(f.viewIri)).toHaveLength(1);
+
+    f.commandStack.undo();
+    expect(placementsOf(f, api)).toHaveLength(1);
+    expect(f.views.getNodes(f.viewIri).filter((n) => n.elementIri === api)).toHaveLength(1);
+  });
+
+  it('each placement moves on its own, and is deleted on its own: the element leaves the view with its last', () => {
+    const { f, api, first, second } = twice();
+    const secondShape = placementsOf(f, api).find((p) => p.businessObject?.nodeIri === second)!;
+    modelingOf(f).moveElements([secondShape], { x: 50, y: 0 });
+    expect(f.views.getNode(f.viewIri, second)?.bounds.x).toBe(150);
+    expect(f.views.getNode(f.viewIri, first)?.bounds.x).toBe(100);
+
+    modelingOf(f).removeElements([secondShape]);
+    expect(f.views.getNodes(f.viewIri).filter((n) => n.elementIri === api).map((n) => n.nodeIri)).toEqual([first]);
+    expect(f.views.viewsContaining(api)).toContain(f.viewIri);
+    f.commandStack.undo();
+    expect(f.views.getNodes(f.viewIri).filter((n) => n.elementIri === api)).toHaveLength(2);
+
+    for (const placement of placementsOf(f, api)) modelingOf(f).removeElements([placement]);
+    expect(f.views.viewsContaining(api)).not.toContain(f.viewIri);
+  });
+
+  it('a line drawn from a placement is drawn from it', () => {
+    const { f, api, web, second } = twice();
+    const secondShape = placementsOf(f, api).find((p) => p.businessObject?.nodeIri === second)!;
+    const serving = palette.relationshipTypes.find((t) => t.iri === SERVING)!;
+    modelingOf(f).connect(secondShape, placementsOf(f, web)[0], { typeIri: serving.iri, unqualifiedPredicateIri: serving.unqualifiedPredicateIri });
+    const [link] = f.views.getLinks(f.viewIri);
+    expect(link?.sourceNodeIri).toBe(second);
+  });
+
+  it('selected, every placement is; renamed or retyped, every placement shows it', async () => {
+    const { f, api } = twice();
+    f.canvas.reveal(api);
+    expect(f.service<{ get(): El[] }>('selection').get().map((e) => e.businessObject?.nodeIri).length).toBe(2);
+
+    f.elements.updateProperty(api, NAMESPACES.skos + 'prefLabel', DataFactory.literal('Gateway', 'en') as never);
+    f.canvas.syncFromStore();
+    expect(placementsOf(f, api).map((p) => p.businessObject?.label)).toEqual(['Gateway', 'Gateway']);
+
+    await f.canvas.retypeElement(api, `${AM4}ApplicationInterface`);
+    expect(placementsOf(f, api).map((p) => p.businessObject?.typeIri)).toEqual([`${AM4}ApplicationInterface`, `${AM4}ApplicationInterface`]);
+
+    // Renamed on the canvas, on one placement: both show it, and undo takes both back.
+    f.service<{ execute(c: string, ctx: unknown): void }>('commandStack').execute('rdf.element.relabel', { element: placementsOf(f, api)[0], label: 'Edge' });
+    expect(placementsOf(f, api).map((p) => p.businessObject?.label)).toEqual(['Edge', 'Edge']);
+    f.commandStack.undo();
+    expect(placementsOf(f, api).map((p) => p.businessObject?.label)).toEqual(['Gateway', 'Gateway']);
   });
 });
