@@ -1837,6 +1837,12 @@ goes into, then the diff as a comment (`if: always()`; GitLab's in
 `after_script`). Measured: a check of a small model takes about 1 s, most of it
 starting the engine.
 
+`--shapes` reads a folder's `.ttl` files and refuses, before any model is
+checked, one that does not parse or names no graph (`owl:Ontology` or
+`skos:ConceptScheme`, what la-gram's loader asks of a document): otherwise each
+model failed "could not be opened", naming no file. A later loading error is
+given with the file's name too.
+
 The merge driver merges a file la-gram's way only when both sides are la-gram
 models: `.gitattributes` routes files by extension, so ontologies and shapes
 files come to it too, and those — and a side that does not parse — go to Git's
@@ -1870,7 +1876,11 @@ copy of the repository's files; the image is 526 MB, and checks and diffs a
 mounted repository as root and as the host's user.
 
 Docs: `packages/la-gram-git/README.md` (npm's page: every command, exit codes,
-environment, the image), `ci/README.md` (the templates, shipped in the package),
+environment; the image — tags and digests, `linux/amd64`, no entrypoint, a mounted
+repository with `--user`, paths and `--shapes` inside the container, the variables
+a `docker run` in CI must pass, copying it into one's own registry, not for the
+merge driver), `ci/README.md` (the templates, shipped in the package; the image as a GitLab
+job's `image:` and a GitHub Actions job's `container:`),
 `packages/la-gram-git/docs/gitaly.md` (the driver on a self-managed GitLab's
 Gitaly: install on every node, absolute paths, the `gitlab.rb` / `gitaly.toml` /
 Helm keys, `.gitattributes`, a test that conflicts as text and merges with the

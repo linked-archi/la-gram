@@ -19,16 +19,7 @@ npx @linked-archi/la-gram-git init gitlab                # or github: CI for pul
 - **npx**, nothing installed: `npx @linked-archi/la-gram-git <command>`. Node.js 20 or later.
 - **Globally**, for the merge driver or everyday use: `npm install --global @linked-archi/la-gram-git`,
   then `la-gram-git <command>`.
-- **The container image**, with Git included:
-
-  ```sh
-  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" \
-    registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0 \
-    la-gram-git check --base origin/main
-  ```
-
-  The repository goes in at `/repo`, the working folder. `--user` makes files that `fix` rewrites belong
-  to you rather than root. Tags: each version (`0.1.0`), its major version (`0`) and `latest`.
+- **The container image**, with Node.js and Git included: see [The container image](#the-container-image).
 
 `la-gram-git --help` lists the commands; `la-gram-git --version` gives the version.
 
@@ -61,7 +52,9 @@ ArchiMate's principles, viewpoint conformance and the like — which are advisor
 the IRI of its shape; on meta.linked.archi the IRI opens the shape's documentation.
 
 `--shapes <folder>` adds the shapes (`.ttl`) of a folder — your repository's, or your organisation's — to the
-metamodels'.
+metamodels'. Each file is a shapes document, as la-gram loads one: it names its graph with an
+`owl:Ontology` (`<https://example.org/my-shapes> a owl:Ontology .`). A file that does not parse or names no
+graph is refused, by name, before any model is checked (exit 2).
 
 In GitHub Actions, each failure is also written as an annotation on its file.
 
@@ -122,6 +115,54 @@ Sets the repository you run it in up. Nothing is overwritten.
 The CI templates and how to set them up — the token, pinning a version, your own shapes, the container image
 in a job — are described in
 [ci/README.md](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/ci/README.md).
+
+## The container image
+
+`registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git` has la-gram-git installed globally on Node.js 22, with Git.
+
+- **Tags:** each version (`0.1.0`), its major version (`0`) and `latest`. A pre-release (`0.2.0-rc.1`) has
+  only its own tag. For a build that never changes, pin the digest `docker pull` prints:
+  `…/la-gram-git@sha256:…`.
+- **Platform:** `linux/amd64`. On an ARM machine, such as Apple silicon or an ARM runner, Docker runs it
+  under emulation, which works but is slower; there, `npx` is quicker.
+- **No entrypoint:** name the tool in the command, `docker run … la-gram-git check`. Without a command
+  it prints the help.
+
+On your machine, mount the repository's top folder (Git needs its `.git`) at `/repo`, the working folder:
+
+```sh
+IMAGE=registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git check --base origin/main
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git fix
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$IMAGE" la-gram-git diff origin/main > changes.md
+```
+
+- **`--user`** makes the files `fix` rewrites belong to you rather than to root. Whoever owns the mounted
+  repository, the image lets Git read it (Git's `safe.directory`). In PowerShell, write `-v "${PWD}:/repo"`
+  and leave `--user` out.
+- **Paths** are the container's: relative to `/repo`. A `--shapes` folder outside the repository is
+  mounted too: `-v "$HOME/our-shapes:/shapes:ro"` … `--shapes /shapes`.
+- **`--base`** compares with a branch the clone has. Fetch it on your machine first: `git fetch origin main`.
+
+**In CI**, make it the job's image — `image:` on GitLab, `container:` on GitHub Actions; both are in
+[ci/README.md](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/ci/README.md).
+The job's environment then reaches la-gram-git as it is, which `diff --comment` needs. Run with `docker run`
+inside a job instead, the variables have to be passed in with `-e`: on GitLab `GITLAB_CI`,
+`CI_MERGE_REQUEST_IID`, `CI_PROJECT_ID`, `CI_API_V4_URL` and `LA_GRAM_GIT_TOKEN`.
+
+**Your own registry.** Where your machines or runners cannot reach `registry.gitlab.com`, copy the image
+into your registry:
+
+```sh
+docker pull registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0.1.0
+docker tag registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0.1.0 registry.example.com/tools/la-gram-git:0.1.0
+docker push registry.example.com/tools/la-gram-git:0.1.0
+```
+
+Or build it yourself: the `Dockerfile` is in la-gram's repository, beside the package.
+
+**Not for the merge driver.** Git runs the driver once for every model file it merges, and starting a
+container each time adds to every merge: install the npm package where the driver runs.
 
 ## The merge driver on the server
 

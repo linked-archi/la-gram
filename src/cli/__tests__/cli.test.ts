@@ -133,6 +133,28 @@ describe('la-gram-git check', () => {
     sh('checkout', '-q', 'main');
   }, 120_000);
 
+  it('--shapes adds a folder’s shapes; a shapes file that names no graph is refused, by name, before any check', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'la-gram-git-shapes-'));
+    const shapes = (header: string) =>
+      `@prefix sh: <http://www.w3.org/ns/shacl#> .\n@prefix owl: <http://www.w3.org/2002/07/owl#> .\n${header}` +
+      `<https://example.org/shapes#Described> a sh:NodeShape ; sh:targetClass <${AM4}ApplicationComponent> ;\n` +
+      `  sh:property [ sh:path <http://purl.org/dc/terms/description> ; sh:minCount 1 ; sh:message "Every application component is described." ] .\n`;
+    try {
+      writeFileSync(join(dir, 'own.ttl'), shapes('<https://example.org/shapes> a owl:Ontology .\n'));
+      const own = await run('check', 'models/shop.ttl', '--shapes', dir);
+      expect(own.code).toBe(1);
+      expect(own.out).toContain('Every application component is described. (https://example.org/shapes#Described)');
+
+      writeFileSync(join(dir, 'own.ttl'), shapes(''));
+      const unnamed = await run('check', 'models/shop.ttl', '--shapes', dir);
+      expect(unnamed.code).toBe(2);
+      expect(unnamed.out).toBe('');
+      expect(unnamed.err).toContain('--shapes: own.ttl declares no owl:Ontology.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('the shapes’ SPARQL-based rules are reported, not failed', async () => {
     const { code, out } = await run('check');
     expect(code).toBe(0);

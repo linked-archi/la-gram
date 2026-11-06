@@ -58,7 +58,13 @@ export function isModel(text: string, path: string): boolean {
 export async function openModel(text: string, path: string, shapes: readonly ShapesFile[] = []): Promise<OpenModel> {
   const app = await createApp({ assetMode: 'offline', validationDelayMs: 1e9, validation: 'inline' });
   const opened = await app.openModel(text, basename(path));
-  for (const file of shapes) await app.loadAssetFile(file.text, file.name);
+  for (const file of shapes) {
+    try {
+      await app.loadAssetFile(file.text, file.name);
+    } catch (err: unknown) {
+      throw new Error(`--shapes ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
   const modelIri = app.session.modelIri;
   if (!modelIri) throw new Error('No model in it.');
   return { app, modelIri, missingMetamodels: opened.missingMetamodels };

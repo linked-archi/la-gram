@@ -71,9 +71,11 @@ la-gram-git's own image (below).
 - **Pin a version.** The templates run `@linked-archi/la-gram-git@0`, the newest 0.x release. Write
   `@0.1.0` to pin one, and update it when you choose.
 - **Your own shapes.** Add `--shapes <folder>` to the `check` line to validate against a folder of your
-  repository's or organisation's shapes (`.ttl`) as well as the metamodels'.
+  repository's or organisation's shapes (`.ttl`) as well as the metamodels'. Each file names its graph
+  with an `owl:Ontology`, as a shapes document does; one that does not is refused by name.
 - **Only some files.** Name files or folders after the command: `check models/ --base …`.
-- **The container image instead of npx.** It has la-gram-git installed, with Git:
+- **The container image instead of npx.** It has la-gram-git installed, with Node.js and Git, so the job
+  downloads nothing more. On GitLab:
 
   ```yaml
   la-gram-git:
@@ -89,7 +91,30 @@ la-gram-git's own image (below).
       - la-gram-git diff "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" --comment
   ```
 
-  Tags: each version (`0.1.0`), its major version (`0`) and `latest`.
+  On GitHub Actions, as the job's container. Keep the template's `on:` and `permissions:`:
+
+  ```yaml
+  jobs:
+    models:
+      runs-on: ubuntu-latest
+      container: registry.gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/la-gram-git:0
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+        - name: Check the models
+          run: la-gram-git check --base "origin/${{ github.base_ref }}"
+        - name: Comment with their changes by element
+          if: always()
+          run: la-gram-git diff "origin/${{ github.base_ref }}" --comment
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ```
+
+  Tags: each version (`0.1.0`), its major version (`0`) and `latest`. The image is built for `linux/amd64`,
+  as GitHub's and gitlab.com's standard runners are. Its tags, platform, local use and copying it into your
+  own registry are described in
+  [the package's README](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/packages/la-gram-git/README.md#the-container-image).
 
 ## Merging, not only checking
 

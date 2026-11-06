@@ -14,6 +14,8 @@ import { commentTarget, diffMarkdown, postComment } from './diff.js';
 import { init } from './init.js';
 import { runMergeDriver } from './merge.js';
 import { asLaGramWrites, hasModelExtension, isModel, type ShapesFile } from './models.js';
+import { parseModelText } from '../import-export/model-io.js';
+import { detectFormat } from '../metamodel-manager/asset-sources.js';
 
 export const USAGE = `la-gram-git — la-gram's models in Git: checked, rewritten, compared, merged.
 
@@ -142,13 +144,32 @@ export function modelFiles(paths: readonly string[], cwd: string): Array<{ path:
   return out;
 }
 
-/** The shapes files of a folder (`.ttl`). */
+/**
+ * The shapes files of a folder (`.ttl`), each a document la-gram can load: it
+ * parses, and names its graph with an `owl:Ontology` (or a
+ * `skos:ConceptScheme`), as la-gram's loader asks. Found wanting before any
+ * model is checked — otherwise every model would fail for one shapes file.
+ */
 function shapesIn(folder: string): ShapesFile[] {
   if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new UsageError(`--shapes takes a folder: ${folder} is not one.`);
-  return readdirSync(folder)
+  const files = readdirSync(folder)
     .filter((f) => f.endsWith('.ttl'))
     .sort()
     .map((f) => ({ name: basename(f), text: readFileSync(join(folder, f), 'utf8') }));
+  const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+  const NAMES_GRAPH = new Set(['http://www.w3.org/2002/07/owl#Ontology', 'http://www.w3.org/2004/02/skos/core#ConceptScheme']);
+  for (const file of files) {
+    let quads: ReturnType<typeof parseModelText>;
+    try {
+      quads = parseModelText(file.text, detectFormat(null, file.name));
+    } catch (err: unknown) {
+      throw new UsageError(`--shapes: ${file.name} does not parse: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (!quads.some((q) => q.predicate.value === RDF_TYPE && NAMES_GRAPH.has(q.object.value))) {
+      throw new UsageError(`--shapes: ${file.name} declares no owl:Ontology. A shapes document names its graph with one: <https://example.org/my-shapes> a owl:Ontology .`);
+    }
+  }
+  return files;
 }
 
 /** Print what `check` found; in GitHub Actions also as annotations on the files. */
