@@ -123,8 +123,9 @@ in a job — are described in
 - **Tags:** each version (`0.1.0`), its major version (`0`) and `latest`. A pre-release (`0.2.0-rc.1`) has
   only its own tag. For a build that never changes, pin the digest `docker pull` prints:
   `…/la-gram-git@sha256:…`.
-- **Platform:** `linux/amd64`. On an ARM machine, such as Apple silicon or an ARM runner, Docker runs it
-  under emulation, which works but is slower; there, `npx` is quicker.
+- **Platforms:** `linux/amd64` and `linux/arm64`, under each tag: Docker takes the one for its machine,
+  an Apple silicon Mac or an ARM runner included. The release builds each on its own platform and tries
+  it there; `<version>-amd64` and `<version>-arm64` are those builds, which the tags above combine.
 - **No entrypoint:** name the tool in the command, `docker run … la-gram-git check`. Without a command
   it prints the help.
 

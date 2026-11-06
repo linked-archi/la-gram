@@ -111,9 +111,9 @@ la-gram-git's own image (below).
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   ```
 
-  Tags: each version (`0.1.0`), its major version (`0`) and `latest`. The image is built for `linux/amd64`,
-  as GitHub's and gitlab.com's standard runners are. Its tags, platform, local use and copying it into your
-  own registry are described in
+  Tags: each version (`0.1.0`), its major version (`0`) and `latest`, each for `linux/amd64` and
+  `linux/arm64`, so x86 and ARM runners take the image for their platform. Its tags, platforms, local use
+  and copying it into your own registry are described in
   [the package's README](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/blob/main/packages/la-gram-git/README.md#the-container-image).
 
 ## Merging, not only checking

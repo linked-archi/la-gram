@@ -133,7 +133,9 @@ npx @linked-archi/la-gram-git init github                  # or gitlab: the CI f
 
 ### Releasing la-gram-git
 
-`.gitlab-ci.yml` runs on a tag `la-gram-git-v<version>` and on nothing else: la-gram's tests (the benchmarks left out), then the package — built, packed, installed from the packed file and run on `packages/la-gram-git/smoke/` — then, from that one packed file, the npm package and the image `$CI_REGISTRY_IMAGE/la-gram-git`. A pre-release version (`0.2.0-rc.1`) goes to npm under the dist-tag `next` and gets no `latest` or major image tag.
+`.gitlab-ci.yml` runs for merge requests and the default branch: la-gram's tests (the benchmarks left out), then la-gram-git's package — built, packed, installed from the packed file and run on `packages/la-gram-git/smoke/`. Nothing is published, and a newer push cancels what is still running. Other branches and other tags start nothing.
+
+On a tag `la-gram-git-v<version>` it runs the same, then publishes from that one packed file: the npm package, and the image `$CI_REGISTRY_IMAGE/la-gram-git` for `linux/amd64` and `linux/arm64` — each built and tried on its own platform (the Arm64 one on gitlab.com's `saas-linux-small-arm64` runner, available on the Free tier), then combined under the version, its major version and `latest`. A pre-release version (`0.2.0-rc.1`) goes to npm under the dist-tag `next` and gets no `latest` or major image tag.
 
 Once, before the first release:
 

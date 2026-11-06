@@ -1850,30 +1850,44 @@ own text merge (`git merge-file`, labelled ours/base/theirs), as without the
 driver.
 
 **Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
-tag `la-gram-git-v<version>` (`workflow:rules`) and on nothing else. Stages:
+tag `la-gram-git-v<version>`, and for merge requests and the default branch
+(`workflow:rules`; other tags `never`; other branch pushes match no rule, so no
+duplicate branch pipeline beside a merge request's). Jobs are `interruptible`,
+so a newer push cancels an older pipeline, except what publishes: the `.release`
+jobs run only with `$CI_COMMIT_TAG`, `interruptible: false`, without the cache.
+Stages:
 `test` — typecheck and the unit suite, the three benchmark files left out
 (`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the runner); `package` —
-the tag's version against `packages/la-gram-git/package.json`, `build:cli`,
+on a tag, its version against `packages/la-gram-git/package.json`; `build:cli`,
 `npm pack`, the packed file installed globally and run: `--version`, and
 `check` on `packages/la-gram-git/smoke/` (a model as la-gram writes it); then,
-from that packed file (an artifact), `npm` and `container-image` (not `image`:
-at the top of the file that is GitLab's keyword). `npm` publishes with
+from that packed file (an artifact), on a tag, `npm` and the image. `npm` publishes with
 `--access public`, a pre-release under `next`; it asks for the OIDC tokens npm's
 trusted publishing takes (`NPM_ID_TOKEN`, audience `npm:registry.npmjs.org`;
 `SIGSTORE_ID_TOKEN` for provenance), and writes `NPM_TOKEN` to `.npmrc` as a
 reference npm resolves, only when the variable is set — the first publish,
-before the package exists to configure trusted publishing on. `container-image`
-builds `packages/la-gram-git/Dockerfile` with Docker-in-Docker: `node:22`'s slim
+before the package exists to configure trusted publishing on. The image is
+built on each platform natively — `image-amd64` on the default runner,
+`image-arm64` on gitlab.com's `saas-linux-small-arm64` (Free tier; its
+Docker-in-Docker service started with `--mtu=1400`, the setting GitLab's
+documentation of its hosted Linux runners gives for Arm64) — and pushed as
+`<version>-<arch>`; `container-image` (not `image`: at the top of the file that
+is GitLab's keyword) then makes each published tag an index of both, with
+`docker buildx imagetools create`. Each build is of
+`packages/la-gram-git/Dockerfile` with Docker-in-Docker: `node:22`'s slim
 image, Git and CA certificates, `safe.directory` `*` (a mounted repository
 belongs to the host's user), the packed file installed globally, no entrypoint
 (a CI job runs its script in the image's shell); the context is the packed file
 alone (`.dockerignore`). It runs `--version` and `check` on the smoke model fed
-on the standard input (the Docker service does not see the job's files), then
-pushes the version, its major version and `latest`. The webpack copy of
+on the standard input (the Docker service does not see the job's files) on
+its own platform, before it is pushed; the published tags are the version, its
+major version and `latest`. The webpack copy of
 `LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
 Measured by hand: the package job and the test job run clean in `node:22` on a
 copy of the repository's files; the image is 526 MB, and checks and diffs a
-mounted repository as root and as the host's user.
+mounted repository as root and as the host's user; both platforms' images built
+(amd64 under emulation), tried, pushed to a local registry and combined with
+`imagetools create`, each tag listing `linux/amd64` and `linux/arm64`.
 
 Docs: `packages/la-gram-git/README.md` (npm's page: every command, exit codes,
 environment; the image — tags and digests, `linux/amd64`, no entrypoint, a mounted

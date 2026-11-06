@@ -81,6 +81,18 @@ describe('the release pipeline', () => {
     for (const other of [`v${pkg.version}`, 'la-gram-git-v1.2', 'la-gram-v1.2.3', 'la-gram-git-v1.2.3 ']) expect(tag.test(other)).toBe(false);
   });
 
+  it('publishes on a release tag only; merge requests and the default branch run the tests and the package', () => {
+    const workflow = /^workflow:\n {2}rules:\n([\s\S]*?)\n\n/m.exec(pipeline)?.[1] ?? '';
+    expect(workflow).toContain('- if: $CI_COMMIT_TAG\n      when: never');
+    expect(workflow).toContain('- if: $CI_PIPELINE_SOURCE == "merge_request_event"');
+    expect(workflow).toContain('- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH');
+    // What publishes extends .release, which runs only with a tag; the image's builds, one per platform.
+    expect(pipeline).toMatch(/^\.release:\n(?: {2}.*\n)*? {2}rules:\n {4}- if: \$CI_COMMIT_TAG\n/m);
+    for (const job of ['npm', '\\.image-build', 'container-image']) expect(pipeline).toMatch(new RegExp(`^${job}:\\n {2}extends: \\.release$`, 'm'));
+    for (const arch of ['amd64', 'arm64']) expect(pipeline).toMatch(new RegExp(`^image-${arch}:\\n {2}extends: \\.image-build$`, 'm'));
+    expect(pipeline).toMatch(/^container-image:\n(?: {2}.*\n)*? {2}needs: \[image-amd64, image-arm64\]$/m);
+  });
+
   it('builds the image from the file npm pack makes', () => {
     expect(pipeline).toContain(`${packed}$VERSION.tgz`);
     expect(read('packages/la-gram-git/Dockerfile')).toContain(`COPY ${packed}*.tgz`);
