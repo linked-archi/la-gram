@@ -56,3 +56,9 @@ export {
   listNotationSets,
   effectiveRenderingMode,
 } from './notation.js';
+export type { NotationSource, ResolvedNotation, NotationIndexEntry } from './notation-resolver.js';
+export {
+  NotationResolver,
+  orderedFallbackSets,
+  storeDefaultNotationSetIris,
+} from './notation-resolver.js';

@@ -1,0 +1,258 @@
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix arch:    <https://meta.linked.archi/core#> .
+
+#################################################################
+# PROPOSED ADDITIONS TO core-onto.ttl (arch:)
+#
+# Questions: a stakeholder question the model can answer, carried
+# as SHACL-AF executable SPARQL (sh:select / sh:construct / sh:ask
+# + sh:prefixes + sh:parameter) and bound to the 42010 concepts the
+# core already has (Concern, Stakeholder, Viewpoint).
+#
+# Section additions: let a TemplateSection *answer* concerns by
+# asking questions, instead of carrying one inline listing query.
+#################################################################
+
+# ── Question ────────────────────────────────────────────────────
+
+arch:Question
+    a               owl:Class ;
+    rdfs:subClassOf sh:SPARQLExecutable ;
+    skos:prefLabel  "Question"@en ;
+    skos:altLabel   "Competency question"@en, "Model query"@en ;
+    skos:definition '''A question a stakeholder asks of an architecture model, together with the
+executable SPARQL that answers it. The question is the unit of reuse: a modelling tool offers
+it as an example query, a deliverable section asks it, an analysis agent routes to it by the
+concern it addresses.'''@en ;
+    skos:scopeNote  '''Executable form. An instance is also typed sh:SPARQLSelectExecutable,
+sh:SPARQLConstructExecutable or sh:SPARQLAskExecutable and carries the query in sh:select,
+sh:construct or sh:ask. Prefixes are declared once, through sh:prefixes / sh:declare, and are
+not repeated in the query text.
+
+Parameters. Declared with sh:parameter. The variable a parameter binds is the local name of
+its sh:path (archq:focus binds ?focus). A runner pre-binds a parameter by inserting
+"VALUES ?name { … }" as the first element of the outermost WHERE group; an optional parameter
+left unbound stays a free variable, so the stored query is valid SPARQL and runs unchanged in
+any tool, answering for "any". Parameters are never used inside sub-SELECTs, whose scope a
+pre-binding cannot reach. A runner pre-binds only the parameters a question declares: a result
+column may share a parameter's name (?type, ?view) without being one, and binding it would
+silently narrow the answer.
+
+Result size. The query text carries no LIMIT. arch:defaultLimit is the bound a browsing tool
+appends; a document generator reads every row.
+
+Dataset. Model data is in the default graph. Where a question also needs the metamodel
+(a subclass closure, a viewpoint's admitted concepts) it reads it through
+"{ P } UNION { GRAPH ?g { P } }", which holds whether the metamodel sits in the default graph
+(a merged Turtle file, a triplestore with union default graph) or in one named graph per
+document (la-gram). arch:requiresDataset says which of the two a question needs.'''@en ;
+    rdfs:seeAlso    <https://www.w3.org/TR/shacl-af/#SPARQLExecutable>,
+                    <https://www.iso.org/standard/74393.html> ;
+.
+
+arch:questionAddressesConcern
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionAddressesConcern"@en ;
+    skos:definition "A concern the answer to this question informs."@en ;
+    skos:scopeNote  '''The link that makes a question selectable by concern, mirroring
+arch:viewpointFramesConcern on viewpoints. A stakeholder's questions follow from
+arch:stakeholderHasConcern; arch:questionTargetsStakeholder is only needed where that
+inference is too broad.'''@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      arch:Concern ;
+.
+
+arch:questionTargetsStakeholder
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionTargetsStakeholder"@en ;
+    skos:definition "A stakeholder who asks this question, stated where it is not implied by the concerns."@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      arch:Stakeholder ;
+.
+
+arch:questionFitsViewpoint
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionFitsViewpoint"@en ;
+    skos:definition '''A viewpoint whose views this question is asked about: a tool offers it
+when such a view is open, and a view built from its result should conform to it.'''@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      arch:Viewpoint ;
+.
+
+arch:questionStage
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionStage"@en ;
+    skos:definition "The stage of an investigation the question belongs to."@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      skos:Concept ;
+.
+
+arch:answers
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "answers"@en ;
+    skos:definition "What one row of the result means."@en ;
+    rdfs:domain     arch:Question ;
+.
+
+arch:doesNotProve
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "doesNotProve"@en ;
+    skos:definition '''The inference a reader will reach for and should not — that a modelled
+relationship is a runtime dependency, that an absent value means none exists.'''@en ;
+    rdfs:domain     arch:Question ;
+.
+
+arch:resultIsFinding
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "resultIsFinding"@en ;
+    skos:definition '''True when every row is a finding against the concern, so an empty result
+means the concern is satisfied. A generator renders an empty finding as an explicit
+"none found", not as a missing table.'''@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      xsd:boolean ;
+.
+
+arch:findingSeverity
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "findingSeverity"@en ;
+    skos:definition "How serious a finding is, on SHACL's scale, so findings and validation results read alike."@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      sh:Severity ;
+.
+
+arch:requiresDataset
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "requiresDataset"@en ;
+    skos:definition "What the question must be able to read."@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      arch:DatasetScope ;
+.
+
+arch:DatasetScope
+    a               owl:Class ;
+    skos:prefLabel  "DatasetScope"@en ;
+    skos:definition "What a question reads: model data alone, or model data with the metamodel beside it."@en ;
+.
+
+arch:ModelDataset
+    a               arch:DatasetScope ;
+    skos:prefLabel  "Model data"@en ;
+    skos:definition "Model data only, in the default graph."@en ;
+.
+
+arch:ModelAndMetamodelDataset
+    a               arch:DatasetScope ;
+    skos:prefLabel  "Model and metamodel"@en ;
+    skos:definition '''Model data plus the loaded metamodel documents (class hierarchy, viewpoint
+definitions, unqualified-form mappings), in the default graph or in named graphs.'''@en ;
+.
+
+arch:requiresMetamodel
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "requiresMetamodel"@en ;
+    skos:definition '''An ontology whose terms the question uses. A tool offers the question only
+when that ontology is loaded.'''@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      owl:Ontology ;
+.
+
+arch:requiresRole
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "requiresRole"@en ;
+    skos:definition '''A linked-archi-query profile role the question depends on (label,
+rel_source, in_view …): the bridge to the role-based template catalogue, where one template
+serves several vocabularies.'''@en ;
+    rdfs:domain     arch:Question ;
+.
+
+arch:defaultLimit
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "defaultLimit"@en ;
+    skos:definition "The row bound a browsing tool appends. Not part of the query text."@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      xsd:positiveInteger ;
+.
+
+arch:resultKey
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "resultKey"@en ;
+    skos:definition '''The key the question's rows are stored under in a generator's context,
+inside the asking section's arch:sectionResultKey.'''@en ;
+    rdfs:domain     arch:Question ;
+    rdfs:range      xsd:string ;
+.
+
+# ── Stages (shared with the linked-archi-query catalogue) ─────────
+
+arch:QuestionStageScheme
+    a               skos:ConceptScheme ;
+    skos:prefLabel  "Question stages"@en ;
+    skos:definition "The order an investigation moves through. Identical to the stages of the linked-archi-query catalogue."@en ;
+.
+
+arch:OrientationStage a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "orientation" ;
+    skos:prefLabel "Orientation"@en ; skos:definition "What is in the model, in outline."@en .
+arch:ResolutionStage  a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "resolution" ;
+    skos:prefLabel "Resolution"@en ; skos:definition "Find the thing a name refers to, and what it is."@en .
+arch:DiscoveryStage   a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "discovery" ;
+    skos:prefLabel "Discovery"@en ; skos:definition "Which vocabulary and shapes the data actually uses."@en .
+arch:AnalysisStage    a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "analysis" ;
+    skos:prefLabel "Analysis"@en ; skos:definition "Dependencies, traceability, realisation, impact."@en .
+arch:EnrichmentStage  a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "enrichment" ;
+    skos:prefLabel "Enrichment"@en ; skos:definition "Lifecycle, ownership and other facts recorded about elements."@en .
+arch:QualityStage     a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "quality" ;
+    skos:prefLabel "Quality"@en ; skos:definition "Gaps, inconsistencies and integrity of the description itself."@en .
+arch:ViewsStage       a skos:Concept ; skos:inScheme arch:QuestionStageScheme ; skos:notation "views" ;
+    skos:prefLabel "Views"@en ; skos:definition "What views present, and how they conform to their viewpoints."@en .
+
+# ── Template sections that answer concerns ───────────────────────
+
+arch:sectionAddressesConcern
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "sectionAddressesConcern"@en ;
+    skos:definition '''A concern this section answers for its readers. Defaults to the concerns
+its arch:sectionViewpoint frames; stated where the section is narrower or wider.'''@en ;
+    rdfs:domain     arch:TemplateSection ;
+    rdfs:range      arch:Concern ;
+.
+
+arch:sectionTargetsStakeholder
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "sectionTargetsStakeholder"@en ;
+    skos:definition "A stakeholder this section is written for, where it differs from its viewpoint's."@en ;
+    rdfs:domain     arch:TemplateSection ;
+    rdfs:range      arch:Stakeholder ;
+.
+
+arch:sectionAsks
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "sectionAsks"@en ;
+    skos:definition '''The questions this section answers, in reading order, as an rdf:List of
+arch:Question. Supersedes arch:sectionQuery: one question, defined once, asked by any number of
+sections and offered in any tool.'''@en ;
+    skos:scopeNote  '''For each question a section asks, a generator pre-binds the parameters that
+question declares, from: the deliverable's model (?model), the section's arch:sectionViewpoint
+(?viewpoint), and any arch:templateParameter the deliverable was produced for. A question whose
+required parameter stays unbound is reported as skipped, never run unbounded.
+
+arch:sectionQuery remains valid as an inline single-question shorthand.'''@en ;
+    rdfs:domain     arch:TemplateSection ;
+    rdfs:range      rdf:List ;
+.
+
+arch:templateParameter
+    a                  owl:ObjectProperty ;
+    rdfs:subPropertyOf sh:parameter ;
+    skos:prefLabel     "templateParameter"@en ;
+    skos:definition    '''A value the deliverable is produced for — the model, the element under
+change, two plateaus to compare — declared as an sh:Parameter and pre-bound into every
+question its sections ask.'''@en ;
+    rdfs:domain        arch:DeliverableTemplate ;
+    rdfs:range         sh:Parameter ;
+.

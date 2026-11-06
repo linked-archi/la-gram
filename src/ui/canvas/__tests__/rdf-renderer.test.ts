@@ -23,8 +23,14 @@ import {
   NOTATION_DEFAULTS,
   SHAPE_TYPES,
 } from '../notation-shapes.js';
-import { RENDER_CLASSES } from '../rdf-renderer.js';
+import { RENDER_CLASSES, connectionLabelLayout, drawnConnectionLabel, labelOffsetOf, midpointOf, type RdfBusinessObject } from '../rdf-renderer.js';
 import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
+import { archimateShape } from './notation-shape-fixtures.js';
+
+// ArchiMate's own shapes as its bundled notation declares them; their fallback as the core shape.
+const box3d = { shapeType: 'Rectangle' as const, customShape: archimateShape('Box3D') };
+const folder = { shapeType: 'Rectangle' as const, customShape: archimateShape('Folder') };
+const banded = { shapeType: 'Rectangle' as const, customShape: archimateShape('BandedRectangle') };
 
 const TYPE_IRI = 'https://example.org/mm#TestType';
 const BUNDLED_GLYPH = 'archimate4/icons/glyphs/actor.svg';
@@ -211,6 +217,46 @@ describe('ShapeOnly', () => {
   });
 });
 
+describe('a shape too small for its label (a junction)', () => {
+  const junction: VisualStyle = {
+    shapeType: 'Circle',
+    fillColor: '#000000',
+    lineColor: '#000000',
+    renderingMode: 'ShapeWithBadge',
+    iconSymbol: BUNDLED_GLYPH,
+    defaultWidth: 15,
+    defaultHeight: 15,
+  };
+
+  it('draws its own name under it, on lines as wide as an element', () => {
+    harness = createRenderHarness(paletteWith([elementType(junction, 'And Junction')]));
+    const shape = harness.drawShape(
+      { iri: 'https://example.org/model/j1', typeIri: TYPE_IRI, kind: 'element', label: 'Approval split', named: true },
+      { width: 15, height: 15 },
+    );
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.textContent).toBe('Approval split');
+    expect(label.querySelectorAll('tspan')).toHaveLength(1);
+    expect(Number(label.getAttribute('y'))).toBeGreaterThan(15);
+    expect(Number(label.getAttribute('x'))).toBe(7.5);
+  });
+
+  it('draws no badge, even when its style declares one', () => {
+    harness = createRenderHarness(paletteWith([elementType(junction, 'And Junction')]));
+    const shape = harness.drawShape(
+      { iri: 'https://example.org/model/j1', typeIri: TYPE_IRI, kind: 'element', label: 'Split', named: true },
+      { width: 15, height: 15 },
+    );
+    expect(shape.querySelector(`.${RENDER_CLASSES.badge}`)).toBeNull();
+    expect(shape.querySelector(`.${RENDER_CLASSES.body}`)!.tagName).toBe('circle');
+  });
+
+  it('draws nothing under it without a name of its own — not its type', () => {
+    const shape = drawWithStyle(junction, { label: 'And Junction', width: 15, height: 15 });
+    expect(shape.querySelector(`.${RENDER_CLASSES.label}`)).toBeNull();
+  });
+});
+
 describe('degradation when the icon cannot be drawn', () => {
   it('falls back to ShapeOnly for a ShapeWithBadge style with no iconSymbol', () => {
     const shape = drawWithStyle({
@@ -295,6 +341,87 @@ describe('shape types through the renderer', () => {
 
     expect(plainRx).toBeNull();
     expect(Number(roundedRx)).toBeGreaterThan(0);
+  });
+
+  it('draws a shape\'s inner lines over its body, stroked and unfilled', () => {
+    const shape = drawWithStyle({ ...badgeStyle, ...box3d, lineColor: '#333333' }, { width: 130, height: 60 });
+    const [body, details] = [...shape.children];
+    expect(body!.getAttribute('class')).toBe(RENDER_CLASSES.body);
+    expect(details!.getAttribute('class')).toBe(RENDER_CLASSES.details);
+    expect(details!.getAttribute('d')).toBe('M0,12L118,12L118,60M118,12L130,0');
+    expect([details!.getAttribute('fill'), details!.getAttribute('stroke')]).toEqual(['none', '#333333']);
+    harness?.destroy();
+    harness = undefined;
+
+    // A shape with no inner lines draws none.
+    const plain = drawWithStyle({ ...badgeStyle, shapeType: 'Rectangle' });
+    expect(plain.querySelector(`.${RENDER_CLASSES.details}`)).toBeNull();
+  });
+
+  it('dashes the outline and the inner lines for a dashed borderStyle', () => {
+    const shape = drawWithStyle({ ...badgeStyle, ...folder, borderStyle: 'DashedLine' });
+    const dashes = [RENDER_CLASSES.body, RENDER_CLASSES.details].map((name) =>
+      shape.querySelector(`.${name}`)!.getAttribute('stroke-dasharray'),
+    );
+    expect(dashes).toEqual(['8 4', '8 4']);
+    harness?.destroy();
+    harness = undefined;
+
+    const solid = drawWithStyle({ ...badgeStyle, ...folder });
+    expect(solid.querySelector(`.${RENDER_CLASSES.body}`)!.getAttribute('stroke-dasharray')).toBeNull();
+  });
+
+  it('puts the badge and label on a 3D box\'s front face', () => {
+    const shape = drawWithStyle({ ...badgeStyle, ...box3d }, { width: 130, height: 60, label: 'Server' });
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    // Front face: x 0–118, y 12–60; the badge in its top-right corner.
+    expect([badge.getAttribute('x'), badge.getAttribute('y')]).toEqual(['94', '16']);
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.getAttribute('x')).toBe('59');
+    expect(Number(label.getAttribute('y'))).toBeGreaterThan(12 + 24);
+  });
+
+  it('puts a Folder\'s label in its tab, on one line, and its badge in the body', () => {
+    const shape = drawWithStyle(
+      { ...badgeStyle, ...folder },
+      { width: 130, height: 60, label: 'A grouping with a name too long for one line' },
+    );
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    expect(label.querySelectorAll('tspan')).toHaveLength(1);
+    // Centred in the 104 × 21 tab.
+    expect(label.getAttribute('x')).toBe('52');
+    expect(Number(label.getAttribute('y'))).toBeLessThan(21);
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    expect(Number(badge.getAttribute('y'))).toBeGreaterThanOrEqual(21);
+  });
+
+  it('colours the label with fontColor, else the line colour', () => {
+    const labelFill = (style: VisualStyle) => {
+      harness?.destroy();
+      const shape = drawWithStyle(style, { label: 'Story' });
+      return shape.querySelector(`.${RENDER_CLASSES.label}`)!.getAttribute('fill');
+    };
+    // EDGY's facets: white border, black name.
+    expect(labelFill({ shapeType: 'Rectangle', fillColor: '#75F0A5', lineColor: '#FFFFFF', fontColor: '#000000', renderingMode: 'ShapeOnly' })).toBe('#000000');
+    // Its tag: a black pill with the name in white, inside.
+    expect(labelFill({ shapeType: 'RoundedRectangle', fillColor: '#000000', lineColor: '#000000', fontColor: '#FFFFFF', renderingMode: 'ShapeOnly' })).toBe('#FFFFFF');
+    // No fontColor: the line colour, as before.
+    expect(labelFill({ shapeType: 'Rectangle', lineColor: '#1565C0', renderingMode: 'ShapeOnly' })).toBe('#1565C0');
+    // Under an IconCentric icon the label is on the canvas: black unless fontColor says otherwise.
+    expect(labelFill({ ...badgeStyle, lineColor: '#FFFFFF', renderingMode: 'IconCentric' })).toBe(NOTATION_DEFAULTS.lineColor);
+    expect(labelFill({ ...badgeStyle, fontColor: '#333333', renderingMode: 'IconCentric' })).toBe('#333333');
+  });
+
+  it('keeps the label below a band', () => {
+    const shape = drawWithStyle({ ...badgeStyle, ...banded, renderingMode: 'ShapeOnly' }, { width: 130, height: 60, label: 'Order' });
+    const label = shape.querySelector(`.${RENDER_CLASSES.label}`)!;
+    // Centred in the 49.6 below the band rather than in the whole 60.
+    const centred = Number(label.getAttribute('y'));
+    harness?.destroy();
+    harness = undefined;
+    const plain = drawWithStyle({ ...badgeStyle, shapeType: 'Rectangle', renderingMode: 'ShapeOnly' }, { width: 130, height: 60, label: 'Order' });
+    const plainY = Number(plain.querySelector(`.${RENDER_CLASSES.label}`)!.getAttribute('y'));
+    expect(centred - plainY).toBeCloseTo(10.4 / 2, 1);
   });
 });
 
@@ -420,6 +547,146 @@ describe('connection rendering', () => {
     const line = drawRelationship('SolidLine', 'CircleDot', 'ClosedArrowhead');
     expect(line.getAttribute('marker-start')).toContain('CircleDot');
     expect(line.getAttribute('marker-end')).toContain('ClosedArrowhead');
+  });
+
+  it('draws a derived relationship faded, its line style kept, with a badge saying what it is', () => {
+    harness = createRenderHarness(paletteWith([]));
+    const stated = harness.drawConnection({ iri: 'https://example.org/model/r1', typeIri: RELATION_IRI, kind: 'relationship' });
+    expect(stated.getAttribute('stroke-opacity')).toBeNull();
+    expect(stated.parentElement?.querySelector('.la-derivation-badge')).toBeNull();
+
+    const valid = harness.drawConnection({
+      iri: 'https://example.org/model/d1',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+      derivation: 'valid',
+      derivationRule: 'DR3',
+    });
+    expect(valid.getAttribute('class')).toContain('la-connection-derived');
+    expect(valid.getAttribute('class')).toContain('la-connection-valid');
+    expect(valid.getAttribute('stroke-opacity')).toBe('0.6');
+    const badge = [...(valid.parentElement?.querySelectorAll('.la-derivation-badge') ?? [])].find(
+      (b) => b.getAttribute('data-derivation') === 'valid',
+    );
+    expect(badge?.querySelector('text')?.textContent).toBe('D');
+    expect(badge?.querySelector('title')?.textContent).toBe('Derived (valid) — DR3');
+
+    const potential = harness.drawConnection({
+      iri: 'https://example.org/model/d2',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+      derivation: 'potential',
+    });
+    expect(potential.getAttribute('stroke-opacity')).toBe('0.4');
+    const potentialBadge = [...(potential.parentElement?.querySelectorAll('.la-derivation-badge') ?? [])].find(
+      (b) => b.getAttribute('data-derivation') === 'potential',
+    );
+    expect(potentialBadge?.querySelector('text')?.textContent).toBe('P');
+  });
+
+  describe('a relationship’s name', () => {
+    const named = (label: string, extra: Partial<RdfBusinessObject> = {}): RdfBusinessObject => ({
+      iri: 'https://example.org/model/r1',
+      typeIri: RELATION_IRI,
+      kind: 'relationship',
+      label,
+      named: true,
+      ...extra,
+    });
+    const labelOf = (line: SVGElement) => line.parentElement?.querySelector(`.${RENDER_CLASSES.connectionLabel}`) ?? null;
+    const linesOf = (line: SVGElement) => [...(labelOf(line)?.querySelectorAll('tspan') ?? [])].map((t) => t.textContent);
+
+    it('is not drawn unless names are shown', () => {
+      harness = createRenderHarness(paletteWith([]));
+      expect(labelOf(harness.drawConnection(named('Serves orders')))).toBeNull();
+    });
+
+    it('is drawn at the middle of the route, on a white box, in the line colour, and takes the pointer', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const line = harness.drawConnection(named('Serves orders'), [
+        { x: 0, y: 0 },
+        { x: 0, y: 100 },
+        { x: 300, y: 100 },
+      ]);
+      const label = labelOf(line)!;
+      expect(linesOf(line)).toEqual(['Serves orders']);
+      const text = label.querySelector('text')!;
+      // Half of 400 along the route: 100 into its last segment.
+      expect(text.getAttribute('x')).toBe('100');
+      expect(text.getAttribute('text-anchor')).toBe('middle');
+      expect(text.getAttribute('fill')).toBe(NOTATION_DEFAULTS.lineColor);
+      expect(text.getAttribute('stroke')).toBe('#ffffff');
+      expect(text.getAttribute('paint-order')).toBe('stroke');
+      const hit = label.querySelector('rect')!;
+      expect(hit.getAttribute('pointer-events')).toBe('all');
+      // The line stops at the name: between its words too.
+      expect(hit.getAttribute('fill')).toBe('#ffffff');
+      const box = connectionLabelLayout([{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 300, y: 100 }], 'Serves orders')!.box;
+      // Centred on the middle, both ways.
+      expect(box.x + box.width / 2).toBeCloseTo(100);
+      expect(box.y + box.height / 2).toBeCloseTo(100);
+      expect(Number(hit.getAttribute('y'))).toBe(box.y);
+    });
+
+    it('draws nothing for a relationship without a name of its own', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      expect(labelOf(harness.drawConnection({ iri: 'https://example.org/model/r1', typeIri: RELATION_IRI, kind: 'relationship' }))).toBeNull();
+      expect(labelOf(harness.drawConnection(named('Serving', { named: false })))).toBeNull();
+    });
+
+    it('wraps a long name as a shape’s is, dropping what does not fit in three lines', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const lines = linesOf(harness.drawConnection(named('Delivers the monthly invoices to every customer of the retail branch network')));
+      expect(lines.length).toBe(NOTATION_DEFAULTS.maxLabelLines);
+      expect(lines.join(' ')).toMatch(/^Delivers the monthly invoices/);
+    });
+
+    it('goes under the derivation badge on a derived line, faded as the line is', () => {
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const line = harness.drawConnection(named('Serves orders', { derivation: 'valid' }));
+      const label = labelOf(line)!;
+      expect(label.getAttribute('opacity')).toBe('0.6');
+      // The badge is a circle of radius 7 on the middle (100, 0): the name starts below it.
+      expect(Number(label.querySelector('rect')!.getAttribute('y'))).toBeGreaterThan(7);
+    });
+
+    it('moved, is drawn at its offset from the middle of the route — and keeps it as the route changes', () => {
+      const route = [{ x: 0, y: 0 }, { x: 200, y: 0 }];
+      const moved = connectionLabelLayout(route, 'Serves orders', { offset: { x: 30, y: -40 } })!;
+      expect(moved.x).toBe(130);
+      expect(moved.box.y + moved.box.height / 2).toBeCloseTo(-40);
+      // What the view keeps (the box) gives the offset back.
+      expect(labelOffsetOf(route, moved.box)).toEqual({ x: 30, y: -40 });
+      // The route longer: the same offset from its new middle.
+      const longer = connectionLabelLayout([{ x: 0, y: 0 }, { x: 400, y: 0 }], 'Serves orders', { offset: { x: 30, y: -40 } })!;
+      expect(longer.x).toBe(230);
+      // A derived line's name, moved, is where it was put — not under the badge.
+      const derived = connectionLabelLayout(route, 'Serves orders', { badge: true, offset: { x: 0, y: -40 } })!;
+      expect(derived.box.y + derived.box.height / 2).toBeCloseTo(-40);
+
+      harness = createRenderHarness(paletteWith([]), { relationshipNames: true });
+      const line = harness.drawConnection(named('Serves orders', { labelOffset: { x: 30, y: -40 } }));
+      expect(labelOf(line)!.querySelector('text')!.getAttribute('x')).toBe('130');
+    });
+
+    it('is laid out by connectionLabelLayout, which drawnConnectionLabel applies only when shown and named', () => {
+      const route = [{ x: 0, y: 0 }, { x: 200, y: 0 }];
+      expect(connectionLabelLayout([{ x: 5, y: 5 }], 'x')).toBeUndefined();
+      const empty = connectionLabelLayout(route, '')!;
+      expect(empty.lines).toEqual([]);
+      // At least a line high, for a name to be typed into.
+      expect(empty.box.height).toBeGreaterThan(0);
+      const connection = { waypoints: route, businessObject: named('Serves orders') };
+      expect(drawnConnectionLabel(connection, { relationshipNames: false })).toBeUndefined();
+      expect(drawnConnectionLabel(connection, { relationshipNames: true })?.lines).toEqual(['Serves orders']);
+      expect(drawnConnectionLabel({ ...connection, businessObject: named('', { named: true }) }, { relationshipNames: true })).toBeUndefined();
+    });
+  });
+
+  it('finds the middle of a line by its length', () => {
+    expect(midpointOf([{ x: 0, y: 0 }, { x: 200, y: 0 }])).toEqual({ x: 100, y: 0 });
+    expect(midpointOf([{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 300, y: 100 }])).toEqual({ x: 100, y: 100 });
+    expect(midpointOf([{ x: 5, y: 5 }])).toBeUndefined();
   });
 
   it('draws an unstyled relationship type as a plain solid line', () => {

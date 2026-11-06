@@ -5,6 +5,21 @@ import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { N3MetamodelLoader } from '../metamodel-loader.js';
 import { SparqlPaletteGenerator } from '../palette-generator.js';
 import type { LoadedMetamodel, PaletteDefinition } from '../interfaces.js';
+import {
+  AGGREGATION_STYLE,
+  ARCH_ELEMENT,
+  ASSOCIATION_STYLE,
+  ARCH_QUALIFIED_RELATIONSHIP,
+  BASIC,
+  BASIC_METAMODEL,
+  BUBBLE_ELEMENT_STYLE,
+  BUBBLE_SET,
+  GENERIC_RELATIONSHIP_STYLE,
+  RECTANGLE_ELEMENT_STYLE,
+  RECTANGLE_SET,
+  WORKSHOP_CONTEXT,
+  basicAssetSource,
+} from './basic-fixture.js';
 
 const EX = 'https://example.org/mm#';
 const ONTOLOGY_IRI = 'https://example.org/mm';
@@ -172,6 +187,12 @@ const TEST_METAMODEL = `
   ex:EmptyViewpoint
     rdf:type arch:Viewpoint ;
     skos:prefLabel "Empty Viewpoint"@en .
+
+  # Names a superclass only: its subclasses are what it includes.
+  ex:AnyElementViewpoint
+    rdf:type arch:Viewpoint ;
+    skos:prefLabel "Any Element Viewpoint"@en ;
+    arch:includesConcept ex:Element .
 `;
 
 const BY_LAYER = `${EX}ByLayer`;
@@ -194,6 +215,27 @@ describe('SparqlPaletteGenerator', () => {
   const allElements = (p: PaletteDefinition = palette) => p.elementGroups.flatMap((g) => g.elements);
 
   describe('element discovery', () => {
+    it('says the palette is grouped by the taxonomy', () => {
+      expect(palette.grouping).toBe('taxonomy');
+    });
+
+    it('says when it falls back to the OWL classes alone: no classification loaded', async () => {
+      const bare = new OxigraphRdfStore();
+      await new N3MetamodelLoader(new N3TtlParser(), bare).loadMetamodel(`
+        @prefix owl:  <${NAMESPACES.owl}> .
+        @prefix rdf:  <${NAMESPACES.rdf}> .
+        @prefix rdfs: <${NAMESPACES.rdfs}> .
+        @prefix arch: <${NAMESPACES.arch}> .
+        @prefix ex:   <${EX}> .
+        <${ONTOLOGY_IRI}> rdf:type owl:Ontology .
+        ex:Widget rdf:type owl:Class ; rdfs:subClassOf arch:Element .
+      `);
+      const owlOnly = new SparqlPaletteGenerator(bare).generatePalette(ONTOLOGY_IRI);
+      expect(owlOnly.grouping).toBe('owl');
+      expect(allElements(owlOnly).map((e) => e.iri)).toContain(`${EX}Widget`);
+      bare.dispose();
+    });
+
     it('discovers the instantiable classes from the taxonomy', () => {
       const iris = allElements().map((e) => e.iri).sort();
       expect(iris).toEqual([`${EX}Actor`, `${EX}Component`, `${EX}Process`]);
@@ -362,6 +404,12 @@ describe('SparqlPaletteGenerator', () => {
       expect(iris).toEqual([`${EX}Actor`, `${EX}Process`]);
     });
 
+    it('includes the subclasses of a class the viewpoint names', () => {
+      const filtered = generator.filterByViewpoint(palette, `${EX}AnyElementViewpoint`);
+      const iris = allElements(filtered).map((e) => e.iri).sort();
+      expect(iris).toEqual([`${EX}Actor`, `${EX}Component`, `${EX}Process`]);
+    });
+
     it('drops groups left empty by filtering', () => {
       const filtered = generator.filterByViewpoint(palette, `${EX}BusinessViewpoint`);
       expect(filtered.elementGroups.map((g) => g.category)).toEqual(['Business Layer']);
@@ -397,6 +445,252 @@ describe('SparqlPaletteGenerator', () => {
   });
 });
 
+describe('a predicate a class shares with its subclasses', () => {
+  // ex:AnyUse sorts before ex:Use; it is the subclass, and must not take the
+  // shared predicate's look.
+  const KINDS = `
+    @prefix owl:      <${NAMESPACES.owl}> .
+    @prefix rdf:      <${NAMESPACES.rdf}> .
+    @prefix rdfs:     <${NAMESPACES.rdfs}> .
+    @prefix arch:     <${NAMESPACES.arch}> .
+    @prefix arch-vis: <${NAMESPACES['arch-vis']}> .
+    @prefix ex:       <https://example.org/kinds#> .
+
+    <https://example.org/kinds> rdf:type owl:Ontology .
+    ex:Kinds rdf:type arch:Metamodel ; arch:notationSet ex:Set .
+    ex:Set rdf:type arch-vis:NotationSet .
+
+    ex:Use rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; arch:unqualifiedForm ex:uses .
+    ex:AnyUse rdf:type owl:Class ; rdfs:subClassOf ex:Use ; arch:unqualifiedForm ex:uses .
+
+    ex:UseNotation rdf:type arch-vis:VisualNotation ;
+      arch-vis:notationFor ex:Use ; arch-vis:inNotationSet ex:Set ;
+      arch-vis:lineStyle arch-vis:DottedLine ;
+      arch-vis:sourceDecor arch-vis:NoDecoration ; arch-vis:targetDecor arch-vis:NoDecoration .
+    ex:AnyUseNotation rdf:type arch-vis:VisualNotation ;
+      arch-vis:notationFor ex:AnyUse ; arch-vis:inNotationSet ex:Set ;
+      arch-vis:lineStyle arch-vis:DottedLine ;
+      arch-vis:sourceDecor arch-vis:OpenArrowhead ; arch-vis:targetDecor arch-vis:OpenArrowhead .
+  `;
+
+  it('draws a bare triple as the class, not as a subclass that sorts first', async () => {
+    const store = new OxigraphRdfStore();
+    const loaded = await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(KINDS);
+    const p = new SparqlPaletteGenerator(store).generatePalette(loaded.metamodelIri);
+    const index = p.notationIndex ?? {};
+    expect(index['https://example.org/kinds#AnyUse']?.matchedClassIri).toBe('https://example.org/kinds#AnyUse');
+    expect(index['https://example.org/kinds#uses']).toEqual(index['https://example.org/kinds#Use']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Notation fallback: superclass descriptors and other metamodels' default sets.
+// ---------------------------------------------------------------------------
+
+/** The palette's relationship entry for `iri`. */
+const relationship = (p: PaletteDefinition, iri: string) => p.relationshipTypes.find((r) => r.iri === iri);
+
+describe('notation fallback layering', () => {
+  const STANDARD = `${EX}StandardNotation`;
+  let generator: SparqlPaletteGenerator;
+
+  beforeAll(async () => {
+    // TEST_METAMODEL beside the Basic asset set loaded through its manifest:
+    // two metamodels, each with one default set; Basic's bubble set is named only
+    // by a presentation context.
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store, basicAssetSource());
+    await loader.loadMetamodel(TEST_METAMODEL);
+    await loader.loadMetamodelByIri(BASIC_METAMODEL);
+    generator = new SparqlPaletteGenerator(store);
+  });
+
+  const element = (p: PaletteDefinition, iri: string) =>
+    p.elementGroups.flatMap((g) => g.elements).find((e) => e.iri === iri);
+
+  it("styles basic:Node from the active Basic set's arch:Element descriptor", () => {
+    const p = generator.generatePalette(undefined, { notationSetIri: RECTANGLE_SET });
+    const node = element(p, `${BASIC}Node`);
+    expect(node?.style).toEqual(RECTANGLE_ELEMENT_STYLE);
+    expect(node?.renderingMode).toBe('ShapeOnly');
+    // The inherited look includes the descriptor's composite image.
+    expect(node?.prefVisNotation?.sourceUri).toBe('https://meta.linked.archi/basic/icons/element.svg');
+    expect(p.notationIndex?.[`${BASIC}Node`]).toMatchObject({
+      source: 'active-superclass',
+      notationSetIri: RECTANGLE_SET,
+      matchedClassIri: ARCH_ELEMENT,
+    });
+  });
+
+  it('styles basic:Node from the bubble set when its presentation context is chosen', () => {
+    const p = generator.generatePalette(undefined, { presentationContextIri: WORKSHOP_CONTEXT });
+    expect(p.notationSetIri).toBe(BUBBLE_SET);
+    expect(element(p, `${BASIC}Node`)?.style).toEqual(BUBBLE_ELEMENT_STYLE);
+  });
+
+  it('gives basic:Association and basic:Aggregation their own descriptors, with no colour', () => {
+    const p = generator.generatePalette(undefined, { notationSetIri: RECTANGLE_SET });
+
+    const association = relationship(p, `${BASIC}Association`);
+    expect(association?.relationshipStyle).toEqual({
+      lineStyle: 'SolidLine',
+      sourceDecor: 'NoDecoration',
+      targetDecor: 'NoDecoration',
+      lineColor: undefined,
+    });
+    expect(association?.prefVisNotation?.sourceUri).toBe('https://meta.linked.archi/basic/icons/association.svg');
+    expect(p.notationIndex?.[`${BASIC}Association`]).toMatchObject({
+      source: 'active',
+      notationSetIri: RECTANGLE_SET,
+      matchedClassIri: `${BASIC}Association`,
+    });
+    // The direct predicate a model triple uses resolves the same way.
+    expect(p.notationIndex?.[`${BASIC}association`]).toEqual(p.notationIndex?.[`${BASIC}Association`]);
+
+    const aggregation = relationship(p, `${BASIC}Aggregation`);
+    expect(aggregation?.relationshipStyle).toEqual({
+      lineStyle: 'SolidLine',
+      sourceDecor: 'HollowDiamond',
+      targetDecor: 'NoDecoration',
+      lineColor: undefined,
+    });
+    expect(p.notationIndex?.[`${BASIC}Aggregation`]).toMatchObject({
+      source: 'active',
+      matchedClassIri: `${BASIC}Aggregation`,
+    });
+
+    for (const entry of [association, aggregation]) expect(entry?.relationshipStyle?.lineColor).toBeUndefined();
+  });
+
+  it('with the test language first, keeps its styles and fills the gaps from Basic after the own image', () => {
+    const p = generator.generatePalette(undefined, { defaultNotationSetIris: [STANDARD, RECTANGLE_SET] });
+    expect(p.notationSetIri).toBe(STANDARD);
+    const index = p.notationIndex ?? {};
+
+    // 1. Exact in the active set: unchanged.
+    expect(element(p, `${EX}Process`)?.style?.shapeType).toBe('RoundedRectangle');
+    expect(index[`${EX}Process`]?.source).toBe('active');
+    expect(relationship(p, `${EX}Serving`)?.relationshipStyle?.targetDecor).toBe('OpenArrowhead');
+    expect(index[`${EX}Serving`]?.source).toBe('active');
+
+    // 2. Basic's relationship classes keep their own descriptors from its default set.
+    expect(relationship(p, `${BASIC}Aggregation`)?.relationshipStyle).toEqual(AGGREGATION_STYLE);
+    expect(index[`${BASIC}Aggregation`]).toMatchObject({ source: 'fallback', notationSetIri: RECTANGLE_SET });
+
+    // 3 before 4: the class's own arch:prefVisNotation wins, so no style is borrowed.
+    const actor = element(p, `${EX}Actor`);
+    expect(actor?.style).toBeUndefined();
+    expect(actor?.prefVisNotation?.bundledPath).toBe('archimate4/icons/business-actor.svg');
+    expect(index[`${EX}Actor`]?.source).toBe('pref-vis-notation');
+
+    // 4. Nothing published for the class, nothing in the active set: Basic's generic descriptors.
+    expect(element(p, `${EX}Component`)?.style).toEqual(RECTANGLE_ELEMENT_STYLE);
+    expect(index[`${EX}Component`]).toMatchObject({
+      source: 'fallback-superclass',
+      notationSetIri: RECTANGLE_SET,
+      matchedClassIri: ARCH_ELEMENT,
+    });
+    expect(element(p, `${BASIC}Node`)?.style).toEqual(RECTANGLE_ELEMENT_STYLE);
+    expect(index[`${EX}Composition`]).toMatchObject({
+      source: 'fallback-superclass',
+      matchedClassIri: ARCH_QUALIFIED_RELATIONSHIP,
+    });
+  });
+
+  it("with Basic first, the other language keeps what it publishes; Basic's generic descriptors fill only the gaps", () => {
+    const p = generator.generatePalette(undefined, { defaultNotationSetIris: [RECTANGLE_SET, STANDARD] });
+    expect(p.notationSetIri).toBe(RECTANGLE_SET);
+    const index = p.notationIndex ?? {};
+
+    // 2 before 4: an exact descriptor in the other set beats Basic's arch:Element one.
+    expect(element(p, `${EX}Process`)?.style?.shapeType).toBe('RoundedRectangle');
+    expect(index[`${EX}Process`]).toMatchObject({
+      source: 'fallback',
+      notationSetIri: STANDARD,
+      matchedClassIri: `${EX}Process`,
+    });
+    expect(index[`${EX}Serving`]).toMatchObject({ source: 'fallback', notationSetIri: STANDARD });
+
+    // 3 before 4: so does the class's own image.
+    expect(element(p, `${EX}Actor`)?.style).toBeUndefined();
+    expect(index[`${EX}Actor`]?.source).toBe('pref-vis-notation');
+
+    // 4. Nothing published for the class itself: Basic's generic descriptors.
+    expect(element(p, `${EX}Component`)?.style).toEqual(RECTANGLE_ELEMENT_STYLE);
+    expect(index[`${EX}Component`]).toMatchObject({
+      source: 'active-superclass',
+      notationSetIri: RECTANGLE_SET,
+      matchedClassIri: ARCH_ELEMENT,
+    });
+    expect(relationship(p, `${EX}Composition`)?.relationshipStyle).toEqual(GENERIC_RELATIONSHIP_STYLE);
+    expect(index[`${EX}Composition`]).toMatchObject({
+      source: 'active-superclass',
+      matchedClassIri: ARCH_QUALIFIED_RELATIONSHIP,
+    });
+  });
+
+  it('palette entries and the notation index give the same answer for every class', () => {
+    for (const options of [
+      { defaultNotationSetIris: [STANDARD, RECTANGLE_SET] },
+      { defaultNotationSetIris: [RECTANGLE_SET, STANDARD] },
+      { presentationContextIri: WORKSHOP_CONTEXT },
+    ]) {
+      const p = generator.generatePalette(undefined, options);
+      const index = p.notationIndex ?? {};
+      for (const entry of p.elementGroups.flatMap((g) => g.elements)) {
+        expect(index[entry.iri]?.style, entry.iri).toEqual(entry.style);
+        expect(index[entry.iri]?.renderingMode, entry.iri).toEqual(entry.renderingMode);
+      }
+      for (const entry of p.relationshipTypes) {
+        expect(index[entry.iri]?.relationshipStyle, entry.iri).toEqual(entry.relationshipStyle);
+      }
+    }
+  });
+
+  it('keeps the index through viewpoint filtering', () => {
+    const p = generator.generatePalette(undefined, { notationSetIri: RECTANGLE_SET });
+    const filtered = generator.filterByViewpoint(p, `${EX}BusinessViewpoint`);
+    expect(filtered.notationIndex).toBe(p.notationIndex);
+  });
+});
+
+describe('Basic primary beside the bundled ArchiMate 4.0', () => {
+  const AM4_ONTO = 'https://meta.linked.archi/archimate4/onto#';
+  const AM4_SET = 'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation';
+  let palette: PaletteDefinition;
+
+  beforeAll(async () => {
+    // Basic first, as the primary metamodel: its rectangle set is active.
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store, basicAssetSource());
+    const basic = await loader.loadMetamodelByIri(BASIC_METAMODEL);
+    const am4 = await loader.loadBundledMetamodel();
+    const defaultNotationSetIris = [basic.notationSetIri, am4.notationSetIri].filter(
+      (iri): iri is string => !!iri,
+    );
+    palette = new SparqlPaletteGenerator(store).generatePalette(undefined, { defaultNotationSetIris });
+  }, 60_000);
+
+  it("keeps ArchiMate's filled diamond on am4:Composition: its own descriptor beats Basic's generic line", () => {
+    expect(palette.notationSetIri).toBe(RECTANGLE_SET);
+
+    const composition = relationship(palette, `${AM4_ONTO}Composition`);
+    expect(composition?.relationshipStyle).toMatchObject({
+      lineStyle: 'SolidLine',
+      sourceDecor: 'FilledDiamond',
+      targetDecor: 'NoDecoration',
+    });
+    expect(composition?.relationshipStyle?.lineColor).toBeUndefined();
+    expect(palette.notationIndex?.[`${AM4_ONTO}Composition`]).toMatchObject({
+      source: 'fallback',
+      notationSetIri: AM4_SET,
+    });
+
+    // Basic's own relationship keeps its own descriptor from the active set.
+    expect(relationship(palette, `${BASIC}Association`)?.relationshipStyle).toMatchObject(ASSOCIATION_STYLE);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The real thing: bundled ArchiMate 4.0, loaded through the manifest loader.
 // ---------------------------------------------------------------------------
@@ -428,15 +722,17 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(loaded.graphsByRole.presentationContexts).toEqual([
       'https://meta.linked.archi/archimate4/presentation-contexts#',
     ]);
+    // Reference data names the values properties take: loaded, so choices are labelled.
+    expect(loaded.graphsByRole.referenceData).toEqual(['https://meta.linked.archi/archimate4/reference-data#']);
     // core# and core-vis# arrive through owl:imports, not through the manifest.
     expect(loaded.graphsByRole.coreOntology).toEqual(['https://meta.linked.archi/core#']);
     expect(loaded.graphsByRole.coreVisOntology).toEqual(['https://meta.linked.archi/core-vis#']);
   });
 
-  it('reports the assets it could not load instead of hiding them', () => {
-    const notBundled = loaded.assets.filter((a) => a.outcome === 'not-bundled');
-    expect(notBundled.length).toBeGreaterThan(0);
-    expect(notBundled.map((a) => a.documentIri)).toContain(
+  it('reports the assets it did not load instead of hiding them', () => {
+    const skipped = loaded.assets.filter((a) => a.outcome === 'skipped');
+    expect(skipped.length).toBeGreaterThan(0);
+    expect(skipped.map((a) => a.documentIri)).toContain(
       'https://meta.linked.archi/archimate4/derivation#',
     );
     expect(loaded.assets.some((a) => a.outcome === 'error')).toBe(false);
@@ -446,7 +742,7 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     const elements = palette.elementGroups.flatMap((g) => g.elements);
     expect(elements.length).toBe(42);
     expect(palette.elementGroups.length).toBe(7);
-    expect(palette.relationshipTypes.length).toBe(11);
+    expect(palette.relationshipTypes.length).toBe(15);
     expect(palette.notationSetIri).toBe(
       'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
     );
@@ -464,7 +760,7 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     ]);
   });
 
-  it('offers both published classification axes', () => {
+  it('offers both element classification axes — the relationship categories group no element', () => {
     expect(palette.axes?.map((a) => a.label)).toEqual([
       'Element by Domain',
       'Element by Aspect',
@@ -499,19 +795,23 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(withoutBundledIcon.map((e) => e.iri)).toEqual([]);
   });
 
-  it('finds the eleven relationship types with their line styles', () => {
+  it('finds the eleven relationship types, and the kinds of access and association, with their line styles', () => {
     expect(palette.relationshipTypes.map((r) => r.label)).toEqual([
       'Access',
       'Aggregation',
       'Assignment',
       'Association',
       'Composition',
+      'Directed Association',
       'Flow',
       'Influence',
+      'Read Access',
+      'Read-Write Access',
       'Realization',
       'Serving',
       'Specialization',
       'Triggering',
+      'Write Access',
     ]);
 
     const serving = palette.relationshipTypes.find((r) => r.iri === `${AM4}Serving`);
@@ -520,6 +820,20 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     // Constraints live on the unqualified property in ArchiMate 4.0.
     expect(serving?.domainTypes).toContain(`${AM4}BehaviorElement`);
     expect(serving?.rangeTypes).toContain(`${AM4}ActiveStructureElement`);
+  });
+
+  it('draws each kind of access and the directed association with their own ends', () => {
+    const style = (local: string) => palette.relationshipTypes.find((r) => r.iri === `${AM4}${local}`)?.relationshipStyle;
+    expect(style('Access')).toMatchObject({ lineStyle: 'DottedLine', sourceDecor: 'NoDecoration', targetDecor: 'NoDecoration' });
+    expect(style('ReadAccess')).toMatchObject({ lineStyle: 'DottedLine', sourceDecor: 'OpenArrowhead', targetDecor: 'NoDecoration' });
+    expect(style('WriteAccess')).toMatchObject({ lineStyle: 'DottedLine', sourceDecor: 'NoDecoration', targetDecor: 'OpenArrowhead' });
+    expect(style('ReadWriteAccess')).toMatchObject({ sourceDecor: 'OpenArrowhead', targetDecor: 'OpenArrowhead' });
+    expect(style('DirectedAssociation')).toMatchObject({ lineStyle: 'SolidLine', sourceDecor: 'NoDecoration', targetDecor: 'HalfArrowhead' });
+    // The kinds share their class's predicate; a bare triple is drawn as the class.
+    const read = palette.relationshipTypes.find((r) => r.iri === `${AM4}ReadAccess`);
+    expect(read?.unqualifiedPredicateIri).toBe(`${AM4}accesses`);
+    expect(palette.notationIndex?.[`${AM4}accesses`]).toEqual(palette.notationIndex?.[`${AM4}Access`]);
+    expect(palette.notationIndex?.[`${AM4}associatedWith`]).toEqual(palette.notationIndex?.[`${AM4}Association`]);
   });
 
   it('regroups by the aspect axis with every element in a real group', () => {
@@ -567,17 +881,20 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   it('filters by a real viewpoint through arch:includesConcept', () => {
     const filtered = generator.filterByViewpoint(
       palette,
-      'https://meta.linked.archi/archimate4/viewpoints#Organization',
+      'https://meta.linked.archi/archimate4/viewpoints#OrganizationViewpoint',
     );
     const labels = filtered.elementGroups.flatMap((g) => g.elements).map((e) => e.label).sort();
     // The Organization viewpoint includes BusinessActor, Role, Collaboration,
-    // BusinessInterface and Location.
-    expect(labels).toEqual([
+    // BusinessInterface and Location — and Grouping and the junctions, which
+    // Appendix C admits in every viewpoint.
+    expect(labels).toEqual(expect.arrayContaining([
       'Business Actor',
       'Business Interface',
       'Collaboration',
+      'Grouping',
       'Location',
       'Role',
-    ]);
+    ]));
+    expect(labels).not.toContain('Process');
   });
 });

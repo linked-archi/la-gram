@@ -1,0 +1,513 @@
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:     <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms:  <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix bibo:     <http://purl.org/ontology/bibo/> .
+@prefix vann:     <http://purl.org/vocab/vann/> .
+@prefix cc:       <http://creativecommons.org/ns#> .
+
+@prefix arch:     <https://meta.linked.archi/core#> .
+@prefix arch-tax: <https://meta.linked.archi/core-tax#> .
+@prefix am:       <https://meta.linked.archi/archimate3/onto#> .
+@prefix :         <https://meta.linked.archi/archimate3/tax#> .
+
+#################################################################
+# Concept Scheme
+#################################################################
+
+<https://meta.linked.archi/archimate3/tax#>
+    a                skos:ConceptScheme ;
+    skos:prefLabel   "ArchiMate 3.2 Concept Scheme"@en ;
+    dcterms:description  "Classification of ArchiMate elements by layer and aspect, and relationship types by category."@en ;
+    skos:hasTopConcept :ArchiMateConcept ;
+    cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/archimate3/tax#" ;
+    vann:preferredNamespacePrefix "amtax" ;
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:title                      "Linked.Archi ArchiMate 3.2 Taxonomy"@en ;
+    skos:editorialNote            '''This taxonomy and the OWL abstract classes in archimate3.2-onto.ttl
+serve complementary purposes and are NOT duplicates:
+
+  SKOS concepts (this file)          OWL classes (onto file)
+  ─────────────────────────          ──────────────────────────
+  amtax:ActiveStructureAspect        am:ActiveStructureElement
+  amtax:BusinessLayer                am:BusinessLayerElement
+
+  Purpose: navigation, palette       Purpose: formal semantics,
+  generation, UI filtering,          SHACL constraint checking,
+  SKOS visualization tools           SPARQL reasoning
+
+  Example: a modeling tool reads     Example: a SHACL shape checks
+  skos:narrower to populate the      rdf:type/rdfs:subClassOf*
+  element palette grouped by         am:BehaviorElement to enforce
+  layer and aspect.                  "triggering can only connect
+                                     behavior elements".
+
+The two are linked via rdfs:seeAlso on each SKOS concept pointing
+to its corresponding OWL class. See AM-DD-1 in
+doc/guide/archimate/design-decisions.md.'''@en ;
+    dcterms:created               "2019-03-17"^^xsd:date ;
+    dcterms:modified              "2025-12-01"^^xsd:date ;
+    dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
+    bibo:status                   "draft" ;
+    owl:versionInfo               "3.2"@en ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Language-Structure.html> ;
+    prov:wasDerivedFrom <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Language-Structure.html> .
+
+
+#################################################################
+# Top-Level Concepts
+#################################################################
+
+:ArchiMateConcept
+    a                 skos:Concept ;
+    skos:prefLabel    "ArchiMate Concept"@en ;
+    skos:definition   "Top-level concept encompassing all ArchiMate elements, relationships, and connectors."@en ;
+    skos:topConceptOf <https://meta.linked.archi/archimate3/tax#> ;
+    skos:inScheme     <https://meta.linked.archi/archimate3/tax#> ;
+    skos:broader      arch-tax:ArchComponent ;
+.
+
+:ArchiMateElement
+    a              skos:Concept ;
+    skos:prefLabel "ArchiMate Element"@en ;
+    skos:definition "An ArchiMate element — a node in the modeling palette. Elements are the basic building blocks used to define and describe enterprise architectures."@en ;
+    skos:broader   :ArchiMateConcept ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+.
+
+:ArchiMateRelationship
+    a              skos:Concept ;
+    skos:prefLabel "ArchiMate Relationship"@en ;
+    skos:definition "An ArchiMate relationship type — an edge in the modeling palette. Relationships connect elements to express dependencies, flows, and structural links."@en ;
+    skos:broader   :ArchiMateConcept ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+.
+
+:ArchiMateConnector
+    a              skos:Concept ;
+    skos:prefLabel "ArchiMate Connector"@en ;
+    skos:definition "Relationship connectors (junctions) used to combine relationships of the same type using AND or OR logic."@en ;
+    skos:editorialNote "Junctions are modeled as OWL classes (am:Junction_And, am:Junction_Or) subclassing arch:Element, not arch:QualifiedRelationship. They are not relationship types."@en ;
+    skos:broader   :ArchiMateConcept ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    skos:narrower  am:Junction_And, am:Junction_Or ;
+.
+
+
+#################################################################
+# Elements by Layer
+#################################################################
+
+:ElementByLayer
+    a              skos:Concept ;
+    skos:prefLabel "Element by Layer"@en ;
+    skos:definition "Classification of ArchiMate elements by their architectural layer — the primary horizontal grouping in the ArchiMate framework."@en ;
+    skos:editorialNote "Each layer concept's skos:narrower list must match the concrete OWL classes in archimate3.2-onto.ttl that have the corresponding LayerElement as a superclass."@en ;
+    skos:broader   :ArchiMateElement ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+.
+
+:StrategyLayer
+    a              skos:Concept ;
+    skos:prefLabel "Strategy Layer"@en ;
+    skos:definition "Elements representing strategic concepts: resources, capabilities, value streams, and courses of action. The Strategy layer provides the bridge between business goals and the architecture that supports them."@en ;
+    skos:scopeNote "Use Strategy elements to model high-level planning artifacts. Capabilities describe what the organization can do, value streams describe how value is delivered, and courses of action describe the plans to get there. Strategy elements are typically realized by Business, Application, and Technology layer elements."@en ;
+    skos:changeNote "3.0: Introduced with Resource, Capability, and CourseOfAction. 3.1: ValueStream added."@en ;
+    skos:broader   :ElementByLayer ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:StrategyLayerElement ;
+    skos:narrower  am:Resource, am:Capability, am:ValueStream, am:CourseOfAction ;
+.
+
+:BusinessLayer
+    a              skos:Concept ;
+    skos:prefLabel "Business Layer"@en ;
+    skos:definition "Elements representing business concepts: actors, roles, processes, functions, services, objects, and products. The Business layer describes the organization's operations and how it creates value."@en ;
+    skos:scopeNote "Model the organizational structure (actors, roles, collaborations), the behavior they perform (processes, functions, services), and the information they work with (business objects, contracts). Business layer elements are typically served by Application layer elements."@en ;
+    skos:changeNote "3.0: Value and Meaning moved from Business Layer to Motivation elements. Location moved to generic metamodel. 3.2: Improved definitions of business function and product."@en ;
+    skos:broader   :ElementByLayer ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:BusinessLayerElement ;
+    skos:narrower  am:BusinessActor, am:BusinessRole, am:BusinessCollaboration,
+                   am:BusinessInterface, am:BusinessProcess, am:BusinessFunction,
+                   am:BusinessInteraction, am:BusinessEvent, am:BusinessService,
+                   am:BusinessObject, am:Contract, am:Representation, am:Product ;
+.
+
+:ApplicationLayer
+    a              skos:Concept ;
+    skos:prefLabel "Application Layer"@en ;
+    skos:definition "Elements representing application concepts: components, interfaces, functions, services, and data objects. The Application layer describes the software systems that support business processes."@en ;
+    skos:scopeNote "Model the application landscape: components represent deployable software units, interfaces represent APIs and integration points, and data objects represent structured data. Application elements serve Business layer elements and are realized by Technology layer elements."@en ;
+    skos:changeNote "3.0: ApplicationProcess added to increase regularity across layers. Events added at all layers."@en ;
+    skos:broader   :ElementByLayer ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:ApplicationLayerElement ;
+    skos:narrower  am:ApplicationComponent, am:ApplicationCollaboration,
+                   am:ApplicationInterface, am:ApplicationFunction,
+                   am:ApplicationInteraction, am:ApplicationProcess,
+                   am:ApplicationEvent, am:ApplicationService, am:DataObject ;
+.
+
+:TechnologyLayer
+    a              skos:Concept ;
+    skos:prefLabel "Technology Layer"@en ;
+    skos:definition "Elements representing technology concepts: nodes, devices, system software, networks, paths, and artifacts. The Technology layer describes the infrastructure that hosts and runs applications."@en ;
+    skos:scopeNote "Model the infrastructure: nodes represent compute resources, devices represent physical hardware, system software represents platforms and middleware, and artifacts represent deployable packages. Technology elements realize Application layer elements."@en ;
+    skos:changeNote "3.0: Renamed from 'Infrastructure' to 'Technology'. TechnologyProcess, TechnologyInteraction, TechnologyCollaboration added. CommunicationPath renamed to Path with extended meaning. Events added. 3.2: Device, SystemSoftware, Facility, Equipment no longer subtypes of Node but of technology internal active structure element; composition and aggregation with Node added."@en ;
+    skos:broader   :ElementByLayer ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:TechnologyLayerElement ;
+    skos:narrower  am:Node, am:Device, am:SystemSoftware,
+                   am:TechnologyCollaboration, am:TechnologyInterface,
+                   am:Path, am:CommunicationNetwork,
+                   am:TechnologyFunction, am:TechnologyProcess,
+                   am:TechnologyInteraction, am:TechnologyEvent,
+                   am:TechnologyService, am:Artifact ;
+.
+
+:PhysicalLayer
+    a              skos:Concept ;
+    skos:prefLabel "Physical Layer"@en ;
+    skos:definition "Elements representing physical concepts: equipment, facilities, distribution networks, and materials. The Physical layer describes tangible assets and physical infrastructure."@en ;
+    skos:scopeNote "Use Physical elements when modeling logistics, manufacturing, or data center infrastructure where tangible assets matter. Equipment represents machines and tools, facilities represent buildings and sites, and distribution networks represent physical transport links."@en ;
+    skos:changeNote "3.0: Introduced with Equipment, Facility, DistributionNetwork, and Material. 3.2: Made part of the Technology Layer chapter instead of a separate chapter."@en ;
+    skos:broader   :ElementByLayer ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:PhysicalLayerElement ;
+    skos:narrower  am:Equipment, am:Facility, am:DistributionNetwork, am:Material ;
+.
+
+:ImplementationAndMigrationLayer
+    a              skos:Concept ;
+    skos:prefLabel "Implementation and Migration Layer"@en ;
+    skos:definition "Elements representing implementation and migration concepts: work packages, deliverables, events, plateaus, and gaps. This layer supports planning and managing architecture transitions."@en ;
+    skos:scopeNote "Use these elements for roadmapping and transition planning. Plateaus represent stable architecture states (baseline, target), gaps represent differences between plateaus, and work packages represent the projects that close those gaps."@en ;
+    skos:changeNote "3.0: ImplementationEvent added. 3.2: Composition and aggregation from Plateau to Outcome added. Changed default color of Plateau and Gap to match other Implementation and Migration elements."@en ;
+    skos:broader   :ElementByLayer ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:ImplementationAndMigrationLayerElement ;
+    skos:narrower  am:WorkPackage, am:Deliverable, am:ImplementationEvent,
+                   am:Plateau, am:Gap ;
+.
+
+
+#################################################################
+# Elements by Aspect
+#################################################################
+
+:ElementByAspect
+    a              skos:Concept ;
+    skos:prefLabel "Element by Aspect"@en ;
+    skos:definition "Classification of ArchiMate elements by their structural aspect — the vertical dimension in the ArchiMate framework (active structure, behavior, passive structure, motivation, composite)."@en ;
+    skos:editorialNote "Aspect concepts group elements from multiple OWL superclasses. When the abstract class hierarchy in archimate3.2-onto.ttl changes, update the narrower lists here accordingly."@en ;
+    skos:broader   :ArchiMateElement ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+.
+
+:ActiveStructureAspect
+    a              skos:Concept ;
+    skos:prefLabel "Active Structure"@en ;
+    skos:definition "Elements that can perform behavior — the subjects of activity. Includes actors, components, nodes, and their interfaces. Active structure elements are assigned to behavior elements."@en ;
+    skos:scopeNote "Active structure elements are the 'who' or 'what' that performs behavior. Internal active structure (actors, components, nodes) can be assigned to behavior. External active structure (interfaces) exposes services to the environment. Assignment relationships connect active structure to behavior."@en ;
+    skos:editorialNote "Direct narrower list contains only elements that are ActiveStructureElement but not InternalActiveStructureElement or ExternalActiveStructureElement (i.e., Path, CommunicationNetwork, DistributionNetwork, Resource). Internal and external sub-concepts carry the rest."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:ActiveStructureElement ;
+    skos:narrower  am:Path, am:CommunicationNetwork, am:DistributionNetwork, am:Resource ;
+.
+
+:InternalActiveStructure
+    a              skos:Concept ;
+    skos:prefLabel "Internal Active Structure"@en ;
+    skos:definition "Internal active structure elements — entities capable of performing behavior: actors, roles, collaborations, components, and nodes."@en ;
+    skos:scopeNote "These are the performers — the entities that do things. They are connected to behavior via assignment relationships. In diagrams, internal active structure elements are typically shown as boxes (actors, components, nodes). They can be composed of or aggregated with other internal active structure elements."@en ;
+    skos:broader   :ActiveStructureAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:InternalActiveStructureElement ;
+    skos:narrower  am:BusinessActor, am:BusinessRole, am:BusinessCollaboration,
+                   am:ApplicationComponent, am:ApplicationCollaboration,
+                   am:Node, am:Device, am:SystemSoftware, am:TechnologyCollaboration ;
+.
+
+:ExternalActiveStructure
+    a              skos:Concept ;
+    skos:prefLabel "External Active Structure"@en ;
+    skos:definition "External active structure elements (interfaces) — points of access where services are exposed to the environment."@en ;
+    skos:scopeNote "Interfaces are the boundary between an element and its environment. They expose services and hide internal complexity. A business interface might be a customer portal or call center channel. An application interface might be a REST API. A technology interface might be a network endpoint. Interfaces are typically composed by the internal active structure element they belong to."@en ;
+    skos:broader   :ActiveStructureAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:ExternalActiveStructureElement ;
+    skos:narrower  am:BusinessInterface, am:ApplicationInterface, am:TechnologyInterface ;
+.
+
+:PassiveStructureAspect
+    a              skos:Concept ;
+    skos:prefLabel "Passive Structure"@en ;
+    skos:definition "Elements on which behavior is performed — objects, artifacts, and materials. Passive structure elements are accessed by behavior elements."@en ;
+    skos:scopeNote "Passive structure elements are the 'what' that behavior acts upon — business objects, data objects, artifacts, and materials. They are connected to behavior via access relationships (read, write, read-write)."@en ;
+    skos:editorialNote "Includes Deliverable and Gap which are also classified under Implementation and Migration. These elements have dual classification by aspect and by layer."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:PassiveStructureElement ;
+    skos:narrower  am:BusinessObject, am:Contract, am:Representation,
+                   am:DataObject, am:Artifact, am:Material, am:Deliverable, am:Gap ;
+.
+
+:BehaviorAspect
+    a              skos:Concept ;
+    skos:prefLabel "Behavior"@en ;
+    skos:definition "Elements representing dynamic behavior — processes, functions, interactions, events, and services. Behavior elements describe what active structure elements do."@en ;
+    skos:scopeNote "Behavior elements describe the 'how'. Internal behavior (processes, functions) is performed by active structure elements via assignment. External behavior (services) is exposed through interfaces. Events trigger or are triggered by other behavior. Use serving relationships to connect services to their consumers."@en ;
+    skos:editorialNote "Direct narrower list contains only elements that are BehaviorElement but not InternalBehaviorElement, ExternalBehaviorElement, or Event (i.e., Capability, ValueStream, CourseOfAction). Internal behavior, external behavior, and event sub-concepts carry the rest."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:BehaviorElement ;
+    skos:narrower  am:Capability, am:ValueStream, am:CourseOfAction ;
+.
+
+:InternalBehavior
+    a              skos:Concept ;
+    skos:prefLabel "Internal Behavior"@en ;
+    skos:definition "Internal behavior elements — units of activity performed by active structure elements: processes, functions, and interactions."@en ;
+    skos:scopeNote "Internal behavior is what active structure elements actually do. Processes are sequences of steps with a defined outcome. Functions are collections of behavior grouped by criteria (e.g., skill, resource). Interactions are collective behavior performed by collaborations. Internal behavior is assigned to internal active structure and realizes external behavior (services)."@en ;
+    skos:broader   :BehaviorAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:InternalBehaviorElement ;
+    skos:narrower  am:BusinessProcess, am:BusinessFunction, am:BusinessInteraction,
+                   am:ApplicationFunction, am:ApplicationInteraction, am:ApplicationProcess,
+                   am:TechnologyFunction, am:TechnologyProcess, am:TechnologyInteraction,
+                   am:WorkPackage ;
+.
+
+:ExternalBehavior
+    a              skos:Concept ;
+    skos:prefLabel "External Behavior"@en ;
+    skos:definition "External behavior elements (services) — explicitly defined exposed behavior accessible through interfaces."@en ;
+    skos:scopeNote "Services are the externally visible behavior — what an element offers to its consumers. A business service might be 'claims processing'. An application service might be 'payment authorization'. A technology service might be 'data storage'. Services are realized by internal behavior (processes, functions) and exposed through interfaces. Use serving relationships to connect services to their consumers."@en ;
+    skos:broader   :BehaviorAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:ExternalBehaviorElement ;
+    skos:narrower  am:BusinessService, am:ApplicationService, am:TechnologyService ;
+.
+
+:EventAspect
+    a              skos:Concept ;
+    skos:prefLabel "Event"@en ;
+    skos:definition "Event elements — instantaneous state changes that trigger or are triggered by other behavior."@en ;
+    skos:scopeNote "Events represent something that happens at a point in time — a state change that triggers or is triggered by other behavior. Use triggering relationships to connect events to the behavior they initiate or that produces them. Events can be external (received from outside) or internal (produced by a process)."@en ;
+    skos:broader   :BehaviorAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:Event ;
+    skos:narrower  am:BusinessEvent, am:ApplicationEvent, am:TechnologyEvent,
+                   am:ImplementationEvent ;
+.
+
+:MotivationAspect
+    a              skos:Concept ;
+    skos:prefLabel "Motivation"@en ;
+    skos:definition "Motivation elements — the context and reasons behind the architecture: stakeholders, drivers, goals, requirements, principles, and values."@en ;
+    skos:scopeNote "Use Motivation elements to capture the 'why' behind architecture decisions. Stakeholders have concerns, drivers motivate change, assessments analyze the current state, goals define desired outcomes, and requirements constrain the solution. Influence relationships connect motivation elements to each other and to core elements."@en ;
+    skos:changeNote "3.0: Renamed from 'Motivation Extension' to motivation elements. Outcome introduced. Value and Meaning moved here from Business Layer. 3.2: Improved definitions of outcome and constraint."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:MotivationElement ;
+    skos:narrower  am:Stakeholder, am:Driver, am:Assessment, am:Goal, am:Outcome,
+                   am:Principle, am:Requirement, am:Constraint, am:Meaning, am:Value ;
+.
+
+:CompositeAspect
+    a              skos:Concept ;
+    skos:prefLabel "Composite"@en ;
+    skos:definition "Composite elements that may combine multiple aspects or layers — products, groupings, locations, and plateaus."@en ;
+    skos:scopeNote "Composite elements cross aspect boundaries. Products bundle services and passive structure into a customer-facing offering. Groupings are generic containers for organizing any set of elements. Locations represent physical or logical places where elements reside or behavior occurs."@en ;
+    skos:changeNote "3.0: Location moved from Business Layer to generic metamodel. Grouping concept improved."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:CompositeElement ;
+    skos:narrower  am:Product, am:Grouping, am:Location, am:Plateau ;
+.
+
+:StrategyAspect
+    a              skos:Concept ;
+    skos:prefLabel "Strategy"@en ;
+    skos:definition "Strategy elements viewed as an aspect — resources, capabilities, value streams, and courses of action that bridge business goals to architecture."@en ;
+    skos:scopeNote "Strategy elements operate at a higher abstraction level than core layer elements. Capabilities describe organizational abilities, value streams describe end-to-end value delivery, and courses of action describe plans. They are realized by combinations of Business, Application, and Technology elements."@en ;
+    skos:broader   :ElementByAspect ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   am:StrategyLayerElement ;
+    skos:narrower  am:Resource, am:Capability, am:ValueStream, am:CourseOfAction ;
+.
+
+
+#################################################################
+# Relationships by Category
+#################################################################
+
+:RelationshipByCategory
+    a              skos:Concept ;
+    skos:prefLabel "Relationship by Category"@en ;
+    skos:definition "Classification of ArchiMate relationship types by their semantic category."@en ;
+    skos:editorialNote "Narrower lists reference the qualified relationship classes (e.g., am:Composition), not the unqualified predicates (e.g., am:composedOf). Keep in sync with the relationship type declarations in archimate3.2-onto.ttl."@en ;
+    skos:broader   :ArchiMateRelationship ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+.
+
+:StructuralRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Structural Relationship"@en ;
+    skos:definition "Relationships modeling structural dependencies between elements: composition (part-of), aggregation (groups), assignment (performs), and realization (implements)."@en ;
+    skos:scopeNote "Structural relationships define how elements are organized. Composition is the strongest (part cannot exist without the whole), aggregation is weaker (grouping), assignment connects active structure to behavior, and realization connects logical to physical. Ordered by strength in :StructuralStrength."@en ;
+    skos:changeNote "3.0: Restructured from the 2.1 relationship categories. Assignment given directional notation (arrow replaces black circle)."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   :StructuralStrength ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
+    skos:narrower  am:Composition, am:Aggregation, am:Assignment, am:Realization ;
+.
+
+:DependencyRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Dependency Relationship"@en ;
+    skos:definition "Relationships modeling dependencies between elements: serving (provides functionality), access (reads/writes data), influence (affects motivation), and association (any other dependency)."@en ;
+    skos:scopeNote "Dependency relationships express how elements rely on each other. Serving connects a provider to a consumer (typically across layers), access connects behavior to passive structure (with read/write direction), influence connects any element to a motivation element (with positive/negative strength), and association — the weakest, specification 5.2.4 — any two elements where no other relationship is appropriate. Ordered by strength in :DependencyStrength."@en ;
+    skos:changeNote "3.0: 'Used By' renamed to 'Serving'. Influence notation changed for consistency with other dependency relationships. Cross-layer relationship constraints relaxed."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    rdfs:seeAlso   :DependencyStrength ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
+    skos:narrower  am:Serving, am:Access, am:Influence, am:Association ;
+.
+
+:DynamicRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Dynamic Relationship"@en ;
+    skos:definition "Relationships modeling dynamic behavior between elements: triggering (temporal/causal) and flow (transfer of information, goods, or money)."@en ;
+    skos:scopeNote "Dynamic relationships express temporal and causal dependencies. Triggering indicates that one behavior causes another to start. Flow indicates transfer of something (data, goods, money) between behavior elements. Both are directional."@en ;
+    skos:changeNote "3.0: Relationships to other relationships allowed (e.g., associating objects with flows). 3.1: Derivation rules further improved and formalized."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    skos:narrower  am:Triggering, am:Flow ;
+.
+
+:OtherRelationship
+    a              skos:Concept ;
+    skos:prefLabel "Other Relationship"@en ;
+    skos:definition "The relationship that falls in none of the other categories: specialization (is-a-kind-of)."@en ;
+    skos:changeNote "3.0: Relationships to other relationships allowed in some cases. 3.1: Optional directed notation added for association."@en ;
+    skos:broader   :RelationshipByCategory ;
+    skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
+    skos:narrower  am:Specialization ;
+.
+
+#################################################################
+# Order of strength
+#
+# Weakest first. Two relationships of a category in line derive the
+# weaker of the two, which is what the derivation rules
+# (archimate3.2-derivation-rules.ttl) apply; the CI run checks that
+# their order and this one agree.
+#################################################################
+
+:StructuralStrength
+    a               skos:OrderedCollection ;
+    skos:prefLabel  "Structural Relationships by Strength"@en ;
+    skos:definition "The structural relationships ordered by strength, weakest first: realization, assignment, aggregation, composition. Two structural relationships in line derive the weaker of the two (DR 2)."@en ;
+    skos:memberList ( am:Realization am:Assignment am:Aggregation am:Composition ) ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-relationships-Normative.html> ;
+.
+
+:DependencyStrength
+    a               skos:OrderedCollection ;
+    skos:prefLabel  "Dependency Relationships by Strength"@en ;
+    skos:definition "The dependency relationships ordered by strength, weakest first: association, influence, access, serving. Two dependency relationships in line may derive the weaker of the two (PDR 7)."@en ;
+    skos:memberList ( am:Association am:Influence am:Access am:Serving ) ;
+    dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-relationships-Normative.html> ;
+.
+
+
+#################################################################
+# Order of proposal
+#
+# Linked.Archi modelling guidance, not the specification: the order
+# in which a modelling tool proposes the relationships the tables
+# permit between two elements. The general order applies everywhere;
+# a collection scoped with arch:domainIncludes (and arch:rangeIncludes)
+# puts its members first for the elements it names, the general
+# order following. A pair-scoped collection is more specific than a
+# source-scoped one. The same as ArchiMate 4.0's.
+#################################################################
+
+:ProposalOrder
+    a               skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel  "Relationships in Order of Proposal"@en ;
+    skos:definition "The order in which a modelling tool proposes the relationships the metamodel figures draw between two elements: realization, serving, access, influence, triggering, flow, aggregation, composition, assignment, specialization, association."@en ;
+    skos:scopeNote  "Where the metamodel figures draw several relationships between two element types, the first of them in this order is proposed first: a process triggers another before it flows to it or aggregates it, a product aggregates a service before it is composed of it, and a node aggregates system software before it is composed of it. Linked.Archi modelling guidance, not part of the specification."@en ;
+    skos:memberList ( am:Realization am:Serving am:Access am:Influence am:Triggering am:Flow
+                      am:Aggregation am:Composition am:Assignment am:Specialization am:Association ) ;
+.
+
+:GroupingProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Grouping"@en ;
+    skos:definition     "From a grouping, aggregation is proposed first — aggregating concepts is what a grouping is for — and then :ProposalOrder."@en ;
+    arch:domainIncludes am:Grouping ;
+    skos:memberList     ( am:Aggregation ) ;
+.
+
+:PlateauProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Plateau"@en ;
+    skos:definition     "From a plateau, aggregation is proposed first — a plateau is the set of elements that make up an architecture at a point in time — and then :ProposalOrder. Figure 112 also draws composition and realization."@en ;
+    arch:domainIncludes am:Plateau ;
+    skos:memberList     ( am:Aggregation ) ;
+.
+
+:CapabilityProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal between Capabilities"@en ;
+    skos:definition     "Between two capabilities, composition is proposed first — decomposing a capability into the capabilities it consists of — and then :ProposalOrder."@en ;
+    arch:domainIncludes am:Capability ;
+    arch:rangeIncludes  am:Capability ;
+    skos:memberList     ( am:Composition ) ;
+.
+
+:WorkPackageEventProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Work Package to an Implementation Event"@en ;
+    skos:definition     "From a work package to an implementation event, triggering is proposed first — a work package triggers a milestone — and then :ProposalOrder."@en ;
+    arch:domainIncludes am:WorkPackage ;
+    arch:rangeIncludes  am:ImplementationEvent ;
+    skos:memberList     ( am:Triggering ) ;
+.
+
+:FacilityNodeProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Facility to a Node"@en ;
+    skos:definition     "From a facility to a node — a device, system software, equipment or a facility among them, which the ontology classifies as nodes — composition is proposed first, and then :ProposalOrder."@en ;
+    arch:domainIncludes am:Facility ;
+    arch:rangeIncludes  am:Node ;
+    skos:memberList     ( am:Composition ) ;
+.
+
+:NodeArtifactProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Node to an Artifact"@en ;
+    skos:definition     "From a node to an artifact, assignment is proposed first — the artifact deployed on the node — and then :ProposalOrder."@en ;
+    arch:domainIncludes am:Node ;
+    arch:rangeIncludes  am:Artifact ;
+    skos:memberList     ( am:Assignment ) ;
+.
+
+:DeviceSystemSoftwareProposalOrder
+    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    skos:prefLabel      "Order of Proposal from a Device to System Software"@en ;
+    skos:definition     "From a device to system software, composition is proposed first, and then :ProposalOrder. Figure 83 also draws aggregation and assignment."@en ;
+    arch:domainIncludes am:Device ;
+    arch:rangeIncludes  am:SystemSoftware ;
+    skos:memberList     ( am:Composition ) ;
+.

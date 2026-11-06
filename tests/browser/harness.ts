@@ -57,9 +57,11 @@ export const ALLOWED_CONSOLE_PATTERNS: readonly RegExp[] = [
 /**
  * Request paths whose failure is not the application's fault.
  *
- * Chrome asks for a favicon on every navigation and the bundle ships none.
+ * Chrome asks for a favicon on every navigation and the bundle ships none. And
+ * la-gram asks for the deployment's configuration on every start
+ * (`src/config.ts`): a build without one answers 404, which means "none".
  */
-export const ALLOWED_FAILED_PATHS: readonly RegExp[] = [/\/favicon\.ico$/];
+export const ALLOWED_FAILED_PATHS: readonly RegExp[] = [/\/favicon\.ico$/, /\/la-gram\.config\.json$/];
 
 export interface CapturedMessage {
   type: string;

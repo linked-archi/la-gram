@@ -3,8 +3,8 @@
                       stroke="#333333" stroke-miterlimit="10" stroke-width="10"/>
             <polyline fill="none" points="59.001,27.666 6.668,78.403  59.001,132.331 " stroke="#333333"
                       stroke-miterlimit="10" stroke-width="10"/>
-            <rect fill="#333333" height="9.593" stroke="#333333" stroke-miterlimit="10" stroke-width="2"
+            <rect fill="none" height="9.593" stroke="#333333" stroke-miterlimit="10" stroke-width="2"
                   width="32.992" x="38.917" y="75.202"/>
-            <rect fill="#333333" height="9.593" stroke="#333333" stroke-miterlimit="10" stroke-width="2"
+            <rect fill="none" height="9.593" stroke="#333333" stroke-miterlimit="10" stroke-width="2"
                   width="32.992" x="88.091" y="75.202"/>
         </svg>

@@ -116,10 +116,12 @@ into a single discoverable resource.'''@en ;
     ## File: archimate4-viewpoints.ttl
     arch:viewpointLibrary         am4vp:ViewpointCatalog ;
 
-    ## Formal rules — SHACL shapes for validation
-    ## Files: archimate4-relationship-shapes.ttl, archimate4-element-shapes.ttl,
-    ##        archimate4-principle-shapes.ttl
+    ## Formal rules — SHACL shapes for validation, and the relationship tables: the
+    ## relationship shapes' rules as lookups, which the derivation rules read as data
+    ## Files: archimate4-relationship-shapes.ttl, archimate4-relationship-tables.ttl,
+    ##        archimate4-element-shapes.ttl, archimate4-principle-shapes.ttl
     arch:formalRules              <https://meta.linked.archi/archimate4/shapes#>,
+                                  <https://meta.linked.archi/archimate4/relationship-tables#>,
                                   <https://meta.linked.archi/archimate4/element-shapes#>,
                                   <https://meta.linked.archi/archimate4/principle-shapes#> ;
 
@@ -136,7 +138,12 @@ into a single discoverable resource.'''@en ;
     ## File: archimate4-deliverable-templates.ttl
     arch:hasDeliverableTemplate   am4dt:ArchitectureDefinitionDocument,
                                   am4dt:ArchitectureRequirementsSpec,
-                                  am4dt:ArchitecturePrinciplesDocument ;
+                                  am4dt:ArchitecturePrinciplesDocument,
+                                  am4dt:ChangeImpactAssessment ;
+
+    ## Model questions: what ArchiMate 4.0 stakeholders ask of a model
+    ## File: archimate4-questions.ttl
+    arch:hasQuestionSet           <https://meta.linked.archi/archimate4/questions#> ;
 
     ## Reference data
     ## File: archimate4-reference-data.ttl

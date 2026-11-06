@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 160 160" width="16" height="16">
+            <polyline fill="none" points="100.243,132.33 152.637,81.499  100.243,27.664 " stroke="#333333"
+                      stroke-miterlimit="10" stroke-width="10"/>
+            <polyline fill="none" points="58.578,27.664 6.659,78.209  58.578,132.33 " stroke="#333333"
+                      stroke-miterlimit="10" stroke-width="10"/>
+            <g>
+                <polygon fill="none"
+                         points="152.637,81.499 132.5,99.497   27.5,99.497 6.659,78.209 27.5,60.497 132.5,60.497  "
+                         stroke="#333333" stroke-miterlimit="10" stroke-width="10"/>
+            </g>
+        </svg>

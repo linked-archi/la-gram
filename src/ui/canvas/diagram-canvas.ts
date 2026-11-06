@@ -90,12 +90,16 @@
  * it would have nothing to act on.
  */
 
+import { lineOutlineIntersections } from './straight-docking.js';
+import { closestPointOnPolyline, pointAlong } from './connection-docking.js';
 import Diagram from 'diagram-js';
 import { DataFactory } from 'n3';
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 // diagram-js feature modules. These are plain didi module declarations; the
 // package ships no type declarations for the index files, hence the assertions.
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
+import { findFreePosition, generateGetNextPosition } from 'diagram-js/lib/features/auto-place/AutoPlaceUtil.js';
 import MoveModule from 'diagram-js/lib/features/move/index.js';
 import ResizeModule from 'diagram-js/lib/features/resize/index.js';
 import SelectionModule from 'diagram-js/lib/features/selection/index.js';
@@ -122,16 +126,44 @@ import type {
   PaletteDefinition,
   RelationshipTypeInfo,
 } from '../../metamodel-manager/interfaces.js';
-import type { ElementManager, RelationshipManager, Bounds } from '../../model-manager/interfaces.js';
+import type {
+  ElementManager,
+  RelationshipManager,
+  Bounds,
+  Point,
+  ViewManager,
+} from '../../model-manager/interfaces.js';
+import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
 import type { EventBus } from '../event-bus.js';
 import { NotationStyleRegistry } from './notation-styles.js';
-import { NOTATION_DEFAULTS } from './notation-shapes.js';
+import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
-import { RdfRenderer, rdfRendererModule, type RdfBusinessObject } from './rdf-renderer.js';
-import { RdfRuleProvider, rdfRulesModule } from './rdf-rule-provider.js';
+import {
+  RdfRenderer,
+  connectionLabelLayout,
+  drawnConnectionLabel,
+  labelOffsetOf,
+  rdfRendererModule,
+  type LabelOffset,
+  type RdfBusinessObject,
+  type RenderOptions,
+} from './rdf-renderer.js';
+import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
+import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
+import { humanize } from '../../model-manager/vocabulary.js';
+import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
+import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
+import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
+import { RdfContextMenuProvider, CONTEXT_MENU_ID, type ContextMenuAction } from './rdf-context-menu-provider.js';
 import {
   rdfModelingModule,
+  RDF_CHANGE_COMMAND,
+  RDF_STORE_EDIT_COMMAND,
+  RDF_EXISTING_RELATIONSHIP_HINT,
+  RDF_MODEL_DELETE_COMMAND,
   RETYPE_RELATIONSHIP_COMMAND,
+  type ModelDeleteContext,
+  type RdfChangeContext,
   type RdfElementRequest,
   type RdfElementResult,
   type RdfElementWriter,
@@ -139,7 +171,8 @@ import {
   type RdfRelationshipWriter,
   type RetypeRelationshipContext,
 } from './rdf-modeling.js';
-import { RdfContextPadProvider, type ContextPadElement } from './rdf-context-pad-provider.js';
+import { RdfContextPadProvider, toContextPadElement, type ContextPadElement } from './rdf-context-pad-provider.js';
+import { PAIR_CONNECT_MENU_ID, RdfPairConnectMenuProvider, type PairConnectContext, type PairEnd } from './rdf-pair-connect-menu-provider.js';
 import {
   RdfReplaceMenuProvider,
   RELATIONSHIP_REPLACE_MENU_ID,
@@ -147,11 +180,17 @@ import {
 } from './rdf-replace-menu-provider.js';
 import {
   RdfAppendMenuProvider,
+  RdfAppendRelationshipMenuProvider,
   APPEND_TARGET_MENU_ID,
+  APPEND_RELATIONSHIP_MENU_ID,
   type AppendMenuContext,
+  type ExistingRelationship,
 } from './rdf-append-menu-provider.js';
+import { NEST_MENU_ID, RdfNestMenuProvider, nestingOffers, nestingShownBy, type NestingOffer } from './nesting.js';
+import { rdfAutoResizeModule } from './rdf-auto-resize.js';
 import {
   appendableTargetTypes,
+  shapesOf,
   identityClosure,
   relationshipKey,
   type AppendTarget,
@@ -225,7 +264,119 @@ export interface DiagramCanvasOptions {
    * again toggles it off inside `ToolManager`. `null` means no tool is armed.
    */
   onToolChanged?: (tool: CanvasTool | null) => void;
+  /**
+   * Something the user should be told, briefly — e.g. why a connection was
+   * refused. The host shows it (a toast in the app).
+   */
+  onNotice?: (message: string, level: 'info' | 'warning') => void;
+  /**
+   * The views and their geometry. With it, the canvas draws one `arch:View`
+   * at a time ({@link DiagramCanvas.showView}), writes layout to that view's
+   * `arch-vis:ArchNode`s and `arch-vis:Link`s, and "delete" means *delete from
+   * the view*. Without it (an embedded diagram, most unit tests) the canvas has
+   * no views to speak of, layout goes to `ElementManager.updateLayout` if the
+   * manager offers it, and delete removes from the model.
+   */
+  viewManager?: ViewManager;
+  /**
+   * The observable store the managers write through. Lets every model change
+   * made for a canvas gesture be recorded once and undone/redone exactly.
+   */
+  changeStore?: ObservableRdfStore;
+  /** Type, label and icon of a model concept, for drawing a view from the store. */
+  describeElement?: (iri: string) => ConceptDescription | undefined;
+  /**
+   * Asked before "delete from model". Receives the concept and the views it
+   * appears in; returns whether to go ahead. Absent means "yes".
+   */
+  confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
+  /**
+   * Asked before changing an element's type when some of its relationships are
+   * not permitted with the new type. Returns whether to go ahead. Absent means "yes".
+   */
+  confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
+  /**
+   * The right-click menu's actions that belong to the rest of the app: show
+   * the concept's properties, reveal it in the model tree, show its relationship
+   * graph, ask the questions about it, copy its IRI.
+   */
+  onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  /**
+   * Whether the model has folders to file concepts in: the right-click menu
+   * then offers *Move to folder…* — and, on one of several selected, moving
+   * them all (Req 10.14), the selection kept.
+   */
+  canMoveToFolder?: () => boolean;
 }
+
+/** A right-click menu action the host carries out. */
+export type CanvasContextAction =
+  | 'properties'
+  | 'reveal-tree'
+  | 'graph'
+  | 'ask'
+  | 'copy-iri'
+  | 'rename'
+  | 'show-source'
+  | 'show-target'
+  | 'move-to-folder'
+  | 'rename-view'
+  | 'set-viewpoint'
+  | 'duplicate-view'
+  | 'delete-view';
+
+/** What {@link DiagramCanvasOptions.confirmRetypeElement} is asked about. */
+export interface RetypeElementRequest {
+  iri: string;
+  label: string;
+  fromLabel: string;
+  toLabel: string;
+  /** The relationships the new type is not permitted in, as "Assignment → Cashier". */
+  notPermitted: string[];
+}
+
+/** What {@link DiagramCanvasOptions.describeElement} returns. */
+export interface ConceptDescription {
+  typeIri?: string;
+  label?: string;
+  /** The label is a name the concept has, not one made from its IRI. */
+  named?: boolean;
+  /**
+   * The name the model gives the concept, read from the model alone; absent
+   * when it gives none. What a relationship's line is labelled with: read for
+   * every line each time a view is drawn, so kept cheap (Task 22).
+   */
+  modelName?: string;
+  iconUrl?: string;
+  /** A relationship derived by a rule that the model does not state, by its certainty. */
+  derivation?: 'valid' | 'potential';
+  /** The rule that derived it, by local name. */
+  derivationRule?: string;
+}
+
+/** What {@link DiagramCanvasOptions.confirmDeleteFromModel} is asked about. */
+export interface DeleteFromModelRequest {
+  iri: string;
+  kind: 'element' | 'relationship';
+  label: string;
+  /** IRIs of every view the concept appears in. */
+  views: string[];
+}
+
+/** CSS marker for a shape whose type the open view's viewpoint does not include. */
+export const OUTSIDE_VIEWPOINT_MARKER = 'la-outside-viewpoint';
+
+/** CSS marker for a concept another collaborator has selected. */
+export const LOCKED_MARKER = 'la-locked';
+
+/** Rules a collaborator's lock denies, and where each keeps its elements. */
+const LOCKED_ACTIONS = [
+  'elements.move',
+  'shape.resize',
+  'elements.delete',
+  'connection.updateWaypoints',
+  'connection.reconnect',
+];
 
 /** Tracks an element on the canvas. */
 export interface CanvasElement {
@@ -310,12 +461,36 @@ interface DjsShape {
   businessObject?: RdfBusinessObject;
   waypoints?: Array<{ x: number; y: number }>;
   parent?: unknown;
+  children?: DjsShape[];
+  source?: DjsShape;
+  target?: DjsShape;
+  incoming?: DjsShape[];
+  outgoing?: DjsShape[];
+}
+
+/** What `Connect` holds when a drag ends over a pair it refused. */
+interface RefusedConnectContext {
+  canExecute?: unknown;
+  start?: DjsShape;
+  hover?: DjsShape;
+}
+
+/** A type's name from its IRI, when the palette has none: `ApplicationComponent` → `Application Component`. */
+function fragmentLabel(iri: string): string {
+  return humanize(localName(iri));
 }
 
 /** The diagram-js services this class resolves. Structural, not nominal. */
 interface DjsServices {
   canvas: {
     addShape(shape: unknown, parent?: unknown): DjsShape;
+    addConnection(connection: unknown, parent?: unknown): DjsShape;
+    removeShape(shape: unknown): unknown;
+    removeConnection(connection: unknown): unknown;
+    addMarker(element: unknown, marker: string): void;
+    removeMarker(element: unknown, marker: string): void;
+    hasMarker(element: unknown, marker: string): boolean;
+    scrollToElement(element: unknown, padding?: unknown): void;
     setRootElement(root: unknown): unknown;
     getRootElement(): unknown;
     getContainer(): HTMLElement;
@@ -329,6 +504,7 @@ interface DjsServices {
   elementRegistry: {
     get(id: string): DjsShape | undefined;
     getAll(): DjsShape[];
+    getGraphics(element: unknown): SVGElement | undefined;
   };
   modeling: {
     createConnection(
@@ -336,6 +512,7 @@ interface DjsServices {
       target: unknown,
       attrs: Record<string, unknown>,
       parent: unknown,
+      hints?: Record<string, unknown>,
     ): DjsShape;
     /** `RdfModeling.connect` — consults the rules when given no attributes. */
     connect(
@@ -348,9 +525,11 @@ interface DjsServices {
   };
   eventBus: {
     on(event: string | string[], callback: (event: any, ...rest: any[]) => void): void;
+    on(event: string | string[], priority: number, callback: (event: any, ...rest: any[]) => unknown): void;
     fire(event: string, payload?: unknown): unknown;
   };
-  commandStack: { execute(command: string, context: unknown): void };
+  commandStack: { execute(command: string, context: unknown): void; clear(): void; registerHandler(command: string, handler: unknown): void };
+  layouter: { layoutConnection(connection: unknown, hints?: unknown): Array<{ x: number; y: number }> };
   contextPad: { registerProvider(provider: unknown): void };
   /**
    * diagram-js's popup menu, host of the relationship-type chooser.
@@ -361,6 +540,8 @@ interface DjsServices {
     registerProvider(id: string, provider: unknown): void;
     open(target: unknown, providerId: string, position: unknown, options?: unknown): void;
     isEmpty(target: unknown, providerId: string): boolean;
+    /** Re-read the open menu's entries (after a tab switch). */
+    refresh(): void;
     close(): void;
     isOpen(): boolean;
   };
@@ -430,6 +611,34 @@ export class DiagramCanvas {
   private classClosure: ClassClosure;
   private rdfStore?: RelationshipTripleStore;
   private onToolChanged?: (tool: CanvasTool | null) => void;
+  private onNotice?: (message: string, level: 'info' | 'warning') => void;
+  private viewManager?: ViewManager;
+  private changeStore?: ObservableRdfStore;
+  private describeElement?: (iri: string) => ConceptDescription | undefined;
+  private confirmDeleteFromModel?: (request: DeleteFromModelRequest) => boolean | Promise<boolean>;
+  private confirmRetypeElement?: (request: RetypeElementRequest) => boolean | Promise<boolean>;
+  private onContextAction?: (action: CanvasContextAction, iri: string) => void;
+  private canMoveToFolder?: () => boolean;
+  /** Where the right-click menu was opened, for the menus it opens in turn. */
+  private contextMenuAt: { x: number; y: number } | undefined;
+  /** What the renderer draws beyond the notation — relationships' names — kept here to switch and redraw. */
+  private readonly renderOptions: RenderOptions = { relationshipNames: false };
+
+  /** The `arch:View` on the canvas, when a view manager is in use. */
+  private viewIri: string | undefined;
+
+  /** Whether a type is in the open view's viewpoint; `undefined` = no viewpoint. */
+  private viewpointFilter: ((typeIri: string) => boolean) | undefined;
+
+  /** Concepts another collaborator has selected: shown, not editable here. */
+  private locked: ReadonlySet<string> = new Set();
+
+  /**
+   * Marker → the concepts that should carry it. Kept, not just applied, so a
+   * shape drawn *after* the marker was set (a remote element arriving after the
+   * collaborator's selection did, a view opened after validation ran) gets it.
+   */
+  private markerSets = new Map<string, ReadonlySet<string>>();
 
   /** The palette definition currently in force. */
   private paletteDefinition: PaletteDefinition;
@@ -438,7 +647,15 @@ export class DiagramCanvas {
   readonly ruleProvider: RdfRuleProvider;
   readonly contextPadProvider: RdfContextPadProvider;
   readonly replaceMenuProvider: RdfReplaceMenuProvider;
+  /** The relationships two selected elements may have (the pad's "Connect these two…"). */
+  readonly pairConnectMenuProvider: RdfPairConnectMenuProvider;
+  readonly elementReplaceMenuProvider: RdfElementReplaceMenuProvider;
+  readonly contextMenuProvider: RdfContextMenuProvider;
   readonly appendMenuProvider: RdfAppendMenuProvider;
+  /** The append's second step: which relationship, when several are permitted. */
+  readonly appendRelationshipMenuProvider: RdfAppendRelationshipMenuProvider;
+  /** After a drop into a container: which relationship the nesting stands for. */
+  readonly nestMenuProvider: RdfNestMenuProvider;
   readonly notationStyles: NotationStyleRegistry;
 
   /** The diagram-js instance, or `null` once destroyed. */
@@ -446,6 +663,12 @@ export class DiagramCanvas {
 
   /** Relationship registry keyed by the connection's diagram-js id. */
   private relationships = new Map<string, CanvasRelationship>();
+  /**
+   * The connections not named by their relationship's IRI — one the user draws
+   * gets diagram-js's id, and its relationship after — which are all
+   * {@link findConnection} must look through when the IRI is not an id.
+   */
+  private otherwiseNamed = new Set<DjsShape>();
 
   /**
    * Set while a removal originated in the RDF store, so the diagram-js delete
@@ -482,6 +705,14 @@ export class DiagramCanvas {
     this.classClosure = options.classClosure ?? identityClosure;
     this.rdfStore = options.rdfStore;
     this.onToolChanged = options.onToolChanged;
+    this.onNotice = options.onNotice;
+    this.viewManager = options.viewManager;
+    this.changeStore = options.changeStore;
+    this.describeElement = options.describeElement;
+    this.confirmDeleteFromModel = options.confirmDeleteFromModel;
+    this.confirmRetypeElement = options.confirmRetypeElement;
+    this.onContextAction = options.onContextAction;
+    this.canMoveToFolder = options.canMoveToFolder;
 
     this.notationStyles = new NotationStyleRegistry(options.paletteDefinition);
     this.paletteDefinition = options.paletteDefinition;
@@ -513,15 +744,69 @@ export class DiagramCanvas {
       this.relationshipManager,
       (target) => this.resolveReplaceContext(target),
       (connectionId, typeIri) => this.applyRelationshipTypeChoice(connectionId, typeIri),
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
+    );
+
+    this.pairConnectMenuProvider = new RdfPairConnectMenuProvider(
+      this.relationshipManager,
+      (target) => this.resolvePair(target),
+      (source, target, candidate) => this.connectPair(source, target, candidate),
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
+    );
+    this.contextPadProvider.setPairSupport({
+      // The gate the other pad menus use: the menu has entries, or no button.
+      isAvailable: (elements) => {
+        const services = this.services();
+        return !!services && !services.popupMenu.isEmpty(elements, PAIR_CONNECT_MENU_ID);
+      },
+      open: (elements, event) =>
+        this.services()?.popupMenu.open(elements, PAIR_CONNECT_MENU_ID, this.padMenuPosition(event), {
+          title: 'Connect these two',
+          width: 320,
+          search: true,
+        }),
+    });
+
+    this.elementReplaceMenuProvider = new RdfElementReplaceMenuProvider(
+      (target) => {
+        const shape = target as DjsShape | undefined;
+        const shown = shape?.businessObject;
+        if (!shape || shown?.kind !== 'element' || !shown.iri) return undefined;
+        return { shapeId: shape.id, currentTypeIri: shown.typeIri };
+      },
+      () => this.paletteDefinition.elementGroups,
+      (shapeId, typeIri) => void this.retypeElement(shapeId, typeIri),
+      () => this.services()?.popupMenu.refresh(),
+    );
+
+    this.contextMenuProvider = new RdfContextMenuProvider(
+      (target) => this.contextMenuActions(target),
+      () => this.services()?.popupMenu.close(),
     );
 
     this.appendMenuProvider = new RdfAppendMenuProvider(
       (target) => this.resolveAppendContext(target),
       (sourceTypeIri) => this.appendTargets(sourceTypeIri),
       {
-        place: (context, typeIri) => this.appendElement(context, typeIri),
+        place: (context, typeIri, relationshipTypeIri) => this.appendElement(context, typeIri, relationshipTypeIri),
         drag: (context, typeIri, event) => this.startAppend(context, typeIri, event),
+        chooseRelationship: (context, target) => this.openAppendRelationshipMenu(context, target),
+        showExisting: (context, relationship) => this.showExistingRelationship(context, relationship),
+        dragExisting: (_context, relationship, event) => this.startPlaceExisting(relationship.otherIri, event),
+        refresh: () => this.services()?.popupMenu.refresh(),
       },
+      (context) => this.existingRelationships(context),
+    );
+
+    this.appendRelationshipMenuProvider = new RdfAppendRelationshipMenuProvider(
+      {
+        place: (context, typeIri, relationshipTypeIri) => this.appendElement(context, typeIri, relationshipTypeIri),
+      },
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
+    );
+    this.nestMenuProvider = new RdfNestMenuProvider(
+      (offer) => this.nestAs(offer),
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
 
     const keyboardBindTo =
@@ -557,17 +842,29 @@ export class DiagramCanvas {
         KeyboardModule,
         MoveCanvasModule,
         ZoomScrollModule,
-        rdfRendererModule(this.notationStyles),
+        rdfRendererModule(this.notationStyles, this.renderOptions),
         rdfRulesModule(this.ruleProvider),
+        rdfAutoResizeModule,
         // Last, so its `modeling` binding replaces the one ModelingModule made.
-        rdfModelingModule(this.relationshipWriter(), this.elementWriter()),
+        rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null),
+        // Renaming on the canvas: double-click or F2 (needs `rdfChangeStore` from the line above).
+        rdfLabelEditingModule(this.labelWriter()),
+        // Moving a relationship's name along with its line, kept in the view.
+        rdfLinkLabelModule(this.linkLabelWriter(), (line) => this.canMoveLinkLabel(line)),
       ] as never[],
     });
 
     this.initRoot();
+    if (this.viewManager) {
+      this.contextPadProvider.setDeleteFromModelHandler((element) => {
+        this.deleteFromModel(element.iri);
+      });
+    }
     this.registerProviders();
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
+    this.otherwiseNamed.clear();
+    this.restackOnlyWhatChanged();
     this.wireDiagramEvents();
     this.setupEventListeners();
     this.initialized = true;
@@ -609,13 +906,520 @@ export class DiagramCanvas {
     return shape ? (toCanvasElement(shape) ?? undefined) : undefined;
   }
 
+  // ── Views ──────────────────────────────────────────────────────────────
+
+  /** Point new elements at another model (after New / Open). */
+  setModelIri(modelIri: string): void {
+    this.modelIri = modelIri;
+  }
+
+  /** The `arch:View` on the canvas, if any. */
+  currentView(): string | undefined {
+    return this.viewIri;
+  }
+
+  /**
+   * Put a view on the canvas: clear it, draw the view's nodes and links from
+   * the store, and start a fresh undo history — undoing into a view that is no
+   * longer shown would edit something the user cannot see.
+   *
+   * The view drawn already in this task — opening a model says it is loaded,
+   * then that its view is open — is only brought up to date: drawing a view of
+   * thousands twice cost as much again (Task 22).
+   */
+  showView(viewIri: string | undefined): void {
+    const services = this.services();
+    if (!services) return;
+    if (viewIri && viewIri === this.viewIri && viewIri === this.drawnThisTask) {
+      this.syncFromStore();
+      return;
+    }
+    this.viewIri = viewIri;
+    this.clearDiagram();
+    if (viewIri && this.viewManager) this.syncFromStore();
+    services.commandStack.clear();
+    this.drawnThisTask = viewIri;
+    queueMicrotask(() => {
+      this.drawnThisTask = undefined;
+    });
+  }
+
+  /**
+   * After a change, diagram-js re-stacks the graphics of every child of each
+   * changed element's parent, to match the model's order — every shape and
+   * link of a view of 10 000, for one shape moved (Task 22). Only what changed
+   * can be out of place: each is put right after its sibling before it, and a
+   * parent where that sibling is not in place yet is re-stacked whole, as
+   * diagram-js does.
+   */
+  private restackOnlyWhatChanged(): void {
+    const graphics = this.diagram?.get('graphicsFactory') as
+      | { updateContainments(elements: DjsShape[]): void; _getChildrenContainer(parent: DjsShape): SVGElement }
+      | undefined;
+    const registry = this.diagram?.get('elementRegistry') as { getGraphics(element: DjsShape): SVGElement | undefined } | undefined;
+    if (!graphics || !registry) return;
+    const restackWhole = graphics.updateContainments.bind(graphics);
+    graphics.updateContainments = (elements: DjsShape[]) => {
+      const whole = new Set<DjsShape>();
+      for (const element of elements) {
+        const parent = element.parent as DjsShape | undefined;
+        const siblings = (parent as { children?: DjsShape[] } | undefined)?.children;
+        if (!parent || !siblings || whole.has(parent)) continue;
+        const group = registry.getGraphics(element)?.parentNode as SVGElement | null | undefined;
+        if (!group) continue;
+        const container = graphics._getChildrenContainer(parent);
+        const at = siblings.indexOf(element);
+        const before = at > 0 ? (registry.getGraphics(siblings[at - 1])?.parentNode as SVGElement | null | undefined) : null;
+        if (at < 0 || (before && before.parentNode !== container)) {
+          whole.add(parent);
+          continue;
+        }
+        const next = before ? before.nextSibling : container.firstChild;
+        if (next !== group) container.insertBefore(group, next);
+      }
+      if (whole.size > 0) restackWhole([...whole].flatMap((parent) => (parent as { children?: DjsShape[] }).children?.slice(0, 1) ?? []));
+    };
+  }
+
+  /**
+   * A stored route as the line to draw. Its first and last points are its ends
+   * when they lie on their shapes' outlines — as la-gram writes a route, and a
+   * BPMN diagram has it; otherwise they are bends — as the ArchiMate converter
+   * writes Archi's bend points — and the line runs from the shape through them,
+   * docked to the outline as a line drawn here is. One point is one bend.
+   *
+   * An end on a relationship — a relationship whose source or target is a
+   * relationship — is on that relationship's line rather than an outline.
+   */
+  private drawnRoute(points: readonly Point[], source: DjsShape, target: DjsShape): Array<{ x: number; y: number }> {
+    const first = points[0];
+    const last = points[points.length - 1];
+    const fromSource = points.length >= 2 && this.atEnd(first, source);
+    const toTarget = points.length >= 2 && this.atEnd(last, target);
+    if (fromSource && toTarget) return points.map((p) => ({ x: p.x, y: p.y }));
+    const centre = (shape: DjsShape) =>
+      shape.waypoints ? pointAlong(shape.waypoints, 0.5) : { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 };
+    const bends = points.slice(fromSource ? 1 : 0, toTarget ? points.length - 1 : points.length).map((p) => ({ x: p.x, y: p.y }));
+    const route = [fromSource ? { x: first.x, y: first.y } : centre(source), ...bends, toTarget ? { x: last.x, y: last.y } : centre(target)];
+    const docking = this.diagram?.get('connectionDocking') as
+      | { getCroppedWaypoints(connection: unknown, source?: unknown, target?: unknown): Array<{ x: number; y: number }> }
+      | undefined;
+    return docking ? docking.getCroppedWaypoints({ waypoints: route, source, target }, source, target) : route;
+  }
+
+  /** Whether a stored route's end point is where it meets `end`: its outline, or its line. */
+  private atEnd(point: Point, end: DjsShape): boolean {
+    if (!end.waypoints) return this.onOutline(point, end);
+    const on = closestPointOnPolyline(end.waypoints, point);
+    return Math.hypot(on.x - point.x, on.y - point.y) <= 3;
+  }
+
+  /**
+   * Whether a point lies on a shape's outline, within 3 pixels: a short probe
+   * across it meets the outline docking crops against; for an outline with
+   * curves, which the probe cannot read, on the edge of the shape's bounds.
+   */
+  private onOutline(point: Point, shape: DjsShape): boolean {
+    const graphics = this.diagram?.get('graphicsFactory') as { getShapePath(shape: DjsShape): string } | undefined;
+    const outline = graphics?.getShapePath(shape);
+    const near = 3;
+    if (outline) {
+      let readable = true;
+      for (const [dx, dy] of [[near, 0], [0, near]]) {
+        const hits = lineOutlineIntersections(outline, { x: point.x - dx, y: point.y - dy }, { x: point.x + dx, y: point.y + dy });
+        if (hits === undefined) {
+          readable = false;
+          break;
+        }
+        if (hits.length > 0) return true;
+      }
+      if (readable) return false;
+    }
+    const within = (v: number, from: number, to: number) => v >= from - near && v <= to + near;
+    const x0 = shape.x;
+    const y0 = shape.y;
+    const x1 = shape.x + shape.width;
+    const y1 = shape.y + shape.height;
+    const onVertical = (Math.abs(point.x - x0) <= near || Math.abs(point.x - x1) <= near) && within(point.y, y0, y1);
+    const onHorizontal = (Math.abs(point.y - y0) <= near || Math.abs(point.y - y1) <= near) && within(point.x, x0, x1);
+    return onVertical || onHorizontal;
+  }
+
+  /** The view {@link showView} drew in the current task, if any. */
+  private drawnThisTask: string | undefined;
+
+  /**
+   * Make the canvas match the open view in the store: draw what is missing,
+   * remove what is gone, move what moved, relabel what was renamed.
+   *
+   * The store→canvas direction, so it bypasses the command stack entirely
+   * (`canvas.addShape` / `removeShape`, not `modeling`). Called after a view is
+   * opened, after a remote collaborator's change, after a model-level delete
+   * from the explorer, and after property edits.
+   */
+  syncFromStore(): void {
+    const services = this.services();
+    const viewIri = this.viewIri;
+    if (!services || !viewIri || !this.viewManager) return;
+
+    const nodes = this.viewManager.getNodes(viewIri);
+    const links = this.viewManager.getLinks(viewIri);
+    const wantedShapes = new Map(nodes.map((n) => [n.elementIri, n]));
+    const wantedLinks = new Map(links.map((l) => [l.relationshipIri, l]));
+
+    // The connections drawn, by relationship: looked up once, not a scan of the
+    // canvas a link — which made drawing a view of thousands quadratic (Task 22).
+    const drawnLinks = new Map<string, DjsShape>();
+    this.removingFromStore = true;
+    try {
+      for (const connection of this.connections()) {
+        const iri = connection.businessObject?.iri;
+        if (!iri || !wantedLinks.has(iri)) this.removeConnectionDirect(connection);
+        else if (!drawnLinks.has(iri)) drawnLinks.set(iri, connection);
+      }
+      for (const shape of this.shapes()) {
+        const iri = shape.businessObject?.iri;
+        if (!iri || !wantedShapes.has(iri)) this.removeShapeDirect(shape);
+      }
+    } finally {
+      this.removingFromStore = false;
+    }
+
+    // Containers before what is drawn inside them.
+    for (const node of containersFirst(nodes)) {
+      const description = this.describeElement?.(node.elementIri);
+      const existing = services.elementRegistry.get(node.elementIri);
+      const container = this.containerFor(node.parentElementIri);
+      if (existing && existing.parent !== container) this.reparentDirect(existing, container);
+      if (existing) {
+        const b = existing;
+        const moved =
+          b.x !== node.bounds.x || b.y !== node.bounds.y || b.width !== node.bounds.width || b.height !== node.bounds.height;
+        const relabelled = description?.label !== undefined && description.label !== b.businessObject?.label;
+        const retyped = description?.typeIri !== undefined && description.typeIri !== b.businessObject?.typeIri;
+        if (retyped && b.businessObject && description?.typeIri) b.businessObject.typeIri = description.typeIri;
+        if (moved || relabelled || retyped) {
+          this.updateElement(node.elementIri, {
+            ...(relabelled ? { label: description?.label, named: description?.named ?? true } : {}),
+            ...(moved ? { bounds: node.bounds } : {}),
+          });
+        }
+      } else {
+        this.addElement(
+          node.elementIri,
+          description?.typeIri ?? '',
+          node.bounds,
+          description?.label,
+          description?.iconUrl,
+          description?.named,
+          node.parentElementIri,
+        );
+      }
+    }
+
+    for (const link of links) {
+      const existing = services.elementRegistry.get(link.relationshipIri) ?? drawnLinks.get(link.relationshipIri);
+      const description = this.describeElement?.(link.relationshipIri);
+      const typeIri = description?.typeIri ?? '';
+      if (existing) {
+        // Renamed — in the dialog, the property panel, by a collaborator, or undone:
+        // its line shows the name in force. Redrawn alone, as a renamed shape is.
+        const name = description?.modelName;
+        const drawnName = existing.businessObject?.named ? existing.businessObject.label : undefined;
+        if (existing.businessObject && name !== drawnName) {
+          existing.businessObject.label = name;
+          existing.businessObject.named = name !== undefined;
+          services.eventBus.fire('element.changed', { element: existing });
+        }
+        const route =
+          link.waypoints.length > 0 && existing.source && existing.target
+            ? this.drawnRoute(link.waypoints, existing.source as DjsShape, existing.target as DjsShape)
+            : undefined;
+        if (route && !sameRoute(existing.waypoints, route.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })))) {
+          existing.waypoints = route;
+          services.eventBus.fire('elements.changed', { elements: [existing] });
+        }
+        // Its name moved, or back at the middle — by a collaborator, or an edit undone.
+        // Measured from the route as now drawn; a pixel is the bounds' rounding, not a move.
+        const kept = link.label ? labelOffsetOf(existing.waypoints ?? [], link.label) : undefined;
+        const shown = existing.businessObject?.labelOffset;
+        const moved = !kept || !shown ? kept !== shown : Math.abs(kept.x - shown.x) > 1 || Math.abs(kept.y - shown.y) > 1;
+        if (existing.businessObject && moved) {
+          if (kept) existing.businessObject.labelOffset = kept;
+          else delete existing.businessObject.labelOffset;
+          services.eventBus.fire('element.changed', { element: existing });
+        }
+        if (typeIri && existing.businessObject && existing.businessObject.typeIri !== typeIri) {
+          existing.businessObject.typeIri = typeIri;
+          const record = this.relationships.get(existing.id);
+          if (record) record.typeIri = typeIri;
+          services.eventBus.fire('elements.changed', { elements: [existing] });
+        }
+        // Confirmed, or the confirmation undone: drawn as what it now is.
+        const derived = this.derivationOf(link.relationshipIri);
+        const drawn = existing.businessObject;
+        if (drawn && (drawn.derivation !== derived.derivation || drawn.derivationRule !== derived.derivationRule)) {
+          delete drawn.derivation;
+          delete drawn.derivationRule;
+          Object.assign(drawn, derived);
+          services.eventBus.fire('elements.changed', { elements: [existing] });
+        }
+        continue;
+      }
+      this.addRelationship(
+        link.sourceElementIri,
+        link.targetElementIri,
+        typeIri,
+        link.relationshipIri,
+        link.waypoints,
+        link.label,
+      );
+    }
+
+    this.applyViewpointMarkers();
+  }
+
+  /**
+   * Grey out shapes whose type the view's viewpoint does not include — they
+   * stay editable, the viewpoint is guidance rather than a wall (Req 2.9).
+   * Pass `undefined` when the view has no viewpoint.
+   */
+  setViewpointFilter(filter: ((typeIri: string) => boolean) | undefined): void {
+    this.viewpointFilter = filter;
+    this.applyViewpointMarkers();
+  }
+
+  /**
+   * Put a CSS marker on exactly the given concepts (shapes or connections, by
+   * IRI) and take it off everything else. Used for validation results and for
+   * what other collaborators have selected.
+   */
+  setMarkers(marker: string, iris: ReadonlySet<string>): void {
+    this.markerSets.set(marker, iris);
+    const services = this.services();
+    if (!services) return;
+    for (const element of services.elementRegistry.getAll()) {
+      if (!element.parent) continue;
+      const iri = element.businessObject?.iri;
+      const want = iri !== undefined && iris.has(iri);
+      const has = services.canvas.hasMarker(element, marker);
+      if (want && !has) services.canvas.addMarker(element, marker);
+      if (!want && has) services.canvas.removeMarker(element, marker);
+    }
+  }
+
+  /**
+   * Lock concepts another collaborator is editing: they cannot be moved,
+   * resized, deleted or re-routed here, and wear the `la-locked` marker.
+   */
+  setLockedIris(iris: ReadonlySet<string>): void {
+    this.locked = iris;
+    this.setMarkers(LOCKED_MARKER, iris);
+  }
+
+  /** The visible area, in diagram coordinates — restored with {@link restoreViewport}. */
+  viewport(): { x: number; y: number; width: number; height: number } | undefined {
+    const canvas = this.service<{ viewbox(): { x: number; y: number; width: number; height: number } }>('canvas');
+    if (!canvas) return undefined;
+    try {
+      const { x, y, width, height } = canvas.viewbox();
+      return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0 ? { x, y, width, height } : undefined;
+    } catch {
+      return undefined; // jsdom has no layout
+    }
+  }
+
+  /** Show a visible area {@link viewport} returned. */
+  restoreViewport(box: { x: number; y: number; width: number; height: number }): void {
+    try {
+      this.service<{ viewbox(box: unknown): unknown }>('canvas')?.viewbox(box);
+    } catch {
+      /* jsdom has no layout */
+    }
+  }
+
+  /**
+   * The shapes selected with `element` showing concepts of its kind — elements
+   * or relationships — when the model has folders to move them to; none when
+   * it is not selected.
+   */
+  private selectedAlike(element: DjsShape): DjsShape[] {
+    if (!this.onContextAction || !this.canMoveToFolder?.()) return [];
+    const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+    if (!selected.includes(element)) return [];
+    const kind = element.businessObject?.kind;
+    return selected.filter((s) => s.businessObject?.iri && s.businessObject.kind === kind);
+  }
+
+  /** The concepts selected on the canvas. */
+  selectedIris(): string[] {
+    const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+    return selected.map((element) => element.businessObject?.iri).filter((iri): iri is string => Boolean(iri));
+  }
+
+  /** Select these concepts, as far as the open view draws them. */
+  selectIris(iris: readonly string[]): void {
+    const services = this.services();
+    if (!services) return;
+    const elements = iris.map((iri) => services.elementRegistry.get(iri) ?? this.findConnection(iri)).filter(Boolean);
+    services.selection.select(elements);
+  }
+
+  /** Select a concept on the canvas and scroll it into view. Returns whether it is drawn. */
+  reveal(iri: string): boolean {
+    const services = this.services();
+    const element = services?.elementRegistry.get(iri) ?? this.findConnection(iri);
+    if (!services || !element) return false;
+    services.selection.select(element);
+    try {
+      services.canvas.scrollToElement(element, { top: 80, bottom: 80, left: 80, right: 80 });
+    } catch {
+      /* jsdom has no layout; selecting is what matters */
+    }
+    return true;
+  }
+
+  /**
+   * Start dragging an element that exists in the model onto the open view — the
+   * model tree's gesture. Dropping creates a placement (a node), not a new
+   * element, and draws the element's relationships to anything already placed.
+   * An element already in the view is selected instead.
+   */
+  startPlaceExisting(iri: string, event: unknown): void {
+    const services = this.services();
+    if (!services || !event || !this.viewIri) return;
+    if (this.reveal(iri)) return;
+    const shape = this.buildExistingShape(iri);
+    if (shape) services.create.start(event, shape);
+  }
+
+  /**
+   * Place an element that exists in the model at a position (or at the centre of
+   * the visible area), undoably. The "Add to current view" of the model tree.
+   */
+  placeExisting(iri: string, position?: { x: number; y: number }): boolean {
+    const services = this.services();
+    if (!services || !this.viewIri) return false;
+    if (this.reveal(iri)) return true;
+    const shape = this.buildExistingShape(iri);
+    if (!shape) return false;
+    const viewbox = services.canvas.viewbox() as { x: number; y: number; width?: number; height?: number };
+    const at = position ?? {
+      x: Math.round(viewbox.x + (viewbox.width ?? 800) / 2),
+      y: Math.round(viewbox.y + (viewbox.height ?? 600) / 2),
+    };
+    (services.modeling as unknown as { createShape(s: unknown, p: unknown, parent: unknown): unknown }).createShape(
+      shape,
+      at,
+      services.canvas.getRootElement(),
+    );
+    this.reveal(iri);
+    return true;
+  }
+
+  /**
+   * Draw a relationship that exists in the model into the open view, undoably.
+   * Both ends must already be placed here.
+   *
+   * @returns whether it is drawn now (it may already have been).
+   */
+  drawExistingRelationship(relationshipIri: string): boolean {
+    const services = this.services();
+    if (!services || !this.viewIri) return false;
+    if (this.findConnection(relationshipIri)) return this.reveal(relationshipIri);
+    const rel = this.relationshipManager.getRelationship?.(relationshipIri);
+    if (!rel) return false;
+    const source = services.elementRegistry.get(rel.sourceIri);
+    const target = services.elementRegistry.get(rel.targetIri);
+    if (!source || !target) return false;
+    const typeIri = this.describeElement?.(relationshipIri)?.typeIri ?? rel.classIri;
+    const businessObject: RdfBusinessObject = {
+      iri: relationshipIri,
+      typeIri,
+      kind: 'relationship',
+      ...this.relationshipNameOf(relationshipIri),
+      ...this.derivationOf(relationshipIri),
+    };
+    services.modeling.createConnection(
+      source,
+      target,
+      { id: relationshipIri, businessObject },
+      services.canvas.getRootElement(),
+      { [RDF_EXISTING_RELATIONSHIP_HINT]: relationshipIri },
+    );
+    this.relationships.set(relationshipIri, {
+      sourceIri: rel.sourceIri,
+      targetIri: rel.targetIri,
+      typeIri,
+      predicateIri: rel.predicateIri,
+      relationshipIri,
+    });
+    return true;
+  }
+
+  /**
+   * Delete a concept from the *model* — every view, every relationship —
+   * after asking {@link DiagramCanvasOptions.confirmDeleteFromModel}. Undoable
+   * as one step when the concept is on the canvas.
+   *
+   * @returns whether anything was deleted — a promise of it when the
+   *   confirmation is asynchronous (a dialog).
+   */
+  deleteFromModel(iri: string): boolean | Promise<boolean> {
+    const services = this.services();
+    const drawn = services?.elementRegistry.get(iri) ?? this.findConnection(iri);
+    const isRelationship =
+      drawn?.businessObject?.kind === 'relationship' ||
+      (!drawn && this.relationshipManager.getRelationship?.(iri) !== undefined);
+    const kind: 'element' | 'relationship' = isRelationship ? 'relationship' : 'element';
+    const label =
+      drawn?.businessObject?.label ?? this.describeElement?.(iri)?.label ?? localName(iri);
+    const views = this.viewManager?.viewsContaining(iri) ?? [];
+    const answer = this.confirmDeleteFromModel ? this.confirmDeleteFromModel({ iri, kind, label, views }) : true;
+    if (typeof answer !== 'boolean') {
+      return answer.then((ok) => (ok ? this.performModelDelete(iri, isRelationship) : false));
+    }
+    return answer ? this.performModelDelete(iri, isRelationship) : false;
+  }
+
+  /** The delete itself, once confirmed. Looks the concept up again: a dialog took time. */
+  private performModelDelete(iri: string, isRelationship: boolean): boolean {
+    const services = this.services();
+    const drawn = services?.elementRegistry.get(iri) ?? this.findConnection(iri);
+    const apply = isRelationship
+      ? () => this.relationshipManager.deleteRelationship(iri)
+      : () => this.elementManager.deleteElement(iri);
+
+    if (services) {
+      const context: ModelDeleteContext = { elements: drawn ? [drawn] : [], apply };
+      services.commandStack.execute(RDF_MODEL_DELETE_COMMAND, context);
+    } else {
+      apply();
+    }
+    this.eventBus.emit(isRelationship ? 'relationship-deleted' : 'element-deleted', {
+      iri,
+      elementIri: iri,
+      relationshipIri: iri,
+      fromModel: true,
+    });
+    return true;
+  }
+
   /**
    * Draw an element on the canvas.
    *
    * Idempotent by IRI: a repeat call updates the existing shape rather than
    * failing on diagram-js's duplicate-id check.
    */
-  addElement(iri: string, typeIri: string, bounds: Bounds, label?: string, iconUrl?: string): void {
+  addElement(
+    iri: string,
+    typeIri: string,
+    bounds: Bounds,
+    label?: string,
+    iconUrl?: string,
+    named: boolean = label !== undefined,
+    parentIri?: string,
+  ): void {
     const services = this.services();
     if (!services) return;
 
@@ -630,6 +1434,7 @@ export class DiagramCanvas {
       iri,
       typeIri,
       label: label ?? this.notationStyles.labelFor(typeIri) ?? localName(iri),
+      named: label !== undefined && named,
       kind: 'element',
       iconUrl,
     };
@@ -643,7 +1448,21 @@ export class DiagramCanvas {
       businessObject,
     });
 
-    services.canvas.addShape(shape, services.canvas.getRootElement());
+    services.canvas.addShape(shape, this.containerFor(parentIri));
+    if (this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri)) {
+      services.canvas.addMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
+    }
+    this.applyKeptMarkers(shape);
+  }
+
+  /** Give a freshly drawn element every kept marker naming it. */
+  private applyKeptMarkers(element: DjsShape): void {
+    const services = this.services();
+    const iri = element.businessObject?.iri;
+    if (!services || !iri) return;
+    for (const [marker, iris] of this.markerSets) {
+      if (iris.has(iri)) services.canvas.addMarker(element, marker);
+    }
   }
 
   /**
@@ -659,9 +1478,12 @@ export class DiagramCanvas {
 
     const shape = services.elementRegistry.get(iri);
 
+    // Store-led: straight off the canvas, not through `modeling` — a command
+    // here would land on the undo stack, and undoing it would bring back a shape
+    // whose triples are gone.
     this.removingFromStore = true;
     try {
-      if (shape) services.modeling.removeElements([shape]);
+      if (shape) this.removeShapeDirect(shape);
     } finally {
       this.removingFromStore = false;
     }
@@ -703,7 +1525,7 @@ export class DiagramCanvas {
    */
   updateElement(
     iri: string,
-    updates: Partial<Pick<CanvasElement, 'label' | 'iconUrl' | 'bounds'>>,
+    updates: Partial<Pick<CanvasElement, 'label' | 'iconUrl' | 'bounds'>> & { named?: boolean },
   ): void {
     const services = this.services();
     if (!services) return;
@@ -712,7 +1534,10 @@ export class DiagramCanvas {
     if (!shape) return;
 
     const businessObject: RdfBusinessObject = shape.businessObject ?? { iri, typeIri: '' };
-    if (updates.label !== undefined) businessObject.label = updates.label;
+    if (updates.label !== undefined) {
+      businessObject.label = updates.label;
+      businessObject.named = updates.named ?? true;
+    }
     if (updates.iconUrl !== undefined) businessObject.iconUrl = updates.iconUrl;
     shape.businessObject = businessObject;
 
@@ -721,9 +1546,13 @@ export class DiagramCanvas {
       shape.y = updates.bounds.y;
       shape.width = updates.bounds.width;
       shape.height = updates.bounds.height;
+      // What moved: the context pad follows it, and its siblings are re-stacked.
+      services.eventBus.fire('elements.changed', { elements: [shape] });
+      return;
     }
-
-    services.eventBus.fire('elements.changed', { elements: [shape] });
+    // Renamed only: redrawn alone — `elements.changed` re-inserts every sibling's
+    // graphics to keep their order, 30 000 in a view of 10 000 (Task 22).
+    services.eventBus.fire('element.changed', { element: shape });
   }
 
   /**
@@ -738,8 +1567,13 @@ export class DiagramCanvas {
     targetIri: string,
     typeIri: string,
     relationshipIri?: string,
+    waypoints?: Point[],
+    labelBounds?: Bounds,
   ): void {
-    const key = relationshipKey(sourceIri, targetIri, typeIri);
+    // A qualified relationship is keyed by its own IRI, so two relationships of
+    // one type between one pair are two connections; a bare triple has only the
+    // pair-and-type key.
+    const key = relationshipIri ?? relationshipKey(sourceIri, targetIri, typeIri);
     const predicateIri = this.paletteDefinition.relationshipTypes.find(
       (rel) => rel.iri === typeIri,
     )?.unqualifiedPredicateIri;
@@ -763,14 +1597,28 @@ export class DiagramCanvas {
       iri: relationshipIri ?? key,
       typeIri,
       kind: 'relationship',
+      ...(relationshipIri ? { ...this.relationshipNameOf(relationshipIri), ...this.derivationOf(relationshipIri) } : {}),
     };
 
-    services.modeling.createConnection(
+    // Store-led, so added directly rather than through `modeling` (see
+    // removeElement). The route is the persisted one when there is one, else
+    // what the layouter would draw.
+    const connection = services.elementFactory.createConnection({
+      id: key,
+      businessObject,
       source,
       target,
-      { id: key, businessObject },
-      services.canvas.getRootElement(),
-    );
+      waypoints: [],
+    });
+    connection.waypoints =
+      waypoints && waypoints.length > 0
+        ? this.drawnRoute(waypoints, source, target)
+        : services.layouter.layoutConnection(connection, { source, target });
+    // Its name where the view keeps it: the same offset from the middle of the route as drawn.
+    const labelOffset = labelBounds ? labelOffsetOf(connection.waypoints, labelBounds) : undefined;
+    if (labelOffset) businessObject.labelOffset = labelOffset;
+    services.canvas.addConnection(connection, services.canvas.getRootElement());
+    this.applyKeptMarkers(connection);
   }
 
   /** Get all relationships on the canvas, keyed by connection id. */
@@ -855,17 +1703,29 @@ export class DiagramCanvas {
    * right of its source, then goes through the same `modeling.appendShape` —
    * so the relationship is created exactly as it is for the drag.
    *
+   * @param relationshipTypeIri The relationship to create, when the user chose
+   *   one; it is preferred for this append only, and — like any preference — only
+   *   honoured when the metamodel permits it for the pair.
    * @return the appended shape, or `undefined` when nothing could be appended.
    */
   appendElement(
     source: AppendMenuContext | ContextPadElement | string,
     typeIri: string,
+    relationshipTypeIri?: string,
   ): DjsShape | undefined {
     const services = this.services();
     const sourceShape = this.resolveShape(source);
     const shape = this.buildNewShape(typeIri);
     if (!services || !sourceShape || !shape) return undefined;
-    return services.autoPlace.append(sourceShape, shape);
+    const previous = this.ruleProvider.getPreferredType();
+    if (relationshipTypeIri) this.ruleProvider.setPreferredType(relationshipTypeIri);
+    try {
+      return services.autoPlace.append(sourceShape, shape);
+    } finally {
+      if (relationshipTypeIri) this.ruleProvider.setPreferredType(previous);
+      // No command runs when the append is refused; do not leave the menu open.
+      services.popupMenu.close();
+    }
   }
 
   /**
@@ -884,6 +1744,7 @@ export class DiagramCanvas {
       this.classClosure,
       (source, target) => this.relationshipManager.getValidRelationships(source, target),
       sourceTypeIri,
+      shapesOf(this.relationshipManager),
     );
     this.appendTargetCache.set(sourceTypeIri, targets);
     return targets;
@@ -910,6 +1771,25 @@ export class DiagramCanvas {
   /** The relationship type currently preferred over the metamodel's ranking. */
   preferredRelationshipType(): string | undefined {
     return this.ruleProvider.getPreferredType();
+  }
+
+  /**
+   * "Realization is not permitted from Application Component to Application
+   * Component. Permitted: Aggregation, …" — in the palette's words.
+   */
+  refusalMessage(refusal: RelationshipRefusal, sourceTypeIri: string, targetTypeIri: string): string {
+    const palette = this.paletteDefinition;
+    const elementLabel = (iri: string) =>
+      palette.elementGroups.flatMap((group) => group.elements).find((element) => element.iri === iri)?.label ??
+      fragmentLabel(iri);
+    const relationshipLabel = (iri: string) =>
+      palette.relationshipTypes.find((type) => type.iri === iri)?.label ?? fragmentLabel(iri);
+    const what =
+      `${relationshipLabel(refusal.typeIri)} is not permitted from ${elementLabel(sourceTypeIri)} ` +
+      `to ${elementLabel(targetTypeIri)}.`;
+    return refusal.permitted.length === 0
+      ? `${what} No relationship is.`
+      : `${what} Permitted: ${refusal.permitted.map((type) => type.label ?? relationshipLabel(type.iri)).join(', ')}.`;
   }
 
   /** Activate one of the canvas's global tools. */
@@ -1023,12 +1903,34 @@ export class DiagramCanvas {
    * re-indexes the styles, but a re-index paints nothing, so the
    * `elements.changed` fire is what makes the renderer repaint them.
    */
-  updatePaletteDefinition(paletteDefinition: PaletteDefinition): void {
+  /**
+   * @param options.iconsOnly Only icons changed — what the menus show, nothing
+   *   drawn: the shapes are not redrawn.
+   */
+  /**
+   * Show relationships' names on their lines, or not (the canvas toolbar's
+   * switch, off by default): every line is redrawn, alone — no re-stacking.
+   */
+  setRelationshipNamesShown(shown: boolean): void {
+    if (this.renderOptions.relationshipNames === shown) return;
+    this.renderOptions.relationshipNames = shown;
+    const services = this.services();
+    if (!services) return;
+    for (const connection of this.connections()) services.eventBus.fire('element.changed', { element: connection });
+  }
+
+  /** Whether relationships' names are shown on their lines. */
+  relationshipNamesShown(): boolean {
+    return this.renderOptions.relationshipNames;
+  }
+
+  updatePaletteDefinition(paletteDefinition: PaletteDefinition, options: { iconsOnly?: boolean } = {}): void {
     this.paletteDefinition = paletteDefinition;
     // The palette is what the append offer is derived from, so every memoized
     // answer is now stale.
     this.appendTargetCache.clear();
     this.contextPadProvider.updatePaletteDefinition(paletteDefinition);
+    if (options.iconsOnly) return;
     this.notationStyles.update(paletteDefinition);
 
     const services = this.services();
@@ -1038,6 +1940,70 @@ export class DiagramCanvas {
     if (elements.length > 0) {
       services.eventBus.fire('elements.changed', { elements });
     }
+  }
+
+  /**
+   * The drawn diagram as a standalone SVG document, cropped to its content —
+   * what "export view as SVG/PNG" saves. Interaction chrome (hit areas,
+   * outlines, bendpoint handles) is stripped.
+   */
+  toSvg(padding = 20): string {
+    const services = this.services();
+    const svg = this.container.querySelector('svg');
+    if (!services || !svg) return '<svg xmlns="http://www.w3.org/2000/svg"/>';
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const element of services.elementRegistry.getAll()) {
+      if (!element.parent) continue;
+      // A copy: a line's own waypoints are not to be added to.
+      const points = [
+        ...(element.waypoints ?? [
+          { x: element.x, y: element.y },
+          { x: element.x + element.width, y: element.y + element.height },
+        ]),
+      ];
+      // A line's name reaches past its route's box: the crop takes it in.
+      const label = element.waypoints ? drawnConnectionLabel(element as never, this.renderOptions)?.box : undefined;
+      if (label) {
+        points.push({ x: label.x, y: label.y }, { x: label.x + label.width, y: label.y + label.height });
+      }
+      for (const p of points) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+    }
+    if (!Number.isFinite(minX)) {
+      minX = 0;
+      minY = 0;
+      maxX = 100;
+      maxY = 100;
+    }
+    const x = Math.floor(minX - padding);
+    const y = Math.floor(minY - padding);
+    const width = Math.ceil(maxX - minX + 2 * padding);
+    const height = Math.ceil(maxY - minY + 2 * padding);
+
+    const layer = svg.querySelector('.viewport')?.cloneNode(true) as Element | undefined;
+    if (layer) {
+      layer.removeAttribute('transform');
+      for (const chrome of layer.querySelectorAll(
+        '.djs-hit, .djs-outline, .djs-bendpoint, .djs-segment-dragger, .djs-dragger, .djs-resizer, .djs-context-pad',
+      )) {
+        chrome.remove();
+      }
+    }
+    const defs = svg.querySelector('defs')?.outerHTML ?? '';
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
+      `width="${width}" height="${height}" viewBox="${x} ${y} ${width} ${height}">` +
+      `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="#ffffff"/>` +
+      `${defs}${layer?.innerHTML ?? ''}</svg>`
+    );
   }
 
   /** Tear the diagram down and leave the host container empty. */
@@ -1090,19 +2056,20 @@ export class DiagramCanvas {
 
     const style = this.notationStyles.styleFor(typeIri);
     const declared = this.elementTypeInfo(typeIri);
+    const width = style?.defaultWidth ?? NOTATION_DEFAULTS.width;
+    const height = style?.defaultHeight ?? NOTATION_DEFAULTS.height;
     const businessObject: RdfBusinessObject = {
       iri: '',
       typeIri,
       label: declared?.label ?? this.notationStyles.labelFor(typeIri) ?? localName(typeIri),
+      // A new element is named after its type — except one too small to show a
+      // name (a junction), which would otherwise carry its type under it.
+      named: labelFitsInside(width, height),
       kind: 'element',
       ...(declared?.iconUrl !== undefined ? { iconUrl: declared.iconUrl } : {}),
     };
 
-    return services.elementFactory.createShape({
-      width: style?.defaultWidth ?? NOTATION_DEFAULTS.width,
-      height: style?.defaultHeight ?? NOTATION_DEFAULTS.height,
-      businessObject,
-    });
+    return services.elementFactory.createShape({ width, height, businessObject });
   }
 
   /** The palette's entry for an element type, when it publishes one. */
@@ -1112,6 +2079,263 @@ export class DiagramCanvas {
       if (found) return found;
     }
     return undefined;
+  }
+
+  /**
+   * Change an element's type to one of the loaded element types, as one
+   * undoable step (`rdf.element.retype`). Its IRI, name, properties and
+   * placements stay; a name that was the old type's default becomes the new
+   * type's. Relationships the new type is not permitted in are named first
+   * ({@link DiagramCanvasOptions.confirmRetypeElement}) and, if the user goes
+   * ahead, kept — validation flags them; nothing is deleted.
+   *
+   * @returns Whether the type was changed.
+   */
+  async retypeElement(iri: string, typeIri: string): Promise<boolean> {
+    const services = this.services();
+    // In the open view, the change is a canvas command; otherwise (an element
+    // selected in the tree) the same change is made in the store directly.
+    const shape = services?.elementRegistry.get(iri);
+    const shown = shape?.businessObject?.kind === 'element' ? shape.businessObject : undefined;
+    const described = shown ? undefined : this.describeElement?.(iri);
+    const fromTypeIri = shown?.typeIri ?? described?.typeIri;
+    const name = shown?.label ?? described?.label;
+    if (!fromTypeIri || fromTypeIri === typeIri) return false;
+    const to = this.elementTypeInfo(typeIri);
+    if (!to) return false;
+    const fromLabel = this.elementTypeInfo(fromTypeIri)?.label ?? this.notationStyles.labelFor(fromTypeIri) ?? localName(fromTypeIri);
+
+    const notPermitted = this.relationshipsNotPermitted(iri, typeIri);
+    if (notPermitted.length > 0 && this.confirmRetypeElement) {
+      const go = await this.confirmRetypeElement({
+        iri,
+        label: name ?? localName(iri),
+        fromLabel,
+        toLabel: to.label,
+        notPermitted,
+      });
+      if (!go) return false;
+    }
+
+    // A name still the old type's default follows the type.
+    const label = name === fromLabel ? to.label : undefined;
+    const writeLabel = this.labelWriter();
+    const RDF_TYPE = NAMESPACES.rdf + 'type';
+    const apply = (): void => {
+      const store = this.rdfStore;
+      const old = ((store?.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(fromTypeIri)) ?? []) as Array<{
+        graph: { termType: string };
+      }>).filter((q) => q.graph.termType === 'DefaultGraph');
+      if (old.length > 0) store?.removeQuads(old as never[]);
+      store?.addQuads?.([DataFactory.quad(namedNode(iri), namedNode(RDF_TYPE), namedNode(typeIri)) as never]);
+      if (label) writeLabel(iri, label);
+    };
+    if (!services || !shape || !shown) {
+      apply();
+      this.eventBus.emit('element-updated', { iri, typeIri });
+      this.eventBus.emit('model-changed', { origin: 'properties', iri });
+      return true;
+    }
+    const context: RetypeElementContext = {
+      element: shape,
+      typeIri,
+      ...(to.iconUrl ? { iconUrl: to.iconUrl } : {}),
+      ...(label ? { label } : {}),
+      apply,
+    };
+    services.commandStack.execute(RETYPE_ELEMENT_COMMAND, context);
+    this.eventBus.emit('element-updated', { iri, typeIri });
+    return true;
+  }
+
+  /**
+   * Open the right-click menu on an element or a relationship — selecting it,
+   * unless it is one of several selected that can be moved to a folder
+   * together — or on the canvas root, for the open view (clearing the
+   * selection), at a point on the page.
+   */
+  openContextMenu(element: DjsShape, at: { x: number; y: number }): void {
+    const services = this.services();
+    if (!services) return;
+    const onCanvas = element === services.canvas.getRootElement();
+    if (onCanvas || this.selectedAlike(element).length < 2) {
+      this.service<{ select(element: unknown): void }>('selection')?.select(onCanvas ? null : element);
+    }
+    this.contextMenuAt = at;
+    services.popupMenu.open(element, CONTEXT_MENU_ID, at, { width: 240 });
+  }
+
+  /** The element-type menu on a shape, at a point on the page (the right-click menu's "Change type…"). */
+  openElementTypeMenu(element: DjsShape, at: { x: number; y: number }): void {
+    const services = this.services();
+    if (!services || services.popupMenu.isEmpty(element, ELEMENT_REPLACE_MENU_ID)) return;
+    services.popupMenu.open(element, ELEMENT_REPLACE_MENU_ID, at, { title: 'Change element type', width: 320, search: true });
+  }
+
+  /**
+   * What the right-click menu offers for `target`: renaming and changing the
+   * type, appending (elements), where to look at it (properties, tree, graph,
+   * the questions about it; a relationship's ends), its IRI, and deleting it. On the canvas root, the
+   * open view's: renaming it, its viewpoint, duplicating it, selecting
+   * everything, zooming to fit, its properties, tree entry and IRI, and
+   * deleting it — what the model tree offers for a view.
+   */
+  private contextMenuActions(target: unknown): ContextMenuAction[] {
+    if (target && target === this.services()?.canvas.getRootElement()) return this.viewContextMenuActions();
+    const element = target as DjsShape | undefined;
+    const shown = element?.businessObject;
+    if (!element || !shown?.iri) return [];
+    const iri = shown.iri;
+    // One of several selected: moving them to a folder together.
+    const alike = this.selectedAlike(element);
+    if (alike.length > 1) {
+      const words = shown.kind === 'relationship' ? 'relationships' : 'elements';
+      return [{ id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit', run: () => this.onContextAction?.('move-to-folder', iri) }];
+    }
+    const at = this.contextMenuAt ?? { x: 0, y: 0 };
+    const pad = toContextPadElement(element as never);
+    // A menu opened from this one's action would be closed with it: open it next.
+    const then = (open: () => void) => () => void setTimeout(open, 0);
+    const host = (action: CanvasContextAction) => () => this.onContextAction?.(action, iri);
+    const actions: ContextMenuAction[] = [];
+
+    if (shown.kind === 'element') {
+      actions.push({
+        id: 'rename',
+        label: 'Rename',
+        section: 'edit',
+        shortcut: 'F2',
+        run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
+      });
+      if (!this.services()?.popupMenu.isEmpty(element, ELEMENT_REPLACE_MENU_ID)) {
+        actions.push({ id: 'change-type', label: 'Change type…', section: 'edit', run: then(() => this.openElementTypeMenu(element, at)) });
+      }
+      if (this.canAppend(pad)) {
+        actions.push({ id: 'append', label: 'Append…', section: 'relate', run: then(() => this.openAppendMenu(pad, { clientX: at.x, clientY: at.y })) });
+      }
+    } else if (shown.kind === 'relationship') {
+      // Named on its line, as an element in its box; a derivation the model does not state is not (as in the model tree).
+      if (isRenamable(element)) {
+        actions.push({
+          id: 'rename',
+          label: 'Rename',
+          section: 'edit',
+          shortcut: 'F2',
+          run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
+        });
+      }
+      // A name shown off the middle of its line: back to the middle, undoably.
+      if (shown.labelOffset && drawnConnectionLabel(element, this.renderOptions) && this.canMoveLinkLabel(element)) {
+        actions.push({
+          id: 'name-to-middle',
+          label: 'Move name back to the middle',
+          section: 'edit',
+          run: () => this.services()?.commandStack.execute(MOVE_LINK_LABEL_COMMAND, { connection: element, offset: undefined }),
+        });
+      }
+      if (this.canReplaceRelationshipType(pad)) {
+        actions.push({
+          id: 'change-type',
+          label: 'Change relationship type…',
+          section: 'edit',
+          run: then(() => this.openRelationshipReplaceMenu(pad, { clientX: at.x, clientY: at.y })),
+        });
+      }
+    }
+
+    if (this.onContextAction && this.canMoveToFolder?.()) {
+      actions.push({ id: 'move-to-folder', label: 'Move to folder…', section: 'edit', run: host('move-to-folder') });
+    }
+    if (this.onContextAction) {
+      actions.push({ id: 'properties', label: 'Properties', section: 'show', run: host('properties') });
+      actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
+      if (shown.kind === 'element') {
+        actions.push({ id: 'graph', label: 'Show relationship graph', section: 'show', run: host('graph') });
+        actions.push({ id: 'ask', label: 'Ask about this element…', section: 'show', run: host('ask') });
+      } else if (shown.kind === 'relationship') {
+        actions.push({ id: 'show-source', label: 'Show source', section: 'show', run: host('show-source') });
+        actions.push({ id: 'show-target', label: 'Show target', section: 'show', run: host('show-target') });
+      }
+      actions.push({ id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') });
+    }
+
+    actions.push({
+      id: 'delete',
+      label: this.viewManager ? 'Delete from view' : 'Delete',
+      section: 'delete',
+      shortcut: 'Delete',
+      run: () => this.deleteFromPad(pad),
+    });
+    if (this.viewManager) {
+      actions.push({ id: 'delete-model', label: 'Delete from model…', section: 'delete', run: () => void this.deleteFromModel(iri) });
+    }
+    return actions;
+  }
+
+  /** The right-click menu on the empty canvas: the open view's actions, as the model tree offers them, and the canvas's. */
+  private viewContextMenuActions(): ContextMenuAction[] {
+    const viewIri = this.viewIri;
+    const services = this.services();
+    if (!viewIri || !services) return [];
+    const host = (action: CanvasContextAction) => () => this.onContextAction?.(action, viewIri);
+    const actions: ContextMenuAction[] = [];
+    if (this.onContextAction) {
+      actions.push(
+        { id: 'rename-view', label: 'Rename view…', section: 'edit', run: host('rename-view') },
+        { id: 'set-viewpoint', label: 'Set viewpoint…', section: 'edit', run: host('set-viewpoint') },
+        { id: 'duplicate-view', label: 'Duplicate view', section: 'edit', run: host('duplicate-view') },
+      );
+    }
+    actions.push(
+      {
+        id: 'select-all',
+        label: 'Select all',
+        section: 'view',
+        run: () => {
+          const root = services.canvas.getRootElement();
+          const all = services.elementRegistry.getAll().filter((e) => e !== root && !(e as { labelTarget?: unknown }).labelTarget);
+          this.service<{ select(elements: unknown): void }>('selection')?.select(all);
+        },
+      },
+      {
+        id: 'zoom-fit',
+        label: 'Zoom to fit',
+        section: 'view',
+        run: () => this.service<{ zoom(value: string, center?: string): unknown }>('canvas')?.zoom('fit-viewport', 'auto'),
+      },
+    );
+    if (this.onContextAction) {
+      actions.push(
+        { id: 'properties', label: 'View properties', section: 'show', run: host('properties') },
+        { id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') },
+        { id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') },
+        { id: 'delete-view', label: 'Delete view…', section: 'delete', run: host('delete-view') },
+      );
+    }
+    return actions;
+  }
+
+  /**
+   * The element's relationships that would not be permitted with `typeIri`,
+   * as "Assignment → Cashier" (outgoing) or "Serving ← Till" (incoming).
+   * Relationships to or from a relationship are not judged here.
+   */
+  private relationshipsNotPermitted(iri: string, typeIri: string): string[] {
+    const relationships = this.relationshipManager.getRelationshipsOf?.(iri) ?? [];
+    const lines: string[] = [];
+    for (const relationship of relationships) {
+      const outgoing = relationship.sourceIri === iri;
+      const otherIri = outgoing ? relationship.targetIri : relationship.sourceIri;
+      const other = this.describeElement?.(otherIri);
+      const otherType = relationship.sourceIri === relationship.targetIri ? typeIri : other?.typeIri;
+      if (!otherType || this.relationshipManager.getRelationship?.(otherIri)) continue;
+      const [source, target] = outgoing ? [typeIri, otherType] : [otherType, typeIri];
+      const permitted = this.relationshipManager.getValidRelationships(source, target).some((c) => c.iri === relationship.classIri);
+      if (permitted) continue;
+      const name = this.paletteDefinition.relationshipTypes.find((r) => r.iri === relationship.classIri)?.label ?? localName(relationship.classIri);
+      lines.push(`${name} ${outgoing ? '→' : '←'} ${other?.label ?? localName(otherIri)}`);
+    }
+    return lines;
   }
 
   /** The diagram-js shape behind an IRI, a pad element or an append context. */
@@ -1169,11 +2393,110 @@ export class DiagramCanvas {
     const diagramElement = element.diagramElement;
     if (!services || !diagramElement) return;
 
-    services.popupMenu.open(diagramElement, APPEND_TARGET_MENU_ID, this.padMenuPosition(event), {
+    this.appendMenuPosition = this.padMenuPosition(event);
+    this.appendMenuProvider.startOn(diagramElement);
+    services.popupMenu.open(diagramElement, APPEND_TARGET_MENU_ID, this.appendMenuPosition, {
       title: 'Append element',
       width: 300,
       search: true,
     });
+  }
+
+  /**
+   * The relationships an element has in the model, with what is known about the
+   * other end — the append menu's "Existing relationships" tab. Relationships to
+   * relationships (an ArchiMate association may point at one) and to itself are
+   * left out: there is no element to bring in.
+   */
+  existingRelationships(context: AppendMenuContext): ExistingRelationship[] {
+    const services = this.services();
+    const rows: ExistingRelationship[] = [];
+    for (const rel of this.relationshipManager.getRelationshipsOf?.(context.sourceIri) ?? []) {
+      const out = rel.sourceIri === context.sourceIri;
+      const other = out ? rel.targetIri : rel.sourceIri;
+      if (other === context.sourceIri || this.relationshipManager.getRelationship?.(other)) continue;
+      const description = this.describeElement?.(other);
+      const otherType = description?.typeIri
+        ? this.paletteDefinition.elementGroups.flatMap((g) => g.elements).find((e) => e.iri === description.typeIri)
+        : undefined;
+      const typeLabel =
+        this.paletteDefinition.relationshipTypes.find((r) => r.iri === rel.classIri)?.label ?? localName(rel.classIri);
+      const iconUrl = description?.iconUrl ?? otherType?.iconUrl;
+      rows.push({
+        relationshipIri: rel.iri,
+        typeLabel,
+        direction: out ? 'out' : 'in',
+        otherIri: other,
+        otherLabel: description?.label ?? localName(other),
+        ...(otherType ? { otherTypeLabel: otherType.label } : {}),
+        ...(iconUrl ? { otherIconUrl: iconUrl } : {}),
+        otherInView: Boolean(services?.elementRegistry.get(other)),
+        drawn: Boolean(this.findConnection(rel.iri)),
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Bring the other end of an existing relationship into the view — beside the
+   * source, right of it for an outgoing relationship and left for an incoming
+   * one, at the first free spot — and draw the relationship. Placing an element
+   * draws its relationships to what is already placed, so this is usually one
+   * undoable step; an element already here only gets the relationship drawn.
+   */
+  showExistingRelationship(context: AppendMenuContext, row: ExistingRelationship): boolean {
+    const services = this.services();
+    const source = this.resolveShape(context);
+    if (!services || !source || !this.viewIri) return false;
+    try {
+      if (!services.elementRegistry.get(row.otherIri)) {
+        const shape = this.buildExistingShape(row.otherIri);
+        if (!shape) return false;
+        const gap = 60;
+        const start = {
+          x:
+            row.direction === 'out'
+              ? source.x + source.width + gap + shape.width / 2
+              : source.x - gap - shape.width / 2,
+          y: source.y + source.height / 2,
+        };
+        const at = findFreePosition(
+          source as never,
+          shape as never,
+          start,
+          generateGetNextPosition({ y: { margin: 30, minDistance: 20 } }),
+        );
+        if (!this.placeExisting(row.otherIri, at)) return false;
+      }
+      const drawn = this.drawExistingRelationship(row.relationshipIri);
+      this.reveal(row.relationshipIri);
+      return drawn;
+    } finally {
+      services.popupMenu.close();
+    }
+  }
+
+  /** Where the append menu opened, so its second step opens in the same place. */
+  private appendMenuPosition: { x: number; y: number } | undefined;
+
+  /**
+   * The append's second step: several specific relationships are permitted to
+   * the chosen type, so ask which. Replaces the first menu in place.
+   */
+  private openAppendRelationshipMenu(context: AppendMenuContext, target: AppendTarget): void {
+    const services = this.services();
+    if (!services || !context.diagramElement) return;
+    this.appendRelationshipMenuProvider.pending = { context, target };
+    services.popupMenu.open(
+      context.diagramElement,
+      APPEND_RELATIONSHIP_MENU_ID,
+      this.appendMenuPosition ?? this.padMenuPosition(undefined),
+      {
+        title: 'Which relationship?',
+        width: 300,
+        search: true,
+      },
+    );
   }
 
   /**
@@ -1295,6 +2618,7 @@ export class DiagramCanvas {
       modeling: get('modeling'),
       eventBus: get('eventBus'),
       commandStack: get('commandStack'),
+      layouter: get('layouter'),
       contextPad: get('contextPad'),
       popupMenu: get('popupMenu'),
       keyboard: get('keyboard'),
@@ -1317,6 +2641,335 @@ export class DiagramCanvas {
       .filter((element) => element.parent && !element.waypoints);
   }
 
+  /** Every drawn connection. */
+  private connections(): DjsShape[] {
+    const services = this.services();
+    if (!services) return [];
+    return services.elementRegistry.getAll().filter((element) => element.parent && element.waypoints);
+  }
+
+  /**
+   * The connection drawing a relationship, by the relationship's IRI: its id,
+   * or one of the few otherwise named — not a scan of the canvas, which made
+   * drawing a view of thousands quadratic (Task 22).
+   */
+  private findConnection(relationshipIri: string): DjsShape | undefined {
+    const services = this.services();
+    if (!services) return undefined;
+    const byId = services.elementRegistry.get(relationshipIri);
+    if (byId) return byId;
+    for (const c of this.otherwiseNamed) if (c.businessObject?.iri === relationshipIri && services.elementRegistry.get(c.id)) return c;
+    return undefined;
+  }
+
+  /** Remove a connection without a command (store-led). */
+  private removeConnectionDirect(connection: DjsShape): void {
+    const services = this.services();
+    if (!services || !services.elementRegistry.get(connection.id)) return;
+    services.canvas.removeConnection(connection);
+    this.relationships.delete(connection.id);
+  }
+
+  /**
+   * Remove a shape and every connection touching it, without a command
+   * (store-led). What was drawn inside it moves out to its container first:
+   * removing a shape takes the graphics of its children with it.
+   */
+  private removeShapeDirect(shape: DjsShape): void {
+    const services = this.services();
+    if (!services || !services.elementRegistry.get(shape.id)) return;
+    for (const connection of [...(shape.incoming ?? []), ...(shape.outgoing ?? [])]) {
+      this.removeConnectionDirect(connection);
+    }
+    const container = (shape.parent as DjsShape | undefined) ?? (services.canvas.getRootElement() as DjsShape);
+    for (const child of [...(shape.children ?? [])].filter((c) => !c.waypoints)) this.reparentDirect(child, container);
+    services.canvas.removeShape(shape);
+  }
+
+  /** The shape an element is drawn inside — the element's, when drawn — else the diagram. */
+  private containerFor(parentIri: string | undefined): DjsShape {
+    const services = this.services()!;
+    const parent = parentIri ? (services.elementRegistry.get(parentIri) as DjsShape | undefined) : undefined;
+    return parent && !parent.waypoints ? parent : (services.canvas.getRootElement() as DjsShape);
+  }
+
+  /**
+   * Move a shape into another container without a command (store-led: a
+   * collaborator's nesting, an import). diagram-js moves the graphics on
+   * `elements.changed`, as its own commands have it do.
+   */
+  private reparentDirect(shape: DjsShape, container: DjsShape): void {
+    const services = this.services();
+    const previous = shape.parent as DjsShape | undefined;
+    if (!services || previous === container) return;
+    const at = previous?.children?.indexOf(shape) ?? -1;
+    if (at >= 0) previous!.children!.splice(at, 1);
+    (container.children ??= []).push(shape);
+    shape.parent = container;
+    services.eventBus.fire('elements.changed', { elements: [shape, ...(previous ? [previous] : []), container] });
+  }
+
+  /** Remove everything drawn, without commands. */
+  private clearDiagram(): void {
+    const services = this.services();
+    if (!services) return;
+    try {
+      services.popupMenu.close();
+    } catch {
+      /* nothing open */
+    }
+    services.selection.select(null);
+    this.removingFromStore = true;
+    try {
+      for (const connection of this.connections()) this.removeConnectionDirect(connection);
+      for (const shape of this.shapes()) this.removeShapeDirect(shape);
+    } finally {
+      this.removingFromStore = false;
+    }
+    this.relationships.clear();
+  }
+
+  /** Re-apply the viewpoint marker to every shape. */
+  private applyViewpointMarkers(): void {
+    const services = this.services();
+    if (!services) return;
+    for (const shape of this.shapes()) {
+      const typeIri = shape.businessObject?.typeIri;
+      const outside = Boolean(this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri));
+      const has = services.canvas.hasMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
+      if (outside && !has) services.canvas.addMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
+      if (!outside && has) services.canvas.removeMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
+    }
+  }
+
+  /** A shape for an element that exists in the model, to be placed in the view. */
+  private buildExistingShape(iri: string): DjsShape | undefined {
+    const services = this.services();
+    const description = this.describeElement?.(iri);
+    if (!services || !description?.typeIri) return undefined;
+    const style = this.notationStyles.styleFor(description.typeIri);
+    const businessObject: RdfBusinessObject = {
+      iri,
+      typeIri: description.typeIri,
+      label: description.label ?? localName(iri),
+      named: description.named ?? description.label !== undefined,
+      kind: 'element',
+      placeExisting: true,
+      ...(description.iconUrl ? { iconUrl: description.iconUrl } : {}),
+    };
+    return services.elementFactory.createShape({
+      id: iri,
+      width: style?.defaultWidth ?? NOTATION_DEFAULTS.width,
+      height: style?.defaultHeight ?? NOTATION_DEFAULTS.height,
+      businessObject,
+    });
+  }
+
+  /**
+   * After a drop into a container: ask which relationship the nesting stands
+   * for — of those the notation lets nesting draw and the metamodel permits
+   * between the two — unless the model already relates them so, or none fits.
+   */
+  private offerNesting(inner: DjsShape, outer: DjsShape): void {
+    const services = this.services();
+    const innerObject = inner.businessObject;
+    const outerObject = outer.businessObject;
+    if (!services || !innerObject?.iri || !outerObject?.iri || inner.parent !== outer) return;
+    const innerEnd = { iri: innerObject.iri, typeIri: innerObject.typeIri };
+    const outerEnd = { iri: outerObject.iri, typeIri: outerObject.typeIri };
+    const existing = (this.relationshipManager.getRelationshipsOf?.(innerEnd.iri) ?? []).filter(
+      (r) => r.sourceIri === outerEnd.iri || r.targetIri === outerEnd.iri,
+    );
+    const types = this.paletteDefinition.relationshipTypes;
+    if (nestingShownBy(outerEnd, innerEnd, types, existing)) return;
+    const offers = nestingOffers(
+      outerEnd,
+      innerEnd,
+      types,
+      (source, target) => this.relationshipManager.getValidRelationships(source, target),
+      existing,
+    );
+    if (offers.length === 0) return;
+    const outerLabel = outerObject.label ?? localName(outerEnd.iri);
+    this.nestMenuProvider.pending = { outerLabel, innerLabel: innerObject.label ?? localName(innerEnd.iri), offers };
+    const box = services.elementRegistry.getGraphics(inner)?.getBoundingClientRect?.();
+    services.popupMenu.open(inner, NEST_MENU_ID, box ? { x: box.left, y: box.bottom + 4 } : { x: 0, y: 0 }, {
+      title: 'Which relationship?',
+      width: 300,
+    });
+  }
+
+  /** The relationship picked for a nesting, created in the model — undoably, and not drawn: the nesting shows it. */
+  private nestAs(offer: NestingOffer | undefined): void {
+    this.services()?.popupMenu.close();
+    this.nestMenuProvider.pending = undefined;
+    const create = this.relationshipManager.createQualifiedRelationship?.bind(this.relationshipManager);
+    if (!offer || !create) return;
+    const modelIri = this.modelIri;
+    this.recordChange(() => {
+      create({
+        typeIri: offer.type.iri,
+        ...(offer.type.unqualifiedPredicateIri && offer.type.unqualifiedPredicateIri !== offer.type.iri
+          ? { predicateIri: offer.type.unqualifiedPredicateIri }
+          : {}),
+        sourceIri: offer.sourceIri,
+        targetIri: offer.targetIri,
+        ...(modelIri ? { modelIri } : {}),
+      });
+    });
+  }
+
+  /**
+   * Run a change made outside the canvas — a property edited in the panel — as
+   * one undoable step on the canvas's command stack, so undo and redo take it
+   * back with the rest. False when there is no open view to record it on: the
+   * change is then made as it is, and is not undoable.
+   */
+  recordChange(apply: () => void): boolean {
+    const services = this.services();
+    if (!services || !this.viewIri || !this.changeStore) {
+      apply();
+      return false;
+    }
+    const context: RdfChangeContext = { apply };
+    services.commandStack.execute(RDF_STORE_EDIT_COMMAND, context);
+    return true;
+  }
+
+  /**
+   * Run a model operation as a nested, recorded command (see
+   * `RdfChangeHandler`). Only legal from a command-stack pre/postExecute hook,
+   * which is the only place it is called from.
+   */
+  private change(apply: () => void): void {
+    const services = this.services();
+    if (!services) return;
+    const context: RdfChangeContext = { apply };
+    services.commandStack.execute(RDF_CHANGE_COMMAND, context);
+  }
+
+  /** Whether edits should go to a view (as opposed to the legacy element-level path). */
+  private hasViewContext(): boolean {
+    return Boolean(this.viewManager && this.viewIri);
+  }
+
+  /** A connection's route, rounded, as persisted. */
+  private routeOf(connection: DjsShape): Point[] {
+    return (connection.waypoints ?? []).map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  }
+
+  /** Persist a connection's route to the open view, as a recorded change. */
+  private writeRoute(connection: DjsShape | undefined): void {
+    const relationshipIri = connection?.businessObject?.iri;
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    if (!connection || !relationshipIri || !viewIri || !viewManager) return;
+    // Drawn in this view: what the view shows, kept as its shapes move — not
+    // every link of it read again after each move (Task 22).
+    const placedIn = (viewManager as { placedIn?(viewIri: string): ReadonlySet<string> }).placedIn;
+    const drawn = placedIn
+      ? placedIn.call(viewManager, viewIri).has(relationshipIri)
+      : viewManager.getLinks(viewIri).some((l) => l.relationshipIri === relationshipIri);
+    if (!drawn) return;
+    const route = this.routeOf(connection);
+    // A name moved off the middle follows the line: its bounds are written with the route.
+    const offset = connection.businessObject?.labelOffset;
+    const label = offset ? this.labelBoundsAt(connection, offset) : undefined;
+    this.change(() => {
+      viewManager.updateLinkWaypoints(viewIri, relationshipIri, route);
+      if (label) viewManager.setLinkLabel?.(viewIri, relationshipIri, label);
+    });
+  }
+
+  /** The box a line's name takes at `offset` from the middle of its route, as the view keeps it. */
+  private labelBoundsAt(line: LabelledLine, offset: LabelOffset): Bounds | undefined {
+    const businessObject = line.businessObject;
+    const name = businessObject?.named ? (businessObject.label ?? '') : '';
+    const box = connectionLabelLayout(line.waypoints ?? [], name, { offset })?.box;
+    if (!box) return undefined;
+    // Whole pixels, as the view keeps bounds, around the centre rounded: the centre is what is read back.
+    const width = 2 * Math.round(box.width / 2);
+    const height = 2 * Math.round(box.height / 2);
+    const centre = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+    return { x: centre.x - width / 2, y: centre.y - height / 2, width, height };
+  }
+
+  /** Keeps where a line's name was moved to in the open view, or drops it (`rdf.link.label.move`). */
+  private linkLabelWriter(): LinkLabelWriter {
+    return (line, offset) => {
+      const relationshipIri = line.businessObject?.iri;
+      if (!relationshipIri || !this.viewIri) return;
+      this.viewManager?.setLinkLabel?.(this.viewIri, relationshipIri, offset ? this.labelBoundsAt(line, offset) : undefined);
+    };
+  }
+
+  /** A line's name moves in an open view, unless a collaborator holds the line. */
+  private canMoveLinkLabel(line: LabelledLine): boolean {
+    const iri = line.businessObject?.iri;
+    return this.hasViewContext() && !!this.viewManager?.setLinkLabel && !!iri && !this.locked.has(iri);
+  }
+
+  /**
+   * After an existing element is placed, draw its relationships to every
+   * element already in the view — what users of Archi expect, and what makes
+   * "add to view" useful for exploring a model.
+   */
+  /** What a relationship's connection carries of its derivation: nothing for one the model states. */
+  /** A relationship's own name, for its line: none when the model gives it none. */
+  private relationshipNameOf(relationshipIri: string): Pick<RdfBusinessObject, 'label' | 'named'> {
+    const name = this.describeElement?.(relationshipIri)?.modelName;
+    return name ? { label: name, named: true } : {};
+  }
+
+  private derivationOf(relationshipIri: string): Pick<RdfBusinessObject, 'derivation' | 'derivationRule'> {
+    const description = this.describeElement?.(relationshipIri);
+    if (!description?.derivation) return {};
+    return { derivation: description.derivation, ...(description.derivationRule ? { derivationRule: description.derivationRule } : {}) };
+  }
+
+  private drawRelationshipsOf(shape: DjsShape): void {
+    const services = this.services();
+    const iri = shape.businessObject?.iri;
+    if (!services || !iri || !this.relationshipManager.getRelationshipsOf) return;
+    // Then those ending on a relationship just drawn, and so on.
+    const ends = [iri];
+    for (let at = 0; at < ends.length; at++) {
+      this.drawRelationshipsAt(ends[at], ends);
+    }
+  }
+
+  /** Draw the relationships at one end that both ends allow; note each drawn in `drawn`. */
+  private drawRelationshipsAt(iri: string, drawn: string[]): void {
+    const services = this.services();
+    if (!services || !this.relationshipManager.getRelationshipsOf) return;
+    for (const rel of this.relationshipManager.getRelationshipsOf(iri)) {
+      if (this.findConnection(rel.iri)) continue;
+      // A derivation the model does not state is drawn when asked for, not with its ends.
+      if (this.describeElement?.(rel.iri)?.derivation) continue;
+      const source = services.elementRegistry.get(rel.sourceIri);
+      const target = services.elementRegistry.get(rel.targetIri);
+      if (!source || !target) continue;
+      const typeIri = this.describeElement?.(rel.iri)?.typeIri ?? rel.classIri;
+      const businessObject: RdfBusinessObject = { iri: rel.iri, typeIri, kind: 'relationship', ...this.relationshipNameOf(rel.iri) };
+      services.modeling.createConnection(
+        source,
+        target,
+        { id: rel.iri, businessObject },
+        services.canvas.getRootElement(),
+        // Draw, do not create: the relationship is already in the model.
+        { [RDF_EXISTING_RELATIONSHIP_HINT]: rel.iri },
+      );
+      this.relationships.set(rel.iri, {
+        sourceIri: rel.sourceIri,
+        targetIri: rel.targetIri,
+        typeIri,
+        predicateIri: rel.predicateIri,
+        relationshipIri: rel.iri,
+      });
+      drawn.push(rel.iri);
+    }
+  }
+
   /** Give the diagram its single root element so shapes have a parent. */
   private initRoot(): void {
     const services = this.services();
@@ -1334,7 +2987,42 @@ export class DiagramCanvas {
       RELATIONSHIP_REPLACE_MENU_ID,
       this.replaceMenuProvider,
     );
+    services.popupMenu.registerProvider(ELEMENT_REPLACE_MENU_ID, this.elementReplaceMenuProvider);
+    services.popupMenu.registerProvider(CONTEXT_MENU_ID, this.contextMenuProvider);
+    services.commandStack.registerHandler(RETYPE_ELEMENT_COMMAND, RetypeElementHandler);
     services.popupMenu.registerProvider(APPEND_TARGET_MENU_ID, this.appendMenuProvider);
+    services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
+    services.popupMenu.registerProvider(NEST_MENU_ID, this.nestMenuProvider);
+    services.popupMenu.registerProvider(PAIR_CONNECT_MENU_ID, this.pairConnectMenuProvider);
+  }
+
+  /** The two selected elements a pair menu was opened on, or nothing. */
+  private resolvePair(target: unknown): PairConnectContext | undefined {
+    if (!Array.isArray(target) || target.length !== 2) return undefined;
+    const ends: PairEnd[] = [];
+    for (const shape of target as DjsShape[]) {
+      const shown = shape?.businessObject;
+      if (!shown || shown.kind !== 'element' || !shown.iri || !shown.typeIri) return undefined;
+      ends.push({ shapeId: shape.id, iri: shown.iri, typeIri: shown.typeIri, label: shown.label ?? localName(shown.iri) });
+    }
+    return { a: ends[0], b: ends[1] };
+  }
+
+  /**
+   * Create the relationship picked in the pair menu, and draw it: the same
+   * `modeling.connect` a connect drag ends in, so it is one undoable step and
+   * the RDF is written by the same command.
+   */
+  private connectPair(source: PairEnd, target: PairEnd, candidate: RelationshipTypeInfo): void {
+    const services = this.services();
+    const from = services?.elementRegistry.get(source.shapeId);
+    const to = services?.elementRegistry.get(target.shapeId);
+    if (!services || !from || !to) return;
+    services.modeling.connect(from, to, {
+      typeIri: candidate.iri,
+      ...(candidate.unqualifiedPredicateIri ? { unqualifiedPredicateIri: candidate.unqualifiedPredicateIri } : {}),
+      typeLabel: candidate.label,
+    });
   }
 
   /**
@@ -1408,6 +3096,35 @@ export class DiagramCanvas {
     if (!services) return;
     const djs = services.eventBus;
 
+    djs.on('connection.added', (event: { element: DjsShape }) => {
+      if (event.element.id !== event.element.businessObject?.iri) this.otherwiseNamed.add(event.element);
+    });
+    djs.on('connection.removed', (event: { element: DjsShape }) => this.otherwiseNamed.delete(event.element));
+
+    // Right-click on an element or a relationship: select it, and open the
+    // context menu at the pointer instead of the browser's; on the empty
+    // canvas, the open view's menu.
+    //
+    // Over a line, diagram-js draws its segment and bendpoint handles in the
+    // overlays layer, on top of it, and they belong to no diagram element: a
+    // right-click there reaches the root. Their group names the line.
+    djs.on('element.contextmenu', 1500, (event: { element?: DjsShape; originalEvent?: MouseEvent }) => {
+      const root = this.services()?.canvas.getRootElement();
+      let element = event.element;
+      if (element && element === root) {
+        const handles = (event.originalEvent?.target as Element | null)?.closest?.('.djs-bendpoints[data-element-id]');
+        const line = handles ? this.services()?.elementRegistry.get(handles.getAttribute('data-element-id') ?? '') : undefined;
+        if (line) element = line;
+      }
+      const shown = element?.businessObject;
+      const onConcept = Boolean(shown?.iri) && (shown?.kind === 'element' || shown?.kind === 'relationship');
+      const onCanvas = element === root && Boolean(this.viewIri);
+      if (!element || (!onConcept && !onCanvas)) return undefined;
+      event.originalEvent?.preventDefault();
+      this.openContextMenu(element, { x: event.originalEvent?.clientX ?? 0, y: event.originalEvent?.clientY ?? 0 });
+      return false;
+    });
+
     // Which global tool is armed. `ToolManager` is the only honest source: the
     // tools deactivate themselves when their gesture completes, `Escape` cancels
     // them, and re-activating the armed tool toggles it off — none of which a
@@ -1424,14 +3141,197 @@ export class DiagramCanvas {
       this.onToolChanged?.(tool);
     });
 
+    // A relationship type picked in the palette is required (RdfRuleProvider):
+    // released on an element the pair does not permit it for, the drag creates
+    // nothing — so say why, and what the pair does permit. Ahead of `Connect`'s
+    // own handler, while the preference is still in force; diagram-js keeps the
+    // ends of a refused pair in `start` and `hover`.
+    djs.on('connect.end', 1500, (event: { context?: RefusedConnectContext }) => {
+      const context = event.context;
+      if (!context || context.canExecute) return;
+      const sourceType = context.start?.businessObject?.typeIri;
+      const targetType = context.hover?.businessObject?.typeIri;
+      if (!sourceType || !targetType || context.hover?.waypoints) return;
+      const refusal = this.ruleProvider.refusal(sourceType, targetType);
+      if (refusal) this.onNotice?.(this.refusalMessage(refusal, sourceType, targetType), 'warning');
+    });
+
     // Layout is the canvas's own state, so it is the one thing written back.
+    //
+    // With views, as a nested recorded change inside the move/resize command, so
+    // undoing the move puts the old bounds back in the store too. Without, the
+    // legacy element-level sink, after the fact.
+    djs.on(
+      ['commandStack.shape.move.postExecute', 'commandStack.shape.resize.postExecute'],
+      (event: { context?: { shape?: DjsShape } }) => {
+        const shape = event.context?.shape;
+        if (shape && this.hasViewContext()) this.writeLayout(shape);
+      },
+    );
     djs.on(
       ['commandStack.shape.move.postExecuted', 'commandStack.shape.resize.postExecuted'],
       (event: { context?: { shape?: DjsShape } }) => {
         const shape = event.context?.shape;
-        if (shape) this.writeLayout(shape);
+        if (shape && !this.hasViewContext()) this.writeLayout(shape);
       },
     );
+
+    // Routes: whenever diagram-js lays a connection out or the user bends it.
+    djs.on(
+      [
+        'commandStack.connection.create.postExecute',
+        'commandStack.connection.layout.postExecute',
+        'commandStack.connection.updateWaypoints.postExecute',
+        'commandStack.connection.move.postExecute',
+      ],
+      (event: { context?: { connection?: DjsShape } }) => {
+        if (this.hasViewContext()) this.writeRoute(event.context?.connection);
+      },
+    );
+
+    // Reattaching a connection end moves the relationship in the model: its
+    // ends, its unqualified triple, and its links in other views. Nested, so
+    // undoing the reconnect restores all of it.
+    djs.on(
+      'commandStack.connection.reconnect.postExecute',
+      (event: { context?: { connection?: DjsShape } }) => {
+        const connection = event.context?.connection;
+        const relIri = connection?.businessObject?.iri;
+        const sourceIri = connection?.source?.businessObject?.iri;
+        const targetIri = connection?.target?.businessObject?.iri;
+        const reconnect = this.relationshipManager.reconnectRelationship;
+        if (!relIri || !sourceIri || !targetIri || !reconnect || !this.viewManager) return;
+        const viewManager = this.viewManager;
+        this.change(() => {
+          this.relationshipManager.reconnectRelationship?.(relIri, sourceIri, targetIri);
+          viewManager.refreshLinksOf?.(relIri);
+        });
+      },
+    );
+    // Keep the canvas's relationship record in step, both ways.
+    djs.on(
+      ['commandStack.connection.reconnect.executed', 'commandStack.connection.reconnect.reverted'],
+      (event: { context?: { connection?: DjsShape } }) => {
+        const connection = event.context?.connection;
+        const record = connection ? this.relationships.get(connection.id) : undefined;
+        const sourceIri = connection?.source?.businessObject?.iri;
+        const targetIri = connection?.target?.businessObject?.iri;
+        if (record && sourceIri && targetIri) {
+          record.sourceIri = sourceIri;
+          record.targetIri = targetIri;
+        }
+      },
+    );
+
+    // Deleting on the canvas deletes from the *view*: the node or link goes,
+    // the concept stays in the model. Nested, so undo restores the geometry.
+    djs.on('commandStack.shape.delete.preExecute', (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      const iri = shape?.businessObject?.iri;
+      const viewIri = this.viewIri;
+      const viewManager = this.viewManager;
+      if (!iri || !viewIri || !viewManager || this.removingFromStore) return;
+      this.change(() => viewManager.removeElementFromView(viewIri, iri));
+    });
+    djs.on(
+      'commandStack.connection.delete.preExecute',
+      (event: { context?: { connection?: DjsShape } }) => {
+        const iri = event.context?.connection?.businessObject?.iri;
+        const viewIri = this.viewIri;
+        const viewManager = this.viewManager;
+        if (!iri || !viewIri || !viewManager || this.removingFromStore) return;
+        this.change(() => viewManager.removeRelationshipFromView(viewIri, iri));
+      },
+    );
+
+    // An existing element dropped into the view: draw its relationships to what
+    // is already here, in the same undo step.
+    djs.on('commandStack.shape.create.postExecute', (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      if (shape?.businessObject?.placeExisting && this.hasViewContext()) {
+        delete shape.businessObject.placeExisting;
+        this.drawRelationshipsOf(shape);
+      }
+    });
+
+    // Collaboration locks: deny the edit rules for anything another user holds.
+    // Registered above the metamodel rules so a lock always wins.
+    djs.on(
+      LOCKED_ACTIONS.map((action) => `commandStack.${action}.canExecute`),
+      3000,
+      (event: { context?: Record<string, unknown> }) => {
+        if (this.locked.size === 0) return undefined;
+        const ctx = event.context ?? {};
+        const elements = [
+          ...((ctx['shapes'] as DjsShape[] | undefined) ?? []),
+          ...((ctx['elements'] as DjsShape[] | undefined) ?? []),
+          ...(ctx['shape'] ? [ctx['shape'] as DjsShape] : []),
+          ...(ctx['connection'] ? [ctx['connection'] as DjsShape] : []),
+        ];
+        return elements.some((e) => e.businessObject?.iri && this.locked.has(e.businessObject.iri)) ? false : undefined;
+      },
+    );
+
+    // A change made outside the canvas, undone or redone: no shape command
+    // carries it back, so the canvas redraws from the store once it settles.
+    let storeEdited = false;
+    djs.on([`commandStack.${RDF_STORE_EDIT_COMMAND}.executed`, `commandStack.${RDF_STORE_EDIT_COMMAND}.reverted`], () => {
+      storeEdited = true;
+    });
+
+    // Every command changes the model; tell the rest of the app once it settles.
+    // Clearing the stack (a view opened) changes nothing.
+    djs.on('commandStack.changed', (event: { trigger?: string }) => {
+      if (event.trigger === 'clear') return;
+      if (storeEdited) {
+        storeEdited = false;
+        this.syncFromStore();
+      }
+      this.eventBus.emit('model-changed', { origin: 'canvas', viewIri: this.viewIri });
+    });
+
+    // Nesting. The container an element is created in is written with it — after
+    // the element's own node (`rdf.element.create`, at the default priority); a
+    // move writes its container with its bounds (`writeLayout`).
+    djs.on('commandStack.shape.create.postExecute', 500, (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      if (shape && this.hasViewContext() && containerIri(shape)) this.writeLayout(shape);
+    });
+    // The containers on both sides are redrawn — a container's name moves to its
+    // top once something is inside it — and a drop into an element asks which
+    // relationship the nesting stands for, once the command has settled.
+    let nested: { inner: DjsShape; outer: DjsShape } | undefined;
+    const redraw = (...containers: Array<DjsShape | undefined>) => {
+      const elements = containers.filter((c): c is DjsShape => c?.businessObject?.kind === 'element');
+      if (elements.length > 0) djs.fire('elements.changed', { elements });
+    };
+    djs.on('commandStack.shape.create.postExecuted', (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      const outer = shape?.parent as DjsShape | undefined;
+      redraw(outer);
+      if (shape && outer?.businessObject?.kind === 'element') nested = { inner: shape, outer };
+    });
+    djs.on(
+      'commandStack.shape.move.postExecuted',
+      (event: { context?: { shape?: DjsShape; oldParent?: DjsShape; newParent?: DjsShape } }) => {
+        const { shape, oldParent, newParent } = event.context ?? {};
+        if (!shape || !newParent || newParent === oldParent) return;
+        redraw(oldParent, newParent);
+        if (newParent.businessObject?.kind === 'element') nested = { inner: shape, outer: newParent };
+      },
+    );
+    djs.on(
+      ['commandStack.shape.create.reverted', 'commandStack.shape.move.reverted'],
+      (event: { context?: { parent?: DjsShape; oldParent?: DjsShape; newParent?: DjsShape } }) => {
+        const context = event.context ?? {};
+        redraw(context.parent, context.oldParent, context.newParent);
+      },
+    );
+    djs.on('commandStack.changed', (event: { trigger?: string }) => {
+      const pending = nested;
+      nested = undefined;
+      if (pending && event.trigger === 'execute') queueMicrotask(() => this.offerNesting(pending.inner, pending.outer));
+    });
 
     // A shape created *on the canvas* (a palette drag, an append) already has its
     // triples — `rdf.element.create` wrote them inside the same command group.
@@ -1501,6 +3401,16 @@ export class DiagramCanvas {
         iris: selected.map((element) => element.businessObject?.iri).filter(Boolean),
       });
     });
+
+    // A click on the empty canvas with nothing selected changes no selection,
+    // so diagram-js says nothing; it is said all the same — what was selected
+    // elsewhere (the tree) gives way to the view. Before diagram-js's own
+    // handler (1000), which clears a selection and says so itself.
+    djs.on('element.click', 1500, (event: { element?: DjsShape }) => {
+      const services = this.services();
+      if (!services || event.element !== services.canvas.getRootElement()) return;
+      if (services.selection.get().length === 0) this.eventBus.emit('selection-changed', { iri: undefined, iris: [] });
+    });
   }
 
   /** Write a shape's current bounds back to the model. */
@@ -1513,7 +3423,17 @@ export class DiagramCanvas {
       width: Math.round(shape.width),
       height: Math.round(shape.height),
     };
-    this.elementManager.updateLayout(iri, bounds);
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    if (viewIri && viewManager) {
+      const parentIri = containerIri(shape);
+      this.change(() => {
+        viewManager.updateNodeBounds(viewIri, iri, bounds);
+        viewManager.setNodeParent?.(viewIri, iri, parentIri);
+      });
+      return;
+    }
+    this.elementManager.updateLayout?.(iri, bounds);
     this.eventBus.emit('element-updated', { iri, elementIri: iri, bounds });
   }
 
@@ -1527,6 +3447,8 @@ export class DiagramCanvas {
       }
     }
     if (this.removingFromStore) return;
+    // With views the nested change already removed the node; the element stays.
+    if (this.hasViewContext()) return;
     this.elementManager.deleteElement(iri);
     this.eventBus.emit('element-deleted', { iri, elementIri: iri });
   }
@@ -1536,6 +3458,7 @@ export class DiagramCanvas {
     const relationship = this.relationships.get(connection.id);
     this.relationships.delete(connection.id);
     if (this.removingFromStore || !relationship) return;
+    if (this.hasViewContext()) return;
 
     this.retractRelationship(relationship);
     // The connection is already gone from the canvas; only the rest of the app
@@ -1560,12 +3483,31 @@ export class DiagramCanvas {
   private relationshipWriter(): RdfRelationshipWriter {
     return {
       create: (request: RdfRelationshipRequest): string | undefined => {
-        const created = this.relationshipManager.createRelationship(
-          request.predicateIri,
-          request.sourceIri,
-          request.targetIri,
-        );
-        const relationshipIri = created?.value;
+        // The Linked.Archi pattern when the manager supports it: a qualified
+        // resource typed with its class plus the unqualified triple, drawn as a
+        // link in the open view. A bare triple otherwise.
+        let relationshipIri: string | undefined;
+        if (this.relationshipManager.createQualifiedRelationship) {
+          relationshipIri = this.relationshipManager.createQualifiedRelationship({
+            typeIri: request.typeIri,
+            ...(request.predicateIri && request.predicateIri !== request.typeIri
+              ? { predicateIri: request.predicateIri }
+              : {}),
+            sourceIri: request.sourceIri,
+            targetIri: request.targetIri,
+            ...(this.modelIri ? { modelIri: this.modelIri } : {}),
+            ...(request.iri ? { iri: request.iri } : {}),
+          }).iri;
+          if (this.viewManager && this.viewIri) {
+            this.viewManager.addRelationshipToView(this.viewIri, relationshipIri);
+          }
+        } else {
+          relationshipIri = this.relationshipManager.createRelationship(
+            request.predicateIri,
+            request.sourceIri,
+            request.targetIri,
+          )?.value;
+        }
 
         this.relationships.set(request.connectionId, {
           sourceIri: request.sourceIri,
@@ -1586,6 +3528,33 @@ export class DiagramCanvas {
         });
 
         return relationshipIri;
+      },
+
+      // In place only when the manager can: otherwise the command falls back to
+      // retract + assert, which is right for a bare triple.
+      ...(this.relationshipManager.retypeRelationship
+        ? {
+            retype: (relationshipIri: string, _from: RdfRelationshipRequest, to: RdfRelationshipRequest): void => {
+              this.relationshipManager.retypeRelationship?.(relationshipIri, to.typeIri);
+              const record = this.relationships.get(to.connectionId);
+              if (record) {
+                record.typeIri = to.typeIri;
+                record.predicateIri = to.predicateIri;
+              }
+              this.emitWithoutSelfSync('relationship-created', {
+                sourceIri: to.sourceIri,
+                targetIri: to.targetIri,
+                typeIri: to.typeIri,
+                relationshipIri,
+              });
+            },
+          }
+        : {}),
+
+      draw: (relationshipIri: string): void => {
+        if (this.viewManager && this.viewIri) {
+          this.viewManager.addRelationshipToView(this.viewIri, relationshipIri);
+        }
       },
 
       remove: (request: RdfRelationshipRequest, relationshipIri?: string): void => {
@@ -1629,6 +3598,31 @@ export class DiagramCanvas {
    * and the relationship triple from the same group is left pointing at the
    * previous IRI.
    */
+  /**
+   * Writes a name typed on the canvas: the `skos:prefLabel` in the language
+   * shown (the English one, else an untagged one, else English is added), leaving
+   * the element's names in other languages as they are. An empty name — a
+   * relationship's, emptied — removes the one in that language.
+   */
+  private labelWriter(): LabelWriter {
+    return (iri: string, label: string) => {
+      const prefLabel = NAMESPACES.skos + 'prefLabel';
+      const existing = (this.rdfStore?.getQuads(namedNode(iri), namedNode(prefLabel)) ?? []) as Array<{
+        object: { termType: string; language?: string };
+        graph: { termType: string };
+      }>;
+      const inModel = existing.filter((q) => q.graph.termType === 'DefaultGraph' && q.object.termType === 'Literal');
+      const shown = inModel.find((q) => q.object.language === 'en') ?? inModel.find((q) => !q.object.language);
+      const language = shown ? (shown.object.language ?? '') : 'en';
+      const replaced = inModel.filter((q) => (q.object.language ?? '') === language);
+      if (replaced.length > 0) this.rdfStore?.removeQuads(replaced as never[]);
+      if (label === '') return;
+      this.rdfStore?.addQuads?.([
+        DataFactory.quad(namedNode(iri), namedNode(prefLabel), DataFactory.literal(label, language || undefined)) as never,
+      ]);
+    };
+  }
+
   private elementWriter(): RdfElementWriter {
     return {
       create: (request: RdfElementRequest): RdfElementResult | undefined => {
@@ -1640,19 +3634,36 @@ export class DiagramCanvas {
           return { iri: request.iri, snapshot: request.snapshot };
         }
 
-        const created = this.elementManager.createElement(
-          request.typeIri,
-          this.modelIri,
-          request.bounds,
-        );
-        const iri = created?.value;
-        if (!iri) return undefined;
+        const create = (): string | undefined => {
+          const iri = this.elementManager.createElement(request.typeIri, this.modelIri, {
+            ...(request.label ? { label: request.label } : {}),
+          })?.value;
+          if (!iri) return undefined;
+          if (this.viewManager && this.viewIri) {
+            this.viewManager.addElementToView(this.viewIri, iri, request.bounds);
+          } else {
+            this.elementManager.updateLayout?.(iri, request.bounds);
+          }
+          return iri;
+        };
 
+        // With a recording store the snapshot is exactly what was written — the
+        // element *and* its node — so redo restores both.
+        if (this.changeStore) {
+          const { result: iri, added } = this.changeStore.record(create);
+          return iri ? { iri, snapshot: added } : undefined;
+        }
+
+        const iri = create();
+        if (!iri) return undefined;
         // Snapshot only when it can be replayed; an unusable one would be a lie.
         const snapshot =
           store?.addQuads !== undefined ? store.getQuads(namedNode(iri), null, null, null) : [];
-
         return { iri, snapshot };
+      },
+
+      place: (iri: string, bounds: Bounds): void => {
+        if (this.viewManager && this.viewIri) this.viewManager.addElementToView(this.viewIri, iri, bounds);
       },
 
       remove: (iri: string): void => {
@@ -1768,22 +3779,22 @@ export class DiagramCanvas {
     this.eventBus.on('relationship-deleted', (event) => {
       if (this.suppressSync) return;
       const detail = event.detail;
-      if (detail?.sourceIri && detail?.targetIri && detail?.typeIri) {
-        const key = relationshipKey(
-          detail.sourceIri as string,
-          detail.targetIri as string,
-          detail.typeIri as string,
-        );
-        const services = this.services();
-        const connection = services?.elementRegistry.get(key);
-        this.removingFromStore = true;
-        try {
-          if (connection && services) services.modeling.removeElements([connection]);
-        } finally {
-          this.removingFromStore = false;
-        }
-        this.relationships.delete(key);
+      const relationshipIri = detail?.relationshipIri as string | undefined;
+      const key =
+        detail?.sourceIri && detail?.targetIri && detail?.typeIri
+          ? relationshipKey(detail.sourceIri as string, detail.targetIri as string, detail.typeIri as string)
+          : undefined;
+      const services = this.services();
+      const connection =
+        (relationshipIri ? this.findConnection(relationshipIri) : undefined) ??
+        (key ? services?.elementRegistry.get(key) : undefined);
+      this.removingFromStore = true;
+      try {
+        if (connection) this.removeConnectionDirect(connection);
+      } finally {
+        this.removingFromStore = false;
       }
+      if (key) this.relationships.delete(key);
     });
   }
 }
@@ -1801,9 +3812,38 @@ function toCanvasElement(shape: DjsShape): CanvasElement | null {
   };
 }
 
+/** Whether a drawn route matches a persisted one (to the pixel). */
+function sameRoute(current: Array<{ x: number; y: number }> | undefined, persisted: Point[]): boolean {
+  if (!current || current.length !== persisted.length) return false;
+  return current.every(
+    (p, i) => Math.round(p.x) === persisted[i].x && Math.round(p.y) === persisted[i].y,
+  );
+}
+
 /** Last fragment or path segment of an IRI. */
 function localName(iri: string): string {
   if (iri.includes('#')) return iri.slice(iri.lastIndexOf('#') + 1);
   const trimmed = iri.replace(/\/$/, '');
   return trimmed.slice(trimmed.lastIndexOf('/') + 1) || iri;
+}
+
+/** The element a shape is drawn inside, when it is inside one rather than on the diagram. */
+function containerIri(shape: DjsShape): string | undefined {
+  const parent = shape.parent as DjsShape | undefined;
+  return parent?.businessObject?.kind === 'element' ? parent.businessObject.iri : undefined;
+}
+
+/** Nodes ordered so every container comes before what is drawn inside it. */
+function containersFirst<T extends { elementIri: string; parentElementIri?: string }>(nodes: readonly T[]): T[] {
+  const byIri = new Map(nodes.map((n) => [n.elementIri, n]));
+  const depth = (node: T): number => {
+    let d = 0;
+    const seen = new Set<string>();
+    for (let p = node.parentElementIri; p && byIri.has(p) && !seen.has(p); p = byIri.get(p)!.parentElementIri) {
+      seen.add(p);
+      d++;
+    }
+    return d;
+  };
+  return [...nodes].map((node) => [depth(node), node] as const).sort((a, b) => a[0] - b[0]).map(([, node]) => node);
 }

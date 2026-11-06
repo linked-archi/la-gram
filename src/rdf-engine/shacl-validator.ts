@@ -6,6 +6,7 @@
  */
 
 import SHACLValidator from 'rdf-validate-shacl';
+import { isInstanceOf } from 'rdf-validate-shacl/src/dataset-utils.js';
 import { Store as N3Store, DataFactory } from 'n3';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import type {
@@ -62,8 +63,64 @@ interface ResultLike {
  * Concrete implementation of ShaclValidator backed by rdf-validate-shacl.
  */
 export class RdfShaclValidator implements ShaclValidator {
+  /**
+   * The compiled validator for the last shapes graph, keyed by the array's
+   * identity. Compiling is the expensive part — the ArchiMate relationship
+   * shapes alone are 70 000 quads — and the shapes only change when a
+   * metamodel is loaded or dropped, so callers that pass the same array get the
+   * same engine back.
+   */
+  private cache: { shapes: Quad[]; engine: CompiledShapes } | null = null;
+
   validate(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
-    return runValidation(dataGraph, shapesGraph);
+    return runCompiledOn(this.compiled(shapesGraph), quadsToStore(dataGraph));
+  }
+
+  /**
+   * Validate the data graph a store holds — every graph in it — as it is: no
+   * copy made. For a caller that keeps its data graph in a store of its own
+   * (the validation engine, Task 22).
+   */
+  validateStore(data: N3Store, shapesGraph: Quad[], options: RunOptions = {}): ValidationReport {
+    const engine = this.compiled(shapesGraph);
+    guard(engine, options);
+    return runCompiledOn(engine, data);
+  }
+
+  /**
+   * Validate only these focus nodes of the data graph a store holds: each
+   * against the shapes that target it — chosen as a whole validation chooses
+   * them (a class target with the data's subclasses, `sh:targetNode`,
+   * `sh:targetSubjectsOf`, `sh:targetObjectsOf`) — so that its findings are
+   * the whole validation's findings for those nodes (Task 22).
+   */
+  validateNodes(data: N3Store, shapesGraph: Quad[], focus: readonly Term[], options: RunOptions = {}): ValidationReport {
+    const engine = this.compiled(shapesGraph);
+    guard(engine, options);
+    const lib = engine.validator as unknown as LibraryInternals;
+    engine.targets ??= targetsOf(lib);
+    lib.setDataGraph(data);
+    const run = lib.validationEngine;
+    run.initReport();
+    const classesOf = classMembership(data);
+    const nodes = focus.filter((n) => n.termType === 'NamedNode' || n.termType === 'BlankNode');
+    for (const target of engine.targets) {
+      for (const node of nodes) {
+        if (isTarget(target, node, data, classesOf)) run.validateNodeAgainstShape(node, target.shape, lib.$data);
+      }
+    }
+    try {
+      return toValidationReport(run.getReport(), engine.shapesStore, data);
+    } finally {
+      release(engine.validator);
+    }
+  }
+
+  private compiled(shapesGraph: Quad[]): CompiledShapes {
+    if (this.cache?.shapes !== shapesGraph) {
+      this.cache = { shapes: shapesGraph, engine: compileShapes(shapesGraph) };
+    }
+    return this.cache.engine;
   }
 
   validateIncremental(
@@ -81,18 +138,162 @@ export class RdfShaclValidator implements ShaclValidator {
 }
 
 /** Build the validator, run it, and map the report. Shared by both entry points. */
-function runValidation(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
+/** A shapes graph compiled into a reusable engine. */
+interface CompiledShapes {
+  validator: SHACLValidator;
+  shapesStore: N3Store;
+  /** The library's own limit of checks of a node against a shape in a run. */
+  nodeChecks: number;
+  /** What each shape with a target targets, read when nodes are first validated alone. */
+  targets?: ShapeTargets[];
+}
+
+/** How to run a validation. */
+export interface RunOptions {
+  /**
+   * Whether to stop checking a node against a shape after 50 checks in one
+   * run — rdf-validate-shacl's guard against a shape nested in itself. When no
+   * shape is (`shapesReach`), it only makes a node referred to from many
+   * places pass unchecked after the 50th, and differently when nodes are
+   * validated alone; and keying its counter costs a JSON string per check.
+   * Default: on.
+   */
+  recursionGuard?: boolean;
+}
+
+/** What of rdf-validate-shacl's internals validating chosen nodes uses (0.5). */
+interface LibraryInternals {
+  $shapes: { node(term: Term): unknown; dataset: { match(s: Term | null, p: Term | null, o: Term | null): Iterable<Quad> } };
+  $data: unknown;
+  ns: { rdfs: { Class: Term } };
+  shapesGraph: { shapesWithTarget: LibraryShape[] };
+  setDataGraph(data: unknown): void;
+  validationEngine: {
+    maxNodeChecks: number;
+    initReport(): void;
+    validateNodeAgainstShape(node: Term, shape: LibraryShape, data: unknown): boolean;
+    getReport(): ReturnType<SHACLValidator['validate']>;
+  };
+}
+
+interface LibraryShape {
+  shapeNode: Term;
+  shapeNodePointer: { out(predicate: Term): { terms: Term[] } };
+}
+
+/** What a shape targets. */
+interface ShapeTargets {
+  shape: LibraryShape;
+  /** Classes whose instances it targets — itself, when it is a class (an implicit target). */
+  classes: string[];
+  nodes: Set<string>;
+  subjectsOf: Term[];
+  objectsOf: Term[];
+}
+
+const RDF_TYPE = namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type');
+const RDFS_SUBCLASS_OF = namedNode('http://www.w3.org/2000/01/rdf-schema#subClassOf');
+
+function targetsOf(lib: LibraryInternals): ShapeTargets[] {
+  const out = (shape: LibraryShape, predicate: string) => shape.shapeNodePointer.out(namedNode(SH + predicate) as unknown as Term).terms;
+  return lib.shapesGraph.shapesWithTarget.map((shape) => {
+    const classes = [...lib.$shapes.dataset.match(shape.shapeNode, namedNode(SH + 'targetClass') as unknown as Term, null)].map((q) => q.object.value);
+    if (isInstanceOf(lib.$shapes.node(shape.shapeNode) as never, lib.$shapes.node(lib.ns.rdfs.Class) as never, lib.ns as never)) {
+      classes.push(shape.shapeNode.value);
+    }
+    return {
+      shape,
+      classes,
+      nodes: new Set(out(shape, 'targetNode').map((t) => t.value)),
+      subjectsOf: out(shape, 'targetSubjectsOf'),
+      objectsOf: out(shape, 'targetObjectsOf'),
+    };
+  });
+}
+
+/** A node's classes in the data: its types and their superclasses there. */
+function classMembership(data: N3Store): (node: Term) => Set<string> {
+  const supers = new Map<string, string[]>();
+  const superclasses = (cls: Term): string[] => {
+    const known = supers.get(cls.value);
+    if (known) return known;
+    const seen = new Map<string, Term>([[cls.value, cls]]);
+    const stack = [cls];
+    while (stack.length > 0) {
+      const current = stack.pop() as Term;
+      for (const parent of data.getObjects(current as never, RDFS_SUBCLASS_OF, null)) {
+        if (!seen.has(parent.value)) {
+          seen.set(parent.value, parent as unknown as Term);
+          stack.push(parent as unknown as Term);
+        }
+      }
+    }
+    const all = [...seen.keys()];
+    supers.set(cls.value, all);
+    return all;
+  };
+  return (node) => {
+    const classes = new Set<string>();
+    for (const type of data.getObjects(node as never, RDF_TYPE, null)) for (const c of superclasses(type as unknown as Term)) classes.add(c);
+    return classes;
+  };
+}
+
+/** Whether a shape targets the node — as `Shape.getTargetNodes` decides it. */
+function isTarget(target: ShapeTargets, node: Term, data: N3Store, classesOf: (node: Term) => Set<string>): boolean {
+  if (target.classes.length > 0) {
+    const classes = classesOf(node);
+    if (target.classes.some((c) => classes.has(c))) return true;
+  }
+  if (target.nodes.has(node.value)) {
+    const n = node as never;
+    if (data.countQuads(n, null, null, null) + data.countQuads(null, n, null, null) + data.countQuads(null, null, n, null) > 0) return true;
+  }
+  if (target.subjectsOf.some((p) => data.countQuads(node as never, p as never, null, null) > 0)) return true;
+  return target.objectsOf.some((p) => data.countQuads(null, p as never, node as never, null) > 0);
+}
+
+/** Set the library's per-run limit of checks of a node against a shape. */
+function guard(engine: CompiledShapes, options: RunOptions): void {
+  const lib = engine.validator as unknown as LibraryInternals;
+  lib.validationEngine.maxNodeChecks = options.recursionGuard === false ? 0 : engine.nodeChecks;
+}
+
+function compileShapes(shapesGraph: Quad[]): CompiledShapes {
   const usableShapes = stripSparqlConstraints(shapesGraph);
   const shapesStore = quadsToStore(usableShapes);
-  const dataStore = quadsToStore(dataGraph);
-
   const options: ValidatorOptions = {
     importGraph: () => Promise.resolve(new N3Store()),
   };
   const validator = new SHACLValidator(shapesStore, options);
-  const report = validator.validate(dataStore);
+  const nodeChecks = (validator as unknown as LibraryInternals).validationEngine.maxNodeChecks;
+  return { validator, shapesStore, nodeChecks };
+}
 
-  return toValidationReport(report, shapesStore, dataStore);
+function runCompiledOn(engine: CompiledShapes, dataStore: N3Store): ValidationReport {
+  const report = engine.validator.validate(dataStore);
+  try {
+    return toValidationReport(report, engine.shapesStore, dataStore);
+  } finally {
+    release(engine.validator);
+  }
+}
+
+/**
+ * Drop what a run kept for itself once its report is read: rdf-validate-shacl
+ * holds, until the next run, a counter per node and shape it checked (keyed by
+ * both, as JSON), the report's own graph, and the data graph — 250 MB after a
+ * run on a 350 000-triple model (Task 22). A compiled validator is kept between
+ * runs, so they were kept too.
+ */
+function release(validator: SHACLValidator): void {
+  const internal = validator as unknown as { $data?: unknown; validationEngine?: { initReport?(): void } };
+  internal.validationEngine?.initReport?.();
+  internal.$data = undefined;
+}
+
+function runValidation(dataGraph: Quad[], shapesGraph: Quad[]): ValidationReport {
+  return runCompiledOn(compileShapes(shapesGraph), quadsToStore(dataGraph));
 }
 
 /**

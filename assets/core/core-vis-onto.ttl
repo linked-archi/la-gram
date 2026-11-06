@@ -24,22 +24,39 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-08-13"^^xsd:date ;
+    dcterms:modified     "2026-11-04"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.3"@en ;
+    owl:versionInfo "0.6"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.3: Widened arch-vis:label from rdfs:domain arch-vis:Node to
+    skos:historyNote '''0.6: A Link may end on another Link. A relationship can have a relationship as
+its arch:source or arch:target, and its edge on a diagram then ends on the edge drawn for that
+relationship — as a connection may end on a connection in the ArchiMate exchange format. The
+range of arch-vis:source and arch-vis:target is widened from arch-vis:Node to
+arch-vis:DiagElement; core-vis-shapes restricts both to a Node or a Link, since a Point is
+never an end.
+0.5: Nesting. arch-vis:inNode places a node inside another on the same
+diagram — a grouping around its members, a node around the system software it hosts. And
+arch-vis:nestedEnd says, on a relationship's notation, that nesting may draw the relationship
+and which end goes inside the other (arch-vis:SourceEnd, arch-vis:TargetEnd): an editor that
+nests one element in another can then offer the relationships the nesting may stand for.
+
+0.4: A notation declares the shapes it needs beyond the core ones in its own
+namespace, with arch-vis:fallbackShape (a core shape for renderers that cannot draw it) and its
+geometry as path templates: arch-vis:shapeVariables, arch-vis:outlinePath, arch-vis:detailPath,
+arch-vis:contentBox and arch-vis:labelBox. The ArchiMate, EDGY and C4 notations declare theirs
+that way. Added arch-vis:borderStyle (a Style's outline LineStyle) for
+dashed outlines such as ArchiMate's grouping. Documented arch-vis:fontColor as the label colour,
+the line colour when absent. Documented the arch-vis:decorSymbol drawing
+convention, and that an arch-vis:iconSymbol glyph is transparent where the element's fill shows
+through. arch-vis:CircleDot is a filled dot, as ArchiMate's assignment draws it.
+
+0.3: Widened arch-vis:label's domain from arch-vis:Node to
 arch-vis:DiagElement — an edge's label is the ordinary case (BPMN BPMNEdge-label, a named
-sequence flow) and the narrow domain entailed that every labelled edge was also a Node.
-Declared Node, Link and Point mutually disjoint (arch-vis:NodeLinkPointDisjoint), which is
-what makes a wrong domain detectable rather than silently type-adding. Corrected
-arch-vis:label's rdfs:label and rdfs:comment, which were copy-pasted from arch-vis:points
-and made the property unfindable in the generated documentation; same correction on
-arch-vis:view, whose rdfs:label read "target". Filled in the empty rdfs:comments on
-DiagElement, Node, Link and Point. Companion SHACL shapes now published as
-core-vis-shapes; the diagram layer was previously unvalidated.
+sequence flow). Declared Node, Link and Point mutually disjoint (arch-vis:NodeLinkPointDisjoint),
+which makes a wrong domain detectable rather than silently type-adding. Companion SHACL shapes
+published as core-vis-shapes.
 
 0.2: Extended Style with structural properties (shapeType, iconSymbol,
 iconPlacement, defaultWidth, defaultHeight). Added ShapeType, IconPlacement, LineStyle,
@@ -89,8 +106,9 @@ arch-vis:Link
     a               owl:Class ;
     rdfs:subClassOf arch-vis:DiagElement ;
     rdfs:label      "Link"@en ;
-    rdfs:comment    '''An edge on a diagram: it joins a source Node to a target Node, may route
-through a PointList, and may carry a LabelNode.'''@en ;
+    rdfs:comment    '''An edge on a diagram: it joins a source to a target, may route through a
+PointList, and may carry a LabelNode. Each end is a Node, or another Link where the relationship
+the edge draws has a relationship as its source or target.'''@en ;
 .
 
 arch-vis:Point
@@ -190,7 +208,11 @@ arch-vis:point-y
 arch-vis:points
     a            owl:ObjectProperty ;
     rdfs:label   "points"@en ;
-    rdfs:comment "The ordered list of points"@en ;
+    rdfs:comment '''The ordered list of points of a link's route, in the diagram's coordinates. The
+first and last are its ends — where it meets its nodes — when they lie on their nodes' outlines;
+otherwise they are bends, and the line runs from each node to them, meeting the node's outline
+where a line laid out without them would. A route of bends alone is how the ArchiMate exchange
+format has it; a route with its ends, how BPMN DI has it. One point is one bend.'''@en ;
     rdfs:domain  arch-vis:Link ;
     rdfs:range   arch-vis:PointList ;
 .
@@ -231,18 +253,20 @@ arch-vis:source
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "source"@en ;
-    rdfs:comment ""@en ;
+    rdfs:comment '''The diagram element a Link starts from: a Node, or another Link where the
+relationship the Link draws starts at a relationship.'''@en ;
     rdfs:domain  arch-vis:Link ;
-    rdfs:range   arch-vis:Node ;
+    rdfs:range   arch-vis:DiagElement ;
 .
 
 arch-vis:target
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "target"@en ;
-    rdfs:comment ""@en ;
+    rdfs:comment '''The diagram element a Link ends at: a Node, or another Link where the
+relationship the Link draws ends at a relationship.'''@en ;
     rdfs:domain  arch-vis:Link ;
-    rdfs:range   arch-vis:Node ;
+    rdfs:range   arch-vis:DiagElement ;
 .
 
 #TODO link all elements to arch:View ... or use quads ?
@@ -254,6 +278,19 @@ arch-vis:view
     rdfs:comment "The arch:View this diagram element belongs to. Every DiagElement has exactly one."@en ;
     rdfs:domain  arch-vis:DiagElement ;
     rdfs:range   arch:View ;
+.
+
+arch-vis:inNode
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "inNode"@en ;
+    rdfs:comment '''The node this one is drawn inside, on the same diagram: a container. Moving the
+container moves what is in it, and it stays large enough to hold it. Stated by the nested
+node, as membership is (arch:inView). Bounds stay in the diagram's coordinates, not the
+container's. Nesting is drawing: what it means in the model, if anything, is a relationship of
+its own (see arch-vis:nestedEnd).'''@en ;
+    rdfs:domain  arch-vis:Node ;
+    rdfs:range   arch-vis:Node ;
 .
 
 # Style
@@ -310,7 +347,8 @@ arch-vis:fontColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "fontColor"@en ;
-    rdfs:comment "CSS rgba() string"@en ;
+    rdfs:comment '''Colour of the element's label, as a CSS colour string. When it is absent a renderer
+draws the label in the line colour (arch-vis:lineColor).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
 .
@@ -333,7 +371,9 @@ arch-vis:iconSymbol
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "iconSymbol"@en ;
-    rdfs:comment "URI of the small glyph/icon displayed within the element shape (typically top-right corner)."@en ;
+    rdfs:comment '''URI of the small glyph/icon displayed within the element shape (typically top-right corner).
+The glyph is drawn over the shape as it is: its lines are opaque and the parts that show the element's
+fill are transparent, so one glyph serves every fill colour and notation set.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -378,6 +418,15 @@ Determines the rendering algorithm a tool should use:
     rdfs:range   arch-vis:RenderingMode ;
 .
 
+arch-vis:borderStyle
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "borderStyle"@en ;
+    rdfs:comment "The line style of the shape's outline: solid when absent. ArchiMate's grouping is dashed."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:LineStyle ;
+.
+
 
 #################################################################
 # ShapeType Individuals
@@ -386,7 +435,9 @@ Determines the rendering algorithm a tool should use:
 arch-vis:ShapeType
     a            owl:Class ;
     rdfs:label   "ShapeType"@en ;
-    rdfs:comment "Enumeration of geometric shapes used for element rendering."@en ;
+    rdfs:comment '''Geometric shapes used for element rendering. The individuals below are drawn by every
+renderer; a notation declares any other shape it needs in its own namespace, with a fallback and
+its geometry (see arch-vis:fallbackShape).'''@en ;
 .
 
 arch-vis:RoundedRectangle
@@ -436,6 +487,83 @@ arch-vis:Parallelogram
     rdfs:label   "Parallelogram"@en ;
     rdfs:comment "Slanted rectangle — used for interfaces in some notations."@en ;
 .
+
+# A notation's own shapes
+#
+# The individuals above are the shapes every renderer draws natively. A notation
+# that needs another shape declares it in its own notation file: an
+# arch-vis:ShapeType individual in its namespace with an arch-vis:fallbackShape
+# (one of the shapes above, drawn by a renderer that cannot draw this one) and
+# its geometry as path templates, so any renderer can draw it from the data.
+#
+# A template is SVG path data in absolute commands (M L H V C S Q T A Z), in the
+# shape's own coordinates — (0,0) top left, (w,h) bottom right — where any number
+# may be written as {expression}. An expression uses numbers, w, h and the
+# shape's variables, + - * / and parentheses, and the functions min() and max().
+# Example: M0,{d} L{d},0 L{w},0 with the variable d = min(h * 0.2, 12).
+
+arch-vis:fallbackShape
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fallbackShape"@en ;
+    rdfs:comment '''The core shape (RoundedRectangle, Rectangle, Octagon, Ellipse, Circle, Hexagon, Diamond or
+Parallelogram) a renderer draws in place of a notation's own shape when it cannot draw that one.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   arch-vis:ShapeType ;
+.
+
+arch-vis:shapeVariables
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "shapeVariables"@en ;
+    rdfs:comment '''Named values a shape's templates use, as assignments separated by semicolons and evaluated
+in order, each able to use the ones before it: "b = min(h * 0.173, 14); t = 2 * b".'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:outlinePath
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "outlinePath"@en ;
+    rdfs:comment '''The shape's outline, as a path template: filled with the element's fill colour, stroked with
+its line colour, and what connectors meet. It may have several closed parts (a person's head and
+body).'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:detailPath
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "detailPath"@en ;
+    rdfs:comment '''Lines drawn over the outline, as a path template — a band, a tab, a 3D box's front edges, a
+cylinder's rim: stroked with the line colour, not filled, and not part of the outline connectors
+meet.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:contentBox
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "contentBox"@en ;
+    rdfs:comment '''Where the badge and the label go: "x y width height", each a number or an {expression}
+(below a band, on a 3D box's front face). The whole shape when absent.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:labelBox
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "labelBox"@en ;
+    rdfs:comment '''Where the label goes when that is not the content box, as "x y width height": a folder's
+name in its tab. The label takes as many lines as the box is tall enough for.'''@en ;
+    rdfs:domain  arch-vis:ShapeType ;
+    rdfs:range   xsd:string ;
+.
+
 
 
 #################################################################
@@ -597,7 +725,7 @@ Used by: Executive dashboards, printed reports, accessibility-focused views.'''@
 arch-vis:LineStyle
     a            owl:Class ;
     rdfs:label   "LineStyle"@en ;
-    rdfs:comment "Enumeration of line rendering styles for relationship connectors."@en ;
+    rdfs:comment "Enumeration of line rendering styles: for relationship connectors (arch-vis:lineStyle) and shape outlines (arch-vis:borderStyle)."@en ;
 .
 
 arch-vis:SolidLine
@@ -625,7 +753,12 @@ arch-vis:decorSymbol
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "decorSymbol"@en ;
-    rdfs:comment "URI of the SVG marker symbol for this decoration (typically a small arrow or diamond shape)."@en ;
+    rdfs:comment '''URI of the SVG marker symbol for this decoration (typically a small arrow or diamond shape).
+The symbol is drawn pointing in the +x direction, towards the endpoint it decorates. The connector meets it at
+the middle of the right edge of its viewBox, so a renderer anchors that point on the endpoint and orients the
+symbol along the connector; at a source end it mirrors the symbol, so that it points at the source. Strokes and
+fills that take the connector's colour are currentColor; a hollow symbol's interior is white. The published
+symbols use a 12 x 12 viewBox, drawn at that size in user units.'''@en ;
     rdfs:domain  arch-vis:Decoration ;
     rdfs:range   xsd:anyURI ;
 .
@@ -645,14 +778,14 @@ arch-vis:OpenArrowhead
 arch-vis:ClosedArrowhead
     a            arch-vis:Decoration ;
     rdfs:label   "Closed Arrowhead"@en ;
-    rdfs:comment "Filled (closed) arrowhead pointing at the endpoint."@en ;
+    rdfs:comment "Filled (closed) arrowhead pointing at the endpoint — ArchiMate's triggering, flow and assignment."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/closed-arrowhead.svg"^^xsd:anyURI ;
 .
 
 arch-vis:HollowArrowhead
     a            arch-vis:Decoration ;
     rdfs:label   "Hollow Arrowhead"@en ;
-    rdfs:comment "Hollow (white-filled) arrowhead — used for realization."@en ;
+    rdfs:comment "Hollow (white-filled) arrowhead — ArchiMate's realization and specialization."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/hollow-arrowhead.svg"^^xsd:anyURI ;
 .
 
@@ -673,14 +806,14 @@ arch-vis:FilledDiamond
 arch-vis:HalfArrowhead
     a            arch-vis:Decoration ;
     rdfs:label   "Half Arrowhead"@en ;
-    rdfs:comment "Half (one-sided) arrowhead — used for flow."@en ;
+    rdfs:comment "Half (one-sided) arrowhead, one barb only."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/half-arrowhead.svg"^^xsd:anyURI ;
 .
 
 arch-vis:CircleDot
     a            arch-vis:Decoration ;
-    rdfs:label   "Circle with Dot"@en ;
-    rdfs:comment "Small circle with a dot — used for access."@en ;
+    rdfs:label   "Dot"@en ;
+    rdfs:comment "A small filled circle at the end of the connector — ArchiMate's assignment, at the source end."@en ;
     arch-vis:decorSymbol "https://meta.linked.archi/core-vis/markers/circle-dot.svg"^^xsd:anyURI ;
 .
 
@@ -731,6 +864,36 @@ arch-vis:inNotationSet
     rdfs:comment "Links a VisualNotation to the NotationSet it belongs to."@en ;
     rdfs:domain  arch-vis:VisualNotation ;
     rdfs:range   arch-vis:NotationSet ;
+.
+
+arch-vis:nestedEnd
+    a            owl:ObjectProperty ;
+    rdfs:label   "nestedEnd"@en ;
+    rdfs:comment '''On a relationship's notation: the relationship may be drawn by nesting one end
+inside the other (arch-vis:inNode) instead of a line, and this is the end drawn inside. A
+composition's part inside its whole is arch-vis:TargetEnd; ArchiMate's specialized element
+inside the generic one is arch-vis:SourceEnd; a relationship nesting may draw either way has
+both. Absent, nesting does not draw the relationship.'''@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch-vis:RelationshipEnd ;
+.
+
+arch-vis:RelationshipEnd
+    a            owl:Class ;
+    rdfs:label   "RelationshipEnd"@en ;
+    rdfs:comment "Enumeration of the two ends of a relationship: its source and its target."@en ;
+.
+
+arch-vis:SourceEnd
+    a            arch-vis:RelationshipEnd ;
+    rdfs:label   "SourceEnd"@en ;
+    rdfs:comment "The end a relationship goes from (arch:source)."@en ;
+.
+
+arch-vis:TargetEnd
+    a            arch-vis:RelationshipEnd ;
+    rdfs:label   "TargetEnd"@en ;
+    rdfs:comment "The end a relationship goes to (arch:target)."@en ;
 .
 
 arch-vis:defaultStyle

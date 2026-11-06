@@ -96,6 +96,10 @@ export {
 export {
   CroppingLayouter,
   CroppingConnectionDocking,
+  AttachedConnectionBehavior,
+  closestPointOnPolyline,
+  positionAlong,
+  pointAlong,
   type ConnectionDocking,
   type DockingPoint,
 } from './connection-docking.js';

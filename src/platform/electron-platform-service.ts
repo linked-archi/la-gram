@@ -1,52 +1,22 @@
 /**
  * Electron desktop implementation of PlatformService.
  *
- * Uses Electron `dialog` module for file dialogs and Node.js `fs` for
- * reading/writing files on the native file system.
+ * The renderer has no Node and no Electron modules (`electron-main.ts`): native
+ * file dialogs and file access go through the preload bridge,
+ * `window.laGramDesktop` (`desktop-bridge.ts`), to the main process.
  */
 import type { PlatformService, FileFilter } from './interfaces.js';
+import { desktopBridge, type DesktopBridge } from './desktop-bridge.js';
 
-/** Minimal typing for the Electron dialog module. */
-interface ElectronDialog {
-  showOpenDialogSync(options: {
-    filters?: { name: string; extensions: string[] }[];
-    properties?: string[];
-  }): string[] | undefined;
-  showSaveDialogSync(options: {
-    defaultPath?: string;
-    filters?: { name: string; extensions: string[] }[];
-  }): string | undefined;
-}
-
-/** Minimal typing for Node.js fs module. */
-interface NodeFs {
-  readFileSync(path: string, encoding: string): string;
-  writeFileSync(path: string, data: string, encoding: string): void;
-}
-
-/**
- * Resolve the Electron `dialog` module at runtime so this file can be
- * imported without hard-depending on Electron at compile time.
- */
-function getElectronDialog(): ElectronDialog {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { dialog } = require('electron');
-  return dialog as ElectronDialog;
-}
-
-function getNodeFs(): NodeFs {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fs = require('fs');
-  return fs as NodeFs;
-}
+const TURTLE: FileFilter[] = [{ name: 'Turtle files', extensions: ['ttl'] }];
 
 export class ElectronPlatformService implements PlatformService {
-  private dialog: ElectronDialog;
-  private fs: NodeFs;
+  private readonly bridge: DesktopBridge;
 
-  constructor(dialog?: ElectronDialog, fs?: NodeFs) {
-    this.dialog = dialog ?? getElectronDialog();
-    this.fs = fs ?? getNodeFs();
+  constructor(bridge?: DesktopBridge) {
+    const found = bridge ?? desktopBridge();
+    if (!found) throw new Error('The desktop bridge (window.laGramDesktop) is not available');
+    this.bridge = found;
   }
 
   async readFile(path?: string): Promise<{ content: string; name: string }> {
@@ -54,36 +24,23 @@ export class ElectronPlatformService implements PlatformService {
     if (!filePath) {
       throw new Error('No file selected');
     }
-    const content = this.fs.readFileSync(filePath, 'utf-8');
-    const name = filePath.split(/[\\/]/).pop() ?? filePath;
-    return { content, name };
+    return this.bridge.readFile(filePath);
   }
 
   async writeFile(content: string, suggestedName?: string): Promise<void> {
-    const filePath = await this.showSaveDialog(
-      suggestedName
-        ? [{ name: 'Turtle files', extensions: ['ttl'] }]
-        : undefined,
-    );
+    const filePath = await this.bridge.showSaveDialog(TURTLE, suggestedName);
     if (!filePath) {
       throw new Error('Save cancelled');
     }
-    this.fs.writeFileSync(filePath, content, 'utf-8');
+    await this.bridge.writeFile(filePath, content);
   }
 
   async showOpenDialog(filters?: FileFilter[]): Promise<string | null> {
-    const result = this.dialog.showOpenDialogSync({
-      filters: filters ?? [{ name: 'Turtle files', extensions: ['ttl'] }],
-      properties: ['openFile'],
-    });
-    return result?.[0] ?? null;
+    return this.bridge.showOpenDialog(filters ?? TURTLE);
   }
 
   async showSaveDialog(filters?: FileFilter[]): Promise<string | null> {
-    const result = this.dialog.showSaveDialogSync({
-      filters: filters ?? [{ name: 'Turtle files', extensions: ['ttl'] }],
-    });
-    return result ?? null;
+    return this.bridge.showSaveDialog(filters ?? TURTLE);
   }
 
   isDesktop(): boolean {

@@ -11,6 +11,7 @@ import {
   groupBySeverity,
   buildSummary,
   extractViolatedIris,
+  resultsWithin,
   type ValidationNavigateDetail,
   type ValidationHighlightDetail,
 } from '../validation-panel.js';
@@ -59,6 +60,12 @@ function makeCtx(overrides: Record<string, any> = {}) {
     dataGraph: undefined,
     shapesGraph: undefined,
     _collapsedSeverities: new Set<string>(),
+    _scope: 'view',
+    viewIris: undefined,
+    checks: undefined,
+    checksAvailable: 0,
+    checking: false,
+    _checkResults: new Set(),
     dispatchEvent: vi.fn(),
     requestUpdate: vi.fn(),
     ...overrides,
@@ -71,11 +78,19 @@ function makeCtx(overrides: Record<string, any> = {}) {
     '_toggleSeverity',
     '_renderResultItem',
     '_renderSeverityGroup',
+    '_renderSummary',
+    '_renderChecksStatus',
+    'requestChecks',
+    'willUpdate',
     'render',
   ]) {
     if (typeof (ValidationPanel.prototype as any)[m] === 'function') {
       ctx[m] = (ValidationPanel.prototype as any)[m].bind(ctx);
     }
+  }
+  for (const accessor of ['scope', 'shownScope', 'allResults', 'shownResults']) {
+    const descriptor = Object.getOwnPropertyDescriptor(ValidationPanel.prototype, accessor)!;
+    Object.defineProperty(ctx, accessor, { get: descriptor.get?.bind(ctx), set: descriptor.set?.bind(ctx), configurable: true });
   }
   return ctx;
 }
@@ -143,6 +158,7 @@ describe('groupBySeverity', () => {
 describe('buildSummary', () => {
   it('returns conforms message when model conforms', () => {
     expect(buildSummary(true, [])).toBe('✓ Model conforms');
+    expect(buildSummary(true, [], 'View')).toBe('✓ View conforms');
   });
 
   it('returns violation count', () => {
@@ -163,6 +179,67 @@ describe('buildSummary', () => {
   it('omits zero-count severities', () => {
     const results = [makeResult('Info', 'urn:a', 'i1')];
     expect(buildSummary(false, results)).toBe('✗ 1 info(s)');
+  });
+});
+
+describe('resultsWithin', () => {
+  it('keeps the findings on what a view covers', () => {
+    const results = [makeResult('Violation', 'urn:a', 'a'), makeResult('Warning', 'urn:b', 'b')];
+    expect(resultsWithin(results, new Set(['urn:b', 'urn:view']))).toEqual([results[1]]);
+    expect(resultsWithin(results, new Set())).toEqual([]);
+  });
+});
+
+describe('validation scope', () => {
+  const results = () => [
+    makeResult('Violation', 'urn:a', 'on a'),
+    makeResult('Violation', 'urn:b', 'on b'),
+    makeResult('Warning', 'urn:c', 'on c'),
+  ];
+
+  it("shows the open view's findings, and how many more the model has", () => {
+    const ctx = makeCtx({ results: results(), conforms: false, viewIris: new Set(['urn:a', 'urn:view']) });
+    expect(ctx.shownScope).toBe('view');
+    const o = flat(ctx.render());
+    expect(o).toContain('✗ 1 violation(s)');
+    expect(o).toContain('on a');
+    expect(o).not.toContain('on b');
+    expect(o).toContain('2 more in the model');
+  });
+
+  it('says the view conforms when none of the findings are on it', () => {
+    const ctx = makeCtx({ results: results(), conforms: false, viewIris: new Set(['urn:view']) });
+    const o = flat(ctx.render());
+    expect(o).toContain('✓ View conforms');
+    expect(o).toContain('3 more in the model');
+    expect(o).not.toContain('Violations');
+  });
+
+  it('shows the whole model when it is chosen, or when no view is open', () => {
+    const chosen = makeCtx({ results: results(), conforms: false, viewIris: new Set(['urn:a']), _scope: 'model' });
+    expect(flat(chosen.render())).toContain('✗ 2 violation(s), 1 warning(s)');
+    expect(flat(chosen.render())).not.toContain('more in the model');
+    const noView = makeCtx({ results: results(), conforms: false });
+    expect(noView.shownScope).toBe('model');
+    expect(noView.shownResults).toHaveLength(3);
+  });
+
+  it('says it is validating, not that the model conforms, while the findings are awaited', () => {
+    const awaited = makeCtx({ validating: true, viewIris: new Set(['urn:view']) });
+    const o = flat(awaited.render());
+    expect(o).toContain('Validating…');
+    expect(o).not.toContain('conforms');
+    // Findings that came — an edit's, while the next validation runs — are shown.
+    expect(flat(makeCtx({ validating: true, results: results(), conforms: false, _scope: 'model' }).render())).toContain('✗ 2 violation(s)');
+  });
+
+  it('announces another scope, and only another', () => {
+    const ctx = makeCtx({ viewIris: new Set<string>() });
+    ctx.scope = 'view';
+    expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+    ctx.scope = 'model';
+    const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<{ scope: string }>;
+    expect([evt.type, evt.detail.scope, ctx.shownScope]).toEqual(['validation-scope-change', 'model', 'model']);
   });
 });
 
@@ -249,13 +326,40 @@ describe('render template', () => {
     expect(o).not.toContain('Info');
   });
 
-  it('renders result details with path and shape', () => {
+  it('renders result details with property and shape', () => {
     const results = [makeResult('Violation', 'http://example.org/ns#Elem1', 'err')];
     const ctx = makeCtx({ conforms: false, results });
     const o = flat(ctx.render());
-    expect(o).toContain('Path:');
+    expect(o).toContain('Property:');
     expect(o).toContain('Shape:');
     expect(o).toContain('MyShape');
+  });
+
+  it('sets each finding apart in its severity, and names its property as the Properties tab does', () => {
+    const results = [makeResult('Violation', 'urn:a', 'v1'), makeResult('Warning', 'urn:b', 'w1')];
+    const ctx = makeCtx({ conforms: false, results, fieldNameFor: (p: string) => (p === 'http://example.org/path' ? 'Name' : p) });
+    const o = flat(ctx.render());
+    expect(o).toContain('class="result-item violation"');
+    expect(o).toContain('class="result-item warning"');
+    expect(o).toMatch(/Property: <span class="field" title="?[^>]*>Name<\/span>/);
+    expect((ValidationPanel as any).styles.cssText).toMatch(/\.severity-items\.hidden\s*\{\s*display: none/);
+  });
+
+  it("names a finding's concept and its type as the tree does, and leaves out a shape written inline", () => {
+    const inline = { ...makeResult('Violation', 'urn:a', 'v1'), sourceShape: { termType: 'BlankNode', value: 'cc9e574c' } as any };
+    // As the validator hands it on: a named node, its value a blank node's id.
+    const handedOn = { ...makeResult('Info', 'urn:a', 'i1'), sourceShape: nn('e7c5f6f9b162c99505726a1d84b6c892') };
+    const ctx = makeCtx({
+      conforms: false,
+      results: [inline, makeResult('Warning', 'urn:b', 'w1'), handedOn],
+      describe: (iri: string) => (iri === 'urn:a' ? { name: 'Unnamed', type: 'Business Actor', unnamed: true } : { name: 'Clerk', type: 'Business Role' }),
+    });
+    const o = flat(ctx.render());
+    expect(o).toMatch(/<span class="?unnamed"? title="?urn:a"?>Unnamed<\/span>\s*<span class="type">Business Actor<\/span>/);
+    expect(o).toMatch(/>Clerk<\/span>\s*<span class="type">Business Role<\/span>/);
+    expect(o).not.toContain('cc9e574c');
+    expect(o).not.toContain('e7c5f6f9');
+    expect(o.match(/Shape:/g)).toHaveLength(1);
   });
 
   it('renders empty state when no results', () => {
@@ -422,5 +526,78 @@ describe('runIncrementalValidation', () => {
     const evt = ctx.dispatchEvent.mock.calls[0][0] as CustomEvent<ValidationHighlightDetail>;
     expect(evt.type).toBe('validation-highlight');
     expect(evt.detail.iris).toContain('urn:y');
+  });
+});
+
+describe('model checks', () => {
+  const check = (severity: 'Violation' | 'Warning' | 'Info', focusIri: string, id: string): ValidationResult => ({
+    focusNode: nn(focusIri),
+    resultPath: nn(''),
+    sourceShape: nn(`https://meta.linked.archi/core-questions#${id}`),
+    message: `${id}?`,
+    severity,
+  });
+  const withChecks = (overrides: Record<string, any> = {}) => {
+    const ctx = makeCtx({
+      results: [makeResult('Violation', 'urn:a', 'on a')],
+      conforms: false,
+      checksAvailable: 14,
+      checks: {
+        results: [check('Warning', 'urn:a', 'unrealised-services'), check('Info', 'urn:b', 'orphans')],
+        ran: 13,
+        failed: [{ label: 'Which views show it?', reason: 'Select an element' }],
+        capped: [{ label: 'Which elements appear in no view?', limit: 500 }],
+      },
+      ...overrides,
+    });
+    ctx.willUpdate(new Map([['checks', undefined]]));
+    return ctx;
+  };
+
+  it('are offered when the loaded languages ask any, and asked for on request', () => {
+    expect(flat(makeCtx().render())).not.toContain('checks-btn');
+    const ctx = makeCtx({ checksAvailable: 14 });
+    const o = flat(ctx.render());
+    expect(o).toContain('Model checks');
+    expect(o).toContain('Ask the 14 finding questions');
+    ctx.requestChecks();
+    expect(ctx.dispatchEvent.mock.calls[0][0].type).toBe('model-checks-request');
+    expect(flat(makeCtx({ checksAvailable: 14, checking: true }).render())).toContain('Checking…');
+  });
+
+  it('list their findings beside the shapes’, counted and scoped as they are', () => {
+    const model = withChecks({ _scope: 'model' });
+    expect(model.allResults).toHaveLength(3);
+    let o = flat(model.render());
+    expect(o).toContain('✗ 1 violation(s), 1 warning(s), 1 info(s)');
+    expect(o).toContain('Check: <span title=https://meta.linked.archi/core-questions#orphans>orphans</span>');
+    expect(o).toContain('Shape: <span');
+    // On the open view: only what is on it.
+    const view = withChecks({ viewIris: new Set(['urn:a']) });
+    o = flat(view.render());
+    expect(o).toContain('✗ 1 violation(s), 1 warning(s)');
+    expect(o).toContain('1 more in the model');
+  });
+
+  it('a model conforms only when no check finds anything either', () => {
+    const ctx = withChecks({ results: [], conforms: true, _scope: 'model' });
+    expect(flat(ctx.render())).not.toContain('Model conforms');
+    const none = withChecks({ results: [], conforms: true, _scope: 'model', checks: { results: [], ran: 14, failed: [], capped: [] } });
+    expect(flat(none.render())).toContain('✓ Model conforms');
+    // (flat() leaves out a 0.)
+    expect(flat(none.render())).toMatch(/Model checks: 14 run, 0? ?findings/);
+  });
+
+  it('say how many ran, which stopped at their limit, which could not run and why, and when the model has changed', () => {
+    let o = flat(withChecks().render());
+    expect(o).toContain('Model checks: 13 run, 2 findings');
+    expect(o).toContain('“Which elements appear in no view?” stopped at 500: there may be more.');
+    expect(o).toContain('“Which views show it?” could not run: Select an element');
+    expect(o).toContain('Run checks again');
+    expect(o).not.toContain('has changed');
+    const stale = withChecks();
+    stale.checks = { ...stale.checks, stale: true };
+    o = flat(stale.render());
+    expect(o).toContain('the model has changed since they ran');
   });
 });

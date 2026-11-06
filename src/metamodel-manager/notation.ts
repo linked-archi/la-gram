@@ -45,14 +45,23 @@ const T = {
   shapeType: `${ARCH_VIS}shapeType`,
   fillColor: `${ARCH_VIS}fillColor`,
   lineColor: `${ARCH_VIS}lineColor`,
+  fontColor: `${ARCH_VIS}fontColor`,
   iconSymbol: `${ARCH_VIS}iconSymbol`,
   iconPlacement: `${ARCH_VIS}iconPlacement`,
   renderingMode: `${ARCH_VIS}renderingMode`,
   defaultWidth: `${ARCH_VIS}defaultWidth`,
   defaultHeight: `${ARCH_VIS}defaultHeight`,
+  borderStyle: `${ARCH_VIS}borderStyle`,
+  fallbackShape: `${ARCH_VIS}fallbackShape`,
+  shapeVariables: `${ARCH_VIS}shapeVariables`,
+  outlinePath: `${ARCH_VIS}outlinePath`,
+  detailPath: `${ARCH_VIS}detailPath`,
+  contentBox: `${ARCH_VIS}contentBox`,
+  labelBox: `${ARCH_VIS}labelBox`,
   lineStyle: `${ARCH_VIS}lineStyle`,
   sourceDecor: `${ARCH_VIS}sourceDecor`,
   targetDecor: `${ARCH_VIS}targetDecor`,
+  nestedEnd: `${ARCH_VIS}nestedEnd`,
   prefLabel: `${SKOS}prefLabel`,
   rdfsLabel: `${RDFS}label`,
 } as const;
@@ -64,7 +73,11 @@ const T = {
 /** How shape and icon are composed when rendering an element. */
 export type RenderingMode = 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly';
 
-/** Geometric shape for element visual notation. */
+/**
+ * The core shapes (`core-vis`), which every renderer draws natively. A
+ * notation's own shapes are {@link CustomShape}s: declared in its namespace with
+ * a core fallback and their geometry as path templates.
+ */
 export type ShapeType =
   | 'RoundedRectangle'
   | 'Rectangle'
@@ -74,6 +87,28 @@ export type ShapeType =
   | 'Hexagon'
   | 'Diamond'
   | 'Parallelogram';
+
+/**
+ * A shape a notation declares itself (an `arch-vis:ShapeType` outside core-vis),
+ * read from its data: the core shape to fall back to and its geometry as path
+ * templates — SVG path data whose numbers may be `{expressions}` over `w`, `h`
+ * and the variables. `notation-shapes.ts` evaluates them.
+ */
+export interface CustomShape {
+  iri: string;
+  /** `arch-vis:fallbackShape`: drawn when the templates cannot be. */
+  fallback?: ShapeType;
+  /** `arch-vis:shapeVariables`: `name = expression` assignments, `;`-separated. */
+  variables?: string;
+  /** `arch-vis:outlinePath`: filled, stroked, docked against. */
+  outline: string;
+  /** `arch-vis:detailPath`: inner lines, stroked only. */
+  details?: string;
+  /** `arch-vis:contentBox`: `x y width height` for the badge and label. */
+  contentBox?: string;
+  /** `arch-vis:labelBox`: `x y width height` for the label, when elsewhere. */
+  labelBox?: string;
+}
 
 /** Icon position within (or relative to) the shape. */
 export type IconPlacement = 'TopRight' | 'TopLeft' | 'TopCenter' | 'Center' | 'BottomCenter';
@@ -94,15 +129,22 @@ export type Decoration =
 
 /** Visual style for an element type — the construction recipe. */
 export interface VisualStyle {
+  /** A core shape — for a notation's own shape, its fallback. */
   shapeType?: ShapeType;
+  /** A notation's own shape, drawn from its templates in place of {@link shapeType}. */
+  customShape?: CustomShape;
   fillColor?: string;
   lineColor?: string;
+  /** Colour of the label (`arch-vis:fontColor`); the line colour when absent. */
+  fontColor?: string;
   /** URI of the icon (SVG) to draw. */
   iconSymbol?: string;
   iconPlacement?: IconPlacement;
   renderingMode?: RenderingMode;
   defaultWidth?: number;
   defaultHeight?: number;
+  /** Line style of the shape's outline (`arch-vis:borderStyle`); solid when absent. */
+  borderStyle?: LineStyle;
 }
 
 /** Visual style for a relationship type. */
@@ -111,6 +153,12 @@ export interface RelationshipVisualStyle {
   sourceDecor?: Decoration;
   targetDecor?: Decoration;
   lineColor?: string;
+  /**
+   * The ends nesting may draw inside the other instead of a line
+   * (`arch-vis:nestedEnd`): `target` for a part inside its whole, `source` for
+   * ArchiMate's specialized element inside the generic one.
+   */
+  nestedEnds?: Array<'source' | 'target'>;
 }
 
 /** Visual notation for a single concept (element or relationship class). */
@@ -145,6 +193,50 @@ const SHAPE_TYPES: ReadonlySet<string> = new Set<ShapeType>([
   'Diamond',
   'Parallelogram',
 ]);
+
+/** A core shape by IRI: only core-vis's own names count, not a namesake in another namespace. */
+function coreShape(iri: string | undefined): ShapeType | undefined {
+  if (!iri?.startsWith(ARCH_VIS)) return undefined;
+  const name = iri.slice(ARCH_VIS.length);
+  return SHAPE_TYPES.has(name) ? (name as ShapeType) : undefined;
+}
+
+/**
+ * A style's shape: a core shape, or a notation's own with its templates (and
+ * its fallback as the core shape). An own shape without an outline draws as its
+ * fallback; one without either, as the default.
+ */
+function readShape(store: Store, styleTerm: Term): { shapeType?: ShapeType; customShape?: CustomShape } {
+  const term = store.getObjects(styleTerm, namedNode(T.shapeType), null).find((o) => o.termType === 'NamedNode');
+  if (!term) return {};
+  const core = coreShape(term.value);
+  if (core) return { shapeType: core };
+  const customShape = readCustomShape(store, term.value);
+  const fallback = customShape?.fallback ?? coreShape(objectValue(store, term, T.fallbackShape) ?? undefined);
+  return { ...(fallback ? { shapeType: fallback } : {}), ...(customShape ? { customShape } : {}) };
+}
+
+/**
+ * A notation's own shape as the store describes it: its fallback and its
+ * templates. `undefined` for a core shape, or one with no outline to draw.
+ */
+export function readCustomShape(store: Store, iri: string): CustomShape | undefined {
+  if (coreShape(iri)) return undefined;
+  const subject = namedNode(iri);
+  const outline = objectValue(store, subject, T.outlinePath);
+  if (!outline) return undefined;
+  const fallback = coreShape(objectValue(store, subject, T.fallbackShape) ?? undefined);
+  const optional = (predicate: string) => objectValue(store, subject, predicate) ?? undefined;
+  return {
+    iri,
+    outline,
+    ...(fallback ? { fallback } : {}),
+    ...(optional(T.shapeVariables) ? { variables: optional(T.shapeVariables) } : {}),
+    ...(optional(T.detailPath) ? { details: optional(T.detailPath) } : {}),
+    ...(optional(T.contentBox) ? { contentBox: optional(T.contentBox) } : {}),
+    ...(optional(T.labelBox) ? { labelBox: optional(T.labelBox) } : {}),
+  };
+}
 
 const ICON_PLACEMENTS: ReadonlySet<string> = new Set<IconPlacement>([
   'TopRight',
@@ -183,6 +275,27 @@ const DECORATIONS: ReadonlySet<string> = new Set<Decoration>([
  * The subject is passed through as a term so blank-node `Style` nodes resolve
  * exactly like named ones.
  */
+/**
+ * The marker symbol published for each decoration: `arch-vis:decorSymbol` on
+ * the `arch-vis:Decoration` individuals of the core-vis ontology.
+ *
+ * A renderer draws a decoration from its symbol — anchored and oriented as the
+ * vocabulary's description of `arch-vis:decorSymbol` says — and from built-in
+ * geometry only where nothing is published. Only the core-vis individuals are
+ * read: the decoration names are that vocabulary's.
+ */
+export function buildDecorationSymbols(store: Store): Partial<Record<Decoration, string>> {
+  const symbols: Partial<Record<Decoration, string>> = {};
+  for (const subject of store.getSubjects(namedNode(RDF_TYPE), namedNode(`${ARCH_VIS}Decoration`), null)) {
+    if (subject.termType !== 'NamedNode' || !subject.value.startsWith(ARCH_VIS)) continue;
+    const decoration = parseEnum<Decoration>(subject.value, DECORATIONS);
+    if (!decoration || decoration === 'NoDecoration') continue;
+    const symbol = objectValue(store, subject, `${ARCH_VIS}decorSymbol`);
+    if (symbol) symbols[decoration] = symbol;
+  }
+  return symbols;
+}
+
 function objectValue(store: Store, subject: Term, predicate: string): string | null {
   for (const object of store.getObjects(subject, namedNode(predicate), null)) {
     return object.value;
@@ -297,9 +410,10 @@ function resolveDefaultNotationSet(store: Store): string | null {
 // ---------------------------------------------------------------------------
 
 function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undefined {
-  const shapeType = parseEnum<ShapeType>(objectValue(store, styleTerm, T.shapeType), SHAPE_TYPES);
+  const { shapeType, customShape } = readShape(store, styleTerm);
   const fillColor = objectValue(store, styleTerm, T.fillColor) ?? undefined;
   const lineColor = objectValue(store, styleTerm, T.lineColor) ?? undefined;
+  const fontColor = objectValue(store, styleTerm, T.fontColor) ?? undefined;
   const iconSymbol = objectValue(store, styleTerm, T.iconSymbol) ?? undefined;
   const renderingMode = parseEnum<RenderingMode>(
     objectValue(store, styleTerm, T.renderingMode),
@@ -307,6 +421,7 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
   );
   const defaultWidth = parseNumber(objectValue(store, styleTerm, T.defaultWidth));
   const defaultHeight = parseNumber(objectValue(store, styleTerm, T.defaultHeight));
+  const borderStyle = parseEnum<LineStyle>(objectValue(store, styleTerm, T.borderStyle), LINE_STYLES);
 
   const declaredPlacement = parseEnum<IconPlacement>(
     objectValue(store, styleTerm, T.iconPlacement),
@@ -322,19 +437,31 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
     iconSymbol !== undefined ||
     renderingMode !== undefined ||
     defaultWidth !== undefined ||
-    defaultHeight !== undefined;
+    defaultHeight !== undefined ||
+    borderStyle !== undefined ||
+    fontColor !== undefined ||
+    customShape !== undefined;
   if (!hasAny) return undefined;
 
-  return { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
+  const style: VisualStyle = { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
+  if (customShape) style.customShape = customShape;
+  if (borderStyle) style.borderStyle = borderStyle;
+  if (fontColor) style.fontColor = fontColor;
+  return style;
 }
 
 function extractRelationshipStyle(store: Store, subject: Term): RelationshipVisualStyle | undefined {
   const lineStyle = parseEnum<LineStyle>(objectValue(store, subject, T.lineStyle), LINE_STYLES);
   const sourceDecor = parseEnum<Decoration>(objectValue(store, subject, T.sourceDecor), DECORATIONS);
   const targetDecor = parseEnum<Decoration>(objectValue(store, subject, T.targetDecor), DECORATIONS);
-  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined) return undefined;
+  const nestedEnds = store
+    .getObjects(subject, namedNode(T.nestedEnd), null)
+    .map((end) => (end.value === `${ARCH_VIS}SourceEnd` ? 'source' : end.value === `${ARCH_VIS}TargetEnd` ? 'target' : undefined))
+    .filter((end): end is 'source' | 'target' => end !== undefined)
+    .sort();
+  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0) return undefined;
   const lineColor = objectValue(store, subject, T.lineColor) ?? undefined;
-  return { lineStyle, sourceDecor, targetDecor, lineColor };
+  return { lineStyle, sourceDecor, targetDecor, lineColor, ...(nestedEnds.length > 0 ? { nestedEnds } : {}) };
 }
 
 /**

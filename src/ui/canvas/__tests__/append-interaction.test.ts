@@ -177,16 +177,10 @@ function elementManagerOver(store: Store): ElementManager {
   const boundsPredicate = (suffix: string) =>
     namedNode(NAMESPACES['arch-vis'] + `bounds-${suffix}`);
   return {
-    createElement: vi.fn((typeIri: string, modelIri: string, bounds: Bounds) => {
+    createElement: vi.fn((typeIri: string, modelIri: string) => {
       const iri = `${modelIri}/elem-${++counter}`;
       const subject = namedNode(iri);
-      store.addQuads([
-        quad(subject, namedNode(NAMESPACES.rdf + 'type'), namedNode(typeIri)),
-        quad(subject, boundsPredicate('x'), literal(String(bounds.x))),
-        quad(subject, boundsPredicate('y'), literal(String(bounds.y))),
-        quad(subject, boundsPredicate('w'), literal(String(bounds.width))),
-        quad(subject, boundsPredicate('h'), literal(String(bounds.height))),
-      ]);
+      store.addQuads([quad(subject, namedNode(NAMESPACES.rdf + 'type'), namedNode(typeIri))]);
       return subject as unknown as NamedNode;
     }),
     updateProperty: vi.fn(),
@@ -195,7 +189,20 @@ function elementManagerOver(store: Store): ElementManager {
       store.removeQuads(store.getQuads(subject, null, null, null));
       store.removeQuads(store.getQuads(null, null, subject, null));
     }),
-    updateLayout: vi.fn(),
+    // The legacy element-level layout sink a canvas without a view manager
+    // writes to (this fixture has no views).
+    updateLayout: vi.fn((iri: string, bounds: Bounds) => {
+      const subject = namedNode(iri);
+      for (const suffix of ['x', 'y', 'w', 'h']) {
+        store.removeQuads(store.getQuads(subject, boundsPredicate(suffix), null, null));
+      }
+      store.addQuads([
+        quad(subject, boundsPredicate('x'), literal(String(bounds.x))),
+        quad(subject, boundsPredicate('y'), literal(String(bounds.y))),
+        quad(subject, boundsPredicate('w'), literal(String(bounds.width))),
+        quad(subject, boundsPredicate('h'), literal(String(bounds.height))),
+      ]);
+    }),
   };
 }
 
@@ -469,8 +476,8 @@ describe('the offered target types are derived from the metamodel', () => {
     expect(typeof entry.action.click).toBe('function');
     expect(typeof entry.action.dragstart).toBe('function');
     // Bucketed the way the palette is.
-    expect(entry.group).toBe('Business');
-    expect(entries[appendEntryId(DATA_OBJECT)].group).toBe('Application');
+    expect(entry.group).toEqual({ id: 'Business', name: 'Business' });
+    expect(entries[appendEntryId(DATA_OBJECT)].group?.name).toBe('Application');
   });
 
   it('a source that can reach nothing yields an empty menu, which is the gate', () => {
@@ -610,6 +617,16 @@ describe('click-to-append', () => {
     expect(appended!.x).toBeGreaterThan(source.bounds.x + source.bounds.width);
     expect(f.canvas.getRelationships().size).toBe(1);
     expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(SERVING);
+  });
+
+  it('creates the relationship the user picked, when the metamodel permits it', () => {
+    const f = fixture();
+
+    f.canvas.appendElement(SRC, BUSINESS_ROLE, ASSOCIATION);
+
+    expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(ASSOCIATION);
+    // The pick lasts for that append only.
+    expect(f.canvas.preferredRelationshipType()).toBeUndefined();
   });
 
   it('is what the menu entry does on click', () => {

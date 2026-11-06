@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RDF Architecture Modeler</title>
+  <title>la-gram — RDF Architecture Modeller</title>
   <!-- diagram-js's own stylesheet, emitted next to the bundle by
        CopyWebpackPlugin. Without it the canvas draws but selection outlines,
        the palette and the context pad are unstyled and effectively invisible. -->
@@ -58,6 +58,15 @@
       box-sizing: border-box;
       min-height: 0;
       overflow: auto;
+    }
+
+    /* The model tree fills the left column and scrolls inside; the palette
+       fills the right one (its column scrolls, see app-shell). */
+    model-explorer {
+      height: 100%;
+    }
+    palette-panel {
+      min-height: 100%;
     }
 
     /* Center area: the tool strip, the diagram host, and the alternative
@@ -131,6 +140,34 @@
       cursor: move;
     }
 
+    /* The canvas's right-click menu: sections apart, the model-wide delete marked. */
+    .djs-popup.la-context-menu .djs-popup-group + .djs-popup-group {
+      border-top: 1px solid #e8eaed;
+      margin-top: 3px;
+      padding-top: 3px;
+    }
+    /* A context menu shows all its actions: no scrolling list. */
+    .djs-popup.la-context-menu .djs-popup-results {
+      max-height: none;
+    }
+    .djs-popup.la-context-menu .la-context-delete-model {
+      color: #c5221f;
+    }
+
+    /* Renaming on the canvas: the typed name replaces the drawn one while editing,
+       over the shape's own fill and badge. */
+    .la-diagram-host .djs-element.la-label-editing .la-shape-label,
+    .la-diagram-host .djs-element.la-label-editing .la-connection-label {
+      visibility: hidden;
+    }
+    .la-diagram-host .djs-direct-editing-parent {
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+    .la-diagram-host .djs-direct-editing-content {
+      outline: none;
+      color: #202124;
+    }
     .la-diagram-host .la-shape-label {
       pointer-events: none;
       user-select: none;
@@ -170,6 +207,12 @@
       content: "\00d7";
     }
 
+    /* Delete from the model (every view): a heavier mark than the per-view ×. */
+    .la-diagram-host .context-pad-delete-model::before {
+      content: "\2716";
+      color: #c5221f;
+    }
+
     .la-diagram-host .context-pad-connect::before {
       content: "\2192";
     }
@@ -198,11 +241,13 @@
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     }
 
-    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label {
+    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label,
+    .la-diagram-host .djs-popup .la-element-type-current .djs-popup-label {
       font-weight: 600;
     }
 
-    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label::after {
+    .la-diagram-host .djs-popup .la-relationship-type-current .djs-popup-label::after,
+    .la-diagram-host .djs-popup .la-element-type-current .djs-popup-label::after {
       content: " \2713";
       color: #1a73e8;
     }
@@ -218,24 +263,395 @@
       cursor: grabbing;
     }
 
-    /* Bottom bar: validation results next to the SPARQL editor. */
-    .la-bottom-area {
+    /* The append menu's tabs — "New element" / "Existing relationships" — are
+       header entries in their own group; the header is one flex row, so the
+       group takes a line of its own under the title and reads as a tab strip. */
+    .la-diagram-host .djs-popup .djs-popup-header:has([data-header-group="la-append-tabs"]) {
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .la-diagram-host .djs-popup [data-header-group="la-append-tabs"] {
+      flex-basis: 100%;
+      gap: 2px;
+      margin-top: 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .la-diagram-host .djs-popup [data-header-group="la-append-tabs"]::before {
+      display: none;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-append-tab {
+      padding: 4px 10px 5px;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      color: #5f6368;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-append-tab:hover,
+    .la-diagram-host .djs-popup button.entry.la-append-tab.selected {
+      color: #202124;
+      background: #f1f3f4;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-append-tab.active {
+      color: #1a73e8;
+      border-bottom-color: #1a73e8;
+      font-weight: 500;
+      background: transparent;
+    }
+
+    /* The "Change type…" menu's "Show IRIs" switch: a header entry, on when
+       diagram-js marks it active. */
+    .la-diagram-host .djs-popup button.entry.la-element-type-iris {
+      padding: 2px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 10px;
+      background: #fff;
+      color: #5f6368;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .la-diagram-host .djs-popup button.entry.la-element-type-iris.active {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+      color: #1a73e8;
+    }
+
+    /* ── Canvas markers ────────────────────────────────────────────────
+       diagram-js markers are CSS classes on the element's .djs-element group. */
+
+    /* Outside the open view's viewpoint: still there, still editable, greyed. */
+    .la-diagram-host .djs-element.la-outside-viewpoint .djs-visual {
+      opacity: 0.35;
+    }
+
+    /* A SHACL violation on the concept. */
+    .la-diagram-host .djs-element.la-violation .djs-visual > :first-child {
+      stroke: #d93025 !important;
+      stroke-width: 2.5px !important;
+    }
+    .la-diagram-host .djs-connection.la-violation .djs-visual > path {
+      stroke: #d93025 !important;
+    }
+
+    /* Selected by another collaborator, and so locked here. */
+    .la-diagram-host .djs-element.la-remote-selected .djs-outline {
+      visibility: visible;
+      stroke: #e8710a;
+      stroke-width: 2px;
+      stroke-dasharray: none;
+    }
+    .la-diagram-host .djs-element.la-locked {
+      cursor: not-allowed;
+    }
+
+    app-toolbar {
       display: flex;
-      align-items: stretch;
-      gap: 4px;
-      height: 100%;
+    }
+
+    /* ── Dialogs (ui/dialogs.ts) ───────────────────────────────────────── */
+    .la-dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(32, 33, 36, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .la-dialog {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      width: min(520px, calc(100vw - 32px));
+      max-height: calc(100vh - 64px);
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+    .la-dialog-title {
+      padding: 16px 20px 8px;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .la-dialog-body {
+      padding: 4px 20px 12px;
+      overflow: auto;
+    }
+    .la-dialog-body p {
+      margin: 0 0 8px;
+    }
+    .la-dialog-label {
+      display: block;
+      font-size: 12px;
+      color: #5f6368;
+      margin-bottom: 4px;
+    }
+    .la-input {
       width: 100%;
       box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font: inherit;
+    }
+    .la-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+    .la-form-row {
+      margin-bottom: 12px;
+    }
+    .la-form-row.check {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .la-form-row.check .la-dialog-hint {
+      flex-basis: 100%;
+      margin-top: 0;
+    }
+    /* A section of a form (File › Settings…): its heading, ruled off from the one before. */
+    .la-form-section {
+      margin: 16px 0 8px;
+      padding-top: 10px;
+      border-top: 1px solid #e8eaed;
+    }
+    .la-form-section:first-of-type {
+      margin-top: 4px;
+      padding-top: 0;
+      border-top: none;
+    }
+    .la-form-section-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    /* A group of fields within a section: a smaller heading, with All / None for its switches. */
+    .la-form-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin: 12px 0 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #5f6368;
+    }
+    .la-form-group > span {
+      margin-right: auto;
+    }
+    .la-form-group-all {
+      border: 0;
+      background: none;
+      padding: 0 4px;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      color: #1a73e8;
+      cursor: pointer;
+    }
+    .la-form-group-all:hover {
+      text-decoration: underline;
+    }
+    /* Its switches in two columns; anything else takes the row. */
+    .la-form-group-body {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 16px;
+    }
+    .la-form-group-body > .la-form-row:not(.check) {
+      grid-column: 1 / -1;
+    }
+
+    /* A form of several parts (Settings): its sections as tabs down the side;
+       only the open one's fields scroll. */
+    .la-dialog.la-dialog-tabbed {
+      width: min(780px, calc(100vw - 32px));
+      height: min(640px, calc(100vh - 64px));
+    }
+    .la-dialog-tabbed .la-dialog-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow: hidden;
     }
-
-    .la-bottom-area > validation-panel {
-      flex: 1 1 40%;
+    .la-form-tabbed {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      gap: 16px;
+      border-top: 1px solid #e8eaed;
+    }
+    .la-form-tabs {
+      flex: 0 0 170px;
+      display: flex;
+      flex-direction: column;
+      padding: 8px 0;
+      border-right: 1px solid #e8eaed;
+    }
+    .la-form-tab {
+      padding: 8px 12px 8px 9px;
+      border: 0;
+      border-left: 3px solid transparent;
+      background: none;
+      font: inherit;
+      font-size: 13px;
+      color: #3c4043;
+      text-align: left;
+      cursor: pointer;
+    }
+    .la-form-tab:hover {
+      background: #f1f3f4;
+    }
+    .la-form-tab[aria-selected='true'] {
+      border-left-color: #1a73e8;
+      background: #e8f0fe;
+      color: #1a73e8;
+      font-weight: 500;
+    }
+    .la-form-tab.invalid::after {
+      content: ' \2022';
+      color: #c5221f;
+    }
+    .la-form-panes {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: auto;
+      padding: 8px 4px 8px 0;
+    }
+    .la-form-pane[hidden] {
+      display: none;
+    }
+    .la-form-pane-hint {
+      margin: 0 0 8px;
+    }
+    /* A value set by the deployment: shown, not offered for change. */
+    .la-form-row.fixed .la-input {
+      background: #f1f3f4;
+      color: #5f6368;
+    }
+    /* A long label wraps beside its checkbox, not under it. */
+    .la-form-row.check > label {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .la-dialog-hint {
+      font-size: 12px;
+      color: #80868b;
+      margin-top: 4px;
+    }
+    .la-dialog-error {
+      color: #d93025;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .la-dialog-list {
+      margin: 0;
+      padding-left: 20px;
+      color: #3c4043;
+    }
+    .la-dialog-info {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .la-dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 20px 16px;
+    }
+    .la-button {
+      font: inherit;
+      padding: 6px 16px;
+      border-radius: 4px;
+      border: 1px solid #dadce0;
+      background: #fff;
+      cursor: pointer;
+    }
+    .la-button.primary {
+      background: #1a73e8;
+      border-color: #1a73e8;
+      color: #fff;
+    }
+    .la-button.primary.danger {
+      background: #d93025;
+      border-color: #d93025;
+    }
+    .la-choice-filter {
+      margin-bottom: 8px;
+    }
+    .la-choice-list {
+      max-height: 50vh;
+      overflow: auto;
+      border: 1px solid #eee;
+      border-radius: 4px;
+    }
+    .la-choice-group {
+      padding: 6px 10px 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+    }
+    .la-choice {
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .la-choice:hover {
+      background: #f1f3f4;
+    }
+    .la-choice.selected {
+      background: #e8f0fe;
+    }
+    .la-choice.disabled {
+      color: #9aa0a6;
+      cursor: default;
+    }
+    .la-choice-detail {
+      font-size: 12px;
+      color: #80868b;
+    }
+    .la-toasts {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2100;
+    }
+    .la-toast {
+      background: #323232;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      max-width: 420px;
+      font-size: 13px;
+    }
+    .la-toast.warning {
+      background: #b06000;
+    }
+    .la-toast.error {
+      background: #c5221f;
     }
 
-    .la-bottom-area > sparql-editor {
-      flex: 1 1 60%;
-    }
+    /* Bottom bar: validation results next to the SPARQL editor. */
   </style>
 </head>
 <body>

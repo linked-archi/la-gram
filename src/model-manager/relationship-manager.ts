@@ -6,6 +6,37 @@
  *
  * ## How relationship validity is decided
  *
+ * **The relationship shapes first.** Where the metamodel publishes them —
+ * ArchiMate 4.0 and 3.2 encode the specification's relationship matrix as SHACL
+ * — they decide what {@link OxigraphRelationshipManager.getValidRelationships}
+ * answers, exactly as validation would (`relationship-table.ts`, read once per
+ * set of loaded graphs; a shape on a relationship superclass applies to its
+ * subclasses). The hints below decide only for relationship types no shape
+ * covers — metamodels without relationship shapes.
+ *
+ * **What is proposed first.** The candidates are ranked in five groups
+ * (`RelationshipPreference`), best first:
+ *
+ * 1. `first` — a proposal order scoped to these elements puts it first
+ *    (`proposal-order.ts`: ArchiMate 4.0 proposes composition between two
+ *    capabilities, aggregation from a grouping);
+ * 2. `drawn` — the language's metamodel figures draw it for the pair
+ *    (`direct-permissions.ts`, `drawnBy`), in the language's general proposal
+ *    order: a process realizes a service before it triggers it;
+ * 3. `direct` — the relationship tables let a modeller draw it directly (the
+ *    tables' upper case), or say nothing either way;
+ * 4. `derived` — permitted only as the conclusion of a derivation (lower case),
+ *    marked `direct: false`;
+ * 5. `fallback` — Association and a generic relationship (Basic's Connection),
+ *    which every pair admits and which say least.
+ *
+ * Within the last three, a candidate whose `arch:domainIncludes` /
+ * `arch:rangeIncludes` hints describe the pair comes before one they do not,
+ * then the score's small nudges decide, then the label. The general order is
+ * kept to the relationships the figures draw: where they draw nothing it
+ * proposes worse than the hints do — between an actor and a process, serving
+ * before assignment.
+ *
  * `arch:domainIncludes` / `arch:rangeIncludes` are `owl:AnnotationProperty`
  * *hints*, not `rdfs:domain` / `rdfs:range` axioms. The core ontology is
  * explicit: they are "used for guiding modelling but not restricting
@@ -56,9 +87,29 @@ import type { NamedNode, Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import type { RelationshipTypeInfo } from '../metamodel-manager/interfaces.js';
 import { matchesClass } from '../metamodel-manager/taxonomy.js';
-import type { RelationshipManager } from './interfaces.js';
+import { isGenericRelationshipType } from '../metamodel-manager/class-hierarchy.js';
+import type {
+  CreateRelationshipRequest,
+  RelationshipInfo,
+  RelationshipManager,
+} from './interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scope.js';
+import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
+import { modelNamespace } from './model-namespace.js';
+import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
+import { readDirectPermissions, readDrawnPermissions, type TablePermissions } from './direct-permissions.js';
+import { readProposalOrders, type ProposalOrders, type Proposal } from './proposal-order.js';
+import type { RelationshipPreference } from '../metamodel-manager/interfaces.js';
+import {
+  collectRelationshipQuads,
+  qualifiedFormOf,
+  qualifiedPointerQuads,
+  relationshipClassOf,
+  relationshipsTouching,
+  unqualifiedFormOf,
+} from './cascade.js';
+import { IRI, T, langLiteral, nn, triple, tripleTerm } from './vocabulary.js';
 
 const { namedNode, quad } = DataFactory;
 
@@ -87,6 +138,18 @@ const EXACT_TARGET_BONUS = 5;
 const ASSOCIATION_PENALTY = 4;
 /** Composition and aggregation are valid nearly everywhere; nudge them down. */
 const CONTAINMENT_PENALTY = 1;
+/** Specialization is valid between any two elements of one type; nudge it down too. */
+const SPECIALIZATION_PENALTY = 1;
+/** A generic relationship (relates any elements) says less than any language's: below Association. */
+const GENERIC_PENALTY = 5;
+
+/** The groups candidates rank in, best first (see the module documentation). */
+const PREFERENCE_RANK: Record<RelationshipPreference, number> = { first: 0, drawn: 1, direct: 2, derived: 3, fallback: 4 };
+
+/** Numbers in order, where both may be infinite (no proposal order lists either). */
+function compare(a: number, b: number): number {
+  return a === b ? 0 : a < b ? -1 : 1;
+}
 
 /** Counter for generating unique QualifiedRelationship IRIs. */
 let qrCounter = 0;
@@ -149,7 +212,37 @@ interface RelationshipTypeRecord {
  * and creates/deletes relationship triples or QualifiedRelationship resources.
  */
 export class OxigraphRelationshipManager implements RelationshipManager {
-  constructor(private readonly store: RdfStore) {}
+  constructor(private readonly store: RdfStore) {
+    const observed = store as RdfStore & { onEveryWrite?(listener: () => void): unknown };
+    if (typeof observed.onEveryWrite === 'function') {
+      this.memoOn = true;
+      observed.onEveryWrite(() => {
+        this.memo = null;
+      });
+    }
+  }
+
+  /**
+   * What one task reads of the metamodels for {@link getValidRelationships} —
+   * the scope, the relationship types, class closures — kept until the task
+   * ends or the store is written to: a context pad asks for forty pairs at once,
+   * each reading them again by SPARQL (Task 22). Only over a store that tells
+   * of every write.
+   */
+  private memo: { scope: GraphScope; candidates?: RelationshipTypeRecord[]; closures: Map<string, string[]> } | null = null;
+  private memoOn = false;
+
+  private taskMemo(): { scope: GraphScope; candidates?: RelationshipTypeRecord[]; closures: Map<string, string[]> } | null {
+    if (!this.memoOn) return null;
+    if (!this.memo) {
+      const memo = { scope: graphScope(this.store), closures: new Map<string, string[]>() };
+      this.memo = memo;
+      queueMicrotask(() => {
+        if (this.memo === memo) this.memo = null;
+      });
+    }
+    return this.memo;
+  }
 
   /**
    * Return the relationship types that may connect `sourceTypeIri` to
@@ -163,43 +256,99 @@ export class OxigraphRelationshipManager implements RelationshipManager {
   getValidRelationships(sourceTypeIri: string, targetTypeIri: string): RelationshipTypeInfo[] {
     // One scope for all three reads below: enumerating the named graphs costs a
     // scan, and nothing here mutates the store.
-    const scope = graphScope(this.store);
+    const memo = this.taskMemo();
+    const scope = memo?.scope ?? graphScope(this.store);
 
-    const candidates = this.readRelationshipTypes(scope);
+    const candidates = memo ? (memo.candidates ??= this.readRelationshipTypes(scope)) : this.readRelationshipTypes(scope);
     if (candidates.length === 0) return [];
 
-    const sourceClosure = this.classClosure(sourceTypeIri, scope);
-    const targetClosure = this.classClosure(targetTypeIri, scope);
+    const closureOf = (typeIri: string) => {
+      if (!memo) return this.classClosure(typeIri, scope);
+      let closure = memo.closures.get(typeIri);
+      if (!closure) memo.closures.set(typeIri, (closure = this.classClosure(typeIri, scope)));
+      return closure;
+    };
+    const sourceClosure = closureOf(sourceTypeIri);
+    const targetClosure = closureOf(targetTypeIri);
+    const table = this.relationshipTable(scope);
+    const directPermissions = this.directPermissions(scope);
+    const drawnPermissions = this.drawnPermissions(scope);
+    const proposalOrders = this.proposalOrders(scope);
 
     const matches: RelationshipTypeInfo[] = [];
+    /** Each candidate's place in the proposal orders, and whether its hints describe the pair. */
+    const ranking = new Map<RelationshipTypeInfo, { proposal: Proposal; hintFit: boolean }>();
 
     for (const candidate of candidates) {
       const { domainTypes, rangeTypes } = candidate;
+      const relationshipClosure = this.relationshipClosure(candidate.iri, scope);
+      const shaped = table.covers(relationshipClosure);
 
-      // Empty constraints are permissive: arch:domainIncludes is a hint, so an
-      // absent hint restricts nothing.
-      const sourceOk =
-        domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri));
-      const targetOk =
-        rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri));
-      if (!sourceOk || !targetOk) continue;
+      if (shaped) {
+        // The relationship shapes are normative (the language's relationship
+        // table); the domain/range hints are not consulted where they exist.
+        if (!table.allows(relationshipClosure, sourceClosure, targetClosure)) continue;
+      } else {
+        // Empty constraints are permissive: arch:domainIncludes is a hint, so an
+        // absent hint restricts nothing.
+        const sourceOk =
+          domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri));
+        const targetOk =
+          rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri));
+        if (!sourceOk || !targetOk) continue;
+      }
 
       const label = candidate.label ?? fragmentToLabel(iriFragment(candidate.iri));
 
       let score = BASE_SCORE;
       if (domainTypes.includes(sourceTypeIri)) score += EXACT_SOURCE_BONUS;
       if (rangeTypes.includes(targetTypeIri)) score += EXACT_TARGET_BONUS;
-      if (label === 'Association') score -= ASSOCIATION_PENALTY;
+      // Association, and a kind of it (a directed association), is the fallback.
+      const association = label === 'Association' || relationshipClosure.some((c) => iriFragment(c) === 'Association');
+      // Generic: it relates any elements, and no relationship table restricts it
+      // (ArchiMate's Specialization also names arch:Element, but its table governs it).
+      const generic = !shaped && isGenericRelationshipType(domainTypes, rangeTypes);
+      if (association) score -= ASSOCIATION_PENALTY;
+      if (generic) score -= GENERIC_PENALTY;
       if (label === 'Composition' || label === 'Aggregation') score -= CONTAINMENT_PENALTY;
+      if (label === 'Specialization') score -= SPECIALIZATION_PENALTY;
+
+      const predicate = candidate.unqualifiedPredicateIri;
+      const direct = predicate ? directPermissions.holds(predicate, sourceClosure, targetClosure) : undefined;
+      const drawn = predicate ? drawnPermissions.holds(predicate, sourceClosure, targetClosure) === true : false;
+      const proposal = proposalOrders.proposal(candidate.iri, relationshipClosure, sourceClosure, targetClosure);
+      const preference: RelationshipPreference =
+        proposal.scope <= 1 ? 'first'
+        : drawn ? 'drawn'
+        : association || generic ? 'fallback'
+        : direct === false ? 'derived'
+        : 'direct';
+      const hintFit =
+        (domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri))) &&
+        (rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri)));
 
       const constrained = domainTypes.length > 0 || rangeTypes.length > 0;
-      const reason = constrained
+      const allowed = shaped
+        ? `Allowed by the metamodel's relationship shapes: a ${shortLabel(sourceTypeIri)} may have ` +
+          `${label} to a ${shortLabel(targetTypeIri)}.`
+        : constrained
         ? `Allowed because ${shortLabel(sourceTypeIri)} matches ${shortList(domainTypes)} ` +
           `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}.`
         : 'Allowed because the metamodel declares no arch:domainIncludes or ' +
           'arch:rangeIncludes for this type, and an absent constraint hint is permissive.';
+      const why =
+        preference === 'first'
+          ? ' Proposed first for these elements, by the language\'s order of proposal.'
+          : preference === 'drawn'
+          ? ' The language\'s metamodel figures draw it between these element types.'
+          : '';
+      const reason =
+        direct === false
+          ? `${allowed}${why} Only by derivation: the relationship tables permit it as the conclusion of a ` +
+            'derivation, not drawn directly.'
+          : `${allowed}${why}`;
 
-      matches.push({
+      const match: RelationshipTypeInfo = {
         iri: candidate.iri,
         label,
         iconUrl: candidate.iconUrl,
@@ -208,10 +357,94 @@ export class OxigraphRelationshipManager implements RelationshipManager {
         unqualifiedPredicateIri: candidate.unqualifiedPredicateIri,
         score,
         reason,
-      });
+        ...(direct === undefined ? {} : { direct }),
+        ...(generic ? { generic } : {}),
+        preference,
+      };
+      matches.push(match);
+      ranking.set(match, { proposal, hintFit });
     }
 
-    return matches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.label.localeCompare(b.label));
+    return matches.sort((a, b) => {
+      const ra = ranking.get(a)!;
+      const rb = ranking.get(b)!;
+      return (
+        PREFERENCE_RANK[a.preference!] - PREFERENCE_RANK[b.preference!] ||
+        // A scoped order puts its members first in its own order; the general order ranks what is drawn.
+        (a.preference === 'first' || a.preference === 'drawn'
+          ? compare(ra.proposal.scope, rb.proposal.scope) || compare(ra.proposal.position, rb.proposal.position)
+          : 0) ||
+        Number(rb.hintFit) - Number(ra.hintFit) ||
+        (b.score ?? 0) - (a.score ?? 0) ||
+        a.label.localeCompare(b.label)
+      );
+    });
+  }
+
+  /** The relationships the loaded metamodel figures draw (`drawnBy`), read once per set of loaded graphs. */
+  private drawnCache: { key: string; permissions: TablePermissions } | undefined;
+  /** The loaded proposal orders, read likewise. */
+  private proposalCache: { key: string; orders: ProposalOrders } | undefined;
+
+  /** Which relationships the language's metamodel figures draw, per pair (`direct-permissions.ts`). */
+  drawnPermissions(scope: GraphScope = graphScope(this.store)): TablePermissions {
+    const key = scope.namedGraphs.join('\n');
+    if (this.drawnCache?.key !== key) {
+      this.drawnCache = { key, permissions: readDrawnPermissions(this.store) };
+    }
+    return this.drawnCache.permissions;
+  }
+
+  /** The loaded languages' orders of proposal (`proposal-order.ts`). */
+  proposalOrders(scope: GraphScope = graphScope(this.store)): ProposalOrders {
+    const key = scope.namedGraphs.join('\n');
+    if (this.proposalCache?.key !== key) {
+      this.proposalCache = { key, orders: readProposalOrders(this.store) };
+    }
+    return this.proposalCache.orders;
+  }
+
+  /** The relationship table of the loaded shapes, read once per set of loaded graphs. */
+  private tableCache: { key: string; table: RelationshipTable } | undefined;
+  /** The direct permissions of the loaded relationship tables, read likewise. */
+  private directCache: { key: string; permissions: TablePermissions } | undefined;
+
+  /**
+   * Which relationships the loaded relationship tables let a modeller draw
+   * directly (`direct-permissions.ts`), read once per set of loaded graphs.
+   */
+  directPermissions(scope: GraphScope = graphScope(this.store)): TablePermissions {
+    const key = scope.namedGraphs.join('\n');
+    if (this.directCache?.key !== key) {
+      this.directCache = { key, permissions: readDirectPermissions(this.store) };
+    }
+    return this.directCache.permissions;
+  }
+
+  /**
+   * The relationship table the loaded relationship shapes encode
+   * (`relationship-table.ts`). Loading or unloading a metamodel changes the
+   * store's named graphs, which is what the cache is keyed on.
+   */
+  relationshipTable(scope: GraphScope = graphScope(this.store)): RelationshipTable {
+    const key = scope.namedGraphs.join('\n');
+    if (this.tableCache?.key !== key) {
+      this.tableCache = { key, table: readRelationshipTable(this.store) };
+      this.relationshipClosures.clear();
+    }
+    return this.tableCache.table;
+  }
+
+  /** `rdfs:subClassOf*` closures of relationship classes; they change only with the metamodels. */
+  private readonly relationshipClosures = new Map<string, string[]>();
+
+  private relationshipClosure(relationshipClassIri: string, scope: GraphScope): string[] {
+    let closure = this.relationshipClosures.get(relationshipClassIri);
+    if (!closure) {
+      closure = this.classClosure(relationshipClassIri, scope);
+      this.relationshipClosures.set(relationshipClassIri, closure);
+    }
+    return closure;
   }
 
   /**
@@ -259,7 +492,9 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * reaches `arch:QualifiedRelationship` — `+` rather than `*` because
    * intermediate steps are real (ArchiMate's `Composition` subclasses
    * `Aggregation`, which subclasses `arch:QualifiedRelationship`) and because
-   * `arch:QualifiedRelationship` itself is not a relationship type.
+   * `arch:QualifiedRelationship` itself is not a relationship type. A generic
+   * relationship — one that relates any elements — is a language's own type
+   * whose domain and range name only core classes (Basic's Connection).
    *
    * A legacy `?rel a arch:Relationship` typing is also accepted. That class was
    * removed from the core ontology, but recognising it costs one UNION branch
@@ -379,9 +614,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       return null;
     }
 
-    // Qualified relationship resource
+    // Qualified relationship resource. Random, not counted: a counter restarts
+    // with the process and would reuse an IRI already in a loaded model.
     qrCounter += 1;
-    const qrIri = `${sourceIri}/qr-${qrCounter}`;
+    const qrIri = mintIri(namespaceOfIri(sourceIri), 'relationship');
     const qrNode = namedNode(qrIri) as unknown as NamedNode;
 
     const quads: Quad[] = [
@@ -407,6 +643,9 @@ export class OxigraphRelationshipManager implements RelationshipManager {
 
   /**
    * Resolve the relationship class whose `arch:unqualifiedForm` is `predicateIri`.
+   * Subclasses share their class's predicate — `am4:ReadAccess` is an
+   * `am4:Access` and also `am4:accesses` — so the most general one is meant: a
+   * bare triple says no more than that.
    *
    * Returns `null` when the metamodel is not loaded or declares no such
    * mapping.
@@ -426,6 +665,11 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       WHERE {
         ?cls arch:unqualifiedForm <${predicateIri}> .
         ?cls rdfs:subClassOf+ arch:QualifiedRelationship .
+        FILTER NOT EXISTS {
+          ?cls rdfs:subClassOf+ ?general .
+          ?general arch:unqualifiedForm <${predicateIri}> .
+          FILTER(?general != ?cls)
+        }
       }
       LIMIT 1
     `,
@@ -439,21 +683,216 @@ export class OxigraphRelationshipManager implements RelationshipManager {
   }
 
   /**
-   * Delete a QualifiedRelationship resource by its IRI.
+   * Create a relationship the Linked.Archi way: a qualified resource typed
+   * with its relationship class, carrying `arch:source` / `arch:target` and
+   * `arch:inModel`, *plus* the unqualified triple the class maps to through
+   * `arch:unqualifiedForm` (DD-10), which the resource `rdf:reifies` (RDF 1.2,
+   * `<<( s p o )>>`), and the qualified predicate leading from the source to the
+   * resource (`am4:qualifiedServing`; core's `arch:hasQualifiedRelationship` for
+   * a class the metamodel gives none). The resource is what views draw, what
+   * properties hang off, and what has a stable IRI; the triple is what makes
+   * `?a am4:serves ?b` work in SPARQL; `rdf:reifies` says which triple the
+   * resource is about; the qualified predicate is the way in from the source.
    *
-   * Removes all triples where the QR IRI is the subject.
-   * Source and target elements remain intact.
+   * `typeIri` may name either the class (`am4:Serving`, what the palette
+   * offers) or the predicate (`am4:serves`); the other is resolved from the
+   * metamodel. When the metamodel names neither mapping the resource is typed
+   * with `typeIri` alone and no unqualified triple is written.
+   */
+  createQualifiedRelationship(request: CreateRelationshipRequest): RelationshipInfo {
+    const { sourceIri, targetIri } = request;
+    let classIri = request.typeIri;
+    let predicateIri = request.predicateIri;
+
+    if (this.isRelationshipClass(request.typeIri)) {
+      predicateIri ??= unqualifiedFormOf(this.store, request.typeIri);
+    } else {
+      // Given a predicate: find the class that maps to it.
+      predicateIri ??= request.typeIri;
+      classIri = this.findRelationshipClass(request.typeIri) ?? request.typeIri;
+    }
+    if (predicateIri === classIri && !this.isProperty(predicateIri)) predicateIri = undefined;
+
+    const iri =
+      request.iri ??
+      mintIri(request.modelIri ? modelNamespace(this.store, request.modelIri) : namespaceOfIri(sourceIri), 'relationship');
+    const rel = nn(iri);
+    const quads: Quad[] = [
+      triple(rel, T.rdfType, nn(classIri)),
+      triple(rel, T.source, nn(sourceIri)),
+      triple(rel, T.target, nn(targetIri)),
+      triple(nn(sourceIri), nn(qualifiedFormOf(this.store, classIri)), rel),
+    ];
+    if (request.modelIri) quads.push(triple(rel, T.inModel, nn(request.modelIri)));
+    if (request.label?.trim()) quads.push(triple(rel, T.prefLabel, langLiteral(request.label.trim())));
+    if (predicateIri) {
+      quads.push(
+        triple(nn(sourceIri), nn(predicateIri), nn(targetIri)),
+        triple(rel, T.reifies, tripleTerm(nn(sourceIri), nn(predicateIri), nn(targetIri))),
+      );
+    }
+    this.store.addQuads(quads);
+
+    return {
+      iri,
+      classIri,
+      ...(predicateIri ? { predicateIri } : {}),
+      sourceIri,
+      targetIri,
+      ...(request.label?.trim() ? { label: request.label.trim() } : {}),
+    };
+  }
+
+  /**
+   * Change a relationship's kind in place. The IRI, the endpoints, the label
+   * and every other property stay; the class type, the qualified predicate
+   * from the source and the unqualified triple are swapped (the old triple only
+   * when no sibling still justifies it).
+   */
+  retypeRelationship(relationshipIri: string, typeIri: string): RelationshipInfo | undefined {
+    const current = this.getRelationship(relationshipIri);
+    if (!current) return undefined;
+    const rel = nn(relationshipIri);
+    const newClass = this.isRelationshipClass(typeIri) ? typeIri : (this.findRelationshipClass(typeIri) ?? typeIri);
+    if (newClass === current.classIri) return current;
+    const newPredicate = unqualifiedFormOf(this.store, newClass) ?? (newClass === typeIri ? undefined : typeIri);
+
+    const remove: Quad[] = [
+      ...this.store.getQuads(rel, T.rdfType, nn(current.classIri)),
+      ...this.store.getQuads(rel, T.reifies),
+      ...qualifiedPointerQuads(this.store, relationshipIri, current.sourceIri),
+    ];
+    if (current.predicateIri) {
+      const siblings = this.getRelationshipsOf(current.sourceIri).filter(
+        (r) => r.iri !== relationshipIri && r.targetIri === current.targetIri && r.classIri === current.classIri,
+      );
+      if (siblings.length === 0) {
+        remove.push(...this.store.getQuads(nn(current.sourceIri), nn(current.predicateIri), nn(current.targetIri)));
+      }
+    }
+    if (remove.length > 0) this.store.removeQuads(remove);
+    const add: Quad[] = [
+      triple(rel, T.rdfType, nn(newClass)),
+      triple(nn(current.sourceIri), nn(qualifiedFormOf(this.store, newClass)), rel),
+    ];
+    if (newPredicate) {
+      add.push(
+        triple(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri)),
+        triple(rel, T.reifies, tripleTerm(nn(current.sourceIri), nn(newPredicate), nn(current.targetIri))),
+      );
+    }
+    this.store.addQuads(add);
+    return this.getRelationship(relationshipIri);
+  }
+
+  /**
+   * Reattach a relationship to other elements. Its IRI, type and properties
+   * stay; the ends, the qualified predicate from the source and the
+   * unqualified triple move.
+   */
+  reconnectRelationship(relationshipIri: string, sourceIri: string, targetIri: string): RelationshipInfo | undefined {
+    const current = this.getRelationship(relationshipIri);
+    if (!current) return undefined;
+    if (current.sourceIri === sourceIri && current.targetIri === targetIri) return current;
+    const rel = nn(relationshipIri);
+    // The way in from the source moves with it, by whichever predicate the data uses.
+    const pointers = qualifiedPointerQuads(this.store, relationshipIri, current.sourceIri);
+    const pointerPredicates = pointers.length > 0 ? [...new Set(pointers.map((q) => q.predicate.value))] : [qualifiedFormOf(this.store, current.classIri)];
+    const remove: Quad[] = [
+      ...this.store.getQuads(rel, T.source),
+      ...this.store.getQuads(rel, T.target),
+      ...this.store.getQuads(rel, T.reifies),
+      ...pointers,
+    ];
+    if (current.predicateIri) {
+      const siblings = this.getRelationshipsOf(current.sourceIri).filter(
+        (r) => r.iri !== relationshipIri && r.targetIri === current.targetIri && r.classIri === current.classIri,
+      );
+      if (siblings.length === 0) {
+        remove.push(...this.store.getQuads(nn(current.sourceIri), nn(current.predicateIri), nn(current.targetIri)));
+      }
+    }
+    this.store.removeQuads(remove);
+    const add: Quad[] = [
+      triple(rel, T.source, nn(sourceIri)),
+      triple(rel, T.target, nn(targetIri)),
+      ...pointerPredicates.map((p) => triple(nn(sourceIri), nn(p), rel)),
+    ];
+    if (current.predicateIri) {
+      add.push(
+        triple(nn(sourceIri), nn(current.predicateIri), nn(targetIri)),
+        triple(rel, T.reifies, tripleTerm(nn(sourceIri), nn(current.predicateIri), nn(targetIri))),
+      );
+    }
+    this.store.addQuads(add);
+    return this.getRelationship(relationshipIri);
+  }
+
+  /** Read one qualified relationship, current or legacy vocabulary. */
+  getRelationship(relationshipIri: string): RelationshipInfo | undefined {
+    const rel = nn(relationshipIri);
+    const first = (predicate: string) => this.store.getQuads(rel, nn(predicate))[0]?.object.value;
+    const sourceIri = first(IRI.source) ?? first(IRI.legacyRelSource);
+    const targetIri = first(IRI.target) ?? first(IRI.legacyRelTarget);
+    if (!sourceIri || !targetIri) return undefined;
+    const classIri = relationshipClassOf(this.store, relationshipIri) ?? IRI.QualifiedRelationship;
+    const predicateIri = unqualifiedFormOf(this.store, classIri) ?? first(IRI.legacyRelPredicate);
+    const label = first(IRI.prefLabel);
+    return {
+      iri: relationshipIri,
+      classIri,
+      ...(predicateIri ? { predicateIri } : {}),
+      sourceIri,
+      targetIri,
+      ...(label ? { label } : {}),
+    };
+  }
+
+  /** Every qualified relationship with the element at either end. */
+  getRelationshipsOf(elementIri: string): RelationshipInfo[] {
+    return relationshipsTouching(this.store, elementIri)
+      .map((iri) => this.getRelationship(iri))
+      .filter((info): info is RelationshipInfo => info !== undefined);
+  }
+
+  /** The quads {@link deleteRelationship} removes. */
+  collectRelationshipQuads(relationshipIri: string): Quad[] {
+    return collectRelationshipQuads(this.store, relationshipIri);
+  }
+
+  /** Whether an IRI is a relationship class (reaches `arch:QualifiedRelationship`). */
+  private isRelationshipClass(iri: string): boolean {
+    if (!isSafeIri(iri)) return false;
+    const rows = graphScope(this.store).select(
+      (from) => `
+      PREFIX rdfs: <${NAMESPACES.rdfs}>
+      PREFIX arch: <${NAMESPACES.arch}>
+      SELECT ?x ${from} WHERE { <${iri}> rdfs:subClassOf+ arch:QualifiedRelationship . BIND(1 AS ?x) } LIMIT 1
+    `,
+    );
+    return rows.length > 0;
+  }
+
+  /** Whether an IRI is declared as a property anywhere in the store. */
+  private isProperty(iri: string): boolean {
+    const types = this.store.getQuads(nn(iri), T.rdfType).map((q) => q.object.value);
+    return types.some((t) => t.endsWith('ObjectProperty') || t.endsWith('#Property'));
+  }
+
+  /**
+   * Delete a QualifiedRelationship from the model by its IRI.
    *
-   * Note: For direct triples, the caller should remove the triple directly
-   * via the RDF store, since direct triples have no dedicated IRI.
+   * Removes the resource, its unqualified triple when no sibling occurrence
+   * keeps that triple true, and every diagram link drawing it. Source and
+   * target elements remain intact.
+   *
+   * A relationship that exists *only* as a direct triple has no IRI; the
+   * caller retracts that triple directly via the RDF store.
    */
   deleteRelationship(relationshipIri: string): void {
-    const qrNode = namedNode(relationshipIri) as unknown as NamedNode;
-
-    // Remove all triples where the QR is the subject
-    const qrQuads = this.store.getQuads(qrNode);
-    if (qrQuads.length > 0) {
-      this.store.removeQuads(qrQuads);
-    }
+    // The resource, its unqualified triple (unless a sibling keeps it true),
+    // and every link drawing it — see `cascade.ts`.
+    const quads = this.collectRelationshipQuads(relationshipIri);
+    if (quads.length > 0) this.store.removeQuads(quads);
   }
 }

@@ -85,10 +85,12 @@ import Modeling from 'diagram-js/lib/features/modeling/Modeling.js';
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import { CroppingConnectionDocking, CroppingLayouter } from './connection-docking.js';
+import { AttachedConnectionBehavior, CroppingLayouter } from './connection-docking.js';
+import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
 import { relationshipKey } from './relationship-resolution.js';
+import type { ObservableRdfStore, RdfDiff } from '../../rdf-engine/observable-store.js';
 
 /**
  * Hint key carrying the relationship to assert alongside a `connection.create`.
@@ -107,6 +109,25 @@ export const RETYPE_RELATIONSHIP_COMMAND = 'rdf.relationship.retype';
 /** Command minting the RDF element a newly created shape stands for. */
 export const CREATE_ELEMENT_COMMAND = 'rdf.element.create';
 
+/** A recorded, undoable model change; see {@link RdfChangeHandler}. */
+export const RDF_CHANGE_COMMAND = 'rdf.store.change';
+
+/**
+ * The same, for a change made outside the canvas — a property edited in the
+ * panel. Its own name so the canvas knows to redraw from the store when it is
+ * undone or redone: no shape command carries the change back.
+ */
+export const RDF_STORE_EDIT_COMMAND = 'rdf.store.edit';
+
+/** Delete a concept from the model, shapes and all; see {@link ModelDeleteHandler}. */
+export const RDF_MODEL_DELETE_COMMAND = 'rdf.model.delete';
+
+/**
+ * Hint on `connection.create` naming an existing relationship to draw, as
+ * opposed to {@link RDF_RELATIONSHIP_HINT}, which creates one.
+ */
+export const RDF_EXISTING_RELATIONSHIP_HINT = 'rdfExistingRelationship';
+
 /** The relationship a connection stands for, everything needed to (un)write it. */
 export interface RdfRelationship {
   sourceIri: string;
@@ -123,6 +144,11 @@ export interface RdfRelationship {
 export interface RdfRelationshipRequest extends RdfRelationship {
   /** diagram-js id of the connection, so the canvas can key its registry. */
   connectionId: string;
+  /**
+   * IRI a previous `execute` minted, reused on redo so the relationship keeps
+   * its identity across any number of undo/redo cycles.
+   */
+  iri?: string;
 }
 
 /**
@@ -142,6 +168,18 @@ export interface RdfRelationshipWriter {
 
   /** Retract what {@link create} wrote. */
   remove(request: RdfRelationshipRequest, relationshipIri?: string): void;
+
+  /**
+   * Change an existing relationship's kind in place — same IRI, properties
+   * kept. When absent, a retype falls back to remove + create.
+   */
+  retype?(relationshipIri: string, from: RdfRelationshipRequest, to: RdfRelationshipRequest): void;
+
+  /**
+   * Draw an *existing* relationship in the open view (an `arch-vis:Link`),
+   * without creating anything in the model.
+   */
+  draw?(relationshipIri: string): void;
 }
 
 /** Minimal view of the diagram-js elements this module touches. */
@@ -185,6 +223,8 @@ export interface RdfElementRequest {
   iri?: string;
   /** The triples the first `execute` wrote, replayed verbatim on redo. */
   snapshot?: unknown[];
+  /** Label to give the new element (the palette entry's, by default). */
+  label?: string;
 }
 
 /** What the writer managed to create. */
@@ -217,6 +257,12 @@ export interface RdfElementWriter {
 
   /** Retract what {@link create} wrote. */
   remove(iri: string): void;
+
+  /**
+   * Place an element that already exists in the model into the open view.
+   * The model is not touched; only a node (and `arch:inView`) is written.
+   */
+  place?(iri: string, bounds: RdfElementBounds): void;
 }
 
 /** Context of the `rdf.element.create` command. */
@@ -293,9 +339,9 @@ export class CreateElementHandler {
  * is a shape for an element that exists — so neither writes twice.
  */
 export class RdfElementBehavior {
-  static $inject = ['eventBus', 'commandStack'];
+  static $inject = ['eventBus', 'commandStack', 'rdfElementWriter'];
 
-  constructor(eventBus: DjsEventBus, commandStack: DjsCommandStack) {
+  constructor(eventBus: DjsEventBus, commandStack: DjsCommandStack, elementWriter: RdfElementWriter) {
     eventBus.on<{ context?: ShapeCreateContext }>(
       'commandStack.shape.create.preExecute',
       (event) => {
@@ -303,14 +349,28 @@ export class RdfElementBehavior {
         const shape = context?.shape;
         const businessObject = shape?.businessObject;
         if (!shape || !businessObject) return;
-        if (!businessObject.typeIri || businessObject.iri) return;
         if (businessObject.kind !== undefined && businessObject.kind !== 'element') return;
+
+        // An element that already exists, dropped into this view (from the model
+        // tree, or "add to view"): a placement, not a new element.
+        if (businessObject.iri && businessObject.placeExisting) {
+          const iri = businessObject.iri;
+          const bounds = plannedBounds(shape, context?.position);
+          commandStack.execute(RDF_CHANGE_COMMAND, {
+            apply: () => elementWriter.place?.(iri, bounds),
+          } satisfies RdfChangeContext);
+          return;
+        }
+
+        if (!businessObject.typeIri || businessObject.iri) return;
 
         commandStack.execute(CREATE_ELEMENT_COMMAND, {
           shape,
           request: {
             typeIri: businessObject.typeIri,
             bounds: plannedBounds(shape, context?.position),
+            // Unnamed when the shape cannot show a name (a junction).
+            ...(businessObject.label && businessObject.named !== false ? { label: businessObject.label } : {}),
           },
         });
       },
@@ -409,7 +469,10 @@ export class CreateRelationshipHandler {
   execute(context: RelationshipCommandContext): void {
     const { connection, relationship } = context;
 
-    const relationshipIri = this.writer.create(relationship);
+    // On redo, ask for the IRI the first execute minted.
+    const relationshipIri = this.writer.create(
+      context.relationshipIri ? { ...relationship, iri: context.relationshipIri } : relationship,
+    );
     context.relationshipIri = relationshipIri;
 
     // A qualified relationship has an IRI of its own; adopt it now that it
@@ -475,6 +538,15 @@ export class RetypeRelationshipHandler {
   execute(context: RetypeRelationshipContext): DjsElement[] {
     const { connection, from, to, fromRelationshipIri } = context;
 
+    // In place when the writer can: the relationship keeps its IRI and whatever
+    // properties the user gave it.
+    if (this.writer.retype && fromRelationshipIri) {
+      this.writer.retype(fromRelationshipIri, from, to);
+      context.toRelationshipIri = fromRelationshipIri;
+      connection.businessObject = businessObjectFor(to, fromRelationshipIri);
+      return [connection];
+    }
+
     this.writer.remove(from, fromRelationshipIri);
     context.toRelationshipIri = this.writer.create(to);
 
@@ -484,6 +556,12 @@ export class RetypeRelationshipHandler {
 
   revert(context: RetypeRelationshipContext): DjsElement[] {
     const { connection, from, to, toRelationshipIri } = context;
+
+    if (this.writer.retype && toRelationshipIri && toRelationshipIri === context.fromRelationshipIri) {
+      this.writer.retype(toRelationshipIri, to, from);
+      connection.businessObject = businessObjectFor(from, toRelationshipIri);
+      return [connection];
+    }
 
     this.writer.remove(to, toRelationshipIri);
     // A qualified relationship is minted afresh, so the IRI put back may differ
@@ -519,15 +597,29 @@ function businessObjectFor(
  * spelling it out reads better than inheriting it.
  */
 export class RdfRelationshipBehavior {
-  static $inject = ['eventBus', 'commandStack'];
+  static $inject = ['eventBus', 'commandStack', 'rdfRelationshipWriter'];
 
-  constructor(eventBus: DjsEventBus, commandStack: DjsCommandStack) {
+  constructor(
+    eventBus: DjsEventBus,
+    commandStack: DjsCommandStack,
+    relationshipWriter: RdfRelationshipWriter,
+  ) {
     eventBus.on<{ context?: ConnectionCreateContext }>(
       'commandStack.connection.create.preExecute',
       (event) => {
         const context = event.context;
-        const relationship = context?.hints?.[RDF_RELATIONSHIP_HINT];
         const connection = context?.connection;
+
+        // A relationship that already exists in the model, drawn into this view.
+        const existing = context?.hints?.[RDF_EXISTING_RELATIONSHIP_HINT];
+        if (existing && connection) {
+          commandStack.execute(RDF_CHANGE_COMMAND, {
+            apply: () => relationshipWriter.draw?.(existing),
+          } satisfies RdfChangeContext);
+          return;
+        }
+
+        const relationship = context?.hints?.[RDF_RELATIONSHIP_HINT];
         if (!relationship || !connection) return;
 
         // The connection object already exists (Modeling.createConnection built
@@ -549,7 +641,7 @@ export class RdfRelationshipBehavior {
  */
 interface ConnectionCreateContext {
   connection?: DjsElement;
-  hints?: { rdfRelationship?: RdfRelationship };
+  hints?: { rdfRelationship?: RdfRelationship; rdfExistingRelationship?: string };
 }
 
 /** The bit of diagram-js's event bus this module uses. */
@@ -627,6 +719,9 @@ export class RdfModeling extends ModelingBase {
       [CREATE_RELATIONSHIP_COMMAND]: CreateRelationshipHandler,
       [RETYPE_RELATIONSHIP_COMMAND]: RetypeRelationshipHandler,
       [CREATE_ELEMENT_COMMAND]: CreateElementHandler,
+      [RDF_CHANGE_COMMAND]: RdfChangeHandler,
+      [RDF_STORE_EDIT_COMMAND]: RdfChangeHandler,
+      [RDF_MODEL_DELETE_COMMAND]: ModelDeleteHandler,
     };
   }
 
@@ -720,21 +815,104 @@ export class RdfModeling extends ModelingBase {
  * that boot `rdfModelingModule` on its own — instead of making correctness
  * depend on `DiagramCanvas` remembering two extra array entries.
  *
- * See `connection-docking.ts` for what each of the two does.
+ * See `connection-docking.ts` for what each of the two does, and for
+ * `attachedConnectionBehavior`, which keeps a relationship that ends on another
+ * relationship docked to it — the same concern, for the one kind of end
+ * diagram-js does not re-lay out itself.
  */
 export function rdfModelingModule(
   rdfRelationshipWriter: RdfRelationshipWriter,
   rdfElementWriter: RdfElementWriter = inertElementWriter,
+  rdfChangeStore: ObservableRdfStore | null = null,
 ): Record<string, unknown> {
   return {
     __depends__: [ModelingModule],
-    __init__: ['modeling', 'rdfRelationshipBehavior', 'rdfElementBehavior'],
+    __init__: ['modeling', 'rdfRelationshipBehavior', 'rdfElementBehavior', 'attachedConnectionBehavior'],
     modeling: ['type', RdfModeling],
     layouter: ['type', CroppingLayouter],
-    connectionDocking: ['type', CroppingConnectionDocking],
+    connectionDocking: ['type', FastCroppingConnectionDocking],
+    attachedConnectionBehavior: ['type', AttachedConnectionBehavior],
     rdfRelationshipBehavior: ['type', RdfRelationshipBehavior],
     rdfRelationshipWriter: ['value', rdfRelationshipWriter],
     rdfElementBehavior: ['type', RdfElementBehavior],
     rdfElementWriter: ['value', rdfElementWriter],
+    rdfChangeStore: ['value', rdfChangeStore],
   };
+}
+
+// ── Recorded model changes ─────────────────────────────────────────────
+
+/** Context of the generic {@link RDF_CHANGE_COMMAND}. */
+export interface RdfChangeContext {
+  /** The model operation. Run once; afterwards its recorded diff is replayed. */
+  apply: () => void;
+  /** Filled in on first execute: exactly what `apply` changed. */
+  diff?: RdfDiff;
+  /** Used only without a recording store: how to take `apply` back. */
+  undo?: () => void;
+}
+
+/**
+ * Any model change made on behalf of a canvas gesture — a node moved, removed
+ * from a view, a link re-routed — as one undoable step.
+ *
+ * The operation runs once, inside {@link ObservableRdfStore.record}; undo
+ * applies the inverse of what was recorded and redo re-applies it. That is
+ * exact where re-running logic is not: a redo that re-ran "create a node" would
+ * mint a different node IRI, and one that re-ran "remove from view" after an
+ * intervening edit could remove something else.
+ *
+ * Without a recording store (unit tests with mock managers) the operation runs
+ * on every execute and `undo`, when given, on revert.
+ */
+export class RdfChangeHandler {
+  static $inject = ['rdfChangeStore'];
+
+  constructor(private readonly store: ObservableRdfStore | null) {}
+
+  execute(context: RdfChangeContext): void {
+    if (!this.store) {
+      context.apply();
+      return;
+    }
+    if (context.diff) {
+      this.store.applyDiff(context.diff);
+      return;
+    }
+    const { added, removed } = this.store.record(context.apply);
+    context.diff = { added, removed };
+  }
+
+  revert(context: RdfChangeContext): void {
+    if (this.store && context.diff) this.store.applyDiff(context.diff, true);
+    else context.undo?.();
+  }
+}
+
+/** Context of {@link RDF_MODEL_DELETE_COMMAND}. */
+export interface ModelDeleteContext extends RdfChangeContext {
+  /** The diagram elements standing for the concept in the open view. */
+  elements: DjsElement[];
+}
+
+/**
+ * "Delete from model" as one undoable step: the shapes leave the canvas (as
+ * nested `shape.delete` / `connection.delete` commands, in `preExecute`) and
+ * then the concept leaves the model — every view, every relationship — in
+ * `execute`. Undo reverses both: the triples come back, then the shapes.
+ */
+export class ModelDeleteHandler extends RdfChangeHandler {
+  static override $inject = ['rdfChangeStore', 'modeling'];
+
+  constructor(
+    store: ObservableRdfStore | null,
+    private readonly modeling: { removeElements(elements: unknown[]): void },
+  ) {
+    super(store);
+  }
+
+  preExecute(context: ModelDeleteContext): void {
+    const live = context.elements.filter((element) => (element as { parent?: unknown }).parent);
+    if (live.length > 0) this.modeling.removeElements(live);
+  }
 }

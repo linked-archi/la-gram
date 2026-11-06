@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
 
@@ -32,6 +33,36 @@ const sharedModuleRules = [
 ];
 
 const sharedExperiments = { asyncWebAssembly: true };
+
+/**
+ * Build-time switches (`src/types/build-flags.d.ts`). A module switched off
+ * here is not in the bundle at all: `if (__LA_GRAM_GIT__)` becomes `if (false)`,
+ * and webpack drops the branch and the chunk only it imports.
+ *
+ *   LA_GRAM_GIT=off npm run build      no Git storage (Req 18.1)
+ */
+const buildFlags = () =>
+  new webpack.DefinePlugin({
+    __LA_GRAM_GIT__: JSON.stringify(process.env.LA_GRAM_GIT !== 'off'),
+  });
+
+/**
+ * The deployment's configuration (`src/config.ts`, Req 19.1): with
+ * `LA_GRAM_CONFIG=<file>`, the file goes beside `index.html` as
+ * `la-gram.config.json` — in the web build and in the desktop renderer, and so
+ * in the package `npm run package` makes. Without it, nothing: a deployment
+ * may also drop the file into a built directory.
+ *
+ *   LA_GRAM_CONFIG=deploy/acme.json npm run build
+ */
+const deploymentConfig = () =>
+  process.env.LA_GRAM_CONFIG
+    ? [
+        new CopyWebpackPlugin({
+          patterns: [{ from: path.resolve(process.env.LA_GRAM_CONFIG), to: 'la-gram.config.json' }],
+        }),
+      ]
+    : [];
 
 /**
  * Emit the bundled metamodel assets (TTL + SVG icons) into the output
@@ -76,7 +107,11 @@ export default (_env, argv) => {
     target: 'web',
     entry: './src/index.ts',
     output: {
-      filename: 'bundle.js',
+      // Named by content: `npm run serve` sends no cache headers, and a browser
+      // keeps a heuristically fresh `bundle.js` across plain reloads — a
+      // rebuild must change the URL for the page to load it.
+      filename: 'bundle.[contenthash:8].js',
+      chunkFilename: '[name].[contenthash:8].js',
       path: path.resolve(__dirname, 'dist/web'),
       clean: true,
     },
@@ -98,19 +133,25 @@ export default (_env, argv) => {
         title: 'RDF Architecture Modeler',
       }),
       bundledAssetsPlugin(),
+      buildFlags(),
+      ...deploymentConfig(),
     ],
     devtool,
   };
 
-  /** Electron main process (Node.js context) */
+  /**
+   * Electron main process (Node.js context). CommonJS, so `.cjs`: the package is
+   * `"type": "module"`, and Node reads a `.js` file in it as ESM. Cleaning keeps
+   * the renderer, which the other config writes under this directory.
+   */
   const electronMainConfig = {
     name: 'electron-main',
     target: 'electron-main',
     entry: './src/electron-main.ts',
     output: {
-      filename: 'main.js',
+      filename: 'main.cjs',
       path: path.resolve(__dirname, 'dist/electron'),
-      clean: true,
+      clean: { keep: /^(renderer\/|preload\.cjs)/ },
     },
     resolve: { ...sharedResolve },
     module: { rules: [...sharedModuleRules] },
@@ -118,17 +159,46 @@ export default (_env, argv) => {
     devtool,
   };
 
-  /** Electron renderer process (browser-like context with Node integration) */
+  /**
+   * Electron preload: the bridge the sandboxed renderer reaches the desktop
+   * through (`src/electron-preload.ts`). One file — a sandboxed preload can
+   * require only `electron` itself.
+   */
+  const electronPreloadConfig = {
+    name: 'electron-preload',
+    target: 'electron-preload',
+    entry: './src/electron-preload.ts',
+    output: {
+      filename: 'preload.cjs',
+      path: path.resolve(__dirname, 'dist/electron'),
+      clean: false,
+    },
+    resolve: { ...sharedResolve },
+    module: { rules: [...sharedModuleRules] },
+    devtool,
+  };
+
+  /**
+   * Electron renderer: the web build, served to a sandboxed window without Node
+   * from `app://la-gram/` (`src/electron-main.ts`). The desktop reaches it only
+   * through the preload bridge.
+   */
   const electronRendererConfig = {
     name: 'electron-renderer',
-    target: 'electron-renderer',
+    target: 'web',
     entry: './src/index.ts',
     output: {
       filename: 'renderer.js',
       path: path.resolve(__dirname, 'dist/electron/renderer'),
       clean: true,
     },
-    resolve: { ...sharedResolve },
+    resolve: {
+      ...sharedResolve,
+      fallback: {
+        fs: false,
+        path: false,
+      },
+    },
     module: { rules: [...sharedModuleRules] },
     experiments: { ...sharedExperiments },
     plugins: [
@@ -137,9 +207,11 @@ export default (_env, argv) => {
         title: 'RDF Architecture Modeler',
       }),
       bundledAssetsPlugin(),
+      buildFlags(),
+      ...deploymentConfig(),
     ],
     devtool,
   };
 
-  return [webConfig, electronMainConfig, electronRendererConfig];
+  return [webConfig, electronMainConfig, electronPreloadConfig, electronRendererConfig];
 };

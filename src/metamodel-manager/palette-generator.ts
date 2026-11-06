@@ -14,6 +14,39 @@
  *   gathered from the class *and* from whatever `arch:unqualifiedForm` names,
  *   exactly as `RelationshipManager` does it.
  *
+ * ## Notation lookup
+ *
+ * Each class is styled by `notation-resolver.ts`, in five steps (Req 2.16).
+ *
+ * For a class C, the active set A is the set that the active presentation
+ * context names with `arch:usesNotationSet`, or else the primary metamodel's
+ * `arch:notationSet`. The fallback layers F are the default sets
+ * (`arch:notationSet`) of all loaded metamodels except A itself, in load order.
+ * F includes the default set of A's own metamodel when a presentation context
+ * picked an alternative set.
+ *
+ * 1. A descriptor in A for C.
+ * 2. A descriptor for C in F, the first match in load order.
+ * 3. C's own `arch:prefVisNotation`.
+ * 4. A descriptor for the nearest superclass of C that has one in A or F. The
+ *    walk goes breadth-first over `rdfs:subClassOf`: by distance first, and
+ *    superclasses at the same distance in IRI order. It stops at `arch:Element`
+ *    and `arch:QualifiedRelationship`. For each superclass, A is checked first,
+ *    then F in load order.
+ * 5. Built-in defaults. Elements: a rectangle with a white fill and a black
+ *    line. Relationships: a solid black line.
+ *
+ * Anything published for the class itself beats anything inherited; among
+ * inherited descriptors the nearest ancestor wins; the active set only breaks
+ * ties.
+ *
+ * Here a set chosen explicitly (`PaletteOptions.notationSetIri`) comes before
+ * the context's, and the primary metamodel is the first of
+ * `PaletteOptions.defaultNotationSetIris` whose set has descriptors.
+ *
+ * The palette entries and the `notationIndex` the canvas reads come from the
+ * same resolver, so palette and canvas cannot disagree.
+ *
  * ## Why this is not SPARQL any more
  *
  * The previous implementation queried `?type rdfs:subClassOf+ arch:Element`,
@@ -38,6 +71,7 @@
 
 import { DataFactory, Store } from 'n3';
 import type { Quad as N3Quad } from 'n3';
+import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { resolveIconUri } from './bundled-assets.js';
@@ -48,12 +82,23 @@ import {
   type TaxonomyAxis,
 } from './taxonomy.js';
 import {
+  buildDecorationSymbols,
   buildVisualNotations,
   effectiveRenderingMode,
   resolveNotationSetForContext,
+  type Decoration,
   type NotationSet,
+  type VisualNotation,
   type VisualStyle,
 } from './notation.js';
+import { NOTATION_ROOTS, buildSuperClassMap, closureOf, compareIris } from './class-hierarchy.js';
+import {
+  NotationResolver,
+  orderedFallbackSets,
+  storeDefaultNotationSetIris,
+  type NotationIndexEntry,
+  type ResolvedNotation,
+} from './notation-resolver.js';
 import type {
   PaletteGenerator,
   PaletteDefinition,
@@ -71,7 +116,6 @@ const RDF_TYPE = `${NAMESPACES.rdf}type`;
 const RDFS_LABEL = `${NAMESPACES.rdfs}label`;
 const RDFS_COMMENT = `${NAMESPACES.rdfs}comment`;
 const RDFS_SUBCLASS_OF = `${NAMESPACES.rdfs}subClassOf`;
-const OWL_CLASS = `${NAMESPACES.owl}Class`;
 const SKOS_PREF_LABEL = `${NAMESPACES.skos}prefLabel`;
 const SKOS_DEFINITION = `${NAMESPACES.skos}definition`;
 
@@ -80,7 +124,6 @@ const ARCH_RELATIONSHIP_LEGACY = `${NAMESPACES.arch}Relationship`;
 const ARCH_UNQUALIFIED_FORM = `${NAMESPACES.arch}unqualifiedForm`;
 const ARCH_DOMAIN_INCLUDES = `${NAMESPACES.arch}domainIncludes`;
 const ARCH_RANGE_INCLUDES = `${NAMESPACES.arch}rangeIncludes`;
-const ARCH_PREF_VIS_NOTATION = `${NAMESPACES.arch}prefVisNotation`;
 const ARCH_IS_ABSTRACT_CLASS = `${NAMESPACES.arch}isAbstractClass`;
 
 /**
@@ -123,17 +166,34 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
   generatePalette(metamodelGraph?: string, options?: PaletteOptions): PaletteDefinition {
     const graph = this.snapshot();
 
-    const taxonomyAxes = buildClassificationAxes(graph);
-    const semanticClasses = buildClasses(graph, taxonomyAxes);
+    const classificationAxes = buildClassificationAxes(graph, options?.metamodelIris);
+    const semanticClasses = buildClasses(graph, classificationAxes);
+    // Only an axis that groups some element type is one to group the palette by. A taxonomy may also
+    // classify relationship types — ArchiMate's Relationship by Category — which are not palette elements.
+    const taxonomyAxes = classificationAxes.filter((axis) =>
+      semanticClasses.some((cls) => cls.groupsByAxis[axis.iri] !== undefined),
+    );
 
     const activeAxis = this.pickAxis(taxonomyAxes, options?.axisIri);
     const notationSet = this.resolveNotationSet(graph, options);
 
-    const elements = semanticClasses.map((cls) =>
-      this.toElementTypeInfo(graph, cls, activeAxis, notationSet),
+    // One hierarchy map and one resolver per palette: relationship discovery,
+    // the palette entries and the canvas index all read the same answers.
+    const superClassMap = buildSuperClassMap(graph);
+    const fallbackSets = orderedFallbackSets(
+      graph,
+      notationSet?.iri,
+      options?.defaultNotationSetIris ?? storeDefaultNotationSetIris(graph),
     );
+    const resolver = new NotationResolver(graph, notationSet, fallbackSets, superClassMap);
+
+    const elements = semanticClasses.map((cls) => this.toElementTypeInfo(cls, activeAxis, resolver));
     const elementGroups = this.groupElements(elements, activeAxis);
-    const relationshipTypes = this.discoverRelationships(graph, notationSet);
+    const relationshipTypes = this.discoverRelationships(graph, resolver, superClassMap);
+    const notationIndex = buildNotationIndex(graph, resolver, superClassMap, [
+      ...(notationSet ? [notationSet] : []),
+      ...fallbackSets,
+    ]);
 
     const axes: PaletteAxis[] = taxonomyAxes.map((axis) => ({
       iri: axis.iri,
@@ -149,8 +209,12 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       relationshipTypes,
       axes,
       activeAxisIri: activeAxis?.iri,
+      // buildClasses walks the OWL classes when there is no axis to group by.
+      grouping: taxonomyAxes.length > 0 ? 'taxonomy' : 'owl',
       notationSetIri: notationSet?.iri,
       notationSetLabel: notationSet?.label,
+      notationIndex,
+      decorationSymbols: resolvedDecorationSymbols(graph),
     };
   }
 
@@ -192,6 +256,15 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
    * per-document graphs stay visible without special handling.
    */
   private snapshot(): Store {
+    // Over the application's store: the metamodel graphs read into a store, and
+    // the model's copy as it is — not copied into it too (Task 22). Not kept
+    // between palettes: the metamodels' quads held in JavaScript cost 100 MB.
+    const observed = this.store as RdfStore & { modelGraph?(): Store; namedGraphQuads?(): Quad[] };
+    if (observed.modelGraph && observed.namedGraphQuads) {
+      const named = new Store();
+      named.addQuads(observed.namedGraphQuads() as unknown as N3Quad[]);
+      return unionOf(named, observed.modelGraph());
+    }
     const graph = new Store();
     for (const q of this.store.getQuads()) {
       // The application's Quad is @rdfjs/types-shaped and n3's addQuad wants its
@@ -219,9 +292,14 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
   }
 
   /**
-   * The notation set to style from: an explicit IRI, else the set a presentation
-   * context asks for, else the metamodel's default (resolved inside
+   * The active notation set: an explicit IRI, else the set a presentation
+   * context asks for, else the first of the loaded metamodels' default sets that
+   * has descriptors, else the graph's default (resolved inside
    * `buildVisualNotations`).
+   *
+   * Taking the primary metamodel's set when the caller gives the load order is
+   * what makes the default deterministic with several metamodels loaded: the
+   * graph alone yields whichever `arch:notationSet` the store iterates first.
    */
   private resolveNotationSet(graph: Store, options?: PaletteOptions): NotationSet | null {
     if (options?.notationSetIri) return buildVisualNotations(graph, options.notationSetIri);
@@ -229,30 +307,25 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       const fromContext = resolveNotationSetForContext(graph, options.presentationContextIri);
       if (fromContext) return buildVisualNotations(graph, fromContext);
     }
+    for (const iri of options?.defaultNotationSetIris ?? []) {
+      const set = buildVisualNotations(graph, iri);
+      if (set) return set;
+    }
     return buildVisualNotations(graph);
   }
 
   private toElementTypeInfo(
-    graph: Store,
     cls: SemanticClass,
     activeAxis: TaxonomyAxis | undefined,
-    notationSet: NotationSet | null,
+    resolver: NotationResolver,
   ): ElementTypeInfo {
-    const notation = notationSet?.notations.get(cls.iri);
-
-    // Fallback documented in the visual notation guide: when the active notation
-    // set has no VisualNotation for a class, the class's own
-    // arch:prefVisNotation is the pre-rendered image to use.
-    const prefVisNotationUri =
-      notation?.prefVisNotation ?? objectValue(graph, cls.iri, ARCH_PREF_VIS_NOTATION);
-    const prefVisNotation = resolveUri(prefVisNotationUri);
+    // The five-step lookup (module doc). Its `prefVisNotation` already applies
+    // the guide's fallback to the class's own arch:prefVisNotation.
+    const resolved = resolver.resolve(cls.iri);
+    const notation = resolved.notation;
+    const prefVisNotation = resolveUri(resolved.prefVisNotation);
     const iconSymbol = resolveUri(notation?.style?.iconSymbol);
-
-    // The style handed to renderers carries the *resolved* icon URL; the
-    // published URI stays available on `iconSymbol`.
-    const style: VisualStyle | undefined = notation?.style
-      ? { ...notation.style, iconSymbol: iconSymbol?.url ?? notation.style.iconSymbol }
-      : undefined;
+    const style = styleWithResolvedIcon(notation);
 
     // Under a chosen axis, a class with no group there goes to "Other" rather
     // than borrowing its label from another axis — mixing axes in one grouping
@@ -309,9 +382,11 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
    * typing is also accepted so hand-written metamodels keep working, even though
    * the published ArchiMate 4.0 data never uses it.
    */
-  private discoverRelationships(graph: Store, notationSet: NotationSet | null): RelationshipTypeInfo[] {
-    const superClassMap = buildSuperClassMap(graph);
-
+  private discoverRelationships(
+    graph: Store,
+    resolver: NotationResolver,
+    superClassMap: Map<string, string[]>,
+  ): RelationshipTypeInfo[] {
     const candidates = new Set<string>();
     for (const [iri, supers] of superClassMap) {
       if (supers.length === 0) continue;
@@ -343,10 +418,10 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
         constraintSubjects.flatMap((subject) => objectValues(graph, subject, ARCH_RANGE_INCLUDES)),
       );
 
-      const notation = notationSet?.notations.get(iri);
-      const prefVisNotation = resolveUri(
-        notation?.prefVisNotation ?? objectValue(graph, iri, ARCH_PREF_VIS_NOTATION),
-      );
+      // Same lookup as the elements. A descriptor carries a line colour only
+      // when it states one; with none the renderer draws black.
+      const resolved = resolver.resolve(iri);
+      const prefVisNotation = resolveUri(resolved.prefVisNotation);
 
       relationships.push({
         iri,
@@ -354,7 +429,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
         definition: definitionFor(graph, iri),
         iconUrl: prefVisNotation?.url,
         prefVisNotation,
-        relationshipStyle: notation?.relationshipStyle,
+        relationshipStyle: resolved.notation?.relationshipStyle,
         domainTypes,
         rangeTypes,
         unqualifiedPredicateIri,
@@ -367,7 +442,8 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
   // ── Viewpoints ───────────────────────────────────────────────────────
 
   /**
-   * The concept IRIs a viewpoint names.
+   * The concept IRIs a viewpoint names, and their subclasses — a viewpoint
+   * naming a class includes its subclasses, as `ViewpointManager` reads it.
    *
    * Read straight off the store rather than through SPARQL so the IRI never has
    * to be interpolated into a query string.
@@ -384,48 +460,85 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
         if (q.object.termType === 'NamedNode') concepts.add(q.object.value);
       }
     }
+    // A Set visits what is added during iteration, so this walks the closure.
+    for (const iri of concepts) {
+      for (const q of this.store.getQuads(null, namedNode(RDFS_SUBCLASS_OF), namedNode(iri), null)) {
+        if (q.subject.termType === 'NamedNode') concepts.add(q.subject.value);
+      }
+    }
     return concepts;
   }
 }
 
 // ── Module-level graph helpers ──────────────────────────────────────────
 
-/** Map every class IRI in the graph to its direct `rdfs:subClassOf` parents. */
-function buildSuperClassMap(graph: Store): Map<string, string[]> {
-  const map = new Map<string, string[]>();
-  const record = (iri: string): void => {
-    if (map.has(iri)) return;
-    map.set(
-      iri,
-      uniqueInOrder(
-        graph
-          .getObjects(namedNode(iri), namedNode(RDFS_SUBCLASS_OF), null)
-          .filter((term) => term.termType === 'NamedNode')
-          .map((term) => term.value),
-      ),
-    );
-  };
+/**
+ * The canvas's copy of the notation lookup (`PaletteDefinition.notationIndex`).
+ *
+ * Covers every class the graph declares, every class a consulted set describes
+ * (a set may describe a class whose ontology is not loaded) and the two roots;
+ * classes that resolve to nothing are left out, so the renderer's defaults
+ * apply. Each class's `arch:unqualifiedForm` predicate is added as an alias,
+ * because a model triple uses the predicate, never overwriting a class key.
+ * A predicate a class shares with its subclasses aliases the class: a bare
+ * `am4:accesses` triple is an `am4:Access`, not an `am4:ReadAccess`. Keys are
+ * visited in IRI order so a predicate unrelated classes share always aliases
+ * the same one.
+ */
+function buildNotationIndex(
+  graph: Store,
+  resolver: NotationResolver,
+  superClassMap: ReadonlyMap<string, readonly string[]>,
+  consultedSets: readonly NotationSet[],
+): Record<string, NotationIndexEntry> {
+  const classes = new Set<string>([...superClassMap.keys(), ...NOTATION_ROOTS]);
+  for (const set of consultedSets) {
+    for (const conceptIri of set.notations.keys()) classes.add(conceptIri);
+  }
+  const ordered = [...classes].sort(compareIris);
 
-  for (const subject of graph.getSubjects(namedNode(RDF_TYPE), namedNode(OWL_CLASS), null)) {
-    if (subject.termType === 'NamedNode') record(subject.value);
+  const index = new Map<string, NotationIndexEntry>();
+  for (const iri of ordered) {
+    const entry = indexEntryFor(resolver.resolve(iri));
+    if (entry) index.set(iri, entry);
   }
-  for (const subject of graph.getSubjects(namedNode(RDFS_SUBCLASS_OF), null, null)) {
-    if (subject.termType === 'NamedNode') record(subject.value);
+  for (const iri of ordered) {
+    const entry = index.get(iri);
+    if (!entry) continue;
+    const predicate = objectValue(graph, iri, ARCH_UNQUALIFIED_FORM);
+    if (!predicate || index.has(predicate)) continue;
+    const inherited = closureOf(iri, superClassMap).some(
+      (superClass) => objectValue(graph, superClass, ARCH_UNQUALIFIED_FORM) === predicate,
+    );
+    if (!inherited) index.set(predicate, entry);
   }
-  return map;
+  return Object.fromEntries(index);
 }
 
-/** Transitive `rdfs:subClassOf` closure of `iri`, excluding `iri` itself. */
-function closureOf(iri: string, superClassMap: Map<string, string[]>): string[] {
-  const seen = new Set<string>();
-  const stack = [...(superClassMap.get(iri) ?? [])];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current || seen.has(current)) continue;
-    seen.add(current);
-    for (const parent of superClassMap.get(current) ?? []) stack.push(parent);
-  }
-  return [...seen];
+/** A resolved notation as index data, or `undefined` when nothing applies. */
+function indexEntryFor(resolved: ResolvedNotation): NotationIndexEntry | undefined {
+  if (resolved.source === 'default') return undefined;
+  const style = styleWithResolvedIcon(resolved.notation);
+  const relationshipStyle = resolved.notation?.relationshipStyle;
+  return {
+    source: resolved.source,
+    ...(resolved.notationSetIri ? { notationSetIri: resolved.notationSetIri } : {}),
+    ...(resolved.matchedClassIri ? { matchedClassIri: resolved.matchedClassIri } : {}),
+    // The same derivation as a palette entry's `renderingMode`.
+    ...(style ? { style, renderingMode: effectiveRenderingMode(style) } : {}),
+    ...(relationshipStyle ? { relationshipStyle } : {}),
+  };
+}
+
+/**
+ * A descriptor's element style as renderers take it: the icon URL resolved to
+ * the bundled copy when there is one. The published URI stays available on the
+ * palette entry's `iconSymbol`.
+ */
+function styleWithResolvedIcon(notation: VisualNotation | undefined): VisualStyle | undefined {
+  if (!notation?.style) return undefined;
+  const iconSymbol = resolveUri(notation.style.iconSymbol);
+  return { ...notation.style, iconSymbol: iconSymbol?.url ?? notation.style.iconSymbol };
 }
 
 /** True when the class carries `arch:isAbstractClass true`. */
@@ -470,6 +583,16 @@ function definitionFor(graph: Store, iri: string): string | undefined {
 }
 
 /** Pair a published URI with its bundled path, when this bundle ships one. */
+/** {@link buildDecorationSymbols}, each symbol resolved to its bundled copy where there is one. */
+function resolvedDecorationSymbols(graph: Store): Partial<Record<Decoration, ResolvedUri>> {
+  const resolved: Partial<Record<Decoration, ResolvedUri>> = {};
+  for (const [decoration, uri] of Object.entries(buildDecorationSymbols(graph)) as Array<[Decoration, string]>) {
+    const symbol = resolveUri(uri);
+    if (symbol) resolved[decoration] = symbol;
+  }
+  return resolved;
+}
+
 function resolveUri(sourceUri: string | undefined): ResolvedUri | undefined {
   if (!sourceUri) return undefined;
   const bundledPath = resolveIconUri(sourceUri) ?? undefined;
@@ -492,4 +615,26 @@ function fragmentToLabel(fragment: string): string {
 
 function uniqueInOrder(items: string[]): string[] {
   return [...new Set(items)];
+}
+
+/**
+ * Two stores read as one — what the palette's builders ask of a store
+ * (`getQuads`, `getObjects`, `getSubjects`) — without copying either.
+ */
+function unionOf(a: Store, b: Store): Store {
+  const distinct = <T extends { termType: string; value: string }>(terms: T[]): T[] => {
+    const seen = new Set<string>();
+    return terms.filter((t) => {
+      const key = `${t.termType}:${t.value}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  type Args<K extends 'getQuads' | 'getObjects' | 'getSubjects'> = Parameters<Store[K]>;
+  return {
+    getQuads: (...args: Args<'getQuads'>) => [...a.getQuads(...args), ...b.getQuads(...args)],
+    getObjects: (...args: Args<'getObjects'>) => distinct([...a.getObjects(...args), ...b.getObjects(...args)]),
+    getSubjects: (...args: Args<'getSubjects'>) => distinct([...a.getSubjects(...args), ...b.getSubjects(...args)]),
+  } as unknown as Store;
 }

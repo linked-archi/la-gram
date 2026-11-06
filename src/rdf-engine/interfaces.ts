@@ -63,6 +63,31 @@ export interface RdfStore {
   ): Quad[];
   query(sparql: string): SparqlResult;
   update(sparqlUpdate: string): void;
+  /**
+   * Bulk-load a serialized document straight into the store, bypassing the
+   * per-quad JavaScript→WASM round-trip. Optional: an implementation without a
+   * native parser leaves it out and callers fall back to parse + addQuads.
+   *
+   * @returns The number of quads the store grew by.
+   */
+  load?(data: string, options: { format: string; graph?: string; baseIri?: string }): number;
+  /** Number of quads in the store (all graphs). Optional, like {@link load}. */
+  size?(): number;
+  /**
+   * The quads as the store holds them, and gives them back: a store may keep a
+   * literal in another form than the one added (Oxigraph keeps `"010"^^xsd:int`
+   * as `"10"^^xsd:integer`). Optional: a store that keeps every quad as added
+   * leaves it out.
+   */
+  canonical?(quads: Quad[]): Quad[];
+  /** The named graphs it holds. Optional: a store without them leaves it out. */
+  namedGraphs?(): NamedNode[];
+  /**
+   * Throw as {@link addQuads} would for these quads, without adding them — a
+   * term the store cannot hold (an IRI that is not one, a bad language tag).
+   * Optional: what lets a store be given quads later and refuse them now.
+   */
+  check?(quads: Quad[]): void;
 }
 
 // ---------------------------------------------------------------------------

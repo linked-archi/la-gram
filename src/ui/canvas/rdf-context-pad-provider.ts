@@ -16,6 +16,11 @@
  * therefore knows nothing about metamodels: it asks the menu whether the menu
  * has anything to say.
  *
+ * A selection of exactly two elements gets one entry, "Connect these two…",
+ * opening the menu of the relationships they may have in either direction
+ * (`rdf-pair-connect-menu-provider.ts`) — gated the same way, on the menu having
+ * something to offer.
+ *
  * The shape matches diagram-js's `ContextPadProvider` contract, so the instance
  * can be handed to `contextPad.registerProvider(...)`. diagram-js passes its own
  * element objects (which carry the RDF identity on `businessObject`);
@@ -34,6 +39,7 @@ import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import {
   hasOutgoingRelationshipTypes,
+  shapesOf,
   identityClosure,
   type ClassClosure,
 } from './relationship-resolution.js';
@@ -122,6 +128,14 @@ export interface PadMenuSupport {
   open(element: ContextPadElement, event: unknown): void;
 }
 
+/** The pad's way to the menu for a selected pair: the two diagram elements, as diagram-js hands them. */
+export interface PairMenuSupport {
+  /** Whether the menu has anything to offer for this pair. */
+  isAvailable(elements: unknown[]): boolean;
+  /** Open the menu on the pair, positioned off the triggering event. */
+  open(elements: unknown[], event: unknown): void;
+}
+
 /** Historical name for {@link PadMenuSupport}, kept for the replace entry. */
 export type RelationshipReplaceSupport = PadMenuSupport;
 
@@ -131,9 +145,11 @@ export class RdfContextPadProvider {
   private paletteDefinition: PaletteDefinition;
   private onStartConnect?: StartConnectRequest;
   private onDelete?: (element: ContextPadElement) => void;
+  private onDeleteFromModel?: (element: ContextPadElement) => void;
   private classClosure: ClassClosure;
   private replaceSupport?: PadMenuSupport;
   private appendSupport?: PadMenuSupport;
+  private pairSupport?: PairMenuSupport;
 
   constructor(
     elementManager: ElementManager,
@@ -163,15 +179,26 @@ export class RdfContextPadProvider {
     const entries: Record<string, ContextPadEntry> = {};
 
     // Delete action — always available
+    // With a model-delete handler the canvas has views, and the plain delete
+    // removes from the *view* only; say so, and offer the model-wide delete
+    // next to it. Without one, delete is the only delete there is.
     entries['delete'] = {
       group: 'edit',
-      title: 'Delete',
+      title: this.onDeleteFromModel ? 'Delete from view' : 'Delete',
       className: 'context-pad-delete',
       action: () => {
         if (this.onDelete) this.onDelete(element);
         else this.elementManager.deleteElement(element.iri);
       },
     };
+    if (this.onDeleteFromModel) {
+      entries['delete-model'] = {
+        group: 'edit',
+        title: 'Delete from model (all views)',
+        className: 'context-pad-delete-model',
+        action: () => this.onDeleteFromModel?.(element),
+      };
+    }
 
     // A connection carries a relationship type. Naming it on the pad is how the
     // type becomes *visible*; clicking opens the popup menu, which is how it
@@ -244,6 +271,38 @@ export class RdfContextPadProvider {
   }
 
   /** Point delete at the canvas's own remove-and-untriple path. */
+  /**
+   * Offer "Delete from model" beside the plain delete. Set by a canvas that
+   * works in views, where the plain delete only removes the placement.
+   */
+  setDeleteFromModelHandler(onDeleteFromModel: ((element: ContextPadElement) => void) | undefined): void {
+    this.onDeleteFromModel = onDeleteFromModel;
+  }
+
+  /** How the pad reaches the menu of relationships for a selected pair. */
+  setPairSupport(pairSupport: PairMenuSupport | undefined): void {
+    this.pairSupport = pairSupport;
+  }
+
+  /**
+   * Entries for a selection of several elements (diagram-js asks this instead of
+   * `getContextPadEntries`). Exactly two elements, and the menu has something:
+   * "Connect these two…", which opens the relationships they may have.
+   */
+  getMultiElementContextPadEntries(targets: Array<ContextPadElement | DiagramTarget>): Record<string, ContextPadEntry> {
+    if (!this.pairSupport || targets.length !== 2) return {};
+    if (targets.some((target) => toContextPadElement(target).kind !== 'element')) return {};
+    if (!this.pairSupport.isAvailable(targets)) return {};
+    return {
+      'connect-pair': {
+        group: 'connect',
+        title: 'Connect these two…',
+        className: 'context-pad-connect',
+        action: (event: unknown) => this.pairSupport?.open(targets, event),
+      },
+    };
+  }
+
   setDeleteHandler(onDelete: ((element: ContextPadElement) => void) | undefined): void {
     this.onDelete = onDelete;
   }
@@ -284,9 +343,11 @@ export class RdfContextPadProvider {
    * Matching runs against the type's superclass closure, not its exact IRI:
    * metamodels declare `arch:domainIncludes` against abstract superclasses
    * (`am4:ActiveStructureElement`), so an exact-IRI test is `false` for every
-   * concrete type and the Connect entry would never appear.
+   * concrete type and the Connect entry would never appear. Where the
+   * relationship shapes cover a type they are asked instead of the hints, as the
+   * manager does.
    */
   private hasOutgoingRelationships(typeIri: string): boolean {
-    return hasOutgoingRelationshipTypes(this.paletteDefinition, this.classClosure, typeIri);
+    return hasOutgoingRelationshipTypes(this.paletteDefinition, this.classClosure, typeIri, shapesOf(this.relationshipManager));
   }
 }

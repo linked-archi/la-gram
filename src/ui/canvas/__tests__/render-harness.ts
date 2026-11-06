@@ -15,15 +15,15 @@ import type {
   RelationshipTypeInfo,
 } from '../../../metamodel-manager/interfaces.js';
 import { NotationStyleRegistry } from '../notation-styles.js';
-import { rdfRendererModule, type RdfBusinessObject } from '../rdf-renderer.js';
+import { rdfRendererModule, type RdfBusinessObject, type RenderOptions } from '../rdf-renderer.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
 
 export interface RenderHarness {
   container: HTMLElement;
   /** Draw a shape and return the renderer's `<g class="la-shape">`. */
   drawShape(businessObject: RdfBusinessObject, bounds?: Partial<DOMRectLike>): SVGElement;
-  /** Draw a connection and return the renderer's `<polyline class="la-connection">`. */
-  drawConnection(businessObject: RdfBusinessObject): SVGElement;
+  /** Draw a connection (along `waypoints`, else 0,0 → 200,0) and return the renderer's `<polyline class="la-connection">`. */
+  drawConnection(businessObject: RdfBusinessObject, waypoints?: Array<{ x: number; y: number }>): SVGElement;
   /** The `<defs>` holding notation markers, when any have been installed. */
   markerDefs(): Element | null;
   destroy(): void;
@@ -49,8 +49,8 @@ export function paletteWith(
   };
 }
 
-/** Boot a diagram with the renderer wired in and the given notation styles. */
-export function createRenderHarness(palette: PaletteDefinition): RenderHarness {
+/** Boot a diagram with the renderer wired in, the given notation styles and render options. */
+export function createRenderHarness(palette: PaletteDefinition, renderOptions?: RenderOptions): RenderHarness {
   installJsdomSvgSupport();
 
   const container = document.createElement('div');
@@ -59,7 +59,7 @@ export function createRenderHarness(palette: PaletteDefinition): RenderHarness {
   const notationStyles = new NotationStyleRegistry(palette);
   const diagram = new Diagram({
     canvas: { container },
-    modules: [rdfRendererModule(notationStyles)] as never[],
+    modules: [rdfRendererModule(notationStyles, renderOptions)] as never[],
   });
 
   const get = <T>(name: string): T => (diagram as unknown as { get(n: string): T }).get(name);
@@ -90,11 +90,11 @@ export function createRenderHarness(palette: PaletteDefinition): RenderHarness {
       return drawn as SVGElement;
     },
 
-    drawConnection(businessObject) {
+    drawConnection(businessObject, waypoints) {
       const connection = canvas.addConnection(
         elementFactory.createConnection({
           id: `connection-${counter++}`,
-          waypoints: [
+          waypoints: waypoints ?? [
             { x: 0, y: 0 },
             { x: 200, y: 0 },
           ],

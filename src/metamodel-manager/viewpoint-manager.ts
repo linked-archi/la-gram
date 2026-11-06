@@ -18,7 +18,7 @@
 
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { graphScope, type GraphScope } from '../rdf-engine/graph-scope.js';
+import { graphScope, type GraphScope, type SparqlBindings } from '../rdf-engine/graph-scope.js';
 import type { ViewpointManager, ViewpointInfo } from './interfaces.js';
 
 /**
@@ -76,9 +76,16 @@ export class SparqlViewpointManager implements ViewpointManager {
    * use it and `arch:permitsElement` / `arch:permitsRelationship` never appear.
    * Those two are still read so older or hand-written data keeps working.
    *
-   * Because `arch:includesConcept` does not say which kind a concept is, its
-   * values are reported under `elements`. Relationship types only reach
-   * `relationships` when the data uses the legacy `arch:permitsRelationship`.
+   * `arch:includesConcept` does not say which kind a concept is, so its class
+   * does: a subclass of `arch:QualifiedRelationship` is reported under
+   * `relationships`, anything else under `elements`. ArchiMate 4.0's viewpoints
+   * name element types only, so theirs come back with no relationships — which
+   * the palette reads as "any the metamodel permits between them".
+   *
+   * A viewpoint that names a class includes its subclasses (`rdfs:subClassOf*`):
+   * one naming `c4:Container` offers `c4:Database`, one naming `am4:Access` its
+   * kinds of access, and a class an extension adds under an ArchiMate element
+   * appears wherever that element does. The named classes come first.
    *
    * @param scope Dataset to query. Supplied by {@link getViewpoints} so the
    *   named-graph list is enumerated once per listing rather than per viewpoint;
@@ -91,20 +98,31 @@ export class SparqlViewpointManager implements ViewpointManager {
     const rows = scope.select(
       (from) => `
       PREFIX arch: <${NAMESPACES.arch}>
+      PREFIX rdfs: <${NAMESPACES.rdfs}>
 
-      SELECT ?element ?relationship
+      SELECT ?concept ?relationshipClass ?named
       ${from}
       WHERE {
         {
-          <${viewpointIri}> arch:includesConcept ?element .
+          { <${viewpointIri}> arch:includesConcept ?named . }
+          UNION
+          { <${viewpointIri}> arch:permitsElement ?named . }
+          ?concept rdfs:subClassOf* ?named .
+          OPTIONAL {
+            ?concept rdfs:subClassOf+ arch:QualifiedRelationship .
+            BIND(true AS ?relationshipClass)
+          }
         } UNION {
-          <${viewpointIri}> arch:permitsElement ?element .
-        } UNION {
-          <${viewpointIri}> arch:permitsRelationship ?relationship .
+          <${viewpointIri}> arch:permitsRelationship ?named .
+          ?concept rdfs:subClassOf* ?named .
+          BIND(true AS ?relationshipClass)
         }
       }
     `,
     );
+    // Named classes before their subclasses, so the list reads as the viewpoint
+    // states it.
+    rows.sort((a, b) => Number(isSubclassRow(a)) - Number(isSubclassRow(b)));
 
     const elements: string[] = [];
     const relationships: string[] = [];
@@ -112,12 +130,18 @@ export class SparqlViewpointManager implements ViewpointManager {
     // The two passes overlap when the same triple sits in both the default graph
     // and a named graph, so membership is checked before appending.
     for (const row of rows) {
-      const elem = row['element']?.value;
-      const rel = row['relationship']?.value;
-      if (elem && !elements.includes(elem)) elements.push(elem);
-      if (rel && !relationships.includes(rel)) relationships.push(rel);
+      const concept = row['concept']?.value;
+      if (!concept) continue;
+      const into = row['relationshipClass'] ? relationships : elements;
+      if (!into.includes(concept)) into.push(concept);
     }
 
     return { elements, relationships };
   }
+}
+
+/** A row a subclass of a named class contributed, rather than the named class itself. */
+function isSubclassRow(row: SparqlBindings): boolean {
+  const named = row['named']?.value;
+  return row['concept']?.value !== named;
 }

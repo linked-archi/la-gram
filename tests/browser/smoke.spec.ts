@@ -154,7 +154,7 @@ describe('1. page health', () => {
     expect(badResponses, JSON.stringify(badResponses)).toEqual([]);
   });
 
-  it('mounts the shell, all five slots and the diagram-js canvas', async () => {
+  it('mounts the shell, all eleven slots and the diagram-js canvas', async () => {
     const slots = await page.evaluate(() => {
       const shell = document.querySelector('app-shell');
       if (!shell) return null;
@@ -163,7 +163,7 @@ describe('1. page health', () => {
 
     expect(slots).not.toBeNull();
     expect(new Set(slots ?? [])).toEqual(
-      new Set(['palette', 'explorer', 'property-panel', 'canvas', 'validation']),
+      new Set(['toolbar', 'explorer', 'guide', 'canvas', 'properties', 'validation', 'sparql', 'graph', 'history', 'palette', 'rdf']),
     );
 
     // diagram-js names the root layer `layer-root-<n>` after the root element's
@@ -382,7 +382,9 @@ describe('4. the sidebar palette (Lit, shadow DOM)', () => {
     expect(await search.inputValue()).toBe('business actor');
 
     // And a selection on the canvas survives typing in the box.
-    await page.keyboard.press('Control+a');
+    // `ControlOrMeta`: select-all is Ctrl+A on Linux/Windows, Cmd+A on macOS
+    // (where Ctrl+A moves the caret to the line start).
+    await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.press('Delete');
     await expectCount(items, before);
     expect(await search.inputValue()).toBe('');

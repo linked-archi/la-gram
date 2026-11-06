@@ -27,6 +27,7 @@ import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
 import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
+import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
 import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
 import { SparqlPaletteGenerator } from '../../../metamodel-manager/palette-generator.js';
 import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
@@ -68,6 +69,27 @@ const ACTOR_A = 'https://example.org/model/actor-a';
 const ACTOR_B = 'https://example.org/model/actor-b';
 
 let palette: PaletteDefinition;
+
+/**
+ * The relationship manager's order: the relationships a modeller may draw
+ * directly, then those only a derivation gives (the relationship tables' lower
+ * case), then the fallbacks — Association and the core's generic relationship —
+ * and within each tier by non-increasing score.
+ */
+function expectRanked(candidates: readonly { label: string; iri: string; direct?: boolean; score?: number }[]): void {
+  const tierOf = (c: (typeof candidates)[number]) =>
+    /Association/.test(c.label) || c.iri === 'https://meta.linked.archi/core#QualifiedRelationship'
+      ? 2
+      : c.direct === false
+        ? 1
+        : 0;
+  const tiers = candidates.map(tierOf);
+  expect([...tiers].sort((a, b) => a - b)).toEqual(tiers);
+  for (const tier of new Set(tiers)) {
+    const scores = candidates.filter((c) => tierOf(c) === tier).map((c) => c.score ?? 0);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+  }
+}
 let store: OxigraphRdfStore;
 
 beforeAll(async () => {
@@ -130,6 +152,22 @@ function mount(): Fixture {
         .map((q) => `${q.subject.value}|${q.predicate.value}|${q.object.value}`)
         .sort(),
   };
+}
+
+/** The facts about a qualified relationship resource, with short predicate names. */
+function qualifiedFacts(f: Fixture, relIri: string): string[] {
+  const short = (p: string) =>
+    p
+      .replace('http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'rdf:')
+      .replace('https://meta.linked.archi/core#', 'arch:');
+  return f
+    .modelTriples()
+    .filter((t) => t.startsWith(`${relIri}|`))
+    .map((t) => {
+      const [, p, o] = t.split('|');
+      return `${short(p)}|${o}`;
+    })
+    .sort();
 }
 
 /** Triples of the relationship kind only — the predicate is a published direct form. */
@@ -215,9 +253,9 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     const candidates = canvas.relationshipCandidates(BUSINESS_ACTOR, BUSINESS_ACTOR);
 
     expect(candidates.length).toBeGreaterThan(1);
-    // Ranked: monotonically non-increasing score, every entry explained.
-    const scores = candidates.map((c) => c.score ?? 0);
-    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    // Ranked — direct, then only by derivation, then the fallbacks; by score within
+    // each — and every entry explained.
+    expectRanked(candidates);
     expect(candidates.every((c) => !!c.reason)).toBe(true);
     // Association carries the least meaning, so it must not be the default.
     expect(candidates[0].label).not.toBe('Association');
@@ -243,16 +281,15 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     expect(candidates.length).toBeGreaterThan(1);
     // Ranked, explained, and de-duplicated — one entry per relationship type
     // despite the scope evaluating each query twice.
-    const scores = candidates.map((c) => c.score ?? 0);
-    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    expectRanked(candidates);
     expect(candidates.every((c) => !!c.reason)).toBe(true);
     expect(new Set(candidates.map((c) => c.iri)).size).toBe(candidates.length);
     // Serving is the semantically expected answer for actor → actor, and it is
     // only reachable through the ActiveStructureElement closure.
     expect(candidates.map((c) => c.label)).toContain('Serving');
-    // Association carries the least meaning, so it must not lead.
+    // Association, undirected or directed, carries the least meaning, so it must not lead.
     expect(candidates[0].label).not.toBe('Association');
-    expect(candidates[candidates.length - 1].label).toBe('Association');
+    expect(candidates.slice(-2).map((c) => c.label)).toEqual(['Association', 'Directed Association']);
 
     // eslint-disable-next-line no-console
     console.log(
@@ -277,9 +314,27 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     // ArchiMate publishes a direct form for every relationship class, and that
     // is the predicate the triple must use.
     expect(chosen.unqualifiedPredicateIri).toBeTruthy();
-    expect(f.modelTriples()).toEqual([
+    expect(relationshipTriples(f)).toEqual([
       `${ACTOR_A}|${chosen.unqualifiedPredicateIri}|${ACTOR_B}`,
     ]);
+    // …and the qualified resource the Linked.Archi pattern pairs it with: typed
+    // with the class, naming both ends, in the model — the IRI the connection
+    // carries.
+    const relIri = relationships[0].relationshipIri!;
+    expect(relIri).toMatch(/^https:\/\/example\.org\/model\/test\/relationship-/);
+    expect(qualifiedFacts(f, relIri)).toEqual(
+      [
+        `rdf:type|${chosen.iri}`,
+        `arch:source|${ACTOR_A}`,
+        `arch:target|${ACTOR_B}`,
+        'arch:inModel|https://example.org/model/test',
+        'rdf:reifies|',
+      ].sort(),
+    );
+    // …which reifies that unqualified triple (RDF 1.2: rdf:reifies <<( a p b )>>).
+    const reified = store.getQuads(namedNode(relIri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'reifies') as unknown as NamedNode)[0]?.object as unknown as { termType: string; subject: { value: string }; predicate: { value: string }; object: { value: string } };
+    expect(reified?.termType).toBe('Quad');
+    expect([reified.subject.value, reified.predicate.value, reified.object.value]).toEqual([ACTOR_A, chosen.unqualifiedPredicateIri, ACTOR_B]);
     expect(line!.getAttribute('data-type-iri')).toBe(chosen.iri);
   });
 
@@ -336,18 +391,22 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
       )!
       .click();
 
-    expect(f.modelTriples()).toEqual([
+    expect(relationshipTriples(f)).toEqual([
       `${ACTOR_A}|${alternative.unqualifiedPredicateIri ?? alternative.iri}|${ACTOR_B}`,
     ]);
+    // Retyped in place: the same resource, now of the other class.
+    const relIri = [...f.canvas.getRelationships().values()][0].relationshipIri!;
+    expect(qualifiedFacts(f, relIri)).toContain(`rdf:type|${alternative.iri}`);
     expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(alternative.iri);
     // One connection, relabelled rather than duplicated.
     expect(f.container.querySelectorAll(`.${RENDER_CLASSES.connection}`)).toHaveLength(1);
 
     service<{ undo(): void }>(f.canvas, 'commandStack').undo();
 
-    expect(f.modelTriples()).toEqual([
+    expect(relationshipTriples(f)).toEqual([
       `${ACTOR_A}|${before.predicateIri ?? before.typeIri}|${ACTOR_B}`,
     ]);
+    expect(qualifiedFacts(f, relIri)).toContain(`rdf:type|${before.typeIri}`);
     expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(before.typeIri);
     expect(f.container.querySelectorAll(`.${RENDER_CLASSES.connection}`)).toHaveLength(1);
   });
@@ -403,7 +462,12 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     (entries['append'].action as (event: unknown) => void)({ x: 30, y: 40 });
 
     const targets = f.canvas.appendTargets(BUSINESS_ACTOR);
-    expect(f.container.querySelectorAll('.djs-popup .entry')).toHaveLength(targets.length);
+    // The list rows — the header's two tabs are entries too.
+    expect(f.container.querySelectorAll('.djs-popup .djs-popup-results .entry')).toHaveLength(targets.length);
+    expect([...f.container.querySelectorAll('.djs-popup .la-append-tab')].map((t) => t.textContent!.trim())).toEqual([
+      'New element',
+      'Existing relationships (0)',
+    ]);
     expect(
       f.container.querySelector(
         `.djs-popup .entry[data-id="${appendEntryId(targets[0].type.iri)}"]`,
@@ -420,7 +484,7 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     expect(appended).toBeDefined();
     const iri = appended.businessObject!.iri;
     // A real IRI minted by the real element manager, and the type triple with it.
-    expect(iri.startsWith('https://example.org/model/test/elem-')).toBe(true);
+    expect(iri).toMatch(/^https:\/\/example\.org\/model\/test\/element-[0-9a-f-]{36}$/);
     expect(f.modelTriples()).toContain(
       `${iri}|http://www.w3.org/1999/02/22-rdf-syntax-ns#type|${target.type.iri}`,
     );
@@ -448,5 +512,56 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     // Nothing at all is left in the model graph: the two shapes on the canvas
     // were drawn by `addElement`, which writes no triples.
     expect(f.modelTriples()).toEqual([]);
+  });
+});
+
+describe('bundled ArchiMate 4.0 → two selected → "Connect these two…" → RDF', () => {
+  it('offers the relationships either way, ranked and marked, and creates the one picked — one undo', () => {
+    const f = mount();
+    const registry = service<{ get(id: string): unknown }>(f.canvas, 'elementRegistry');
+    const pair = [registry.get(ACTOR_A), registry.get(ACTOR_B)];
+
+    // The pad of a two-element selection: one entry.
+    expect(Object.keys(f.canvas.contextPadProvider.getMultiElementContextPadEntries(pair as never))).toEqual([
+      'connect-pair',
+    ]);
+
+    // Both directions, each ranked: direct, then only by derivation (marked) — Serving, whose hints
+    // describe two actors, before Flow and Triggering — then the associations.
+    const entries = Object.values(f.canvas.pairConnectMenuProvider.getPopupMenuEntries(pair));
+    expect([...new Set(entries.map((e) => e.group.id))]).toEqual(['forward', 'backward']);
+    const forward = entries.filter((e) => e.group.id === 'forward');
+    expect(forward.map((e) => e.label)).toEqual([
+      'Aggregation',
+      'Composition',
+      'Specialization',
+      'Serving',
+      'Flow',
+      'Triggering',
+      'Association',
+      'Directed Association',
+    ]);
+    const serving = forward.find((e) => e.label === 'Serving')!;
+    expect(serving.description).toMatch(/^only by derivation/);
+
+    // Picking one draws it and asserts the triple, with the qualified resource that reifies it.
+    serving.action({});
+    expect(f.canvas.getRelationships().size).toBe(1);
+    expect(f.modelTriples()).toContain(`${ACTOR_A}|${AM4}serves|${ACTOR_B}`);
+    expect(f.modelTriples().some((t) => t.includes(`|${NAMESPACES.rdf}reifies|`))).toBe(true);
+
+    service<{ undo(): void }>(f.canvas, 'commandStack').undo();
+    expect(f.canvas.getRelationships().size).toBe(0);
+    expect(f.modelTriples().some((t) => t.includes(`${AM4}serves`))).toBe(false);
+  });
+
+  it('offers nothing for one element or three', () => {
+    const f = mount();
+    const registry = service<{ get(id: string): unknown }>(f.canvas, 'elementRegistry');
+    const a = registry.get(ACTOR_A);
+    const b = registry.get(ACTOR_B);
+    expect(f.canvas.contextPadProvider.getMultiElementContextPadEntries([a] as never)).toEqual({});
+    expect(f.canvas.contextPadProvider.getMultiElementContextPadEntries([a, b, a] as never)).toEqual({});
+    expect(f.canvas.pairConnectMenuProvider.getPopupMenuEntries([a])).toEqual({});
   });
 });

@@ -11,12 +11,34 @@ import {
   getAssetsByRole,
   resolveIconUri,
   resolveIconUriOrPassThrough,
+  BUNDLED_METAMODELS,
+  getBundledMetamodel,
   type BundledAssetRole,
 } from '../bundled-assets.js';
 
 describe('bundled asset registry', () => {
+  it('finds an ontology by its owl:versionIRI too, as meta’s relationship tables import it', () => {
+    const byVersion = getAssetByIri('https://meta.linked.archi/archimate4/onto/4.0#');
+    expect(byVersion?.ontologyIri).toBe('https://meta.linked.archi/archimate4/onto#');
+    expect(getAssetByIri('https://meta.linked.archi/archimate3/onto/3.2#')?.path).toBe('archimate3/archimate3.2-onto.ttl');
+  });
+
+  it('bundles each language’s relationship tables, outside the shapes graph', () => {
+    for (const id of ['archimate4', 'archimate3']) {
+      expect(getAssetsByRole('relationshipTables', id)).toHaveLength(1);
+    }
+  });
+
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    expect(BUNDLED_ASSETS).toHaveLength(9);
+    // Five core files (the core question set among them), thirteen per ArchiMate version (4.0 and 3.2,
+    // their question sets among them), and Basic's six: manifest, ontology, taxonomy, its two notation
+    // sets and its presentation contexts.
+    expect(BUNDLED_ASSETS).toHaveLength(37);
+    expect(getAssetsByRole('coreQuestions').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/core-questions#']);
+    expect(getAssetsByRole('questions').map((a) => [a.metamodel, a.ontologyIri])).toEqual([
+      ['archimate4', 'https://meta.linked.archi/archimate4/questions#'],
+      ['archimate3', 'https://meta.linked.archi/archimate3/questions#'],
+    ]);
     for (const asset of BUNDLED_ASSETS) {
       expect(asset.ontologyIri.startsWith(PUBLISHED_BASE_URI)).toBe(true);
       expect(asset.path.endsWith('.ttl')).toBe(true);
@@ -24,21 +46,42 @@ describe('bundled asset registry', () => {
     }
   });
 
-  it('covers all nine logical roles exactly once', () => {
-    const roles: BundledAssetRole[] = [
-      'manifest',
-      'ontology',
-      'taxonomy',
-      'notation',
-      'shapes',
-      'presentationContexts',
-      'viewpoints',
-      'coreOntology',
-      'coreVisOntology',
-    ];
-    for (const role of roles) {
-      expect(getAssetsByRole(role)).toHaveLength(1);
+  it('covers every single-valued role exactly once per bundled language', () => {
+    const roles: BundledAssetRole[] = ['manifest', 'ontology', 'taxonomy', 'presentationContexts'];
+    for (const metamodel of BUNDLED_METAMODELS) {
+      for (const role of roles) {
+        expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
+      }
     }
+    for (const id of ['archimate4', 'archimate3']) {
+      for (const role of ['notation', 'viewpoints', 'referenceData', 'questions'] as const) {
+        expect(getAssetsByRole(role, id), `${id}/${role}`).toHaveLength(1);
+      }
+      // arch:formalRules names four shapes graphs per ArchiMate version.
+      expect(getAssetsByRole('shapes', id)).toHaveLength(4);
+    }
+    // Basic: no shapes, viewpoints or reference data; two notation sets, the
+    // default (rectangles) and the bubbles a presentation context selects.
+    expect(getAssetsByRole('shapes', 'basic')).toHaveLength(0);
+    expect(getAssetsByRole('notation', 'basic').map((a) => a.ontologyIri)).toEqual([
+      'https://meta.linked.archi/basic/notation#',
+      'https://meta.linked.archi/basic/notation-bubble#',
+    ]);
+    // No metamodel of la-gram's own: the core is the core ontology, not a metamodel.
+    expect(getBundledMetamodel('https://meta.linked.archi/core/metamodel#Core')).toBeUndefined();
+    expect(getAssetsByRole('coreOntology')).toHaveLength(1);
+    expect(getAssetsByRole('coreVisOntology')).toHaveLength(1);
+    expect(getAssetsByRole('coreShapes')).toHaveLength(2);
+  });
+
+  it('finds a bundled metamodel by subject IRI, manifest IRI or id', () => {
+    const am4 = BUNDLED_METAMODELS[0];
+    expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel#ArchiMate4')).toBe(am4);
+    expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel#')).toBe(am4);
+    expect(getBundledMetamodel('https://meta.linked.archi/archimate4/metamodel')).toBe(am4);
+    expect(getBundledMetamodel('archimate3')?.label).toBe('ArchiMate 3.2');
+    expect(getBundledMetamodel('https://meta.linked.archi/basic/metamodel#Basic')?.id).toBe('basic');
+    expect(getBundledMetamodel('https://example.org/other#')).toBeUndefined();
   });
 
   it('orders the core ontologies before the files that import them', () => {
@@ -54,6 +97,8 @@ describe('bundled asset registry', () => {
     const onto = getAssetByIri('https://meta.linked.archi/archimate4/onto#');
     expect(onto?.role).toBe('ontology');
     expect(onto?.path).toBe('archimate4/archimate4-onto.ttl');
+    // Basic's ontology is named without a fragment, as its manifest names it.
+    expect(getAssetByIri('https://meta.linked.archi/basic')?.path).toBe('basic/basic-onto.ttl');
 
     expect(getAssetByIri('https://example.org/not-bundled#')).toBeUndefined();
   });
@@ -73,9 +118,21 @@ describe('icon URI resolution', () => {
   });
 
   it('reports icon sets that are not bundled as unresolvable', () => {
-    // Published, but core-vis markers are not part of this bundle.
-    expect(resolveIconUri('https://meta.linked.archi/core-vis/markers/arrow.svg')).toBeNull();
+    // Published, but C4's icons are not part of this bundle.
     expect(resolveIconUri('https://meta.linked.archi/c4/icons/person.svg')).toBeNull();
+  });
+
+  it('resolves the core-vis decoration markers to the bundle — every one the vocabulary names', async () => {
+    expect(resolveIconUri('https://meta.linked.archi/core-vis/markers/open-arrowhead.svg')).toBe('core-vis/markers/open-arrowhead.svg');
+    const { readFileSync, existsSync } = await import('node:fs');
+    const vocabulary = readFileSync(new URL('../../../assets/core/core-vis-onto.ttl', import.meta.url), 'utf8');
+    const symbols = [...vocabulary.matchAll(/arch-vis:decorSymbol\s+"([^"]+)"/g)].map((m) => m[1]!);
+    expect(symbols.length).toBe(7);
+    for (const uri of symbols) {
+      const path = resolveIconUri(uri);
+      expect(path, uri).not.toBeNull();
+      expect(existsSync(new URL(`../../../assets/${path}`, import.meta.url)), uri).toBe(true);
+    }
   });
 
   it('returns null for URIs outside the published base', () => {

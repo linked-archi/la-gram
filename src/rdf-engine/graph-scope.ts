@@ -125,6 +125,24 @@ export class GraphScope {
  * the default graph.
  */
 export function graphScope(store: SparqlQueryable | RdfStore): GraphScope {
+  // About the metamodels: through `queryMetamodels` where the store has it, which
+  // does not wait for a model just opened to reach Oxigraph (Task 22).
+  const metamodels = (store as { queryMetamodels?(sparql: string): SparqlResult }).queryMetamodels;
+  // The named graphs as the store keeps them listed, where it does: a SPARQL
+  // listing scans every quad of them, and a scope is made for every relationship
+  // lookup — forty for one context pad (Task 22).
+  const listed = (store as { namedGraphs?(): Array<{ termType: string; value: string }> }).namedGraphs;
+  if (typeof metamodels === 'function') {
+    const original = store;
+    store = { query: (sparql: string) => metamodels.call(original, sparql) };
+    if (typeof listed === 'function') {
+      const graphs: string[] = [];
+      for (const term of listed.call(original)) {
+        if (term.termType === 'NamedNode' && isSafeIri(term.value) && !graphs.includes(term.value)) graphs.push(term.value);
+      }
+      return new GraphScope(store, graphs);
+    }
+  }
   const result = store.query('SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }');
   if (result.type !== 'bindings') return new GraphScope(store, []);
 

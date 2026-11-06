@@ -10,12 +10,15 @@ import { DataFactory } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
 import type { TtlParser, TtlSerializer, RdfStore, PrefixMap } from '../rdf-engine/interfaces.js';
 import { NAMESPACES, PREFIXES } from '../rdf-engine/namespaces.js';
+import { mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
+import { modelQuads } from './model-queries.js';
+import { namespaceQuads } from './model-namespace.js';
 
 const { namedNode, literal, quad } = DataFactory;
 
 const RDF_TYPE = namedNode(NAMESPACES.rdf + 'type');
 const ARCH_MODEL = namedNode(NAMESPACES.arch + 'Model');
-const ARCH_CONFORMS = namedNode(NAMESPACES.arch + 'conformsToMetamodel');
+const ARCH_CONFORMS = namedNode(NAMESPACES.arch + 'modelConformsToMetamodel');
 const SKOS_PREF_LABEL = namedNode(NAMESPACES.skos + 'prefLabel');
 
 /** Counter for generating unique model IRIs. */
@@ -50,21 +53,24 @@ export class ModelOperations {
    * Create a new architecture model resource.
    *
    * Generates a unique model IRI, adds `rdf:type arch:Model` and
-   * `arch:conformsToMetamodel` triples, and optionally a `skos:prefLabel`.
+   * `arch:modelConformsToMetamodel` triples, and optionally a `skos:prefLabel`.
    */
   createModel(metamodelIri: string, label?: string): NamedNode {
     modelCounter += 1;
-    const modelIri = `urn:la-gram:model-${modelCounter}`;
+    // Random, not counted: a counter restarts with the process.
+    const namespace = mintModelNamespace(undefined, notationSlug(metamodelIri));
+    const modelIri = modelIriIn(namespace);
     const subject = namedNode(modelIri) as unknown as NamedNode;
 
     const quads: Quad[] = [
       quad(subject as any, RDF_TYPE as any, ARCH_MODEL as any) as unknown as Quad,
       quad(subject as any, ARCH_CONFORMS as any, namedNode(metamodelIri) as any) as unknown as Quad,
+      ...namespaceQuads(modelIri, namespace),
     ];
 
     if (label !== undefined) {
       quads.push(
-        quad(subject as any, SKOS_PREF_LABEL as any, literal(label) as any) as unknown as Quad,
+        quad(subject as any, SKOS_PREF_LABEL as any, literal(label, 'en') as any) as unknown as Quad,
       );
     }
 
@@ -79,7 +85,8 @@ export class ModelOperations {
    * human-readable Turtle output.
    */
   saveModel(extraPrefixes?: PrefixMap): string {
-    const allQuads = this.store.getQuads();
+    // The model is the default graph; the metamodel graphs are not the user's.
+    const allQuads = modelQuads(this.store);
     const prefixes: PrefixMap = { ...PREFIXES, ...extraPrefixes };
     return this.serializer.serialize(allQuads, prefixes);
   }

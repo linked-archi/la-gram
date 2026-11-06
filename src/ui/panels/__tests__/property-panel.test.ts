@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { DataFactory } from 'n3';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import type { RdfStore } from '../../../rdf-engine/interfaces.js';
 import type { ElementManager } from '../../../model-manager/interfaces.js';
@@ -125,6 +126,17 @@ describe('buildPropertyEntries', () => {
     expect(entries.length).toBe(4);
   });
 
+  it('leaves out a relationship’s rdf:reifies: la-gram keeps it in step with the ends and type', () => {
+    const { namedNode, quad } = DataFactory;
+    const reifies = quad(
+      namedNode(iri),
+      namedNode(NAMESPACES.rdf + 'reifies'),
+      quad(namedNode('urn:a'), namedNode('urn:p'), namedNode('urn:b')) as never,
+    ) as unknown as Quad;
+    const entries = buildPropertyEntries([...sampleQuads(iri), reifies], []);
+    expect(entries.map((e) => e.predicate)).not.toContain(NAMESPACES.rdf + 'reifies');
+  });
+
   it('marks rdf:type as readonly', () => {
     const entries = buildPropertyEntries(sampleQuads(iri), []);
     const typeEntry = entries.find((e) => e.predicate === RDF_TYPE);
@@ -137,32 +149,121 @@ describe('buildPropertyEntries', () => {
     expect(labelEntry?.readonly).toBe(false);
   });
 
-  it('sorts rdf:type first, then prefLabel, then definition', () => {
+  it('sorts rdf:type first, then prefLabel, definition, then the rest by label', () => {
     const entries = buildPropertyEntries(sampleQuads(iri), []);
-    expect(entries[0].predicate).toBe(RDF_TYPE);
-    expect(entries[1].predicate).toBe(SKOS_PREF_LABEL);
-    expect(entries[2].predicate).toBe(SKOS_DEFINITION);
+    expect(entries.map((e) => e.predicate)).toEqual([
+      RDF_TYPE,
+      SKOS_PREF_LABEL,
+      SKOS_DEFINITION,
+      'https://example.org/custom',
+    ]);
   });
 
-  it('uses SHACL shape name as label when available', () => {
+  it('lists the name and the definition even without a value, empty, to be filled in', () => {
+    const entries = buildPropertyEntries([makeQuad(iri, RDF_TYPE, 'https://example.org/BP')], []);
+    expect(entries.map((e) => [e.predicate, e.value])).toEqual([
+      [RDF_TYPE, 'https://example.org/BP'],
+      [SKOS_PREF_LABEL, ''],
+      [SKOS_DEFINITION, ''],
+    ]);
+    expect(entries.slice(1).every((e) => !e.readonly && !e.custom)).toBe(true);
+  });
+
+  it('takes the SHACL shape’s datatype and cardinality; names the fields every concept has as a modeller knows them', () => {
     const shapes: ShaclPropertyShape[] = [
-      { path: SKOS_PREF_LABEL, name: 'Label', datatype: XSD_STRING, minCount: 1 },
+      { path: SKOS_PREF_LABEL, name: 'prefLabel', datatype: XSD_STRING, minCount: 1 },
+      { path: 'https://example.org/custom', name: 'Cost centre' },
     ];
     const entries = buildPropertyEntries(sampleQuads(iri), shapes);
     const labelEntry = entries.find((e) => e.predicate === SKOS_PREF_LABEL);
-    expect(labelEntry?.label).toBe('Label');
+    expect(labelEntry?.label).toBe('Name');
     expect(labelEntry?.datatype).toBe(XSD_STRING);
     expect(labelEntry?.minCount).toBe(1);
+    expect(entries.map((e) => e.label)).toEqual(['Type', 'Name', 'Definition', 'Cost centre']);
   });
 
-  it('falls back to IRI fragment for label', () => {
-    const entries = buildPropertyEntries(sampleQuads(iri), []);
-    const customEntry = entries.find((e) => e.predicate === 'https://example.org/custom');
-    expect(customEntry?.label).toBe('custom');
+  it('names a field by its shape or its vocabulary when that is more than its local name, else by the local name in words', () => {
+    const names: Record<string, string> = {
+      'https://example.org/hasOwner': 'owned by',
+      'https://example.org/serves': 'serves',
+    };
+    const quads = [
+      makeQuad(iri, 'https://example.org/custom', 'x'),
+      makeQuad(iri, 'https://example.org/hasOwner', 'x'),
+      makeQuad(iri, 'https://example.org/serves', 'x'),
+      makeQuad(iri, 'https://example.org/modelRepresentsSystem', 'x'),
+      makeQuad(iri, 'https://example.org/source', 'x'),
+    ];
+    const shapes: ShaclPropertyShape[] = [{ path: 'https://example.org/source', name: 'source' }];
+    const label = (p: string) => buildPropertyEntries(quads, shapes, (x) => names[x]).find((e) => e.predicate === p)?.label;
+    expect(label('https://example.org/custom')).toBe('Custom');
+    expect(label('https://example.org/hasOwner')).toBe('Owned by');
+    expect(label('https://example.org/serves')).toBe('Serves');
+    expect(label('https://example.org/modelRepresentsSystem')).toBe('Model represents system');
+    expect(label('https://example.org/source')).toBe('Source');
+  });
+
+  it('names a link by what the loaded data calls it, else by its local name in words', () => {
+    const iriQuad = (s: string, p: string, o: string): Quad =>
+      ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+    const names: Record<string, string> = { 'https://example.org/m/model': 'Shop architecture' };
+    const entries = buildPropertyEntries(
+      [
+        iriQuad(iri, RDF_TYPE, 'https://meta.linked.archi/archimate4/onto#ApplicationComponent'),
+        iriQuad(iri, NAMESPACES.arch + 'inModel', 'https://example.org/m/model'),
+        makeQuad(iri, SKOS_PREF_LABEL, 'Web shop'),
+      ],
+      [],
+      (x) => names[x],
+    );
+    expect(entries.map((e) => [e.label, e.valueLabel])).toEqual([
+      ['Type', 'Application Component'],
+      ['Model', 'Shop architecture'],
+      ['Name', undefined],
+      ['Definition', undefined],
+    ]);
   });
 
   it('returns empty for empty quads', () => {
     expect(buildPropertyEntries([], [])).toEqual([]);
+  });
+
+  it('lists type, inModel, prefLabel, definition, then every other property by label; leaves out inView', () => {
+    const ARCH = NAMESPACES.arch;
+    const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+    const quads = [
+      makeQuad(iri, 'https://example.org/props#owner', 'Team A'),
+      makeQuad(iri, ARCH + 'inView', 'https://example.org/m/view-1'),
+      makeQuad(iri, 'https://example.org/props#cost', '100'),
+      makeQuad(iri, AM4 + 'serves', 'https://example.org/m/element-2'),
+      makeQuad(iri, SKOS_PREF_LABEL, 'Order Service'),
+      makeQuad(iri, ARCH + 'inModel', 'https://example.org/m/model'),
+      makeQuad(iri, RDF_TYPE, AM4 + 'ApplicationComponent'),
+    ];
+    const entries = buildPropertyEntries(quads, []);
+    expect(entries.map((e) => e.label)).toEqual(['Type', 'Model', 'Name', 'Definition', 'Cost', 'Owner', 'Serves']);
+    expect(entries.filter((e) => e.custom).map((e) => e.label)).toEqual(['Cost', 'Owner', 'Serves']);
+  });
+
+  it('orders a relationship the same way: its source and target are among the rest', () => {
+    const ARCH = NAMESPACES.arch;
+    const quads = [
+      makeQuad(iri, ARCH + 'inView', 'https://example.org/m/view-1'),
+      makeQuad(iri, ARCH + 'target', 'https://example.org/m/element-2'),
+      makeQuad(iri, 'https://example.org/props#weight', '3'),
+      makeQuad(iri, ARCH + 'inModel', 'https://example.org/m/model'),
+      makeQuad(iri, ARCH + 'source', 'https://example.org/m/element-1'),
+      makeQuad(iri, RDF_TYPE, 'https://meta.linked.archi/archimate4/onto#Serving'),
+    ];
+    expect(buildPropertyEntries(quads, []).map((e) => e.label)).toEqual([
+      'Type',
+      'Model',
+      'Name',
+      'Definition',
+      'Source',
+      'Target',
+      'Weight',
+    ]);
   });
 });
 
@@ -187,11 +288,44 @@ describe('PropertyPanel', () => {
         rdfStore: undefined,
         shapesGraph: undefined,
         _entries: [],
+        _shapes: new Map(),
+        _pickedPredicate: '',
+        _newValue: '',
         dispatchEvent: vi.fn(),
+        catalog: undefined,
+        _shownIris: new Set(),
         ...overrides,
       };
       // Bind methods from prototype
-      for (const m of ['_renderEntry', '_isTextArea', '_inputType', '_onPropertyChange', '_loadProperties']) {
+      for (const m of [
+        '_renderEntry',
+        '_isTextArea',
+        '_inputType',
+        '_onPropertyChange',
+        '_loadProperties',
+        '_renderHeading',
+        '_renderAdd',
+        '_renderNewValue',
+        '_renderRelationships',
+        '_renderViews',
+        'selectTab',
+        '_onTabKey',
+        '_renderRemove',
+        '_emit',
+        '_remove',
+        '_add',
+        '_renderTypeChoice',
+        '_irisShown',
+        '_toggleIris',
+        '_renderLabel',
+        '_renderIris',
+        '_renderNamed',
+        '_renderId',
+        '_renderDerivation',
+        '_takesLinks',
+        '_renderRelationshipGroup',
+        '_toggleRelationships',
+      ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
           ctx[m] = (PropertyPanel.prototype as any)[m].bind(ctx);
         }
@@ -221,7 +355,6 @@ describe('PropertyPanel', () => {
 
     it('shows "No element selected" when no IRI', () => {
       const o = renderPanel();
-      expect(o).toContain('Properties');
       expect(o).toContain('No element selected');
     });
 
@@ -235,6 +368,161 @@ describe('PropertyPanel', () => {
       expect(o).toContain('type');
       expect(o).toContain('prefLabel');
       expect(o).not.toContain('No element selected');
+    });
+
+    it('says what derived a relationship and from what, and offers to confirm a potential one', () => {
+      const premises = [
+        { iri: 'https://example.org/r1', label: 'K8s Cluster → Azure Cloud' },
+        { iri: 'https://example.org/r2', label: 'Azure Cloud → Postgres DB' },
+      ];
+      const potential = renderPanel({
+        selectedIri: 'https://example.org/d1',
+        heading: { kind: 'Potential relationship', derivation: { certainty: 'potential', confirmed: false, rule: 'PDR8', premises } },
+      });
+      expect(potential).toContain('Potential relationship information');
+      expect(potential).toContain('Potential: may hold');
+      expect(potential).toContain('PDR8');
+      expect(potential).toContain('K8s Cluster → Azure Cloud');
+      expect(potential).toContain('Azure Cloud → Postgres DB');
+      expect(potential).toContain('confirm-derivation');
+
+      const valid = renderPanel({
+        selectedIri: 'https://example.org/d2',
+        heading: { kind: 'Derived relationship', derivation: { certainty: 'valid', confirmed: false, rule: 'DR2', premises } },
+      });
+      expect(valid).toContain('Derived, valid');
+      expect(valid).toContain('DR2');
+      expect(valid).not.toContain('confirm-derivation');
+
+      const confirmed = renderPanel({
+        selectedIri: 'https://example.org/d1',
+        heading: { kind: 'Relationship', derivation: { certainty: 'potential', confirmed: true, rule: 'PDR8', premises } },
+      });
+      expect(confirmed).toContain('Confirmed: proposed as a potential derivation');
+      expect(confirmed).not.toContain('confirm-derivation');
+
+      expect(renderPanel({ selectedIri: 'https://example.org/r1', heading: { kind: 'Relationship' } })).not.toContain('Derivation');
+    });
+
+    const TABBED: PropertyEntry[] = [
+      { predicate: RDF_TYPE, label: 'Type', value: 'https://example.org/BP', valueLabel: 'BP', readonly: true, isIri: true },
+      { predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Web', readonly: false },
+      { predicate: 'https://example.org/cost', label: 'Cost', value: '1', readonly: false, custom: true },
+      { predicate: 'https://example.org/owner', label: 'Owner', value: 'A', readonly: false, custom: true },
+    ];
+    const ANALYSIS = { relationships: [], views: [{ iri: 'https://example.org/v1', label: 'Main' }] };
+
+    it('lists the vertical tabs — information, properties, analysis, views — with counts', () => {
+      const o = renderPanel({
+        selectedIri: 'https://example.org/elem1',
+        _entries: TABBED,
+        heading: { kind: 'Element' },
+        analysis: ANALYSIS,
+      });
+      const at = (text: string) => o.indexOf(text);
+      expect(o).toContain('aria-orientation="vertical"');
+      expect(at('Element information')).toBeGreaterThan(-1);
+      expect(at('Element information')).toBeLessThan(at('>Properties<'));
+      expect(at('>Properties<')).toBeLessThan(at('>Analysis<'));
+      expect(at('>Analysis<')).toBeLessThan(at('>Appears in views<'));
+      // The information tab is open: ID first, then the leading fields; not the added ones.
+      expect(at('>ID<')).toBeGreaterThan(at('>Appears in views<'));
+      expect(at('>ID<')).toBeLessThan(at('>Type<'));
+      expect(o).not.toContain('>Cost<');
+    });
+
+    it('shows the open tab’s pane only', () => {
+      const o = renderPanel({
+        selectedIri: 'https://example.org/elem1',
+        _entries: TABBED,
+        analysis: ANALYSIS,
+        _tab: 'properties',
+      });
+      expect(o).toContain('>Cost<');
+      expect(o).toContain('>Owner<');
+      expect(o).toContain('Add');
+      expect(o).not.toContain('>ID<');
+      const views = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: TABBED, analysis: ANALYSIS, _tab: 'views' });
+      expect(views).toContain('Main');
+      expect(views).not.toContain('>Cost<');
+    });
+
+    it('folds the relationships\u2019 direct statements under a count of their own, opened on a click', () => {
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const entries: PropertyEntry[] = [
+        ...TABBED,
+        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, relationship: true },
+        { predicate: AM4 + 'flowsTo', label: 'Flows to', value: 'urn:e3', valueLabel: 'Till', readonly: true, isIri: true, custom: true, relationship: true },
+      ];
+      const ctx = makeCtx({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis: ANALYSIS });
+      const render = () => flat((PropertyPanel.prototype as any).render.call(ctx));
+      const folded = render();
+      // The tab counts the other properties; the group, the relationships.
+      expect(folded).toMatch(/Properties<\/span>\s*<span class="count">2</);
+      expect(folded).toMatch(/Relationships <span class="count">2</);
+      expect(folded).toContain('>Cost<');
+      expect(folded).not.toContain('>Clerk</button>');
+      ctx._relationshipsOpen = true;
+      const open = render();
+      expect(open).toContain('>Clerk</button>');
+      expect(open).toContain('>Till</button>');
+    });
+
+    it('falls back to the information tab when the remembered one does not apply', () => {
+      // No analysis (a model): no analysis or views tab.
+      const o = renderPanel({ selectedIri: 'https://example.org/m', _entries: TABBED, _tab: 'views' });
+      expect(o).not.toContain('Appears in views');
+      expect(o).toContain('>ID<');
+    });
+
+    it('shows names, not IRIs — the ID by its short identifier, a link by its name — and the IRIs on a click', () => {
+      const MODEL = 'https://example.org/m/model';
+      const entries: PropertyEntry[] = [
+        ...TABBED.slice(0, 1),
+        { predicate: NAMESPACES.arch + 'inModel', label: 'Model', value: MODEL, valueLabel: 'Shop', readonly: true, isIri: true },
+        ...TABBED.slice(1, 2),
+      ];
+      const ctx = makeCtx({ selectedIri: 'https://example.org/m/element-web', _entries: entries });
+      const render = () => flat((PropertyPanel.prototype as any).render.call(ctx));
+      const shown = render();
+      expect(shown).toContain('>element-web</button>');
+      expect(shown).toContain('>Shop</button>');
+      expect(shown).toContain('>BP</button>');
+      expect(shown).not.toContain(MODEL);
+      expect(shown).not.toContain('https://example.org/m/element-web');
+
+      // The link's row: the property's IRI and the value's; the ID: the concept's IRI.
+      ctx._toggleIris(`${NAMESPACES.arch}inModel ${MODEL}`);
+      ctx._toggleIris('id');
+      const opened = render();
+      expect(opened).toContain(`<dd>${NAMESPACES.arch}inModel</dd>`);
+      expect(opened).toContain(`<dd>${MODEL}</dd>`);
+      expect(opened).toContain('<dd>https://example.org/m/element-web</dd>');
+      expect(opened).not.toContain(`<dd>${RDF_TYPE}</dd>`);
+      // A second click hides them.
+      ctx._toggleIris('id');
+      expect(render()).not.toContain('<dd>https://example.org/m/element-web</dd>');
+    });
+
+    it('names a value’s language when it is not English, the language names are read in', () => {
+      const entries: PropertyEntry[] = [
+        { predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Clerk', readonly: false, language: 'en' },
+        { predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Sachbearbeiter', readonly: false, language: 'de' },
+      ];
+      const o = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries });
+      expect(o).toContain('>German<');
+      expect(o).not.toContain('English');
+      expect(o).not.toContain('@en');
+    });
+
+    it('picks the value of a link from the model’s concepts, by name; text stays a text field', () => {
+      const SEE_ALSO = NAMESPACES.rdfs + 'seeAlso';
+      const catalog = { suggest: () => [], resolve: () => undefined, takesLinks: (iri: string) => iri === SEE_ALSO };
+      const add = (picked: string) =>
+        renderPanel({ selectedIri: 'https://example.org/elem1', _entries: TABBED, _tab: 'properties', catalog, _pickedPredicate: picked });
+      expect(add(SEE_ALSO)).toContain('<named-picker');
+      expect(add(SEE_ALSO)).toContain('link-value');
+      expect(add('https://example.org/owner')).not.toContain('link-value');
     });
 
     it('renders textarea for definition fields', () => {
@@ -310,6 +598,58 @@ describe('PropertyPanel', () => {
       expect(store.getQuads).toHaveBeenCalled();
     });
 
+    it('leaves out the qualified predicate to each relationship: Analysis lists them', () => {
+      const iri = 'https://example.org/elem1';
+      const rel = 'https://example.org/rel1';
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const iriQuad = (s: string, p: string, o: string): Quad =>
+        ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+      const store = mockRdfStore([
+        ...sampleQuads(iri),
+        iriQuad(iri, NAMESPACES.arch + 'hasQualifiedRelationship', rel),
+        iriQuad(iri, AM4 + 'qualifiedServing', rel),
+        iriQuad(AM4 + 'qualifiedServing', NAMESPACES.arch + 'unqualifiedForm', AM4 + 'serves'),
+        iriQuad(iri, AM4 + 'serves', 'https://example.org/elem2'),
+      ]);
+      const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
+      (PropertyPanel.prototype as any)._loadProperties.call(ctx);
+      const predicates = ctx._entries.map((e: PropertyEntry) => e.predicate);
+      expect(predicates).not.toContain(NAMESPACES.arch + 'hasQualifiedRelationship');
+      expect(predicates).not.toContain(AM4 + 'qualifiedServing');
+      expect(predicates).toContain(AM4 + 'serves');
+    });
+
+    it('leaves out the way in to a relationship whatever it is called, and marks a relationship\u2019s direct statement', () => {
+      const iri = 'https://example.org/elem1';
+      const rel = 'https://example.org/rel1';
+      const AM3 = 'https://meta.linked.archi/archimate3/onto#';
+      const iriQuad = (s: string, p: string, o: string): Quad =>
+        ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+      const quads = [
+        ...sampleQuads(iri),
+        // A converter's own name for the qualified predicate, which no loaded vocabulary declares.
+        iriQuad(iri, AM3 + 'qualifiedAggregates', rel),
+        iriQuad(rel, NAMESPACES.arch + 'source', iri),
+        // A direct statement, and the relationship type that declares its predicate.
+        iriQuad(iri, AM3 + 'serves', 'https://example.org/elem2'),
+        iriQuad(AM3 + 'Serving', NAMESPACES.arch + 'unqualifiedForm', AM3 + 'serves'),
+        iriQuad(iri, NAMESPACES.rdfs + 'seeAlso', 'https://example.org/page'),
+      ];
+      // A store that matches all three positions.
+      const store = {
+        ...mockRdfStore(quads),
+        getQuads: vi.fn((s?: NamedNode | null, p?: NamedNode | null, o?: NamedNode | null) =>
+          quads.filter((q) => (!s || q.subject.value === s.value) && (!p || q.predicate.value === p.value) && (!o || q.object.value === o.value)),
+        ),
+      } as unknown as RdfStore;
+      const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
+      (PropertyPanel.prototype as any)._loadProperties.call(ctx);
+      const byPredicate = new Map<string, PropertyEntry>(ctx._entries.map((e: PropertyEntry) => [e.predicate, e]));
+      expect(byPredicate.has(AM3 + 'qualifiedAggregates')).toBe(false);
+      expect(byPredicate.get(AM3 + 'serves')?.relationship).toBe(true);
+      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.relationship).toBeUndefined();
+    });
+
     it('clears entries when no selectedIri', () => {
       const ctx: any = {
         selectedIri: '',
@@ -344,7 +684,7 @@ describe('PropertyPanel', () => {
       };
       (PropertyPanel.prototype as any)._loadProperties.call(ctx);
       const labelEntry = ctx._entries.find((e: PropertyEntry) => e.predicate === SKOS_PREF_LABEL);
-      expect(labelEntry?.label).toBe('Label');
+      expect(labelEntry?.minCount).toBe(1);
       expect(labelEntry?.datatype).toBe(XSD_STRING);
     });
   });
@@ -467,5 +807,126 @@ describe('PropertyPanel', () => {
       (PropertyPanel.prototype as any)._onPropertyChange.call(ctx, entry, 'New');
       expect(spy).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+// ── Allowed values (sh:in) and booleans ──────────────────────────────────
+
+describe('a property whose shape lists its values (sh:in), and a boolean', () => {
+  const BS = 'https://meta.linked.archi/backstage/onto#';
+  const RDF = NAMESPACES.rdf;
+  const XSD_BOOLEAN = NAMESPACES.xsd + 'boolean';
+  const iriQuad = (s: string, p: string, o: string): Quad =>
+    ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+  const boolQuad = (s: string, p: string, o: string): Quad =>
+    ({ ...makeQuad(s, p, o), object: { value: o, termType: 'Literal', datatype: { value: XSD_BOOLEAN } } }) as unknown as Quad;
+
+  /** Backstage's component shape: bs:lifecycleState from a list of states, bs:orphan a boolean. */
+  const SHAPES: Quad[] = [
+    iriQuad('_:shape', SH + 'targetClass', `${BS}Component`),
+    iriQuad('_:shape', SH + 'property', '_:type'),
+    iriQuad('_:type', SH + 'path', `${BS}lifecycleState`),
+    makeQuad('_:type', SH + 'name', 'Lifecycle state'),
+    iriQuad('_:type', SH + 'in', '_:l1'),
+    iriQuad('_:l1', RDF + 'first', `${BS}Production`),
+    iriQuad('_:l1', RDF + 'rest', '_:l2'),
+    iriQuad('_:l2', RDF + 'first', `${BS}DeprecatedState`),
+    iriQuad('_:l2', RDF + 'rest', RDF + 'nil'),
+    iriQuad('_:shape', SH + 'property', '_:ext'),
+    iriQuad('_:ext', SH + 'path', `${BS}orphan`),
+    makeQuad('_:ext', SH + 'name', 'Orphan'),
+    iriQuad('_:ext', SH + 'datatype', XSD_BOOLEAN),
+  ];
+  const DB = 'https://example.org/m/billing-service';
+
+  it('reads the list in order', () => {
+    const shapes = extractShaclShapes(SHAPES, `${BS}Component`);
+    expect(shapes.find((s) => s.path === `${BS}lifecycleState`)?.in).toEqual([
+      { value: `${BS}Production`, isIri: true },
+      { value: `${BS}DeprecatedState`, isIri: true },
+    ]);
+  });
+
+  it('makes a listed link a choice, labelled in words, rather than read-only', () => {
+    const entries = buildPropertyEntries(
+      [makeQuad(DB, RDF_TYPE, `${BS}Component`), iriQuad(DB, `${BS}lifecycleState`, `${BS}Production`)],
+      extractShaclShapes(SHAPES, `${BS}Component`),
+    );
+    const entry = entries.find((e) => e.predicate === `${BS}lifecycleState`)!;
+    expect(entry.readonly).toBe(false);
+    expect(entry.choices?.map((c) => c.label)).toEqual(['Production', 'Deprecated State']);
+    // A link without a list stays read-only.
+    const other = buildPropertyEntries([iriQuad(DB, 'https://example.org/dependsOn', 'https://example.org/m/x')], []);
+    expect(other.find((e) => e.predicate === 'https://example.org/dependsOn')!.readonly).toBe(true);
+  });
+
+  it('labels a choice by its name in the loaded data, else in words', () => {
+    const names: Record<string, string> = { [`${BS}DeprecatedState`]: 'Deprecated (sunset)' };
+    const entries = buildPropertyEntries(
+      [iriQuad(DB, `${BS}lifecycleState`, `${BS}Production`)],
+      extractShaclShapes(SHAPES, `${BS}Component`),
+      (iri) => names[iri],
+    );
+    const entry = entries.find((e) => e.predicate === `${BS}lifecycleState`)!;
+    expect(entry.choices?.map((c) => c.label)).toEqual(['Production', 'Deprecated (sunset)']);
+  });
+
+  it('saves a chosen value as the IRI it is, and a ticked box as true', () => {
+    const elementManager = mockElementManager();
+    const ctx: any = { selectedIri: DB, elementManager, dispatchEvent: vi.fn(), requestUpdate: vi.fn(), _loadProperties: vi.fn() };
+    const change = (PropertyPanel.prototype as any)._onPropertyChange.bind(ctx);
+    const [typeEntry, externalEntry] = [`${BS}lifecycleState`, `${BS}orphan`].map(
+      (p) =>
+        buildPropertyEntries(
+          [iriQuad(DB, `${BS}lifecycleState`, `${BS}Production`), boolQuad(DB, `${BS}orphan`, 'false')],
+          extractShaclShapes(SHAPES, `${BS}Component`),
+        ).find((e) => e.predicate === p)!,
+    );
+    change(typeEntry, `${BS}DeprecatedState`);
+    change(externalEntry, 'true');
+    const calls = (elementManager.updateProperty as any).mock.calls;
+    expect(calls[0][2]).toMatchObject({ termType: 'NamedNode', value: `${BS}DeprecatedState` });
+    expect(calls[1][2]).toMatchObject({ termType: 'Literal', value: 'true', datatype: { value: XSD_BOOLEAN } });
+  });
+
+  it('adds a link’s value as the IRI picked, and typed text as text', () => {
+    const added: any[] = [];
+    const add = (choice: { iri: string; label: string; text?: boolean }) => {
+      const ctx: any = {
+        selectedIri: DB,
+        _shapes: new Map(),
+        _newValue: '',
+        _picker: { value: { iri: NAMESPACES.rdfs + 'seeAlso' }, clear: vi.fn(), focus: vi.fn() },
+        _linkPicker: { choice, clear: vi.fn() },
+        _emit: (_name: string, detail: unknown) => added.push(detail),
+      };
+      (PropertyPanel.prototype as any)._add.call(ctx);
+      expect(ctx._linkPicker.clear).toHaveBeenCalled();
+    };
+    add({ iri: 'https://example.org/m/element-clerk', label: 'Clerk' });
+    add({ iri: 'see the wiki', label: 'see the wiki', text: true });
+    expect(added[0]).toMatchObject({ value: 'https://example.org/m/element-clerk', isIri: true });
+    expect(added[1]).toMatchObject({ value: 'see the wiki' });
+    expect(added[1].isIri).toBeUndefined();
+  });
+
+  it('adds a value the way its shape says: a chosen IRI, or a literal of its datatype', () => {
+    const shapes = new Map(extractShaclShapes(SHAPES, `${BS}Component`).map((s) => [s.path, s]));
+    const added: any[] = [];
+    const add = (predicate: string, value: string) => {
+      const ctx: any = {
+        selectedIri: DB,
+        _shapes: shapes,
+        _newValue: value,
+        _picker: { value: { iri: predicate }, clear: vi.fn(), focus: vi.fn() },
+        _emit: (_name: string, detail: unknown) => added.push(detail),
+      };
+      (PropertyPanel.prototype as any)._add.call(ctx);
+    };
+    add(`${BS}lifecycleState`, `${BS}Production`);
+    add(`${BS}orphan`, 'true');
+    expect(added[0]).toMatchObject({ predicate: `${BS}lifecycleState`, value: `${BS}Production`, isIri: true });
+    expect(added[1]).toMatchObject({ predicate: `${BS}orphan`, value: 'true', datatype: XSD_BOOLEAN });
+    expect(added[1].isIri).toBeUndefined();
   });
 });

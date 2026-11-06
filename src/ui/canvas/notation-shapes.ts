@@ -8,12 +8,14 @@
  *
  * Two deliberate choices:
  *
- * - **Real polygons, not degraded rectangles.** `Octagon`, `Hexagon`, `Diamond`
- *   and `Parallelogram` are `<polygon>` elements with computed points. diagram-js
- *   hands the renderer direct SVG control, so there is no reason to approximate.
- *   {@link shapePath} emits the same eight outlines as SVG path strings, which is
+ * - **Real outlines, not degraded rectangles.** The core `Octagon`, `Hexagon`,
+ *   `Diamond` and `Parallelogram` are `<polygon>` elements with computed points;
+ *   a notation's own shape (ArchiMate's 3D box, C4's person) is a `<path>` drawn
+ *   from its path templates ({@link drawCustomShape}), so no notation needs code
+ *   here. {@link shapePath} emits the same outlines as SVG path strings, which is
  *   what connection docking crops against — one geometry, two encodings, so a
- *   line always meets the shape where it is actually drawn.
+ *   line always meets the shape where it is actually drawn. A notation's own
+ *   shape's inner lines are {@link ShapeGeometry.details}: drawn, but not outline.
  * - **No measurement.** Label layout is computed from a character-width estimate
  *   rather than `getComputedTextLength`, so it is deterministic and behaves the
  *   same under jsdom as in a browser. The cost is that very wide glyphs can
@@ -22,11 +24,14 @@
  */
 
 import type {
+  CustomShape,
   Decoration,
   IconPlacement,
   LineStyle,
+  RelationshipVisualStyle,
   ShapeType,
 } from '../../metamodel-manager/notation.js';
+import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -70,10 +75,27 @@ export function svgEl(tag: string, attrs: SvgAttrs = {}): SVGElement {
 // Shapes
 // ---------------------------------------------------------------------------
 
-/** The SVG element kind and attributes that draw a given {@link ShapeType}. */
+/** What to draw: a core shape, or a notation's own shape drawn from its templates. */
+export type ShapeRef = ShapeType | CustomShape | undefined;
+
+/** The SVG element kind and attributes that draw a shape. */
 export interface ShapeGeometry {
-  tag: 'rect' | 'ellipse' | 'circle' | 'polygon';
+  tag: 'rect' | 'ellipse' | 'circle' | 'polygon' | 'path';
   attrs: SvgAttrs;
+  /**
+   * Inner lines drawn over the body, as a shape-local path — a notation's own
+   * shape's `arch-vis:detailPath` (a band, a tab, a 3D box's front edges).
+   * Stroked, not filled, and not part of the outline connections dock against.
+   */
+  details?: string;
+}
+
+/** A box in shape-local coordinates. */
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** Clamp to a sane, non-negative size. */
@@ -90,11 +112,16 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** A notation's own shape, as opposed to a core one. */
+function isCustom(shape: ShapeRef): shape is CustomShape {
+  return typeof shape === 'object' && shape !== null;
+}
+
 /** A vertex list in shape-local coordinates, or `null` for a non-polygon. */
 type Vertices = Array<[number, number]>;
 
 /**
- * Vertices of the polygonal shape types, in shape-local coordinates.
+ * Vertices of the polygonal core shapes, in shape-local coordinates.
  *
  * The single source of the polygon geometry: {@link shapeGeometry} formats these
  * into a `<polygon points>` attribute and {@link shapePath} into an SVG path, so
@@ -154,22 +181,26 @@ function polygonVertices(type: ShapeType, w: number, h: number): Vertices | null
 }
 
 /**
- * Geometry for a shape of the given type at `width` × `height`.
+ * Geometry for a shape at `width` × `height`.
  *
- * An unknown or absent `shapeType` falls back to
- * {@link NOTATION_DEFAULTS.shapeType}. `Circle` is a true circle — its radius
- * is half the *smaller* dimension, so it stays inside the declared bounds
- * rather than being squashed into an ellipse.
+ * A core shape is drawn natively; an unknown or absent one falls back to
+ * {@link NOTATION_DEFAULTS.shapeType}. `Circle` is a true circle — its radius is
+ * half the *smaller* dimension, so it stays inside the declared bounds rather
+ * than being squashed into an ellipse. A notation's own shape is drawn from its
+ * templates ({@link drawCustomShape}); when they cannot be evaluated, as its
+ * fallback.
  */
-export function shapeGeometry(
-  shapeType: ShapeType | undefined,
-  width: number,
-  height: number,
-): ShapeGeometry {
+export function shapeGeometry(shape: ShapeRef, width: number, height: number): ShapeGeometry {
   const w = size(width, NOTATION_DEFAULTS.width);
   const h = size(height, NOTATION_DEFAULTS.height);
-  const type = shapeType ?? NOTATION_DEFAULTS.shapeType;
 
+  if (isCustom(shape)) {
+    const drawn = drawCustomShape(shape, w, h);
+    if (!drawn) return shapeGeometry(shape.fallback, w, h);
+    return { tag: 'path', attrs: { d: drawn.outline }, ...(drawn.details ? { details: drawn.details } : {}) };
+  }
+
+  const type = shape ?? NOTATION_DEFAULTS.shapeType;
   const vertices = polygonVertices(type, w, h);
   if (vertices) return { tag: 'polygon', attrs: { points: points(vertices) } };
 
@@ -203,14 +234,16 @@ function cornerRadius(w: number, h: number): number {
 }
 
 /**
- * SVG path outlining a shape of the given type, in **absolute** coordinates.
+ * SVG path outlining a shape, in **absolute** coordinates.
  *
- * The counterpart to {@link shapeGeometry}: same eight shapes, same geometry,
+ * The counterpart to {@link shapeGeometry}: same shapes, same geometry,
  * expressed as a `d` attribute rather than as element attributes, and offset by
  * the shape's position on the diagram instead of drawn shape-local. This is what
  * connection cropping needs — diagram-js hands the shape's path and the
  * connection's path to `path-intersection` and docks the line where they meet,
- * so a path that did not match the drawn outline would dock in mid-air.
+ * so a path that did not match the drawn outline would dock in mid-air. For a
+ * notation's own shape it is its outline template, moved; its inner lines are
+ * not outline.
  *
  * ## Curves
  *
@@ -220,25 +253,24 @@ function cornerRadius(w: number, h: number): number {
  * converted to cubic segments *exactly*, in one place, by the library itself.
  * Approximating them here with beziers would add our own error on top of that
  * conversion for no gain, and would not match `<ellipse>`/`<circle>`, which the
- * renderer draws as true conics.
+ * renderer draws as true conics. A template's arcs and curves go the same way.
  *
  * An ellipse needs two arcs rather than one: a single arc whose end point equals
  * its start point is degenerate and SVG renders nothing, so the outline is split
  * at the left and right extremes into two half-sweeps.
  */
-export function shapePath(
-  shapeType: ShapeType | undefined,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): string {
+export function shapePath(shape: ShapeRef, x: number, y: number, width: number, height: number): string {
   const w = size(width, NOTATION_DEFAULTS.width);
   const h = size(height, NOTATION_DEFAULTS.height);
   const left = Number.isFinite(x) ? x : 0;
   const top = Number.isFinite(y) ? y : 0;
-  const type = shapeType ?? NOTATION_DEFAULTS.shapeType;
 
+  if (isCustom(shape)) {
+    const drawn = drawCustomShape(shape, w, h);
+    return drawn ? translatePath(drawn.outline, left, top) : shapePath(shape.fallback, left, top, w, h);
+  }
+
+  const type = shape ?? NOTATION_DEFAULTS.shapeType;
   const vertices = polygonVertices(type, w, h);
   if (vertices) {
     // Every vertex list above has at least three entries, so `M` always has one.
@@ -295,7 +327,7 @@ function arcOutline(cx: number, cy: number, rx: number, ry: number): string {
   );
 }
 
-/** Every {@link ShapeType} this module draws — the full vocabulary. */
+/** Every core {@link ShapeType} — the shapes every renderer draws natively. */
 export const SHAPE_TYPES: readonly ShapeType[] = [
   'Rectangle',
   'RoundedRectangle',
@@ -306,6 +338,247 @@ export const SHAPE_TYPES: readonly ShapeType[] = [
   'Diamond',
   'Parallelogram',
 ];
+
+/** Where a shape's badge and label go, in shape-local coordinates. */
+export interface ShapeLayout {
+  /** Where the badge goes — and the label, unless {@link label} differs. */
+  content: Box;
+  /** The area the label is laid out in. */
+  label: Box;
+  /** The most label lines {@link label} holds, when that is fewer than the default. */
+  maxLabelLines?: number;
+  /** The label shares the content box with the badge — a band of it — so keeps clear of it. */
+  labelBesideBadge?: boolean;
+}
+
+/**
+ * The areas a shape's badge and label are laid out in: the whole shape for a
+ * core one; for a notation's own, its `arch-vis:contentBox` (below a band, on a
+ * 3D box's front face) and `arch-vis:labelBox` (a folder's tab), the label
+ * taking as many lines as that box is tall enough for.
+ */
+export function shapeLayout(shape: ShapeRef, width: number, height: number): ShapeLayout {
+  const w = size(width, NOTATION_DEFAULTS.width);
+  const h = size(height, NOTATION_DEFAULTS.height);
+  const whole = clampBox({ x: 0, y: 0, width: w, height: h });
+  if (!isCustom(shape)) return { content: whole, label: whole };
+
+  const drawn = drawCustomShape(shape, w, h);
+  const content = drawn?.content ? clampBox(drawn.content) : whole;
+  if (!drawn?.label) return { content, label: content };
+  const label = clampBox(drawn.label);
+  const lineHeight = round(NOTATION_DEFAULTS.fontSize * 1.2);
+  const fits = Math.max(1, Math.min(NOTATION_DEFAULTS.maxLabelLines, Math.floor(label.height / lineHeight)));
+  return { content, label, ...(fits < NOTATION_DEFAULTS.maxLabelLines ? { maxLabelLines: fits } : {}) };
+}
+
+function clampBox(box: Box): Box {
+  return {
+    x: round(box.x),
+    y: round(box.y),
+    width: round(Math.max(1, box.width)),
+    height: round(Math.max(1, box.height)),
+  };
+}
+
+// ── A notation's own shapes: path templates ──────────────────────────────
+
+/** A template that cannot be evaluated: a syntax error, an unknown name, a non-finite value. */
+export class ShapeTemplateError extends Error {}
+
+/**
+ * A template expression's value: numbers, the names in `names` (`w`, `h` and the
+ * shape's variables), `+ - * /`, parentheses, and `min()` / `max()`. Parsed
+ * here, never evaluated as code.
+ */
+export function evaluateExpression(source: string, names: Readonly<Record<string, number>>): number {
+  const tokens = source.match(/\d+(?:\.\d+)?|\.\d+|[A-Za-z_][A-Za-z0-9_]*|\S/g) ?? [];
+  let at = 0;
+  const fail = (why: string): never => {
+    throw new ShapeTemplateError(`${why} in "${source}"`);
+  };
+  const take = (expected: string) => {
+    if (tokens[at] !== expected) fail(`expected "${expected}"`);
+    at += 1;
+  };
+  const sum = (): number => {
+    let value = product();
+    while (tokens[at] === '+' || tokens[at] === '-') {
+      const op = tokens[at++];
+      const right = product();
+      value = op === '+' ? value + right : value - right;
+    }
+    return value;
+  };
+  const product = (): number => {
+    let value = unary();
+    while (tokens[at] === '*' || tokens[at] === '/') {
+      const op = tokens[at++];
+      const right = unary();
+      value = op === '*' ? value * right : value / right;
+    }
+    return value;
+  };
+  const unary = (): number => {
+    const token = tokens[at++];
+    if (token === undefined) return fail('unexpected end');
+    if (token === '-') return -unary();
+    if (token === '+') return unary();
+    if (token === '(') {
+      const value = sum();
+      take(')');
+      return value;
+    }
+    if (/^[\d.]/.test(token)) return Number(token);
+    if (/^[A-Za-z_]/.test(token)) {
+      if (tokens[at] === '(') {
+        at += 1;
+        const args = [sum()];
+        while (tokens[at] === ',') {
+          at += 1;
+          args.push(sum());
+        }
+        take(')');
+        if (token === 'min') return Math.min(...args);
+        if (token === 'max') return Math.max(...args);
+        return fail(`unknown function "${token}"`);
+      }
+      if (Object.prototype.hasOwnProperty.call(names, token)) return names[token]!;
+      return fail(`unknown name "${token}"`);
+    }
+    return fail(`unexpected "${token}"`);
+  };
+  const value = sum();
+  if (at < tokens.length) fail(`unexpected "${tokens[at]}"`);
+  if (!Number.isFinite(value)) fail('not a finite number');
+  return value;
+}
+
+/**
+ * A template with each `{expression}` replaced by its value (two decimals), in
+ * the compact form the core shapes' paths use (`M0,12L12,0A9,9 0 0 1 …`).
+ */
+export function fillTemplate(template: string, names: Readonly<Record<string, number>>): string {
+  return template
+    .replace(/\{([^{}]*)\}/g, (_all, expression: string) => String(round(evaluateExpression(expression, names))))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s*([A-Za-z])\s*/g, '$1');
+}
+
+/** `w`, `h` and a shape's `arch-vis:shapeVariables`, each assignment able to use the ones before it. */
+function shapeNames(shape: CustomShape, w: number, h: number): Record<string, number> {
+  const names: Record<string, number> = { w, h };
+  for (const assignment of (shape.variables ?? '').split(';')) {
+    if (assignment.trim() === '') continue;
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/.exec(assignment);
+    if (!match || match[1] === 'w' || match[1] === 'h') throw new ShapeTemplateError(`bad assignment "${assignment.trim()}"`);
+    names[match[1]!] = evaluateExpression(match[2]!, names);
+  }
+  return names;
+}
+
+/** An `x y width height` box template. */
+function fillBox(template: string, names: Readonly<Record<string, number>>): Box {
+  const values = template
+    .replace(/\{([^{}]*)\}/g, (_all, expression: string) => String(evaluateExpression(expression, names)))
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (values.length !== 4 || values.some((v) => !Number.isFinite(v))) throw new ShapeTemplateError(`bad box "${template}"`);
+  const [x, y, width, height] = values as [number, number, number, number];
+  return { x, y, width, height };
+}
+
+/** A notation's own shape at a size: its outline, inner lines and boxes. */
+export interface DrawnCustomShape {
+  outline: string;
+  details?: string;
+  content?: Box;
+  label?: Box;
+}
+
+/** Template errors already reported, so a broken shape warns once rather than on every redraw. */
+const reportedTemplates = new Set<string>();
+
+/**
+ * A notation's own shape evaluated at `w` × `h`, or `undefined` when its
+ * templates cannot be — then it is drawn as its fallback.
+ */
+export function drawCustomShape(shape: CustomShape, w: number, h: number): DrawnCustomShape | undefined {
+  try {
+    const names = shapeNames(shape, w, h);
+    return {
+      outline: fillTemplate(shape.outline, names),
+      ...(shape.details ? { details: fillTemplate(shape.details, names) } : {}),
+      ...(shape.contentBox ? { content: fillBox(shape.contentBox, names) } : {}),
+      ...(shape.labelBox ? { label: fillBox(shape.labelBox, names) } : {}),
+    };
+  } catch (error) {
+    if (!(error instanceof ShapeTemplateError)) throw error;
+    if (!reportedTemplates.has(shape.iri)) {
+      reportedTemplates.add(shape.iri);
+      console.warn(`[la-gram] ${shape.iri}: drawn as its fallback — ${error.message}`);
+    }
+    return undefined;
+  }
+}
+
+/** How many numbers each path command takes, and which of them are x / y coordinates. */
+const PATH_ARGS: Record<string, { count: number; xs: number[]; ys: number[] }> = {
+  M: { count: 2, xs: [0], ys: [1] },
+  L: { count: 2, xs: [0], ys: [1] },
+  T: { count: 2, xs: [0], ys: [1] },
+  H: { count: 1, xs: [0], ys: [] },
+  V: { count: 1, xs: [], ys: [0] },
+  C: { count: 6, xs: [0, 2, 4], ys: [1, 3, 5] },
+  S: { count: 4, xs: [0, 2], ys: [1, 3] },
+  Q: { count: 4, xs: [0, 2], ys: [1, 3] },
+  A: { count: 7, xs: [5], ys: [6] },
+  Z: { count: 0, xs: [], ys: [] },
+};
+
+/**
+ * A path in absolute commands moved by (`dx`, `dy`), in the compact form
+ * {@link fillTemplate} writes. Arc radii and flags are not coordinates and
+ * stay as they are.
+ */
+export function translatePath(d: string, dx: number, dy: number): string {
+  const tokens = d.match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g) ?? [];
+  let out = '';
+  let at = 0;
+  while (at < tokens.length) {
+    const command = tokens[at++]!;
+    const args = PATH_ARGS[command];
+    if (!args) throw new ShapeTemplateError(`path command "${command}" is not absolute`);
+    do {
+      const values = tokens.slice(at, at + args.count).map(Number);
+      at += args.count;
+      for (const i of args.xs) values[i] = round(values[i]! + dx);
+      for (const i of args.ys) values[i] = round(values[i]! + dy);
+      out += command + formatArgs(command, values);
+    } while (args.count > 0 && at < tokens.length && !/^[A-Za-z]$/.test(tokens[at]!));
+  }
+  return out;
+}
+
+/** A command's numbers as {@link fillTemplate} writes them: coordinate pairs joined by commas. */
+function formatArgs(command: string, v: number[]): string {
+  switch (command) {
+    case 'H':
+    case 'V':
+      return `${v[0]}`;
+    case 'A':
+      return `${v[0]},${v[1]} ${v[2]} ${v[3]} ${v[4]} ${v[5]},${v[6]}`;
+    case 'Z':
+      return '';
+    default: {
+      const pairs: string[] = [];
+      for (let i = 0; i < v.length; i += 2) pairs.push(`${v[i]},${v[i + 1]}`);
+      return pairs.join(' ');
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Icon placement
@@ -423,6 +696,19 @@ export function wrapLabel(
 }
 
 /**
+ * Whether a shape this size holds one line of its label — a few characters'
+ * width and a line's height. A junction's circle does not, so its name goes
+ * under it.
+ */
+export function labelFitsInside(
+  width: number,
+  height: number,
+  fontSize: number = NOTATION_DEFAULTS.fontSize,
+): boolean {
+  return width >= fontSize * 3 && height >= round(fontSize * 1.2);
+}
+
+/**
  * Vertical band the label occupies, given the badge that shares the shape.
  *
  * `ShapeWithBadge` centres the label, except where the badge would sit on top
@@ -442,6 +728,10 @@ export function labelLayout(
     fontSize?: number;
     /** Reserve the bottom band and put the label in it (IconCentric). */
     below?: boolean;
+    /** Under the shape, outside it — for a shape too small to hold its name. */
+    outside?: boolean;
+    /** At most this many lines; {@link NOTATION_DEFAULTS.maxLabelLines} when absent. */
+    maxLines?: number;
   } = {},
 ): LabelLayout {
   const w = size(width, NOTATION_DEFAULTS.width);
@@ -451,13 +741,20 @@ export function labelLayout(
   const pad = NOTATION_DEFAULTS.badgePadding;
 
   // With a badge in a corner, give up its width so the two do not overlap.
-  const available = options.below
+  const available = options.outside
+    ? Math.max(w, NOTATION_DEFAULTS.width)
+    : options.below
     ? w
     : options.badgePlacement
       ? Math.max(w - NOTATION_DEFAULTS.badgeSize - 2 * pad, w * 0.5)
       : Math.max(w - 2 * pad, w * 0.5);
-  const lines = wrapLabel(label, available, fontSize);
+  const lines = wrapLabel(label, available, fontSize, options.maxLines);
   const block = lines.length * lineHeight;
+
+  if (options.outside) {
+    // First baseline just under the shape's bottom edge.
+    return { lines, x: round(w / 2), y: round(h + NOTATION_DEFAULTS.badgePadding + fontSize * 0.85), lineHeight };
+  }
 
   let centreY: number;
   if (options.below) {
@@ -635,7 +932,7 @@ function decorationShape(decoration: Decoration): DecorationShape | null {
       };
 
     case 'HalfArrowhead':
-      // One barb, on the upper side only — ArchiMate's Flow notation.
+      // One barb, on the upper side only.
       return {
         tag: 'path',
         attrs: { d: 'M 1 1 L 11 6 L 3 6' },
@@ -647,13 +944,15 @@ function decorationShape(decoration: Decoration): DecorationShape | null {
       };
 
     case 'CircleDot':
+      // A filled dot whose edge meets the end of the line — ArchiMate's
+      // assignment, at the source end; as the published symbol draws it.
       return {
         tag: 'circle',
-        attrs: { cx: 5, cy: 5, r: 4 },
-        width: 10,
-        height: 10,
-        refX: 5,
-        refY: 5,
+        attrs: { cx: 8.5, cy: 6, r: 3.5 },
+        width: 12,
+        height: 12,
+        refX: 12,
+        refY: 6,
         fill: 'line',
       };
 
@@ -661,6 +960,119 @@ function decorationShape(decoration: Decoration): DecorationShape | null {
     default:
       return null;
   }
+}
+
+// ── Decorations from their published symbols ────────────────────────────
+
+/**
+ * A decoration's published marker symbol (`arch-vis:decorSymbol`): its viewBox,
+ * the size it is drawn at, and its drawing.
+ */
+export interface DecorationSymbol {
+  viewBox: { x: number; y: number; width: number; height: number };
+  /** Drawn size in user units: the file's `width`/`height`, else the viewBox's. */
+  width: number;
+  height: number;
+  /** The drawing: plain shape elements only — see {@link parseDecorationSymbol}. */
+  content: Element[];
+}
+
+/** Shape elements a symbol may draw with; anything else is dropped. */
+const SYMBOL_ELEMENTS = new Set(['g', 'path', 'polygon', 'polyline', 'circle', 'ellipse', 'rect', 'line']);
+
+/** Geometry and paint attributes a symbol may use; anything else is dropped. */
+const SYMBOL_ATTRIBUTES = new Set([
+  'd', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2', 'transform',
+  'fill', 'fill-rule', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-linejoin', 'stroke-linecap',
+  'stroke-dasharray', 'stroke-opacity', 'opacity',
+]);
+
+/**
+ * Read a published decoration symbol (SVG text) into a {@link DecorationSymbol},
+ * or `null` when it is not a usable SVG.
+ *
+ * The symbol is drawn inside the canvas, so it is rebuilt rather than inserted:
+ * only plain shape elements and their geometry and paint attributes survive —
+ * no scripts, event handlers, styles, links or references to other content.
+ */
+export function parseDecorationSymbol(svgText: string): DecorationSymbol | null {
+  if (typeof DOMParser === 'undefined') return null;
+  const parsed = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+  const root = parsed.documentElement;
+  if (!root || root.localName !== 'svg' || parsed.getElementsByTagName('parsererror').length > 0) return null;
+
+  const numbers = (value: string | null) => (value ?? '').trim().split(/[\s,]+/).map(Number);
+  const size = (value: string | null) => {
+    const n = Number.parseFloat(value ?? '');
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  const [vx, vy, vw, vh] = numbers(root.getAttribute('viewBox'));
+  const width = size(root.getAttribute('width'));
+  const height = size(root.getAttribute('height'));
+  const viewBox =
+    [vx, vy, vw, vh].every((n) => Number.isFinite(n)) && vw! > 0 && vh! > 0
+      ? { x: vx!, y: vy!, width: vw!, height: vh! }
+      : width && height
+        ? { x: 0, y: 0, width, height }
+        : undefined;
+  if (!viewBox) return null;
+
+  const rebuild = (source: Element): Element | null => {
+    if (!SYMBOL_ELEMENTS.has(source.localName)) return null;
+    const copy = document.createElementNS(SVG_NS, source.localName);
+    for (const attribute of Array.from(source.attributes)) {
+      if (!SYMBOL_ATTRIBUTES.has(attribute.name)) continue;
+      if (/url\(|javascript:/i.test(attribute.value)) continue;
+      copy.setAttribute(attribute.name, attribute.value);
+    }
+    for (const child of Array.from(source.children)) {
+      const kept = rebuild(child);
+      if (kept) copy.appendChild(kept);
+    }
+    return copy;
+  };
+  const content = Array.from(root.children).map(rebuild).filter((e): e is Element => e !== null);
+  if (content.length === 0) return null;
+  return { viewBox, width: width ?? viewBox.width, height: height ?? viewBox.height, content };
+}
+
+/**
+ * The `<marker>` drawing a decoration from its published symbol, placed as the
+ * vocabulary describes `arch-vis:decorSymbol`: the symbol points in +x, the
+ * connector meets it at the middle of its viewBox's right edge, and it is
+ * mirrored at a source end; `currentColor` takes the line's colour.
+ */
+export function symbolMarkerDefinition(
+  symbol: DecorationSymbol,
+  decoration: Decoration,
+  end: DecorationEnd,
+  lineColor: string,
+): MarkerDefinition {
+  const id = markerId(decoration, end, lineColor);
+  const { viewBox } = symbol;
+  const marker = svgEl('marker', {
+    id,
+    viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
+    markerWidth: symbol.width,
+    markerHeight: symbol.height,
+    refX: viewBox.x + viewBox.width,
+    refY: viewBox.y + viewBox.height / 2,
+    markerUnits: 'userSpaceOnUse',
+    orient: end === 'source' ? 'auto-start-reverse' : 'auto',
+  });
+  marker.setAttribute('class', `la-marker la-marker-${decoration}`);
+  marker.setAttribute('color', lineColor);
+  markMarker(marker, decoration, end, lineColor, 'published');
+  for (const element of symbol.content) marker.appendChild(element.cloneNode(true));
+  return { id, element: marker };
+}
+
+/** What a marker draws, so it can be found and replaced once a symbol arrives. */
+function markMarker(marker: SVGElement, decoration: Decoration, end: DecorationEnd, lineColor: string, source: 'built-in' | 'published'): void {
+  marker.setAttribute('data-decoration', decoration);
+  marker.setAttribute('data-end', end);
+  marker.setAttribute('data-color', lineColor);
+  marker.setAttribute('data-source', source);
 }
 
 /** Reduce a colour to something safe to embed in an element id. */
@@ -671,6 +1083,68 @@ function colorSlug(color: string): string {
 /** Stable id for the marker drawing `decoration` at `end` in `lineColor`. */
 export function markerId(decoration: Decoration, end: DecorationEnd, lineColor: string): string {
   return `la-marker-${decoration}-${end}-${colorSlug(lineColor)}`;
+}
+
+/** How much smaller a decoration is drawn on a relationship icon than on the canvas. */
+const ICON_MARKER_SCALE = 0.75;
+
+/** Text for an XML attribute value. */
+function xmlAttr(value: string | number): string {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * A relationship type's icon drawn from its notation — for a type whose
+ * notation publishes none (ArchiMate's relationships have none, Basic's have):
+ * a short line, source at the lower left, in its line style and colour, with
+ * its end decorations, as the canvas draws it. A type without a notation gets a
+ * plain line. A `data:` URI of a standalone SVG, for an `<img>`.
+ */
+export function relationshipIconDataUri(style: RelationshipVisualStyle | undefined): string {
+  const color = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+  const markers: string[] = [];
+  const ends: string[] = [];
+  for (const [end, decoration] of [['source', style?.sourceDecor], ['target', style?.targetDecor]] as const) {
+    const shape = decoration ? decorationShape(decoration) : null;
+    if (!shape) continue;
+    const fill = shape.fill === 'line' ? color : shape.fill === 'hollow' ? '#FFFFFF' : 'none';
+    const attrs = Object.entries(shape.attrs).map(([name, value]) => ` ${name}="${xmlAttr(value)}"`).join('');
+    markers.push(
+      `<marker id="${end}" viewBox="0 0 ${shape.width} ${shape.height}"` +
+        ` markerWidth="${shape.width * ICON_MARKER_SCALE}" markerHeight="${shape.height * ICON_MARKER_SCALE}"` +
+        ` refX="${shape.refX}" refY="${shape.refY}" markerUnits="userSpaceOnUse"` +
+        ` orient="${end === 'source' ? 'auto-start-reverse' : 'auto'}">` +
+        `<${shape.tag}${attrs} stroke="${xmlAttr(color)}" stroke-width="2" fill="${xmlAttr(fill)}"/></marker>`,
+    );
+    ends.push(` marker-${end === 'source' ? 'start' : 'end'}="url(#${end})"`);
+  }
+  // The canvas's dashes, shortened to the icon's length.
+  const dash = strokeDashArray(style?.lineStyle)
+    ?.split(' ')
+    .map((n) => Number(n) * 0.6)
+    .join(' ');
+  const svg =
+    `<svg xmlns="${SVG_NS}" viewBox="0 0 24 24" width="24" height="24">` +
+    (markers.length > 0 ? `<defs>${markers.join('')}</defs>` : '') +
+    `<line x1="3" y1="21" x2="21" y2="3" stroke="${xmlAttr(color)}" stroke-width="2"` +
+    (dash ? ` stroke-dasharray="${dash}"` : '') +
+    `${ends.join('')}/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * The palette with an icon for every relationship type: the one its notation
+ * publishes, else — none, or one `broken` says does not load — one drawn from it.
+ */
+export function withRelationshipIcons(palette: PaletteDefinition, broken: (iconUrl: string) => boolean = () => false): PaletteDefinition {
+  const usable = (iconUrl: string | undefined): iconUrl is string => Boolean(iconUrl) && !broken(iconUrl!);
+  if (palette.relationshipTypes.every((r) => usable(r.iconUrl))) return palette;
+  return {
+    ...palette,
+    relationshipTypes: palette.relationshipTypes.map((r) =>
+      usable(r.iconUrl) ? r : { ...r, iconUrl: relationshipIconDataUri(r.relationshipStyle) },
+    ),
+  };
 }
 
 /**
@@ -700,6 +1174,7 @@ export function markerDefinition(
     orient: end === 'source' ? 'auto-start-reverse' : 'auto',
   });
   marker.setAttribute('class', `la-marker la-marker-${decoration}`);
+  markMarker(marker, decoration, end, lineColor, 'built-in');
 
   const glyph = svgEl(shape.tag, shape.attrs);
   glyph.setAttribute('stroke', lineColor);

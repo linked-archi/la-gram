@@ -33,10 +33,12 @@ Motivation, Implementation & Migration). Behavior elements that were previously
 duplicated per layer (e.g., BusinessProcess, ApplicationProcess, TechnologyProcess) are
 merged into single cross-domain elements (Process, Function, Event, Service). New Common
 Domain elements (Role, Collaboration, Path) are introduced as generic, domain-independent
-concepts. This is not an official Open Group document.'''@en ;
+concepts. Each relationship class has as its skos:notation the letter the relationship tables of
+the specification write it with (c composition, r realization, v serving …). This is not an
+official Open Group document.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
     dcterms:issued                "2026-04-29"^^xsd:date ;
-    dcterms:modified              "2026-04-29"^^xsd:date ;
+    dcterms:modified              "2026-10-10"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     dcterms:source                <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
@@ -53,6 +55,9 @@ Event, Service). Per-layer collaborations and roles merged into Common Domain. R
 elements: Interaction, Contract, Representation, Gap, ImplementationEvent, Constraint.
 New namespace archimate4/onto# introduced for breaking metamodel changes. Aligned to
 Linked.Archi core ontology conventions and the qualified relationship pattern.'''@en ;
+    skos:changeNote               '''2026-10-10: the kinds of access are subclasses of Access — ReadAccess, WriteAccess and
+ReadWriteAccess, an Access that is none of them being unspecified — and a directed association is a
+DirectedAssociation, so each has a notation of its own (DD-31). accessType is deprecated.'''@en ;
     skos:scopeNote                '''This namespace (archimate4/onto#) covers ArchiMate 4.x. It is separate
 from archimate3/onto# because the 3.2→4.0 transition introduced breaking metamodel
 changes: layers were replaced by domains, many per-layer elements were merged into
@@ -217,6 +222,18 @@ can coexist for migration purposes.'''@en ;
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Strategy-Elements-Metamodel> ;
     skos:definition      "Strategy elements represent strategic concepts used to model the enterprise at a high level."@en ;
     skos:scopeNote       "High-level planning elements: capabilities (what the organization can do), value streams (how value is delivered), courses of action (plans), and resources (assets). Realized by elements from other domains."@en ;
+.
+
+:StrategyBehaviorElement
+    a                    owl:Class ;
+    rdfs:subClassOf      :BehaviorElement, :StrategyElement ;
+    arch:isAbstractClass true ;
+    skos:prefLabel       "StrategyBehaviorElement"@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#fig-Strategy-Elements-Metamodel> ;
+    skos:definition      "The behaviour elements of the strategy domain — capability, value stream and course of action — which the Strategy Elements Metamodel (Figure 7-1) generalizes as Strategy Behavior Element."@en ;
+    skos:scopeNote       "What the strategy figures relate as a whole: a resource is assigned to one; one triggers, flows to and serves another; services and internal behaviour elements realize one; and one realizes and influences requirements (Figures 7-1 and 7-6)."@en ;
 .
 
 ## Domain hierarchy (replaces "layers" in 3.2)
@@ -580,7 +597,7 @@ Resources are realized by active and passive structure elements and are therefor
 
 :Capability
     a                  owl:Class ;
-    rdfs:subClassOf    :BehaviorElement, :StrategyElement ;
+    rdfs:subClassOf    :StrategyBehaviorElement ;
     skos:prefLabel     "Capability"@en ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Capability> ;
     prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Capability> ;
@@ -598,7 +615,7 @@ The name of a capability should emphasize “what we do” rather than “how we
 
 :ValueStream
     a                  owl:Class ;
-    rdfs:subClassOf    :BehaviorElement, :StrategyElement ;
+    rdfs:subClassOf    :StrategyBehaviorElement ;
     skos:prefLabel     "Value Stream"@en ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Value-Stream> ;
     prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Value-Stream> ;
@@ -614,7 +631,7 @@ It is recommended that the name of a value stream be expressed using a verb-noun
 
 :CourseOfAction
     a                  owl:Class ;
-    rdfs:subClassOf    :BehaviorElement, :StrategyElement ;
+    rdfs:subClassOf    :StrategyBehaviorElement ;
     skos:prefLabel     "Course of Action"@en ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Course-of-Action> ;
     prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Course-of-Action> ;
@@ -977,6 +994,7 @@ In order to support this, the plateau element is defined.'''@en ;
     rdfs:subClassOf      :Aggregation ;
     arch:unqualifiedForm :composedOf ;
     skos:prefLabel       "Composition"@en ;
+    skos:notation        "c" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship>,
@@ -1012,6 +1030,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :aggregates ;
     skos:prefLabel       "Aggregation"@en ;
+    skos:notation        "g" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship>,
@@ -1050,6 +1069,7 @@ execution.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :assignedTo ;
     skos:prefLabel       "Assignment"@en ;
+    skos:notation        "i" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Assignment-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Assignment-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Assignment-Relationship>,
@@ -1090,6 +1110,7 @@ or operation of a more abstract entity.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :realizes ;
     skos:prefLabel       "Realization"@en ;
+    skos:notation        "r" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Realization-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Realization-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Realization-Relationship>,
@@ -1133,6 +1154,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :serves ;
     skos:prefLabel       "Serving"@en ;
+    skos:notation        "v" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship>,
@@ -1142,12 +1164,12 @@ resource.'''@en ;
  The “Payment Interface” serves the “Customer”, while the “Payment Service” serves the “Pay Invoices” process of that customer.'''@en ;
 .
 
-:qualifiedServes
+:qualifiedServing
     a                    owl:ObjectProperty ;
     rdfs:range           :Serving ;
     arch:unqualifiedForm :serves ;
     arch:domainIncludes  :ActiveStructureElement, :BehaviorElement ;
-    skos:prefLabel       "qualified Serves"@en ;
+    skos:prefLabel       "qualified Serving"@en ;
     skos:definition      '''Navigates from a source element to a Serving qualified relationship
 resource.'''@en ;
 .
@@ -1167,6 +1189,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :accesses ;
     skos:prefLabel       "Access"@en ;
+    skos:notation        "a" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship>,
@@ -1179,14 +1202,51 @@ Alternatively, an access relationship can be expressed by nesting the passive st
  The “Create Invoice” process writes/creates the “Invoice” business object; the “Send Invoice” process reads that object.'''@en ;
 .
 
-:qualifiedAccesses
+:ReadAccess
+    a                    owl:Class ;
+    rdfs:subClassOf      :Access ;
+    arch:unqualifiedForm :accesses ;
+    skos:prefLabel       "Read Access"@en ;
+    skos:definition      '''An access relationship in which the accessing element reads or uses the passive structure element.'''@en ;
+    skos:scopeNote       '''The relationship still runs from the accessing element to the passive structure element; the notation points the other way, with the arrowhead at the source end. In the exchange format, accessType="Read".'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Access-Relationship> ;
+.
+
+:WriteAccess
+    a                    owl:Class ;
+    rdfs:subClassOf      :Access ;
+    arch:unqualifiedForm :accesses ;
+    skos:prefLabel       "Write Access"@en ;
+    skos:definition      '''An access relationship in which the accessing element creates, changes or writes the passive structure element.'''@en ;
+    skos:scopeNote       '''Drawn with the arrowhead at the target end, the passive structure element. In the exchange format, accessType="Write", its default.'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Access-Relationship> ;
+.
+
+:ReadWriteAccess
+    a                    owl:Class ;
+    rdfs:subClassOf      :Access ;
+    arch:unqualifiedForm :accesses ;
+    skos:prefLabel       "Read-Write Access"@en ;
+    skos:definition      '''An access relationship in which the accessing element both reads and changes the passive structure element.'''@en ;
+    skos:scopeNote       '''Drawn with arrowheads at both ends. In the exchange format, accessType="ReadWrite".'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Access-Relationship> ;
+.
+
+:qualifiedAccess
     a                    owl:ObjectProperty ;
     rdfs:range           :Access ;
     arch:unqualifiedForm :accesses ;
     arch:domainIncludes  :BehaviorElement, :ActiveStructureElement ;
-    skos:prefLabel       "qualified Accesses"@en ;
+    skos:prefLabel       "qualified Access"@en ;
     skos:definition      '''Navigates from a source element to an Access qualified relationship
-resource. The Access resource carries the accessType (Read, Write, ReadWrite).'''@en ;
+resource. The resource's class says the kind of access: am4:ReadAccess, am4:WriteAccess or
+am4:ReadWriteAccess, or am4:Access when it is unspecified.'''@en ;
 .
 
 ## Influence ───────────────────────────────────────────────────
@@ -1206,6 +1266,7 @@ element.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :influences ;
     skos:prefLabel       "Influence"@en ;
+    skos:notation        "n" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship>,
@@ -1214,13 +1275,13 @@ element.'''@en ;
     skos:scopeNote       '''The influence relationship is used to describe that some architectural element influences the achievement of a motivation element, such as a goal or principle. In general, a motivation element is realized to a certain degree. An influence relationship can be used to indicate that an element has a positive or negative influence on the realization of a motivation element.'''@en ;
 .
 
-:qualifiedInfluences
+:qualifiedInfluence
     a                    owl:ObjectProperty ;
     rdfs:range           :Influence ;
     arch:unqualifiedForm :influences ;
     arch:domainIncludes  :MotivationElement, :BehaviorElement, :ActiveStructureElement, :PassiveStructureElement,
                          :StrategyElement ;
-    skos:prefLabel       "qualified Influences"@en ;
+    skos:prefLabel       "qualified Influence"@en ;
     skos:definition      '''Navigates from a source element to an Influence qualified relationship
 resource. The Influence resource carries the influenceStrength (+, ++, -, --).'''@en ;
 .
@@ -1245,6 +1306,7 @@ resource. The Influence resource carries the influenceStrength (+, ++, -, --).''
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :triggers ;
     skos:prefLabel       "Triggering"@en ;
+    skos:notation        "t" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship>,
@@ -1254,12 +1316,12 @@ resource. The Influence resource carries the influenceStrength (+, ++, -, --).''
 '''@en ;
 .
 
-:qualifiedTriggers
+:qualifiedTriggering
     a                    owl:ObjectProperty ;
     rdfs:range           :Triggering ;
     arch:unqualifiedForm :triggers ;
     arch:domainIncludes  :BehaviorElement, :StrategyElement ;
-    skos:prefLabel       "qualified Triggers"@en ;
+    skos:prefLabel       "qualified Triggering"@en ;
     skos:definition      '''Navigates from a source element to a Triggering qualified relationship
 resource.'''@en ;
 .
@@ -1279,6 +1341,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :flowsTo ;
     skos:prefLabel       "Flow"@en ;
+    skos:notation        "f" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship>,
@@ -1318,6 +1381,7 @@ resource.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :specializes ;
     skos:prefLabel       "Specialization"@en ;
+    skos:notation        "s" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Specialization-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Specialization-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Specialization-Relationship>,
@@ -1355,6 +1419,7 @@ ArchiMate relationship.'''@en ;
     rdfs:subClassOf      arch:QualifiedRelationship ;
     arch:unqualifiedForm :associatedWith ;
     skos:prefLabel       "Association"@en ;
+    skos:notation        "o" ;
     dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship> ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship>,
@@ -1363,6 +1428,20 @@ ArchiMate relationship.'''@en ;
     skos:scopeNote       '''An association relationship is always allowed between two elements, or between a relationship and an element.
 The association relationship can be used when drawing a first high-level model where relationships are initially denoted in a generic way, and later refined to show more specific relationship types. In the metamodel pictures, some specific uses of the association relationship are explicitly shown. An association is undirected or directed. See also Section 5.2.5, “Semantics of Dependency Relationships”.
  It also shows an association between a flow relationship and this “Insurance Policy”, to indicate that the business object is transferred from “Policy Creation” to “Policy Management”.'''@en ;
+.
+
+:DirectedAssociation
+    a                    owl:Class ;
+    rdfs:subClassOf      :Association ;
+    arch:unqualifiedForm :associatedWith ;
+    skos:prefLabel       "Directed Association"@en ;
+    skos:definition      '''An association relationship with a direction, from its source to its target.'''@en ;
+    skos:scopeNote       '''A directed association can be used in derivations in its direction only. Drawn with a
+half arrowhead at the target end; an association that is not directed has none. In the exchange format,
+isDirected="true".'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Association-Relationship>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Association-Relationship> ;
 .
 
 :qualifiedAssociation
@@ -1386,6 +1465,12 @@ resource.'''@en ;
     skos:definition '''Specifies the type of access: read, write, read-write, or unspecified.'''@en ;
     rdfs:domain     :Access ;
     rdfs:range      xsd:string ;
+    owl:deprecated  true ;
+    dcterms:isReplacedBy :ReadAccess, :WriteAccess, :ReadWriteAccess ;
+    skos:historyNote '''Deprecated 2026-10-10: the kind of access is the relationship's class — am4:ReadAccess,
+am4:WriteAccess or am4:ReadWriteAccess, and am4:Access when it is unspecified — so the notation, the palette,
+viewpoints, SHACL and SPARQL all see it as a type (DD-31). An importer maps the exchange format's
+accessType attribute to these classes.'''@en ;
 .
 
 :influenceStrength

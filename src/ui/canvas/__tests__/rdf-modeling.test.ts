@@ -426,8 +426,10 @@ describe('the store to canvas direction', () => {
 
     f.canvas.addRelationship(SRC, TGT, SERVING, `${MM}rel-9`);
 
+    // A qualified relationship's connection is keyed by the relationship's own
+    // IRI, so two relationships of one type between one pair stay two.
     const connection = f.service<DjsRegistry>('elementRegistry').get(
-      relationshipKey(SRC, TGT, SERVING),
+      `${MM}rel-9`,
     ) as DjsConnection;
     expect(connection.businessObject?.typeIri).toBe(SERVING);
     expect(connection.businessObject?.iri).toBe(`${MM}rel-9`);

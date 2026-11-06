@@ -549,8 +549,13 @@ function countByGroup(groups: Map<string, string>): Record<string, number> {
 describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
   let store: Store;
   let axes: TaxonomyAxis[];
-  /** Every leaf the taxonomy names — a skos:narrower object that is not itself a concept. */
+  /**
+   * Every element class the taxonomy names — a skos:narrower leaf, not itself a concept, outside the
+   * Relationship by Category scheme, whose leaves are the relationship classes.
+   */
   let publishedMembers: string[];
+  /** The relationship classes the Relationship by Category scheme names. */
+  let relationshipMembers: string[];
 
   beforeAll(async () => {
     store = storeFromTurtle(await fetchAssetText('archimate4/archimate4-tax.ttl'));
@@ -562,18 +567,27 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
       const isConcept = store.getQuads(quad.object, RDF_TYPE, SKOS_CONCEPT, null).length > 0;
       if (!isConcept) members.add(quad.object.value);
     }
-    publishedMembers = [...members].sort();
+    const relationships = axes.find((a) => a.iri === `${AM4_TAX_IRI}RelationshipByCategory`)!;
+    relationshipMembers = [...members].filter((iri) => relationships.groups.has(iri)).sort();
+    publishedMembers = [...members].filter((iri) => !relationships.groups.has(iri)).sort();
   });
 
-  it('names 42 element classes across its two axes', () => {
+  it('names 42 element classes across its two element axes, and the 11 relationship types by category', () => {
     expect(publishedMembers).toHaveLength(42);
     expect(publishedMembers.every((iri) => iri.startsWith(AM4_ONTO))).toBe(true);
+    expect(relationshipMembers.map((iri) => iri.slice(AM4_ONTO.length))).toEqual([
+      'Access', 'Aggregation', 'Assignment', 'Association', 'Composition',
+      'Flow', 'Influence', 'Realization', 'Serving', 'Specialization', 'Triggering',
+    ]);
   });
 
-  it('discovers the two published axes and keeps Aspect last', () => {
-    expect(axes.map((a) => a.label)).toEqual(['Element by Domain', 'Element by Aspect']);
+  it('discovers the published axes and keeps Aspect last', () => {
+    // Relationship by Category is an axis of the taxonomy; the palette does not offer it, since it groups
+    // no element type (palette-generator.test.ts).
+    expect(axes.map((a) => a.label)).toEqual(['Element by Domain', 'Relationship by Category', 'Element by Aspect']);
     expect(axes.map((a) => a.iri)).toEqual([
       `${AM4_TAX_IRI}ElementByDomain`,
+      `${AM4_TAX_IRI}RelationshipByCategory`,
       `${AM4_TAX_IRI}ElementByAspect`,
     ]);
   });

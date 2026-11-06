@@ -16,10 +16,14 @@ import {
   SHAPE_TYPES,
   badgeBox,
   iconHref,
+  labelFitsInside,
   labelLayout,
   markerDefinition,
   markerId,
+  relationshipIconDataUri,
+  withRelationshipIcons,
   shapeGeometry,
+  shapeLayout,
   shapePath,
   strokeDashArray,
   svgEl,
@@ -129,7 +133,7 @@ describe('shapeGeometry', () => {
   it('produces a distinct geometry for every shape type', () => {
     const rendered = SHAPE_TYPES.map((type) => {
       const geometry = shapeGeometry(type, 120, 60);
-      return `${geometry.tag}:${JSON.stringify(geometry.attrs)}`;
+      return `${geometry.tag}:${JSON.stringify(geometry.attrs)}:${geometry.details ?? ''}`;
     });
     expect(new Set(rendered).size).toBe(SHAPE_TYPES.length);
   });
@@ -240,15 +244,19 @@ describe('shapePath', () => {
 /** Shift every coordinate pair in a path by (dx, dy), leaving commands alone. */
 function shiftPath(path: string, dx: number, dy: number): string {
   // Arc radii are not coordinates, so they must not be shifted: split on the
-  // arc's "rx,ry 0 0 1 " prefix and only move the endpoint pair that follows.
+  // arc's "rx,ry 0 0 f " prefix and only move the endpoint pair that follows.
+  // C and Q take several pairs, every one a coordinate.
   return path.replace(
-    /([MLA])((?:-?[\d.]+,-?[\d.]+)(?: 0 0 1 -?[\d.]+,-?[\d.]+)?)/g,
+    /([MLACQ])((?:-?[\d.]+,-?[\d.]+)(?: 0 0 [01] -?[\d.]+,-?[\d.]+| -?[\d.]+,-?[\d.]+)*)/g,
     (_all, command: string, args: string) => {
       if (command === 'A') {
-        const [radii, endpoint] = args.split(' 0 0 1 ');
-        return `A${radii} 0 0 1 ${shiftPair(endpoint, dx, dy)}`;
+        const [, radii, flags, endpoint] = /^(\S+) (0 0 [01]) (\S+)$/.exec(args)!;
+        return `A${radii} ${flags} ${shiftPair(endpoint!, dx, dy)}`;
       }
-      return `${command}${shiftPair(args, dx, dy)}`;
+      return `${command}${args
+        .split(' ')
+        .map((pair) => shiftPair(pair, dx, dy))
+        .join(' ')}`;
     },
   );
 }
@@ -257,6 +265,15 @@ function shiftPair(pair: string, dx: number, dy: number): string {
   const [px, py] = pair.split(',').map(Number);
   return `${px + dx},${py + dy}`;
 }
+
+describe('shapeLayout', () => {
+  it('lays a plain shape out over the whole of it', () => {
+    const whole = { x: 0, y: 0, width: 120, height: 55 };
+    expect(shapeLayout('Rectangle', 120, 55)).toEqual({ content: whole, label: whole });
+    expect(shapeLayout(undefined, 120, 55)).toEqual({ content: whole, label: whole });
+  });
+
+});
 
 describe('badgeBox', () => {
   it('covers the whole IconPlacement vocabulary', () => {
@@ -331,7 +348,23 @@ describe('wrapLabel', () => {
   });
 });
 
+describe('labelFitsInside', () => {
+  it('a junction\'s circle does not hold a line; an element does', () => {
+    expect(labelFitsInside(15, 15)).toBe(false);
+    expect(labelFitsInside(120, 55)).toBe(true);
+    expect(labelFitsInside(120, 8)).toBe(false);
+  });
+});
+
 describe('labelLayout', () => {
+  it('outside: under the shape, wrapped as wide as an element', () => {
+    const layout = labelLayout('Approval of the customer order', 15, 15, { outside: true });
+    expect(layout.x).toBe(7.5);
+    expect(layout.y).toBeGreaterThan(15);
+    expect(layout.lines.length).toBeGreaterThan(1);
+    expect(layout.lines.every((line) => line.length < 'Approval of the customer order'.length)).toBe(true);
+  });
+
   it('centres the label when no badge is drawn', () => {
     const layout = labelLayout('Actor', 120, 60);
     expect(layout.x).toBe(60);
@@ -443,11 +476,20 @@ describe('markerDefinition', () => {
     expect(new Set(signatures).size).toBe(drawn.length);
   });
 
-  it('fills ClosedArrowhead and FilledDiamond with the line colour', () => {
+  it('fills ClosedArrowhead, FilledDiamond and CircleDot with the line colour', () => {
     for (const decoration of ['ClosedArrowhead', 'FilledDiamond', 'CircleDot'] as Decoration[]) {
       const marker = markerDefinition(decoration, 'target', '#336699')!;
       expect(marker.element.firstElementChild!.getAttribute('fill')).toBe('#336699');
     }
+  });
+
+  it('draws CircleDot as one dot whose edge meets the end of the line', () => {
+    const marker = markerDefinition('CircleDot', 'source', '#000000')!.element;
+    expect(marker.children).toHaveLength(1);
+    const dot = marker.firstElementChild!;
+    const edge = Number(dot.getAttribute('cx')) + Number(dot.getAttribute('r'));
+    expect(edge).toBe(Number(marker.getAttribute('refX')));
+    expect(dot.getAttribute('cy')).toBe(marker.getAttribute('refY'));
   });
 
   it('fills HollowArrowhead and HollowDiamond opaque white, stroked in the line colour', () => {
@@ -515,5 +557,53 @@ describe('every ShapeType is exercised', () => {
     if (geometry.tag === 'polygon') {
       expect(element.getAttribute('points')).toMatch(/^[\d.,\s]+$/);
     }
+  });
+});
+
+describe('a relationship type\u2019s icon, drawn from its notation', () => {
+  const svgOf = (uri: string) => {
+    expect(uri.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
+    return new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(',') + 1)), 'image/svg+xml');
+  };
+
+  it('draws its line style, colour and end decorations, as the canvas does', () => {
+    const doc = svgOf(relationshipIconDataUri({ lineStyle: 'DottedLine', sourceDecor: 'CircleDot', targetDecor: 'HollowArrowhead', lineColor: '#5B9BD5' }));
+    expect(doc.querySelector('parsererror')).toBeNull();
+    const line = doc.querySelector('line')!;
+    expect([line.getAttribute('stroke'), line.getAttribute('marker-start'), line.getAttribute('marker-end')]).toEqual(['#5B9BD5', 'url(#source)', 'url(#target)']);
+    expect(line.getAttribute('stroke-dasharray')).toBeTruthy();
+    expect([...doc.querySelectorAll('marker')].map((m) => [m.id, m.getAttribute('orient')])).toEqual([
+      ['source', 'auto-start-reverse'],
+      ['target', 'auto'],
+    ]);
+    // A hollow head is white inside, in the line's colour around.
+    const head = doc.querySelector('marker#target > *')!;
+    expect([head.getAttribute('fill'), head.getAttribute('stroke')]).toEqual(['#FFFFFF', '#5B9BD5']);
+  });
+
+  it('is a plain black line without a notation, and keeps a stated colour from breaking out of its attribute', () => {
+    const plain = svgOf(relationshipIconDataUri(undefined));
+    expect(plain.querySelectorAll('marker')).toHaveLength(0);
+    expect(plain.querySelector('line')!.getAttribute('stroke')).toBe('#000000');
+    expect(plain.querySelector('line')!.hasAttribute('stroke-dasharray')).toBe(false);
+    const odd = svgOf(relationshipIconDataUri({ lineColor: '"/><script/>' }));
+    expect(odd.querySelector('parsererror')).toBeNull();
+    expect(odd.querySelector('script')).toBeNull();
+  });
+
+  it('is given to the palette\u2019s relationship types that publish none, and only to those', () => {
+    const palette = withRelationshipIcons({
+      elementGroups: [],
+      relationshipTypes: [
+        { iri: 'urn:serving', label: 'Serving', relationshipStyle: { targetDecor: 'OpenArrowhead' }, domainTypes: [], rangeTypes: [] },
+        { iri: 'urn:connection', label: 'Connection', iconUrl: 'basic/icons/relationship.svg', domainTypes: [], rangeTypes: [] },
+      ],
+    } as never);
+    expect(palette.relationshipTypes.map((r) => r.iconUrl?.slice(0, 19))).toEqual(['data:image/svg+xml;', 'basic/icons/relatio']);
+    const published = { elementGroups: [], relationshipTypes: [palette.relationshipTypes[1]!] };
+    expect(withRelationshipIcons(published as never)).toBe(published);
+    // One named that does not load: drawn too.
+    const repaired = withRelationshipIcons(published as never, (url) => url === 'basic/icons/relationship.svg');
+    expect(repaired.relationshipTypes[0]!.iconUrl).toMatch(/^data:image\/svg\+xml/);
   });
 });

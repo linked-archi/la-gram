@@ -31,6 +31,9 @@ export interface ToolbarToolDetail {
  * The buttons are `<button>`s rather than styled `<div>`s so they are reachable
  * and operable from the keyboard for free, and `aria-pressed` reports which tool
  * is armed.
+ *
+ * After the tools, one switch: *Relationship names*, which shows relationships'
+ * names on their lines (off by default; the host remembers it). Pressed is on.
  */
 @customElement('canvas-toolbar')
 export class CanvasToolbar extends LitElement {
@@ -80,6 +83,20 @@ export class CanvasToolbar extends LitElement {
       outline: 2px solid #1a73e8;
       outline-offset: 1px;
     }
+
+    .separator {
+      width: 1px;
+      height: 18px;
+      margin: 0 4px;
+      background: #dadce0;
+    }
+
+    /* A switch, not a tool: labelled in words, as wide as its label. */
+    button.switch {
+      width: auto;
+      padding: 0 8px;
+      font-size: 12px;
+    }
   `;
 
   /**
@@ -92,6 +109,21 @@ export class CanvasToolbar extends LitElement {
    */
   @property({ attribute: false })
   activeTool?: CanvasTool;
+
+  /** Whether relationships' names are shown on their lines (the switch's state). */
+  @property({ type: Boolean, attribute: false })
+  relationshipNames = false;
+
+  /** The "Relationship names" switch flipped: `relationship-names` with `{ shown }`. */
+  private _onNamesClick(): void {
+    this.dispatchEvent(
+      new CustomEvent<{ shown: boolean }>('relationship-names', {
+        detail: { shown: !this.relationshipNames },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
   private _onClick(tool: CanvasTool, event: MouseEvent): void {
     this.dispatchEvent(
@@ -120,6 +152,17 @@ export class CanvasToolbar extends LitElement {
             </button>
           `,
         )}
+        <span class="separator" aria-hidden="true"></span>
+        <button
+          type="button"
+          class="switch"
+          data-switch="relationship-names"
+          title="Show relationships’ names on their lines"
+          aria-pressed=${this.relationshipNames ? 'true' : 'false'}
+          @click=${() => this._onNamesClick()}
+        >
+          Relationship names
+        </button>
       </div>
     `;
   }

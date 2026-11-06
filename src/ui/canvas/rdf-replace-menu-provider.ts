@@ -46,6 +46,21 @@
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
+import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { iconHref } from './notation-shapes.js';
+
+/** A relationship type's icon as the palette has it — published, or drawn from its notation. */
+export type RelationshipIconLookup = (relationshipTypeIri: string) => string | undefined;
+
+/**
+ * The `<img>` source of a relationship type's icon, if it has one: the
+ * palette's first — by the notation lookup, or drawn — then the one the
+ * relationship manager reads off the class, which may be a link that does not
+ * load (ArchiMate 3.2's ontology names images never published).
+ */
+export function relationshipImageUrl(candidate: RelationshipTypeInfo, iconFor?: RelationshipIconLookup): string | undefined {
+  return iconHref(iconFor?.(candidate.iri) ?? candidate.iconUrl, assetUrl) ?? undefined;
+}
 
 /** Provider id the menu is registered and opened under. */
 export const RELATIONSHIP_REPLACE_MENU_ID = 'la-relationship-replace';
@@ -55,6 +70,22 @@ export const ENTRY_CLASS = 'la-relationship-type';
 
 /** Additional class on the entry for the type currently recorded in RDF. */
 export const ENTRY_CLASS_CURRENT = 'la-relationship-type-current';
+
+/**
+ * Why a candidate ranks where it does, as a menu says it (`RelationshipPreference`):
+ * "proposed first" for a language's scoped proposal order, "drawn in the metamodel"
+ * for what its metamodel figures draw, "always permitted" for the fallbacks, and
+ * "only by derivation" where the tables permit it no other way. A relationship the
+ * tables simply permit needs no note.
+ */
+export function preferenceNotes(candidate: RelationshipTypeInfo): string[] {
+  const notes: string[] = [];
+  if (candidate.preference === 'first') notes.push('proposed first');
+  else if (candidate.preference === 'drawn') notes.push('drawn in the metamodel');
+  else if (candidate.preference === 'fallback') notes.push('always permitted');
+  if (candidate.direct === false) notes.push('only by derivation');
+  return notes;
+}
 
 /** The single group the entries live in — one flat, rank-ordered list. */
 export const ENTRY_GROUP = 'relationship-type';
@@ -105,6 +136,8 @@ export interface RdfPopupMenuEntry {
   title?: string;
   /** Secondary line, also matched by the search box. */
   description?: string;
+  /** The type's icon. */
+  imageUrl?: string;
   /** Extra text the search box matches. */
   search?: string;
   action: (event: unknown, entry?: unknown) => void;
@@ -133,10 +166,12 @@ export class RdfReplaceMenuProvider {
   private resolve: RelationshipReplaceContextResolver;
   private retype: RelationshipRetypeRequest;
 
+  /** @param iconFor A relationship type's icon, from the palette. */
   constructor(
     relationshipManager: RelationshipManager,
     resolve: RelationshipReplaceContextResolver,
     retype: RelationshipRetypeRequest,
+    private readonly iconFor?: RelationshipIconLookup,
   ) {
     this.relationshipManager = relationshipManager;
     this.resolve = resolve;
@@ -158,9 +193,9 @@ export class RdfReplaceMenuProvider {
     if (candidates.length < 2) return {};
 
     const entries: RdfPopupMenuEntries = {};
-    candidates.forEach((candidate, index) => {
-      entries[relationshipEntryId(candidate.iri)] = this.entry(context, candidate, index);
-    });
+    for (const candidate of candidates) {
+      entries[relationshipEntryId(candidate.iri)] = this.entry(context, candidate);
+    }
     return entries;
   }
 
@@ -175,24 +210,22 @@ export class RdfReplaceMenuProvider {
   private entry(
     context: RelationshipReplaceContext,
     candidate: RelationshipTypeInfo,
-    index: number,
   ): RdfPopupMenuEntry {
     const current = candidate.iri === context.currentTypeIri;
 
-    // The metamodel's own score when it has one, else the position the ranking
-    // put the candidate in — either way the user can see why this order.
-    const notes = [candidate.score === undefined ? `#${index + 1}` : `rank ${candidate.score}`];
+    // Why the candidate ranks where it does, in words — the order is the ranking's.
+    const notes = preferenceNotes(candidate);
     if (current) notes.push('current');
 
-    const description = candidate.reason
-      ? `${notes.join(' · ')} — ${candidate.reason}`
-      : notes.join(' · ');
+    const description = [notes.join(' · '), candidate.reason].filter(Boolean).join(' — ');
+    const imageUrl = relationshipImageUrl(candidate, this.iconFor);
 
     return {
       label: candidate.label,
+      ...(imageUrl ? { imageUrl } : {}),
       className: current ? `${ENTRY_CLASS} ${ENTRY_CLASS_CURRENT}` : ENTRY_CLASS,
       group: ENTRY_GROUP,
-      title: `${candidate.label} (${notes.join(', ')})`,
+      title: notes.length > 0 ? `${candidate.label} (${notes.join(', ')})` : candidate.label,
       description,
       search: candidate.reason ? `${candidate.label} ${candidate.reason}` : candidate.label,
       action: () => this.retype(context.connectionId, candidate.iri),

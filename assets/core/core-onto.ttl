@@ -34,12 +34,18 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
     '''@en ;
     dcterms:created                                         "2019-03-17"^^xsd:date ;
     dcterms:issued                                          "2019-03-17"^^xsd:date ;
-    dcterms:modified                                        "2026-04-12"^^xsd:date ;
+    dcterms:modified                                        "2026-09-07"^^xsd:date ;
     dcterms:publisher                                            "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                                             "draft" ;
     owl:versionIRI                                          <https://meta.linked.archi/core#> ;
-    owl:versionInfo                                         "0.3.2"@en ;
-    owl:priorVersion                                        <https://meta.linked.archi/core/0.3.1#> ;
+    owl:versionInfo                                         "0.4.0"@en ;
+    owl:priorVersion                                        <https://meta.linked.archi/core/0.3.2#> ;
+    skos:historyNote                                        '''0.4.0 — membership properties reworked.
+arch:inView and arch:inModel replace arch:exposedInView and arch:partOfModel, and arch:contains is
+deprecated as an undeclared inverse of what was then partOfModel. All three old properties are
+retained and owl:deprecated; the two renamed ones are rdfs:subPropertyOf their replacements so
+existing data still entails the current vocabulary under RDFS, while arch:contains is not, because
+no sound generalisation exists for it. See DD-30.'''@en ;
 #        Vowl
     schema:logo                                             <https://meta.linked.archi/favicon.svg> ;
     schema:image                                            <https://meta.linked.archi/favicon.svg> ;
@@ -114,9 +120,22 @@ The unqualified predicate is determined from:
 
 Three complementary representations are emitted for every relationship:
 1. **Direct triple** — `source vocab:serves target` — for SPARQL traversal
-2. **Qualified predicate** — `source vocab:qualifiedServes relationshipNode` — to navigate to the full resource
+2. **Qualified predicate** — `source vocab:qualifiedServing relationshipNode` — to navigate to the full resource;
+   named after the class it leads to, as PROV-O names `prov:qualifiedUsage` after `prov:Usage`
 3. **Qualified relationship resource** (this class) — carries all metadata: labels, provenance, lifecycle, etc.
 4. **rdf:reifies** — bridges the direct triple to this resource (RDF 1.2)
+
+The relationship resource is the canonical form: converters and modelling tools write one for every relationship,
+whether or not it carries metadata yet, and the questions a model is asked about its relationships read it. A
+graph trimmed to the direct triples, for fast traversal, is a projection of the model: it answers which elements
+are connected, not what is recorded about a connection, nor the questions that read relationship resources.
+
+A relationship resource whose triple is not asserted is a proposition, not a relationship of the model:
+rdf:reifies names a triple without asserting it. A potential derivation is one, until the modeller confirms it:
+asserting the triple, with its qualified predicate, confirms a proposition, and its resource then records that it
+was derived. A valid derivation is a statement: a rule asserts its triple, with its qualified predicate, and its
+resource records how. What a modeller stated is told from what a rule derived by the graph, in a store, and by the
+resource.
 
 With RDF 1.2, `rdf:reifies` bridges the direct triple to this resource, replacing the older rdf:Statement approach.
 Multiple distinct reifiers for the same proposition are supported — essential when the same logical relation appears
@@ -136,7 +155,7 @@ and extends it for architecture modeling. The mapping is:
   prov:EntityInfluence            arch:QualifiedRelationship
   prov:influencer / prov:entity   arch:source / arch:target
   prov:unqualifiedForm            arch:unqualifiedForm (schema-level)
-  prov:qualifiedInfluence         type-specific qualified property (e.g. am:qualifiedServes)
+  prov:qualifiedInfluence         type-specific qualified property (e.g. am:qualifiedServing)
   (no equivalent)                 rdf:reifies (RDF 1.2 — bridges direct triple to resource)
 
 With RDF 1.2, rdf:reifies provides the standardized bridge between the direct triple and this resource,
@@ -167,7 +186,7 @@ am:Serving
     arch:prefVisNotation "https://ex.com/serves.svg" ;
 .
 
-am:qualifiedServes
+am:qualifiedServing
     a                    owl:ObjectProperty ;
     rdfs:range           am:Serving ;
     arch:unqualifiedForm am:serves ;
@@ -176,7 +195,7 @@ am:qualifiedServes
 # Model data: emit both representations
 ex:AppSvc1 am:serves ex:BizProc1 .
 
-ex:AppSvc1 am:qualifiedServes ex:qr-005 .
+ex:AppSvc1 am:qualifiedServing ex:qr-005 .
 ex:qr-005 a am:Serving ;
     arch:source ex:AppSvc1 ;
     arch:target ex:BizProc1 ;
@@ -213,7 +232,7 @@ Use on schema definitions only, not on instance data. At the instance level, the
 predicate is available via rdf:reifies on the QualifiedRelationship occurrence (RDF 1.2).
 
 Example:
-  am:qualifiedServes arch:unqualifiedForm am:serves .
+  am:qualifiedServing arch:unqualifiedForm am:serves .
   am:Serving        arch:unqualifiedForm am:serves .
 ''' ;
     skos:closeMatch prov:unqualifiedForm ;
@@ -328,7 +347,12 @@ Example:
     * Business Departments...
 
     ''' ;
-    skos:scopeNote  '''Maps to ISO/IEC/IEEE 42010 "Architecture Description" — a work product used to express the architecture of some entity of interest. In Linked.Archi, Model is a more general term that encompasses architecture descriptions and other selective representations.'''@en ;
+    skos:scopeNote  '''Maps to ISO/IEC/IEEE 42010 "Architecture Description" — a work product used to express the architecture of some entity of interest. In Linked.Archi, Model is a more general term that encompasses architecture descriptions and other selective representations.
+
+Model carries both standards' aggregate role: it is the ISO 42010 Architecture Description,
+comprised of one or more Architecture Views, and the TOGAF deliverable — an Architecture
+Definition Document and the like — that aggregates catalogs, matrices and diagrams. Membership is
+stated by the member: a View names its Model with arch:inModel.'''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html>,
                     <https://eaonapage.com/> ;
 .
@@ -492,7 +516,11 @@ Example concerns:
 — The risks of system development and operation to users, acquirers, and developers of the system
 — Maintainability, deployability, and evolvability of the system
     ''' ;
-    skos:scopeNote  '''Derived from ISO/IEC/IEEE 42010: "any interest in the system." The term derives from "separation of concerns" (Dijkstra). Examples include purpose, functionality, structure, behavior, cost, supportability, safety, interoperability.'''@en ;
+    skos:scopeNote  '''Derived from ISO/IEC/IEEE 42010: "any interest in the system." The term derives from "separation of concerns" (Dijkstra). Examples include purpose, functionality, structure, behavior, cost, supportability, safety, interoperability.
+
+A concern is about the system and is named by a noun phrase ("Impact of change"). It is not answered
+by any one question: a ModelQuestion asks one thing the model answers, and informs the concerns it
+addresses (arch:questionAddressesConcern).'''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html> ;
 .
 
@@ -553,14 +581,11 @@ format role is handled by this class.'''@en ;
     a               owl:Class ;
     rdfs:subClassOf schema:CreativeWork ;
     skos:prefLabel  "DeliverableTemplate"@en ;
-    skos:definition '''A template that defines the content structure of an architecture deliverable
-by specifying which viewpoints it requires and which presentation formats it supports.
-Each required viewpoint acts as a placeholder — the actual views are created when someone
-uses the template to produce a concrete deliverable.
-
-A concrete deliverable (arch:Model) is produced by instantiating a DeliverableTemplate:
-for each required viewpoint, a View conforming to that viewpoint is created and added
-to the Model via arch:contains.'''@en ;
+    skos:definition '''A template of an architecture document produced from a model: its sections in
+order, each presenting a viewpoint and answering concerns by asking model questions; the values the
+document is produced for (arch:templateParameter); and the presentation formats it can be rendered in.
+A generator produces the document from the model, so it states what the model holds, what it lacks
+and what could not be checked, and does not drift from the model.'''@en ;
     skos:scopeNote  '''Aligned with TOGAF Architecture Content Framework where deliverables
 (e.g., Architecture Definition Document, Architecture Requirements Specification) are
 defined as aggregations of specific catalogs, matrices, and diagrams. Also aligned with
@@ -569,21 +594,23 @@ each governed by a Viewpoint.
 
 DeliverableTemplates are defined at the Metamodel level via arch:hasDeliverableTemplate,
 alongside other metamodel components (elements, relationships, viewpoints, rules).
-Models instantiate them via arch:deliverableTemplateUsed.
+A Model names the templates its deliverables follow with arch:deliverableTemplateUsed.
 
-Example:
-  archvp:ArchitectureDefinitionDocument a arch:DeliverableTemplate ;
-      arch:templateRequiresViewpoint amvp:Organization, amvp:ApplicationCooperation,
-                                     amvp:ImplementationDeployment ;
+Example, abridged from the ArchiMate 4.0 templates:
+  am4dt:ArchitectureDefinitionDocument a arch:DeliverableTemplate ;
+      arch:templateParameter am4dt:ModelParameter ;
+      arch:templateHasSection am4dt:ADD-S1, am4dt:ADD-S2 ;
+      arch:templateRequiresViewpoint am4vp:OrganizationViewpoint, am4vp:ProcessCooperationViewpoint ;
       arch:templateHasFormat archdt:MarkdownFormat, archdt:PDFFormat ;
       arch:templateTargetsPurpose archvp:Designing .
 
-When instantiated:
-  ex:MyADD a arch:Model ;
-      arch:deliverableTemplateUsed archvp:ArchitectureDefinitionDocument ;
-      arch:contains ex:OrgView, ex:AppCoopView, ex:DeployView .
-  ex:OrgView a arch:Diagram ;
-      arch:viewConformsToViewpoint amvp:Organization .
+The document presents the model's views by the viewpoint each follows. Each View names the
+Model it belongs to — membership is stated by the member, not the container. See arch:inModel.
+  ex:Claims a arch:Model ;
+      arch:deliverableTemplateUsed am4dt:ArchitectureDefinitionDocument .
+  ex:ProcessView a arch:Diagram ;
+      arch:inModel ex:Claims ;
+      arch:viewConformsToViewpoint am4vp:ProcessCooperationViewpoint .
 '''@en ;
     rdfs:seeAlso    <https://www.iso.org/standard/74393.html>,
                     <https://pubs.opengroup.org/togaf-standard/architecture-content/chap03.html> ;
@@ -592,17 +619,204 @@ When instantiated:
 :TemplateSection
     a               owl:Class ;
     skos:prefLabel  "TemplateSection"@en ;
-    skos:definition '''An ordered section within a DeliverableTemplate that references a Viewpoint.
-When the template is instantiated, each TemplateSection becomes a placeholder for a View
-conforming to the referenced viewpoint. Sections carry an order index for sequencing
-and optional guidance text.'''@en ;
+    skos:definition '''An ordered section of a DeliverableTemplate: the Viewpoint it presents
+(arch:sectionViewpoint), the concerns it answers (arch:sectionAddressesConcern) and the model
+questions it asks to answer them (arch:sectionAsks), or a single inline query (arch:sectionQuery).
+Produced from a model, the section shows the answers and the model's views that follow its
+viewpoint.'''@en ;
     skos:example    '''
-archvp:ADDSection1 a arch:TemplateSection ;
-    arch:sectionOrder 1 ;
-    arch:sectionViewpoint amvp:Organization ;
-    skos:prefLabel "1. Organizational Structure"@en ;
-    skos:definition "Document the organizational structure using the Organization Viewpoint."@en .
+am4dt:ADD-S2 a arch:TemplateSection ;
+    arch:sectionOrder 2 ;
+    skos:prefLabel "2. Process Cooperation"@en ;
+    skos:definition "How do processes cooperate, is each performed by someone, and is every service delivered?"@en ;
+    arch:sectionViewpoint am4vp:ProcessCooperationViewpoint ;
+    arch:sectionAddressesConcern am4vp:ProcessDependencies, am4vp:Responsibilities, am4vp:Completeness ;
+    arch:sectionAsks ( am4q:viewpoint-scope am4q:unassigned-behaviour am4q:unrealised-services ) ;
+    arch:sectionResultKey "processCooperation" .
 '''@en ;
+.
+
+## ═══════════════════════════════════════════════════════════════════════════════
+## Model questions — what stakeholders ask of a model
+##
+## A Concern is an interest a stakeholder holds in the system; a ModelQuestion is
+## a question the model — the architecture description — answers, with the
+## SPARQL that answers it. A concern is informed by many questions, and by views;
+## a question informs the concerns it addresses. The question is bound to the
+## same ISO/IEC/IEEE 42010 terms viewpoints and deliverable templates are
+## described with: defined once, it is offered by a modelling tool, asked by a
+## deliverable section and found by an analysis agent through its concerns.
+##
+## The executable part is SHACL Advanced Features' sh:SPARQLExecutable: the
+## query in sh:select, sh:construct or sh:ask, its prefixes declared once through
+## sh:prefixes / sh:declare, its inputs declared with sh:parameter.
+## ═══════════════════════════════════════════════════════════════════════════════
+
+:ModelQuestion
+    a               owl:Class ;
+    rdfs:subClassOf sh:SPARQLExecutable ;
+    skos:prefLabel  "ModelQuestion"@en ;
+    skos:altLabel   "Question"@en, "Competency question"@en, "Model query"@en ;
+    skos:definition '''A question an architecture model answers — "What is affected if this element
+changes?" — together with the executable SPARQL that answers it. Where a Concern is an interest a
+stakeholder holds in the system, such as the impact of change, a model question asks one thing the
+architecture description can answer, and informs the concerns it addresses
+(arch:questionAddressesConcern): a concern is informed by many questions and views, and no single
+answer settles it. The question is the unit of reuse: a modelling tool offers it beside the views it
+fits, a deliverable section asks it for the concerns it answers, and an analysis agent selects it by
+those concerns.'''@en ;
+    skos:scopeNote  '''Wording. The skos:prefLabel is the question itself, one sentence ending in a
+question mark; a Concern's is a noun phrase. arch:doesNotProve states what the model's answer does
+not settle about the system.
+
+Executable form. An instance is also typed sh:SPARQLSelectExecutable,
+sh:SPARQLConstructExecutable or sh:SPARQLAskExecutable and carries its query in sh:select,
+sh:construct or sh:ask. The query text carries no PREFIX declarations — they are named through
+sh:prefixes, normally the question set's root resource with its sh:declare entries — and no
+LIMIT: arch:defaultLimit is the bound a browsing tool appends, while a document generator reads
+every row.
+
+Parameters. Declared with sh:parameter; as in SHACL, the variable a parameter binds is the
+local name of its sh:path, so a parameter on arch:focus binds ?focus. The core parameter
+properties are arch:focus, arch:model, arch:view, arch:viewpoint, arch:conceptType, arch:from
+and arch:to. A runner pre-binds a parameter by inserting "VALUES ?focus { <iri> }" as the first
+element of the outermost WHERE group, and binds only the parameters the question declares: a
+result column may share a parameter's name without being one. An optional parameter left
+unbound stays a free variable, so the stored query is valid SPARQL that runs unchanged in any
+tool and answers for "any"; a question whose required parameter is unbound is not asked. A
+sub-SELECT that uses a parameter's variable projects it, so the pre-binding still applies to its
+rows.
+
+Dataset. Model data is in the default graph. A question that also reads the metamodel (a
+subclass closure, the concepts a viewpoint admits) reads it through
+"{ P } UNION { GRAPH ?g { P } }", which holds whether the metamodel is in the default graph or
+in one named graph per document; arch:requiresDataset says which a question needs. Such a
+lookup is made once per query — a sub-SELECT of the types concerned, joined or subtracted —
+not once per row.
+
+Types. A concept's type is its most specific one. The core classes (arch:ModelConcept,
+arch:Element, arch:QualifiedRelationship) and a language's abstract classes may be asserted or
+inferred beside it, and a question's answer does not change when they are: a question that
+reports or groups by type leaves them out.
+
+Findings. When arch:resultIsFinding is true, each row is a problem against the concerns the
+question addresses, so an empty result means they are satisfied; arch:findingSeverity grades
+the rows on SHACL's scale and arch:findingFocus names the column holding the concept each
+finding is about, so findings read like validation results.'''@en ;
+    skos:example    '''
+ex:orphans a arch:ModelQuestion, sh:SPARQLSelectExecutable ;
+    skos:prefLabel "Which elements take part in no relationship?"@en ;
+    arch:questionStage arch:QualityStage ;
+    arch:resultIsFinding true ; arch:findingSeverity sh:Info ; arch:findingFocus "element" ;
+    sh:parameter [ sh:path arch:model ; sh:optional true ] ;
+    sh:prefixes <https://example.org/questions#> ;
+    sh:select """
+        SELECT ?element ?label WHERE {
+          ?element arch:inModel ?model .
+          FILTER NOT EXISTS { ?element arch:source ?anySource }
+          FILTER NOT EXISTS { ?anyRelationship arch:source|arch:target ?element }
+          OPTIONAL { ?element skos:prefLabel ?label }
+        }""" .
+'''@en ;
+    rdfs:seeAlso    <https://www.w3.org/TR/shacl-af/#SPARQLExecutable>,
+                    <https://www.iso.org/standard/74393.html> ;
+.
+
+:QuestionSet
+    a               owl:Class ;
+    skos:prefLabel  "QuestionSet"@en ;
+    skos:definition '''The ModelQuestions a language publishes, as one document: the core set, or a
+metamodel's set for its own vocabulary. A unit of publication, not a grouping by concern — the
+questions that inform a concern are found through arch:questionAddressesConcern. Its root resource
+carries the document's metadata (title, licence, vann:preferredNamespaceUri and
+vann:preferredNamespacePrefix) and declares, with sh:declare, the prefixes its questions' SPARQL
+uses; each question names it with sh:prefixes.'''@en ;
+    skos:scopeNote  '''A question set is instance data, like a set of deliverable templates: its
+root is an arch:QuestionSet, never an owl:Ontology. A metamodel links the question sets for its
+vocabulary with arch:hasQuestionSet.'''@en ;
+.
+
+:DatasetScope
+    a               owl:Class ;
+    skos:prefLabel  "DatasetScope"@en ;
+    skos:definition "What a question reads: model data alone, or model data with the metamodel beside it."@en ;
+.
+
+:ModelDataset
+    a               :DatasetScope ;
+    skos:prefLabel  "Model data"@en ;
+    skos:definition "Model data only, in the default graph."@en ;
+.
+
+:ModelAndMetamodelDataset
+    a               :DatasetScope ;
+    skos:prefLabel  "Model and metamodel"@en ;
+    skos:definition '''Model data together with the loaded metamodel documents — class hierarchy,
+viewpoint definitions, unqualified forms — in the default graph or in named graphs.'''@en ;
+.
+
+:QuestionStageScheme
+    a               skos:ConceptScheme ;
+    skos:prefLabel  "Question stages"@en ;
+    skos:definition '''The stages an investigation of a model moves through, in order: what is
+there, what a name refers to, which vocabulary the data uses, how things depend on each other,
+what is recorded about them, how sound the description is, and what its views show.'''@en ;
+.
+
+:OrientationStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "orientation" ;
+    skos:prefLabel  "Orientation"@en ;
+    skos:definition "What is in the model, in outline."@en ;
+.
+
+:ResolutionStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "resolution" ;
+    skos:prefLabel  "Resolution"@en ;
+    skos:definition "Which concept a name refers to, and what it is."@en ;
+.
+
+:DiscoveryStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "discovery" ;
+    skos:prefLabel  "Discovery"@en ;
+    skos:definition "Which vocabulary and shapes the data actually uses."@en ;
+.
+
+:AnalysisStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "analysis" ;
+    skos:prefLabel  "Analysis"@en ;
+    skos:definition "Dependencies, traceability, realisation and the impact of change."@en ;
+.
+
+:EnrichmentStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "enrichment" ;
+    skos:prefLabel  "Enrichment"@en ;
+    skos:definition "Lifecycle, ownership and the other facts recorded about concepts."@en ;
+.
+
+:QualityStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "quality" ;
+    skos:prefLabel  "Quality"@en ;
+    skos:definition "Gaps, inconsistencies and the integrity of the description itself."@en ;
+.
+
+:ViewsStage
+    a               skos:Concept ;
+    skos:inScheme   :QuestionStageScheme ;
+    skos:notation   "views" ;
+    skos:prefLabel  "Views"@en ;
+    skos:definition "What views present, and how they conform to their viewpoints."@en ;
 .
 
 :QualityAttribute
@@ -766,6 +980,20 @@ here, target points to the element at which the relationship arrives.''' ;
      restrictions, like other types of restrictions, should be implemented using SHACL. ''' ;
 .
 
+:RelationshipProposalOrder
+    a               owl:Class ;
+    rdfs:subClassOf skos:OrderedCollection ;
+    skos:prefLabel  "Relationship Proposal Order"@en ;
+    skos:definition "Relationship types in the order a modelling tool proposes them when two elements are connected."@en ;
+    skos:scopeNote  '''Without :domainIncludes, it is a language's general order, which decides between the
+relationships the language's metamodel draws between the two elements. With :domainIncludes, and :rangeIncludes,
+it puts its members first between the elements it names, whether the metamodel draws them or only permits them;
+one that names both ends is more specific than one that names the source only. Where the metamodel draws nothing,
+a tool falls back on what the language permits directly before what it permits only by derivation. Guidance, like
+:domainIncludes itself: it orders what a language permits and restricts nothing. ArchiMate 4.0's are in its
+taxonomy.'''@en ;
+.
+
 
 ## Basic Properties
 
@@ -896,52 +1124,136 @@ here, target points to the element at which the relationship arrives.''' ;
     rdfs:range      :Metamodel ;
 .
 
-:contains
+## ═══════════════════════════════════════════════════════════════════════════════
+## Membership — which Model a concept belongs to, which Views present it
+##
+## Both properties put the *member* in the subject position. That is the
+## direction the rest of this ontology already reads in — viewConformsToViewpoint,
+## modelConformsToMetamodel, basedOnFramework, modelRepresentsSystem all describe
+## the dependent thing rather than the container — so membership is no longer the
+## one exception. There is no container-first inverse of either; see the note on
+## the deprecated :contains below for why declaring one is unsound rather than
+## merely redundant.
+##
+## Two properties rather than one, because :View is itself a :ModelConcept and a
+## View may present other Views. A single container-first `contains` would render
+## "this Model holds this View" and "this View presents that View" as the same
+## triple pattern with a :View in object position either way, leaving no way to
+## tell them apart.
+##
+## Neither is a subproperty of :partOf, and neither is transitive. :partOf is
+## transitive composition between two ModelConcepts: presentation on a View is
+## not composition, and :Model is not a :ModelConcept at all, so :inModel could
+## not inherit that range even if the semantics fitted. See DD-30.
+## ═══════════════════════════════════════════════════════════════════════════════
+
+:inView
     a               owl:ObjectProperty ;
-    skos:prefLabel  "contains"@en ;
-    skos:definition '''Links a Model to the Views it contains. A Model (architecture description)
-is a deliverable that aggregates multiple Views, each conforming to a Viewpoint.'''@en ;
-    skos:scopeNote  '''In ISO/IEC/IEEE 42010, an Architecture Description is comprised of one or more
-Architecture Views. In TOGAF, a deliverable (e.g., Architecture Definition Document) contains
-multiple catalogs, matrices, and diagrams. In Linked.Archi, arch:Model serves as both the
-ISO 42010 Architecture Description and the TOGAF deliverable concept.
+    skos:prefLabel  "inView"@en ;
+    skos:definition '''Links a ModelConcept to a View that presents it. Applies to Elements,
+QualifiedRelationships and nested Views alike — anything that is a ModelConcept — and to every
+kind of View: a Diagram that draws the concept, a Catalog that lists it, a Matrix that indexes
+it.'''@en ;
+    skos:scopeNote  '''Many-valued. One concept may appear in any number of Views, and appearing
+in none is an ordinary state for a concept that exists in the model but has not been presented
+anywhere.
 
-A Model can be instantiated from a DeliverableTemplate, which specifies which viewpoints
-are required. Each required viewpoint becomes a placeholder for a View:
+A QualifiedRelationship carries this property directly, as any other ModelConcept does. No
+reification is involved: the relationship is already a resource with :source and :target, so
+`ex:rel1 arch:inView ex:View1` states plainly what an RDF-star annotation on an unqualified
+triple would have had to state indirectly.
 
-Example:
-  ex:ArchDefinitionDoc a arch:Model ;
-      arch:deliverableTemplateUsed archvp:ArchitectureOverviewDocument ;
-      arch:contains ex:OrgChart, ex:AppLandscape, ex:TechDeployment ;
-      arch:modelHasPurpose ex:CloudMigration .
-
-  ex:OrgChart a arch:Diagram ;
-      arch:viewConformsToViewpoint amvp:Organization .'''@en ;
-    rdfs:domain     :Model ;
+Independent of the visual layer, and deliberately not derived from it. Where diagram geometry
+exists, core-vis says something more precise — an arch-vis:ArchNode carrying arch-vis:view and
+arch-vis:archElement locates the concept on a canvas. arch:inView is the coarser fact that
+survives when geometry is absent, was dropped by a serialization profile, or never existed
+because the source notation had no coordinates. Both are emitted; neither substitutes for the
+other.'''@en ;
+    rdfs:domain     :ModelConcept ;
     rdfs:range      :View ;
 .
 
-:exposedInView
+:inModel
     a               owl:ObjectProperty ;
-    skos:prefLabel  "exposedInView"@en ;
-    skos:definition '''
-    Concepts property that specifies the individual Views that exposes that Concept such as Elements, Relationships
-    or other Views. In the case of a relationshipRDF* or statement can be used to link the triple with the View.
-        ''' ;
+    skos:prefLabel  "inModel"@en ;
+    skos:definition '''Links a ModelConcept to the Model it belongs to. Applies to Elements,
+QualifiedRelationships and Views alike, so a View's membership in its Model is stated with the
+same property as an Element's rather than needing a container-first term of its own.'''@en ;
+    skos:scopeNote  '''At most one Model per concept. That bound is asserted in core-shapes as
+archsh:InModelShape rather than by typing this property owl:FunctionalProperty, which would
+entail owl:sameAs between two Models instead of reporting the error. See DD-23.
+
+Redundant with the named graph in a quad store, and deliberately so. A consumer reading
+flattened Turtle or N-Triples, or a merged graph, has no other way to tell which Model a concept
+belongs to short of parsing its IRI.
+
+Named :inModel rather than partOfModel because that stem collided with :partOf, a transitive
+composition property with unrelated semantics that this one neither specialises nor could
+specialise.'''@en ;
     rdfs:domain     :ModelConcept ;
-    rdfs:range      :View ;
+    rdfs:range      :Model ;
+.
+
+
+## ── Superseded membership properties ──────────────────────────────────────────
+## Retained so that data written against the older vocabulary still resolves, and
+## declared rdfs:subPropertyOf their replacements so it still entails the current
+## properties for a consumer running RDFS. Nothing in this project emits them.
+## See DD-30.
+
+:exposedInView
+    a                  owl:ObjectProperty ;
+    owl:deprecated     true ;
+    skos:prefLabel     "exposedInView"@en ;
+    rdfs:subPropertyOf :inView ;
+    dcterms:isReplacedBy :inView ;
+    skos:definition    '''Superseded by arch:inView, which states the same relationship under a
+name that does not imply a picture.'''@en ;
+    skos:historyNote   '''Renamed to arch:inView in 0.4.0. "Exposed in" reads as drawing, but
+:View also covers :Catalog and :Matrix, which present concepts without depicting them. The
+original definition also offered RDF-star or rdf:Statement for the relationship case; that was a
+leftover from the reified design :source and :target replaced, and a QualifiedRelationship now
+carries membership directly.'''@en ;
+    rdfs:domain        :ModelConcept ;
+    rdfs:range         :View ;
 .
 
 :partOfModel
-    a               owl:ObjectProperty ;
-    skos:prefLabel  "partOfModel"@en ;
-    skos:definition '''
-    Concepts property that specifies the Model that contains that Concept such as Elements, Relationships
-    or other Views. In the case of a relationship RDF-star or statement can be used to link the triple with the View.
-    Note that Model propery of a concept can be expressed via quads.
-        ''' ;
-    rdfs:domain     :ModelConcept ;
-    rdfs:range      :Model ;
+    a                  owl:ObjectProperty ;
+    owl:deprecated     true ;
+    skos:prefLabel     "partOfModel"@en ;
+    rdfs:subPropertyOf :inModel ;
+    dcterms:isReplacedBy :inModel ;
+    skos:definition    '''Superseded by arch:inModel, which states the same relationship without
+borrowing the partOf stem.'''@en ;
+    skos:historyNote   '''Renamed to arch:inModel in 0.4.0. The shared stem invited the reading
+that model membership is a kind of :partOf composition. It is not, and could not be made one:
+:partOf is transitive with range :ModelConcept, while :Model is not a :ModelConcept.'''@en ;
+    rdfs:domain        :ModelConcept ;
+    rdfs:range         :Model ;
+.
+
+:contains
+    a                  owl:ObjectProperty ;
+    owl:deprecated     true ;
+    skos:prefLabel     "contains"@en ;
+    dcterms:isReplacedBy :inModel ;
+    skos:definition    '''Superseded by arch:inModel, read in the other direction: what was
+`ex:Doc arch:contains ex:OrgChart` is now `ex:OrgChart arch:inModel ex:Doc`.'''@en ;
+    skos:historyNote   '''Deprecated in 0.4.0 as an undeclared inverse of what was then
+:partOfModel — since :View is a :ModelConcept, both properties already stated the same fact
+about a View and its Model, in opposite directions, with nothing relating them.
+
+Carries no owl:inverseOf to :inModel, which would be unsound rather than untidy. :inModel admits
+any :ModelConcept as subject while this property declares rdfs:range :View, so the inverse of
+`ex:Element1 arch:inModel ex:Doc` would entail `ex:Doc arch:contains ex:Element1` and, through
+that range, `ex:Element1 a arch:View`.
+
+Carries no rdfs:subPropertyOf either, for the same reason: no container-first property here has
+:inModel's breadth, so there is nothing sound to generalise to. Legacy arch:contains triples
+therefore do not entail :inModel and have to be rewritten rather than reasoned over.'''@en ;
+    rdfs:domain        :Model ;
+    rdfs:range         :View ;
 .
 
 :modelRepresentsSystem
@@ -1589,17 +1901,27 @@ are part of the metamodel alongside elements, relationships, viewpoints, and rul
     skos:historyNote "Replaces arch:hasPresentationTemplate which pointed to the now-removed arch:PresentationTemplate class."@en ;
 .
 
+:hasQuestionSet
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "hasQuestionSet"@en ;
+    skos:definition '''Links a Metamodel to the QuestionSets published for its vocabulary: the
+questions its stakeholders ask of a model, bound to the concerns its viewpoints frame. A
+modelling tool that loads the metamodel offers them. The core question set applies to every
+metamodel and is not linked.'''@en ;
+    rdfs:domain     :Metamodel ;
+    rdfs:range      :QuestionSet ;
+.
+
 ## DeliverableTemplate properties
 
 :templateRequiresViewpoint
     a               owl:ObjectProperty ;
     skos:prefLabel  "templateRequiresViewpoint"@en ;
-    skos:definition '''Links a DeliverableTemplate to the Viewpoints it requires. Each referenced
-viewpoint acts as a placeholder — when the template is instantiated into a concrete
-deliverable (arch:Model), a View conforming to each required viewpoint must be created.
+    skos:definition '''Links a DeliverableTemplate to the Viewpoints it presents: the model a
+deliverable is produced from needs a View following each of them for the document to show it.
 
-For ordered sections with sequence numbers and guidance text, use arch:templateHasSection
-with TemplateSection instances instead.'''@en ;
+The sections say in which order and for which concerns (arch:templateHasSection); this flat list
+lets a tool see at a glance which views a model lacks for the document.'''@en ;
     rdfs:domain     :DeliverableTemplate ;
     rdfs:range      :Viewpoint ;
 .
@@ -1618,9 +1940,9 @@ For a simpler flat list of required viewpoints, use arch:templateRequiresViewpoi
 :sectionViewpoint
     a               owl:ObjectProperty ;
     skos:prefLabel  "sectionViewpoint"@en ;
-    skos:definition '''Links a TemplateSection to the Viewpoint it references. When the
-deliverable template is instantiated, a View conforming to this viewpoint
-is created for this section.'''@en ;
+    skos:definition '''Links a TemplateSection to the Viewpoint it presents. Produced from a model,
+the section shows the model's Views that follow this viewpoint, and the questions it asks are
+pre-bound with it as ?viewpoint.'''@en ;
     rdfs:domain     :TemplateSection ;
     rdfs:range      :Viewpoint ;
 .
@@ -1637,7 +1959,7 @@ Sections are ordered by ascending sectionOrder value.'''@en ;
 :sectionQuery
     a               owl:DatatypeProperty ;
     skos:prefLabel  "sectionQuery"@en ;
-    skos:definition '''A SPARQL SELECT or CONSTRUCT query that extracts the data needed to
+    skos:definition '''A SPARQL SELECT query that extracts the data needed to
 populate this template section from the knowledge graph. The query is executed against
 the architecture model data and its results are passed to the template engine as the
 data context for this section.
@@ -1680,9 +2002,9 @@ a tool may derive the key from the section's local name or sectionOrder.'''@en ;
 :deliverableTemplateUsed
     a               owl:ObjectProperty ;
     skos:prefLabel  "deliverableTemplateUsed"@en ;
-    skos:definition '''Links a Model (concrete deliverable) to the DeliverableTemplate it was
-instantiated from. This enables traceability from a deliverable back to its
-template and validation that all required viewpoints have corresponding views.'''@en ;
+    skos:definition '''Links a Model to a DeliverableTemplate its deliverables are produced with.
+This lets a tool offer the document for the model, and check that the model has a View
+following each viewpoint the template presents (arch:templateRequiresViewpoint).'''@en ;
     rdfs:domain     :Model ;
     rdfs:range      :DeliverableTemplate ;
 .
@@ -1708,16 +2030,17 @@ Specifies how the deliverable can be rendered — e.g., Markdown, HTML, PDF, sli
 :templateResource
     a               owl:DatatypeProperty ;
     skos:prefLabel  "templateResource"@en ;
-    skos:definition '''Points to the actual template file, URL, or resource used to render
-a deliverable in this format. Can be a local file path, a URL to a template repository,
-or a reference to a template engine resource (e.g., Handlebars, Jinja2, XSLT).'''@en ;
+    skos:definition '''Points to the template file, URL, or resource a deliverable is rendered
+with: on a DeliverableTemplate, the layout of the document; on a PresentationFormat, the layout
+for that format. Can be a local file path, a URL to a template repository, or a reference to a
+template engine resource (e.g., Handlebars, Jinja2, XSLT).'''@en ;
     skos:example    '''
 "templates/aod.md.hbs"          — Handlebars Markdown template
 "templates/report.html.j2"      — Jinja2 HTML template
 "templates/governance.tex"       — LaTeX PDF template
-"https://templates.linked.archi/slides/default.pptx" — remote PPTX template
+"https://example.org/templates/slides/default.pptx" — remote PPTX template
 '''@en ;
-    rdfs:domain     :PresentationFormat ;
+    :domainIncludes :DeliverableTemplate, :PresentationFormat ;
     rdfs:range      xsd:anyURI ;
 .
 
@@ -1734,6 +2057,246 @@ SPARQL endpoint or data file as input and produces the rendered output.'''@en ;
 '''@en ;
     rdfs:domain     :PresentationFormat ;
     rdfs:range      xsd:string ;
+.
+
+
+## Model question properties — what a question is about, and what its answer means
+
+:questionAddressesConcern
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionAddressesConcern"@en ;
+    skos:definition '''Links a ModelQuestion to the Considerations its answer informs. What makes a
+question selectable by concern, as arch:viewpointFramesConcern makes a viewpoint; a
+stakeholder's questions follow from arch:stakeholderHasConcern.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      :Consideration ;
+.
+
+:questionTargetsStakeholder
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionTargetsStakeholder"@en ;
+    skos:definition '''Links a ModelQuestion to a Stakeholder who asks it, stated where the concerns it
+addresses do not already say so.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      :Stakeholder ;
+.
+
+:questionHasPurpose
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionHasPurpose"@en ;
+    skos:definition '''Links a ModelQuestion to the Purposes it serves — deciding, informing, designing —
+as arch:viewpointHasPurpose does a viewpoint and arch:templateTargetsPurpose a deliverable
+template.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      :Purpose ;
+.
+
+:questionFitsViewpoint
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionFitsViewpoint"@en ;
+    skos:definition '''Links a ModelQuestion to a Viewpoint whose views it is asked about: a modelling
+tool offers it while such a view is open, and a view built from its result conforms to that
+viewpoint.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      :Viewpoint ;
+.
+
+:questionStage
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "questionStage"@en ;
+    skos:definition "The stage of an investigation a ModelQuestion belongs to, from arch:QuestionStageScheme."@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      skos:Concept ;
+.
+
+:answers
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "answers"@en ;
+    skos:definition "What one row of a ModelQuestion's result means."@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      rdf:langString ;
+.
+
+:doesNotProve
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "doesNotProve"@en ;
+    skos:definition '''The conclusion a reader will be tempted to draw from a ModelQuestion's answer and
+should not — that a modelled relationship is a runtime dependency, that an absent value means
+none exists.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      rdf:langString ;
+.
+
+:resultIsFinding
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "resultIsFinding"@en ;
+    skos:definition '''True when every row of a ModelQuestion's result is a finding against the
+concerns it addresses, so that an empty result means they are satisfied. A deliverable states
+an empty finding as "none found" rather than leaving it out.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      xsd:boolean ;
+.
+
+:findingSeverity
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "findingSeverity"@en ;
+    skos:definition '''How serious a finding ModelQuestion's rows are, on SHACL's scale (sh:Info,
+sh:Warning, sh:Violation), so findings and validation results read alike.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      sh:Severity ;
+.
+
+:findingFocus
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "findingFocus"@en ;
+    skos:definition '''The result variable, without its "?", whose value is the concept each row of
+a finding ModelQuestion is about — the focus node of the finding, as in a SHACL validation result.'''@en ;
+    skos:example    '"element", "service", "requirement"' ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      xsd:string ;
+.
+
+:requiresDataset
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "requiresDataset"@en ;
+    skos:definition "What a ModelQuestion must be able to read: model data alone, or the metamodel beside it."@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      :DatasetScope ;
+.
+
+:requiresMetamodel
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "requiresMetamodel"@en ;
+    skos:definition '''An ontology whose terms a ModelQuestion uses. A tool offers the question only while
+that ontology is loaded.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      owl:Ontology ;
+.
+
+:defaultLimit
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "defaultLimit"@en ;
+    skos:definition '''The number of rows a browsing tool shows of a ModelQuestion's result. Not part of
+the query text: a document generator reads every row.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      xsd:integer ;
+.
+
+:resultKey
+    a               owl:DatatypeProperty ;
+    skos:prefLabel  "resultKey"@en ;
+    skos:definition '''The key a ModelQuestion's rows are stored under in a document generator's context,
+within the arch:sectionResultKey of the section that asks it.'''@en ;
+    rdfs:domain     :ModelQuestion ;
+    rdfs:range      xsd:string ;
+.
+
+## Model question parameters
+##
+## The properties a ModelQuestion's sh:parameter names as its sh:path. As in SHACL,
+## the variable a parameter binds is the property's local name: a parameter on
+## arch:focus binds ?focus. They name inputs to questions and deliverables and
+## are never asserted in model data.
+
+:focus
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "focus"@en ;
+    skos:definition '''Model question parameter: the concept a question is about — in a modelling tool,
+the selected element; in a deliverable, the element it is produced for. Binds ?focus.'''@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+:model
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "model"@en ;
+    skos:definition '''Model question parameter: the Model a question is restricted to — in a modelling
+tool, the open model; in a deliverable, the model it is produced from. Binds ?model.'''@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+:view
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "view"@en ;
+    skos:definition "Model question parameter: a View — in a modelling tool, the open view. Binds ?view."@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+:viewpoint
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "viewpoint"@en ;
+    skos:definition '''Model question parameter: a Viewpoint, as the statement of what is in scope — in a
+modelling tool, the open view's viewpoint; in a deliverable, the section's
+arch:sectionViewpoint. Binds ?viewpoint.'''@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+:conceptType
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "conceptType"@en ;
+    skos:definition '''Model question parameter: a class of concepts a question is restricted to, such as
+one element type. Binds ?conceptType, which a question keeps apart from the ?type it may report
+for each concept.'''@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+:from
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "from"@en ;
+    skos:definition '''Model question parameter: the earlier of two states a question compares, such as a
+baseline plateau. Binds ?from.'''@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+:to
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "to"@en ;
+    skos:definition '''Model question parameter: the later of two states a question compares, such as a
+target plateau. Binds ?to.'''@en ;
+    skos:scopeNote  "Used only as the sh:path of a question or template parameter; not asserted in model data."@en ;
+.
+
+## Template sections that answer concerns
+
+:sectionAsks
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "sectionAsks"@en ;
+    skos:definition '''The ModelQuestions a TemplateSection asks, in reading order, as an rdf:List of
+arch:ModelQuestion: each defined once, asked by any number of sections and offered by any tool.
+arch:sectionQuery is the inline form for a single query.'''@en ;
+    skos:scopeNote  '''For each question a section asks, a generator pre-binds the parameters that
+question declares from the deliverable's model (?model), the section's arch:sectionViewpoint
+(?viewpoint) and the arch:templateParameter values the deliverable is produced for. A question
+whose required parameter stays unbound is reported as not asked; it is never run unbound.'''@en ;
+    rdfs:domain     :TemplateSection ;
+    rdfs:range      rdf:List ;
+.
+
+:sectionAddressesConcern
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "sectionAddressesConcern"@en ;
+    skos:definition '''A Consideration a TemplateSection answers for its readers. By default the
+concerns its arch:sectionViewpoint frames; stated where the section is narrower or wider.'''@en ;
+    rdfs:domain     :TemplateSection ;
+    rdfs:range      :Consideration ;
+.
+
+:sectionTargetsStakeholder
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "sectionTargetsStakeholder"@en ;
+    skos:definition "A Stakeholder a TemplateSection is written for, where it differs from its viewpoint's."@en ;
+    rdfs:domain     :TemplateSection ;
+    rdfs:range      :Stakeholder ;
+.
+
+:templateParameter
+    a                  owl:ObjectProperty ;
+    rdfs:subPropertyOf sh:parameter ;
+    skos:prefLabel     "templateParameter"@en ;
+    skos:definition    '''A value a deliverable is produced for — the model, the element under change,
+two plateaus to compare — declared as an sh:Parameter and pre-bound into every question its
+sections ask.'''@en ;
+    rdfs:domain        :DeliverableTemplate ;
+    rdfs:range         sh:Parameter ;
 .
 
 

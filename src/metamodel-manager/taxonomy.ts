@@ -49,6 +49,8 @@ const SKOS_DEFINITION = `${SKOS_NS}definition`;
 const SKOS_NARROWER = `${SKOS_NS}narrower`;
 const SKOS_BROADER = `${SKOS_NS}broader`;
 const SKOS_IN_SCHEME = `${SKOS_NS}inScheme`;
+const SKOS_TOP_CONCEPT_OF = `${SKOS_NS}topConceptOf`;
+const SKOS_HAS_TOP_CONCEPT = `${SKOS_NS}hasTopConcept`;
 const SKOS_CONCEPT = `${SKOS_NS}Concept`;
 const SKOS_CONCEPT_SCHEME = `${SKOS_NS}ConceptScheme`;
 
@@ -72,12 +74,16 @@ const RELATIONSHIP_FRAGMENTS = new Set([
   'Assignment',
   'Association',
   'Composition',
+  'DirectedAssociation',
   'Flow',
   'Influence',
+  'ReadAccess',
+  'ReadWriteAccess',
   'Realization',
   'Serving',
   'Specialization',
   'Triggering',
+  'WriteAccess',
 ]);
 
 /** Local names that denote abstract scaffolding classes rather than palette elements. */
@@ -156,19 +162,24 @@ export interface SemanticClass {
  * When the taxonomy is flat (groups but no axis wrapper) a single axis labelled "Classification"
  * is synthesised from every group in the scheme.
  *
- * Axes are ordered so structural ones (by Layer, by Domain) precede the orthogonal "by Aspect"
- * axis; the first axis becomes the default classification.
+ * Axes are ordered by the metamodel whose classification they belong to, in load order — so a
+ * language added beside another (Basic beside ArchiMate) never becomes the default grouping of
+ * the first one's palette — then so structural ones (by Layer, by Domain) precede the orthogonal
+ * "by Aspect" axis; the first axis becomes the default classification.
  *
  * @param store n3 store holding the taxonomy (and, optionally, the metamodel manifest).
+ * @param metamodelIris The loaded `arch:Metamodel` subjects, in load order. Without them,
+ *   axes are ordered by label alone after the structural/aspect rule.
  * @returns The discovered axes, ordered by preference. Empty when no concept scheme is present.
  */
-export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
+export function buildClassificationAxes(store: Store, metamodelIris: readonly string[] = []): TaxonomyAxis[] {
   // Prefer the scheme(s) the metamodel manifest points at; otherwise take every declared scheme.
   const schemes = new Set<string>();
   for (const quad of store.getQuads(null, namedNode(ARCH_CONCEPT_CLASSIFICATION), null, null)) {
     if (quad.object.termType === 'NamedNode') schemes.add(quad.object.value);
   }
-  if (schemes.size === 0) {
+  const named = schemes.size > 0;
+  if (!named) {
     for (const quad of store.getQuads(null, namedNode(RDF_TYPE), namedNode(SKOS_CONCEPT_SCHEME), null)) {
       if (quad.subject.termType === 'NamedNode') schemes.add(quad.subject.value);
     }
@@ -180,10 +191,36 @@ export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
     for (const term of store.getSubjects(namedNode(SKOS_IN_SCHEME), namedNode(schemeIri), null)) {
       addNamed(schemeConcepts, term);
     }
+    for (const term of store.getSubjects(namedNode(SKOS_TOP_CONCEPT_OF), namedNode(schemeIri), null)) {
+      addNamed(schemeConcepts, term);
+    }
+    for (const term of store.getObjects(namedNode(schemeIri), namedNode(SKOS_HAS_TOP_CONCEPT), null)) {
+      addNamed(schemeConcepts, term);
+    }
   }
   // Anything typed skos:Concept counts too — some data omits inScheme on intermediate nodes.
+  // When the manifest names its classification schemes, only a concept beneath one of theirs:
+  // a concept of another scheme (a viewpoint catalogue, a scope scheme) is no axis of the palette.
+  const typedConcepts = new Set<string>();
   for (const term of store.getSubjects(namedNode(RDF_TYPE), namedNode(SKOS_CONCEPT), null)) {
-    addNamed(schemeConcepts, term);
+    addNamed(typedConcepts, term);
+  }
+  if (!named) {
+    for (const iri of typedConcepts) schemeConcepts.add(iri);
+  } else {
+    const queue = [...schemeConcepts];
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      const below = [
+        ...store.getObjects(namedNode(current), namedNode(SKOS_NARROWER), null),
+        ...store.getSubjects(namedNode(SKOS_BROADER), namedNode(current), null),
+      ];
+      for (const term of below) {
+        if (term.termType !== 'NamedNode' || !typedConcepts.has(term.value) || schemeConcepts.has(term.value)) continue;
+        schemeConcepts.add(term.value);
+        queue.push(term.value);
+      }
+    }
   }
 
   const isConcept = (iri: string): boolean => schemeConcepts.has(iri);
@@ -338,7 +375,32 @@ export function buildClassificationAxes(store: Store): TaxonomyAxis[] {
     }
   }
 
-  axes.sort((a, b) => aspectRank(a.label) - aspectRank(b.label) || a.label.localeCompare(b.label));
+  // The first-loaded language's axes first: a language added beside it must not
+  // become the default grouping of its palette. An axis ranks by the first
+  // loaded metamodel whose arch:conceptClassification is the axis's scheme.
+  const schemeRank = new Map<string, number>();
+  metamodelIris.forEach((metamodelIri, index) => {
+    for (const scheme of store.getObjects(namedNode(metamodelIri), namedNode(ARCH_CONCEPT_CLASSIFICATION), null)) {
+      if (!schemeRank.has(scheme.value)) schemeRank.set(scheme.value, index);
+    }
+  });
+  const rankOf = (axisIri: string): number => {
+    let rank = Number.MAX_SAFE_INTEGER;
+    for (const scheme of [
+      ...store.getObjects(namedNode(axisIri), namedNode(SKOS_IN_SCHEME), null),
+      ...store.getObjects(namedNode(axisIri), namedNode(SKOS_TOP_CONCEPT_OF), null),
+      ...store.getSubjects(namedNode(SKOS_HAS_TOP_CONCEPT), namedNode(axisIri), null),
+    ]) {
+      rank = Math.min(rank, schemeRank.get(scheme.value) ?? Number.MAX_SAFE_INTEGER);
+    }
+    return rank;
+  };
+  axes.sort(
+    (a, b) =>
+      rankOf(a.iri) - rankOf(b.iri) ||
+      aspectRank(a.label) - aspectRank(b.label) ||
+      a.label.localeCompare(b.label),
+  );
 
   return axes;
 }
@@ -419,13 +481,18 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
     for (const memberIri of memberIris) {
       const owlClassIri = resolveOwlClass(memberIri);
       if (!owlClassIri || seenOwl.has(owlClassIri)) continue;
+      // A core class (arch:Element, arch:QualifiedRelationship) is never a palette
+      // type: languages specialise it — Basic's Node and Connection are the
+      // generic ones — and a taxonomy listing one does not make it one.
       if (owlClassIri.startsWith(CORE)) continue;
 
       if (isAbstractClass(store, owlClassIri)) continue;
 
       const closure = computeClosure(owlClassIri, superClassMap);
       const isRelationship =
-        closure.includes(CORE_QUALIFIED_RELATIONSHIP) || RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri));
+        owlClassIri === CORE_QUALIFIED_RELATIONSHIP ||
+        closure.includes(CORE_QUALIFIED_RELATIONSHIP) ||
+        RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri));
       if (isRelationship) continue;
 
       seenOwl.add(owlClassIri);

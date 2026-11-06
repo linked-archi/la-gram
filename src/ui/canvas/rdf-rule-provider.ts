@@ -19,6 +19,7 @@ import RuleProvider from 'diagram-js/lib/features/rules/RuleProvider.js';
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
+import { labelFitsInside } from './notation-shapes.js';
 
 /**
  * What a permitted connection *is*, not merely that it is permitted.
@@ -60,6 +61,12 @@ export interface RdfConnectionAttrs {
   candidates: RelationshipTypeInfo[];
 }
 
+/** A required relationship type the pair does not permit, and what it does permit. */
+export interface RelationshipRefusal {
+  typeIri: string;
+  permitted: RelationshipTypeInfo[];
+}
+
 /**
  * Validates whether canvas operations (especially connections) are
  * permitted according to the metamodel's domain/range constraints.
@@ -70,9 +77,12 @@ export class RdfRuleProvider {
   /**
    * Relationship type the user asked for, when they asked for one.
    *
-   * Set by picking a relationship type in the palette. It only ever *reorders*
-   * the metamodel's own answer — a type the metamodel forbids for the pair is
-   * still forbidden — so this cannot be used to draw an invalid relationship.
+   * Set by picking a relationship type in the palette (and by the append menu,
+   * for one append). It is *required*, not just preferred: a pair the metamodel
+   * does not permit it for cannot be connected. Creating the best permitted type
+   * instead would hide the rule that forbade the one asked for — Realization
+   * between two application components quietly became something else. The
+   * canvas says why a release is refused ({@link refusal}).
    */
   private preferredTypeIri?: string;
 
@@ -81,8 +91,8 @@ export class RdfRuleProvider {
   }
 
   /**
-   * Prefer `typeIri` whenever the metamodel permits it for the pair being
-   * connected. `undefined` goes back to the metamodel's own ranking.
+   * Require `typeIri` for the pair being connected. `undefined` goes back to
+   * the metamodel's own ranking.
    */
   setPreferredType(typeIri: string | undefined): void {
     this.preferredTypeIri = typeIri;
@@ -111,10 +121,10 @@ export class RdfRuleProvider {
       targetTypeIri,
     );
 
-    const preferred = this.preferredTypeIri
+    // A type the user asked for is required: the pair permits it, or nothing.
+    const winner = this.preferredTypeIri
       ? candidates.find((candidate) => candidate.iri === this.preferredTypeIri)
-      : undefined;
-    const winner = preferred ?? candidates[0];
+      : candidates[0];
     if (!winner) return false;
 
     return {
@@ -123,6 +133,19 @@ export class RdfRuleProvider {
       typeLabel: winner.label,
       candidates,
     };
+  }
+
+  /**
+   * Why {@link canConnect} refuses the pair while a type is required: that type,
+   * and the types the pair does permit. `undefined` when no type is required or
+   * the pair permits it.
+   */
+  refusal(sourceTypeIri: string, targetTypeIri: string): RelationshipRefusal | undefined {
+    const required = this.preferredTypeIri;
+    if (!required) return undefined;
+    const permitted = this.relationshipManager.getValidRelationships(sourceTypeIri, targetTypeIri);
+    if (permitted.some((candidate) => candidate.iri === required)) return undefined;
+    return { typeIri: required, permitted };
   }
 
   /**
@@ -151,6 +174,10 @@ export class RdfRuleProvider {
 interface RuleTarget {
   businessObject?: RdfBusinessObject;
   waypoints?: unknown;
+  width?: number;
+  height?: number;
+  /** The container: another shape, or the diagram root. */
+  parent?: RuleTarget;
 }
 
 /** Context diagram-js passes to the `connection.*` rules. */
@@ -169,6 +196,12 @@ interface ConnectContext {
 interface CreateContext {
   shape?: RuleTarget;
   source?: RuleTarget;
+  target?: RuleTarget;
+}
+
+/** Context diagram-js passes to the `elements.move` rule: the shapes moved, and where to. */
+interface MoveContext {
+  shapes?: RuleTarget[];
   target?: RuleTarget;
 }
 
@@ -195,7 +228,7 @@ export class RdfRules extends RuleProvider {
 
   init(): void {
     this.addRule('connection.create', (context: ConnectContext) => this.checkConnect(context));
-    this.addRule('connection.reconnect', (context: ConnectContext) => this.checkConnect(context));
+    this.addRule('connection.reconnect', (context: ConnectContext) => this.checkReconnect(context));
 
     // `connection.start` — "may a connection begin here at all?", asked with
     // only a source. `GlobalConnect` (the palette's connect tool) gates its
@@ -212,13 +245,18 @@ export class RdfRules extends RuleProvider {
     this.addRule('connection.start', (context: ConnectContext) => this.checkConnectStart(context));
 
     // Creating a shape is unconstrained *unless* it is an append, in which case
-    // the relationship has to be possible for the gesture to mean anything.
+    // the relationship has to be possible for the gesture to mean anything — or
+    // it is dropped into something that cannot hold it.
     this.addRule('shape.create', (context: CreateContext) => this.checkCreate(context));
 
-    // Shapes are freely movable and resizable; the metamodel constrains
+    // Shapes are freely movable and resizable — on the diagram, or into an
+    // element that can hold them (nesting); the metamodel constrains
     // relationships, not layout.
     this.addRule('shape.resize', () => true);
-    this.addRule('elements.move', () => true);
+    this.addRule('elements.move', (context: MoveContext) => canContain(context.target, context.shapes));
+
+    // An element grows to hold what is dropped, moved or resized inside it.
+    this.addRule('element.autoResize', (context: { target?: RuleTarget }) => isElementShape(context.target));
   }
 
   /**
@@ -238,6 +276,21 @@ export class RdfRules extends RuleProvider {
     const targetType = context.target?.businessObject?.typeIri;
     if (!sourceType || !targetType) return undefined;
     return this.rdfRules.canConnect(sourceType, targetType);
+  }
+
+  /**
+   * Allow moving an end of a connection onto what the metamodel permits it to
+   * join — as for drawing one ({@link checkConnect}), but never undecided.
+   *
+   * Both ends are always known here: `BendpointMove` asks with the connection's
+   * own ends, and mid-drag with whatever is under the pointer — the diagram root
+   * over empty canvas. The root has no type, and `checkConnect`'s "cannot decide
+   * yet" (`undefined`) reads as *allowed* to diagram-js's `Rules`, so an end let
+   * go on empty canvas was reattached to the root: drawn hanging where it was
+   * dropped, while the model still had it on its element.
+   */
+  private checkReconnect(context: ConnectContext): RdfConnectionAttrs | false {
+    return this.checkConnect(context) || false;
   }
 
   /**
@@ -271,6 +324,7 @@ export class RdfRules extends RuleProvider {
    * `source` is absent for an ordinary palette create, which stays unconstrained.
    */
   private checkCreate(context: CreateContext): boolean {
+    if (!canContain(context.target)) return false;
     const source = context.source;
     if (!source) return true;
     const allowed = this.checkConnect({ source, target: context.shape });
@@ -278,6 +332,27 @@ export class RdfRules extends RuleProvider {
     // that into a refusal.
     return allowed === undefined ? true : !!allowed;
   }
+}
+
+/** A shape standing for an element (not the diagram, not a relationship). */
+function isElementShape(target: RuleTarget | undefined): boolean {
+  return Boolean(target && !target.waypoints && target.businessObject?.typeIri && target.parent);
+}
+
+/**
+ * Whether shapes may be dropped into `target`: the diagram, or an element big
+ * enough to hold them — not a relationship, not a junction, and not one of the
+ * shapes moved or anything inside them.
+ */
+function canContain(target: RuleTarget | undefined, moved: readonly RuleTarget[] = []): boolean {
+  if (!target) return true;
+  if (target.waypoints) return false;
+  if (!isElementShape(target)) return true;
+  if (!labelFitsInside(target.width ?? 0, target.height ?? 0)) return false;
+  for (let at: RuleTarget | undefined = target; at; at = at.parent) {
+    if (moved.includes(at)) return false;
+  }
+  return true;
 }
 
 /**

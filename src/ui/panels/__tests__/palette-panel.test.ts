@@ -120,6 +120,15 @@ afterEach(() => {
 });
 
 describe('PalettePanel', () => {
+  it('says when the types are grouped by the OWL-only fallback, and not otherwise', async () => {
+    await mount({ ...testPalette(), grouping: 'owl' });
+    expect(root().querySelector('.palette-notice')?.textContent).toContain('No classification loaded');
+    panel.remove();
+    await mount({ ...testPalette(), grouping: 'taxonomy' });
+    expect(root().querySelector('.palette-notice')).toBeNull();
+    panel.remove();
+  });
+
   it('is registered as a custom element', () => {
     expect(customElements.get('palette-panel')).toBe(PalettePanel);
   });
@@ -135,19 +144,21 @@ describe('PalettePanel', () => {
 
     it('lists every concrete type and no abstract one', async () => {
       await mount();
+      // Relationships first, above the element groups.
       expect(labels()).toEqual([
+        'Serves',
+        'Accesses',
         'Business Process',
         'Business Actor',
         'Application Component',
-        'Serves',
-        'Accesses',
       ]);
       expect(text()).not.toContain('Abstract Business');
     });
 
     it('renders the relationships in their own section', async () => {
       await mount();
-      expect(root().querySelector('.section-divider')?.textContent?.trim()).toBe('Relationships');
+      expect(root().querySelector('.section-divider .section-label')?.textContent?.trim()).toBe('Relationships');
+      expect(root().querySelector('.section-divider .group-count')?.textContent?.trim()).toBe('2');
       expect(entry('Serves').dataset.kind).toBe('relationship');
       expect(entry('Business Actor').dataset.kind).toBe('element');
     });
@@ -209,15 +220,53 @@ describe('PalettePanel', () => {
 
       header.click();
       await panel.updateComplete;
-      const list = root().querySelector('.group-items') as HTMLElement;
+      const list = root().querySelector('.group .group-items') as HTMLElement;
       expect(list.classList.contains('hidden')).toBe(true);
-      expect(root().querySelector('.group-toggle')!.classList.contains('collapsed')).toBe(true);
+      expect(root().querySelector('.group .group-toggle')!.classList.contains('collapsed')).toBe(true);
 
       header.click();
       await panel.updateComplete;
       expect(
-        (root().querySelector('.group-items') as HTMLElement).classList.contains('hidden'),
+        (root().querySelector('.group .group-items') as HTMLElement).classList.contains('hidden'),
       ).toBe(false);
+    });
+  });
+
+  describe('collapsing the relationships', () => {
+    const relationshipList = (): HTMLElement => root().querySelector('.relationships .group-items') as HTMLElement;
+    const relationshipHeader = (): HTMLElement => root().querySelector('.relationships .section-divider') as HTMLElement;
+
+    it('hides them on a click of their header and shows them again on the next', async () => {
+      await mount();
+      relationshipHeader().click();
+      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(true);
+      expect(relationshipHeader().querySelector('.group-toggle')!.classList.contains('collapsed')).toBe(true);
+
+      relationshipHeader().click();
+      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(false);
+    });
+
+    it('leaves the element groups as they are, and they leave it', async () => {
+      await mount();
+      relationshipHeader().click();
+      await panel.updateComplete;
+      expect((root().querySelector('.group .group-items') as HTMLElement).classList.contains('hidden')).toBe(false);
+
+      relationshipHeader().click();
+      groupHeaders()[0].click();
+      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(false);
+    });
+
+    it('opens for a search, so a hit is never hidden', async () => {
+      await mount();
+      relationshipHeader().click();
+      await panel.updateComplete;
+      await type('serv');
+      expect(labels()).toEqual(['Serves']);
+      expect(relationshipList().classList.contains('hidden')).toBe(false);
     });
   });
 
@@ -268,14 +317,14 @@ describe('PalettePanel', () => {
       await mount();
       groupHeaders()[0].click();
       await panel.updateComplete;
-      expect((root().querySelector('.group-items') as HTMLElement).classList.contains('hidden')).toBe(
+      expect((root().querySelector('.group .group-items') as HTMLElement).classList.contains('hidden')).toBe(
         true,
       );
 
       await type('actor');
       expect(labels()).toEqual(['Business Actor']);
       expect(
-        (root().querySelector('.group-items') as HTMLElement).classList.contains('hidden'),
+        (root().querySelector('.group .group-items') as HTMLElement).classList.contains('hidden'),
       ).toBe(false);
     });
 
@@ -410,7 +459,7 @@ describe('PalettePanel', () => {
 
     it('shows only the permitted types, and drops emptied groups', async () => {
       await mount(testPalette(), viewpoint);
-      expect(labels()).toEqual(['Business Process', 'Business Actor', 'Serves']);
+      expect(labels()).toEqual(['Serves', 'Business Process', 'Business Actor']);
       expect(text()).not.toContain('Application');
     });
 
@@ -419,15 +468,17 @@ describe('PalettePanel', () => {
       expect(labels()).toHaveLength(5);
     });
 
-    it('hides the relationships section when the viewpoint permits none', async () => {
+    it('keeps every relationship type when the viewpoint names none, as ArchiMate 4.0’s do', async () => {
+      // They name element types only: any relationship the metamodel permits
+      // between those is in the viewpoint, and the connect rules decide each pair.
       await mount(testPalette(), {
         iri: 'vp:norels',
         label: 'No Rels',
         permittedElements: ['arch:BP'],
         permittedRelationships: [],
       });
-      expect(root().querySelector('.section-divider')).toBeNull();
-      expect(labels()).toEqual(['Business Process']);
+      expect(root().querySelector('.section-divider')).not.toBeNull();
+      expect(labels()).toEqual(['Serves', 'Accesses', 'Business Process']);
     });
 
     it('leaves an empty palette when the viewpoint permits nothing', async () => {
@@ -445,6 +496,51 @@ describe('PalettePanel', () => {
       await mount(testPalette(), viewpoint);
       await type('business');
       expect(labels()).toEqual(['Business Process', 'Business Actor']);
+    });
+  });
+
+  describe('which type an entry is', () => {
+    const prefixed = (iri: string) => iri.replace('https://ex.org/am4#', 'am4:').replace('https://ex.org/basic#', 'basic:');
+    const twoLanguages = (): PaletteDefinition => ({
+      elementGroups: [
+        { category: 'Business', elements: [{ iri: 'https://ex.org/am4#Actor', label: 'Business Actor', isAbstract: false }] },
+        // The same type in a second group is not another type of that name.
+        { category: 'Other', elements: [{ iri: 'https://ex.org/am4#Actor', label: 'Business Actor', isAbstract: false }, { iri: 'https://ex.org/basic#Node', label: 'Node', isAbstract: false }] },
+      ],
+      relationshipTypes: [
+        { iri: 'https://ex.org/am4#Aggregation', label: 'Aggregation', domainTypes: [], rangeTypes: [] },
+        { iri: 'https://ex.org/basic#Aggregation', label: 'Aggregation', domainTypes: [], rangeTypes: [] },
+      ],
+    });
+
+    it('names its prefixed IRI in the tooltip, and the prefix beside a name another loaded language uses too', async () => {
+      panel = document.createElement('palette-panel');
+      panel.palette = twoLanguages();
+      panel.prefixedName = prefixed;
+      document.body.appendChild(panel);
+      await panel.updateComplete;
+      const tags = items().map((item) => [item.querySelector('.palette-label')!.textContent!.trim(), item.querySelector('.palette-tag')?.textContent ?? '']);
+      expect(tags).toEqual([
+        ['Aggregation', 'am4'],
+        ['Aggregation', 'basic'],
+        ['Business Actor', ''],
+        ['Business Actor', ''],
+        ['Node', ''],
+      ]);
+      expect(items()[1]!.title).toBe('Aggregation — basic:Aggregation');
+      // The search matches the prefixed name: one language's types.
+      await type('basic:');
+      expect(labels()).toEqual(['Aggregation', 'Node']);
+    });
+
+    it('says which entry is under the pointer, and when it leaves', async () => {
+      await mount(twoLanguages());
+      const seen: Array<string | undefined> = [];
+      panel.addEventListener('palette-hover', (e) => seen.push((e as CustomEvent<{ iri?: string }>).detail.iri));
+      const node = entry('Node');
+      node.dispatchEvent(new Event('pointerenter'));
+      node.dispatchEvent(new Event('pointerleave'));
+      expect(seen).toEqual(['https://ex.org/basic#Node', undefined]);
     });
   });
 });

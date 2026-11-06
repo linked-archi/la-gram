@@ -6,7 +6,8 @@
  */
 
 import type { BundledAssetRole } from './bundled-assets.js';
-import type { RelationshipVisualStyle, RenderingMode, VisualStyle } from './notation.js';
+import type { Decoration, RelationshipVisualStyle, RenderingMode, VisualStyle } from './notation.js';
+import type { NotationIndexEntry } from './notation-resolver.js';
 
 // ---------------------------------------------------------------------------
 // Metamodel Loader
@@ -30,9 +31,13 @@ export type MetamodelAssetOutcome =
   | 'loaded'
   /** Already present in the store from an earlier step (dedup by document IRI). */
   | 'already-loaded'
-  /** Referenced by the manifest but not shipped in this bundle. */
+  /** Referenced by the manifest but not shipped in this bundle (bundle-only source). */
   | 'not-bundled'
-  /** Bundled but the fetch or the parse failed. */
+  /** No configured source (upload, network, bundle) could provide it. */
+  | 'unavailable'
+  /** Deliberately not fetched: the editor has no use for it (derivation rules, templates). */
+  | 'skipped'
+  /** A source should have had it but the fetch or the parse failed. */
   | 'error';
 
 /**
@@ -53,8 +58,10 @@ export interface MetamodelAssetStatus {
   outcome: MetamodelAssetOutcome;
   /** Quads loaded into the graph. Present when `outcome === 'loaded'`. */
   quadCount?: number;
-  /** Failure detail when `outcome === 'error'`. */
+  /** Failure detail when `outcome === 'error'`, reason for `skipped`/`unavailable`. */
   message?: string;
+  /** Which source answered, when one did. */
+  origin?: 'bundled' | 'remote' | 'uploaded';
 }
 
 /**
@@ -75,6 +82,8 @@ export interface LoadedMetamodel {
   graphsByRole: Partial<Record<BundledAssetRole, string[]>>;
   /** Notation set the manifest names via `arch:notationSet`, when it does. */
   notationSetIri?: string;
+  /** Concept scheme the manifest names via `arch:presentationContextScheme`. */
+  presentationContextSchemeIri?: string;
   /** One entry per discovered asset, in discovery order. */
   assets: MetamodelAssetStatus[];
 }
@@ -91,8 +100,23 @@ export interface MetamodelLoader {
    * manifest's asset-pointing properties and `owl:imports` transitively.
    */
   loadMetamodelFromManifest(manifestTtl: string): Promise<LoadedMetamodel>;
-  /** Load the ArchiMate 4.0 metamodel that ships with the application. */
-  loadBundledMetamodel(): Promise<LoadedMetamodel>;
+  /** Load a bundled metamodel (ArchiMate 4.0 by default) with no network. */
+  loadBundledMetamodel(idOrIri?: string): Promise<LoadedMetamodel>;
+  /** Load a metamodel by its `arch:Metamodel` IRI or manifest document IRI. */
+  loadMetamodelByIri(iri: string): Promise<LoadedMetamodel>;
+  /** Load the core ontologies and core shapes every model is validated against. */
+  loadCoreAssets(): Promise<Partial<Record<BundledAssetRole, string[]>>>;
+  /** Drop a metamodel's graphs, keeping those shared with `keep`. */
+  unloadMetamodel(loaded: LoadedMetamodel, keep?: readonly LoadedMetamodel[]): string[];
+  /** Load one standalone document (extension ontology, shapes file). */
+  loadDocument(
+    text: string,
+    options?: {
+      format?: import('./asset-sources.js').AssetFormat;
+      role?: BundledAssetRole;
+      documentIri?: string;
+    },
+  ): Promise<MetamodelAssetStatus>;
   loadShapes(ttlContent: string): Promise<void>;
   resolveImports(ontologyIri: string): Promise<void>;
 }
@@ -149,7 +173,10 @@ export interface ElementTypeInfo {
   /** `arch-vis:iconSymbol` badge glyph, source and resolved form. */
   iconSymbol?: ResolvedUri;
   /**
-   * Full visual style from the active notation set.
+   * Full visual style from the notation lookup (`notation-resolver.ts`): a
+   * descriptor for the class itself in the active set or a fallback layer, or,
+   * failing that and its own image, the nearest superclass's descriptor in
+   * either.
    *
    * `style.iconSymbol` carries the *resolved* URL so a renderer can use it
    * directly; {@link iconSymbol} keeps the published URI.
@@ -187,7 +214,10 @@ export interface RelationshipTypeInfo {
   iconUrl?: string;
   /** `arch:prefVisNotation` image, source and resolved form. */
   prefVisNotation?: ResolvedUri;
-  /** Line style and endpoint decorations from the active notation set. */
+  /**
+   * Line style and endpoint decorations from the notation lookup. Carries a
+   * colour only when the descriptor states one; renderers draw black otherwise.
+   */
   relationshipStyle?: RelationshipVisualStyle;
   /** IRIs of valid source element types (arch:domainIncludes). */
   domainTypes: string[];
@@ -215,7 +245,40 @@ export interface RelationshipTypeInfo {
    * source/target pair. Undefined outside a pair-specific query.
    */
   reason?: string;
+  /**
+   * For the queried pair: `true` when the metamodel's relationship tables let a
+   * modeller draw this relationship directly, `false` when they permit it only as
+   * the conclusion of a derivation. Undefined when the tables do not say, or
+   * outside a pair-specific query.
+   */
+  direct?: boolean;
+  /**
+   * For the queried pair: a generic relationship — one that relates any
+   * elements, which no relationship table restricts (Basic's Connection).
+   * Ranked after every language's own relationships. Undefined outside a
+   * pair-specific query.
+   */
+  generic?: boolean;
+  /**
+   * For the queried pair: why the candidate ranks where it does, best first —
+   * see {@link RelationshipPreference}. Undefined outside a pair-specific query.
+   */
+  preference?: RelationshipPreference;
 }
+
+/**
+ * The groups `RelationshipManager.getValidRelationships` ranks a pair's
+ * candidates in, best first:
+ *
+ * - `first` — a proposal order scoped to these elements puts it first
+ *   (`arch:RelationshipProposalOrder` with `arch:domainIncludes`);
+ * - `drawn` — the language's metamodel figures draw it for the pair;
+ * - `direct` — the relationship tables permit it to be drawn directly, or say
+ *   nothing either way;
+ * - `derived` — the tables permit it only as the conclusion of a derivation;
+ * - `fallback` — Association, or a generic relationship: always permitted, saying least.
+ */
+export type RelationshipPreference = 'first' | 'drawn' | 'direct' | 'derived' | 'fallback';
 
 /** Complete palette definition generated from a metamodel. */
 export interface PaletteDefinition {
@@ -225,10 +288,35 @@ export interface PaletteDefinition {
   axes?: PaletteAxis[];
   /** IRI of the axis the `elementGroups` are grouped by. */
   activeAxisIri?: string;
-  /** IRI of the notation set the styles came from. */
+  /**
+   * How the element types were found and grouped: `taxonomy` from the
+   * metamodel's classification (`arch:conceptClassification`, SKOS), `owl` by
+   * the OWL-only fallback — every non-abstract `arch:Element` subclass, grouped
+   * by a heuristic on its name — when no classification is loaded. The palette
+   * says so in the second case.
+   */
+  grouping?: 'taxonomy' | 'owl';
+  /** IRI of the active notation set: the one consulted first. */
   notationSetIri?: string;
   /** Label of that notation set. */
   notationSetLabel?: string;
+  /**
+   * The resolved notation of every class the generator could resolve, keyed by
+   * class IRI, plus each relationship class's `arch:unqualifiedForm` predicate.
+   *
+   * Entries come from the same lookup as the palette entries, so the two agree;
+   * the canvas reads this for types the palette does not list (a class no
+   * taxonomy names). Classes that resolve to nothing are absent.
+   */
+  notationIndex?: Record<string, NotationIndexEntry>;
+
+  /**
+   * The published marker symbol of each relationship-end decoration
+   * (`arch-vis:decorSymbol`), resolved to the bundled copy where this bundle
+   * ships one. Renderers draw decorations from these, falling back to built-in
+   * geometry for a decoration with no symbol.
+   */
+  decorationSymbols?: Partial<Record<Decoration, ResolvedUri>>;
 }
 
 /** How to build a palette: which axis groups it, which notation styles it. */
@@ -245,6 +333,23 @@ export interface PaletteOptions {
    * Ignored when {@link notationSetIri} is given.
    */
   presentationContextIri?: string;
+  /**
+   * The loaded metamodels' default sets (`arch:notationSet`), in load order.
+   *
+   * With no set chosen, the first that has descriptors is the active set. Every
+   * set here except the active one is a fallback layer, consulted for a class
+   * the active set does not describe; when a context or an explicit choice
+   * picked another set, that includes the first. Without it, the graph's
+   * metamodels are used, in IRI order.
+   */
+  defaultNotationSetIris?: readonly string[];
+  /**
+   * The loaded metamodels (`arch:Metamodel` subjects), in load order. Their
+   * classifications' axes come in that order, so a language added beside
+   * another never becomes the default grouping. Without it, axes are ordered by
+   * label after the structural/aspect rule.
+   */
+  metamodelIris?: readonly string[];
 }
 
 /** Generates UI palettes from metamodel definitions. */
