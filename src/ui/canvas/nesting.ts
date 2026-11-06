@@ -64,6 +64,25 @@ export function nestingOffers(
 }
 
 /**
+ * The relationships between the two that nesting `inner` inside `outer` shows:
+ * of a type nesting may draw, with `inner` the end drawn inside. While it is
+ * nested, the view shows them by the nesting rather than by a line.
+ */
+export function relationshipsShownByNesting(
+  outer: NestedEnd,
+  inner: NestedEnd,
+  relationshipTypes: readonly RelationshipTypeInfo[],
+  existing: readonly RelationshipInfo[],
+): RelationshipInfo[] {
+  const nestedEnds = new Map(relationshipTypes.map((t) => [t.iri, t.relationshipStyle?.nestedEnds ?? []]));
+  return existing.filter(
+    (r) =>
+      (r.sourceIri === outer.iri && r.targetIri === inner.iri && nestedEnds.get(r.classIri)?.includes('target')) ||
+      (r.sourceIri === inner.iri && r.targetIri === outer.iri && nestedEnds.get(r.classIri)?.includes('source')),
+  );
+}
+
+/**
  * Whether the two are already related by a relationship nesting may draw —
  * then the nesting shows it, and there is nothing to offer.
  */
@@ -73,12 +92,7 @@ export function nestingShownBy(
   relationshipTypes: readonly RelationshipTypeInfo[],
   existing: readonly RelationshipInfo[],
 ): boolean {
-  const nestedEnds = new Map(relationshipTypes.map((t) => [t.iri, t.relationshipStyle?.nestedEnds ?? []]));
-  return existing.some(
-    (r) =>
-      (r.sourceIri === outer.iri && r.targetIri === inner.iri && nestedEnds.get(r.classIri)?.includes('target')) ||
-      (r.sourceIri === inner.iri && r.targetIri === outer.iri && nestedEnds.get(r.classIri)?.includes('source')),
-  );
+  return relationshipsShownByNesting(outer, inner, relationshipTypes, existing).length > 0;
 }
 
 /** Popup menu id of the "which relationship does this nesting stand for?" menu. */

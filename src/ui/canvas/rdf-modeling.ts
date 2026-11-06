@@ -90,6 +90,7 @@ import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
 import { relationshipKey } from './relationship-resolution.js';
+import type { RdfReuseCheck } from './reuse-relationship.js';
 import type { ObservableRdfStore, RdfDiff } from '../../rdf-engine/observable-store.js';
 
 /**
@@ -127,6 +128,9 @@ export const RDF_MODEL_DELETE_COMMAND = 'rdf.model.delete';
  * opposed to {@link RDF_RELATIONSHIP_HINT}, which creates one.
  */
 export const RDF_EXISTING_RELATIONSHIP_HINT = 'rdfExistingRelationship';
+
+/** Hint: the modeller was asked whether to use a relationship the model already has, and answered a new one. */
+export const RDF_REUSE_ANSWERED_HINT = 'rdfReuseAnswered';
 
 /** The relationship a connection stands for, everything needed to (un)write it. */
 export interface RdfRelationship {
@@ -692,18 +696,21 @@ const ModelingBase = Modeling as unknown as {
  * diagram-js's `Modeling`, with a `connect` that knows about the metamodel.
  */
 export class RdfModeling extends ModelingBase {
-  static $inject = ['eventBus', 'elementFactory', 'commandStack', 'rdfRuleProvider'];
+  static $inject = ['eventBus', 'elementFactory', 'commandStack', 'rdfRuleProvider', 'rdfReuseCheck'];
 
   private rdfRuleProvider: RdfRuleProvider;
+  private rdfReuseCheck: RdfReuseCheck | null;
 
   constructor(
     eventBus: unknown,
     elementFactory: unknown,
     commandStack: unknown,
     rdfRuleProvider: RdfRuleProvider,
+    rdfReuseCheck: RdfReuseCheck | null = null,
   ) {
     super(eventBus, elementFactory, commandStack);
     this.rdfRuleProvider = rdfRuleProvider;
+    this.rdfReuseCheck = rdfReuseCheck;
   }
 
   /**
@@ -736,6 +743,10 @@ export class RdfModeling extends ModelingBase {
    * The resulting connection carries a `businessObject` with the type on it, and
    * the hint that makes {@link RdfRelationshipBehavior} write the triple in the
    * same command group.
+   *
+   * When the model already relates the two by the type, in that direction, and
+   * this view does not draw it, the modeller is asked first ({@link RdfReuseCheck}):
+   * nothing is drawn now, and the answer draws the existing one or connects again.
    */
   connect(
     source: DjsElement,
@@ -770,6 +781,20 @@ export class RdfModeling extends ModelingBase {
     if (businessObject) connectionAttrs['businessObject'] = businessObject;
 
     const connectHints: Record<string, unknown> = { ...hints };
+    if (
+      typeIri &&
+      sourceIri &&
+      targetIri &&
+      !connectHints[RDF_REUSE_ANSWERED_HINT] &&
+      this.rdfReuseCheck?.({
+        source,
+        target,
+        typeIri,
+        createNew: () => this.connect(source, target, resolved, { ...hints, [RDF_REUSE_ANSWERED_HINT]: true }),
+      })
+    ) {
+      return undefined;
+    }
     if (typeIri && sourceIri && targetIri) {
       const relationship: RdfRelationship = {
         sourceIri,
@@ -824,6 +849,7 @@ export function rdfModelingModule(
   rdfRelationshipWriter: RdfRelationshipWriter,
   rdfElementWriter: RdfElementWriter = inertElementWriter,
   rdfChangeStore: ObservableRdfStore | null = null,
+  rdfReuseCheck: RdfReuseCheck | null = null,
 ): Record<string, unknown> {
   return {
     __depends__: [ModelingModule],
@@ -837,6 +863,7 @@ export function rdfModelingModule(
     rdfElementBehavior: ['type', RdfElementBehavior],
     rdfElementWriter: ['value', rdfElementWriter],
     rdfChangeStore: ['value', rdfChangeStore],
+    rdfReuseCheck: ['value', rdfReuseCheck],
   };
 }
 

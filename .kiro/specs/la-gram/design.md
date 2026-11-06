@@ -1495,6 +1495,34 @@ on the relationship's `VisualNotation`); after a drop, `nestingOffers`
 (`canvas/nesting.ts`) lists those the metamodel permits between the two and the
 model does not already have, and the menu creates the one picked — or none.
 
+The view shows those by the nesting, not by a line. A relationship in a diagram
+that is the view's (`arch:inView`) and has no link is one the nesting shows: the
+one picked in the menu is given `arch:inView` with it (`nestAs`), and on a nesting
+`showByNesting` removes every line between the two, of any type and either way,
+and gives each relationship the nesting may draw between them
+(`relationshipsShownByNesting`) `arch:inView` though no line drew it — removing a
+link removes `arch:inView` with the last one, so it is given back after. A
+relationship the model has between the two that the view does not show stays out. A
+move out of a container (`showAsLines`) draws as lines the relationships between
+the two that are the view's and have no line — only those, never the model's
+others between them. Both run inside the move or create command, so undo puts
+lines and membership back; but at its end: a move of several lays out their
+lines after moving the shapes (diagram-js's `MoveHelper`), and a line removed
+halfway was laid out with no ends. The changes are noted at `shape.move` /
+`shape.create` and done at the end of `elements.move` / `elements.create`, or of
+the shape's own command when it is not inside one; redo replays what was done.
+
+**Drawing a relationship the model already has** (Req 4.20;
+`canvas/reuse-relationship.ts`). `RdfModeling.connect` — every line drawn goes
+through it: a connect drag, the palette's relationship tool, *Connect these
+two…* — asks `RdfReuseCheck` before it creates: when the model already relates
+the two by the type, in that direction, and the view does not draw it (no
+derivation the model does not state), the canvas opens a menu at the target —
+*Use the existing ‹type›* or *Use “‹name›”*, one per such relationship, and *New
+‹type›* — and nothing is drawn now. Using one draws it (`drawExistingRelationship`,
+undoable); *New* connects again with `RDF_REUSE_ANSWERED_HINT`, which creates as
+before; Esc leaves nothing.
+
 ### Version history
 
 A *checkpoint* — what the History tab calls it, so that "commit" means a Git

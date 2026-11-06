@@ -128,6 +128,7 @@ import type {
 } from '../../metamodel-manager/interfaces.js';
 import type {
   ElementManager,
+  RelationshipInfo,
   RelationshipManager,
   Bounds,
   Point,
@@ -186,7 +187,8 @@ import {
   type AppendMenuContext,
   type ExistingRelationship,
 } from './rdf-append-menu-provider.js';
-import { NEST_MENU_ID, RdfNestMenuProvider, nestingOffers, nestingShownBy, type NestingOffer } from './nesting.js';
+import { NEST_MENU_ID, RdfNestMenuProvider, nestingOffers, nestingShownBy, relationshipsShownByNesting, type NestingOffer } from './nesting.js';
+import { REUSE_MENU_ID, RdfReuseMenuProvider, type RdfReuseCheck } from './reuse-relationship.js';
 import { rdfAutoResizeModule } from './rdf-auto-resize.js';
 import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
 import {
@@ -657,6 +659,8 @@ export class DiagramCanvas {
   readonly appendRelationshipMenuProvider: RdfAppendRelationshipMenuProvider;
   /** After a drop into a container: which relationship the nesting stands for. */
   readonly nestMenuProvider: RdfNestMenuProvider;
+  /** The question asked when a line drawn is a relationship the model already has (`reuse-relationship.ts`). */
+  readonly reuseMenuProvider: RdfReuseMenuProvider;
   readonly notationStyles: NotationStyleRegistry;
 
   /** The diagram-js instance, or `null` once destroyed. */
@@ -809,6 +813,9 @@ export class DiagramCanvas {
       (offer) => this.nestAs(offer),
       (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
+    this.reuseMenuProvider = new RdfReuseMenuProvider(
+      (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
+    );
 
     const keyboardBindTo =
       options.keyboardBindTo === undefined
@@ -849,7 +856,7 @@ export class DiagramCanvas {
         // Lines at the root, above every shape, whatever is created or moved.
         rdfOrderingModule,
         // Last, so its `modeling` binding replaces the one ModelingModule made.
-        rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null),
+        rdfModelingModule(this.relationshipWriter(), this.elementWriter(), this.changeStore ?? null, this.reuseCheck()),
         // Renaming on the canvas: double-click or F2 (needs `rdfChangeStore` from the line above).
         rdfLabelEditingModule(this.labelWriter()),
         // Moving a relationship's name along with its line, kept in the view.
@@ -2842,6 +2849,65 @@ export class DiagramCanvas {
     });
   }
 
+  /**
+   * Before a line drawn on the canvas creates a relationship: when the model
+   * already relates the two by the type, in that direction, and this view does
+   * not draw it, ask — the existing one, drawn here too, or a new one
+   * (`reuse-relationship.ts`). The question opens once the drag has ended.
+   * Derivations the model does not state are not offered: they are not its
+   * statements.
+   */
+  private reuseCheck(): RdfReuseCheck {
+    return ({ source, target, typeIri, createNew }) => {
+      const services = this.services();
+      const sourceIri = source.businessObject?.iri;
+      const targetIri = target.businessObject?.iri;
+      if (!services || !this.viewIri || !sourceIri || !targetIri) return false;
+      const existing = this.relationshipsBetween(sourceIri, targetIri).filter(
+        (r) =>
+          r.classIri === typeIri &&
+          r.sourceIri === sourceIri &&
+          r.targetIri === targetIri &&
+          !this.findConnection(r.iri) &&
+          !this.describeElement?.(r.iri)?.derivation,
+      );
+      if (existing.length === 0) return false;
+      const typeLabel = this.paletteDefinition.relationshipTypes.find((t) => t.iri === typeIri)?.label ?? localName(typeIri);
+      const close = () => {
+        this.reuseMenuProvider.pending = undefined;
+        this.services()?.popupMenu.close();
+      };
+      this.reuseMenuProvider.pending = {
+        typeIri,
+        typeLabel,
+        sourceLabel: source.businessObject?.label ?? localName(sourceIri),
+        targetLabel: target.businessObject?.label ?? localName(targetIri),
+        existing: existing.map((r) => {
+          const name = this.relationshipNameOf(r.iri).label;
+          return { iri: r.iri, ...(name ? { name } : {}) };
+        }),
+        useExisting: (iri) => {
+          close();
+          this.drawExistingRelationship(iri);
+        },
+        createNew: () => {
+          close();
+          createNew();
+        },
+      };
+      const shape = services.elementRegistry.get(targetIri);
+      queueMicrotask(() => {
+        if (!this.reuseMenuProvider.pending) return;
+        const box = shape ? services.elementRegistry.getGraphics(shape)?.getBoundingClientRect?.() : undefined;
+        services.popupMenu.open(shape ?? {}, REUSE_MENU_ID, box ? { x: box.left, y: box.bottom + 4 } : { x: 0, y: 0 }, {
+          title: 'The model already has this relationship',
+          width: 320,
+        });
+      });
+      return true;
+    };
+  }
+
   /** The relationship picked for a nesting, created in the model — undoably, and not drawn: the nesting shows it. */
   private nestAs(offer: NestingOffer | undefined): void {
     this.services()?.popupMenu.close();
@@ -2849,8 +2915,10 @@ export class DiagramCanvas {
     const create = this.relationshipManager.createQualifiedRelationship?.bind(this.relationshipManager);
     if (!offer || !create) return;
     const modelIri = this.modelIri;
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
     this.recordChange(() => {
-      create({
+      const created = create({
         typeIri: offer.type.iri,
         ...(offer.type.unqualifiedPredicateIri && offer.type.unqualifiedPredicateIri !== offer.type.iri
           ? { predicateIri: offer.type.unqualifiedPredicateIri }
@@ -2859,6 +2927,8 @@ export class DiagramCanvas {
         targetIri: offer.targetIri,
         ...(modelIri ? { modelIri } : {}),
       });
+      // The view's, shown by the nesting: drawn as a line if what is inside is taken out.
+      if (viewIri && viewManager?.addMember) viewManager.addMember(viewIri, created.iri);
     });
   }
 
@@ -2983,33 +3053,105 @@ export class DiagramCanvas {
 
   /** Draw the relationships at one end that both ends allow; note each drawn in `drawn`. */
   private drawRelationshipsAt(iri: string, drawn: string[]): void {
-    const services = this.services();
-    if (!services || !this.relationshipManager.getRelationshipsOf) return;
+    if (!this.relationshipManager.getRelationshipsOf) return;
     for (const rel of this.relationshipManager.getRelationshipsOf(iri)) {
-      if (this.findConnection(rel.iri)) continue;
-      // A derivation the model does not state is drawn when asked for, not with its ends.
-      if (this.describeElement?.(rel.iri)?.derivation) continue;
-      const source = services.elementRegistry.get(rel.sourceIri);
-      const target = services.elementRegistry.get(rel.targetIri);
-      if (!source || !target) continue;
-      const typeIri = this.describeElement?.(rel.iri)?.typeIri ?? rel.classIri;
-      const businessObject: RdfBusinessObject = { iri: rel.iri, typeIri, kind: 'relationship', ...this.relationshipNameOf(rel.iri) };
-      services.modeling.createConnection(
-        source,
-        target,
-        { id: rel.iri, businessObject },
-        services.canvas.getRootElement(),
-        // Draw, do not create: the relationship is already in the model.
-        { [RDF_EXISTING_RELATIONSHIP_HINT]: rel.iri },
-      );
-      this.relationships.set(rel.iri, {
-        sourceIri: rel.sourceIri,
-        targetIri: rel.targetIri,
-        typeIri,
-        predicateIri: rel.predicateIri,
-        relationshipIri: rel.iri,
-      });
-      drawn.push(rel.iri);
+      if (this.drawLine(rel)) drawn.push(rel.iri);
+    }
+  }
+
+  /**
+   * Draw a relationship the model has as a line in the open view, inside the
+   * command running — its link written with it (`RDF_EXISTING_RELATIONSHIP_HINT`).
+   * Not when it is drawn already, when an end is not drawn, or when it is a
+   * derivation the model does not state (drawn when asked for, not with its ends).
+   */
+  private drawLine(rel: RelationshipInfo): boolean {
+    const services = this.services();
+    if (!services || this.findConnection(rel.iri)) return false;
+    if (this.describeElement?.(rel.iri)?.derivation) return false;
+    const source = services.elementRegistry.get(rel.sourceIri);
+    const target = services.elementRegistry.get(rel.targetIri);
+    if (!source || !target) return false;
+    const typeIri = this.describeElement?.(rel.iri)?.typeIri ?? rel.classIri;
+    const businessObject: RdfBusinessObject = { iri: rel.iri, typeIri, kind: 'relationship', ...this.relationshipNameOf(rel.iri) };
+    services.modeling.createConnection(
+      source,
+      target,
+      { id: rel.iri, businessObject },
+      services.canvas.getRootElement(),
+      // Draw, do not create: the relationship is already in the model.
+      { [RDF_EXISTING_RELATIONSHIP_HINT]: rel.iri },
+    );
+    this.relationships.set(rel.iri, {
+      sourceIri: rel.sourceIri,
+      targetIri: rel.targetIri,
+      typeIri,
+      predicateIri: rel.predicateIri,
+      relationshipIri: rel.iri,
+    });
+    return true;
+  }
+
+  /** The relationships between two elements, in the model. */
+  private relationshipsBetween(a: string, b: string): RelationshipInfo[] {
+    return (this.relationshipManager.getRelationshipsOf?.(a) ?? []).filter(
+      (r) => (r.sourceIri === a && r.targetIri === b) || (r.sourceIri === b && r.targetIri === a),
+    );
+  }
+
+  /**
+   * Nested: no line runs between an element and its container — what is inside
+   * is not crossed by lines to what holds it. Every relationship between the
+   * two drawn in the view, of any type and either way, loses its line and stays
+   * the view's (`arch:inView`), to be drawn again when the element is taken out
+   * ({@link showAsLines}). And the relationships the nesting may stand for — of
+   * a type nesting may draw, the inner element the end drawn inside (Req 3.12) —
+   * are the view's though no line drew them: the nesting shows them. Others the
+   * model has between the two, which the view does not show, stay out of it.
+   * Inside the command that nested it, so undo puts the lines back.
+   */
+  private showByNesting(inner: DjsShape, outer: DjsShape): void {
+    const services = this.services();
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    const innerIri = inner.businessObject?.iri;
+    const outerIri = outer.businessObject?.iri;
+    if (!services || !viewIri || !viewManager?.addMember || !innerIri || !outerIri) return;
+    if (outer.businessObject?.kind !== 'element') return;
+    const between = this.relationshipsBetween(innerIri, outerIri);
+    const shownByNesting = new Set(
+      relationshipsShownByNesting(
+        { iri: outerIri, typeIri: outer.businessObject.typeIri },
+        { iri: innerIri, typeIri: inner.businessObject?.typeIri ?? '' },
+        this.paletteDefinition.relationshipTypes,
+        between,
+      ).map((r) => r.iri),
+    );
+    for (const rel of between) {
+      const line = this.findConnection(rel.iri);
+      if (!line && !shownByNesting.has(rel.iri)) continue;
+      // Its link goes from the view (`connection.delete`), and with it, as its last, its arch:inView…
+      if (line) services.modeling.removeElements([line]);
+      // …which the view keeps: it still shows it, by the nesting.
+      this.change(() => viewManager.addMember!(viewIri, rel.iri));
+    }
+  }
+
+  /**
+   * Taken out of a container: what the view showed by the nesting is drawn as
+   * lines — the relationships between the two that are the view's
+   * (`arch:inView`) and have no line in it; never others the model has between
+   * them. In the same command as the move.
+   */
+  private showAsLines(inner: DjsShape, outer: DjsShape): void {
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    const innerIri = inner.businessObject?.iri;
+    const outerIri = outer.businessObject?.iri;
+    if (!viewIri || !viewManager || !innerIri || !outerIri || outer.businessObject?.kind !== 'element') return;
+    for (const rel of this.relationshipsBetween(innerIri, outerIri)) {
+      if (this.findConnection(rel.iri) || !viewManager.viewsContaining(rel.iri).includes(viewIri)) continue;
+      this.drawLine(rel);
     }
   }
 
@@ -3036,6 +3178,7 @@ export class DiagramCanvas {
     services.popupMenu.registerProvider(APPEND_TARGET_MENU_ID, this.appendMenuProvider);
     services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
     services.popupMenu.registerProvider(NEST_MENU_ID, this.nestMenuProvider);
+    services.popupMenu.registerProvider(REUSE_MENU_ID, this.reuseMenuProvider);
     services.popupMenu.registerProvider(PAIR_CONNECT_MENU_ID, this.pairConnectMenuProvider);
   }
 
@@ -3340,6 +3483,43 @@ export class DiagramCanvas {
       const shape = event.context?.shape;
       if (shape && this.hasViewContext() && containerIri(shape)) this.writeLayout(shape);
     });
+    // What a nesting shows, it shows instead of a line; taken out, it is drawn as
+    // one again (showByNesting, showAsLines) — in the same command. Noted as each
+    // shape is created or moved, done when the whole move or creation is: a move
+    // of several lays out their lines after moving the shapes, so a line hidden
+    // halfway would be laid out with no ends. Redo replays what was done, and
+    // runs none of these.
+    let nestingChanges: Array<{ shape: DjsShape; from?: DjsShape; to: DjsShape }> = [];
+    let within = 0;
+    const settleNesting = () => {
+      if (within > 0 || nestingChanges.length === 0) return;
+      const changes = nestingChanges;
+      nestingChanges = [];
+      for (const { shape, from, to } of changes) {
+        if (from) this.showAsLines(shape, from);
+        this.showByNesting(shape, to);
+      }
+    };
+    djs.on(['commandStack.elements.move.preExecute', 'commandStack.elements.create.preExecute'], () => {
+      within++;
+    });
+    djs.on(['commandStack.elements.move.postExecuted', 'commandStack.elements.create.postExecuted'], () => {
+      within = Math.max(0, within - 1);
+      settleNesting();
+    });
+    // After an existing element's relationships are drawn as it is placed (default priority).
+    djs.on('commandStack.shape.create.postExecute', 250, (event: { context?: { shape?: DjsShape } }) => {
+      const shape = event.context?.shape;
+      const to = shape?.parent as DjsShape | undefined;
+      if (shape && to && this.hasViewContext()) nestingChanges.push({ shape, to });
+    });
+    djs.on('commandStack.shape.move.postExecute', 250, (event: { context?: { shape?: DjsShape; oldParent?: DjsShape } }) => {
+      const { shape, oldParent } = event.context ?? {};
+      const to = shape?.parent as DjsShape | undefined;
+      if (!shape || !to || !oldParent || to === oldParent || !this.hasViewContext()) return;
+      nestingChanges.push({ shape, from: oldParent, to });
+    });
+    djs.on(['commandStack.shape.create.postExecuted', 'commandStack.shape.move.postExecuted'], settleNesting);
     // The containers on both sides are redrawn — a container's name moves to its
     // top once something is inside it — and a drop into an element asks which
     // relationship the nesting stands for, once the command has settled.
