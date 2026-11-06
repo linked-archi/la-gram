@@ -207,6 +207,29 @@ describe('la-gram-git merge', () => {
     expect(outcome.text).toContain('"Billing"@en');
     expect(outcome.text).not.toMatch(/<<<<<<<|>>>>>>>/);
   }, 60_000);
+
+  it('a file that is not a model — an ontology, a shapes file — is merged as Git merges text', async () => {
+    const lines = ['A', 'B', 'C', 'D', 'E'].map((x) => `ex:${x} a ex:Class .`);
+    const text = (change: Record<number, string>) =>
+      `@prefix ex: <https://example.org/ex#> .\n${lines.map((l, i) => change[i] ?? l).join('\n')}\n`;
+    const files = (ours: string, theirs: string) => {
+      const dir = mkdtempSync(join(tmpdir(), 'la-gram-git-merge-'));
+      const at = (name: string, body: string) => (writeFileSync(join(dir, name), body), join(dir, name));
+      return { base: at('base', text({})), ours: at('ours', ours), theirs: at('theirs', theirs), dir };
+    };
+
+    const apart = files(text({ 0: 'ex:A a ex:Thing .' }), text({ 4: 'ex:E a ex:Thing .' }));
+    const merged = await run('merge', apart.base, apart.ours, apart.theirs, 'ontology/extra.ttl');
+    expect(merged.code).toBe(0);
+    expect(readFileSync(apart.ours, 'utf8')).toBe(text({ 0: 'ex:A a ex:Thing .', 4: 'ex:E a ex:Thing .' }));
+
+    const met = files(text({ 2: 'ex:C a ex:Thing .' }), text({ 2: 'ex:C a ex:Other .' }));
+    const conflicted = await run('merge', met.base, met.ours, met.theirs, 'ontology/extra.ttl');
+    expect(conflicted.code).toBe(1);
+    expect(conflicted.err).toContain('ontology/extra.ttl is not a la-gram model, so it was merged as text: 1 conflict');
+    expect(readFileSync(met.ours, 'utf8')).toMatch(/<<<<<<< ours\nex:C a ex:Thing \.\n=======\nex:C a ex:Other \.\n>>>>>>> theirs/);
+    for (const { dir } of [apart, met]) rmSync(dir, { recursive: true, force: true });
+  }, 60_000);
 });
 
 describe('la-gram-git init', () => {

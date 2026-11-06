@@ -10,7 +10,14 @@
  * before either — as the editor does until a side is chosen — never `<<<<<<<`
  * markers, which no RDF tool could read. The conflicts are listed on the
  * standard error.
+ *
+ * `.gitattributes` routes files by extension, so an ontology or a shapes file
+ * comes here too. A file that is not a la-gram model on both sides — or does
+ * not parse — is merged as Git merges text without the driver (`git
+ * merge-file`): cleanly where the changes are apart, with conflict markers where
+ * they meet.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import type { NamedNode } from '@rdfjs/types';
@@ -19,7 +26,7 @@ import { RdfShaclValidator } from '../rdf-engine/shacl-validator.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { mergeSnapshots, shaclCountCheck, snapshotOfText, type MergeConflict } from '../model-manager/model-merge.js';
 import { literalValue, parseLine } from '../model-manager/snapshot-lines.js';
-import { asLaGramWrites, describe, openModel, wordsOf, type OpenModel } from './models.js';
+import { asLaGramWrites, describe, isModel, openModel, wordsOf, type OpenModel } from './models.js';
 
 /** What the merge did. */
 export interface MergeOutcome {
@@ -54,9 +61,12 @@ export async function mergeFiles(base: string, ours: string, theirs: string, pat
 /** Git's merge driver: read %O %A %B, write %A; 0 when merged cleanly, 1 with conflicts. */
 export async function runMergeDriver(basePath: string, oursPath: string, theirsPath: string, path: string, log: (line: string) => void): Promise<number> {
   const read = (p: string) => readFileSync(p, 'utf8');
+  const ours = read(oursPath);
+  const theirs = read(theirsPath);
+  if (!isModelText(ours, path) || !isModelText(theirs, path)) return mergeAsText(basePath, oursPath, theirsPath, path, log);
   let outcome: MergeOutcome;
   try {
-    outcome = await mergeFiles(read(basePath), read(oursPath), read(theirsPath), path);
+    outcome = await mergeFiles(read(basePath), ours, theirs, path);
   } catch (err: unknown) {
     log(`la-gram-git: ${path} was not merged: ${err instanceof Error ? err.message : String(err)}. It is left as your version.`);
     return 1;
@@ -70,6 +80,35 @@ export async function runMergeDriver(basePath: string, oursPath: string, theirsP
       'or take one side whole with `git checkout --ours` / `--theirs`, then `git add` it.',
   );
   return 1;
+}
+
+/** A la-gram model: it parses, and has an `arch:Model`. */
+function isModelText(text: string, path: string): boolean {
+  try {
+    return isModel(text, path);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Git's own three-way text merge, into %A: what Git does for the file without
+ * the driver. `git merge-file` exits with the number of conflicts, or negative
+ * (255) when it cannot merge.
+ */
+function mergeAsText(basePath: string, oursPath: string, theirsPath: string, path: string, log: (line: string) => void): number {
+  try {
+    execFileSync('git', ['merge-file', '-L', 'ours', '-L', 'base', '-L', 'theirs', oursPath, basePath, theirsPath], { stdio: ['ignore', 'pipe', 'pipe'] });
+    return 0;
+  } catch (err: unknown) {
+    const { status, stderr } = err as { status?: number | null; stderr?: Buffer | string };
+    if (typeof status === 'number' && status > 0 && status < 128) {
+      log(`la-gram-git: ${path} is not a la-gram model, so it was merged as text: ${status} conflict${status === 1 ? '' : 's'}, marked in the file.`);
+      return 1;
+    }
+    log(`la-gram-git: ${path} was not merged: ${stderr?.toString().trim() || (err instanceof Error ? err.message : String(err))}. It is left as your version.`);
+    return 1;
+  }
 }
 
 const KINDS: Record<MergeConflict['kind'], string> = {

@@ -2,7 +2,7 @@
 
 Recorded 2026-11-05. la-gram was at `3ca4759`. Phase 1 done 2026-11-05 (the merge, then its wiring), committed
 as `06d6ba2`. Phase 2 done 2026-11-05, committed as `12bdb91`. Phase 3 part 1 (the engine and the command) done 2026-11-06,
-not committed; part 2 (the release and the templates' docs) after the user's review.
+committed; part 2 (the release and the templates' docs) done 2026-11-06, not committed, not released.
 
 **Source:** `docs/git-collaboration-spec.md` and its Python reference scripts in
 `docs/git-collaboration/reference/`. They were copied in by the user and aren't committed yet. This plan
@@ -254,8 +254,11 @@ Found on the way, to report (2026-11-06):
 
 Part 2:
 
-- [ ] Release from la-gram's GitLab pipeline on a version tag: the npm package, the container image.
-- [ ] The templates' docs; the package's README; self-managed GitLab's server-side driver, documented.
+- [x] Release from la-gram's GitLab pipeline on a version tag: the npm package, the container image
+  (2026-11-06; `.gitlab-ci.yml`, tag `la-gram-git-v<version>`; `packages/la-gram-git/Dockerfile`). Not run on
+  GitLab yet: the user creates the npm organisation, protects the tags, adds `NPM_TOKEN`, and tags.
+- [x] The templates' docs (`ci/README.md`); the package's README; self-managed GitLab's server-side driver
+  (`packages/la-gram-git/docs/gitaly.md`). On the way: the driver merges a file that is not a model as text.
 
 The plan as first written:
 
@@ -267,12 +270,12 @@ The plan as first written:
   - the `sh:sparql` constraints, run with Oxigraph, closing the gap in the in-app validator;
   - that no relationship end, view node or folder entry points to something missing.
 - [x] **The diff by element** (Phase 2's), posted as a comment on the merge or pull request.
-- [ ] **CI templates for both hosts:** a GitLab CI template, which also serves self-managed GitLab, and a
+- [x] **CI templates for both hosts:** a GitLab CI template, which also serves self-managed GitLab, and a
   GitHub Actions workflow.
   - GitHub Actions' own token can comment on a pull request.
   - On GitLab, posting a note needs a project or group access token in a masked CI variable, since the job
     token can't.
-- [ ] **A local merge driver:** the same merge for people who use `git` on the command line, set up by a
+- [x] **A local merge driver:** the same merge for people who use `git` on the command line, set up by a
   documented init script. For self-managed GitLab, document how an administrator configures it in Gitaly,
   as an option and never a requirement.
 

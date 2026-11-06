@@ -1,0 +1,21 @@
+@prefix arch: <https://meta.linked.archi/core#>.
+@prefix skos: <http://www.w3.org/2004/02/skos/core#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix am4: <https://meta.linked.archi/archimate4/onto#>.
+@prefix am4mm: <https://meta.linked.archi/archimate4/metamodel#>.
+@prefix m: <https://example.org/la-gram-git/smoke/>.
+
+m:billing a am4:ApplicationComponent;
+    skos:prefLabel "Billing"@en;
+    am4:serves m:portal;
+    arch:inModel m:model.
+m:model a arch:Model;
+    skos:prefLabel "Smoke test"@en;
+    arch:modelConformsToMetamodel am4mm:ArchiMate4Metamodel.
+m:portal a am4:ApplicationComponent;
+    skos:prefLabel "Portal"@en;
+    arch:inModel m:model.
+m:serves a am4:Serving;
+    arch:inModel m:model;
+    arch:source m:billing;
+    arch:target m:portal.

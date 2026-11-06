@@ -1,0 +1,117 @@
+# la-gram's pipeline: releases la-gram-git (packages/la-gram-git) on a version tag,
+# and runs on nothing else.
+#
+#   tag la-gram-git-v0.1.0      → npm @linked-archi/la-gram-git@0.1.0 (dist-tag latest)
+#                                 image $CI_REGISTRY_IMAGE/la-gram-git:0.1.0, :0 and :latest
+#   tag la-gram-git-v0.2.0-rc.1 → npm under the dist-tag next; image :0.2.0-rc.1 only
+#
+# The tag's version must be the one in packages/la-gram-git/package.json. Before
+# the first release, and how to make one: README.md, "Releasing la-gram-git".
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^la-gram-git-v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
+
+stages:
+  - test
+  - build
+  - release
+
+default:
+  image: node:22
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+    policy: pull-push
+
+variables:
+  # The editor's desktop build is not released here: Electron's binary is not needed.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  npm_config_audit: "false"
+  npm_config_fund: "false"
+
+# Type check, and la-gram's unit and integration tests — la-gram-git is built from
+# the same source. The benchmarks are left out: they time the machine they run on.
+test:
+  stage: test
+  script:
+    - npm ci --prefer-offline
+    - npm run typecheck
+    - npx vitest run --exclude '**/{*-bench,bench-*}.test.ts'
+
+# The package, as npm will have it: built, packed, installed and run.
+package:
+  stage: build
+  script:
+    - VERSION="${CI_COMMIT_TAG#la-gram-git-v}"
+    - PACKAGE_VERSION="$(node -p 'JSON.parse(require("fs").readFileSync("packages/la-gram-git/package.json", "utf8")).version')"
+    - |
+      if [ "$VERSION" != "$PACKAGE_VERSION" ]; then
+        echo "The tag $CI_COMMIT_TAG says $VERSION; packages/la-gram-git/package.json says $PACKAGE_VERSION."
+        exit 1
+      fi
+    - npm ci --prefer-offline
+    - npm run build:cli
+    - (cd packages/la-gram-git && npm pack)
+    # Installed from the packed file, as `npm install` installs it, then run on a model.
+    - npm install --global "./packages/la-gram-git/linked-archi-la-gram-git-$VERSION.tgz"
+    - test "$(la-gram-git --version)" = "$VERSION"
+    - la-gram-git check packages/la-gram-git/smoke
+  artifacts:
+    paths:
+      - packages/la-gram-git/linked-archi-la-gram-git-*.tgz
+    expire_in: 1 week
+
+# npm. After the first release, by trusted publishing: npm takes the pipeline's
+# OIDC token (NPM_ID_TOKEN) for this project and this file, holds no secret, and
+# publishes provenance with the package. The first release, before the package
+# exists to configure that on, takes NPM_TOKEN — a protected, masked CI/CD
+# variable — written to .npmrc as a reference that npm resolves, never as its value.
+npm:
+  stage: release
+  needs: [package]
+  cache: []
+  id_tokens:
+    NPM_ID_TOKEN:
+      aud: "npm:registry.npmjs.org"
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  script:
+    - npm install --global npm@11 # trusted publishing needs npm 11.5.1 or later
+    - VERSION="${CI_COMMIT_TAG#la-gram-git-v}"
+    - case "$VERSION" in *-*) DIST_TAG=next ;; *) DIST_TAG=latest ;; esac
+    - if [ -n "${NPM_TOKEN:-}" ]; then echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > "$HOME/.npmrc"; fi
+    - npm publish "./packages/la-gram-git/linked-archi-la-gram-git-$VERSION.tgz" --access public --tag "$DIST_TAG"
+
+# The image, into this project's container registry, built from the same packed file.
+# (Not named `image`: at the top of the file that is GitLab's keyword, not a job.)
+container-image:
+  stage: release
+  needs: [package]
+  cache: []
+  image: docker:27.5.1
+  services:
+    - docker:27.5.1-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - VERSION="${CI_COMMIT_TAG#la-gram-git-v}"
+    - IMAGE="$CI_REGISTRY_IMAGE/la-gram-git"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build --build-arg VERSION="$VERSION" --tag "$IMAGE:$VERSION" packages/la-gram-git
+    - test "$(docker run --rm "$IMAGE:$VERSION" la-gram-git --version)" = "$VERSION"
+    # The model goes in on the standard input: the Docker service cannot see the job's files.
+    - docker run --rm --interactive "$IMAGE:$VERSION" sh -c 'cat > shop.ttl && la-gram-git check shop.ttl' < packages/la-gram-git/smoke/shop.ttl
+    - docker push "$IMAGE:$VERSION"
+    - |
+      case "$VERSION" in
+        *-*) echo "A pre-release: tagged $VERSION only." ;;
+        *)
+          for TAG in "${VERSION%%.*}" latest; do
+            docker tag "$IMAGE:$VERSION" "$IMAGE:$TAG"
+            docker push "$IMAGE:$TAG"
+          done
+          ;;
+      esac

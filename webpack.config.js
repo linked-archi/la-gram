@@ -254,7 +254,8 @@ export default (_env, argv) => {
         patterns: [
           { from: path.resolve(__dirname, 'assets'), to: path.join(laGramGitRoot, 'assets'), globOptions: { ignore: ['**/.*'] } },
           { from: path.resolve(__dirname, 'ci'), to: path.join(laGramGitRoot, 'ci') },
-          { from: path.resolve(__dirname, 'LICENSE'), to: path.join(laGramGitRoot, 'LICENSE') },
+          // A file: a destination without an extension is taken for a folder (LICENSE/LICENSE).
+          { from: path.resolve(__dirname, 'LICENSE'), to: path.join(laGramGitRoot, 'LICENSE'), toType: 'file' },
         ],
       }),
     ],

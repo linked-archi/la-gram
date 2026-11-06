@@ -1,0 +1,3 @@
+# The image is built from the packed package alone (see Dockerfile).
+*
+!linked-archi-la-gram-git-*.tgz

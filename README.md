@@ -115,7 +115,7 @@ new files.
 
 ## la-gram-git — models in Git, on the command line and in CI
 
-`la-gram-git` is built from la-gram's own engine, so it says of a model file what la-gram would. It is to be published as the npm package `@linked-archi/la-gram-git` (Node 20 or later) and as a container image, from la-gram's GitLab pipeline:
+`la-gram-git` is built from la-gram's own engine, so it says of a model file what la-gram would. It is released as the npm package `@linked-archi/la-gram-git` (Node 20 or later) and as a container image, from la-gram's GitLab pipeline:
 
 ```sh
 npx @linked-archi/la-gram-git check --base origin/main    # every model file parses, is as la-gram writes it,
@@ -125,7 +125,28 @@ npx @linked-archi/la-gram-git diff origin/main --comment   # the change by eleme
 npx @linked-archi/la-gram-git init github                  # or gitlab: the CI file; or merge-driver
 ```
 
-The CI templates for GitHub Actions and GitLab CI are in [`ci/`](ci/). `npm run build:cli` builds the tool into `packages/la-gram-git/`; `node packages/la-gram-git/dist/la-gram-git.js --help` runs it from there.
+- [`packages/la-gram-git/README.md`](packages/la-gram-git/README.md) — the package: every command, what fails a check, exit codes, the image.
+- [`ci/README.md`](ci/README.md) — the CI templates for GitHub Actions and GitLab CI, and how to set them up.
+- [`packages/la-gram-git/docs/gitaly.md`](packages/la-gram-git/docs/gitaly.md) — the merge driver on a self-managed GitLab's Gitaly servers, for its administrators.
+
+`npm run build:cli` builds the tool into `packages/la-gram-git/`; `node packages/la-gram-git/dist/la-gram-git.js --help` runs it from there.
+
+### Releasing la-gram-git
+
+`.gitlab-ci.yml` runs on a tag `la-gram-git-v<version>` and on nothing else: la-gram's tests (the benchmarks left out), then the package — built, packed, installed from the packed file and run on `packages/la-gram-git/smoke/` — then, from that one packed file, the npm package and the image `$CI_REGISTRY_IMAGE/la-gram-git`. A pre-release version (`0.2.0-rc.1`) goes to npm under the dist-tag `next` and gets no `latest` or major image tag.
+
+Once, before the first release:
+
+1. Create the npm organisation `linked-archi` on npmjs.com.
+2. In this project on GitLab: protect the tags `la-gram-git-v*` (*Settings › Repository › Protected tags*); let everyone pull the image (*Settings › General › Visibility*: the container registry for everyone with access).
+3. Add `NPM_TOKEN` (*Settings › CI/CD › Variables*, protected and masked): an npm granular access token that can publish `@linked-archi` packages, with an expiry. Protected, it reaches only pipelines of protected tags.
+
+After the first release, publish without a token: on npmjs.com, the package's *Settings › Trusted publishing*, GitLab CI/CD, with the namespace `linked-archi/linked-archi-tools/modellers`, the project `la-gram` and the file `.gitlab-ci.yml`. npm then takes the pipeline's OIDC token, and publishes provenance with the package. A new trusted publisher must be used within two days, so set it up just before the next release. Then delete `NPM_TOKEN` and revoke the token.
+
+Each release:
+
+1. Set the version in `packages/la-gram-git/package.json`, and commit.
+2. Tag that commit `la-gram-git-v<the version>` and push the tag. The `package` job fails when the two differ.
 
 ## Test
 

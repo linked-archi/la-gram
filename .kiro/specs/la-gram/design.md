@@ -1837,11 +1837,54 @@ goes into, then the diff as a comment (`if: always()`; GitLab's in
 `after_script`). Measured: a check of a small model takes about 1 s, most of it
 starting the engine.
 
+The merge driver merges a file la-gram's way only when both sides are la-gram
+models: `.gitattributes` routes files by extension, so ontologies and shapes
+files come to it too, and those — and a side that does not parse — go to Git's
+own text merge (`git merge-file`, labelled ours/base/theirs), as without the
+driver.
+
+**Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
+tag `la-gram-git-v<version>` (`workflow:rules`) and on nothing else. Stages:
+`test` — typecheck and the unit suite, the three benchmark files left out
+(`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the runner); `package` —
+the tag's version against `packages/la-gram-git/package.json`, `build:cli`,
+`npm pack`, the packed file installed globally and run: `--version`, and
+`check` on `packages/la-gram-git/smoke/` (a model as la-gram writes it); then,
+from that packed file (an artifact), `npm` and `container-image` (not `image`:
+at the top of the file that is GitLab's keyword). `npm` publishes with
+`--access public`, a pre-release under `next`; it asks for the OIDC tokens npm's
+trusted publishing takes (`NPM_ID_TOKEN`, audience `npm:registry.npmjs.org`;
+`SIGSTORE_ID_TOKEN` for provenance), and writes `NPM_TOKEN` to `.npmrc` as a
+reference npm resolves, only when the variable is set — the first publish,
+before the package exists to configure trusted publishing on. `container-image`
+builds `packages/la-gram-git/Dockerfile` with Docker-in-Docker: `node:22`'s slim
+image, Git and CA certificates, `safe.directory` `*` (a mounted repository
+belongs to the host's user), the packed file installed globally, no entrypoint
+(a CI job runs its script in the image's shell); the context is the packed file
+alone (`.dockerignore`). It runs `--version` and `check` on the smoke model fed
+on the standard input (the Docker service does not see the job's files), then
+pushes the version, its major version and `latest`. The webpack copy of
+`LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
+Measured by hand: the package job and the test job run clean in `node:22` on a
+copy of the repository's files; the image is 526 MB, and checks and diffs a
+mounted repository as root and as the host's user.
+
+Docs: `packages/la-gram-git/README.md` (npm's page: every command, exit codes,
+environment, the image), `ci/README.md` (the templates, shipped in the package),
+`packages/la-gram-git/docs/gitaly.md` (the driver on a self-managed GitLab's
+Gitaly: install on every node, absolute paths, the `gitlab.rb` / `gitaly.toml` /
+Helm keys, `.gitattributes`, a test that conflicts as text and merges with the
+driver), and README's *Releasing la-gram-git*.
+
 **Tests.** *cli.test* (real Git repositories in a temporary folder, model files
 la-gram writes: a good change passes; a file not as la-gram writes it, a
 missing reference, a violation the change adds fail — one already at the base
 does not; `fix`; `diff`; the comment's target and its update; the merge driver
-clean and with a conflict; `init`); the built tool run by hand against a
+clean and with a conflict; a file that is not a model merged as text; `init`);
+*package.test* (the package declares the packages the tool's source imports,
+at la-gram's versions; what it ships; the pipeline's tag rule against the
+package's version; the packed file's name in the pipeline, the Dockerfile and
+`.dockerignore`; the smoke model passes); the built tool run by hand against a
 repository with real `git merge`s through the driver.
 
 ### Comparing versions by element
