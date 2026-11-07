@@ -920,18 +920,25 @@ export class RdfRenderer extends BaseRenderer {
    * association is solid).
    */
   private drawConnector(parentGfx: SVGElement, connection: RenderableElement): SVGElement {
-    // Drawing only, no notation: its own colour and width always.
+    // Drawing only, no notation: its own look always — dashed, no ends, where it sets none.
     const own = connection.businessObject?.appearance;
+    const lineColor = own?.lineColor ?? CONNECTOR_STYLE.lineColor;
+    const lineStyle = own?.lineStyle ?? 'DashedLine';
+    const dash = lineStyle === 'DashedLine' ? CONNECTOR_STYLE.dashArray : strokeDashArray(lineStyle);
     const line = svgEl('polyline', {
       points: (connection.waypoints ?? []).map((p) => `${p.x},${p.y}`).join(' '),
       fill: 'none',
-      stroke: own?.lineColor ?? CONNECTOR_STYLE.lineColor,
+      stroke: lineColor,
       'stroke-width': own?.lineWidth ?? CONNECTOR_STYLE.strokeWidth,
-      'stroke-dasharray': CONNECTOR_STYLE.dashArray,
+      ...(dash ? { 'stroke-dasharray': dash } : {}),
       'stroke-linejoin': 'round',
     });
     line.setAttribute('class', `${RENDER_CLASSES.connection} ${RENDER_CLASSES.connector}`);
+    line.setAttribute('data-line-style', lineStyle);
     if (connection.businessObject?.iri) line.setAttribute('data-link-iri', connection.businessObject.iri);
+    // Its ends as it says: an arrowhead, a diamond, a dot — as a relationship's are drawn.
+    this.applyDecoration(parentGfx, line, own?.sourceDecor, 'source', lineColor);
+    this.applyDecoration(parentGfx, line, own?.targetDecor, 'target', lineColor);
     parentGfx.appendChild(line);
     return line;
   }

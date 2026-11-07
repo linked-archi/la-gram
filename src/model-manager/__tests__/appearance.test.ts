@@ -38,6 +38,10 @@ describe('an appearance’s values, as core-vis writes them', () => {
     expect(appearanceObject('textPosition', 'bottom')).toEqual({ iri: VIS + 'PositionBottom' });
     expect(appearanceObject('borderStyle', 'DashedLine')).toEqual({ iri: VIS + 'DashedLine' });
     expect(appearanceObject('gradient', 'left')).toEqual({ iri: VIS + 'GradientLeft' });
+    // A line from a note's style and ends: core-vis's own members, as a relationship's notation says them.
+    expect(appearanceObject('lineStyle', 'DottedLine')).toEqual({ iri: VIS + 'DottedLine' });
+    expect(appearanceObject('targetDecor', 'ClosedArrowhead')).toEqual({ iri: VIS + 'ClosedArrowhead' });
+    expect(appearanceObject('sourceDecor', 'Bogus' as never)).toBeUndefined();
     expect(appearanceObject('iconColor', '#1a237e')).toEqual({ string: '#1a237e' });
     expect(appearanceObject('lineWidth', 2.4)).toEqual({ integer: 2 });
     expect(appearanceObject('fontSize', 0)).toBeUndefined();

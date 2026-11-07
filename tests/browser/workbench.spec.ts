@@ -2060,7 +2060,23 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
       'lineColor',
       'lineWidth',
       'lineOpacity',
+      'lineStyle',
+      'sourceDecor',
+      'targetDecor',
     ]);
+    // Dotted, a filled arrow at its end: drawn so.
+    const drawnLine = page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connector`);
+    expect(await drawnLine.getAttribute('data-line-style')).toBe('DashedLine');
+    const pick = (field: string, value: string) =>
+      panel.locator(`.appearance-field[data-field="${field}"] select`).evaluate((select: HTMLSelectElement, v) => {
+        select.value = v;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
+    await pick('lineStyle', 'DottedLine');
+    await until(async () => (await drawnLine.getAttribute('data-line-style')) === 'DottedLine', 'the line dotted');
+    await pick('targetDecor', 'ClosedArrowhead');
+    await until(async () => ((await drawnLine.getAttribute('marker-end')) ?? '').includes('ClosedArrowhead'), 'an arrowhead at its end');
+    expect(await drawnLine.getAttribute('marker-start')).toBeNull();
     await panel.locator('.vtab[data-tab="info"]').click();
     expect(await panel.locator('.line-note').textContent()).toContain('Ask the CFO');
     await session.screenshot('workbench-figures');

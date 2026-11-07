@@ -1825,7 +1825,11 @@ export class DiagramCanvas {
       return {
         target: { iri: link.linkIri, kind: connector ? 'connector' : 'relationship' },
         own: link.appearance ?? {},
-        defaults: lineDefaults(connector ? { lineColor: CONNECTOR_STYLE.lineColor } : this.notationStyles.relationshipStyleFor(businessObject.typeIri)),
+        defaults: lineDefaults(
+          connector
+            ? { lineColor: CONNECTOR_STYLE.lineColor, lineStyle: 'DashedLine', sourceDecor: 'NoDecoration', targetDecor: 'NoDecoration' }
+            : this.notationStyles.relationshipStyleFor(businessObject.typeIri),
+        ),
       };
     }
     return undefined;

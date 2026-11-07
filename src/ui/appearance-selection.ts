@@ -14,8 +14,10 @@ import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 /** What a thing drawn is, for its look: an element's placement, a figure of a kind, a line. */
 export type AppearanceKind = 'element' | 'relationship' | 'connector' | FigureKind;
 
-/** What the Appearance tab sets: all but the figure, which is the Figure tab's. */
-const LOOK_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'renderingMode');
+/** A line from a note's own: its style and its ends — a relationship's are its notation's, which say what it is. */
+const LINE_KEYS: readonly AppearanceKey[] = ['lineStyle', 'sourceDecor', 'targetDecor'];
+/** What the Appearance tab sets for a shape: all but the figure, which is the Figure tab's, and a line's own. */
+const LOOK_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'renderingMode' && !LINE_KEYS.includes(key));
 const FIGURE_KEYS = LOOK_KEYS.filter((key) => key !== 'iconColor');
 
 /**
@@ -30,7 +32,7 @@ export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]>
   note: FIGURE_KEYS,
   group: FIGURE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
   relationship: ['lineColor', 'lineWidth', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
-  connector: ['lineColor', 'lineWidth'],
+  connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor'],
 };
 
 /** One thing selected: its node's or link's IRI, and what it is. */

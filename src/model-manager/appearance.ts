@@ -9,6 +9,8 @@
  * | `fillColor`, `lineColor`, `fontColor` | `arch-vis:fillColor` … | a CSS colour; its alpha its opacity |
  * | `gradient` | `arch-vis:gradient` (0.7) | `arch-vis:GradientTop`, `GradientLeft`, `GradientRight`, `GradientBottom` |
  * | `iconColor` | `arch-vis:iconColor` (0.7) | a CSS colour: the glyph's |
+ * | `lineStyle` | `arch-vis:lineStyle` | a line from a note's: `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
+ * | `sourceDecor`, `targetDecor` | `arch-vis:sourceDecor`, `targetDecor` | a line from a note's ends: `arch-vis:NoDecoration`, `OpenArrowhead`, … |
  * | `renderingMode` | `arch-vis:renderingMode` | `arch-vis:ShapeWithBadge`, `IconCentric`, `ShapeOnly`: the figure an element's placement is drawn as (the Figure tab) |
  * | `lineWidth` | `arch-vis:lineWidth` (0.7) | a positive integer |
  * | `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
@@ -36,6 +38,27 @@ const VIS = NAMESPACES['arch-vis'];
 export type TextAlignment = 'left' | 'center' | 'right';
 export type TextPosition = 'top' | 'middle' | 'bottom';
 export type BorderStyle = 'SolidLine' | 'DashedLine' | 'DottedLine';
+/** What an end of a line is drawn with (core-vis's `arch-vis:Decoration`s). */
+export type LineDecoration =
+  | 'NoDecoration'
+  | 'OpenArrowhead'
+  | 'ClosedArrowhead'
+  | 'HollowArrowhead'
+  | 'HollowDiamond'
+  | 'FilledDiamond'
+  | 'HalfArrowhead'
+  | 'CircleDot';
+const DECORATION_NAMES: readonly LineDecoration[] = [
+  'NoDecoration',
+  'OpenArrowhead',
+  'ClosedArrowhead',
+  'HollowArrowhead',
+  'HollowDiamond',
+  'FilledDiamond',
+  'HalfArrowhead',
+  'CircleDot',
+];
+
 /** How an element is drawn: a shape with its glyph as a badge, the glyph as the figure, or the shape alone. */
 export type FigureMode = 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly';
 /** The side a fill shades from — its colour there, white at the opposite side. */
@@ -59,6 +82,11 @@ export interface Appearance {
   textPosition?: TextPosition;
   /** The figure an element's placement is drawn as, in place of its notation's (Archi's Figure tab). */
   renderingMode?: FigureMode;
+  /** A line from a note's style — a relationship's is its notation's, which says what it is. */
+  lineStyle?: BorderStyle;
+  /** What a line from a note is drawn with at its start, and at its end. */
+  sourceDecor?: LineDecoration;
+  targetDecor?: LineDecoration;
 }
 
 export type AppearanceKey = keyof Appearance;
@@ -81,6 +109,9 @@ export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'fontStyle',
   'fontColor',
   'renderingMode',
+  'lineStyle',
+  'sourceDecor',
+  'targetDecor',
 ];
 
 const ENUMERATIONS = {
@@ -89,6 +120,9 @@ const ENUMERATIONS = {
   textPosition: { top: VIS + 'PositionTop', middle: VIS + 'PositionMiddle', bottom: VIS + 'PositionBottom' },
   gradient: { top: VIS + 'GradientTop', left: VIS + 'GradientLeft', right: VIS + 'GradientRight', bottom: VIS + 'GradientBottom' },
   renderingMode: { ShapeWithBadge: VIS + 'ShapeWithBadge', IconCentric: VIS + 'IconCentric', ShapeOnly: VIS + 'ShapeOnly' },
+  lineStyle: { SolidLine: VIS + 'SolidLine', DashedLine: VIS + 'DashedLine', DottedLine: VIS + 'DottedLine' },
+  sourceDecor: Object.fromEntries(DECORATION_NAMES.map((name) => [name, VIS + name])) as Record<LineDecoration, string>,
+  targetDecor: Object.fromEntries(DECORATION_NAMES.map((name) => [name, VIS + name])) as Record<LineDecoration, string>,
 } as const satisfies Partial<Record<AppearanceKey, Record<string, string>>>;
 
 /** Each key's predicate. */
@@ -106,6 +140,9 @@ export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   textAlignment: VIS + 'textAlignment',
   textPosition: VIS + 'textPosition',
   renderingMode: VIS + 'renderingMode',
+  lineStyle: VIS + 'lineStyle',
+  sourceDecor: VIS + 'sourceDecor',
+  targetDecor: VIS + 'targetDecor',
 };
 
 /** How a value is written: an enumeration's member (an IRI), an integer, or a string. */

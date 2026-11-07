@@ -963,21 +963,23 @@ here, target points to the element at which the relationship arrives.''' ;
 :domainIncludes
     a               owl:AnnotationProperty ;
     skos:prefLabel  "domainIncludes" ;
-    skos:definition "defines classes for the subject of a Relationship. It is not to be used for validation" ;
+    skos:definition "The classes a property's subject is expected to be. Guidance, not a constraint: not used for validation."@en ;
     skos:closeMatch schema:domainIncludes ;
-    skos:scopeNote  '''Values of this property define the type of the source Element; in simple relationships, this
-    would be the subject. This property is used for guiding modelling but not restricting relationships. Relationship
-     restrictions, like other types of restrictions, should be implemented using SHACL. ''' ;
+    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its source element; on a relationship
+proposal order (:RelationshipProposalOrder), the sources it is scoped to. Unlike rdfs:domain it infers nothing about
+what uses the property: it guides modelling tools and readers, and restricts nothing. Restrictions, as all
+constraints, are SHACL's.'''@en ;
 .
 
 :rangeIncludes
     a               owl:AnnotationProperty ;
     skos:prefLabel  "rangeIncludes" ;
-    skos:definition "defines classes for the object of a Relationship. It is not to be used for validation" ;
+    skos:definition "The classes a property's object is expected to be. Guidance, not a constraint: not used for validation."@en ;
     skos:closeMatch schema:rangeIncludes ;
-    skos:scopeNote  '''Values of this property define the type of the target Element; in simple relationships, this
-    would be the subject. This property is used for guiding modelling but not restricting relationships. Relationship
-     restrictions, like other types of restrictions, should be implemented using SHACL. ''' ;
+    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its target element; on a relationship
+proposal order (:RelationshipProposalOrder), the targets it is scoped to. Unlike rdfs:range it infers nothing about
+the values: it guides modelling tools and readers, and restricts nothing. Restrictions, as all constraints, are
+SHACL's.'''@en ;
 .
 
 :RelationshipProposalOrder

@@ -203,12 +203,25 @@ const GRADIENTS: ReadonlyArray<[string, string]> = [
   ['bottom', 'Bottom'],
 ];
 
-/** The Appearance tab's rows, left and right, as Archi lays them out. */
+/** What a line from a note may be drawn with at an end. */
+const DECORATIONS: ReadonlyArray<[NonNullable<Appearance['targetDecor']>, string]> = [
+  ['NoDecoration', 'None'],
+  ['OpenArrowhead', 'Open arrow'],
+  ['ClosedArrowhead', 'Filled arrow'],
+  ['HollowArrowhead', 'Hollow arrow'],
+  ['HalfArrowhead', 'Half arrow'],
+  ['HollowDiamond', 'Hollow diamond'],
+  ['FilledDiamond', 'Filled diamond'],
+  ['CircleDot', 'Dot'],
+];
+
+/** The Appearance tab's rows, left and right, as Archi lays them out; a line's style beside its opacity, its ends under them. */
 const APPEARANCE_ROWS: ReadonlyArray<[string, string | undefined]> = [
   ['fillColor', 'gradient'],
   ['fillOpacity', undefined],
   ['lineColor', 'lineWidth'],
   ['lineOpacity', 'borderStyle'],
+  ['sourceDecor', 'targetDecor'],
   ['iconColor', undefined],
   ['textAlignment', 'textPosition'],
   ['font', 'fontColor'],
@@ -1772,6 +1785,17 @@ export class PropertyPanel extends LitElement {
       else words.add(word);
       this._appearanceChange({ fontStyle: fontStyleOf([...words].join(' ')) ?? null });
     };
+    const decoration = (key: 'sourceDecor' | 'targetDecor', label: string) =>
+      field(
+        key,
+        label,
+        html`<select
+            aria-label=${label}
+            @change=${(e: Event) => this._appearanceChange({ [key]: (e.target as HTMLSelectElement).value })}
+          >
+            ${DECORATIONS.map(([value, name]) => html`<option value=${value} ?selected=${(shown(key) ?? 'NoDecoration') === value}>${name}</option>`)}
+          </select>${reset(key)}`,
+      );
     const lineWidth = shown('lineWidth') ?? 1;
     const count = selection.targets.length;
     const ownSet = fields.filter((key) => own[key] !== undefined);
@@ -1806,7 +1830,20 @@ export class PropertyPanel extends LitElement {
           )
         : nothing,
       lineOpacity: has('lineColor') ? opacity('lineColor', 'Line opacity') : nothing,
-      borderStyle: has('borderStyle')
+      // A shape's outline, or a line from a note's own line, in the same place.
+      borderStyle: has('lineStyle')
+        ? field(
+            'lineStyle',
+            'Line style',
+            html`<select
+                aria-label="Line style"
+                @change=${(e: Event) =>
+                  this._appearanceChange({ lineStyle: (e.target as HTMLSelectElement).value as Appearance['lineStyle'] })}
+              >
+                ${BORDER_STYLES.map(([value, name]) => html`<option value=${value} ?selected=${shown('lineStyle') === value}>${name}</option>`)}
+              </select>${reset('lineStyle')}`,
+          )
+        : has('borderStyle')
         ? field(
             'borderStyle',
             'Line style',
@@ -1820,6 +1857,8 @@ export class PropertyPanel extends LitElement {
           )
         : nothing,
       iconColor: has('iconColor') ? colour('iconColor', 'Icon colour') : nothing,
+      sourceDecor: has('sourceDecor') ? decoration('sourceDecor', 'Start arrowhead') : nothing,
+      targetDecor: has('targetDecor') ? decoration('targetDecor', 'End arrowhead') : nothing,
       textAlignment: has('textAlignment') ? segmented('textAlignment', 'Text alignment', ALIGNMENTS) : nothing,
       textPosition: has('textPosition') ? segmented('textPosition', 'Text position', POSITIONS) : nothing,
       font: has('fontName')

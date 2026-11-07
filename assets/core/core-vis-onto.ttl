@@ -37,7 +37,10 @@ bold, italic or underlined; where its text sits — arch-vis:textAlignment acros
 (arch-vis:PositionTop, PositionMiddle, PositionBottom); arch-vis:gradient, the side its fill shades
 from (arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom); and arch-vis:iconColor,
 its glyph's colour — as ArchiMate tools let a modeller set them on one diagram element. Each absent
-leaves the choice to the notation or the renderer. A colour's alpha is CSS's, 0 to 1: the comments
+leaves the choice to the notation or the renderer. arch-vis:lineStyle, sourceDecor and targetDecor
+name what they may be said of with arch:domainIncludes — a relationship, a relationship type's
+notation, a style, and so one line's own — where an rdfs:domain of arch:QualifiedRelationship made
+every notation saying them a relationship. A colour's alpha is CSS's, 0 to 1: the comments
 had given an example with the exchange format's percentage, rgba(255,255,181,100), which CSS reads
 as opaque whatever it is.
 
@@ -1095,8 +1098,11 @@ arch-vis:lineStyle
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "lineStyle"@en ;
-    rdfs:comment "The line rendering style for a relationship connector (solid, dashed, dotted)."@en ;
-    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:comment '''The line rendering style (solid, dashed, dotted): of a relationship type's lines, said on its
+notation or its notation's default style; or of one line, said on that Link's own style
+(arch-vis:style) — a line standing for no relationship, a note's to what it is about, whose look is
+its own.'''@en ;
+    arch:domainIncludes arch:QualifiedRelationship, arch-vis:VisualNotation, arch-vis:Style ;
     rdfs:range   arch-vis:LineStyle ;
 .
 
@@ -1104,8 +1110,10 @@ arch-vis:sourceDecor
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "sourceDecor"@en ;
-    rdfs:comment "The decoration at the source end of a relationship connector."@en ;
-    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:comment '''The decoration at a line's source end: of a relationship type's lines, said on its notation
+or its notation's default style; or of one line, said on that Link's own style, as for
+arch-vis:lineStyle.'''@en ;
+    arch:domainIncludes arch:QualifiedRelationship, arch-vis:VisualNotation, arch-vis:Style ;
     rdfs:range   arch-vis:Decoration ;
 .
 
@@ -1113,7 +1121,9 @@ arch-vis:targetDecor
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "targetDecor"@en ;
-    rdfs:comment "The decoration at the target end of a relationship connector."@en ;
-    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:comment '''The decoration at a line's target end: of a relationship type's lines, said on its notation
+or its notation's default style; or of one line, said on that Link's own style, as for
+arch-vis:lineStyle.'''@en ;
+    arch:domainIncludes arch:QualifiedRelationship, arch-vis:VisualNotation, arch-vis:Style ;
     rdfs:range   arch-vis:Decoration ;
 .

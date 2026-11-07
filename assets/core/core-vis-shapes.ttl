@@ -49,7 +49,8 @@ must belong to exactly one view); the remainder is cardinality and datatype hygi
     owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.2.0#> ;
     skos:historyNote              '''0.3.0 — StyleShape checks the style terms core-vis 0.7 adds:
 lineWidth a positive integer, fontStyle the keywords bold, italic and underline, textAlignment,
-textPosition and gradient members of their enumerations, iconColor a single string.
+textPosition and gradient members of their enumerations, iconColor a single string — and, as a
+line's own style may now say them, lineStyle, sourceDecor and targetDecor members of theirs.
 
 0.2.0 — LinkShape accepts a Link as well as a Node at either end of
 a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
@@ -495,6 +496,28 @@ separated by spaces, e.g. "bold italic".'''@en ;
         sh:maxCount 1 ;
         sh:datatype xsd:string ;
         sh:message  "iconColor is a single CSS colour string."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:lineStyle ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LineStyle ;
+        sh:message  '''lineStyle must be a single member of the LineStyle enumeration
+(arch-vis:SolidLine, arch-vis:DashedLine, arch-vis:DottedLine).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:sourceDecor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:Decoration ;
+        sh:message  "sourceDecor must be a single member of the Decoration enumeration (arch-vis:NoDecoration, OpenArrowhead, …)."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:targetDecor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:Decoration ;
+        sh:message  "targetDecor must be a single member of the Decoration enumeration (arch-vis:NoDecoration, OpenArrowhead, …)."@en ;
     ] ;
 .
 

@@ -1688,7 +1688,11 @@ colour, else its line colour — `lineDefaults`, `figureDefaults`), and the
 fields every one selected has (`APPEARANCE_FIELDS`): a relationship's line no
 fill, line style or alignment — its line style says what kind of relationship
 it is — only an element an icon colour, a group no alignment (its name sits in
-its tab), a line from a note its colour and width only.
+its tab), a line from a note its colour, width, line style and ends (`lineStyle`,
+`sourceDecor`, `targetDecor` — core-vis's terms for a relationship's line, on the
+line's own style: `drawConnector` dashes it by `strokeDashArray`, dashed `4 3`
+and with no ends where it says nothing, and puts its ends on as
+`applyDecoration` puts a relationship's).
 
 **Renderer.** The business object's `appearance` is drawn over the notation's
 style (`withOwnStyle`): fill, line colour, outline style, `lineWidth` as the

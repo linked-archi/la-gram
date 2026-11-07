@@ -1089,8 +1089,6 @@ be satisfied.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Composition-Relationship> ;
     skos:definition      '''A composition relationship indicates that an element consists of one or more other
 elements. The contained element exists only within the context of the container.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_composition.svg" ;
 .
 
@@ -1129,8 +1127,6 @@ ex:qr-001 a am:Composition ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Aggregation-Relationship> ;
     skos:definition      '''An aggregation relationship indicates that an element combines one or more other elements.
 Unlike composition, the aggregated element can exist independently.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_aggregation.svg" ;
 .
 
@@ -1170,8 +1166,6 @@ execution.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Assignment-Relationship> ;
     skos:definition      '''An assignment relationship indicates the allocation of responsibility, performance of
 behavior, storage, or execution.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_assignment.svg" ;
 .
 
@@ -1211,8 +1205,6 @@ or operation of a more abstract entity.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Realization-Relationship> ;
     skos:definition      '''A realization relationship indicates that an entity plays a critical role in the creation,
 achievement, sustenance, or operation of a more abstract entity.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_realization.svg" ;
 .
 
@@ -1257,8 +1249,6 @@ ex:qr-004 a am:Realization ;
     skos:definition      '''A serving relationship indicates that an element provides its functionality to another
 element.'''@en ;
     skos:changeNote      "3.0: Renamed from 'Used By'. Cross-layer relationship constraints relaxed."@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_serving.svg" ;
 .
 
@@ -1299,8 +1289,6 @@ ex:qr-005 a am:Serving ;
     skos:definition      '''An access relationship indicates that a behavior element may access a business or data
 object. Its subclasses say the kind of access — am:ReadAccess, am:WriteAccess, am:ReadWriteAccess; an
 am:Access that is none of them is unspecified.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_access.svg" ;
 .
 
@@ -1374,8 +1362,6 @@ element.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Influence-Relationship> ;
     skos:definition      '''An influence relationship indicates that an element affects the implementation or
 achievement of some motivation element. The influenceStrength property specifies the degree.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_influence.svg" ;
 .
 
@@ -1419,8 +1405,6 @@ ex:qr-007 a am:Influence ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Triggering-Relationship> ;
     skos:definition      '''A triggering relationship indicates a temporal or causal relationship between
 elements.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_triggering.svg" ;
 .
 
@@ -1457,8 +1441,6 @@ ex:qr-008 a am:Triggering ;
     skos:notation        "f" ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Flow-Relationship> ;
     skos:definition      '''A flow relationship indicates transfer from one element to another.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_flow.svg" ;
 .
 
@@ -1501,8 +1483,6 @@ ex:qr-009 a am:Flow ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Specialization-Relationship> ;
     skos:definition      '''A specialization relationship indicates that an element is a particular kind of another
 element.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_specialization.svg" ;
 .
 
@@ -1541,8 +1521,6 @@ ArchiMate relationship.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Association-Relationship> ;
     skos:definition      '''An association relationship indicates an unspecified relationship, or one that is not
 represented by another ArchiMate relationship.'''@en ;
-    arch:domainIncludes  arch:Element ;
-    arch:rangeIncludes   arch:Element ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/rel_association.svg" ;
 .
 

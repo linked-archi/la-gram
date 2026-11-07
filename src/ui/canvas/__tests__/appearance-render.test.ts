@@ -180,6 +180,24 @@ describe('a line drawn with its own look', () => {
     expect([name.getAttribute('font-size'), name.getAttribute('fill')]).toEqual(['15', '#1a73e8']);
   });
 
+  it('a line from a note’s style and its ends: dashed with none unless it says — dotted, arrowheads, a dot', () => {
+    const plain = boot().drawConnection({ iri: 'https://example.org/model/l0', typeIri: '', kind: 'connector' });
+    expect([plain.getAttribute('stroke-dasharray'), plain.getAttribute('marker-start'), plain.getAttribute('marker-end')]).toEqual(['4 3', null, null]);
+    harness!.destroy();
+    const styled = boot().drawConnection({
+      iri: 'https://example.org/model/l1',
+      typeIri: '',
+      kind: 'connector',
+      appearance: { lineStyle: 'DottedLine', sourceDecor: 'CircleDot', targetDecor: 'ClosedArrowhead', lineColor: '#7a0019' },
+    });
+    expect(styled.getAttribute('stroke-dasharray')).toBe('2 3');
+    expect(styled.getAttribute('marker-start')).toContain('CircleDot');
+    expect(styled.getAttribute('marker-end')).toContain('ClosedArrowhead');
+    harness!.destroy();
+    const solid = boot().drawConnection({ iri: 'https://example.org/model/l2', typeIri: '', kind: 'connector', appearance: { lineStyle: 'SolidLine' } });
+    expect(solid.getAttribute('stroke-dasharray')).toBeNull();
+  });
+
   it('a line from a note’s, which has no notation: its own even with "Notation only"', () => {
     const line = boot({ relationshipNames: false, notationOnly: true }).drawConnection({
       iri: 'https://example.org/model/l1',
