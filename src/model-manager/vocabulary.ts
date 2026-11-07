@@ -123,6 +123,18 @@ export const IRI = {
   fillColor: VIS + 'fillColor',
   lineColor: VIS + 'lineColor',
   fontColor: VIS + 'fontColor',
+  fontName: VIS + 'fontName',
+  fontSize: VIS + 'fontSize',
+  /** `bold`, `italic`, `underline`, separated by spaces (core-vis 0.7). */
+  fontStyle: VIS + 'fontStyle',
+  /** Width of a node's outline or a link's line (core-vis 0.7). */
+  lineWidth: VIS + 'lineWidth',
+  /** A node's outline: an `arch-vis:LineStyle`. */
+  borderStyle: VIS + 'borderStyle',
+  /** Where a node's text sits across it: an `arch-vis:TextAlignment` (core-vis 0.7). */
+  textAlignment: VIS + 'textAlignment',
+  /** Where a node's text sits down it: an `arch-vis:TextPosition` (core-vis 0.7). */
+  textPosition: VIS + 'textPosition',
   visView: VIS + 'view',
   /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
   visLabel: VIS + 'label',

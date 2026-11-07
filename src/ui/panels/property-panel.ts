@@ -26,7 +26,17 @@ import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
 import type { ElementManager, FigureColours, FigureKind } from '../../model-manager/interfaces.js';
-import { figureColours } from '../figure-bar.js';
+import {
+  colourAlpha,
+  fontStyleOf,
+  hasFontStyle,
+  hexColour,
+  withAlpha,
+  type Appearance,
+  type AppearanceChanges,
+  type AppearanceKey,
+} from '../../model-manager/appearance.js';
+import type { AppearanceSelection } from '../appearance-selection.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
@@ -167,11 +177,53 @@ export interface PropertyHeading {
   };
 }
 
-/** A figure's colours changed in the panel: `null` takes one back to the default. */
-export interface FigureColoursDetail {
-  iri: string;
-  colours: { [K in keyof FigureColours]?: string | null };
+/**
+ * The look of what is selected on the canvas changed in the Appearance tab:
+ * `appearance-change`, for the host to write to every one selected as one
+ * undoable step. `null` takes a value back to the default.
+ */
+export interface AppearanceChangeDetail {
+  changes: AppearanceChanges;
 }
+
+/** Archi's line widths. */
+const LINE_WIDTHS: ReadonlyArray<[number, string]> = [
+  [1, 'Normal'],
+  [2, 'Medium'],
+  [3, 'Heavy'],
+];
+
+const BORDER_STYLES: ReadonlyArray<[NonNullable<Appearance['borderStyle']>, string]> = [
+  ['SolidLine', 'Solid'],
+  ['DashedLine', 'Dashed'],
+  ['DottedLine', 'Dotted'],
+];
+
+/** Fonts offered by name; any other may be typed. */
+const FONT_NAMES = [
+  'Arial',
+  'Helvetica',
+  'Verdana',
+  'Tahoma',
+  'Trebuchet MS',
+  'Segoe UI',
+  'Lucida Grande',
+  'Georgia',
+  'Times New Roman',
+  'Courier New',
+];
+
+/** Archi's alignment buttons: lines set left, centred, right — and high, middle, low in a box. */
+const ALIGNMENTS: ReadonlyArray<[NonNullable<Appearance['textAlignment']>, string, string]> = [
+  ['left', 'Left', 'M2 3h12M2 7h8M2 11h10'],
+  ['center', 'Centre', 'M2 3h12M4 7h8M3 11h10'],
+  ['right', 'Right', 'M2 3h12M6 7h8M4 11h10'],
+];
+const POSITIONS: ReadonlyArray<[NonNullable<Appearance['textPosition']>, string, string]> = [
+  ['top', 'Top', 'M1.5 1.5h13v11h-13zM4 4h8M4 6.5h8'],
+  ['middle', 'Middle', 'M1.5 1.5h13v11h-13zM4 6h8M4 8.5h8'],
+  ['bottom', 'Bottom', 'M1.5 1.5h13v11h-13zM4 9h8M4 11.5h8'],
+];
 
 /** Predicates whose values are human text: edited with a language tag. */
 const TEXT_PREDICATES = new Set([
@@ -441,7 +493,7 @@ function rowKey(entry: PropertyEntry): string {
 const ID_ROW = 'id';
 
 /** The panel's vertical tabs, top to bottom. */
-export type PanelSection = 'info' | 'properties' | 'analysis' | 'views';
+export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance';
 
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
@@ -457,7 +509,7 @@ function storedRelationshipsOpen(): boolean {
   }
 }
 
-const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views'];
+const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance'];
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
 function storedTab(): PanelSection {
@@ -797,27 +849,110 @@ export class PropertyPanel extends LitElement {
       color: var(--la-text-muted, #5f6368);
     }
 
-    .figure-colours {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 8px 0;
+    /* The Appearance tab: two columns of fields, as Archi lays them out; one when narrow. */
+    .appearance {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      max-width: 760px;
+      gap: 4px 24px;
+      padding: 8px 12px;
     }
 
-    .figure-colour {
-      display: inline-flex;
+    .appearance-field {
+      display: grid;
+      grid-template-columns: 90px 1fr;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      min-height: 28px;
       font-size: 12px;
     }
 
-    .figure-colour input[type='color'] {
-      width: 32px;
+    .appearance-field .controls {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .appearance-field .controls .remove {
+      margin-left: 0;
+    }
+
+    .appearance-field input[type='color'] {
+      width: 40px;
       height: 22px;
       padding: 0;
       border: 1px solid #dadce0;
       border-radius: 3px;
       background: none;
+    }
+
+    .appearance-field input[type='number'] {
+      width: 48px;
+      font: inherit;
+    }
+
+    .appearance-field select,
+    .appearance-field .font-name {
+      font: inherit;
+    }
+
+    .appearance-field .font-name {
+      width: 96px;
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .segmented button {
+      border: 0;
+      border-right: 1px solid #dadce0;
+      background: #fff;
+      padding: 3px 6px;
+      cursor: pointer;
+      font: inherit;
+      line-height: 1;
+      min-width: 24px;
+    }
+
+    .segmented button:last-child {
+      border-right: 0;
+    }
+
+    .segmented button[aria-pressed='true'] {
+      background: #e8f0fe;
+    }
+
+    .segmented svg {
+      width: 16px;
+      height: 14px;
+      fill: none;
+      stroke: #3c4043;
+      stroke-width: 1.4;
+      display: block;
+    }
+
+    .appearance-footer {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-top: 6px;
+      font-size: 12px;
+      color: #5f6368;
+    }
+
+    .appearance-footer button {
+      font: inherit;
+      border: 1px solid #dadce0;
+      background: #fff;
+      border-radius: 3px;
+      cursor: pointer;
+      padding: 2px 8px;
     }
 
     .muted {
@@ -905,6 +1040,14 @@ export class PropertyPanel extends LitElement {
   /** Names values in the loaded data, for labelling choices; absent, choices are labelled by their IRIs. */
   @property({ attribute: false })
   nameOf?: NameOf;
+
+  /**
+   * What is selected on the canvas, for the Appearance tab: set by the host
+   * for a selection made there — a placement, a line, a figure — and not for a
+   * concept picked in the tree, which is the model's, not a diagram's.
+   */
+  @property({ attribute: false })
+  appearance?: AppearanceSelection;
 
   @state() private _newValue = '';
 
@@ -1447,12 +1590,8 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
-  /**
-   * A figure: its text — its name, labelled so — and its colours, each a
-   * colour picker with a way back to the figure's default. No type, definition,
-   * properties or analysis: a figure is drawing, not a model element.
-   */
-  private _renderFigure(figure: FigureColours & { kind: FigureKind }) {
+  /** A figure's information: its text — its name, labelled so. No type, definition, properties or analysis: a figure is drawing, not a model element. */
+  private _renderFigureText() {
     const text: PropertyEntry = {
       ...(this._entries.find((e) => e.predicate === SKOS_PREF_LABEL) ?? {
         predicate: SKOS_PREF_LABEL,
@@ -1461,47 +1600,188 @@ export class PropertyPanel extends LitElement {
       }),
       label: 'Text',
     } as PropertyEntry;
-    const shown = figureColours(figure);
-    const rows: Array<{ key: keyof FigureColours; label: string }> = [
-      { key: 'fillColor', label: 'Fill' },
-      { key: 'lineColor', label: 'Line' },
-      { key: 'fontColor', label: 'Text colour' },
-    ];
+    return html`<ul class="property-list">${this._renderEntry(text)}</ul>`;
+  }
+
+  /**
+   * The Appearance tab, as Archi's: fill colour and opacity, line colour,
+   * width, opacity and style, where the text sits, its font and colour — the
+   * fields every one selected has, each showing the first one's own value, or
+   * what it is drawn with where it sets none; a value of its own can be taken
+   * back to the default.
+   */
+  private _renderAppearance(selection: AppearanceSelection) {
+    const { own, defaults, fields } = selection;
+    const has = (key: AppearanceKey) => fields.includes(key);
+    const shown = <K extends AppearanceKey>(key: K): Appearance[K] => own[key] ?? defaults[key];
+    const reset = (key: AppearanceKey) =>
+      own[key] !== undefined
+        ? html`<button class="remove" title="Back to the default" @click=${() => this._appearanceChange({ [key]: null })}>×</button>`
+        : nothing;
+    const field = (key: string, label: string, controls: unknown) =>
+      html`<div class="appearance-field" data-field=${key}><span class="field-label">${label}</span><span class="controls">${controls}</span></div>`;
+    const colour = (key: 'fillColor' | 'lineColor' | 'fontColor', label: string) =>
+      field(
+        key,
+        label,
+        html`<input
+            type="color"
+            aria-label=${label}
+            .value=${live(hexColour(shown(key)) ?? '#000000')}
+            @change=${(e: Event) =>
+              this._appearanceChange({ [key]: withAlpha((e.target as HTMLInputElement).value, colourAlpha(shown(key))) })}
+          />${reset(key)}`,
+      );
+    const opacity = (key: 'fillColor' | 'lineColor', label: string) =>
+      field(
+        key === 'fillColor' ? 'fillOpacity' : 'lineOpacity',
+        label,
+        html`<input
+            type="number"
+            min="0"
+            max="100"
+            step="5"
+            aria-label=${label}
+            .value=${live(String(Math.round(colourAlpha(shown(key)) * 100)))}
+            @change=${(e: Event) => {
+              const percent = Math.min(100, Math.max(0, Number((e.target as HTMLInputElement).value) || 0));
+              this._appearanceChange({ [key]: withAlpha(hexColour(shown(key)) ?? '#000000', percent / 100) });
+            }}
+          />%`,
+      );
+    const segmented = <V extends string>(key: 'textAlignment' | 'textPosition', label: string, choices: ReadonlyArray<[V, string, string]>) =>
+      field(
+        key,
+        label,
+        html`<span class="segmented" role="group" aria-label=${label}>
+            ${choices.map(
+              ([value, name, path]) => html`<button
+                type="button"
+                title=${name}
+                aria-label=${name}
+                data-value=${value}
+                aria-pressed=${shown(key) === value ? 'true' : 'false'}
+                @click=${() => this._appearanceChange({ [key]: value })}
+              >
+                <svg viewBox="0 0 16 14" aria-hidden="true"><path d=${path}></path></svg>
+              </button>`,
+            )} </span
+          >${reset(key)}`,
+      );
+    const fontStyle = shown('fontStyle');
+    const toggleStyle = (word: 'bold' | 'italic' | 'underline') => {
+      const words = new Set((fontStyle ?? '').split(/\s+/));
+      if (words.has(word)) words.delete(word);
+      else words.add(word);
+      this._appearanceChange({ fontStyle: fontStyleOf([...words].join(' ')) ?? null });
+    };
+    const lineWidth = shown('lineWidth') ?? 1;
+    const count = selection.targets.length;
+    const ownSet = fields.filter((key) => own[key] !== undefined);
     return html`
-      <div class="layout">
-        <nav class="side">${this._renderHeading()}</nav>
-        <div class="pane" role="tabpanel" data-tab="figure">
-          <ul class="property-list">${this._renderEntry(text)}</ul>
-          <div class="figure-colours">
-            ${rows.map(
-              (row) => html`
-                <label class="figure-colour" data-colour=${row.key}>
-                  <span>${row.label}</span>
-                  <input
-                    type="color"
-                    .value=${live(shown[row.key])}
-                    @change=${(e: Event) => this._onFigureColour(row.key, (e.target as HTMLInputElement).value)}
-                  />
-                  ${figure[row.key]
-                    ? html`<button class="remove" title="Back to the default" @click=${() => this._onFigureColour(row.key, null)}>×</button>`
-                    : nothing}
-                </label>
-              `,
-            )}
-          </div>
+      <div class="appearance">
+        ${has('fillColor') ? colour('fillColor', 'Fill colour') : nothing}
+        ${has('fillColor') ? opacity('fillColor', 'Fill opacity') : nothing}
+        ${has('lineColor') ? colour('lineColor', 'Line colour') : nothing}
+        ${has('lineWidth')
+          ? field(
+              'lineWidth',
+              'Line width',
+              html`<select
+                  aria-label="Line width"
+                  @change=${(e: Event) => this._appearanceChange({ lineWidth: Number((e.target as HTMLSelectElement).value) })}
+                >
+                  ${LINE_WIDTHS.some(([n]) => n === lineWidth) ? nothing : html`<option value=${lineWidth} selected>${lineWidth}</option>`}
+                  ${LINE_WIDTHS.map(([n, name]) => html`<option value=${n} ?selected=${n === lineWidth}>${name}</option>`)}
+                </select>${reset('lineWidth')}`,
+            )
+          : nothing}
+        ${has('lineColor') ? opacity('lineColor', 'Line opacity') : nothing}
+        ${has('borderStyle')
+          ? field(
+              'borderStyle',
+              'Line style',
+              html`<select
+                  aria-label="Line style"
+                  @change=${(e: Event) =>
+                    this._appearanceChange({ borderStyle: (e.target as HTMLSelectElement).value as Appearance['borderStyle'] })}
+                >
+                  ${BORDER_STYLES.map(([value, name]) => html`<option value=${value} ?selected=${shown('borderStyle') === value}>${name}</option>`)}
+                </select>${reset('borderStyle')}`,
+            )
+          : nothing}
+        ${has('textAlignment') ? segmented('textAlignment', 'Text alignment', ALIGNMENTS) : nothing}
+        ${has('textPosition') ? segmented('textPosition', 'Text position', POSITIONS) : nothing}
+        ${has('fontName')
+          ? field(
+              'font',
+              'Font',
+              html`<input
+                  class="font-name"
+                  list="font-names"
+                  aria-label="Font"
+                  placeholder="Default"
+                  .value=${live(own.fontName ?? '')}
+                  @change=${(e: Event) => this._appearanceChange({ fontName: (e.target as HTMLInputElement).value.trim() || null })}
+                /><datalist id="font-names">${FONT_NAMES.map((name) => html`<option value=${name}></option>`)}</datalist>
+                <input
+                  type="number"
+                  min="4"
+                  max="96"
+                  aria-label="Font size"
+                  .value=${live(String(shown('fontSize') ?? ''))}
+                  @change=${(e: Event) => {
+                    const size = Math.round(Number((e.target as HTMLInputElement).value));
+                    this._appearanceChange({ fontSize: size >= 1 ? size : null });
+                  }}
+                />
+                <span class="segmented" role="group" aria-label="Font style">
+                  ${(['bold', 'italic', 'underline'] as const).map(
+                    (word) => html`<button
+                      type="button"
+                      title=${word[0]!.toUpperCase() + word.slice(1)}
+                      aria-label=${word}
+                      data-value=${word}
+                      aria-pressed=${hasFontStyle(fontStyle, word) ? 'true' : 'false'}
+                      style=${word === 'bold' ? 'font-weight:bold' : word === 'italic' ? 'font-style:italic' : 'text-decoration:underline'}
+                      @click=${() => toggleStyle(word)}
+                    >
+                      ${word[0]!.toUpperCase()}
+                    </button>`,
+                  )}
+                </span>
+                ${own.fontName !== undefined || own.fontSize !== undefined || own.fontStyle !== undefined
+                  ? html`<button
+                      class="remove"
+                      title="Back to the default font"
+                      @click=${() => this._appearanceChange({ fontName: null, fontSize: null, fontStyle: null })}
+                    >
+                      ×
+                    </button>`
+                  : nothing}`,
+            )
+          : nothing}
+        ${has('fontColor') ? colour('fontColor', 'Font colour') : nothing}
+        <div class="appearance-footer">
+          ${count > 1 ? html`<span>Changes apply to the ${count} selected.</span>` : nothing}
+          ${ownSet.length > 0
+            ? html`<button
+                class="reset-appearance"
+                title="Take every value back to the default"
+                @click=${() => this._appearanceChange(Object.fromEntries(ownSet.map((key) => [key, null])) as AppearanceChanges)}
+              >
+                Reset all
+              </button>`
+            : nothing}
         </div>
       </div>
     `;
   }
 
-  /** A figure's colour picked, or taken back to the default (`null`): `figure-colours`, for the host to write undoably. */
-  private _onFigureColour(key: keyof FigureColours, value: string | null): void {
+  /** A value changed in the Appearance tab: `appearance-change`, for the host to write undoably. */
+  private _appearanceChange(changes: AppearanceChanges): void {
     this.dispatchEvent(
-      new CustomEvent<FigureColoursDetail>('figure-colours', {
-        detail: { iri: this.selectedIri, colours: { [key]: value } },
-        bubbles: true,
-        composed: true,
-      }),
+      new CustomEvent<AppearanceChangeDetail>('appearance-change', { detail: { changes }, bubbles: true, composed: true }),
     );
   }
 
@@ -1609,36 +1889,29 @@ export class PropertyPanel extends LitElement {
     if (!this.selectedIri) {
       return html`<div class="no-selection">No element selected — select an element, a relationship or a view.</div>`;
     }
-    if (this.heading?.figure) return this._renderFigure(this.heading.figure);
-    if (this.heading?.line) {
-      return html`
-        <div class="layout">
-          <nav class="side">${this._renderHeading()}</nav>
-          <div class="pane" role="tabpanel" data-tab="line">
-            <p class="line-note">
-              From <strong>${this.heading.line.from}</strong> to <strong>${this.heading.line.to}</strong> — drawn in
-              this view only; no relationship in the model.
-            </p>
-          </div>
-        </div>
-      `;
-    }
-
     const entries = this._entries ?? [];
     const leading = entries.filter((e) => !e.custom);
     const added = entries.filter((e) => e.custom && !e.relationship);
     const related = entries.filter((e) => e.relationship);
     const a = this.analysis;
     const kind = this.heading?.kind ?? 'Element';
+    // A figure, or a line from one, is drawing: its information and its look — nothing of the model's.
+    const drawing = this.heading?.figure ? 'figure' : this.heading?.line ? 'line' : undefined;
+    const appearance = this.appearance;
     const tabs: Array<{ id: PanelSection; title: string; count?: number }> = [
       { id: 'info', title: `${kind} information` },
-      { id: 'properties', title: 'Properties', count: added.length },
-      ...(a
-        ? [
-            { id: 'analysis' as const, title: 'Analysis', count: a.relationships.length },
-            { id: 'views' as const, title: 'Appears in views', count: a.views.length },
-          ]
-        : []),
+      ...(drawing
+        ? []
+        : [
+            { id: 'properties' as const, title: 'Properties', count: added.length },
+            ...(a
+              ? [
+                  { id: 'analysis' as const, title: 'Analysis', count: a.relationships.length },
+                  { id: 'views' as const, title: 'Appears in views', count: a.views.length },
+                ]
+              : []),
+          ]),
+      ...(appearance ? [{ id: 'appearance' as const, title: 'Appearance' }] : []),
     ];
     // A remembered tab this concept does not have (a model has no analysis) falls back.
     const remembered = this._tab ?? 'info';
@@ -1666,7 +1939,16 @@ export class PropertyPanel extends LitElement {
           </div>
         </nav>
         <div class="pane" role="tabpanel" data-tab=${active}>
-          ${active === 'info'
+          ${active === 'appearance' && appearance
+            ? this._renderAppearance(appearance)
+            : active === 'info' && drawing === 'figure'
+              ? this._renderFigureText()
+              : active === 'info' && drawing === 'line' && this.heading?.line
+                ? html`<p class="line-note">
+                    From <strong>${this.heading.line.from}</strong> to <strong>${this.heading.line.to}</strong> — drawn
+                    in this view only; no relationship in the model.
+                  </p>`
+                : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
               </ul>`

@@ -28,6 +28,16 @@
  * face, above a wave; a `Folder`'s label sits in its tab. A shape's inner lines
  * are drawn over its body, and `arch-vis:borderStyle` dashes or dots both.
  *
+ * ## Its own look in the view
+ *
+ * What a placement's or a line's own style sets (`model-manager/appearance.ts`,
+ * the property panel's Appearance tab) is drawn over its notation's: fill, line
+ * colour and width, outline style, font, and where its name sits — unless
+ * {@link RenderOptions.notationOnly} says to draw the notation alone. The text
+ * keeps the notation's colour when only the line colour is set, as Archi has
+ * it. A figure, or a line from a note, has no notation: its own look is always
+ * drawn.
+ *
  * ## Icons are `<image href>`, not inlined SVG
  *
  * The glyphs are bundled files addressed by an asset-root-relative path
@@ -65,6 +75,7 @@ import type {
   VisualStyle,
 } from '../../metamodel-manager/notation.js';
 import type { FigureInfo } from '../../model-manager/interfaces.js';
+import { hasFontStyle, type Appearance, type TextAlignment, type TextPosition } from '../../model-manager/appearance.js';
 import { figureColours } from '../figure-bar.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
@@ -107,6 +118,12 @@ export interface RenderOptions {
    * relationships from their lines' notation, and names on all of them crowd it.
    */
   relationshipNames: boolean;
+  /**
+   * Draw each element and relationship as its notation does, leaving out the
+   * look set on it in the view (the canvas toolbar's "Notation only" switch,
+   * off by default). Figures, which have no notation, keep theirs.
+   */
+  notationOnly?: boolean;
 }
 
 /** Where a relationship's name goes. */
@@ -118,6 +135,8 @@ export interface ConnectionLabelLayout {
   /** Baseline of the first line. */
   y: number;
   lineHeight: number;
+  /** The text's size: the line's own font size, else la-gram's. */
+  fontSize: number;
   /** What the lines take, at least one line high: where the name is clicked and typed. */
   box: Box;
 }
@@ -137,11 +156,11 @@ export interface LabelOffset {
 export function connectionLabelLayout(
   waypoints: ReadonlyArray<{ x: number; y: number }>,
   label: string,
-  options: { badge?: boolean; offset?: LabelOffset } = {},
+  options: { badge?: boolean; offset?: LabelOffset; fontSize?: number } = {},
 ): ConnectionLabelLayout | undefined {
   const middle = midpointOf(waypoints);
   if (!middle) return undefined;
-  const { fontSize } = NOTATION_DEFAULTS;
+  const fontSize = options.fontSize ?? NOTATION_DEFAULTS.fontSize;
   const lineHeight = Math.round(fontSize * 1.2);
   const lines = wrapLabel(label, NOTATION_DEFAULTS.width, fontSize);
   // The box fits the text as drawn: measured in a browser, estimated in jsdom.
@@ -160,6 +179,7 @@ export function connectionLabelLayout(
     x: round2(centreX),
     y: round2(top + fontSize * 0.85),
     lineHeight,
+    fontSize,
     box: { x: round2(centreX - width / 2), y: round2(top), width: round2(width), height },
   };
 }
@@ -187,9 +207,11 @@ export function drawnConnectionLabel(
   if (!options.relationshipNames || businessObject?.kind !== 'relationship' || !businessObject.named || !businessObject.label) {
     return undefined;
   }
+  const fontSize = options.notationOnly ? undefined : businessObject.appearance?.fontSize;
   const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, {
     badge: !!businessObject.derivation,
     offset: businessObject.labelOffset,
+    ...(fontSize ? { fontSize } : {}),
   });
   return layout && layout.lines.length > 0 ? layout : undefined;
 }
@@ -234,6 +256,8 @@ export interface RdfBusinessObject {
   kind?: 'element' | 'relationship' | 'figure' | 'connector';
   /** A figure — a group, a shape, a note — standing for no model element: its node is its `iri`. */
   figure?: FigureInfo;
+  /** How this placement or line looks in the view, from its own style; a figure's is in its {@link figure}. */
+  appearance?: Appearance;
   /**
    * The view's node this shape draws (`arch-vis:ArchNode`): which placement of
    * its element, when the view places it more than once.
@@ -303,8 +327,52 @@ export const RENDER_CLASSES = {
   connector: 'la-connector',
 } as const;
 
-/** How a line standing for no relationship is drawn. */
-const CONNECTOR_STYLE = { lineColor: '#5f6368', strokeWidth: 1, dashArray: '4 3' } as const;
+/** How a line standing for no relationship is drawn where it sets nothing of its own. */
+export const CONNECTOR_STYLE = { lineColor: '#5f6368', strokeWidth: 1, dashArray: '4 3' } as const;
+
+/** A text's font, as a thing's own look sets it: la-gram's where it sets nothing. */
+interface TextFont {
+  family: string;
+  size: number;
+  /** `bold`, `italic`, `underline`. */
+  style?: string;
+}
+
+/** The font a look sets, la-gram's where it sets none. */
+function fontOf(own: Appearance | undefined): TextFont {
+  return {
+    family: fontFamilyOf(own?.fontName),
+    size: own?.fontSize ?? NOTATION_DEFAULTS.fontSize,
+    ...(own?.fontStyle ? { style: own.fontStyle } : {}),
+  };
+}
+
+/** A font name before la-gram's own, which stands in where it is not installed. */
+function fontFamilyOf(name: string | undefined): string {
+  const family = name?.replace(/["\\;{}<>]/g, '').trim();
+  return family ? `"${family}", ${NOTATION_DEFAULTS.fontFamily}` : NOTATION_DEFAULTS.fontFamily;
+}
+
+/** A `<text>`'s font attributes. */
+function fontAttributes(font: TextFont): Record<string, string | number> {
+  return {
+    'font-size': font.size,
+    'font-family': font.family,
+    ...(hasFontStyle(font.style, 'bold') ? { 'font-weight': 'bold' } : {}),
+    ...(hasFontStyle(font.style, 'italic') ? { 'font-style': 'italic' } : {}),
+    ...(hasFontStyle(font.style, 'underline') ? { 'text-decoration': 'underline' } : {}),
+  };
+}
+
+/** A notation's style with a thing's own fill, line colour and outline over it. */
+function withOwnStyle(notation: VisualStyle | undefined, own: Appearance): VisualStyle {
+  return {
+    ...(notation ?? {}),
+    ...(own.fillColor ? { fillColor: own.fillColor } : {}),
+    ...(own.lineColor ? { lineColor: own.lineColor } : {}),
+    ...(own.borderStyle ? { borderStyle: own.borderStyle } : {}),
+  } as VisualStyle;
+}
 
 /** What a figure's colours do not say: a group's tab, a note's fold. */
 const FIGURE_STYLE = {
@@ -343,7 +411,11 @@ export class RdfRenderer extends BaseRenderer {
     if (element.businessObject?.kind === 'figure') return this.drawFigure(parentGfx, element);
     const businessObject = element.businessObject;
     const typeIri = businessObject?.typeIri;
-    const style = this.notationStyles.styleFor(typeIri);
+    const notation = this.notationStyles.styleFor(typeIri);
+    // Its own look in this view over its notation's.
+    const own = this.ownAppearance(businessObject);
+    const style = own ? withOwnStyle(notation, own) : notation;
+    const font = fontOf(own);
 
     const width = element.width ?? style?.defaultWidth ?? NOTATION_DEFAULTS.width;
     const height = element.height ?? style?.defaultHeight ?? NOTATION_DEFAULTS.height;
@@ -360,13 +432,14 @@ export class RdfRenderer extends BaseRenderer {
     group.setAttribute('data-rendering-mode', mode);
 
     if (mode === 'IconCentric') {
-      this.drawIconCentric(group, width, height, label, href as string, style?.fontColor);
+      this.drawIconCentric(group, width, height, label, href as string, own?.fontColor ?? notation?.fontColor, font);
     } else {
-      this.drawShapeBody(group, style, width, height);
-      const color = style?.fontColor ?? style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+      this.drawShapeBody(group, style, width, height, own?.lineWidth);
+      // Its own text colour, else the notation's — not a line colour of its own.
+      const color = own?.fontColor ?? notation?.fontColor ?? notation?.lineColor ?? NOTATION_DEFAULTS.lineColor;
       if (!labelFitsInside(width, height)) {
         // A junction: no room for a badge, and its name, if it has one, under it.
-        if (businessObject?.named) this.appendLabel(group, label, { x: 0, y: 0, width, height }, { outside: true, color });
+        if (businessObject?.named) this.appendLabel(group, label, { x: 0, y: 0, width, height }, { outside: true, color, font });
         parentGfx.appendChild(group);
         return group;
       }
@@ -383,6 +456,9 @@ export class RdfRenderer extends BaseRenderer {
         maxLines: layout.maxLabelLines,
         // The label's own colour, else the line colour, as the vocabulary says.
         color,
+        font,
+        ...(own?.textAlignment ? { align: own.textAlignment } : {}),
+        ...(own?.textPosition ? { position: own.textPosition } : {}),
       });
     }
 
@@ -404,8 +480,15 @@ export class RdfRenderer extends BaseRenderer {
     const width = element.width ?? NOTATION_DEFAULTS.width;
     const height = element.height ?? NOTATION_DEFAULTS.height;
     const text = businessObject.label ?? '';
-    // Its own colours, else its kind's.
+    // Its own colours, else its kind's; its own line and font.
     const colours = figureColours(figure);
+    const font = fontOf(figure);
+    const dash = strokeDashArray(figure.borderStyle);
+    const outline = {
+      stroke: colours.lineColor,
+      'stroke-width': figure.lineWidth ?? NOTATION_DEFAULTS.strokeWidth,
+      ...(dash ? { 'stroke-dasharray': dash } : {}),
+    };
     const group = svgEl('g');
     group.setAttribute('class', `${RENDER_CLASSES.shape} ${RENDER_CLASSES.figure} ${RENDER_CLASSES.figure}-${figure.kind}`);
     if (businessObject.iri) group.setAttribute('data-element-iri', businessObject.iri);
@@ -416,19 +499,19 @@ export class RdfRenderer extends BaseRenderer {
       const tabHeight = Math.min(FIGURE_STYLE.group.tabHeight, height);
       // The tab its own grey, unless the group is given a colour.
       const tabFill = figure.fillColor ?? FIGURE_STYLE.group.tab;
-      const tab = svgEl('rect', { x: 0, y: 0, width: tabWidth, height: tabHeight, fill: tabFill, stroke: colours.lineColor });
+      const tab = svgEl('rect', { x: 0, y: 0, width: tabWidth, height: tabHeight, fill: tabFill, ...outline });
       tab.setAttribute('class', RENDER_CLASSES.details);
       group.appendChild(tab);
-      const body = svgEl('rect', { x: 0, y: tabHeight, width, height: Math.max(0, height - tabHeight), fill: colours.fillColor, stroke: colours.lineColor });
+      const body = svgEl('rect', { x: 0, y: tabHeight, width, height: Math.max(0, height - tabHeight), fill: colours.fillColor, ...outline });
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
-      this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1, colours.fontColor);
+      this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1, colours.fontColor, font);
     } else if (figure.kind === 'note') {
       const fold = Math.min(14, width / 4, height / 4);
       const body = svgEl('path', {
         d: `M0,0 H${round2(width - fold)} L${round2(width)},${round2(fold)} V${round2(height)} H0 Z`,
         fill: colours.fillColor,
-        stroke: colours.lineColor,
+        ...outline,
       });
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
@@ -436,7 +519,7 @@ export class RdfRenderer extends BaseRenderer {
       const corner = svgEl('path', {
         d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`,
         fill: figure.fillColor ?? FIGURE_STYLE.note.fold,
-        stroke: colours.lineColor,
+        ...outline,
       });
       corner.setAttribute('class', RENDER_CLASSES.details);
       group.appendChild(corner);
@@ -444,43 +527,82 @@ export class RdfRenderer extends BaseRenderer {
         const shade = svgEl('path', { d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`, fill: '#000000', 'fill-opacity': 0.12, stroke: 'none' });
         group.appendChild(shade);
       }
-      const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
+      const lineHeight = Math.round(font.size * 1.2);
+      // From its top left, unless it says otherwise.
       this.appendFigureText(
         group,
         text,
         { x: 6, y: 4, width: width - 12 - fold / 2, height: height - 8 },
         Math.max(1, Math.floor((height - 8) / lineHeight)),
         colours.fontColor,
+        font,
+        figure.textAlignment ?? 'left',
+        figure.textPosition ?? 'top',
       );
     } else {
       const shapeType = figureShapeType(figure);
-      this.drawShapeBody(group, { shapeType, fillColor: colours.fillColor, lineColor: colours.lineColor } as VisualStyle, width, height);
+      this.drawShapeBody(
+        group,
+        { shapeType, fillColor: colours.fillColor, lineColor: colours.lineColor, ...(figure.borderStyle ? { borderStyle: figure.borderStyle } : {}) } as VisualStyle,
+        width,
+        height,
+        figure.lineWidth,
+      );
       const layout = containerLayout(shapeLayout(shapeType, width, height), element);
-      this.appendLabel(group, text, layout.label, { color: colours.fontColor, ...(layout.maxLabelLines ? { maxLines: layout.maxLabelLines } : {}) });
+      this.appendLabel(group, text, layout.label, {
+        color: colours.fontColor,
+        font,
+        ...(layout.maxLabelLines ? { maxLines: layout.maxLabelLines } : {}),
+        ...(figure.textAlignment ? { align: figure.textAlignment } : {}),
+        ...(figure.textPosition ? { position: figure.textPosition } : {}),
+      });
     }
     parentGfx.appendChild(group);
     return group;
   }
 
-  /** A figure's text, from the top left of `area`, wrapped to it, on at most `maxLines`. */
-  private appendFigureText(group: SVGElement, text: string, area: Box, maxLines: number, color: string): void {
-    const lines = text === '' ? [] : wrapLabel(text, Math.max(0, area.width), NOTATION_DEFAULTS.fontSize, maxLines);
+  /**
+   * A figure's text in `area`, wrapped to it, on at most `maxLines`: from its
+   * top left unless `align` and `position` say otherwise; one line alone — a
+   * group's tab — centred down it.
+   */
+  private appendFigureText(
+    group: SVGElement,
+    text: string,
+    area: Box,
+    maxLines: number,
+    color: string,
+    font: TextFont,
+    align: TextAlignment = 'left',
+    position: TextPosition = 'top',
+  ): void {
+    const lines = text === '' ? [] : wrapLabel(text, Math.max(0, area.width), font.size, maxLines);
     if (lines.length === 0) return;
-    const lineHeight = Math.round(NOTATION_DEFAULTS.fontSize * 1.2);
+    const lineHeight = Math.round(font.size * 1.2);
+    const block = lines.length * lineHeight;
+    const top =
+      position === 'middle' ? area.y + (area.height - block) / 2 : position === 'bottom' ? area.y + area.height - block : area.y;
+    const y = lines.length === 1 && maxLines === 1 ? area.y + (area.height + font.size * 0.7) / 2 : top + font.size;
+    const x = align === 'center' ? area.x + area.width / 2 : align === 'right' ? area.x + area.width : area.x;
     const element = svgEl('text', {
-      x: area.x,
-      y: round2(area.y + (lines.length === 1 && maxLines === 1 ? (area.height + NOTATION_DEFAULTS.fontSize * 0.7) / 2 : NOTATION_DEFAULTS.fontSize)),
-      'font-size': NOTATION_DEFAULTS.fontSize,
-      'font-family': NOTATION_DEFAULTS.fontFamily,
+      x: round2(x),
+      y: round2(y),
+      ...(align === 'left' ? {} : { 'text-anchor': align === 'center' ? 'middle' : 'end' }),
+      ...fontAttributes(font),
       fill: color,
     });
     element.setAttribute('class', RENDER_CLASSES.label);
     lines.forEach((line, index) => {
-      const span = svgEl('tspan', { x: area.x, dy: index === 0 ? 0 : lineHeight });
+      const span = svgEl('tspan', { x: round2(x), dy: index === 0 ? 0 : lineHeight });
       span.textContent = line;
       element.appendChild(span);
     });
     group.appendChild(element);
+  }
+
+  /** A thing's own look, drawn — unless the canvas draws the notation alone. */
+  private ownAppearance(businessObject: RdfBusinessObject | undefined): Appearance | undefined {
+    return this.renderOptions.notationOnly ? undefined : businessObject?.appearance;
   }
 
   /**
@@ -502,13 +624,14 @@ export class RdfRenderer extends BaseRenderer {
     style: VisualStyle | undefined,
     width: number,
     height: number,
+    lineWidth: number = NOTATION_DEFAULTS.strokeWidth,
   ): SVGElement {
     const geometry = shapeGeometry(style?.customShape ?? style?.shapeType, width, height);
     const lineColor = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
     const dash = strokeDashArray(style?.borderStyle);
     const stroke = (element: SVGElement) => {
       element.setAttribute('stroke', lineColor);
-      element.setAttribute('stroke-width', String(NOTATION_DEFAULTS.strokeWidth));
+      element.setAttribute('stroke-width', String(lineWidth));
       if (dash) element.setAttribute('stroke-dasharray', dash);
     };
 
@@ -566,6 +689,7 @@ export class RdfRenderer extends BaseRenderer {
     label: string,
     href: string,
     fontColor: string | undefined,
+    font: TextFont = fontOf(undefined),
   ): void {
     const container = svgEl('rect', { x: 0, y: 0, width, height });
     container.setAttribute('class', RENDER_CLASSES.hitContainer);
@@ -592,6 +716,7 @@ export class RdfRenderer extends BaseRenderer {
       below: true,
       // Under the icon, on the canvas: the line colour is no guide here.
       color: fontColor ?? NOTATION_DEFAULTS.lineColor,
+      font,
     });
   }
 
@@ -606,13 +731,20 @@ export class RdfRenderer extends BaseRenderer {
       outside?: boolean;
       maxLines?: number;
       color: string;
+      font?: TextFont;
+      align?: TextAlignment;
+      position?: TextPosition;
     },
   ): SVGElement | null {
+    const font = options.font ?? fontOf(undefined);
     const local = labelLayout(label, area.width, area.height, {
       badgePlacement: options.badgePlacement,
       below: options.below,
       outside: options.outside,
       maxLines: options.maxLines,
+      fontSize: font.size,
+      ...(options.align ? { align: options.align } : {}),
+      ...(options.position ? { position: options.position } : {}),
     });
     if (local.lines.length === 0) return null;
     const layout = { ...local, x: offset(area.x, local.x), y: offset(area.y, local.y) };
@@ -620,9 +752,8 @@ export class RdfRenderer extends BaseRenderer {
     const text = svgEl('text', {
       x: layout.x,
       y: layout.y,
-      'text-anchor': 'middle',
-      'font-size': NOTATION_DEFAULTS.fontSize,
-      'font-family': NOTATION_DEFAULTS.fontFamily,
+      'text-anchor': layout.anchor ?? 'middle',
+      ...fontAttributes(font),
       fill: options.color,
     });
     text.setAttribute('class', RENDER_CLASSES.label);
@@ -648,14 +779,16 @@ export class RdfRenderer extends BaseRenderer {
     const style: RelationshipVisualStyle | undefined = this.notationStyles.relationshipStyleFor(
       businessObject?.typeIri,
     );
-    const lineColor = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+    // Its own colour and width in this view over its notation's; its style — what it means — the notation's.
+    const own = this.ownAppearance(businessObject);
+    const lineColor = own?.lineColor ?? style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
     const waypoints = connection.waypoints ?? [];
 
     const line = svgEl('polyline', {
       points: waypoints.map((p) => `${p.x},${p.y}`).join(' '),
       fill: 'none',
       stroke: lineColor,
-      'stroke-width': NOTATION_DEFAULTS.strokeWidth,
+      'stroke-width': own?.lineWidth ?? NOTATION_DEFAULTS.strokeWidth,
       'stroke-linejoin': 'round',
     });
     line.setAttribute('class', RENDER_CLASSES.connection);
@@ -680,7 +813,7 @@ export class RdfRenderer extends BaseRenderer {
       this.drawDerivationBadge(parentGfx, waypoints, derivation, businessObject?.derivationRule, lineColor);
     }
     const label = drawnConnectionLabel(connection, this.renderOptions);
-    if (label) this.drawConnectionLabel(parentGfx, label, lineColor, opacity);
+    if (label) this.drawConnectionLabel(parentGfx, label, own?.fontColor ?? lineColor, opacity, { ...fontOf(own), size: label.fontSize });
     return line;
   }
 
@@ -690,11 +823,13 @@ export class RdfRenderer extends BaseRenderer {
    * association is solid).
    */
   private drawConnector(parentGfx: SVGElement, connection: RenderableElement): SVGElement {
+    // Drawing only, no notation: its own colour and width always.
+    const own = connection.businessObject?.appearance;
     const line = svgEl('polyline', {
       points: (connection.waypoints ?? []).map((p) => `${p.x},${p.y}`).join(' '),
       fill: 'none',
-      stroke: CONNECTOR_STYLE.lineColor,
-      'stroke-width': CONNECTOR_STYLE.strokeWidth,
+      stroke: own?.lineColor ?? CONNECTOR_STYLE.lineColor,
+      'stroke-width': own?.lineWidth ?? CONNECTOR_STYLE.strokeWidth,
       'stroke-dasharray': CONNECTOR_STYLE.dashArray,
       'stroke-linejoin': 'round',
     });
@@ -720,6 +855,7 @@ export class RdfRenderer extends BaseRenderer {
     layout: ConnectionLabelLayout,
     color: string,
     opacity: string | undefined,
+    font: TextFont = fontOf(undefined),
   ): void {
     const group = svgEl('g', { class: RENDER_CLASSES.connectionLabel });
     if (opacity) group.setAttribute('opacity', opacity);
@@ -730,8 +866,7 @@ export class RdfRenderer extends BaseRenderer {
       x: layout.x,
       y: layout.y,
       'text-anchor': 'middle',
-      'font-size': NOTATION_DEFAULTS.fontSize,
-      'font-family': NOTATION_DEFAULTS.fontFamily,
+      ...fontAttributes(font),
       fill: color,
       stroke: '#ffffff',
       'stroke-width': 3,

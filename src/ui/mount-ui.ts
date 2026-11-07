@@ -37,6 +37,7 @@ import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
+import { notationOnly, rememberNotationOnly } from './notation-only.js';
 import { figureBarOpen, rememberFigureBarOpen } from './figure-bar.js';
 import {
   KIND_FOLDER_NAMES,
@@ -105,7 +106,7 @@ import type {
   PropertyChangeDetail,
   PropertyAnalysis,
   PropertyHeading,
-  FigureColoursDetail,
+  AppearanceChangeDetail,
 } from './panels/property-panel.js';
 import type {
   ModelExplorer,
@@ -766,6 +767,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     selecting = true;
     try {
       propertyPanel.selectedIri = iri ?? '';
+      // Its look in the view, for what is selected on the canvas — not a concept picked in the tree.
+      propertyPanel.appearance = iri && options.fromCanvas && !options.theView ? diagramCanvas.selectedAppearance() : undefined;
       propertyPanel.heading = iri ? headingFor(iri) : undefined;
       propertyPanel.analysis = iri ? analysisFor(iri) : undefined;
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -1319,6 +1322,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   canvasToolbar.addEventListener('relationship-names', onRelationshipNames);
 
+  // The notation alone, without the look set in the view: off unless switched on, remembered per browser.
+  const showNotationOnly = (on: boolean): void => {
+    canvasToolbar.notationOnly = on;
+    diagramCanvas.setNotationOnly(on);
+  };
+  showNotationOnly(notationOnly());
+  const onNotationOnly = (event: Event): void => {
+    const on = (event as CustomEvent<{ on: boolean }>).detail?.on === true;
+    rememberNotationOnly(on);
+    showNotationOnly(on);
+  };
+  canvasToolbar.addEventListener('notation-only', onNotationOnly);
+
   // Figures — groups, notes, shapes — from the toolbar's second row: open or closed, remembered per browser.
   canvasToolbar.figuresOpen = figureBarOpen();
   const onFiguresOpen = (event: Event): void => {
@@ -1334,15 +1350,18 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   canvasToolbar.addEventListener('figure-drag-start', onFigureDragStart);
 
-  // A figure's colours, from the property panel: one undoable step on the canvas.
-  const onFigureColours = (event: Event): void => {
-    const detail = (event as CustomEvent<FigureColoursDetail>).detail;
+  // The look of what is selected on the canvas, from the Appearance tab: one undoable step for every one of them.
+  const onAppearanceChange = (event: Event): void => {
+    const changes = (event as CustomEvent<AppearanceChangeDetail>).detail?.changes;
     const viewIri = session.activeViewIri;
-    if (!detail?.iri || !viewIri || !viewManager.setFigureColours) return;
-    diagramCanvas.recordChange(() => viewManager.setFigureColours!(viewIri, detail.iri, detail.colours));
-    propertyPanel.heading = headingFor(detail.iri);
+    const targets = propertyPanel.appearance?.targets ?? [];
+    if (!changes || !viewIri || targets.length === 0 || !viewManager.setAppearance) return;
+    diagramCanvas.recordChange(() => {
+      for (const target of targets) viewManager.setAppearance!(viewIri, target.iri, changes);
+    });
+    propertyPanel.appearance = diagramCanvas.selectedAppearance();
   };
-  propertyPanel.addEventListener('figure-colours', onFigureColours);
+  propertyPanel.addEventListener('appearance-change', onAppearanceChange);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -2515,6 +2534,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       showGitHistory();
     }
     if (propertyPanel.selectedIri) {
+      // Undone, redone, changed by a collaborator: the tab shows the look in force.
+      if (propertyPanel.appearance) propertyPanel.appearance = diagramCanvas.selectedAppearance();
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -2650,7 +2671,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('relationship-names', onRelationshipNames);
     canvasToolbar.removeEventListener('figures-open', onFiguresOpen);
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
-    propertyPanel.removeEventListener('figure-colours', onFigureColours);
+    propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
+    canvasToolbar.removeEventListener('notation-only', onNotationOnly);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);

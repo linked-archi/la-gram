@@ -149,6 +149,10 @@ export class CanvasToolbar extends LitElement {
   @property({ type: Boolean, attribute: false })
   relationshipNames = false;
 
+  /** Whether the canvas draws the notation alone, without the look set in the view (the switch's state). */
+  @property({ type: Boolean, attribute: false })
+  notationOnly = false;
+
   /** Whether the row of figures is open. */
   @property({ type: Boolean, attribute: false })
   figuresOpen = false;
@@ -166,6 +170,17 @@ export class CanvasToolbar extends LitElement {
     this.dispatchEvent(
       new CustomEvent<ToolbarFigureDetail>('figure-drag-start', {
         detail: { kind: choice.kind, ...(choice.shapeType ? { shapeType: choice.shapeType } : {}), sourceEvent: event },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /** The "Notation only" switch flipped: `notation-only` with `{ on }`. */
+  private _onNotationOnlyClick(): void {
+    this.dispatchEvent(
+      new CustomEvent<{ on: boolean }>('notation-only', {
+        detail: { on: !this.notationOnly },
         bubbles: true,
         composed: true,
       }),
@@ -220,6 +235,16 @@ export class CanvasToolbar extends LitElement {
           @click=${() => this._onNamesClick()}
         >
           Relationship names
+        </button>
+        <button
+          type="button"
+          class="switch"
+          data-switch="notation-only"
+          title="Draw every element and relationship as its notation does, leaving out the colours, fonts and lines set on it in the view"
+          aria-pressed=${this.notationOnly ? 'true' : 'false'}
+          @click=${() => this._onNotationOnlyClick()}
+        >
+          Notation only
         </button>
         <button
           type="button"

@@ -650,8 +650,10 @@ export function badgeBox(
 /** A laid-out label: lines plus the baseline of the first one. */
 export interface LabelLayout {
   lines: string[];
-  /** Horizontal anchor (always the shape's centre line). */
+  /** Horizontal anchor: the shape's centre line — or, aligned, where the lines start or end. */
   x: number;
+  /** How the lines hang from {@link x}: `middle` unless the label is aligned left (`start`) or right (`end`). */
+  anchor?: 'start' | 'middle' | 'end';
   /** Baseline y of the first line. */
   y: number;
   lineHeight: number;
@@ -772,6 +774,10 @@ export function labelLayout(
     outside?: boolean;
     /** At most this many lines; {@link NOTATION_DEFAULTS.maxLabelLines} when absent. */
     maxLines?: number;
+    /** Across the shape (`arch-vis:textAlignment`): centred when absent. Inside it only. */
+    align?: 'left' | 'center' | 'right';
+    /** Down the shape (`arch-vis:textPosition`): in the middle when absent, unless a badge says otherwise. Inside it only. */
+    position?: 'top' | 'middle' | 'bottom';
   } = {},
 ): LabelLayout {
   const w = size(width, NOTATION_DEFAULTS.width);
@@ -804,6 +810,10 @@ export function labelLayout(
     centreY = h - pad - block / 2;
   } else if (options.badgePlacement === 'BottomCenter') {
     centreY = pad + block / 2;
+  } else if (options.position === 'top') {
+    centreY = pad + block / 2;
+  } else if (options.position === 'bottom') {
+    centreY = h - pad - block / 2;
   } else {
     centreY = h / 2;
   }
@@ -811,6 +821,9 @@ export function labelLayout(
   // Baseline of the first line: shift the block up by half its height, then
   // down by the ascent of one line.
   const y = round(centreY - block / 2 + fontSize * 0.85);
+  // Aligned, the lines start — or end — at the edge of the band they were wrapped to.
+  if (!options.below && options.align === 'left') return { lines, x: round((w - available) / 2), y, lineHeight, anchor: 'start' };
+  if (!options.below && options.align === 'right') return { lines, x: round((w + available) / 2), y, lineHeight, anchor: 'end' };
   return { lines, x: round(w / 2), y, lineHeight };
 }
 

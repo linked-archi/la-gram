@@ -227,6 +227,54 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     expect(modelQuads(store).every((x) => x.subject.termType === 'NamedNode')).toBe(true);
   });
 
+  it('gives each node and connection the look its <style> gives it: colours (the alpha a percentage), line width, font', () => {
+    const STYLED = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="m">
+  <name xml:lang="en">Styled</name>
+  <elements>
+    <element identifier="e-a" xsi:type="ApplicationComponent"><name xml:lang="en">A</name></element>
+    <element identifier="e-b" xsi:type="ApplicationComponent"><name xml:lang="en">B</name></element>
+  </elements>
+  <relationships><relationship identifier="r" xsi:type="Serving" source="e-a" target="e-b"/></relationships>
+  <views><diagrams><view identifier="v" xsi:type="Diagram"><name xml:lang="en">V</name>
+    <node identifier="n-a" elementRef="e-a" xsi:type="Element" x="0" y="0" w="120" h="55">
+      <style lineWidth="2"><lineColor r="122" g="0" b="25"/><fillColor r="255" g="214" b="224" a="50"/>
+        <font name="Georgia" size="9" style="bold italic"><color r="26" g="115" b="232"/></font></style>
+    </node>
+    <node identifier="n-b" elementRef="e-b" xsi:type="Element" x="300" y="0" w="120" h="55"/>
+    <node identifier="n-note" xsi:type="Label" x="0" y="200" w="185" h="80"><label xml:lang="en">Note</label>
+      <style><fillColor r="255" g="247" b="179" a="100"/></style></node>
+    <connection identifier="c" relationshipRef="r" xsi:type="Relationship" source="n-a" target="n-b">
+      <style lineWidth="3"><lineColor r="26" g="115" b="232"/></style>
+    </connection>
+  </view></diagrams></views>
+</model>`;
+    const parsed = parseArchiMateExchange(STYLED);
+    expect(parsed.views[0]!.nodes.find((n) => n.id === 'n-b')?.style).toBeUndefined();
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/styled/';
+    applyExchangeModel(parsed, {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    const viewIri = `${ns}view-v`;
+    expect(views.getNode(viewIri, `${ns}element-e-a`)?.appearance).toEqual({
+      fillColor: '#ffd6e080',
+      lineColor: '#7a0019',
+      lineWidth: 2,
+      fontName: 'Georgia',
+      fontSize: 9,
+      fontStyle: 'bold italic',
+      fontColor: '#1a73e8',
+    });
+    expect(views.getNode(viewIri, `${ns}element-e-b`)?.appearance).toBeUndefined();
+    expect(views.getNodes(viewIri).find((n) => n.figure)?.figure).toMatchObject({ kind: 'note', fillColor: '#fff7b3' });
+    expect(views.getLinks(viewIri)[0]?.appearance).toEqual({ lineColor: '#1a73e8', lineWidth: 3 });
+  });
+
   it('draws a node nested in another inside it — a visual group in between too', () => {
     const NESTED = `<?xml version="1.0" encoding="UTF-8"?>
 <model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">

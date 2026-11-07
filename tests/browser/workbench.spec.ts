@@ -1969,12 +1969,14 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
 
     await shape.click();
     await page.waitForTimeout(200);
-    // Selected, the panel shows its text and its colours — no definition, no type.
+    // Selected, the panel shows its text, and its look in an Appearance tab — no definition, no type.
     const panel = page.locator('property-panel');
     await expect(panel.locator('.panel-header').textContent()).resolves.toContain('Note');
-    expect(await panel.locator('.figure-colour').count()).toBe(3);
     expect(await panel.getByText('Definition').count()).toBe(0);
-    await panel.locator('.figure-colour[data-colour="fillColor"] input').evaluate((input: HTMLInputElement) => {
+    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Note information', 'Appearance']);
+    await panel.locator('.vtab[data-tab="appearance"]').click();
+    expect(await panel.locator('.appearance-field').count()).toBe(10);
+    await panel.locator('.appearance-field[data-field="fillColor"] input').evaluate((input: HTMLInputElement) => {
       input.value = '#ffd6e0';
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });
@@ -1982,6 +1984,7 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
       async () => (await shape.locator('.la-shape-body').getAttribute('fill')) === '#ffd6e0',
       'the note drawn in its new colour',
     );
+    await session.screenshot('workbench-appearance');
     expect((await figures())[0]).toMatchObject({ kind: 'note' });
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
@@ -2051,6 +2054,14 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
     await page.waitForTimeout(200);
     const panel = page.locator('property-panel');
     await until(async () => ((await panel.locator('.panel-header').textContent()) ?? '').includes('Line'), 'the panel showing the line');
+    // Its look the Appearance tab's — open, as the note's was: the tab is kept from one selection to the next.
+    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Line information', 'Appearance']);
+    expect(await panel.locator('.appearance-field').evaluateAll((fields) => fields.map((f) => f.getAttribute('data-field')))).toEqual([
+      'lineColor',
+      'lineWidth',
+      'lineOpacity',
+    ]);
+    await panel.locator('.vtab[data-tab="info"]').click();
     expect(await panel.locator('.line-note').textContent()).toContain('Ask the CFO');
     await session.screenshot('workbench-figures');
     expect(session.diagnostics.pageErrors).toEqual([]);

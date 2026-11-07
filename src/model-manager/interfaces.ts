@@ -8,6 +8,9 @@
 
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RelationshipTypeInfo } from '../metamodel-manager/interfaces.js';
+import type { Appearance, AppearanceChanges } from './appearance.js';
+
+export type { Appearance, AppearanceChanges } from './appearance.js';
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -56,6 +59,8 @@ export interface NodeInfo {
   parentNodeIri?: string;
   /** Set when the node stands for no model element. */
   figure?: FigureInfo;
+  /** How an element's placement looks, from its own style; a figure's is in its {@link figure}. */
+  appearance?: Appearance;
 }
 
 /**
@@ -71,7 +76,7 @@ export interface NodeInfo {
  */
 export type FigureKind = 'group' | 'shape' | 'note';
 
-export interface FigureInfo extends FigureColours {
+export interface FigureInfo extends Appearance {
   kind: FigureKind;
   /** The core-vis shape type of a `shape`. */
   shapeType?: string;
@@ -112,6 +117,8 @@ export interface LinkInfo {
    * the route.
    */
   label?: Bounds;
+  /** How the line looks, from its own style. */
+  appearance?: Appearance;
 }
 
 /** A qualified relationship as read from the store. */
@@ -267,6 +274,14 @@ export interface ViewManager {
   setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
   /** Set a figure's colours on its own style — `null` takes one back to the default. */
   setFigureColours?(viewIri: string, nodeIri: string, colours: { [K in keyof FigureColours]?: string | null }): void;
+  /**
+   * Set how one thing drawn in the view looks, on its own style: a node (an
+   * element's placement, a figure) or a link (a relationship's line, a line
+   * from a note), by its IRI. `null` takes a value back to the default. A
+   * style it shares, or one another tool wrote as a blank node, is copied to
+   * its own first, so the change is to it alone.
+   */
+  setAppearance?(viewIri: string, iri: string, changes: AppearanceChanges): void;
   /**
    * Draw a line standing for no relationship between two nodes of a diagram
    * view (placements or figures; an element's IRI names its first placement)

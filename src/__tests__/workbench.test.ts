@@ -352,6 +352,91 @@ describe('the workbench', () => {
     vi.unstubAllGlobals();
   });
 
+  it('shows the look of what is selected on the canvas in an Appearance tab, and changes it for every one selected, undoably', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const a = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Styled A' }).value;
+    const b = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Styled B' }).value;
+    const nodeA = views.addElementToView(view, a, { x: 100, y: 700, width: 120, height: 55 });
+    const nodeB = views.addElementToView(view, b, { x: 300, y: 700, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnFill = (iri: string) => document.querySelector(`[data-element-iri="${iri}"] .la-shape-body`)?.getAttribute('fill');
+    const notationFill = drawnFill(a);
+
+    // Picked in the tree: the model's concept, not a diagram's — no Appearance.
+    ui.selectConcept(a);
+    await panel.updateComplete;
+    expect(root.querySelector('.vtab[data-tab="appearance"]')).toBeNull();
+
+    // Both selected on the canvas: the tab, last among them, with every field an element's placement has.
+    ui.diagramCanvas.selectIris([a, b]);
+    await panel.updateComplete;
+    expect(panel.appearance?.targets).toEqual([
+      { iri: nodeA, kind: 'element' },
+      { iri: nodeB, kind: 'element' },
+    ]);
+    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).at(-1)).toBe('appearance');
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
+    await panel.updateComplete;
+    expect([...root.querySelectorAll('.appearance-field')].map((f) => f.getAttribute('data-field'))).toEqual([
+      'fillColor',
+      'fillOpacity',
+      'lineColor',
+      'lineWidth',
+      'lineOpacity',
+      'borderStyle',
+      'textAlignment',
+      'textPosition',
+      'font',
+      'fontColor',
+    ]);
+    expect(root.querySelector('.appearance-footer')!.textContent).toContain('Changes apply to the 2 selected.');
+
+    // A fill picked: both, on their own styles, drawn so.
+    const fill = root.querySelector<HTMLInputElement>('.appearance-field[data-field="fillColor"] input')!;
+    fill.value = '#ffd6e0';
+    fill.dispatchEvent(new Event('change'));
+    expect([views.getNode(view, nodeA)?.appearance, views.getNode(view, nodeB)?.appearance]).toEqual([
+      { fillColor: '#ffd6e0' },
+      { fillColor: '#ffd6e0' },
+    ]);
+    expect([drawnFill(a), drawnFill(b)]).toEqual(['#ffd6e0', '#ffd6e0']);
+    // Half opaque, keeping the colour; the text to the left.
+    await panel.updateComplete;
+    const opacity = root.querySelector<HTMLInputElement>('.appearance-field[data-field="fillOpacity"] input')!;
+    opacity.value = '50';
+    opacity.dispatchEvent(new Event('change'));
+    root.querySelector<HTMLButtonElement>('.appearance-field[data-field="textAlignment"] button[data-value="left"]')!.click();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ fillColor: '#ffd6e080', textAlignment: 'left' });
+    await panel.updateComplete;
+    expect(root.querySelector('.appearance-field[data-field="textAlignment"] button[data-value="left"]')!.getAttribute('aria-pressed')).toBe('true');
+
+    // "Notation only": drawn as the notation has it, the look kept.
+    ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-switch="notation-only"]')!.click();
+    expect(drawnFill(a)).toBe(notationFill);
+    ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-switch="notation-only"]')!.click();
+    expect(drawnFill(a)).toBe('#ffd6e080');
+
+    // Each change one step back, for both.
+    await ui.runCommand({ command: 'undo' });
+    await ui.runCommand({ command: 'undo' });
+    await panel.updateComplete;
+    expect(views.getNode(view, nodeB)?.appearance).toEqual({ fillColor: '#ffd6e0' });
+    expect(panel.appearance?.own).toEqual({ fillColor: '#ffd6e0' });
+    // Reset all: back to the notation's.
+    root.querySelector<HTMLButtonElement>('.reset-appearance')!.click();
+    expect([views.getNode(view, nodeA)?.appearance, views.getNode(view, nodeB)?.appearance]).toEqual([undefined, undefined]);
+    expect(drawnFill(a)).toBe(notationFill);
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    for (const iri of [a, b]) els.deleteElement(iri);
+  });
+
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {
     const els = app.components.elementManager;
     const rels = app.components.relationshipManager;

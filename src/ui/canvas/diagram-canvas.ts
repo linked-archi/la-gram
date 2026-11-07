@@ -144,6 +144,7 @@ import { NotationStyleRegistry } from './notation-styles.js';
 import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
 import { toolFromManagerName, type CanvasTool } from './canvas-tools.js';
 import {
+  CONNECTOR_STYLE,
   RdfRenderer,
   connectionLabelLayout,
   drawnConnectionLabel,
@@ -156,6 +157,16 @@ import {
 import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
+import { sameAppearance, type Appearance } from '../../model-manager/appearance.js';
+import {
+  appearanceOfFigure,
+  elementDefaults,
+  fieldsFor,
+  figureDefaults,
+  lineDefaults,
+  type AppearanceSelection,
+  type AppearanceTarget,
+} from '../appearance-selection.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
 import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
@@ -630,7 +641,13 @@ export class DiagramCanvas {
   /** Where the right-click menu was opened, for the menus it opens in turn. */
   private contextMenuAt: { x: number; y: number } | undefined;
   /** What the renderer draws beyond the notation — relationships' names — kept here to switch and redraw. */
-  private readonly renderOptions: RenderOptions = { relationshipNames: false };
+  private readonly renderOptions: RenderOptions = { relationshipNames: false, notationOnly: false };
+
+  /**
+   * Each node's and link's own look as the store last said, by IRI: what a
+   * placement or a line is drawn with when it is first drawn.
+   */
+  private appearanceToDraw = new Map<string, Appearance>();
 
   /** The `arch:View` on the canvas, when a view manager is in use. */
   private viewIri: string | undefined;
@@ -1177,6 +1194,10 @@ export class DiagramCanvas {
 
     const nodes = this.viewManager.getNodes(viewIri);
     const links = this.viewManager.getLinks(viewIri);
+    this.appearanceToDraw = new Map();
+    for (const drawn of [...nodes, ...links]) {
+      if (drawn.appearance) this.appearanceToDraw.set('nodeIri' in drawn ? drawn.nodeIri : drawn.linkIri, drawn.appearance);
+    }
     const wantedShapes = new Set(nodes.map((n) => n.nodeIri));
     const wantedLinks = new Set(links.map((l) => l.linkIri));
     const wantedRelationships = new Set(links.map((l) => l.relationshipIri));
@@ -1224,6 +1245,8 @@ export class DiagramCanvas {
             ...(moved ? { bounds: node.bounds } : {}),
           });
         }
+        // Its look changed — in the panel, by a collaborator, or undone.
+        this.restyle(existing, node.appearance);
       } else {
         this.addElement(
           node.elementIri,
@@ -1298,6 +1321,7 @@ export class DiagramCanvas {
           Object.assign(drawn, derived);
           services.eventBus.fire('elements.changed', { elements: [existing] });
         }
+        this.restyle(existing, link.appearance);
         continue;
       }
       this.addRelationship(
@@ -1594,6 +1618,7 @@ export class DiagramCanvas {
       kind: 'element',
       iconUrl,
       ...(node ? { nodeIri: node } : {}),
+      ...(node && this.appearanceToDraw.get(node) ? { appearance: this.appearanceToDraw.get(node)! } : {}),
     };
 
     const shape = services.elementFactory.createShape({
@@ -1700,15 +1725,101 @@ export class DiagramCanvas {
     const b = node.bounds;
     const moved = existing.x !== b.x || existing.y !== b.y || existing.width !== b.width || existing.height !== b.height;
     const retexted = (existing.businessObject?.label ?? '') !== (figure.text ?? '');
-    const was = existing.businessObject?.figure;
-    const recoloured =
-      was?.fillColor !== figure.fillColor || was?.lineColor !== figure.lineColor || was?.fontColor !== figure.fontColor;
+    const recoloured = !sameAppearance(existing.businessObject?.figure, figure);
     if (existing.businessObject) {
       existing.businessObject.figure = figure;
       existing.businessObject.label = figure.text;
     }
     if (moved) this.updateShape(existing, { bounds: b });
     else if (retexted || recoloured) services.eventBus.fire('element.changed', { element: existing });
+  }
+
+  /** Draw a placement or a line with its look as the store now says, when that changed. */
+  private restyle(drawn: DjsShape, appearance: Appearance | undefined): void {
+    const businessObject = drawn.businessObject;
+    if (!businessObject || sameAppearance(businessObject.appearance, appearance)) return;
+    if (appearance) businessObject.appearance = appearance;
+    else delete businessObject.appearance;
+    this.services()?.eventBus.fire('element.changed', { element: drawn });
+  }
+
+  /**
+   * What the property panel's Appearance tab edits: each selected thing's node
+   * or link and what it is, the first one's own look and what it is drawn
+   * with where it sets nothing, and the fields every one of them has.
+   * `undefined` with nothing drawn selected, or no view open.
+   */
+  selectedAppearance(): AppearanceSelection | undefined {
+    const viewIri = this.viewIri;
+    if (!viewIri || !this.viewManager) return undefined;
+    const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+    const described = selected
+      .map((element) => this.appearanceOfDrawn(viewIri, element))
+      .filter((d): d is { target: AppearanceTarget; own: Appearance; defaults: Appearance } => d !== undefined);
+    const first = described[0];
+    if (!first) return undefined;
+    return {
+      targets: described.map((d) => d.target),
+      own: first.own,
+      defaults: first.defaults,
+      fields: fieldsFor(described.map((d) => d.target.kind)),
+    };
+  }
+
+  /** One thing drawn, for the Appearance tab: its node or link, its own look, what it is drawn with otherwise. */
+  private appearanceOfDrawn(
+    viewIri: string,
+    element: DjsShape,
+  ): { target: AppearanceTarget; own: Appearance; defaults: Appearance } | undefined {
+    const businessObject = element.businessObject;
+    const viewManager = this.viewManager;
+    if (!businessObject || !viewManager) return undefined;
+    if (businessObject.kind === 'figure' || businessObject.kind === 'element') {
+      const key = this.nodeKeyOf(element);
+      const node = key ? viewManager.getNode(viewIri, key) : undefined;
+      if (!node) return undefined;
+      if (node.figure) {
+        return { target: { iri: node.nodeIri, kind: node.figure.kind }, own: appearanceOfFigure(node.figure), defaults: figureDefaults(node.figure.kind) };
+      }
+      return {
+        target: { iri: node.nodeIri, kind: 'element' },
+        own: node.appearance ?? {},
+        defaults: elementDefaults(this.notationStyles.styleFor(businessObject.typeIri)),
+      };
+    }
+    if (businessObject.kind === 'relationship' || businessObject.kind === 'connector') {
+      const links = viewManager.getLinks(viewIri);
+      const key = this.linkKeyOf(element);
+      const link = links.find((l) => l.linkIri === key) ?? links.find((l) => l.relationshipIri === businessObject.iri);
+      if (!link) return undefined;
+      const connector = businessObject.kind === 'connector';
+      return {
+        target: { iri: link.linkIri, kind: connector ? 'connector' : 'relationship' },
+        own: link.appearance ?? {},
+        defaults: lineDefaults(
+          connector ? CONNECTOR_STYLE.lineColor : this.notationStyles.relationshipStyleFor(businessObject.typeIri)?.lineColor,
+        ),
+      };
+    }
+    return undefined;
+  }
+
+  /**
+   * Draw each element and relationship as its notation does, leaving out the
+   * look set on it in the view — or with it (the canvas toolbar's "Notation
+   * only" switch, off by default). Everything is redrawn, alone.
+   */
+  setNotationOnly(on: boolean): void {
+    if ((this.renderOptions.notationOnly ?? false) === on) return;
+    this.renderOptions.notationOnly = on;
+    const services = this.services();
+    if (!services) return;
+    for (const element of [...this.shapes(), ...this.connections()]) services.eventBus.fire('element.changed', { element });
+  }
+
+  /** Whether the canvas draws the notation alone. */
+  notationOnly(): boolean {
+    return this.renderOptions.notationOnly ?? false;
   }
 
   /** What a figure's shape carries: its node as its IRI, its text as its name. */
@@ -1825,6 +1936,7 @@ export class DiagramCanvas {
       kind: 'relationship',
       ...(relationshipIri ? { ...this.relationshipNameOf(relationshipIri), ...this.derivationOf(relationshipIri) } : {}),
       ...(linkIri ? { linkIri } : {}),
+      ...(linkIri && this.appearanceToDraw.get(linkIri) ? { appearance: this.appearanceToDraw.get(linkIri)! } : {}),
     };
 
     // Store-led, so added directly rather than through `modeling` (see
@@ -1876,9 +1988,16 @@ export class DiagramCanvas {
         existing.waypoints = route;
         services.eventBus.fire('elements.changed', { elements: [existing] });
       }
+      this.restyle(existing, link.appearance);
       return;
     }
-    const businessObject: RdfBusinessObject = { iri: link.linkIri, linkIri: link.linkIri, typeIri: '', kind: 'connector' };
+    const businessObject: RdfBusinessObject = {
+      iri: link.linkIri,
+      linkIri: link.linkIri,
+      typeIri: '',
+      kind: 'connector',
+      ...(link.appearance ? { appearance: link.appearance } : {}),
+    };
     const connection = services.elementFactory.createConnection({ id: link.linkIri, businessObject, source, target, waypoints: [] });
     connection.waypoints =
       link.waypoints.length > 0

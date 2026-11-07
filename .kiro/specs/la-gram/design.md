@@ -1598,15 +1598,13 @@ at its top right (`drawFigure`). `startCreateFigure` starts the toolbar's drag;
 the node is written in the `shape.create` command, the shape taking the node's
 IRI before it is drawn. Rules: no relationship ends on a figure; a group or a
 shape holds as an element does, a note nothing. The context pad offers Delete;
-renaming writes `skos:prefLabel` as for an element. Selected, the heading is
+renaming writes `skos:prefLabel` as for an element (core-vis documents it as a figure's text). Selected, the heading is
 *Group*, *Note* or *Shape* — no type, analysis or guide — and the property
-panel draws `_renderFigure`: the `skos:prefLabel` entry labelled *Text* and a
-colour picker each for fill, line and text, with a reset. A colour is written on
-the figure's own style (`setFigureColours`, `<node>-style`, created when the
-figure has none: `arch-vis:fillColor`, `lineColor`, `fontColor`, `#rrggbb`
-strings), through `recordChange`, so it is undone as a canvas step;
-`syncFigure` redraws a figure whose colours changed. Unset, a figure is drawn
-in its kind's (`FIGURE_DEFAULT_COLOURS`, `figureColours`). The toolbar's second
+panel's information tab shows the `skos:prefLabel` entry labelled *Text*
+(`_renderFigureText`); its colours, font and lines are the Appearance tab's
+(below), kept on the figure's own style with its shape type. `syncFigure`
+redraws a figure whose look changed. Unset, a figure is drawn in its kind's
+colours (`FIGURE_DEFAULT_COLOURS`, `figureColours`). The toolbar's second
 row (`canvas-toolbar`, `figure-bar.ts`) is opened by *Shapes*, remembered per
 browser. The Exchange importer draws a `Container` as a group and a `Label` as
 a note, with their `<label>`, and what was nested inside one inside it.
@@ -1636,6 +1634,92 @@ A line taken off the canvas by the store (`removeConnectionDirect`) is also
 taken off its ends: diagram-js's canvas unsets a removed connection's parent
 but not its `source`/`target`, so its ends kept it in `incoming`/`outgoing`,
 and deleting one of them later deleted the parentless line again and threw.
+
+### Appearance
+
+Req 3.15. How one thing drawn in a view looks — an element's placement, a
+relationship's line, a figure, a line from a note — as Archi's Appearance tab
+sets it on one diagram object, kept on that node's or link's own core-vis
+style (`arch-vis:style`). `model-manager/appearance.ts` is the one place the
+values are named, written and read:
+
+| `Appearance` key | core-vis | written as |
+| --- | --- | --- |
+| `fillColor`, `lineColor`, `fontColor` | `arch-vis:fillColor` … | `#rrggbb`, or `#rrggbbaa` when not opaque — the alpha is the opacity |
+| `lineWidth` | `arch-vis:lineWidth` (0.7) | an `xsd:integer`; Archi's normal, medium, heavy are 1, 2, 3 |
+| `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
+| `fontName`, `fontSize` | `arch-vis:fontName`, `fontSize` | a string; an `xsd:integer` |
+| `fontStyle` | `arch-vis:fontStyle` (0.7) | `bold`, `italic`, `underline`, separated by spaces, in that order |
+| `textAlignment` | `arch-vis:textAlignment` (0.7) | `arch-vis:AlignLeft`, `AlignCenter`, `AlignRight` |
+| `textPosition` | `arch-vis:textPosition` (0.7) | `arch-vis:PositionTop`, `PositionMiddle`, `PositionBottom` |
+
+A colour is read as meant (`cssColour`): core-vis says a CSS colour string,
+but converters — and meta's own examples — write the exchange format's alpha as
+it is, a percentage (`rgba(181,201,255,100)`), or out of 255, which CSS reads
+as opaque whatever it is; an alpha above 1 is read as a percentage up to 100,
+out of 255 beyond. la-gram writes `#rrggbbaa`, which no reader takes two ways.
+
+**Store.** `ViewManager.setAppearance(viewIri, iri, changes)` takes a node's or
+a link's IRI — of the view, else nothing is written — and sets each value
+given, `null` taking one back. The style it writes on is the node's or link's
+own, `<iri>-style` (`ownStyle`, generalised from the figures' `ownFigureStyle`):
+made when there is none; a style another tool wrote — a converter's blank node,
+or one others share — copied into it first, so the change is to this one alone
+and keeps what the old one said (a shape type, a font). A style left with
+nothing to say is removed, with the node's `arch-vis:style` to it.
+`NodeInfo.appearance` (an element's placement), `FigureInfo` (a figure's, with
+its kind) and `LinkInfo.appearance` carry what the style says
+(`appearanceOf`); the own style goes with its node (`placementQuads`) or link
+(`linkQuads`), and `duplicateView` copies each placement's and line's look.
+`setFigureColours` remains, for figures, as `setAppearance`.
+
+**Canvas.** `syncFromStore` reads each node's and link's look into
+`appearanceToDraw`, so a placement or a line is drawn with it the first time
+(`addElement`, `addRelationship`, `syncConnector` put it on the business
+object), and `restyle` redraws one whose look changed — set in the panel, by a
+collaborator, undone. `selectedAppearance()` describes the canvas selection
+for the panel (`ui/appearance-selection.ts`): each one's node or link and what
+it is, the first one's own look, what it is drawn with where it sets nothing
+(`elementDefaults` from its notation's style — the text in the notation's text
+colour, else its line colour — `lineDefaults`, `figureDefaults`), and the
+fields every one selected has (`APPEARANCE_FIELDS`): a relationship's line no
+fill, line style or alignment — its line style says what kind of relationship
+it is — a group no alignment (its name sits in its tab), a line from a note its
+colour and width only.
+
+**Renderer.** The business object's `appearance` is drawn over the notation's
+style (`withOwnStyle`): fill, line colour, outline style, `lineWidth` as the
+stroke width, the font (`fontOf`, `fontAttributes`: the name quoted before
+la-gram's own family, which stands in where it is not installed; bold, italic,
+underline), and the text's place — `labelLayout`'s `align` (the lines start or
+end at the edge of the band they were wrapped to, `anchor` `start` or `end`)
+and `position` (top or bottom, unless a `Center` or `BottomCenter` badge says
+where). The text keeps the notation's colour when only the line colour is set,
+as Archi has it. A relationship's line takes its colour, width and its name's
+font and size (`connectionLabelLayout`'s `fontSize`); a figure its outline, font
+and text place (a note from its top left unless set; `appendFigureText`); a
+line from a note its colour and width. `RenderOptions.notationOnly` — the
+toolbar's *Notation only* switch (`notation-only.ts`, remembered per browser,
+`setNotationOnly` redraws everything) — leaves out the look of what has a
+notation; figures and lines from notes keep theirs.
+
+**Panel.** The property panel's `appearance` (an `AppearanceSelection`) is set
+by `mount-ui` for a selection made on the canvas — not for a concept picked in
+the tree, which is the model's — and adds the *Appearance* tab, last; a figure
+or a line from a note has its information tab and this one. `_renderAppearance`
+lays the fields out in two columns as Archi does: fill colour and opacity, line
+colour and width, line opacity and style, text alignment and position
+(segmented buttons), font (a name, offered from a list or typed; a size; bold,
+italic, underline) and font colour. Each shows the first one's own value, else
+the default; one of its own has a reset, and *Reset all* takes every one back.
+A change is an `appearance-change` event; `mount-ui` writes it to every one
+selected inside one `recordChange`, so it is one undo step, and re-reads the
+selection's look — as it does after any model change (undo, redo, a
+collaborator).
+
+**Exchange import.** A node's or a connection's `<style>` (`parseExchangeStyle`)
+is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),
+`lineWidth`, and the font's name, size, style and colour.
 
 ### Version history
 

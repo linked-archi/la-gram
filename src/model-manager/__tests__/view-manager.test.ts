@@ -766,6 +766,112 @@ describe('a figure’s colours', () => {
   });
 });
 
+describe('how a placement or a line looks: its own style (the Appearance tab)', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const XSD = NAMESPACES.xsd;
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let view: string;
+  let api: string;
+  let first: string;
+  let second: string;
+  let serving: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const rels = new OxigraphRelationshipManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    api = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'API' }).value;
+    const web = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'Web' }).value;
+    first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    second = views.addElementToView(view, api, { x: 0, y: 300, width: 120, height: 55 }, { another: true });
+    views.addElementToView(view, web, { x: 400, y: 150, width: 120, height: 55 });
+    serving = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: api, targetIri: web }).iri;
+  });
+
+  it('a placement’s, on a style of its own: the other placement of its element keeps its notation’s', () => {
+    views.setAppearance(view, first, { fillColor: '#ffd6e0', lineWidth: 2, textAlignment: 'left', fontStyle: 'bold', fontName: 'Georgia', fontSize: 9 });
+    expect(views.getNode(view, first)?.appearance).toEqual({
+      fillColor: '#ffd6e0',
+      lineWidth: 2,
+      textAlignment: 'left',
+      fontStyle: 'bold',
+      fontName: 'Georgia',
+      fontSize: 9,
+    });
+    expect(views.getNode(view, second)?.appearance).toBeUndefined();
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}-style`]);
+    // As core-vis 0.7 writes them: a member of the enumeration, a typed integer.
+    expect(objects(store, `${first}-style`, VIS_NS + 'textAlignment')).toEqual([VIS_NS + 'AlignLeft']);
+    expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'lineWidth'))[0]?.object).toMatchObject({ value: '2', datatype: { value: XSD + 'integer' } });
+  });
+
+  it('a value taken back with null; all of them, and the style goes too', () => {
+    views.setAppearance(view, first, { fillColor: '#ffd6e0', lineColor: '#7a0019' });
+    views.setAppearance(view, first, { fillColor: null });
+    expect(views.getNode(view, first)?.appearance).toEqual({ lineColor: '#7a0019' });
+    views.setAppearance(view, first, { lineColor: null });
+    expect(views.getNode(view, first)?.appearance).toBeUndefined();
+    expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([]);
+  });
+
+  it('a converter’s blank-node style is read as the placement’s look — its alpha as meant — and copied before a change', () => {
+    const blank = DataFactory.blankNode();
+    store.addQuads([
+      DataFactory.quad(nn(first) as never, namedNode(VIS_NS + 'style'), blank),
+      DataFactory.quad(blank, namedNode(VIS_NS + 'fillColor'), DataFactory.literal('rgba(181,201,255,100)')),
+      DataFactory.quad(blank, namedNode(VIS_NS + 'fontName'), DataFactory.literal('Segoe UI')),
+    ] as never);
+    expect(views.getNode(view, first)?.appearance).toEqual({ fillColor: '#b5c9ff', fontName: 'Segoe UI' });
+    views.setAppearance(view, first, { textPosition: 'top' });
+    expect(views.getNode(view, first)?.appearance).toEqual({ fillColor: '#b5c9ff', fontName: 'Segoe UI', textPosition: 'top' });
+    expect(store.getQuads(blank as never, null, null)).toEqual([]);
+  });
+
+  it('a line’s, on its link; taken from the view, its style goes with it', () => {
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: first })!;
+    views.setAppearance(view, link, { lineColor: '#1a73e8', lineWidth: 3 });
+    expect(views.getLinks(view)[0]?.appearance).toEqual({ lineColor: '#1a73e8', lineWidth: 3 });
+    views.removeRelationshipFromView(view, link);
+    expect(store.getQuads(nn(`${link}-style`), null, null)).toEqual([]);
+  });
+
+  it('is copied with its view, placement by placement and line by line; nothing outside the view is written', () => {
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: second })!;
+    views.setAppearance(view, second, { fillColor: '#ffd6e0' });
+    views.setAppearance(view, link, { lineWidth: 2 });
+    views.setAppearance(view, api, { fillColor: '#000000' });
+    views.setAppearance('https://example.org/other-view', second, { fillColor: '#000000' });
+    const copy = views.duplicateView(view).value;
+    const nodes = views.getNodes(copy);
+    expect(nodes.map((n) => [n.bounds.y, n.appearance?.fillColor]).sort()).toEqual([
+      [0, undefined],
+      [150, undefined],
+      [300, '#ffd6e0'],
+    ]);
+    expect(views.getLinks(copy)[0]?.appearance).toEqual({ lineWidth: 2 });
+    expect(views.getNode(view, second)?.appearance).toEqual({ fillColor: '#ffd6e0' });
+  });
+
+  it('a figure’s, every value of it, copied with its view', () => {
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setAppearance(view, note, { textAlignment: 'center', textPosition: 'middle', borderStyle: 'DashedLine', fontColor: '#7a0019' });
+    expect(views.getNode(view, note)?.figure).toEqual({
+      kind: 'note',
+      text: 'n',
+      textAlignment: 'center',
+      textPosition: 'middle',
+      borderStyle: 'DashedLine',
+      fontColor: '#7a0019',
+    });
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.figure)?.figure).toMatchObject({ textAlignment: 'center', borderStyle: 'DashedLine' });
+  });
+});
+
 describe('a line from a note: a link standing for no relationship', () => {
   const VIS_NS = NAMESPACES['arch-vis'];
   const setup = () => {

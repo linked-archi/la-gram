@@ -52,6 +52,9 @@ export function figureColours(figure: FigureColours & { kind: FigureKind }): Req
   };
 }
 
+/** A CSS colour as `#rrggbb`, what a colour picker shows (`model-manager/appearance.ts`). */
+export { hexColour } from '../model-manager/appearance.js';
+
 /** localStorage key of the setting. */
 const FIGURE_BAR_KEY = 'la-gram:canvas-figures';
 
