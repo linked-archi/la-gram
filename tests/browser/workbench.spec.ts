@@ -2326,7 +2326,32 @@ describe('the Appearance tab', () => {
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
 
-  it('a picture from the Image tab is drawn at its own size once it has loaded, where it is put', async () => {
+  it('the Label tab: what a label says, line by line, in the presentation in use', async () => {
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Ledger',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 560, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="label"]').click();
+    await panel.locator('.label-expression').fill('{name}\n«{type}»');
+    await panel.locator('.label-expression').evaluate((area: HTMLTextAreaElement) => area.dispatchEvent(new Event('change')));
+    const lines = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-label tspan`);
+    // Its name on a line of its own; the type under it, wrapped as the box allows.
+    await until(async () => (await lines.allTextContents()).join(' ') === 'Ledger «Application Component»', 'the label, line by line');
+    expect((await lines.allTextContents())[0]).toBe('Ledger');
+    expect(await panel.locator('.label-shown').textContent()).toBe('Ledger\n«Application Component»');
+    await session.screenshot('appearance-label');
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('a picture file chosen in the Image tab is kept in the model, drawn at its own size once loaded, where it is put', async () => {
     const iri = await page.evaluate(() => {
       const app = (window as any).__LA_GRAM_APP__;
       const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
@@ -2336,15 +2361,19 @@ describe('the Appearance tab', () => {
       app.components.eventBus.emit('model-changed', { origin: 'test' });
       return element;
     });
-    // A 24 × 16 picture kept in the model: a data: URI, so nothing is fetched.
-    const picture =
-      'data:image/svg+xml,' +
-      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="24" height="16" fill="#1a73e8"/></svg>');
+    // A 24 × 16 picture file, chosen: kept in the model as a data: URI.
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="24" height="16" fill="#1a73e8"/></svg>';
     const panel = page.locator('property-panel');
     await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
     await panel.locator('.vtab[data-tab="image"]').click();
-    await panel.locator('.image-address').fill(picture);
-    await panel.locator('.image-address').evaluate((input: HTMLInputElement) => input.dispatchEvent(new Event('change')));
+    await panel.locator('.image-file').setInputFiles({ name: 'blue.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+    const kept = () =>
+      page.evaluate((element) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const node = app.components.viewManager.getNodes(app.session.activeViewIri).find((n: any) => n.elementIri === element);
+        return node?.appearance?.image as string | undefined;
+      }, iri);
+    await until(async () => (await kept()) === `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`, 'the file kept in the model');
     const drawn = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-image`);
     // Loaded, then drawn: its own size, in the top left inside the outline.
     await until(async () => (await drawn.count()) === 1, 'the picture drawn once loaded');

@@ -39,7 +39,7 @@ import {
   type ImagePosition,
   imageUri,
 } from '../../model-manager/appearance.js';
-import type { AppearanceSelection, FigureChoices, ImageChoices } from '../appearance-selection.js';
+import type { AppearanceSelection, FigureChoices, ImageChoices, LabelChoices } from '../appearance-selection.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
@@ -189,6 +189,18 @@ export interface AppearanceChangeDetail {
   changes: AppearanceChanges;
 }
 
+/**
+ * The Label tab's change (`label-expression-change`): what the selected say,
+ * in the notation set in use — or, `everySet`, in every set, the one for the
+ * set in use taken away so it shows there too; `null` takes it away. `all`
+ * takes both away: the notation's again.
+ */
+export interface LabelExpressionChangeDetail {
+  expression: string | null;
+  everySet: boolean;
+  all?: boolean;
+}
+
 /** The line widths offered. */
 const LINE_WIDTHS: ReadonlyArray<[number, string]> = [
   [1, 'Normal'],
@@ -267,6 +279,9 @@ const ANCHORS: ReadonlyArray<[NonNullable<Appearance['labelAnchor']>, string, st
   ['middle', 'At its middle', 'M1 7h14M5.5 4.5h5v5h-5z'],
   ['target', 'Near its target', 'M1 7h14M9 4.5h5v5h-5z'],
 ];
+
+/** The largest file "Choose file…" keeps in the model as a `data:` URI; a larger picture is linked by its address. */
+export const KEPT_PICTURE_LIMIT = 200 * 1024;
 
 /** Where a picture may be drawn in a node. */
 const IMAGE_POSITIONS: ReadonlyArray<[ImagePosition, string]> = [
@@ -550,7 +565,7 @@ function rowKey(entry: PropertyEntry): string {
 const ID_ROW = 'id';
 
 /** The panel's vertical tabs, top to bottom. */
-export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance' | 'figure' | 'image';
+export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance' | 'label' | 'figure' | 'image';
 
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
@@ -566,7 +581,7 @@ function storedRelationshipsOpen(): boolean {
   }
 }
 
-const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'figure', 'image'];
+const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'label', 'figure', 'image'];
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
 function storedTab(): PanelSection {
@@ -1039,6 +1054,82 @@ export class PropertyPanel extends LitElement {
       padding: 0 12px;
     }
 
+    .figure-own-picture {
+      margin: 10px 12px 0;
+      color: #5f6368;
+      font-size: 12px;
+    }
+
+    /* The Label tab: the expression, what it shows, and what it can say. */
+    .label-tab {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      max-width: 736px;
+    }
+
+    .label-scope {
+      margin: 0;
+      font-size: 12px;
+      color: #3c4043;
+    }
+
+    .label-every {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .label-expression {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+
+    .label-inherited {
+      margin: 0;
+      font-size: 12px;
+      color: #80868b;
+    }
+
+    .label-errors {
+      margin: 0;
+      padding-left: 18px;
+      color: #c5221f;
+      font-size: 12px;
+    }
+
+    .label-preview {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    .label-shown {
+      margin: 0;
+      font: inherit;
+      white-space: pre-wrap;
+    }
+
+    .label-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .label-help {
+      font-size: 12px;
+      color: #3c4043;
+    }
+
+    .label-help ul {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+
     /* The Image tab: the picture beside its address and position, then the model's pictures. */
     .image-tab {
       display: grid;
@@ -1087,6 +1178,36 @@ export class PropertyPanel extends LitElement {
 
     .remove-image {
       align-self: flex-start;
+    }
+
+    .image-draw-as .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+    }
+
+    .image-draw-as label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+    }
+
+    .image-file-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .image-file-row .muted,
+    .image-used-empty .muted {
+      color: #80868b;
+      font-size: 12px;
+    }
+
+    .image-used-empty p {
+      margin: 4px 0 0;
     }
 
     .image-used {
@@ -1296,6 +1417,11 @@ export class PropertyPanel extends LitElement {
 
   override willUpdate(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has('selectedIri')) this._shownIris = new Set();
+    // Another selection: the Label tab edits what is in force for it, not the last one's choice.
+    if (changedProperties.has('appearance')) {
+      const before = (changedProperties.get('appearance') as AppearanceSelection | undefined)?.targets.map((t) => t.iri).join(' ');
+      if (before !== this.appearance?.targets.map((t) => t.iri).join(' ')) this._labelEverySet = undefined;
+    }
     if (
       changedProperties.has('selectedIri') ||
       changedProperties.has('rdfStore') ||
@@ -2109,6 +2235,11 @@ export class PropertyPanel extends LitElement {
       </svg>`;
     };
     return html`
+      ${choices.selected < 0
+        ? html`<p class="figure-own-picture muted">
+            Drawn as its own picture (the Image tab). A figure picked here puts the notation's glyph back.
+          </p>`
+        : nothing}
       <div class="figure-choices" role="radiogroup" aria-label="Figure">
         ${choices.options.map(
           (option, index) => html`<button
@@ -2130,22 +2261,151 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
+  /** Whether the Label tab edits the expression for every presentation (else the one in use); `undefined` until toggled. */
+  @state() private _labelEverySet: boolean | undefined;
+
+  /**
+   * The Label tab: what the selected elements' labels say — text with
+   * placeholders — in the presentation in use, or the same in every one; the
+   * notation's shown where they say nothing of their own; what the first shows
+   * now, and what cannot be read.
+   */
+  private _renderLabelTab(choices: LabelChoices, count: number) {
+    // Editing the one for every set when it is the one in force here, or when asked to.
+    const everySet = this._labelEverySet ?? (choices.forSet === undefined && choices.forEvery !== undefined);
+    const text = everySet ? choices.forEvery : choices.forSet;
+    const own = choices.forSet !== undefined || choices.forEvery !== undefined;
+    const change = (detail: LabelExpressionChangeDetail) =>
+      this.dispatchEvent(new CustomEvent<LabelExpressionChangeDetail>('label-expression-change', { detail, bubbles: true, composed: true }));
+    const setName = choices.notationSetLabel ?? 'the notation in use';
+    return html`
+      <div class="label-tab">
+        <p class="label-scope">
+          ${everySet
+            ? html`What the label says in <strong>every presentation</strong>.`
+            : html`What the label says in <strong>${setName}</strong> — the presentation selected now.`}
+        </p>
+        <label class="label-every">
+          <input
+            type="checkbox"
+            .checked=${live(everySet)}
+            @change=${(e: Event) => {
+              const every = (e.target as HTMLInputElement).checked;
+              this._labelEverySet = every;
+              // What is written moves with it: for every set, or for this one.
+              const current = (every ? choices.forSet : choices.forEvery) ?? text;
+              if (current !== undefined) change({ expression: current, everySet: every });
+            }}
+          />
+          The same in every presentation
+        </label>
+        <textarea
+          class="label-expression"
+          rows="4"
+          aria-label="Label expression"
+          placeholder=${choices.inherited ?? '{name}'}
+          .value=${live(text ?? '')}
+          @change=${(e: Event) => change({ expression: (e.target as HTMLTextAreaElement).value || null, everySet })}
+        ></textarea>
+        ${choices.inherited !== undefined && !own
+          ? html`<p class="muted label-inherited">Its notation's, shown above until it says its own.</p>`
+          : nothing}
+        ${choices.errors.length > 0
+          ? html`<ul class="label-errors" role="alert">${choices.errors.map((error) => html`<li>${error}</li>`)}</ul>`
+          : nothing}
+        <div class="label-preview">
+          <span class="field-label">Shows</span>
+          <pre class="label-shown">${choices.shown}</pre>
+        </div>
+        <div class="label-actions">
+          ${own
+            ? html`<button class="label-reset" @click=${() => change({ expression: null, everySet: true, all: true })}>
+                Back to the notation's
+              </button>`
+            : nothing}
+          ${count > 1 ? html`<span class="muted">Changes apply to the ${count} selected.</span>` : nothing}
+        </div>
+        <details class="label-help">
+          <summary>What it can say</summary>
+          <ul>
+            <li><code>{name}</code> — its name; <code>{type}</code> — its type</li>
+            <li><code>{dcterms:creator}</code>, <code>{&lt;https://…&gt;}</code> — a property's values; a resource by its name, several joined by commas</li>
+            <li><code>{am4:assignedTo/skos:prefLabel}</code> — a path; <code>{^arch:target}</code> — a property followed backwards</li>
+            <li><code>{{</code> and <code>}}</code> — a brace</li>
+            <li>A line whose placeholders all come to nothing is left out.</li>
+          </ul>
+        </details>
+      </div>
+    `;
+  }
+
   /** What was typed as a picture's address and is not one: said under the field, nothing written. */
   @state() private _imageError = '';
 
   /**
-   * The Image tab: the picture drawn in the selected — its address, typed or
-   * picked from the pictures the model already uses — and where in the node it
-   * is drawn; removed, none. An address that is not an http(s) URL or a
+   * A picture file chosen with "Choose file…": kept in the model as a
+   * `data:` URI — an image, no larger than {@link KEPT_PICTURE_LIMIT} — or
+   * refused, the tab saying why.
+   */
+  private _keepPictureFile(input: HTMLInputElement, current: string | undefined, give: (uri: string) => void): void {
+    const file = input.files?.[0];
+    // Cleared, so choosing the same file again is a change.
+    input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this._imageError = `${file.name} is not a picture.`;
+      return;
+    }
+    if (file.size > KEPT_PICTURE_LIMIT) {
+      this._imageError = `${file.name} is over ${KEPT_PICTURE_LIMIT / 1024} KB, too large to keep in the model: put it where it can be linked, and type its address.`;
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const uri = imageUri(typeof reader.result === 'string' ? reader.result : undefined);
+      if (!uri) {
+        this._imageError = `${file.name} could not be read as a picture.`;
+        return;
+      }
+      this._imageError = '';
+      if (uri !== current) give(uri);
+    };
+    reader.onerror = () => {
+      this._imageError = `${file.name} could not be read.`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * The Image tab: the picture drawn in the selected — its address typed, a
+   * file kept in the model, or one of the pictures the model already uses —
+   * and where: inside the figure, at a position, or — an element — as the
+   * figure itself, its name under it (its own `arch-vis:iconSymbol`, drawn
+   * `IconCentric`); removed, none. An address that is not an http(s) URL or a
    * `data:image/…` URI is refused where it is typed.
    */
   private _renderImage(choices: ImageChoices, count: number) {
     const current = choices.image;
+    const asFigure = !!choices.asFigure;
+    // A picture given: in the figure, or as it.
+    const give = (uri: string) => this._appearanceChange(asFigure ? { iconSymbol: uri } : { image: uri });
+    const remove: AppearanceChanges = asFigure
+      ? { iconSymbol: null, renderingMode: null }
+      : { image: null, imagePosition: null };
+    const drawAs = (figure: boolean) => {
+      if (figure === asFigure) return;
+      if (!current) return;
+      this._appearanceChange(
+        figure
+          ? { iconSymbol: current, renderingMode: 'IconCentric', shapeType: null, image: null, imagePosition: null }
+          : { image: current, iconSymbol: null, renderingMode: null },
+      );
+    };
     const setAddress = (input: HTMLInputElement) => {
       const typed = input.value.trim();
       if (!typed) {
         this._imageError = '';
-        if (current) this._appearanceChange({ image: null, imagePosition: null });
+        if (current) this._appearanceChange(remove);
         return;
       }
       const uri = imageUri(typed);
@@ -2154,7 +2414,7 @@ export class PropertyPanel extends LitElement {
         return;
       }
       this._imageError = '';
-      if (uri !== current) this._appearanceChange({ image: uri });
+      if (uri !== current) give(uri);
     };
     return html`
       <div class="image-tab">
@@ -2175,13 +2435,46 @@ export class PropertyPanel extends LitElement {
               />
             </span>
           </label>
+          <div class="image-file-row">
+            <button
+              type="button"
+              class="choose-image"
+              title="Keep a picture file in the model, up to ${KEPT_PICTURE_LIMIT / 1024} KB"
+              @click=${() => this.renderRoot.querySelector<HTMLInputElement>('.image-file')?.click()}
+            >
+              Choose file…
+            </button>
+            <span class="muted">kept in the model, up to ${KEPT_PICTURE_LIMIT / 1024} KB</span>
+            <input
+              class="image-file"
+              type="file"
+              accept="image/*"
+              hidden
+              @change=${(e: Event) => this._keepPictureFile(e.target as HTMLInputElement, current, give)}
+            />
+          </div>
           ${this._imageError ? html`<div class="image-error" role="alert">${this._imageError}</div>` : nothing}
+          ${choices.canBeFigure
+            ? html`<div class="appearance-field image-draw-as" data-field="drawAs" role="radiogroup" aria-label="Draw the picture">
+                <span class="field-label">Draw it</span>
+                <span class="controls">
+                  <label
+                    ><input type="radio" name="image-draw-as" value="inside" ?disabled=${!current} .checked=${live(!asFigure)} @change=${() => drawAs(false)} />
+                    inside the figure</label
+                  >
+                  <label
+                    ><input type="radio" name="image-draw-as" value="figure" ?disabled=${!current} .checked=${live(asFigure)} @change=${() => drawAs(true)} />
+                    as the figure, its name under it</label
+                  >
+                </span>
+              </div>`
+            : nothing}
           <label class="appearance-field" data-field="imagePosition">
             <span class="field-label">Position</span>
             <span class="controls">
               <select
                 aria-label="Picture position"
-                ?disabled=${!current}
+                ?disabled=${!current || asFigure}
                 @change=${(e: Event) => this._appearanceChange({ imagePosition: (e.target as HTMLSelectElement).value as ImagePosition })}
               >
                 ${IMAGE_POSITIONS.map(([value, name]) => html`<option value=${value} ?selected=${choices.position === value}>${name}</option>`)}
@@ -2189,11 +2482,15 @@ export class PropertyPanel extends LitElement {
             </span>
           </label>
           ${current
-            ? html`<button class="remove-image" @click=${() => this._appearanceChange({ image: null, imagePosition: null })}>Remove image</button>`
+            ? html`<button class="remove-image" @click=${() => this._appearanceChange(remove)}>Remove image</button>`
             : nothing}
         </div>
-        ${choices.used.length > 0
-          ? html`<div class="image-used">
+        ${choices.used.length === 0
+          ? html`<div class="image-used image-used-empty">
+              <span class="field-label">Pictures in this model</span>
+              <p class="muted">None yet. Once an element or a figure has a picture, it is listed here, to give to others with a click.</p>
+            </div>`
+          : html`<div class="image-used">
               <span class="field-label">Pictures in this model</span>
               <div class="image-grid">
                 ${choices.used.map(
@@ -2204,15 +2501,14 @@ export class PropertyPanel extends LitElement {
                     aria-pressed=${uri === current ? 'true' : 'false'}
                     @click=${() => {
                       this._imageError = '';
-                      if (uri !== current) this._appearanceChange({ image: uri });
+                      if (uri !== current) give(uri);
                     }}
                   >
                     <img src=${uri} alt="" />
                   </button>`,
                 )}
               </div>
-            </div>`
-          : nothing}
+            </div>`}
         ${count > 1 ? html`<div class="appearance-footer"><span>Changes apply to the ${count} selected.</span></div>` : nothing}
       </div>
     `;
@@ -2357,6 +2653,7 @@ export class PropertyPanel extends LitElement {
               : []),
           ]),
       ...(appearance ? [{ id: 'appearance' as const, title: 'Appearance' }] : []),
+      ...(appearance?.label ? [{ id: 'label' as const, title: 'Label' }] : []),
       ...(appearance?.figure ? [{ id: 'figure' as const, title: 'Figure' }] : []),
       ...(appearance?.image ? [{ id: 'image' as const, title: 'Image' }] : []),
     ];
@@ -2392,6 +2689,8 @@ export class PropertyPanel extends LitElement {
               ? this._renderFigureChoices(appearance.figure, appearance.targets.length)
             : active === 'image' && appearance?.image
               ? this._renderImage(appearance.image, appearance.targets.length)
+            : active === 'label' && appearance?.label
+              ? this._renderLabelTab(appearance.label, appearance.targets.length)
             : active === 'info' && drawing === 'figure'
               ? this._renderFigureText()
               : active === 'info' && drawing === 'line' && this.heading?.line

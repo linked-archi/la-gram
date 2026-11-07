@@ -158,6 +158,7 @@ import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type Li
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
 import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '../../model-manager/appearance.js';
+import { labelFromExpression, parseLabelExpression, type LabelSource } from '../../model-manager/label-expression.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
 import { iconHref, shapeGeometry, shapePath } from './notation-shapes.js';
 import {
@@ -173,6 +174,7 @@ import {
   type FigureChoices,
   type FigureOption,
   type ImageChoices,
+  type LabelChoices,
 } from '../appearance-selection.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
@@ -1350,6 +1352,57 @@ export class DiagramCanvas {
 
     this.redrawContainers();
     this.applyViewpointMarkers();
+    this.refreshLabelTexts();
+  }
+
+  /** Where label expressions read what they show: the model, its prefixes, names. Set by the workbench. */
+  private labelSourceOf: LabelSource | undefined;
+
+  set labelSource(source: LabelSource | undefined) {
+    this.labelSourceOf = source;
+    this.refreshLabelTexts();
+  }
+
+  get labelSource(): LabelSource | undefined {
+    return this.labelSourceOf;
+  }
+
+  /**
+   * The label expression an element's placement is drawn with in the notation
+   * set in use: its own for that set, its own for every set, its type's
+   * notation's, the set's — `undefined` for its name alone.
+   */
+  labelExpressionOf(node: Pick<NodeInfo, 'labelExpressions'>, typeIri: string | undefined): { expression: string; own: boolean } | undefined {
+    const set = this.notationStyles.activeNotationSet;
+    const own = node.labelExpressions?.find((l) => l.notationSet === set) ?? node.labelExpressions?.find((l) => !l.notationSet);
+    if (own) return { expression: own.expression, own: true };
+    const notation = this.notationStyles.labelExpressionFor(typeIri);
+    return notation !== undefined ? { expression: notation, own: false } : undefined;
+  }
+
+  /**
+   * What each element's label says, by its expression (`labelExpressionOf`),
+   * drawn in place of its name; redrawn where that changed. After a sync, a
+   * command — a rename on the canvas is not followed by one — and a change of
+   * notation set (another presentation).
+   */
+  private refreshLabelTexts(): void {
+    const services = this.services();
+    const viewIri = this.viewIri;
+    if (!services || !viewIri || !this.viewManager) return;
+    const nodes = new Map(this.viewManager.getNodes(viewIri).map((node) => [node.nodeIri, node]));
+    for (const shape of services.elementRegistry.getAll().filter((e) => e.businessObject?.kind === 'element' && !e.waypoints)) {
+      const businessObject = shape.businessObject!;
+      const key = this.nodeKeyOf(shape);
+      const node = key ? nodes.get(key) : undefined;
+      if (!node) continue;
+      const said = this.labelExpressionOf(node, businessObject.typeIri);
+      const text = said && this.labelSourceOf ? labelFromExpression(said.expression, node.elementIri, this.labelSourceOf) : undefined;
+      if (businessObject.labelText === text) continue;
+      if (text === undefined) delete businessObject.labelText;
+      else businessObject.labelText = text;
+      services.eventBus.fire('element.changed', { element: shape });
+    }
   }
 
   /**
@@ -1776,11 +1829,14 @@ export class DiagramCanvas {
     // A picture for elements and figures — every one selected — not for a line.
     const image = described.every((d) => IMAGE_KINDS.includes(d.target.kind))
       ? {
-          ...(first.own.image ? { image: first.own.image } : {}),
+          // Its own icon — the picture drawn as the figure — else the picture in it.
+          ...(first.own.iconSymbol ? { image: first.own.iconSymbol, asFigure: true } : first.own.image ? { image: first.own.image } : {}),
           position: first.own.imagePosition ?? 'TopLeft',
+          canBeFigure: described.every((d) => d.target.kind === 'element'),
           used: this.viewManager.usedImages?.() ?? [],
         }
       : undefined;
+    const label = described.every((d) => d.target.kind === 'element') ? this.labelChoices(viewIri, selected[0]!, first.target.iri) : undefined;
     const fields = fieldsFor(described.map((d) => d.target.kind));
     // What each is drawn with: its own value, else its default — the first one's is not the others'.
     const shown = (d: (typeof described)[number], key: AppearanceKey) => d.own[key] ?? d.defaults[key];
@@ -1793,7 +1849,39 @@ export class DiagramCanvas {
       ...(mixed.length > 0 ? { mixed } : {}),
       ...(figure ? { figure } : {}),
       ...(image ? { image: image satisfies ImageChoices } : {}),
+      ...(label ? { label } : {}),
     };
+  }
+
+  /** The notation set in use — the presentation's, else the metamodel's: what a label expression for one set is for. */
+  get notationSetInUse(): string | undefined {
+    return this.notationStyles.activeNotationSet;
+  }
+
+  /** What the Label tab shows of an element's placement. */
+  private labelChoices(viewIri: string, shape: DjsShape, nodeIri: string): LabelChoices {
+    const set = this.notationStyles.activeNotationSet;
+    const node = this.viewManager?.getNode(viewIri, nodeIri);
+    const own = node?.labelExpressions ?? [];
+    const forSet = set ? own.find((l) => l.notationSet === set)?.expression : undefined;
+    const forEvery = own.find((l) => !l.notationSet)?.expression;
+    const inherited = this.notationStyles.labelExpressionFor(shape.businessObject?.typeIri);
+    const inForce = forSet ?? forEvery ?? inherited;
+    const businessObject = shape.businessObject;
+    return {
+      ...(set ? { notationSet: set } : {}),
+      ...(this.notationStyles.activeNotationSetLabel ? { notationSetLabel: this.notationStyles.activeNotationSetLabel } : {}),
+      ...(forSet !== undefined ? { forSet } : {}),
+      ...(forEvery !== undefined ? { forEvery } : {}),
+      ...(inherited !== undefined ? { inherited } : {}),
+      shown: businessObject?.labelText ?? businessObject?.label ?? '',
+      errors: inForce !== undefined && this.labelSourceOf ? parseLabelExpression(inForce, this.labelSourceOf.prefixes).errors : [],
+    };
+  }
+
+  /** Draw every element's label as its expression says now: after the Label tab writes one. */
+  refreshLabels(): void {
+    this.refreshLabelTexts();
   }
 
   /**
@@ -1838,15 +1926,21 @@ export class DiagramCanvas {
       });
     }
     for (const mode of ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'] as const) if (mode !== notationMode) options.push(generic(mode, false));
+    // Drawn as its own picture (the Image tab): none of these — and any of them puts the notation's glyph back.
+    if (own.iconSymbol) {
+      for (const option of options) option.changes = { ...option.changes, iconSymbol: null };
+    }
     // Drawn now as its own shape, its own mode — else as the notation draws it.
-    const selectedIndex = own.shapeType
+    const selectedIndex = own.iconSymbol
+      ? -1
+      : own.shapeType
       ? options.findIndex((option) => option.shapeIri === own.shapeType)
       : own.renderingMode
         ? options.findIndex((option) => !option.shapeIri && (option.notation ? notationMode : option.mode) === own.renderingMode)
         : 0;
     return {
       options,
-      selected: Math.max(0, selectedIndex),
+      selected: own.iconSymbol ? -1 : Math.max(0, selectedIndex),
       iconHref: iconHrefOfFirst,
       fillColor: own.fillColor ?? defaults.fillColor ?? NOTATION_DEFAULTS.fillColor,
       lineColor: own.lineColor ?? defaults.lineColor ?? NOTATION_DEFAULTS.lineColor,
@@ -2428,6 +2522,8 @@ export class DiagramCanvas {
     this.contextPadProvider.updatePaletteDefinition(paletteDefinition);
     if (options.iconsOnly) return;
     this.notationStyles.update(paletteDefinition);
+    // Another notation set — another presentation — may label elements otherwise.
+    this.refreshLabelTexts();
 
     const services = this.services();
     if (!services) return;
@@ -4161,6 +4257,8 @@ export class DiagramCanvas {
       },
     );
     djs.on('commandStack.changed', (event: { trigger?: string }) => {
+      // A rename on the canvas, undone or redone: what a label expression shows of it.
+      queueMicrotask(() => this.refreshLabelTexts());
       const pending = nested;
       nested = undefined;
       if (pending && event.trigger === 'execute') queueMicrotask(() => this.offerNesting(pending.inner, pending.outer));

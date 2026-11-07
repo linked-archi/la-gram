@@ -119,6 +119,11 @@ export const IRI = {
   ContainerNode: VIS + 'ContainerNode',
   visStyle: VIS + 'style',
   Style: VIS + 'Style',
+  /** What a label says (core-vis 0.7): an `arch-vis:LabelExpression`, its text, the notation set it is for. */
+  labelExpression: VIS + 'labelExpression',
+  LabelExpression: VIS + 'LabelExpression',
+  expression: VIS + 'expression',
+  inNotationSet: VIS + 'inNotationSet',
   shapeType: VIS + 'shapeType',
   fillColor: VIS + 'fillColor',
   lineColor: VIS + 'lineColor',

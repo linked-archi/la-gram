@@ -319,6 +319,11 @@ describe('badgeBox', () => {
 });
 
 describe('wrapLabel', () => {
+  it('a label of several lines — a label expression’s — wraps each, within the most lines', () => {
+    expect(wrapLabel('Payments\n«Application Component»', 120, 11)).toEqual(['Payments', '«Application', 'Component»']);
+    expect(wrapLabel('a\nb\nc\nd', 120, 11, 3)).toEqual(['a', 'b', 'c']);
+  });
+
   it('keeps a short label on one line', () => {
     expect(wrapLabel('Actor', 120)).toEqual(['Actor']);
   });

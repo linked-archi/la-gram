@@ -213,6 +213,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       grouping: taxonomyAxes.length > 0 ? 'taxonomy' : 'owl',
       notationSetIri: notationSet?.iri,
       notationSetLabel: notationSet?.label,
+      ...(notationSet?.labelExpression !== undefined ? { notationSetLabelExpression: notationSet.labelExpression } : {}),
       notationIndex,
       decorationSymbols: resolvedDecorationSymbols(graph),
     };

@@ -23,6 +23,7 @@
  * | `labelAnchor` | `arch-vis:labelAnchor` (0.7) | where along a line its text sits: `arch-vis:AnchorSource`, `AnchorMiddle`, `AnchorTarget` |
  * | `image` | `arch-vis:image` (0.7) | a picture drawn in a node: an http(s) URL or a `data:image/…` URI, an `xsd:anyURI` |
  * | `imagePosition` | `arch-vis:imagePosition` (0.7) | where: an `arch-vis:IconPlacement` — `TopLeft` … `BottomRight`, or `Fill` |
+ * | `iconSymbol` | `arch-vis:iconSymbol` | a placement's own picture in place of its notation's glyph — with `IconCentric`, drawn as the figure; an `xsd:anyURI` as `image` |
  *
  * ## A colour's alpha
  *
@@ -125,6 +126,8 @@ export interface Appearance {
   image?: string;
   /** Where the picture is drawn; its top left when absent. */
   imagePosition?: ImagePosition;
+  /** A placement's own picture in place of its notation's glyph: with `renderingMode` `IconCentric`, the figure itself. */
+  iconSymbol?: string;
 }
 
 export type AppearanceKey = keyof Appearance;
@@ -154,6 +157,7 @@ export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'labelAnchor',
   'image',
   'imagePosition',
+  'iconSymbol',
 ];
 
 const ENUMERATIONS = {
@@ -191,6 +195,7 @@ export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   labelAnchor: VIS + 'labelAnchor',
   image: VIS + 'image',
   imagePosition: VIS + 'imagePosition',
+  iconSymbol: VIS + 'iconSymbol',
 };
 
 /** How a value is written: an enumeration's member (an IRI), an integer, or a string. */
@@ -214,7 +219,7 @@ export function appearanceObject(
     const style = fontStyleOf(String(value));
     return style ? { string: style } : undefined;
   }
-  if (key === 'image') {
+  if (key === 'image' || key === 'iconSymbol') {
     const uri = imageUri(String(value));
     return uri ? { uri } : undefined;
   }
@@ -235,7 +240,7 @@ export function appearanceValue<K extends AppearanceKey>(key: K, term: { termTyp
     return (Number.isFinite(n) && n > 0 ? n : undefined) as Appearance[K] | undefined;
   }
   if (key === 'fontStyle') return fontStyleOf(value) as Appearance[K] | undefined;
-  if (key === 'image') return (term.termType === 'Literal' ? imageUri(value) : undefined) as Appearance[K] | undefined;
+  if (key === 'image' || key === 'iconSymbol') return (term.termType === 'Literal' ? imageUri(value) : undefined) as Appearance[K] | undefined;
   if (key === 'fillColor' || key === 'lineColor' || key === 'fontColor' || key === 'iconColor') {
     return (value ? cssColour(value) : undefined) as Appearance[K] | undefined;
   }
@@ -359,8 +364,9 @@ export function lookOf(style: object | undefined): Appearance {
   const look: Record<string, unknown> = {};
   if (!style) return look as Appearance;
   for (const key of APPEARANCE_KEYS) {
-    // A notation's shape type is the shape's local name, not a placement's IRI: not a look to take over.
-    if (key === 'shapeType') continue;
+    // A notation's shape type is the shape's local name, not a placement's IRI; its icon is its glyph,
+    // not a placement's own picture: neither a look to take over.
+    if (key === 'shapeType' || key === 'iconSymbol') continue;
     const value = (style as Record<string, unknown>)[key];
     if (value !== undefined && value !== null) look[key] = value;
   }

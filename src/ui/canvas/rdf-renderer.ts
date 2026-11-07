@@ -298,6 +298,12 @@ export interface RdfBusinessObject {
   /** Display label. A relationship's is its own name, when it has one, and nothing else. */
   label?: string;
   /**
+   * What an element's label says when an expression says it (core-vis 0.7's
+   * `arch-vis:labelExpression`): drawn in place of {@link label}, which stays
+   * its name — what renaming edits. Its lines are the expression's.
+   */
+  labelText?: string;
+  /**
    * The label is the element's own name. Absent, `label` shows its type — a
    * shape too small to hold its label then draws none rather than repeat the
    * type under every junction. A relationship without it has no name to draw.
@@ -535,6 +541,8 @@ function withOwnStyle(notation: VisualStyle | undefined, own: Appearance): Visua
     ...(own.fillColor ? { fillColor: own.fillColor } : {}),
     ...(own.lineColor ? { lineColor: own.lineColor } : {}),
     ...(own.borderStyle ? { borderStyle: own.borderStyle } : {}),
+    // Its own picture in place of the notation's glyph — the figure itself when drawn as its icon.
+    ...(own.iconSymbol ? { iconSymbol: own.iconSymbol } : {}),
   } as VisualStyle;
 }
 
@@ -591,8 +599,9 @@ export class RdfRenderer extends BaseRenderer {
 
     const width = element.width ?? style?.defaultWidth ?? NOTATION_DEFAULTS.width;
     const height = element.height ?? style?.defaultHeight ?? NOTATION_DEFAULTS.height;
+    // What a label expression says, else its name.
     const label =
-      businessObject?.label ?? this.notationStyles.labelFor(typeIri) ?? localName(element.id);
+      businessObject?.labelText ?? businessObject?.label ?? this.notationStyles.labelFor(typeIri) ?? localName(element.id);
 
     const href = iconHref(style?.iconSymbol, assetUrl);
     // Its own figure, when the placement has one (the Figure tab).
@@ -604,10 +613,13 @@ export class RdfRenderer extends BaseRenderer {
     if (typeIri) group.setAttribute('data-type-iri', typeIri);
     group.setAttribute('data-rendering-mode', mode);
 
+    // The icon colour is the notation's glyph's: a placement's own picture is drawn as it is.
+    const iconColor = own?.iconSymbol ? undefined : look.iconColor;
     if (mode === 'IconCentric') {
       this.drawImage(group, element, look, { x: 0, y: 0, width, height });
       const icon = this.drawIconCentric(group, width, height, label, href as string, look.fontColor, font);
-      if (look.iconColor) colourGlyph(group, icon, look.iconColor);
+      if (own?.iconSymbol) icon.setAttribute('data-own-icon', 'true');
+      if (iconColor) colourGlyph(group, icon, iconColor);
     } else {
       const body = this.drawShapeBody(group, style, width, height, look.lineWidth);
       if (look.gradient) applyGradient(group, body, look.gradient);
@@ -626,7 +638,7 @@ export class RdfRenderer extends BaseRenderer {
         mode === 'ShapeWithBadge' && href ? (style?.iconPlacement ?? 'TopRight') : undefined;
       if (badgePlacement && href) {
         const badge = this.drawBadge(group, href, badgePlacement, layout.content);
-        if (look.iconColor) colourGlyph(group, badge, look.iconColor);
+        if (iconColor) colourGlyph(group, badge, iconColor);
       }
       this.appendLabel(group, label, layout.label, {
         // The label makes room for the badge only when the two share a box.
@@ -886,8 +898,9 @@ export class RdfRenderer extends BaseRenderer {
   /** The figure an element's shape is drawn as now: its own, else its notation's, as far as its glyph allows. */
   drawnMode(element: RenderableElement): RenderingMode {
     const typeIri = element.businessObject?.typeIri;
-    const href = iconHref(this.notationStyles.styleFor(typeIri)?.iconSymbol, assetUrl);
-    return this.effectiveMode(typeIri, href, this.ownAppearance(element.businessObject)?.renderingMode);
+    const own = this.ownAppearance(element.businessObject);
+    const href = iconHref(own?.iconSymbol ?? this.notationStyles.styleFor(typeIri)?.iconSymbol, assetUrl);
+    return this.effectiveMode(typeIri, href, own?.renderingMode);
   }
 
   /** The filled, stroked `shapeType` body, and its inner lines over it. */
@@ -1321,7 +1334,8 @@ export class RdfRenderer extends BaseRenderer {
     // notation changes.
     const ownMode = this.ownAppearance(shape.businessObject)?.renderingMode;
     const ownShapeIri = this.ownAppearance(shape.businessObject)?.shapeType;
-    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${ownMode ?? ''},${ownShapeIri ?? ''},${this.notationStyles.version}`;
+    const ownIcon = this.ownAppearance(shape.businessObject)?.iconSymbol;
+    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${ownMode ?? ''},${ownShapeIri ?? ''},${ownIcon ? 'own-icon' : ''},${this.notationStyles.version}`;
     const known = this.shapePaths.get(shape);
     if (known?.stamp === stamp) return known.path;
 
@@ -1333,7 +1347,7 @@ export class RdfRenderer extends BaseRenderer {
     const width = shape.width ?? style?.defaultWidth ?? NOTATION_DEFAULTS.width;
     const height = shape.height ?? style?.defaultHeight ?? NOTATION_DEFAULTS.height;
 
-    const mode = this.effectiveMode(typeIri, iconHref(style?.iconSymbol, assetUrl), ownMode);
+    const mode = this.effectiveMode(typeIri, iconHref(ownIcon ?? style?.iconSymbol, assetUrl), ownMode);
     const outline = mode === 'IconCentric' ? 'Rectangle' : (style?.customShape ?? style?.shapeType);
 
     const path = shapePath(outline, x, y, width, height);

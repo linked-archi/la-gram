@@ -221,7 +221,13 @@ uploaded  →  bundled (assets/, mirrors meta.linked.archi)  →  remote (Accept
 (`bundled-first`, the browser default; `remote-first` and `offline` reorder or
 drop the remote source). Every fetch revalidates (`cache: 'no-cache'`): neither
 the static server nor meta.linked.archi sends `Cache-Control`, and a browser
-would otherwise keep a heuristically fresh copy for hours. `assets/` is
+would otherwise keep a heuristically fresh copy for hours. Glyphs and
+pictures are loaded by the browser as images, which no fetch option reaches:
+`assetUrl` puts the build's digest of `assets/` on every bundled asset's address
+(`?v=…`, `__LA_GRAM_ASSETS_VERSION__`, worked out in `webpack.config.js` from
+the files' names and contents), so a build with other assets gives them other
+addresses and the same ones keep theirs; the servers, and the desktop app's
+`app://` handler, read the path alone. `assets/` is
 refreshed from a linked-archi-meta checkout with `npm run sync-assets`, which
 uses that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
@@ -1743,6 +1749,35 @@ selected inside one `recordChange`, so it is one undo step, and re-reads the
 selection's look — as it does after any model change (undo, redo, a
 collaborator).
 
+**Label expressions (the Label tab).** `model-manager/label-expression.ts`
+parses an expression (`parseLabelExpression`: lines of text and placeholders —
+`name`, `type`, a path of steps, each a prefixed name or `<iri>`, `^` for one
+followed backwards — and what could not be read) and evaluates it for a concept
+(`evaluateLabelExpression`, `labelFromExpression`) over a `LabelSource` the
+workbench gives the canvas (`diagramCanvas.labelSource`: the store's values and
+subjects, `labelOf` for names, the type's name, and `collectPrefixes`, kept
+until the model or the metamodels change). Where it is said: a placement's own
+style (`ViewManager.setLabelExpression`, read into `NodeInfo.labelExpressions`;
+`{node}-label-expression`, or `…-label-expression-{hash of the set}` for one
+set — named so the merge can match it — removed with the node, copied by
+`duplicateView`); a type's notation (`buildVisualNotations` puts it on the
+style, so the notation lookup — superclasses included — carries it); and the
+notation set (`NotationSet.labelExpression`, the palette's
+`notationSetLabelExpression`). `NotationStyleRegistry` keeps the active set
+(`activeNotationSet`, the palette's `notationSetIri`) and answers
+`labelExpressionFor(type)`; `DiagramCanvas.labelExpressionOf` picks the
+placement's own for the active set, its own for every set, else the
+notation's. `refreshLabelTexts` evaluates it for every element placement and
+sets the business object's `labelText` — drawn in place of `label`, which stays
+the name renaming edits — after a sync, a palette change (another
+presentation) and every command (a rename on the canvas is followed by no
+sync). `wrapLabel` wraps each of a label's lines on its own. The panel's
+`_renderLabelTab` edits the active set's expression or — *The same in every
+presentation* — the one for every set, and sends `label-expression-change`
+(`LabelExpressionChangeDetail`); `mount-ui` writes it for every element
+selected in one `recordChange`, the one for the active set taken away when one
+for every set is written.
+
 **Exchange import.** A node's or a connection's `<style>` (`parseExchangeStyle`)
 is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),
 `lineWidth`, and the font's name, size, style and colour.
@@ -1795,11 +1830,16 @@ place* (right-click) drops it too.
 one selected (`IMAGE_KINDS`) — `selectedAppearance` adds `image`
 (`ImageChoices`: the first one's picture and position, and
 `ViewManager.usedImages()`, every `arch-vis:image` of the model once each). The
-panel's `_renderImage` shows a preview, the address (an `https://`… or
+panel's `_renderImage` shows a preview, *Choose file…* (a hidden
+`<input type="file" accept="image/*">`; `_keepPictureFile` reads an image of at
+most `KEPT_PICTURE_LIMIT`, 200 KB, with `FileReader.readAsDataURL` and writes the
+`data:` URI as the picture — anything else is refused, the tab saying why), the
+address (an `https://`… or
 `data:image/…`; `imageUri` refuses any other where it is typed, the field saying
 so, and `setAppearance` ignores a value that is not one of its key's rather than
 take the old one away), the position (`IMAGE_POSITIONS`, disabled with no
 picture), *Remove image* (both keys `null`) and the model's pictures to pick —
+with none, a note that they will be listed there —
 each an `appearance-change`, so one undoable step for every one selected.
 `RdfRenderer.drawImage` draws it in each kind's area — the node inset by 3
 units, a group's below its tab, an element drawn as its icon the whole node —
@@ -1809,7 +1849,19 @@ column, `preserveAspectRatio` aligned to match; at `Fill`, the whole area,
 `none`. Its own size comes from loading it once (`new Image()`, a module-level
 cache by address, `rememberImageSize` for tests); until then it is not drawn,
 and the elements waiting for it are redrawn (`element.changed`) when it loads;
-one that fails is never drawn. A placement's picture is its own look, so
+one that fails is never drawn. *Draw it as the figure* (elements only,
+`ImageChoices.canBeFigure`) writes the picture as the placement's own
+`iconSymbol` with `renderingMode` `IconCentric` — `image` and `imagePosition`
+taken away — and *inside* the reverse; `selectedAppearance` reads an own
+`iconSymbol` as the picture, drawn as the figure (`asFigure`), and every way of
+giving a picture then writes `iconSymbol`. The renderer takes the own icon over
+the notation's (`withOwnStyle`; `drawnMode` and the docking outline's stamp
+too), draws it as `drawIconCentric` or `drawBadge` would the glyph, marked
+`data-own-icon`, and leaves the icon colour to the notation's glyph. `lookOf`
+skips `iconSymbol`, a notation's glyph being no look to take over;
+`usedImages` lists an own icon — a style a diagram element hangs — and not a
+notation's. The Figure tab marks none of its figures (`selected` -1, a note
+above them) and each one's changes take the own icon away. A placement's picture is its own look, so
 *Notation only* leaves it out; a figure's is always drawn.
 
 **In-place renaming.** `RdfRenderer.drawnLook(element)` is the look a name is

@@ -18,6 +18,7 @@ import { labelOf, modelQuads, readModelContents } from '../model-manager/model-q
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
 import { rememberImageSize } from '../ui/canvas/rdf-renderer.js';
+import { KEPT_PICTURE_LIMIT } from '../ui/panels/property-panel.js';
 
 installJsdomSvgSupport();
 
@@ -380,7 +381,7 @@ describe('the workbench', () => {
       { iri: nodeA, kind: 'element' },
       { iri: nodeB, kind: 'element' },
     ]);
-    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-3)).toEqual(['appearance', 'figure', 'image']);
+    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-4)).toEqual(['appearance', 'label', 'figure', 'image']);
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
     await panel.updateComplete;
     // Its rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
@@ -594,13 +595,34 @@ describe('the workbench', () => {
     await panel.updateComplete;
     expect(root.querySelector('.image-preview')!.textContent).toContain('No image');
     expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    // No picture in the model yet: the tab says where they will be listed.
+    expect(root.querySelector('.image-used-empty')!.textContent).toContain('None yet');
+
+    // A file kept in the model: a picture, small enough — else the tab says why, and nothing is written.
+    const chooser = () => root.querySelector<HTMLInputElement>('.image-file')!;
+    const choose = (file: File) => {
+      Object.defineProperty(chooser(), 'files', { value: [file], configurable: true });
+      chooser().dispatchEvent(new Event('change'));
+    };
+    choose(new File(['not a picture'], 'notes.txt', { type: 'text/plain' }));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')!.textContent).toContain('notes.txt is not a picture');
+    choose(new File([new Uint8Array(KEPT_PICTURE_LIMIT + 1)], 'huge.png', { type: 'image/png' }));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')!.textContent).toContain('too large to keep in the model');
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    choose(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'dot.png', { type: 'image/png' }));
+    await vi.waitFor(() => expect(views.getNode(view, nodeA)?.appearance?.image).toBe('data:image/png;base64,iVBORw0KGgo='));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')).toBeNull();
+    expect([...root.querySelectorAll('.image-choice')].map((c) => c.getAttribute('title'))).toEqual(['A picture kept in the model']);
     const address = () => root.querySelector<HTMLInputElement>('.image-address')!;
     // Not a picture's address: said where it was typed, nothing written.
     address().value = 'javascript:alert(1)';
     address().dispatchEvent(new Event('change'));
     await panel.updateComplete;
     expect(root.querySelector('.image-error')!.textContent).toContain('https://');
-    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: 'data:image/png;base64,iVBORw0KGgo=' });
     address().value = LOGO;
     address().dispatchEvent(new Event('change'));
     await panel.updateComplete;
@@ -615,6 +637,37 @@ describe('the workbench', () => {
     // What la-gram writes, core-vis's shapes accept.
     app.runValidation();
     expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+
+    // As the figure: its own icon, drawn as the glyph would be, its name under it — no picture inside, no position.
+    const drawAs = (value: string) => {
+      const radio = root.querySelector<HTMLInputElement>(`.image-draw-as input[value="${value}"]`)!;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    };
+    drawAs('figure');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'IconCentric' });
+    const drawnA = () => document.querySelector(`[data-element-iri="${a}"]`)!;
+    expect(drawnA().getAttribute('data-rendering-mode')).toBe('IconCentric');
+    expect(drawnA().querySelector('.la-shape-icon')?.getAttribute('href')).toBe(LOGO);
+    await panel.updateComplete;
+    expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+    // The Figure tab says so; a figure picked there puts the notation's glyph back.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.figure-own-picture')!.textContent).toContain('own picture');
+    expect(root.querySelector('.figure-choice[aria-checked="true"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'IconCentric' });
+    // And back inside, at the top left.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    drawAs('inside');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO });
+    expect(drawnA().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
 
     // Another element: the model's pictures to pick from.
     ui.diagramCanvas.selectIris([b!]);
@@ -634,7 +687,8 @@ describe('the workbench', () => {
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     ui.diagramCanvas.selectIris([note]);
     await panel.updateComplete;
-    expect(panel.appearance?.image).toEqual({ position: 'TopLeft', used: [LOGO] });
+    // A note's picture is inside it: a figure has no icon for one to stand in for.
+    expect(panel.appearance?.image).toEqual({ position: 'TopLeft', canBeFigure: false, used: [LOGO] });
     const serving = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: a!, targetIri: b! }).iri;
     views.addRelationshipToView(view, serving);
     app.components.eventBus.emit('model-changed', { origin: 'test' });
@@ -656,6 +710,80 @@ describe('the workbench', () => {
     ui.selectConcept(undefined);
     views.removeElementFromView(view, note);
     for (const iri of [a!, b!]) els.deleteElement(iri);
+  });
+
+  it('says more on an element’s label from the Label tab: in the presentation in use, or in every one', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const DCT = NAMESPACES.dcterms;
+    const a = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Labelled' }).value;
+    const creator = (name: string) => DataFactory.quad(DataFactory.namedNode(a), DataFactory.namedNode(DCT + 'creator'), DataFactory.literal(name));
+    store.addQuads([creator('Ana')] as never);
+    const node = views.addElementToView(view, a, { x: 100, y: 1200, width: 160, height: 80 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnLines = () => [...document.querySelectorAll(`[data-element-iri="${a}"] .la-shape-label tspan`)].map((t) => t.textContent);
+    const set = ui.diagramCanvas.notationSetInUse!;
+    expect(set).toBe('https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation');
+
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="label"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.label-scope')!.textContent).toContain('the presentation selected now');
+    const area = () => root.querySelector<HTMLTextAreaElement>('.label-expression')!;
+    expect(area().placeholder).toBe('{name}');
+    area().value = '{name}\nby {dcterms:creator}';
+    area().dispatchEvent(new Event('change'));
+    // For the notation set in use, on the placement's own style; drawn so, line by line.
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ notationSet: set, expression: '{name}\nby {dcterms:creator}' }]);
+    expect(drawnLines()).toEqual(['Labelled', 'by Ana']);
+    await panel.updateComplete;
+    expect(root.querySelector('.label-shown')!.textContent).toBe('Labelled\nby Ana');
+    // What it shows follows the model.
+    store.removeQuads([creator('Ana')] as never);
+    store.addQuads([creator('Bo')] as never);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
+    // A placeholder it cannot read: said, and drawn as written.
+    area().value = '{name} {nope:x}';
+    area().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.label-errors')!.textContent).toContain('no prefix nope: is known');
+    expect(drawnLines().join(' ')).toContain('{nope:x}');
+    area().value = '{name}\n«{type}»';
+    area().dispatchEvent(new Event('change'));
+    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+    // What core-vis's shapes say of it, la-gram writes.
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(node))).toEqual([]);
+
+    // The same in every presentation: moved to the one for every set.
+    await panel.updateComplete;
+    const every = root.querySelector<HTMLInputElement>('.label-every input')!;
+    every.checked = true;
+    every.dispatchEvent(new Event('change'));
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ expression: '{name}\n«{type}»' }]);
+    // One for another set is not drawn in this one.
+    views.setLabelExpression!(view, node, 'https://example.org/notation#Other', 'elsewhere');
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+    // Back to the notation's: its name alone — undoably.
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.label-reset')!.click();
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ notationSet: 'https://example.org/notation#Other', expression: 'elsewhere' }]);
+    expect(drawnLines()).toEqual(['Labelled']);
+    await ui.runCommand({ command: 'undo' });
+    await Promise.resolve();
+    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    els.deleteElement(a);
   });
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {

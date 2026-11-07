@@ -300,6 +300,8 @@ export interface PaletteDefinition {
   notationSetIri?: string;
   /** Label of that notation set. */
   notationSetLabel?: string;
+  /** What the active set says every concept's label says, where nothing else does (`arch-vis:labelExpression`). */
+  notationSetLabelExpression?: string;
   /**
    * The resolved notation of every class the generator could resolve, keyed by
    * class IRI, plus each relationship class's `arch:unqualifiedForm` predicate.

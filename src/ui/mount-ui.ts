@@ -107,6 +107,7 @@ import type {
   PropertyAnalysis,
   PropertyHeading,
   AppearanceChangeDetail,
+  LabelExpressionChangeDetail,
 } from './panels/property-panel.js';
 import type {
   ModelExplorer,
@@ -528,6 +529,34 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     },
     onNotice: (message, level) => dialogs.toast(message, level),
   });
+
+  // What label expressions read (core-vis 0.7's arch-vis:labelExpression): the model's
+  // statements, names, type names, and the prefixes the vocabularies in use declare —
+  // worked out again only when the model or the metamodels change, not for every label.
+  let labelPrefixes: ReturnType<typeof app.modelIO.collectPrefixes> | undefined;
+  const forgetLabelPrefixes = (): void => {
+    labelPrefixes = undefined;
+  };
+  diagramCanvas.labelSource = {
+    values: (subject, predicate) =>
+      statementsOf(store, namedNode(subject) as unknown as NamedNode, namedNode(predicate) as unknown as NamedNode).map((q) =>
+        q.object.termType === 'Literal'
+          ? { literal: q.object.value, ...((q.object as { language?: string }).language ? { language: (q.object as { language: string }).language } : {}) }
+          : { iri: q.object.value },
+      ),
+    subjectsOf: (object, predicate) =>
+      store.getQuads(null, namedNode(predicate) as never, namedNode(object) as never).map((q) => q.subject.value),
+    nameOf: (iri) => (hasLabel(store, iri) ? labelOf(store, iri) : undefined),
+    typeOf: (iri) => {
+      const typeIri = describe(iri)?.typeIri;
+      return typeIri ? labelOf(store, typeIri) : undefined;
+    },
+    get prefixes() {
+      return (labelPrefixes ??= app.modelIO.collectPrefixes(session.modelIri));
+    },
+  };
+  eventBus.on('model-changed', forgetLabelPrefixes);
+  eventBus.on('metamodel-loaded', forgetLabelPrefixes);
 
   // ── Bottom, "Validation" and "SPARQL Query" tabs ─────────────────────
   const validationPanel = document.createElement('validation-panel');
@@ -1373,6 +1402,31 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel.appearance = diagramCanvas.selectedAppearance();
   };
   propertyPanel.addEventListener('appearance-change', onAppearanceChange);
+
+  // The Label tab: what the selected elements' labels say, in the notation set in use or in every set.
+  const onLabelExpressionChange = (event: Event): void => {
+    const detail = (event as CustomEvent<LabelExpressionChangeDetail>).detail;
+    const viewIri = session.activeViewIri;
+    const targets = (propertyPanel.appearance?.targets ?? []).filter((t) => t.kind === 'element');
+    const write = viewManager.setLabelExpression?.bind(viewManager);
+    if (!detail || !viewIri || targets.length === 0 || !write) return;
+    const set = diagramCanvas.notationSetInUse;
+    diagramCanvas.recordChange(() => {
+      for (const target of targets) {
+        if (detail.all) {
+          if (set) write(viewIri, target.iri, set, null);
+          write(viewIri, target.iri, undefined, null);
+        } else if (detail.everySet || !set) {
+          write(viewIri, target.iri, undefined, detail.expression);
+          // So that it shows in this set too.
+          if (set) write(viewIri, target.iri, set, null);
+        } else write(viewIri, target.iri, set, detail.expression);
+      }
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.appearance = diagramCanvas.selectedAppearance();
+  };
+  propertyPanel.addEventListener('label-expression-change', onLabelExpressionChange);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -2648,6 +2702,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.off('view-opened', onViewOpened);
     eventBus.off('views-changed', onViewsChanged);
     eventBus.off('model-changed', onModelChanged);
+    eventBus.off('model-changed', forgetLabelPrefixes);
+    eventBus.off('metamodel-loaded', forgetLabelPrefixes);
     eventBus.off('selection-changed', onCanvasSelection);
     eventBus.off('element-deleted', onElementDeleted);
     eventBus.off('relationship-deleted', onElementDeleted);
@@ -2683,6 +2739,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('figures-open', onFiguresOpen);
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
     propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
+    propertyPanel.removeEventListener('label-expression-change', onLabelExpressionChange);
     canvasToolbar.removeEventListener('notation-only', onNotationOnly);
     canvasToolbar.removeEventListener('format-painter', onFormatPainter);
     eventBus.off('format-painter-changed', onFormatPainterChanged);

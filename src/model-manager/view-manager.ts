@@ -82,6 +82,7 @@ import type {
   Bounds,
   FigureColours,
   FigureInfo,
+  LabelExpressionInfo,
   LinkInfo,
   NodeInfo,
   Point,
@@ -282,8 +283,9 @@ export class OxigraphViewManager implements ViewManager {
         ? this.addFigure(copy.value, { ...node.figure, bounds: node.bounds })
         : this.addElementToView(copy.value, node.elementIri, node.bounds, { another: true });
       copies.set(node.nodeIri, copied);
-      // Looking as it did: a figure's appearance is copied with it.
+      // Looking as it did: a figure's appearance is copied with it; its label saying what it said.
       if (node.appearance) this.setAppearance(copy.value, copied, node.appearance);
+      for (const label of node.labelExpressions ?? []) this.setLabelExpression(copy.value, copied, label.notationSet, label.expression);
     }
     for (const node of nodes) {
       const parent = node.parentNodeIri ? copies.get(node.parentNodeIri) : undefined;
@@ -414,6 +416,8 @@ export class OxigraphViewManager implements ViewManager {
       quads.push(...this.subjectQuads(node));
       // Its own style goes with it — a figure's shape type, a placement's colours — and one a converter wrote for it alone.
       quads.push(...this.read(nn(this.styleIriOf(nodeIri)), null, null));
+      // And what its label says.
+      quads.push(...this.ownLabelExpressions(node).flatMap((expression) => this.read(expression)));
       quads.push(...this.blankStyleQuads(node));
       // What was drawn inside it is no longer inside anything.
       quads.push(...this.read(null, T.inNode, node));
@@ -677,9 +681,11 @@ export class OxigraphViewManager implements ViewManager {
       : undefined;
     // A placement's own look; a figure's is in its figure.
     const appearance = figure ? undefined : this.appearanceOf(node);
+    const labelExpressions = figure ? [] : this.labelExpressionsOf(node);
     return {
       nodeIri: node.value,
       elementIri,
+      ...(labelExpressions.length > 0 ? { labelExpressions } : {}),
       ...(parentElementIri ? { parentElementIri, parentNodeIri: parentNode!.value } : {}),
       ...(figure ? { figure } : {}),
       ...(appearance ? { appearance } : {}),
@@ -872,10 +878,69 @@ export class OxigraphViewManager implements ViewManager {
   }
 
   usedImages(): string[] {
-    const images = this.read(null, nn(APPEARANCE_PREDICATES.image))
+    // A picture in a node, and a placement's own icon — a style a diagram element hangs, not a notation's glyph.
+    const own = this.read(null, nn(APPEARANCE_PREDICATES.iconSymbol)).filter(
+      (q) => this.read(null, T.visStyle, q.subject as NamedNode).length > 0,
+    );
+    const images = [...this.read(null, nn(APPEARANCE_PREDICATES.image)), ...own]
       .map((q) => appearanceValue('image', q.object))
       .filter((uri): uri is string => uri !== undefined);
     return [...new Set(images)].sort();
+  }
+
+  setLabelExpression(viewIri: string, nodeIri: string, notationSet: string | undefined, expression: string | null): void {
+    const subject = nn(nodeIri);
+    if (!this.objects(subject, T.visView).includes(viewIri) || !this.readNode(subject) || this.figureOf(subject)) return;
+    const text = expression?.replace(/\r\n?/g, '\n') ?? '';
+    // The one it has for that scope goes — a blank node another tool wrote too, when nothing else points at it.
+    const style = this.read(subject, T.visStyle)[0]?.object;
+    if (style) {
+      for (const q of this.read(style as NamedNode, T.labelExpression)) {
+        const scope = this.objects(q.object, T.inNotationSet)[0];
+        if (scope !== notationSet) continue;
+        const shared = this.read(null, T.labelExpression, q.object as NamedNode).length > 1;
+        this.remove([q, ...(shared ? [] : this.read(q.object as NamedNode))]);
+      }
+    }
+    if (text.trim() !== '') {
+      const own = this.ownStyle(subject);
+      const label = nn(this.labelExpressionIriOf(nodeIri, notationSet));
+      this.store.addQuads([
+        triple(own, T.labelExpression, label),
+        triple(label, T.rdfType, T.LabelExpression),
+        triple(label, T.expression, DataFactory.literal(text)),
+        ...(notationSet ? [triple(label, T.inNotationSet, nn(notationSet))] : []),
+      ]);
+    }
+    // Nothing left to say: no style at all.
+    const left = this.read(subject, T.visStyle)[0]?.object;
+    if (left && this.read(left as NamedNode).every((q) => q.predicate.value === IRI.rdfType)) {
+      this.remove([...this.read(left as NamedNode), ...this.read(subject, T.visStyle, left as NamedNode)]);
+    }
+  }
+
+  /** A placement's own label expression, named after it — and the set it is for, when it is for one — so it goes with it. */
+  private labelExpressionIriOf(nodeIri: string, notationSet: string | undefined): string {
+    return notationSet ? `${nodeIri}-label-expression-${shortHash(notationSet)}` : `${nodeIri}-label-expression`;
+  }
+
+  /** The label expressions a node's own style points at. */
+  private ownLabelExpressions(node: Term): Term[] {
+    const style = this.read(node as NamedNode, T.visStyle)[0]?.object;
+    return style ? this.read(style as NamedNode, T.labelExpression).map((q) => q.object) : [];
+  }
+
+  /** What a node's own style says its label says. */
+  private labelExpressionsOf(node: Term): LabelExpressionInfo[] {
+    const labels: LabelExpressionInfo[] = [];
+    for (const label of this.ownLabelExpressions(node)) {
+      const expression = this.read(label as NamedNode, T.expression)[0]?.object.value;
+      if (expression === undefined) continue;
+      const notationSet = this.objects(label, T.inNotationSet)[0];
+      labels.push({ expression, ...(notationSet ? { notationSet } : {}) });
+    }
+    // For every set last: one for the set in use is found first.
+    return labels.sort((a, b) => (a.notationSet ? 0 : 1) - (b.notationSet ? 0 : 1) || (a.notationSet ?? '').localeCompare(b.notationSet ?? ''));
   }
 
   /** How a node or a link looks, from its own style; `undefined` when it sets nothing. */
@@ -1091,4 +1156,14 @@ export function addRelationshipsToView(
     if (waiting.length === pending.length) return drawn;
     pending = waiting;
   }
+}
+
+/** A short, steady name for an IRI: FNV-1a, 32 bits, in hex. */
+function shortHash(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
 }

@@ -875,6 +875,15 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(views.getNode(view, first)?.appearance).toEqual({ image: 'https://example.org/logo.png', imagePosition: 'BottomRight' });
     expect(views.getNode(view, note)?.figure).toMatchObject({ image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
     expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png']);
+    // A placement's own icon is one of the model's pictures; a notation's glyph — on a style no diagram element hangs — is not.
+    views.setAppearance(view, second, { iconSymbol: 'https://example.org/own.png', renderingMode: 'IconCentric' });
+    const notationStyle = DataFactory.blankNode();
+    store.addQuads([
+      DataFactory.quad(notationStyle, nn(VIS_NS + 'iconSymbol') as never, DataFactory.literal('https://meta.linked.archi/archimate4/icons/glyphs/actor.svg', nn(XSD + 'anyURI') as never)),
+    ] as never);
+    expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png', 'https://example.org/own.png']);
+    expect(store.getQuads(nn(`${second}-style`), nn(VIS_NS + 'iconSymbol'))[0]?.object).toMatchObject({ datatype: { value: XSD + 'anyURI' } });
+    views.setAppearance(view, second, { iconSymbol: null, renderingMode: null });
     // A picture's address that is none is not written — and takes nothing away.
     views.setAppearance(view, second, { image: 'javascript:alert(1)' as never });
     expect(views.getNode(view, second)?.appearance).toEqual({ image: 'https://example.org/logo.png' });
@@ -894,6 +903,38 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     views.setLinkLabel(view, link, moved);
     views.setAppearance(view, link, { labelAnchor: 'target', lineWidth: null });
     expect(views.getLinks(view)[0]?.label).toEqual(moved);
+  });
+
+  it('what a placement’s label says: one expression a notation set, one for every set — replaced, taken away, copied, gone with it', () => {
+    const DETAILED = 'https://example.org/notation#Detailed';
+    views.setLabelExpression(view, first, undefined, '{name}');
+    views.setLabelExpression(view, first, DETAILED, '{name}\n«{type}»');
+    expect(views.getNode(view, first)?.labelExpressions).toEqual([
+      { notationSet: DETAILED, expression: '{name}\n«{type}»' },
+      { expression: '{name}' },
+    ]);
+    // As core-vis 0.7 writes it: on the placement's own style, named after it.
+    const scoped = objects(store, `${first}-style`, VIS_NS + 'labelExpression').find((iri) => iri !== `${first}-label-expression`)!;
+    expect(scoped).toMatch(new RegExp(`^${first}-label-expression-[0-9a-f]{8}$`));
+    expect(objects(store, scoped, RDF_TYPE)).toEqual([VIS_NS + 'LabelExpression']);
+    expect(objects(store, scoped, VIS_NS + 'inNotationSet')).toEqual([DETAILED]);
+    // Replaced for its set; the other placement of the element says nothing of its own.
+    views.setLabelExpression(view, first, DETAILED, '{name} ({dcterms:creator})');
+    expect(views.getNode(view, first)?.labelExpressions?.[0]).toEqual({ notationSet: DETAILED, expression: '{name} ({dcterms:creator})' });
+    expect(views.getNode(view, second)?.labelExpressions).toBeUndefined();
+    // Copied with its view.
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.bounds.y === 0)?.labelExpressions).toHaveLength(2);
+    // Taken away, both: no style left.
+    views.setLabelExpression(view, first, DETAILED, null);
+    views.setLabelExpression(view, first, undefined, '');
+    expect(views.getNode(view, first)?.labelExpressions).toBeUndefined();
+    expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(scoped), null, null)).toEqual([]);
+    // Gone with the placement.
+    views.setLabelExpression(view, second, undefined, '{name}');
+    views.removeElementFromView(view, second);
+    expect(store.getQuads(nn(`${second}-label-expression`), null, null)).toEqual([]);
   });
 
   it('a figure’s, every value of it, copied with its view', () => {

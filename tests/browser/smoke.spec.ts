@@ -541,7 +541,8 @@ describe('6. the notation is really applied', () => {
         `naturalSize=${loaded.intrinsic ? `${loaded.intrinsic.width}x${loaded.intrinsic.height}` : 'FAILED TO LOAD'}`,
     );
 
-    expect(href).toMatch(/^https?:\/\/.+\.svg$/);
+    // The build's digest of its assets on the address, so a re-synced glyph is not drawn from the cache.
+    expect(href).toMatch(/^https?:\/\/.+\.svg\?v=[0-9a-f]{12}$/);
     expect(loaded.status).toBe(200);
     expect(loaded.contentType).toContain('image/svg+xml');
     expect(loaded.intrinsic, 'the glyph did not decode as an image').not.toBeNull();

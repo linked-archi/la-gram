@@ -220,6 +220,24 @@ describe('buildVisualNotations — what core-vis 0.7 lets a notation say of the 
   });
 });
 
+describe('buildVisualNotations — what a label says (core-vis 0.7 label expressions)', () => {
+  it('a concept’s notation’s — the one for its set before one for every set — and the set’s own', () => {
+    const set = buildVisualNotations(
+      storeFromTurtle(`${PREFIXES}
+:ArchiMate40StandardNotation a arch-vis:NotationSet ;
+    arch-vis:labelExpression [ a arch-vis:LabelExpression ; arch-vis:expression "{name}" ] .
+:ActorNotation a arch-vis:VisualNotation ; arch-vis:notationFor am4:BusinessActor ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Rectangle ] ;
+    arch-vis:labelExpression [ a arch-vis:LabelExpression ; arch-vis:expression "{name} (any)" ] ,
+        [ a arch-vis:LabelExpression ; arch-vis:inNotationSet :ArchiMate40StandardNotation ; arch-vis:expression "{name}\\n«{type}»" ] ,
+        [ a arch-vis:LabelExpression ; arch-vis:inNotationSet :OtherNotation ; arch-vis:expression "elsewhere" ] .
+`),
+    );
+    expect(set!.notations.get(BUSINESS_ACTOR)!.style).toMatchObject({ shapeType: 'Rectangle', labelExpression: '{name}\n«{type}»' });
+    expect(set!.labelExpression).toBe('{name}');
+  });
+});
+
 describe('buildVisualNotations — relationship notation', () => {
   const RELATIONSHIP_NOTATION = `${PREFIXES}
 :ArchiMate40StandardNotation a arch-vis:NotationSet ; skos:prefLabel "Standard"@en .

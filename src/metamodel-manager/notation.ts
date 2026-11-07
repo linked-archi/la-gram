@@ -65,6 +65,8 @@ const T = {
   targetDecor: `${ARCH_VIS}targetDecor`,
   nestedEnd: `${ARCH_VIS}nestedEnd`,
   labelAnchor: `${ARCH_VIS}labelAnchor`,
+  labelExpression: `${ARCH_VIS}labelExpression`,
+  expression: `${ARCH_VIS}expression`,
   prefLabel: `${SKOS}prefLabel`,
   rdfsLabel: `${RDFS}label`,
 } as const;
@@ -145,6 +147,12 @@ const NOTATION_LOOK_KEYS = ['lineWidth', 'fontName', 'fontSize', 'fontStyle', 't
 
 /** Visual style for an element type — the construction recipe. */
 export interface VisualStyle extends NotationLook {
+  /**
+   * What the label of a concept drawn so says (core-vis 0.7's
+   * `arch-vis:labelExpression`): its notation's, the one for this notation set
+   * before one for every set. The name alone when absent.
+   */
+  labelExpression?: string;
   /** A core shape — for a notation's own shape, its fallback. */
   shapeType?: ShapeType;
   /** A notation's own shape, drawn from its templates in place of {@link shapeType}. */
@@ -206,6 +214,8 @@ export interface VisualNotation {
 export interface NotationSet {
   iri: string;
   label: string;
+  /** What the label of every concept it draws says, where nothing else does (`arch-vis:labelExpression` on the set). */
+  labelExpression?: string;
   /** conceptIri → notation. */
   notations: Map<string, VisualNotation>;
 }
@@ -559,6 +569,12 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
       .map((term) => extractElementStyle(store, term))
       .filter((alternative): alternative is VisualStyle => alternative !== undefined);
     if (style && alternatives.length > 0) style = { ...style, alternatives };
+    // What its label says: the notation's own, or its default style's.
+    const labelExpression = labelExpressionOf(store, notationTerm, setIri) ?? store
+      .getObjects(notationTerm, namedNode(T.defaultStyle), null)
+      .map((term) => labelExpressionOf(store, term, setIri))
+      .find((text) => text !== undefined);
+    if (labelExpression !== undefined) style = { ...(style ?? {}), labelExpression };
 
     notations.set(conceptIri, {
       conceptIri,
@@ -571,7 +587,24 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
 
   if (notations.size === 0) return null;
 
-  return { iri: setIri, label: labelFor(store, setIri), notations };
+  const labelExpression = labelExpressionOf(store, namedNode(setIri), setIri);
+  return { iri: setIri, label: labelFor(store, setIri), notations, ...(labelExpression !== undefined ? { labelExpression } : {}) };
+}
+
+/**
+ * The label expression `subject` gives (`arch-vis:labelExpression`): the one
+ * for `setIri` (`arch-vis:inNotationSet`) before one for every set.
+ */
+function labelExpressionOf(store: Store, subject: Term, setIri: string): string | undefined {
+  let forEvery: string | undefined;
+  for (const label of store.getObjects(subject, namedNode(T.labelExpression), null)) {
+    const text = objectValue(store, label, T.expression);
+    if (text === null) continue;
+    const scope = objectValue(store, label, T.inNotationSet);
+    if (scope === setIri) return text;
+    if (scope === null) forEvery ??= text;
+  }
+  return forEvery;
 }
 
 /**

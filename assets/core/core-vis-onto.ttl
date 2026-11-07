@@ -39,7 +39,13 @@ from (arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom); arch-v
 its glyph's colour; arch-vis:image, a picture drawn in it, at arch-vis:imagePosition — an
 arch-vis:IconPlacement, which gains MiddleLeft, MiddleRight, BottomLeft, BottomRight and Fill; and,
 for a line, arch-vis:labelAnchor, where along it its text sits (arch-vis:AnchorSource, AnchorMiddle,
-AnchorTarget). Each absent leaves the choice to the notation or the renderer. arch-vis:lineStyle, sourceDecor and targetDecor
+AnchorTarget). Each absent leaves the choice to the notation or the renderer. A label may say more than
+a name: arch-vis:labelExpression gives an arch-vis:LabelExpression, its arch-vis:expression text with
+{…} placeholders for the concept's name, its type and its properties — on a diagram element's own style,
+on a concept's notation, or on a notation set for all its concepts, and with arch-vis:inNotationSet for
+one notation set only, so that each presentation may label the same element its own way.
+arch-vis:inNotationSet names its subject's notation set with arch:domainIncludes, where an rdfs:domain
+of arch-vis:VisualNotation made every label expression scoped to a set a notation. arch-vis:lineStyle, sourceDecor and targetDecor
 name what they may be said of with arch:domainIncludes — a relationship, a relationship type's
 notation, a style, and so one line's own — where an rdfs:domain of arch:QualifiedRelationship made
 every notation saying them a relationship. arch-vis:alternativeStyle gives a notation other figures for
@@ -490,7 +496,9 @@ arch-vis:iconSymbol
     rdfs:label   "iconSymbol"@en ;
     rdfs:comment '''URI of the small glyph/icon displayed within the element shape (typically top-right corner).
 The glyph is drawn over the shape as it is: its lines are opaque and the parts that show the element's
-fill are transparent, so one glyph serves every fill colour and notation set.'''@en ;
+fill are transparent, so one glyph serves every fill colour and notation set. On a diagram element's own
+style (arch-vis:style) it is that element's own icon, in place of its notation's glyph: a picture drawn
+as the figure itself with arch-vis:IconCentric, or as its badge with arch-vis:ShapeWithBadge.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -511,8 +519,8 @@ arch-vis:image
     rdfs:comment '''URI of a picture drawn inside a node, at arch-vis:imagePosition: over its fill, under its
 text and its glyph. An http(s) URL, or a data: URI of an image for a small picture kept in the
 model. The picture is drawn at its own size, made smaller to fit the node; at arch-vis:Fill, scaled
-to the node's bounds. The node's glyph is drawn as its rendering mode says — a picture standing in
-for it is drawn with arch-vis:ShapeOnly.'''@en ;
+to the node's bounds. The node's glyph is drawn as its rendering mode says. A picture standing for the
+figure itself is the node's own arch-vis:iconSymbol, drawn arch-vis:IconCentric.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -1149,9 +1157,49 @@ arch-vis:notationFor
 arch-vis:inNotationSet
     a            owl:ObjectProperty ;
     rdfs:label   "inNotationSet"@en ;
-    rdfs:comment "Links a VisualNotation to the NotationSet it belongs to."@en ;
-    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:comment '''Links a VisualNotation to the NotationSet it belongs to; and a LabelExpression to the one
+notation set it applies in.'''@en ;
+    arch:domainIncludes arch-vis:VisualNotation, arch-vis:LabelExpression ;
     rdfs:range   arch-vis:NotationSet ;
+.
+
+arch-vis:LabelExpression
+    a            owl:Class ;
+    rdfs:label   "LabelExpression"@en ;
+    rdfs:comment '''What a concept's label says, as text with placeholders (arch-vis:expression) — in one
+notation set when it names one (arch-vis:inNotationSet), else in all.
+
+The text is drawn as it is, but for what stands between braces:
+- {name}: the concept's name (its skos:prefLabel);
+- {type}: the name of its type;
+- {prefix:local} or {<iri>}: the values of that property of the concept — a literal as it is, a resource
+  by its name — several joined by ", "; prefixes are those the vocabularies in use declare;
+- a path: properties joined by /, each followed from the concept on, ^ before one to follow it backwards
+  ({am:assignedTo/skos:prefLabel}, {^arch:target});
+- {{ and }}: a brace.
+Its lines are the label's lines; a line whose placeholders all come to nothing is left out, so a line
+can be there only when the concept has what it shows.'''@en ;
+.
+
+arch-vis:labelExpression
+    a            owl:ObjectProperty ;
+    rdfs:label   "labelExpression"@en ;
+    rdfs:comment '''What a concept's label says (an arch-vis:LabelExpression), in place of its name alone: on
+a diagram element's own style (arch-vis:style), that element's; on a concept's VisualNotation, every
+element of that concept's in the notation's set; on a NotationSet, every element's in that set that
+nothing else says for. One in the notation set in use (arch-vis:inNotationSet) comes before one for all
+sets; a diagram element's own before its concept's notation's, before its notation set's.'''@en ;
+    arch:domainIncludes arch-vis:Style, arch-vis:VisualNotation, arch-vis:NotationSet ;
+    rdfs:range   arch-vis:LabelExpression ;
+.
+
+arch-vis:expression
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "expression"@en ;
+    rdfs:comment "A label expression's text, its placeholders between braces (see arch-vis:LabelExpression)."@en ;
+    rdfs:domain  arch-vis:LabelExpression ;
+    rdfs:range   xsd:string ;
 .
 
 arch-vis:nestedEnd

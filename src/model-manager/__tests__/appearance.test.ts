@@ -7,6 +7,7 @@ import {
   fontStyleOf,
   hexColour,
   imageUri,
+  lookOf,
   parseColour,
   sameAppearance,
   withAlpha,
@@ -84,5 +85,12 @@ describe('an appearance’s values, as core-vis writes them', () => {
       expect(imageUri(refused)).toBeUndefined();
     }
     expect(appearanceObject('image', 'javascript:alert(1)')).toBeUndefined();
+  });
+
+  it('a placement’s own icon, a picture as the image is; a notation’s glyph is no look to take over', () => {
+    expect(appearanceObject('iconSymbol', 'https://example.org/logo.png')).toEqual({ uri: 'https://example.org/logo.png' });
+    expect(appearanceObject('iconSymbol', 'file:///logo.png')).toBeUndefined();
+    expect(appearanceValue('iconSymbol', { termType: 'Literal', value: 'data:image/png;base64,iVBORw0KGgo=' })).toBe('data:image/png;base64,iVBORw0KGgo=');
+    expect(lookOf({ iconSymbol: 'https://meta.linked.archi/archimate4/icons/glyphs/actor.svg', fillColor: '#ffffb5' })).toEqual({ fillColor: '#ffffb5' });
   });
 });

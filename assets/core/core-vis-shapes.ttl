@@ -52,7 +52,9 @@ lineWidth a positive integer, fontStyle the keywords bold, italic and underline,
 textPosition and gradient members of their enumerations, iconColor a single string, image a single
 xsd:anyURI, imagePosition an IconPlacement, labelAnchor a LabelAnchor — and, as a line's own style
 may now say them, lineStyle, sourceDecor and targetDecor members of theirs. A VisualNotation's
-arch-vis:alternativeStyle is a Style.
+arch-vis:alternativeStyle is a Style. A LabelExpression has one expression, a string, and names at most
+one NotationSet; arch-vis:labelExpression, on a Style, a VisualNotation or a NotationSet, points to
+LabelExpressions.
 
 0.2.0 — LinkShape accepts a Link as well as a Node at either end of
 a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
@@ -506,6 +508,11 @@ separated by spaces, e.g. "bold italic".'''@en ;
         sh:message  "image is a single xsd:anyURI: an http(s) URL, or a data: URI of an image."@en ;
     ] ;
     sh:property [
+        sh:path     arch-vis:labelExpression ;
+        sh:class    arch-vis:LabelExpression ;
+        sh:message  "labelExpression points to an arch-vis:LabelExpression."@en ;
+    ] ;
+    sh:property [
         sh:path     arch-vis:imagePosition ;
         sh:maxCount 1 ;
         sh:nodeKind sh:IRI ;
@@ -610,6 +617,11 @@ it.'''@en ;
 (arch-vis:AnchorSource, AnchorMiddle, AnchorTarget).'''@en ;
     ] ;
     sh:property [
+        sh:path     arch-vis:labelExpression ;
+        sh:class    arch-vis:LabelExpression ;
+        sh:message  "labelExpression points to an arch-vis:LabelExpression."@en ;
+    ] ;
+    sh:property [
         sh:path     arch-vis:nestedEnd ;
         sh:maxCount 2 ;
         sh:in       ( arch-vis:SourceEnd arch-vis:TargetEnd ) ;
@@ -705,5 +717,45 @@ for renderers that cannot draw it.'''@en ;
         sh:maxCount 1 ;
         sh:datatype xsd:string ;
         sh:message  'arch-vis:labelBox is a single "x y width height" string.'@en ;
+    ] ;
+.
+
+
+#################################################################
+# Label expressions (core-vis 0.7)
+#
+# What a label says, as text with placeholders: one expression, a string,
+# and at most one notation set it applies in. A notation set may give one
+# for every concept it draws.
+#################################################################
+
+:LabelExpressionShape
+    a              sh:NodeShape ;
+    sh:targetClass arch-vis:LabelExpression ;
+    rdfs:label     "LabelExpression shape"@en ;
+    sh:property [
+        sh:path     arch-vis:expression ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "A LabelExpression has exactly one arch-vis:expression, a string: the label's text with its {…} placeholders."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:inNotationSet ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:NotationSet ;
+        sh:message  "A LabelExpression applies in at most one NotationSet (arch-vis:inNotationSet); with none, in all."@en ;
+    ] ;
+.
+
+:NotationSetLabelShape
+    a              sh:NodeShape ;
+    sh:targetClass arch-vis:NotationSet ;
+    rdfs:label     "NotationSet label expression shape"@en ;
+    sh:property [
+        sh:path     arch-vis:labelExpression ;
+        sh:class    arch-vis:LabelExpression ;
+        sh:message  "labelExpression points to an arch-vis:LabelExpression."@en ;
     ] ;
 .

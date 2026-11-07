@@ -17,7 +17,7 @@ export type AppearanceKind = 'element' | 'relationship' | 'connector' | FigureKi
 /** A line from a note's own: its style and its ends — a relationship's are its notation's, which say what it is. */
 const LINE_KEYS: readonly AppearanceKey[] = ['lineStyle', 'sourceDecor', 'targetDecor', 'labelAnchor'];
 /** A node's picture: the Image tab's. */
-export const IMAGE_KEYS: readonly AppearanceKey[] = ['image', 'imagePosition'];
+export const IMAGE_KEYS: readonly AppearanceKey[] = ['image', 'imagePosition', 'iconSymbol'];
 /** What the Appearance tab sets for a shape: all but the figure and the picture, which have tabs of their own, and a line's own. */
 const LOOK_KEYS = APPEARANCE_KEYS.filter(
   (key) => key !== 'renderingMode' && key !== 'shapeType' && !LINE_KEYS.includes(key) && !IMAGE_KEYS.includes(key),
@@ -39,6 +39,25 @@ export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]>
   connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor', 'labelAnchor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
 };
 
+/**
+ * The Label tab: what the first one's label says (core-vis 0.7's label
+ * expressions) in the notation set in use — the presentation's — and in
+ * every set; what its notation says where it says nothing of its own; what it
+ * shows now, and what the expression in force cannot read.
+ */
+export interface LabelChoices {
+  notationSet?: string;
+  notationSetLabel?: string;
+  /** Its own expression for the set in use, and for every set. */
+  forSet?: string;
+  forEvery?: string;
+  /** Its type's notation's, or the set's: what it says without one of its own. */
+  inherited?: string;
+  /** What its label shows now. */
+  shown: string;
+  errors: string[];
+}
+
 /** What may have a picture drawn in it: an element's placement and the figures — not a line. */
 export const IMAGE_KINDS: readonly AppearanceKind[] = ['element', 'shape', 'note', 'group'];
 
@@ -46,6 +65,10 @@ export const IMAGE_KINDS: readonly AppearanceKind[] = ['element', 'shape', 'note
 export interface ImageChoices {
   image?: string;
   position: ImagePosition;
+  /** Drawn as the figure — its own icon (`arch-vis:iconSymbol`, `IconCentric`) — not inside it. */
+  asFigure?: boolean;
+  /** Whether it may be: elements only — a figure has no icon to stand in for. */
+  canBeFigure: boolean;
   /** Every picture any style of the model draws, to pick from. */
   used: string[];
 }
@@ -65,8 +88,12 @@ export interface FigureOption {
   notation?: boolean;
   /** One of the notation's other figures (`arch-vis:alternativeStyle`), by its shape's IRI. */
   shapeIri?: string;
-  /** What choosing it writes on each one selected: its shape and mode — none of either for the notation's own. */
-  changes: { renderingMode: FigureMode | null; shapeType: string | null };
+  /**
+   * What choosing it writes on each one selected: its shape and mode — none of
+   * either for the notation's own — and, drawn as its own picture now, no
+   * picture as its icon.
+   */
+  changes: { renderingMode: FigureMode | null; shapeType: string | null; iconSymbol?: null };
   /** Its preview: the glyph alone, or an outline 72 × 40 — its inner lines, its glyph as a badge or none. */
   preview: { icon: true } | { outline: string; details?: string; badge: boolean; dashed: boolean };
 }
@@ -79,7 +106,7 @@ export interface FigureOption {
  */
 export interface FigureChoices {
   options: FigureOption[];
-  /** The one the first selected is drawn as: an index into {@link options}. */
+  /** The one the first selected is drawn as: an index into {@link options}; -1 drawn as its own picture (the Image tab). */
   selected: number;
   /** For the previews: the glyph, and the first one's fill and line colours. */
   iconHref: string;
@@ -93,6 +120,8 @@ export interface AppearanceSelection {
   figure?: FigureChoices;
   /** The Image tab's, for elements and figures. */
   image?: ImageChoices;
+  /** The Label tab's, for elements. */
+  label?: LabelChoices;
   /** What the first one sets on its own style. */
   own: Appearance;
   /** What the first one is drawn with where it sets nothing: its notation's, or la-gram's. */

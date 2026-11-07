@@ -326,6 +326,17 @@ describe('a picture drawn in a node (the Image tab)', () => {
     expect(image(drawElement({ image: 'https://example.org/missing.png' }))).toBeNull();
   });
 
+  it('as the figure: a placement’s own icon drawn as its notation’s glyph would be — as it is, not in the icon colour', () => {
+    const shape = drawElement({ iconSymbol: LOGO, renderingMode: 'IconCentric', iconColor: '#7a0019' });
+    expect(shape.getAttribute('data-rendering-mode')).toBe('IconCentric');
+    const icon = shape.querySelector(`.${RENDER_CLASSES.icon}`)!;
+    expect([icon.getAttribute('href'), icon.getAttribute('data-own-icon'), icon.getAttribute('filter')]).toEqual([LOGO, 'true', null]);
+    harness!.destroy();
+    // As its badge, with the shape: its own picture in the glyph's place.
+    const badged = drawElement({ iconSymbol: LOGO, renderingMode: 'ShapeWithBadge' });
+    expect(badged.querySelector(`.${RENDER_CLASSES.badge}`)?.getAttribute('href')).toBe(LOGO);
+  });
+
   it('not with "Notation only" — it is the placement’s own look; a figure’s, always', () => {
     rememberImageSize(LOGO, { width: 40, height: 20 });
     expect(image(drawElement({ image: LOGO }, { relationshipNames: false, notationOnly: true }))).toBeNull();

@@ -1,6 +1,6 @@
 # la-gram — Copy / paste on the canvas (spec draft)
 
-Status: draft, 2026-11-07 · Target: la-gram 0.2
+Status: draft, 2026-11-07 (open questions settled) · Target: la-gram 0.2
 
 ## 1. Problem
 
@@ -41,7 +41,7 @@ Written to the system clipboard as two flavours: `web application/x-la-gram+n-tr
 **As copies**
 - Mint a new IRI for every element, relationship, node and link (`mintIri(namespace, kind)`), with a consistent old→new IRI map so internal references (relationship ends, link ends, nesting) are rewritten.
 - Labels unchanged (no "Copy of …"; Archi adds that and users remove it). Configurable later.
-- Properties copied as-is, except any whose metamodel property is marked identifying (e.g. an external ID). Those are dropped and listed in the toast. Use SHACL `sh:maxCount 1` plus a metamodel annotation, or a hard-coded list in v1.
+- **Only type, name (`skos:prefLabel`) and documentation are copied.** Every other property is dropped, so a copy never carries over an external ID, an owner or a status that belongs to the original. The toast says how many properties were left out. (References keep everything, because they are the same element.)
 
 **As references**
 - Only geometry is new: `addElementToView(view, element, bounds, { another: true })` for each element, then `addRelationshipsToView` for the copied relationships, which already exist in the model.
@@ -50,6 +50,8 @@ Written to the system clipboard as two flavours: `web application/x-la-gram+n-tr
 **Across models** (a different model open, or another la-gram window)
 - References are impossible, so the paste is always as copies into the target namespace.
 - **Type check against the target's metamodels:** an element whose type is not loaded is pasted as *unclassified* (or skipped, per a dialog); a relationship the target's relationship shapes don't allow is skipped and listed. This reuses the same rules as connect / change type.
+
+**From the model tree** (v1): copying elements or relationships in the tree puts the same fragment on the clipboard, without geometry. Pasting into a view places them at the pointer, at each notation's default size, in the 6-column grid (`grid-layout.ts`, or ELK once that lands), together with the copied relationships whose two ends are pasted. The paste-mode rules are the same as for the canvas.
 
 **Pasting plain RDF** (text/plain Turtle from outside): out of scope for v1; the RDF panel / import already handles that path.
 
@@ -81,12 +83,12 @@ Written to the system clipboard as two flavours: `web application/x-la-gram+n-tr
 - Integration: `model-session.test` (`paste` in each mode, undo, collab single change).
 - Browser (`workbench.spec`): Ctrl/Cmd+C / V between two views, Ctrl/Cmd+D, cut, right-click menu entries.
 
-## 8. Open questions
+## 8. Decisions (2026-11-07)
 
-1. Is "same view → copies, other view → references" the right default, or should Ctrl/Cmd+V always reference (the RDF-first view) and only Shift give copies?
-2. Should copied elements be filed into the source's folder in the target (same model only)?
-3. Which properties count as identifying and are dropped on copy?
-4. Copy from the model tree (not just the canvas) into a view: same payload, so cheap to add. v1 or v2?
+1. **Default paste: the context rule.** Ctrl/Cmd+V makes copies in the same view and reuses the existing elements in another view of the same model. Shift forces copies and Alt forces references.
+2. **Copies keep type, name and documentation only.** All other properties are dropped. References are unaffected.
+3. **Copy from the model tree into a view is in v1** (§4).
+4. Still open: should copies be filed into the original's folder (same model only)? Default for v1: yes, the same folder, because it is cheap and matches what a user expects.
 
 ## 9. Estimate
 
@@ -96,5 +98,6 @@ Written to the system clipboard as two flavours: `web application/x-la-gram+n-tr
 | diagram-js copyPaste hooks, keyboard, menus | 1 d |
 | Modes, cross-model metamodel checks | 1–1.5 d |
 | System clipboard flavours + fallback (web / Electron) | 0.5–1 d |
+| Copy from the model tree | 0.5 d |
 | Tests and docs | 1.5 d |
-| **Total** | **~5–6.5 days** (estimate) |
+| **Total** | **~5.5–7 days** (estimate) |

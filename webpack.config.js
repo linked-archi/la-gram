@@ -3,6 +3,8 @@ import { fileURLToPath } from 'url';
 import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
+import { createHash } from 'crypto';
+import { readdirSync, readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +46,30 @@ const sharedExperiments = { asyncWebAssembly: true };
 const buildFlags = () =>
   new webpack.DefinePlugin({
     __LA_GRAM_GIT__: JSON.stringify(process.env.LA_GRAM_GIT !== 'off'),
+    __LA_GRAM_ASSETS_VERSION__: JSON.stringify(assetsVersion()),
   });
+
+/**
+ * A digest of every bundled asset — names and contents — that `assetUrl` puts
+ * on each asset's address (`?v=…`). The static servers send no cache headers,
+ * so a browser may draw a glyph or a picture from its cache after the file
+ * changed; a build with other assets gives them other addresses, and the same
+ * assets keep theirs.
+ */
+function assetsVersion() {
+  const root = path.resolve(__dirname, 'assets');
+  const hash = createHash('sha256');
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+      if (entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else hash.update(path.relative(root, full)).update('\0').update(readFileSync(full)).update('\0');
+    }
+  };
+  walk(root);
+  return hash.digest('hex').slice(0, 12);
+}
 
 /**
  * The deployment's configuration (`src/config.ts`, Req 19.1): with

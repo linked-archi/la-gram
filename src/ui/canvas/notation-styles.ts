@@ -59,9 +59,17 @@ export class NotationStyleRegistry {
   /** Re-index from a freshly generated palette. */
   /** How many times the styles were replaced: what was drawn from older ones is stale. */
   version = 0;
+  /** The notation set in use — the presentation's, else the metamodel's — and its name. */
+  activeNotationSet: string | undefined;
+  activeNotationSetLabel: string | undefined;
+  /** What that set says every label says, where nothing else does. */
+  private setLabelExpression: string | undefined;
 
   update(paletteDefinition: PaletteDefinition): void {
     this.version++;
+    this.activeNotationSet = paletteDefinition.notationSetIri;
+    this.activeNotationSetLabel = paletteDefinition.notationSetLabel;
+    this.setLabelExpression = paletteDefinition.notationSetLabelExpression;
     this.elements = new Map();
     this.relationships = new Map();
     this.index = new Map(Object.entries(paletteDefinition.notationIndex ?? {}));
@@ -136,6 +144,15 @@ export class NotationStyleRegistry {
     }
     const entry = this.indexEntry(typeIri);
     return entry?.renderingMode ?? effectiveRenderingMode(entry?.style);
+  }
+
+  /**
+   * What the label of an element of `typeIri` says, by its notation: the
+   * type's notation's expression (inherited as its style is), else the set's —
+   * `undefined` for its name alone.
+   */
+  labelExpressionFor(typeIri: string | undefined): string | undefined {
+    return this.styleFor(typeIri)?.labelExpression ?? this.setLabelExpression;
   }
 
   /** Display label for an element type, when the palette knows it. */

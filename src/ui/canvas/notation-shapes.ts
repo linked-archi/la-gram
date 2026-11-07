@@ -676,6 +676,15 @@ export function wrapLabel(
   maxLines: number = NOTATION_DEFAULTS.maxLabelLines,
   font?: string,
 ): string[] {
+  // A label of several lines — what a label expression says — each wrapped on its own.
+  if (label.includes('\n')) {
+    const lines: string[] = [];
+    for (const paragraph of label.split('\n')) {
+      if (lines.length >= maxLines) break;
+      lines.push(...wrapLabel(paragraph, availableWidth, fontSize, maxLines - lines.length, font));
+    }
+    return lines;
+  }
   const text = label.trim();
   if (text === '') return [];
   if (font) {
