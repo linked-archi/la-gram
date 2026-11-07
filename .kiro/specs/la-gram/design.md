@@ -1660,6 +1660,9 @@ values are named, written and read:
 | `fontStyle` | `arch-vis:fontStyle` (0.7) | `bold`, `italic`, `underline`, separated by spaces, in that order |
 | `textAlignment` | `arch-vis:textAlignment` (0.7) | `arch-vis:AlignLeft`, `AlignCenter`, `AlignRight` |
 | `textPosition` | `arch-vis:textPosition` (0.7) | `arch-vis:PositionTop`, `PositionMiddle`, `PositionBottom` |
+| `labelAnchor` | `arch-vis:labelAnchor` (0.7) | `arch-vis:AnchorSource`, `AnchorMiddle`, `AnchorTarget`: where along a line its text sits |
+| `image` | `arch-vis:image` (0.7) | an `xsd:anyURI` literal: an http(s) URL or a `data:image/…` URI (`imageUri`), nothing else written or read |
+| `imagePosition` | `arch-vis:imagePosition` (0.7) | an `arch-vis:IconPlacement`: `TopLeft` … `BottomRight`, `Fill` |
 
 A colour is read as meant (`cssColour`): core-vis says a CSS colour string, its
 alpha CSS's (0–1, said in so many words since 0.7), but the ArchiMate converter
@@ -1765,9 +1768,49 @@ selection (priority 2000) takes the click: the first picks the clicked thing's
 own look (`appearanceOfDrawn`), each after writes it to the clicked one with
 `setAppearance` inside one `recordChange` — every field of
 `APPEARANCE_FIELDS[kind]`, `null` where the picked look has none, so the target
-takes its default there; `renderingMode` and `shapeType`, the *Figure* tab's, are
-in no kind's fields and stay as they are. Esc (`keyboard.keydown`), the button
-again, or another view (`showView`) puts it down.
+takes its default there; `renderingMode` and `shapeType`, the *Figure* tab's, and
+`image` and `imagePosition`, the *Image* tab's, are in no kind's fields and stay
+as they are. Esc (`keyboard.keydown`), the button again, or another view
+(`showView`) puts it down.
+
+**Where a line's text sits.** `labelAnchor` is a field of a relationship's line
+and a line from a note (`APPEARANCE_FIELDS`), shown as three buttons in its own
+row; its default is the notation's (`extractRelationshipStyle` reads
+`arch-vis:labelAnchor` off the relationship type's notation or its default
+style), else the middle (`lineDefaults`). `connectionLabelLayout`'s `anchor`
+puts the text, when it has not been moved by hand, centred on the route clear of
+the end it names (`anchoredAt`: as far along the route as the box reaches along
+the end's segment — half its width level, half its height upright — and 8
+units, no further than the middle; `pointAlong`); `drawnConnectionLabel` takes
+the line's own anchor over the notation's (its second argument, the notation's
+look for the name: `fontSize`, `labelAnchor`), the own one left out with
+*Notation only* for a relationship. A text moved by hand is an offset from the
+route's middle whatever the anchor, so it stays put when the anchor or *Notation
+only* changes; `setAppearance` given another anchor drops the link's
+`arch-vis:LabelNode`, so a name moved by hand goes to the place chosen — the
+same anchor again (the format painter's) leaves it. *Move name back to its
+place* (right-click) drops it too.
+
+**Pictures (the Image tab).** For an element's placement or a figure — every
+one selected (`IMAGE_KINDS`) — `selectedAppearance` adds `image`
+(`ImageChoices`: the first one's picture and position, and
+`ViewManager.usedImages()`, every `arch-vis:image` of the model once each). The
+panel's `_renderImage` shows a preview, the address (an `https://`… or
+`data:image/…`; `imageUri` refuses any other where it is typed, the field saying
+so, and `setAppearance` ignores a value that is not one of its key's rather than
+take the old one away), the position (`IMAGE_POSITIONS`, disabled with no
+picture), *Remove image* (both keys `null`) and the model's pictures to pick —
+each an `appearance-change`, so one undoable step for every one selected.
+`RdfRenderer.drawImage` draws it in each kind's area — the node inset by 3
+units, a group's below its tab, an element drawn as its icon the whole node —
+over the fill (after the gradient), under the glyph and the text: at
+`imageBox`, its own size made smaller to fit, placed by the position's row and
+column, `preserveAspectRatio` aligned to match; at `Fill`, the whole area,
+`none`. Its own size comes from loading it once (`new Image()`, a module-level
+cache by address, `rememberImageSize` for tests); until then it is not drawn,
+and the elements waiting for it are redrawn (`element.changed`) when it loads;
+one that fails is never drawn. A placement's picture is its own look, so
+*Notation only* leaves it out; a figure's is always drawn.
 
 **In-place renaming.** `RdfRenderer.drawnLook(element)` is the look a name is
 drawn with now — a figure's own, from a note's or a group's top left — and

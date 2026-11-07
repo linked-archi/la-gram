@@ -11,7 +11,14 @@ import type { ElementTypeInfo } from '../../../metamodel-manager/interfaces.js';
 import { effectiveRenderingMode } from '../../../metamodel-manager/notation.js';
 import type { Appearance } from '../../../model-manager/appearance.js';
 import { NOTATION_DEFAULTS } from '../notation-shapes.js';
-import { RENDER_CLASSES, type RenderOptions } from '../rdf-renderer.js';
+import {
+  RENDER_CLASSES,
+  connectionLabelLayout,
+  drawnConnectionLabel,
+  imageBox,
+  rememberImageSize,
+  type RenderOptions,
+} from '../rdf-renderer.js';
 import { createRenderHarness, paletteWith, type RenderHarness } from './render-harness.js';
 
 const TYPE_IRI = 'https://example.org/mm#Component';
@@ -231,6 +238,103 @@ describe('a line drawn with its own look', () => {
       appearance: { lineColor: '#7a0019', lineWidth: 3 },
     });
     expect([line.getAttribute('stroke'), line.getAttribute('stroke-width')]).toEqual(['#7a0019', '3']);
+  });
+});
+
+describe('where a line’s text sits along it (arch-vis:labelAnchor)', () => {
+  const route = [
+    { x: 0, y: 0 },
+    { x: 300, y: 0 },
+  ];
+  const centre = (layout: ReturnType<typeof connectionLabelLayout>) => layout!.box.x + layout!.box.width / 2;
+
+  it('at the middle, or clear of an end — as far in as the text reaches, and a gap; moved, where it was put', () => {
+    const middle = connectionLabelLayout(route, 'pays', {})!;
+    expect(centre(middle)).toBeCloseTo(150);
+    const half = middle.box.width / 2;
+    expect(centre(connectionLabelLayout(route, 'pays', { anchor: 'source' }))).toBeCloseTo(half + 8);
+    expect(centre(connectionLabelLayout(route, 'pays', { anchor: 'target' }))).toBeCloseTo(300 - half - 8);
+    // Upright: as far in as it is high.
+    const upright = connectionLabelLayout(
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 300 },
+      ],
+      'pays',
+      { anchor: 'source' },
+    )!;
+    expect(upright.box.y + upright.box.height / 2).toBeCloseTo(upright.box.height / 2 + 8);
+    // A line too short for it: at its middle.
+    const short = [
+      { x: 0, y: 0 },
+      { x: 20, y: 0 },
+    ];
+    expect(centre(connectionLabelLayout(short, 'pays', { anchor: 'target' }))).toBeCloseTo(10);
+    // Moved by hand: from the middle, wherever it is anchored.
+    expect(centre(connectionLabelLayout(route, 'pays', { anchor: 'source', offset: { x: 40, y: -20 } }))).toBeCloseTo(190);
+  });
+
+  it('the line’s own, else its notation’s; with "Notation only", a relationship’s notation’s — a line from a note’s its own', () => {
+    const line = (kind: 'relationship' | 'connector', labelAnchor?: 'source' | 'target') => ({
+      waypoints: route,
+      businessObject: { iri: 'https://example.org/model/r1', typeIri: '', kind, label: 'pays', named: true, ...(labelAnchor ? { appearance: { labelAnchor } } : {}) },
+    });
+    const at = (layout: ReturnType<typeof drawnConnectionLabel>) => Math.round(centre(layout));
+    const shown: RenderOptions = { relationshipNames: true };
+    expect(at(drawnConnectionLabel(line('relationship', 'source'), shown, { labelAnchor: 'target' }))).toBeLessThan(150);
+    expect(at(drawnConnectionLabel(line('relationship'), shown, { labelAnchor: 'target' }))).toBeGreaterThan(150);
+    expect(at(drawnConnectionLabel(line('relationship', 'source'), { ...shown, notationOnly: true }))).toBe(150);
+    expect(at(drawnConnectionLabel(line('connector', 'source'), { relationshipNames: false, notationOnly: true }))).toBeLessThan(150);
+  });
+});
+
+describe('a picture drawn in a node (the Image tab)', () => {
+  const LOGO = 'https://example.org/logo.png';
+  const WIDE = 'https://example.org/wide.png';
+  const image = (shape: SVGElement) => shape.querySelector(`.${RENDER_CLASSES.image}`);
+  const boxOf = (el: Element | null) => ['x', 'y', 'width', 'height'].map((a) => Number(el?.getAttribute(a)));
+
+  it('at its own size, in the corner or at the side it names, inside the outline; over the fill, under the text', () => {
+    rememberImageSize(LOGO, { width: 40, height: 20 });
+    const shape = drawElement({ image: LOGO, imagePosition: 'BottomRight' });
+    const drawn = image(shape)!;
+    // 160 × 80 less 3 all round: its bottom right corner at (157, 77).
+    expect(boxOf(drawn)).toEqual([117, 57, 40, 20]);
+    expect(drawn.getAttribute('href')).toBe(LOGO);
+    expect(drawn.getAttribute('data-image-position')).toBe('BottomRight');
+    const order = [...shape.children];
+    expect(order.indexOf(body(shape))).toBeLessThan(order.indexOf(drawn));
+    expect(order.indexOf(drawn)).toBeLessThan(order.indexOf(label(shape)));
+    // Top left when it says nothing.
+    harness!.destroy();
+    expect(boxOf(image(drawElement({ image: LOGO })))).toEqual([3, 3, 40, 20]);
+  });
+
+  it('made smaller to fit — never larger — or filling the node; a picture not loaded, not drawn', () => {
+    rememberImageSize(WIDE, { width: 400, height: 100 });
+    expect(imageBox({ x: 3, y: 3, width: 154, height: 74 }, 'Center', { width: 400, height: 100 })).toEqual({ x: 3, y: 20.75, width: 154, height: 38.5 });
+    expect(boxOf(image(drawElement({ image: WIDE, imagePosition: 'MiddleLeft' })))).toEqual([3, 20.75, 154, 38.5]);
+    harness!.destroy();
+    // Filling it, at any size: the picture stretched to the node.
+    const filled = image(drawElement({ image: 'https://example.org/unknown-size.png', imagePosition: 'Fill' }))!;
+    expect([...boxOf(filled), filled.getAttribute('preserveAspectRatio')]).toEqual([3, 3, 154, 74, 'none']);
+    harness!.destroy();
+    // Its size not known — loading, which jsdom never finishes — or not loading at all: nothing yet.
+    expect(image(drawElement({ image: 'https://example.org/unknown-size.png' }))).toBeNull();
+    harness!.destroy();
+    rememberImageSize('https://example.org/missing.png', null);
+    expect(image(drawElement({ image: 'https://example.org/missing.png' }))).toBeNull();
+  });
+
+  it('not with "Notation only" — it is the placement’s own look; a figure’s, always', () => {
+    rememberImageSize(LOGO, { width: 40, height: 20 });
+    expect(image(drawElement({ image: LOGO }, { relationshipNames: false, notationOnly: true }))).toBeNull();
+    harness!.destroy();
+    const note = boot({ relationshipNames: false, notationOnly: true }).drawShape(
+      { iri: 'https://example.org/model/n1', typeIri: '', kind: 'figure', label: 'n', figure: { kind: 'note', image: LOGO, imagePosition: 'TopRight' } },
+      { width: 185, height: 80 },
+    );
+    expect(boxOf(image(note))).toEqual([142, 3, 40, 20]);
   });
 });
 

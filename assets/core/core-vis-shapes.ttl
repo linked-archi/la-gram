@@ -49,9 +49,10 @@ must belong to exactly one view); the remainder is cardinality and datatype hygi
     owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.2.0#> ;
     skos:historyNote              '''0.3.0 — StyleShape checks the style terms core-vis 0.7 adds:
 lineWidth a positive integer, fontStyle the keywords bold, italic and underline, textAlignment,
-textPosition and gradient members of their enumerations, iconColor a single string — and, as a
-line's own style may now say them, lineStyle, sourceDecor and targetDecor members of theirs. A
-VisualNotation's arch-vis:alternativeStyle is a Style.
+textPosition and gradient members of their enumerations, iconColor a single string, image a single
+xsd:anyURI, imagePosition an IconPlacement, labelAnchor a LabelAnchor — and, as a line's own style
+may now say them, lineStyle, sourceDecor and targetDecor members of theirs. A VisualNotation's
+arch-vis:alternativeStyle is a Style.
 
 0.2.0 — LinkShape accepts a Link as well as a Node at either end of
 a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
@@ -499,6 +500,29 @@ separated by spaces, e.g. "bold italic".'''@en ;
         sh:message  "iconColor is a single CSS colour string."@en ;
     ] ;
     sh:property [
+        sh:path     arch-vis:image ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message  "image is a single xsd:anyURI: an http(s) URL, or a data: URI of an image."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:imagePosition ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:IconPlacement ;
+        sh:message  '''imagePosition must be a single member of the IconPlacement enumeration
+(arch-vis:TopLeft, TopCenter, TopRight, MiddleLeft, Center, MiddleRight, BottomLeft, BottomCenter,
+BottomRight, Fill).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:labelAnchor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LabelAnchor ;
+        sh:message  '''labelAnchor must be a single member of the LabelAnchor enumeration
+(arch-vis:AnchorSource, AnchorMiddle, AnchorTarget).'''@en ;
+    ] ;
+    sh:property [
         sh:path     arch-vis:lineStyle ;
         sh:maxCount 1 ;
         sh:nodeKind sh:IRI ;
@@ -576,6 +600,14 @@ it.'''@en ;
         sh:path     arch-vis:alternativeStyle ;
         sh:class    arch-vis:Style ;
         sh:message  "arch-vis:alternativeStyle points to an arch-vis:Style: another figure the concept may be drawn as."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:labelAnchor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LabelAnchor ;
+        sh:message  '''labelAnchor must be a single member of the LabelAnchor enumeration
+(arch-vis:AnchorSource, AnchorMiddle, AnchorTarget).'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:nestedEnd ;

@@ -842,25 +842,40 @@ export class OxigraphViewManager implements ViewManager {
     if (!this.readNode(subject) && !this.objects(subject, T.rdfType).includes(IRI.Link)) return;
     const keys = APPEARANCE_KEYS.filter((key) => changes[key] !== undefined);
     if (keys.length === 0) return;
+    // A line's text put somewhere else along it: no longer where it was moved by hand.
+    if (keys.includes('labelAnchor') && (this.appearanceOf(subject)?.labelAnchor ?? null) !== (changes.labelAnchor ?? null)) {
+      this.remove(this.labelNodeQuads(subject));
+    }
     const style = this.ownStyle(subject);
     for (const key of keys) {
       const predicate = nn(APPEARANCE_PREDICATES[key]);
-      this.remove(this.read(style, predicate));
       const value = changes[key];
       const object = value === null || value === undefined ? undefined : appearanceObject(key, value);
+      // A value that is not one of the key's — a picture's address that is none — changes nothing.
+      if (value !== null && !object) continue;
+      this.remove(this.read(style, predicate));
       if (!object) continue;
       const term =
         'iri' in object
           ? nn(object.iri)
           : 'integer' in object
             ? DataFactory.literal(String(object.integer), nn(NAMESPACES.xsd + 'integer'))
-            : DataFactory.literal(object.string);
+            : 'uri' in object
+              ? DataFactory.literal(object.uri, nn(NAMESPACES.xsd + 'anyURI'))
+              : DataFactory.literal(object.string);
       this.store.addQuads([triple(style, predicate, term)]);
     }
     // Nothing left to say: no style at all, as before anything was set.
     if (this.read(style).every((q) => q.predicate.value === IRI.rdfType)) {
       this.remove([...this.read(style), ...this.read(subject, T.visStyle, style)]);
     }
+  }
+
+  usedImages(): string[] {
+    const images = this.read(null, nn(APPEARANCE_PREDICATES.image))
+      .map((q) => appearanceValue('image', q.object))
+      .filter((uri): uri is string => uri !== undefined);
+    return [...new Set(images)].sort();
   }
 
   /** How a node or a link looks, from its own style; `undefined` when it sets nothing. */

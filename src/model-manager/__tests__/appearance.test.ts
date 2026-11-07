@@ -6,6 +6,7 @@ import {
   cssColour,
   fontStyleOf,
   hexColour,
+  imageUri,
   parseColour,
   sameAppearance,
   withAlpha,
@@ -61,5 +62,27 @@ describe('an appearance’s values, as core-vis writes them', () => {
     expect(appearanceValue('fillColor', literal('rgba(181,201,255,100)'))).toBe('#b5c9ff');
     expect(sameAppearance({ fillColor: '#ffffff' }, { fillColor: '#ffffff' })).toBe(true);
     expect(sameAppearance({ fillColor: '#ffffff' }, undefined)).toBe(false);
+  });
+
+  it('where a line’s text sits, and a node’s picture and where: core-vis 0.7’s members, a picture as an xsd:anyURI', () => {
+    expect(appearanceObject('labelAnchor', 'source')).toEqual({ iri: VIS + 'AnchorSource' });
+    expect(appearanceValue('labelAnchor', { termType: 'NamedNode', value: VIS + 'AnchorTarget' })).toBe('target');
+    expect(appearanceObject('imagePosition', 'BottomRight')).toEqual({ iri: VIS + 'BottomRight' });
+    expect(appearanceObject('imagePosition', 'Fill')).toEqual({ iri: VIS + 'Fill' });
+    expect(appearanceValue('imagePosition', { termType: 'NamedNode', value: VIS + 'MiddleLeft' })).toBe('MiddleLeft');
+    expect(appearanceObject('image', ' https://example.org/logo.png ')).toEqual({ uri: 'https://example.org/logo.png' });
+    expect(appearanceValue('image', { termType: 'Literal', value: 'https://example.org/logo.png' })).toBe('https://example.org/logo.png');
+    // An IRI object is not a picture's address as core-vis writes it.
+    expect(appearanceValue('image', { termType: 'NamedNode', value: 'https://example.org/logo.png' })).toBeUndefined();
+  });
+
+  it('a picture only from an http(s) URL or a data: URI of an image — nothing else is written or drawn', () => {
+    expect(imageUri('data:image/png;base64,iVBORw0KGgo=')).toBe('data:image/png;base64,iVBORw0KGgo=');
+    expect(imageUri('data:image/svg+xml,%3Csvg%3E')).toBe('data:image/svg+xml,%3Csvg%3E');
+    expect(imageUri('http://example.org/a.gif')).toBe('http://example.org/a.gif');
+    for (const refused of ['javascript:alert(1)', 'file:///etc/passwd', 'logo.png', 'data:text/html,<b>', '', '  ']) {
+      expect(imageUri(refused)).toBeUndefined();
+    }
+    expect(appearanceObject('image', 'javascript:alert(1)')).toBeUndefined();
   });
 });

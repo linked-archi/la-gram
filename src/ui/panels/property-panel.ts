@@ -36,8 +36,10 @@ import {
   type AppearanceChanges,
   type AppearanceKey,
   type FigureMode,
+  type ImagePosition,
+  imageUri,
 } from '../../model-manager/appearance.js';
-import type { AppearanceSelection, FigureChoices } from '../appearance-selection.js';
+import type { AppearanceSelection, FigureChoices, ImageChoices } from '../appearance-selection.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
@@ -222,6 +224,7 @@ const APPEARANCE_ROWS: ReadonlyArray<[string, string | undefined]> = [
   ['lineColor', 'lineWidth'],
   ['lineOpacity', 'borderStyle'],
   ['sourceDecor', 'targetDecor'],
+  ['labelAnchor', undefined],
   ['iconColor', undefined],
   ['textAlignment', 'textPosition'],
   ['font', 'fontColor'],
@@ -257,6 +260,26 @@ const POSITIONS: ReadonlyArray<[NonNullable<Appearance['textPosition']>, string,
   ['top', 'Top', 'M1.5 1.5h13v11h-13zM4 4h8M4 6.5h8'],
   ['middle', 'Middle', 'M1.5 1.5h13v11h-13zM4 6h8M4 8.5h8'],
   ['bottom', 'Bottom', 'M1.5 1.5h13v11h-13zM4 9h8M4 11.5h8'],
+];
+/** Where along a line its text sits: a box on the line near its start, at its middle, near its end. */
+const ANCHORS: ReadonlyArray<[NonNullable<Appearance['labelAnchor']>, string, string]> = [
+  ['source', 'Near its source', 'M1 7h14M2 4.5h5v5h-5z'],
+  ['middle', 'At its middle', 'M1 7h14M5.5 4.5h5v5h-5z'],
+  ['target', 'Near its target', 'M1 7h14M9 4.5h5v5h-5z'],
+];
+
+/** Where a picture may be drawn in a node. */
+const IMAGE_POSITIONS: ReadonlyArray<[ImagePosition, string]> = [
+  ['TopLeft', 'Top left'],
+  ['TopCenter', 'Top centre'],
+  ['TopRight', 'Top right'],
+  ['MiddleLeft', 'Middle left'],
+  ['Center', 'Centre'],
+  ['MiddleRight', 'Middle right'],
+  ['BottomLeft', 'Bottom left'],
+  ['BottomCenter', 'Bottom centre'],
+  ['BottomRight', 'Bottom right'],
+  ['Fill', 'Fill'],
 ];
 
 /** Predicates whose values are human text: edited with a language tag. */
@@ -527,7 +550,7 @@ function rowKey(entry: PropertyEntry): string {
 const ID_ROW = 'id';
 
 /** The panel's vertical tabs, top to bottom. */
-export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance' | 'figure';
+export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance' | 'figure' | 'image';
 
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
@@ -543,7 +566,7 @@ function storedRelationshipsOpen(): boolean {
   }
 }
 
-const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'figure'];
+const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'figure', 'image'];
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
 function storedTab(): PanelSection {
@@ -1014,6 +1037,96 @@ export class PropertyPanel extends LitElement {
 
     .figure-footer {
       padding: 0 12px;
+    }
+
+    /* The Image tab: the picture beside its address and position, then the model's pictures. */
+    .image-tab {
+      display: grid;
+      grid-template-columns: 128px minmax(0, 1fr);
+      gap: 8px 16px;
+      padding: 10px 12px;
+      max-width: 736px;
+    }
+
+    .image-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 128px;
+      height: 96px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: #fff;
+      color: #80868b;
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    .image-preview img {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .image-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .image-address {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .image-error {
+      color: #c5221f;
+      font-size: 12px;
+    }
+
+    .remove-image {
+      align-self: flex-start;
+    }
+
+    .image-used {
+      grid-column: 1 / -1;
+    }
+
+    .image-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .image-choice {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      padding: 2px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .image-choice[aria-pressed='true'] {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+    }
+
+    .image-choice img {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    @media (max-width: 480px) {
+      .image-tab {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .appearance-notice {
@@ -1776,7 +1889,11 @@ export class PropertyPanel extends LitElement {
             }}
           />%`,
       );
-    const segmented = <V extends string>(key: 'textAlignment' | 'textPosition', label: string, choices: ReadonlyArray<[V, string, string]>) =>
+    const segmented = <V extends string>(
+      key: 'textAlignment' | 'textPosition' | 'labelAnchor',
+      label: string,
+      choices: ReadonlyArray<[V, string, string]>,
+    ) =>
       field(
         key,
         label,
@@ -1878,6 +1995,7 @@ export class PropertyPanel extends LitElement {
       targetDecor: has('targetDecor') ? decoration('targetDecor', 'End arrowhead') : nothing,
       textAlignment: has('textAlignment') ? segmented('textAlignment', 'Text alignment', ALIGNMENTS) : nothing,
       textPosition: has('textPosition') ? segmented('textPosition', 'Text position', POSITIONS) : nothing,
+      labelAnchor: has('labelAnchor') ? segmented('labelAnchor', 'Text position', ANCHORS) : nothing,
       font: has('fontName')
         ? field(
             'font',
@@ -2009,6 +2127,94 @@ export class PropertyPanel extends LitElement {
         )}
       </div>
       ${count > 1 ? html`<div class="appearance-footer figure-footer"><span>Changes apply to the ${count} selected.</span></div>` : nothing}
+    `;
+  }
+
+  /** What was typed as a picture's address and is not one: said under the field, nothing written. */
+  @state() private _imageError = '';
+
+  /**
+   * The Image tab: the picture drawn in the selected — its address, typed or
+   * picked from the pictures the model already uses — and where in the node it
+   * is drawn; removed, none. An address that is not an http(s) URL or a
+   * `data:image/…` URI is refused where it is typed.
+   */
+  private _renderImage(choices: ImageChoices, count: number) {
+    const current = choices.image;
+    const setAddress = (input: HTMLInputElement) => {
+      const typed = input.value.trim();
+      if (!typed) {
+        this._imageError = '';
+        if (current) this._appearanceChange({ image: null, imagePosition: null });
+        return;
+      }
+      const uri = imageUri(typed);
+      if (!uri) {
+        this._imageError = 'An https:// address, or a data:image/… URI.';
+        return;
+      }
+      this._imageError = '';
+      if (uri !== current) this._appearanceChange({ image: uri });
+    };
+    return html`
+      <div class="image-tab">
+        <div class="image-preview" data-empty=${current ? nothing : 'true'}>
+          ${current ? html`<img src=${current} alt="The picture drawn" />` : html`<span>No image</span>`}
+        </div>
+        <div class="image-fields">
+          <label class="appearance-field" data-field="image">
+            <span class="field-label">Address</span>
+            <span class="controls">
+              <input
+                class="image-address"
+                type="url"
+                placeholder="https://… or data:image/…"
+                aria-label="Picture address"
+                .value=${live(current ?? '')}
+                @change=${(e: Event) => setAddress(e.target as HTMLInputElement)}
+              />
+            </span>
+          </label>
+          ${this._imageError ? html`<div class="image-error" role="alert">${this._imageError}</div>` : nothing}
+          <label class="appearance-field" data-field="imagePosition">
+            <span class="field-label">Position</span>
+            <span class="controls">
+              <select
+                aria-label="Picture position"
+                ?disabled=${!current}
+                @change=${(e: Event) => this._appearanceChange({ imagePosition: (e.target as HTMLSelectElement).value as ImagePosition })}
+              >
+                ${IMAGE_POSITIONS.map(([value, name]) => html`<option value=${value} ?selected=${choices.position === value}>${name}</option>`)}
+              </select>
+            </span>
+          </label>
+          ${current
+            ? html`<button class="remove-image" @click=${() => this._appearanceChange({ image: null, imagePosition: null })}>Remove image</button>`
+            : nothing}
+        </div>
+        ${choices.used.length > 0
+          ? html`<div class="image-used">
+              <span class="field-label">Pictures in this model</span>
+              <div class="image-grid">
+                ${choices.used.map(
+                  (uri) => html`<button
+                    type="button"
+                    class="image-choice"
+                    title=${uri.startsWith('data:') ? 'A picture kept in the model' : uri}
+                    aria-pressed=${uri === current ? 'true' : 'false'}
+                    @click=${() => {
+                      this._imageError = '';
+                      if (uri !== current) this._appearanceChange({ image: uri });
+                    }}
+                  >
+                    <img src=${uri} alt="" />
+                  </button>`,
+                )}
+              </div>
+            </div>`
+          : nothing}
+        ${count > 1 ? html`<div class="appearance-footer"><span>Changes apply to the ${count} selected.</span></div>` : nothing}
+      </div>
     `;
   }
 
@@ -2152,6 +2358,7 @@ export class PropertyPanel extends LitElement {
           ]),
       ...(appearance ? [{ id: 'appearance' as const, title: 'Appearance' }] : []),
       ...(appearance?.figure ? [{ id: 'figure' as const, title: 'Figure' }] : []),
+      ...(appearance?.image ? [{ id: 'image' as const, title: 'Image' }] : []),
     ];
     // A remembered tab this concept does not have (a model has no analysis) falls back.
     const remembered = this._tab ?? 'info';
@@ -2183,6 +2390,8 @@ export class PropertyPanel extends LitElement {
             ? this._renderAppearance(appearance)
             : active === 'figure' && appearance?.figure
               ? this._renderFigureChoices(appearance.figure, appearance.targets.length)
+            : active === 'image' && appearance?.image
+              ? this._renderImage(appearance.image, appearance.targets.length)
             : active === 'info' && drawing === 'figure'
               ? this._renderFigureText()
               : active === 'info' && drawing === 'line' && this.heading?.line

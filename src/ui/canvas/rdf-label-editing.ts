@@ -395,6 +395,7 @@ export class RdfLabelEditingProvider {
       badge: !!businessObject?.derivation,
       offset: businessObject?.labelOffset,
       ...(look.fontSize ? { fontSize: look.fontSize } : {}),
+      ...(look.labelAnchor ? { anchor: look.labelAnchor } : {}),
     });
     if (!layout) return null;
     const zoom = this.canvas.zoom();

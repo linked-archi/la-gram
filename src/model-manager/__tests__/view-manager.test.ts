@@ -862,6 +862,40 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(views.getNode(view, second)?.appearance).toEqual({ fillColor: '#ffd6e0' });
   });
 
+  it('a picture, as an xsd:anyURI, and where; the pictures the model uses, once each', () => {
+    views.setAppearance(view, first, { image: 'https://example.org/logo.png', imagePosition: 'BottomRight' });
+    views.setAppearance(view, second, { image: 'https://example.org/logo.png' });
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setAppearance(view, note, { image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
+    expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'image'))[0]?.object).toMatchObject({
+      value: 'https://example.org/logo.png',
+      datatype: { value: XSD + 'anyURI' },
+    });
+    expect(objects(store, `${first}-style`, VIS_NS + 'imagePosition')).toEqual([VIS_NS + 'BottomRight']);
+    expect(views.getNode(view, first)?.appearance).toEqual({ image: 'https://example.org/logo.png', imagePosition: 'BottomRight' });
+    expect(views.getNode(view, note)?.figure).toMatchObject({ image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
+    expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png']);
+    // A picture's address that is none is not written — and takes nothing away.
+    views.setAppearance(view, second, { image: 'javascript:alert(1)' as never });
+    expect(views.getNode(view, second)?.appearance).toEqual({ image: 'https://example.org/logo.png' });
+  });
+
+  it('where a line’s text sits; set elsewhere, a name moved by hand is no longer where it was put', () => {
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: first })!;
+    const moved = { x: 140, y: 20, width: 40, height: 16 };
+    views.setLinkLabel(view, link, moved);
+    views.setAppearance(view, link, { lineWidth: 2 });
+    expect(views.getLinks(view)[0]?.label).toEqual(moved);
+    views.setAppearance(view, link, { labelAnchor: 'target' });
+    expect(objects(store, `${link}-style`, VIS_NS + 'labelAnchor')).toEqual([VIS_NS + 'AnchorTarget']);
+    expect(views.getLinks(view)[0]).toMatchObject({ appearance: { lineWidth: 2, labelAnchor: 'target' } });
+    expect(views.getLinks(view)[0]?.label).toBeUndefined();
+    // The same anchor again — a format painter's — leaves a name moved since where it is.
+    views.setLinkLabel(view, link, moved);
+    views.setAppearance(view, link, { labelAnchor: 'target', lineWidth: null });
+    expect(views.getLinks(view)[0]?.label).toEqual(moved);
+  });
+
   it('a figure’s, every value of it, copied with its view', () => {
     const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
     views.setAppearance(view, note, { textAlignment: 'center', textPosition: 'middle', borderStyle: 'DashedLine', fontColor: '#7a0019' });

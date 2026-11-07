@@ -21,7 +21,7 @@
  * the name on the line — canvas commands are not followed by a re-read of the
  * store, so the drawing must follow the command itself, on undo too. Moved to
  * nowhere (`offset` absent), the label node goes and the name is back at the
- * middle: the right-click menu's *Move name back to the middle*.
+ * middle — or the end its look anchors it at: the right-click menu's *Move name back to its place*.
  */
 
 import { RdfChangeHandler, type RdfChangeContext } from './rdf-modeling.js';
@@ -168,7 +168,9 @@ export class RdfLinkLabelMove {
     elementRegistry: RegistryLike,
     renderOptions: RenderOptions,
     movable: LinkLabelMovable,
-    notationStyles: { relationshipStyleFor(typeIri: string | undefined): { fontSize?: number } | undefined } | null = null,
+    notationStyles: {
+      relationshipStyleFor(typeIri: string | undefined): { fontSize?: number; labelAnchor?: 'source' | 'middle' | 'target' } | undefined;
+    } | null = null,
   ) {
     commandStack.registerHandler(MOVE_LINK_LABEL_COMMAND, MoveLinkLabelHandler);
     // The name drawn where it is now, without a command: while dragging, and when a drag is dropped.
@@ -178,7 +180,7 @@ export class RdfLinkLabelMove {
       const line = event.element;
       const press = event.originalEvent;
       if (!line?.waypoints || !press || press.button !== 0) return undefined;
-      const drawn = drawnConnectionLabel(line, renderOptions, notationStyles?.relationshipStyleFor(line.businessObject?.typeIri)?.fontSize);
+      const drawn = drawnConnectionLabel(line, renderOptions, notationStyles?.relationshipStyleFor(line.businessObject?.typeIri));
       if (!drawn || !movable(line)) return undefined;
       const at = this.diagramPoint(press);
       const box = drawn.box;

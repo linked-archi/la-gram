@@ -17,6 +17,7 @@ import type { NamedPicker } from '../ui/panels/named-picker.js';
 import { labelOf, modelQuads, readModelContents } from '../model-manager/model-queries.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
+import { rememberImageSize } from '../ui/canvas/rdf-renderer.js';
 
 installJsdomSvgSupport();
 
@@ -379,7 +380,7 @@ describe('the workbench', () => {
       { iri: nodeA, kind: 'element' },
       { iri: nodeB, kind: 'element' },
     ]);
-    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-2)).toEqual(['appearance', 'figure']);
+    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-3)).toEqual(['appearance', 'figure', 'image']);
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
     await panel.updateComplete;
     // Its rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
@@ -570,6 +571,91 @@ describe('the workbench', () => {
     ui.selectConcept(undefined);
     views.removeElementFromView(view, note);
     els.deleteElement(actor);
+  });
+
+  it('puts a picture in an element or a figure from the Image tab, and sets where a line’s name sits', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const LOGO = 'https://example.org/pictures/logo.png';
+    rememberImageSize(LOGO, { width: 24, height: 24 });
+    const [a, b] = ['Pictured', 'Pictured too'].map((label) => els.createElement(`${AM4}ApplicationComponent`, model, { label }).value);
+    const nodeA = views.addElementToView(view, a!, { x: 100, y: 1000, width: 120, height: 55 });
+    const nodeB = views.addElementToView(view, b!, { x: 400, y: 1000, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const pictureOf = (iri: string) => document.querySelector(`[data-element-iri="${iri}"] .la-shape-image`);
+
+    ui.diagramCanvas.selectIris([a!]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.image-preview')!.textContent).toContain('No image');
+    expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    const address = () => root.querySelector<HTMLInputElement>('.image-address')!;
+    // Not a picture's address: said where it was typed, nothing written.
+    address().value = 'javascript:alert(1)';
+    address().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')!.textContent).toContain('https://');
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    address().value = LOGO;
+    address().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')).toBeNull();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO });
+    expect(pictureOf(a!)?.getAttribute('href')).toBe(LOGO);
+    const position = root.querySelector<HTMLSelectElement>('.image-tab select')!;
+    position.value = 'BottomRight';
+    position.dispatchEvent(new Event('change'));
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO, imagePosition: 'BottomRight' });
+    expect(pictureOf(a!)?.getAttribute('data-image-position')).toBe('BottomRight');
+    // What la-gram writes, core-vis's shapes accept.
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+
+    // Another element: the model's pictures to pick from.
+    ui.diagramCanvas.selectIris([b!]);
+    await panel.updateComplete;
+    expect([...root.querySelectorAll('.image-choice')].map((c) => c.getAttribute('title'))).toEqual([LOGO]);
+    root.querySelector<HTMLButtonElement>('.image-choice')!.click();
+    expect(views.getNode(view, nodeB)?.appearance).toEqual({ image: LOGO });
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.remove-image')!.click();
+    expect(views.getNode(view, nodeB)?.appearance).toBeUndefined();
+    expect(pictureOf(b!)).toBeNull();
+    await ui.runCommand({ command: 'undo' });
+    expect(pictureOf(b!)?.getAttribute('href')).toBe(LOGO);
+
+    // A note may have one too; a line has no Image tab — its Appearance says where its name sits.
+    const note = views.addFigure!(view, { kind: 'note', text: 'n', bounds: { x: 700, y: 1000, width: 185, height: 80 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([note]);
+    await panel.updateComplete;
+    expect(panel.appearance?.image).toEqual({ position: 'TopLeft', used: [LOGO] });
+    const serving = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: a!, targetIri: b! }).iri;
+    views.addRelationshipToView(view, serving);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([serving]);
+    await panel.updateComplete;
+    expect(panel.appearance?.image).toBeUndefined();
+    expect(root.querySelector('.vtab[data-tab="image"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
+    await panel.updateComplete;
+    const anchor = (value: string) => root.querySelector<HTMLButtonElement>(`.appearance-field[data-field="labelAnchor"] button[data-value="${value}"]`)!;
+    expect(anchor('middle').getAttribute('aria-pressed')).toBe('true');
+    anchor('target').click();
+    const link = views.getLinks(view).find((l) => l.relationshipIri === serving)!;
+    expect(link.appearance).toEqual({ labelAnchor: 'target' });
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(link.linkIri))).toEqual([]);
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    views.removeElementFromView(view, note);
+    for (const iri of [a!, b!]) els.deleteElement(iri);
   });
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {

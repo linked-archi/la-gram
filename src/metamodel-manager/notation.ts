@@ -64,6 +64,7 @@ const T = {
   sourceDecor: `${ARCH_VIS}sourceDecor`,
   targetDecor: `${ARCH_VIS}targetDecor`,
   nestedEnd: `${ARCH_VIS}nestedEnd`,
+  labelAnchor: `${ARCH_VIS}labelAnchor`,
   prefLabel: `${SKOS}prefLabel`,
   rdfsLabel: `${RDFS}label`,
 } as const;
@@ -177,6 +178,8 @@ export interface RelationshipVisualStyle extends Pick<NotationLook, 'lineWidth' 
   lineColor?: string;
   /** Colour of its name; its line colour when absent. */
   fontColor?: string;
+  /** Where along its lines its name sits (`arch-vis:labelAnchor`); at their middle when absent. */
+  labelAnchor?: 'source' | 'middle' | 'target';
   /**
    * The ends nesting may draw inside the other instead of a line
    * (`arch-vis:nestedEnd`): `target` for a part inside its whole, `source` for
@@ -500,12 +503,16 @@ function extractRelationshipStyle(store: Store, subject: Term): RelationshipVisu
     .sort();
   const { lineWidth, fontName, fontSize, fontStyle } = readLook(store, subject);
   const fontColor = objectValue(store, subject, T.fontColor) ?? undefined;
+  const anchor = objectValue(store, subject, T.labelAnchor);
+  const labelAnchor: RelationshipVisualStyle['labelAnchor'] =
+    anchor === `${ARCH_VIS}AnchorSource` ? 'source' : anchor === `${ARCH_VIS}AnchorMiddle` ? 'middle' : anchor === `${ARCH_VIS}AnchorTarget` ? 'target' : undefined;
   const look = {
     ...(lineWidth !== undefined ? { lineWidth } : {}),
     ...(fontName !== undefined ? { fontName } : {}),
     ...(fontSize !== undefined ? { fontSize } : {}),
     ...(fontStyle !== undefined ? { fontStyle } : {}),
     ...(fontColor !== undefined ? { fontColor } : {}),
+    ...(labelAnchor !== undefined ? { labelAnchor } : {}),
   };
   if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0 && Object.keys(look).length === 0) {
     return undefined;

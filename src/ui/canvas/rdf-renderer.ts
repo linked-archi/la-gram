@@ -58,10 +58,11 @@
  *
  * Drawn only when {@link RenderOptions.relationshipNames} says so (the canvas
  * toolbar's switch, off by default) and the relationship has a name of its
- * own: centred on the middle of its route, wrapped as a shape's name is, on a
- * white box so the line stops at the name — or just under the derivation
- * badge, which sits on that middle; moved (`rdf-link-label.ts`), at its offset
- * from that middle, so it follows the line. {@link connectionLabelLayout} is
+ * own: centred on the middle of its route — or near its source or its target
+ * end, as its look's `labelAnchor` says — wrapped as a shape's name is, on a
+ * white box so the line stops at the name; at the middle, just under the
+ * derivation badge, which sits there. Moved (`rdf-link-label.ts`), at its
+ * offset from that middle, so it follows the line, wherever it is anchored. {@link connectionLabelLayout} is
  * the one place the geometry is worked out: the renaming text box and the
  * export's crop read it too.
  */
@@ -79,7 +80,17 @@ import type {
   VisualStyle,
 } from '../../metamodel-manager/notation.js';
 import type { FigureInfo } from '../../model-manager/interfaces.js';
-import { hasFontStyle, lookOf, type Appearance, type Gradient, type TextAlignment, type TextPosition } from '../../model-manager/appearance.js';
+import {
+  hasFontStyle,
+  imageUri,
+  lookOf,
+  type Appearance,
+  type Gradient,
+  type ImagePosition,
+  type LabelAnchor,
+  type TextAlignment,
+  type TextPosition,
+} from '../../model-manager/appearance.js';
 import { figureColours } from '../figure-bar.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
@@ -114,6 +125,9 @@ const DERIVATION_BADGE_RADIUS = 7;
 
 /** Room around a relationship's name: between it and the badge above it, and around its lines. */
 const CONNECTION_LABEL_GAP = 2;
+
+/** How far a name anchored at an end of its line keeps from that end, beyond its own half. */
+const CONNECTION_LABEL_END_GAP = 8;
 
 /** What the renderer draws beyond the notation; the canvas changes it, then redraws. */
 export interface RenderOptions {
@@ -153,14 +167,15 @@ export interface LabelOffset {
 
 /**
  * Where a relationship's name goes on its route: centred on the route's middle,
- * or — with a derivation badge there — its top just under the badge; moved, its
+ * or — with a derivation badge there — its top just under the badge; anchored at
+ * an end (`anchor`), centred on the route just clear of that end; moved, its
  * centre `offset` from the route's middle, which it keeps as the route changes.
  * `undefined` without two waypoints.
  */
 export function connectionLabelLayout(
   waypoints: ReadonlyArray<{ x: number; y: number }>,
   label: string,
-  options: { badge?: boolean; offset?: LabelOffset; fontSize?: number } = {},
+  options: { badge?: boolean; offset?: LabelOffset; fontSize?: number; anchor?: LabelAnchor } = {},
 ): ConnectionLabelLayout | undefined {
   const middle = midpointOf(waypoints);
   if (!middle) return undefined;
@@ -172,12 +187,15 @@ export function connectionLabelLayout(
   const width = widest + 2 * CONNECTION_LABEL_GAP;
   const height = Math.max(1, lines.length) * lineHeight;
   const { offset } = options;
-  const centreX = middle.x + (offset?.x ?? 0);
+  // At an end: as far along the route as the box reaches along its first (or last) segment, and a gap.
+  const end = !offset && (options.anchor === 'source' || options.anchor === 'target') ? options.anchor : undefined;
+  const at = end ? anchoredAt(waypoints, end, width, height) : middle;
+  const centreX = at.x + (offset?.x ?? 0);
   const top = offset
     ? middle.y + offset.y - height / 2
-    : options.badge
+    : options.badge && !end
       ? middle.y + DERIVATION_BADGE_RADIUS + CONNECTION_LABEL_GAP
-      : middle.y - height / 2;
+      : at.y - height / 2;
   return {
     lines,
     x: round2(centreX),
@@ -202,23 +220,46 @@ export function labelOffsetOf(
   return { x: round2(box.x + box.width / 2 - middle.x), y: round2(box.y + box.height / 2 - middle.y) };
 }
 
+/**
+ * Where a box of `width` × `height` centred on the route sits clear of its
+ * `end`: along the route by as much as the box reaches along the end's segment,
+ * and a gap — no further than the middle.
+ */
+function anchoredAt(
+  waypoints: ReadonlyArray<{ x: number; y: number }>,
+  end: 'source' | 'target',
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const route = end === 'source' ? waypoints : [...waypoints].reverse();
+  const [a, b] = route as [{ x: number; y: number }, { x: number; y: number }];
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  // The box's half-extent along the segment's direction: half its width when level, half its height when upright.
+  const reach = length === 0 ? width / 2 : (Math.abs(b.x - a.x) * width + Math.abs(b.y - a.y) * height) / (2 * length);
+  const total = route.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - route[i]!.x, p.y - route[i]!.y), 0);
+  return pointAlong(route, Math.min(total / 2, reach + CONNECTION_LABEL_END_GAP))!;
+}
+
 /** The name drawn on a relationship's line: when names are shown and it has one of its own. */
 export function drawnConnectionLabel(
   connection: Pick<RenderableElement, 'waypoints' | 'businessObject'>,
   options: RenderOptions,
-  /** The relationship's notation's font size, under the line's own. */
-  notationFontSize?: number,
+  /** The relationship's notation's look for its name — its size, where it sits — under the line's own. */
+  notation?: { fontSize?: number; labelAnchor?: LabelAnchor },
 ): ConnectionLabelLayout | undefined {
   const businessObject = connection.businessObject;
   // A line from a note says what it says always; a relationship's name, when names are shown.
   const connector = businessObject?.kind === 'connector';
   const named = connector || (options.relationshipNames && businessObject?.kind === 'relationship' && businessObject.named);
   if (!businessObject || !named || !businessObject.label) return undefined;
-  const fontSize = (options.notationOnly && !connector ? undefined : businessObject.appearance?.fontSize) ?? notationFontSize;
+  const own = options.notationOnly && !connector ? undefined : businessObject.appearance;
+  const fontSize = own?.fontSize ?? notation?.fontSize;
+  const anchor = own?.labelAnchor ?? notation?.labelAnchor;
   const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, {
     badge: !!businessObject.derivation,
     offset: businessObject.labelOffset,
     ...(fontSize ? { fontSize } : {}),
+    ...(anchor ? { anchor } : {}),
   });
   return layout && layout.lines.length > 0 ? layout : undefined;
 }
@@ -226,8 +267,15 @@ export function drawnConnectionLabel(
 /** The point halfway along a polyline, by length; `undefined` without two points. */
 export function midpointOf(waypoints: ReadonlyArray<{ x: number; y: number }>): { x: number; y: number } | undefined {
   if (waypoints.length < 2) return undefined;
+  const total = waypoints.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - waypoints[i]!.x, p.y - waypoints[i]!.y), 0);
+  return pointAlong(waypoints, total / 2);
+}
+
+/** The point `distance` along a polyline from its first point; `undefined` without two points. */
+function pointAlong(waypoints: ReadonlyArray<{ x: number; y: number }>, distance: number): { x: number; y: number } | undefined {
+  if (waypoints.length < 2) return undefined;
   const lengths = waypoints.slice(1).map((p, i) => Math.hypot(p.x - waypoints[i]!.x, p.y - waypoints[i]!.y));
-  let remaining = lengths.reduce((sum, l) => sum + l, 0) / 2;
+  let remaining = distance;
   for (let i = 0; i < lengths.length; i += 1) {
     const length = lengths[i]!;
     if (remaining <= length) {
@@ -332,7 +380,52 @@ export const RENDER_CLASSES = {
   figure: 'la-figure',
   /** A line standing for no relationship: a note's, to what it is about. */
   connector: 'la-connector',
+  /** A picture drawn in a node (`arch-vis:image`). */
+  image: 'la-shape-image',
 } as const;
+
+/** Room between a node's outline and a picture drawn in it. */
+const IMAGE_INSET = 3;
+
+/** Pictures' own sizes, by address: known, not loaded (`null`), or loading. */
+const imageSizes = new Map<string, { width: number; height: number } | null | 'loading'>();
+
+/**
+ * Say what a picture's own size is — what loading it in a browser finds out —
+ * or that it does not load (`null`): for tests, which load nothing.
+ */
+export function rememberImageSize(href: string, size: { width: number; height: number } | null): void {
+  imageSizes.set(href, size);
+}
+
+/**
+ * Where a picture is drawn in `area` at `position`: at its own `size`, made
+ * smaller to fit — in a corner, at the middle of a side, or centred — or the
+ * whole area at `Fill`, or for a picture with no size of its own (an SVG
+ * without one), which is then fitted in the area as the position says.
+ */
+export function imageBox(area: Box, position: ImagePosition, size: { width: number; height: number } | undefined): Box {
+  if (position === 'Fill' || !size || size.width <= 0 || size.height <= 0) return area;
+  const scale = Math.min(1, area.width / size.width, area.height / size.height);
+  const width = round2(size.width * scale);
+  const height = round2(size.height * scale);
+  const x = position.endsWith('Left') ? area.x : position.endsWith('Right') ? area.x + area.width - width : area.x + (area.width - width) / 2;
+  const y = position.startsWith('Top') ? area.y : position.startsWith('Bottom') ? area.y + area.height - height : area.y + (area.height - height) / 2;
+  return { x: round2(x), y: round2(y), width, height };
+}
+
+/** A node's box less the room kept between its outline and a picture. */
+function insetBox(width: number, height: number): Box {
+  return { x: IMAGE_INSET, y: IMAGE_INSET, width: Math.max(0, width - 2 * IMAGE_INSET), height: Math.max(0, height - 2 * IMAGE_INSET) };
+}
+
+/** How SVG aligns a picture fitted in its box at `position`. */
+function imageAlignment(position: ImagePosition): string {
+  if (position === 'Fill') return 'none';
+  const x = position.endsWith('Left') ? 'xMin' : position.endsWith('Right') ? 'xMax' : 'xMid';
+  const y = position.startsWith('Top') ? 'YMin' : position.startsWith('Bottom') ? 'YMax' : 'YMid';
+  return `${x}${y} meet`;
+}
 
 /** How a line standing for no relationship is drawn where it sets nothing of its own. */
 export const CONNECTOR_STYLE = { lineColor: '#5f6368', strokeWidth: 1, dashArray: '4 3' } as const;
@@ -464,11 +557,17 @@ export class RdfRenderer extends BaseRenderer {
   /** Published decoration symbols by URL: loaded, failed (`null`) or loading. */
   private symbols = new Map<string, DecorationSymbol | null | Promise<void>>();
 
+  /** Where an element is redrawn once a picture drawn in it has loaded. */
+  private readonly bus: { fire(event: string, payload: unknown): unknown } | undefined;
+  /** What was drawn without its picture, by the picture's address: redrawn once it loads. */
+  private waitingForImage = new Map<string, Set<RenderableElement>>();
+
   constructor(eventBus: unknown, notationStyles: NotationStyleRegistry, renderOptions: RenderOptions) {
     // BaseRenderer's constructor wires the render.* listeners.
     super(eventBus as never, RENDER_PRIORITY);
     this.notationStyles = notationStyles;
     this.renderOptions = renderOptions;
+    this.bus = typeof (eventBus as { fire?: unknown })?.fire === 'function' ? (eventBus as RdfRenderer['bus']) : undefined;
   }
 
   /** This renderer draws every element on an RDF diagram. */
@@ -506,6 +605,7 @@ export class RdfRenderer extends BaseRenderer {
     group.setAttribute('data-rendering-mode', mode);
 
     if (mode === 'IconCentric') {
+      this.drawImage(group, element, look, { x: 0, y: 0, width, height });
       const icon = this.drawIconCentric(group, width, height, label, href as string, look.fontColor, font);
       if (look.iconColor) colourGlyph(group, icon, look.iconColor);
     } else {
@@ -519,6 +619,7 @@ export class RdfRenderer extends BaseRenderer {
         parentGfx.appendChild(group);
         return group;
       }
+      this.drawImage(group, element, look, insetBox(width, height));
       const layout = containerLayout(shapeLayout(style?.customShape ?? style?.shapeType, width, height), element);
       // Present exactly when a badge is drawn — ShapeOnly reserves no room.
       const badgePlacement =
@@ -583,6 +684,8 @@ export class RdfRenderer extends BaseRenderer {
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
       if (figure.gradient) applyGradient(group, body, figure.gradient);
+      const below = insetBox(width, Math.max(0, height - tabHeight));
+      this.drawImage(group, element, figure, { ...below, y: below.y + tabHeight });
       this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1, colours.fontColor, font);
     } else if (figure.kind === 'note') {
       const fold = Math.min(14, width / 4, height / 4);
@@ -606,6 +709,7 @@ export class RdfRenderer extends BaseRenderer {
         const shade = svgEl('path', { d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`, fill: '#000000', 'fill-opacity': 0.12, stroke: 'none' });
         group.appendChild(shade);
       }
+      this.drawImage(group, element, figure, insetBox(width, height));
       const lineHeight = Math.round(font.size * 1.2);
       // From its top left, unless it says otherwise.
       this.appendFigureText(
@@ -628,6 +732,7 @@ export class RdfRenderer extends BaseRenderer {
         figure.lineWidth,
       );
       if (figure.gradient) applyGradient(group, body, figure.gradient);
+      this.drawImage(group, element, figure, insetBox(width, height));
       const layout = containerLayout(shapeLayout(shapeType, width, height), element);
       this.appendLabel(group, text, layout.label, {
         color: colours.fontColor,
@@ -639,6 +744,54 @@ export class RdfRenderer extends BaseRenderer {
     }
     parentGfx.appendChild(group);
     return group;
+  }
+
+  /**
+   * A node's picture (`arch-vis:image`), over its fill and under its text and
+   * glyph: in `area` at its position, at its own size made smaller to fit, or
+   * filling it. A picture whose size is not known yet is drawn once it has
+   * loaded (the element redrawn); one that does not load, not at all.
+   */
+  private drawImage(group: SVGElement, element: RenderableElement, look: Pick<Appearance, 'image' | 'imagePosition'>, area: Box): void {
+    const href = imageUri(look.image);
+    if (!href || area.width <= 0 || area.height <= 0) return;
+    const position = look.imagePosition ?? 'TopLeft';
+    let size: { width: number; height: number } | undefined;
+    if (position !== 'Fill') {
+      const known = this.imageSizeOf(href, element);
+      if (!known) return;
+      size = known;
+    }
+    const box = imageBox(area, position, size);
+    const image = svgEl('image', { ...box, href, preserveAspectRatio: imageAlignment(position) });
+    image.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', href);
+    image.setAttribute('class', RENDER_CLASSES.image);
+    image.setAttribute('data-image-position', position);
+    image.setAttribute('pointer-events', 'none');
+    group.appendChild(image);
+  }
+
+  /** A picture's own size when known; else it is loaded, and `element` redrawn when it has. */
+  private imageSizeOf(href: string, element: RenderableElement): { width: number; height: number } | undefined {
+    const known = imageSizes.get(href);
+    if (known && known !== 'loading') return known;
+    if (known === null) return undefined;
+    const waiting = this.waitingForImage.get(href) ?? new Set<RenderableElement>();
+    waiting.add(element);
+    this.waitingForImage.set(href, waiting);
+    if (known === 'loading' || typeof Image === 'undefined') return undefined;
+    imageSizes.set(href, 'loading');
+    const picture = new Image();
+    const done = (size: { width: number; height: number } | null) => {
+      imageSizes.set(href, size);
+      const drawn = this.waitingForImage.get(href) ?? new Set();
+      this.waitingForImage.delete(href);
+      if (size) for (const each of drawn) this.bus?.fire('element.changed', { element: each });
+    };
+    picture.onload = () => done({ width: picture.naturalWidth, height: picture.naturalHeight });
+    picture.onerror = () => done(null);
+    picture.src = href;
+    return undefined;
   }
 
   /**
@@ -934,7 +1087,7 @@ export class RdfRenderer extends BaseRenderer {
       line.setAttribute('data-derivation', derivation);
       this.drawDerivationBadge(parentGfx, waypoints, derivation, businessObject?.derivationRule, lineColor);
     }
-    const label = drawnConnectionLabel(connection, this.renderOptions, style?.fontSize);
+    const label = drawnConnectionLabel(connection, this.renderOptions, style);
     if (label) this.drawConnectionLabel(parentGfx, label, look.fontColor ?? lineColor, opacity, { ...fontOf(look), size: label.fontSize });
     return line;
   }

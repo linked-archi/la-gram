@@ -201,7 +201,7 @@ describe('buildVisualNotations — what core-vis 0.7 lets a notation say of the 
         arch-vis:fontStyle "italic" ; arch-vis:lineWidth 2 ; arch-vis:textAlignment arch-vis:AlignLeft ;
         arch-vis:textPosition arch-vis:PositionTop ; arch-vis:gradient arch-vis:GradientTop ; arch-vis:iconColor "#1a237e" ] .
 :ServingNotation a arch-vis:VisualNotation ; arch-vis:notationFor am4:Serving ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
-    arch-vis:lineWidth 2 ; arch-vis:fontSize 10 ; arch-vis:fontColor "#5f6368" .
+    arch-vis:lineWidth 2 ; arch-vis:fontSize 10 ; arch-vis:fontColor "#5f6368" ; arch-vis:labelAnchor arch-vis:AnchorTarget .
 `),
     );
     expect(set!.notations.get(BUSINESS_ACTOR)!.style).toMatchObject({
@@ -215,7 +215,8 @@ describe('buildVisualNotations — what core-vis 0.7 lets a notation say of the 
       iconColor: '#1a237e',
     });
     // A relationship's notation that says only how its line and name look is one.
-    expect(set!.notations.get(SERVING)!.relationshipStyle).toMatchObject({ lineWidth: 2, fontSize: 10, fontColor: '#5f6368' });
+    // Where its name sits along its lines, too.
+    expect(set!.notations.get(SERVING)!.relationshipStyle).toMatchObject({ lineWidth: 2, fontSize: 10, fontColor: '#5f6368', labelAnchor: 'target' });
   });
 });
 

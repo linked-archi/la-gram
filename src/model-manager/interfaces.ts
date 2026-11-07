@@ -284,6 +284,8 @@ export interface ViewManager {
    * its own first, so the change is to it alone.
    */
   setAppearance?(viewIri: string, iri: string, changes: AppearanceChanges): void;
+  /** Every picture (`arch-vis:image`) any style of the model draws, once each, in order: to pick one again. */
+  usedImages?(): string[];
   /**
    * Draw a line standing for no relationship between two nodes of a diagram
    * view (placements or figures; an element's IRI names its first placement)

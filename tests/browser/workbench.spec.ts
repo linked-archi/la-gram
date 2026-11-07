@@ -1134,7 +1134,7 @@ describe('moving a relationship’s name', () => {
     await page.mouse.click(c.x, c.y, { button: 'right' });
     const menu = page.locator('.djs-popup.la-context-menu');
     await menu.waitFor({ state: 'visible' });
-    await menu.locator('.entry', { hasText: 'Move name back to the middle' }).click();
+    await menu.locator('.entry', { hasText: 'Move name back to its place' }).click();
     await until(async () => (await facts()).kept === undefined, 'the name back at the middle');
 
     await namesSwitch.click();
@@ -1973,7 +1973,7 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
     const panel = page.locator('property-panel');
     await expect(panel.locator('.panel-header').textContent()).resolves.toContain('Note');
     expect(await panel.getByText('Definition').count()).toBe(0);
-    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Note information', 'Appearance']);
+    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Note information', 'Appearance', 'Image']);
     await panel.locator('.vtab[data-tab="appearance"]').click();
     expect(await panel.locator('.appearance-field').count()).toBe(11);
     await panel.locator('.appearance-field[data-field="fillColor"] input').evaluate((input: HTMLInputElement) => {
@@ -2063,6 +2063,7 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
       'lineStyle',
       'sourceDecor',
       'targetDecor',
+      'labelAnchor',
       'font',
       'fontColor',
     ]);
@@ -2322,6 +2323,39 @@ describe('the Appearance tab', () => {
     expect(await paddingTop()).toBeLessThan(before);
     expect(Math.abs(await gap())).toBeLessThan(3);
     await page.keyboard.press('Escape');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('a picture from the Image tab is drawn at its own size once it has loaded, where it is put', async () => {
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Pictured',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 420, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    // A 24 × 16 picture kept in the model: a data: URI, so nothing is fetched.
+    const picture =
+      'data:image/svg+xml,' +
+      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="24" height="16" fill="#1a73e8"/></svg>');
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="image"]').click();
+    await panel.locator('.image-address').fill(picture);
+    await panel.locator('.image-address').evaluate((input: HTMLInputElement) => input.dispatchEvent(new Event('change')));
+    const drawn = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-image`);
+    // Loaded, then drawn: its own size, in the top left inside the outline.
+    await until(async () => (await drawn.count()) === 1, 'the picture drawn once loaded');
+    expect(await drawn.evaluate((el) => ['x', 'y', 'width', 'height'].map((a) => el.getAttribute(a)))).toEqual(['3', '3', '24', '16']);
+    await panel.locator('.image-tab select').selectOption('BottomRight');
+    await until(async () => (await drawn.getAttribute('data-image-position')) === 'BottomRight', 'moved to the bottom right');
+    expect(await drawn.evaluate((el) => [el.getAttribute('x'), el.getAttribute('y')])).toEqual(['133', '61']);
+    expect(await panel.locator('.image-preview img').count()).toBe(1);
+    await session.screenshot('appearance-image');
+    // The keyboard back to the canvas for what comes next.
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
 });

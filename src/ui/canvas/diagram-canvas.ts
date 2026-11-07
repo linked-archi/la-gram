@@ -157,7 +157,7 @@ import {
 import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
-import { sameAppearance, type Appearance, type AppearanceKey } from '../../model-manager/appearance.js';
+import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '../../model-manager/appearance.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
 import { iconHref, shapeGeometry, shapePath } from './notation-shapes.js';
 import {
@@ -166,11 +166,13 @@ import {
   elementDefaults,
   fieldsFor,
   figureDefaults,
+  IMAGE_KINDS,
   lineDefaults,
   type AppearanceSelection,
   type AppearanceTarget,
   type FigureChoices,
   type FigureOption,
+  type ImageChoices,
 } from '../appearance-selection.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
@@ -1741,9 +1743,9 @@ export class DiagramCanvas {
     else if (retexted || recoloured) services.eventBus.fire('element.changed', { element: existing });
   }
 
-  /** The font size a relationship's notation gives its name, under the line's own. */
-  private nameFontSizeOf(line: DjsShape): number | undefined {
-    return this.notationStyles.relationshipStyleFor(line.businessObject?.typeIri)?.fontSize;
+  /** What a relationship's notation says of its name — its size, where it sits — under the line's own. */
+  private nameNotationOf(line: DjsShape): { fontSize?: number; labelAnchor?: LabelAnchor } | undefined {
+    return this.notationStyles.relationshipStyleFor(line.businessObject?.typeIri);
   }
 
   /** Draw a placement or a line with its look as the store now says, when that changed. */
@@ -1771,6 +1773,14 @@ export class DiagramCanvas {
     const first = described[0];
     if (!first) return undefined;
     const figure = this.figureChoices(selected, first.own, first.defaults);
+    // A picture for elements and figures — every one selected — not for a line.
+    const image = described.every((d) => IMAGE_KINDS.includes(d.target.kind))
+      ? {
+          ...(first.own.image ? { image: first.own.image } : {}),
+          position: first.own.imagePosition ?? 'TopLeft',
+          used: this.viewManager.usedImages?.() ?? [],
+        }
+      : undefined;
     const fields = fieldsFor(described.map((d) => d.target.kind));
     // What each is drawn with: its own value, else its default — the first one's is not the others'.
     const shown = (d: (typeof described)[number], key: AppearanceKey) => d.own[key] ?? d.defaults[key];
@@ -1782,6 +1792,7 @@ export class DiagramCanvas {
       fields,
       ...(mixed.length > 0 ? { mixed } : {}),
       ...(figure ? { figure } : {}),
+      ...(image ? { image: image satisfies ImageChoices } : {}),
     };
   }
 
@@ -2452,7 +2463,7 @@ export class DiagramCanvas {
       ];
       // A line's name reaches past its route's box: the crop takes it in.
       const label = element.waypoints
-        ? drawnConnectionLabel(element as never, this.renderOptions, this.nameFontSizeOf(element))?.box
+        ? drawnConnectionLabel(element as never, this.renderOptions, this.nameNotationOf(element))?.box
         : undefined;
       if (label) {
         points.push({ x: label.x, y: label.y }, { x: label.x + label.width, y: label.y + label.height });
@@ -2713,11 +2724,11 @@ export class DiagramCanvas {
           run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
         });
       }
-      // A name shown off the middle of its line: back to the middle, undoably.
-      if (shown.labelOffset && drawnConnectionLabel(element, this.renderOptions, this.nameFontSizeOf(element)) && this.canMoveLinkLabel(element)) {
+      // A name moved by hand: back to its place on its line — the middle, or the end its look anchors it at — undoably.
+      if (shown.labelOffset && drawnConnectionLabel(element, this.renderOptions, this.nameNotationOf(element)) && this.canMoveLinkLabel(element)) {
         actions.push({
           id: 'name-to-middle',
-          label: 'Move name back to the middle',
+          label: 'Move name back to its place',
           section: 'edit',
           run: () => this.services()?.commandStack.execute(MOVE_LINK_LABEL_COMMAND, { connection: element, offset: undefined }),
         });

@@ -6,7 +6,7 @@
  * fields every one of them has, and a change applies to them all.
  */
 
-import { APPEARANCE_KEYS, lookOf, type Appearance, type AppearanceKey, type FigureMode } from '../model-manager/appearance.js';
+import { APPEARANCE_KEYS, lookOf, type Appearance, type AppearanceKey, type FigureMode, type ImagePosition } from '../model-manager/appearance.js';
 import type { FigureKind } from '../model-manager/interfaces.js';
 import { FIGURE_DEFAULT_COLOURS } from './figure-bar.js';
 import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
@@ -15,9 +15,13 @@ import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 export type AppearanceKind = 'element' | 'relationship' | 'connector' | FigureKind;
 
 /** A line from a note's own: its style and its ends — a relationship's are its notation's, which say what it is. */
-const LINE_KEYS: readonly AppearanceKey[] = ['lineStyle', 'sourceDecor', 'targetDecor'];
-/** What the Appearance tab sets for a shape: all but the figure, which is the Figure tab's, and a line's own. */
-const LOOK_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'renderingMode' && key !== 'shapeType' && !LINE_KEYS.includes(key));
+const LINE_KEYS: readonly AppearanceKey[] = ['lineStyle', 'sourceDecor', 'targetDecor', 'labelAnchor'];
+/** A node's picture: the Image tab's. */
+export const IMAGE_KEYS: readonly AppearanceKey[] = ['image', 'imagePosition'];
+/** What the Appearance tab sets for a shape: all but the figure and the picture, which have tabs of their own, and a line's own. */
+const LOOK_KEYS = APPEARANCE_KEYS.filter(
+  (key) => key !== 'renderingMode' && key !== 'shapeType' && !LINE_KEYS.includes(key) && !IMAGE_KEYS.includes(key),
+);
 const FIGURE_KEYS = LOOK_KEYS.filter((key) => key !== 'iconColor');
 
 /**
@@ -31,9 +35,20 @@ export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]>
   shape: FIGURE_KEYS,
   note: FIGURE_KEYS,
   group: FIGURE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
-  relationship: ['lineColor', 'lineWidth', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
-  connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
+  relationship: ['lineColor', 'lineWidth', 'labelAnchor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
+  connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor', 'labelAnchor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
 };
+
+/** What may have a picture drawn in it: an element's placement and the figures — not a line. */
+export const IMAGE_KINDS: readonly AppearanceKind[] = ['element', 'shape', 'note', 'group'];
+
+/** The Image tab: the first one's picture and where it is drawn, and the pictures the model already uses. */
+export interface ImageChoices {
+  image?: string;
+  position: ImagePosition;
+  /** Every picture any style of the model draws, to pick from. */
+  used: string[];
+}
 
 /** One thing selected: its node's or link's IRI, and what it is. */
 export interface AppearanceTarget {
@@ -76,6 +91,8 @@ export interface AppearanceSelection {
   targets: AppearanceTarget[];
   /** The Figure tab's choices, for elements with a glyph. */
   figure?: FigureChoices;
+  /** The Image tab's, for elements and figures. */
+  image?: ImageChoices;
   /** What the first one sets on its own style. */
   own: Appearance;
   /** What the first one is drawn with where it sets nothing: its notation's, or la-gram's. */
@@ -139,7 +156,7 @@ export function elementDefaults(notation: object | undefined): Appearance {
 export function lineDefaults(notation: object | undefined): Appearance {
   const said = lookOf(notation);
   const colour = said.lineColor ?? NOTATION_DEFAULTS.lineColor;
-  return { ...BASE, ...said, lineColor: colour, fontColor: said.fontColor ?? colour };
+  return { ...BASE, labelAnchor: 'middle', ...said, lineColor: colour, fontColor: said.fontColor ?? colour };
 }
 
 /** The look a figure's info carries. */

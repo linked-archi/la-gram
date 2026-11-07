@@ -20,6 +20,9 @@
  * | `fontStyle` | `arch-vis:fontStyle` (0.7) | `bold`, `italic`, `underline`, separated by spaces |
  * | `textAlignment` | `arch-vis:textAlignment` (0.7) | `arch-vis:AlignLeft`, `AlignCenter`, `AlignRight` |
  * | `textPosition` | `arch-vis:textPosition` (0.7) | `arch-vis:PositionTop`, `PositionMiddle`, `PositionBottom` |
+ * | `labelAnchor` | `arch-vis:labelAnchor` (0.7) | where along a line its text sits: `arch-vis:AnchorSource`, `AnchorMiddle`, `AnchorTarget` |
+ * | `image` | `arch-vis:image` (0.7) | a picture drawn in a node: an http(s) URL or a `data:image/…` URI, an `xsd:anyURI` |
+ * | `imagePosition` | `arch-vis:imagePosition` (0.7) | where: an `arch-vis:IconPlacement` — `TopLeft` … `BottomRight`, or `Fill` |
  *
  * ## A colour's alpha
  *
@@ -64,6 +67,32 @@ const DECORATION_NAMES: readonly LineDecoration[] = [
 export type FigureMode = 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly';
 /** The side a fill shades from — its colour there, white at the opposite side. */
 export type Gradient = 'top' | 'left' | 'right' | 'bottom';
+/** Where along a line its text sits: near its source end, at its middle, near its target end. */
+export type LabelAnchor = 'source' | 'middle' | 'target';
+/** Where a node's picture is drawn: a corner, the middle of a side, its centre — or filling it. */
+export type ImagePosition =
+  | 'TopLeft'
+  | 'TopCenter'
+  | 'TopRight'
+  | 'MiddleLeft'
+  | 'Center'
+  | 'MiddleRight'
+  | 'BottomLeft'
+  | 'BottomCenter'
+  | 'BottomRight'
+  | 'Fill';
+export const IMAGE_POSITIONS: readonly ImagePosition[] = [
+  'TopLeft',
+  'TopCenter',
+  'TopRight',
+  'MiddleLeft',
+  'Center',
+  'MiddleRight',
+  'BottomLeft',
+  'BottomCenter',
+  'BottomRight',
+  'Fill',
+];
 
 export interface Appearance {
   fillColor?: string;
@@ -90,6 +119,12 @@ export interface Appearance {
   /** What a line from a note is drawn with at its start, and at its end. */
   sourceDecor?: LineDecoration;
   targetDecor?: LineDecoration;
+  /** Where along a line its text sits — at its middle when absent; a text moved by hand stays where it was put. */
+  labelAnchor?: LabelAnchor;
+  /** A picture drawn in a node: an http(s) URL or a `data:image/…` URI. */
+  image?: string;
+  /** Where the picture is drawn; its top left when absent. */
+  imagePosition?: ImagePosition;
 }
 
 export type AppearanceKey = keyof Appearance;
@@ -116,6 +151,9 @@ export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'lineStyle',
   'sourceDecor',
   'targetDecor',
+  'labelAnchor',
+  'image',
+  'imagePosition',
 ];
 
 const ENUMERATIONS = {
@@ -127,6 +165,8 @@ const ENUMERATIONS = {
   lineStyle: { SolidLine: VIS + 'SolidLine', DashedLine: VIS + 'DashedLine', DottedLine: VIS + 'DottedLine' },
   sourceDecor: Object.fromEntries(DECORATION_NAMES.map((name) => [name, VIS + name])) as Record<LineDecoration, string>,
   targetDecor: Object.fromEntries(DECORATION_NAMES.map((name) => [name, VIS + name])) as Record<LineDecoration, string>,
+  labelAnchor: { source: VIS + 'AnchorSource', middle: VIS + 'AnchorMiddle', target: VIS + 'AnchorTarget' },
+  imagePosition: Object.fromEntries(IMAGE_POSITIONS.map((name) => [name, VIS + name])) as Record<ImagePosition, string>,
 } as const satisfies Partial<Record<AppearanceKey, Record<string, string>>>;
 
 /** Each key's predicate. */
@@ -148,13 +188,16 @@ export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   lineStyle: VIS + 'lineStyle',
   sourceDecor: VIS + 'sourceDecor',
   targetDecor: VIS + 'targetDecor',
+  labelAnchor: VIS + 'labelAnchor',
+  image: VIS + 'image',
+  imagePosition: VIS + 'imagePosition',
 };
 
 /** How a value is written: an enumeration's member (an IRI), an integer, or a string. */
 export function appearanceObject(
   key: AppearanceKey,
   value: NonNullable<Appearance[AppearanceKey]>,
-): { iri: string } | { integer: number } | { string: string } | undefined {
+): { iri: string } | { integer: number } | { string: string } | { uri: string } | undefined {
   if (isEnumeration(key)) {
     const iri = (ENUMERATIONS[key] as Record<string, string>)[String(value)];
     return iri ? { iri } : undefined;
@@ -170,6 +213,10 @@ export function appearanceObject(
   if (key === 'fontStyle') {
     const style = fontStyleOf(String(value));
     return style ? { string: style } : undefined;
+  }
+  if (key === 'image') {
+    const uri = imageUri(String(value));
+    return uri ? { uri } : undefined;
   }
   const text = String(value).trim();
   return text ? { string: text } : undefined;
@@ -188,6 +235,7 @@ export function appearanceValue<K extends AppearanceKey>(key: K, term: { termTyp
     return (Number.isFinite(n) && n > 0 ? n : undefined) as Appearance[K] | undefined;
   }
   if (key === 'fontStyle') return fontStyleOf(value) as Appearance[K] | undefined;
+  if (key === 'image') return (term.termType === 'Literal' ? imageUri(value) : undefined) as Appearance[K] | undefined;
   if (key === 'fillColor' || key === 'lineColor' || key === 'fontColor' || key === 'iconColor') {
     return (value ? cssColour(value) : undefined) as Appearance[K] | undefined;
   }
@@ -196,6 +244,23 @@ export function appearanceValue<K extends AppearanceKey>(key: K, term: { termTyp
 
 function isEnumeration(key: AppearanceKey): key is keyof typeof ENUMERATIONS {
   return key in ENUMERATIONS;
+}
+
+/**
+ * A picture's address as drawn: an http(s) URL, or a `data:` URI of an image —
+ * `undefined` for anything else (a `javascript:` or a `file:` URI, a relative
+ * path), which is neither written nor drawn.
+ */
+export function imageUri(value: string | undefined): string | undefined {
+  const uri = value?.trim();
+  if (!uri) return undefined;
+  if (/^data:image\/[a-z0-9.+-]+[;,]/i.test(uri)) return uri;
+  try {
+    const url = new URL(uri);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? uri : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const FONT_STYLES = ['bold', 'italic', 'underline'] as const;
