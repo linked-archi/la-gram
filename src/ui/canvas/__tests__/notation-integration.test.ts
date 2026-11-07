@@ -152,12 +152,13 @@ describe('bundled ArchiMate 4.0 → palette → canvas', () => {
     const drawn = container.querySelectorAll(`.${RENDER_CLASSES.shape}`);
     expect(drawn).toHaveLength(types.length);
     // The published notation puts a badge on all of them but those its pictures
-    // tell apart by their shape alone.
+    // tell apart by their shape alone — an object, a product, a work package, a
+    // device, a grouping a box with its glyph, as Archi draws them.
     const byShape = [...drawn]
       .filter((shape) => !shape.querySelector(`.${RENDER_CLASSES.badge}`))
       .map((shape) => shape.getAttribute('data-type-iri')!.split('#')[1])
       .sort();
-    expect(byShape).toEqual(['BusinessObject', 'DataObject', 'Deliverable', 'Grouping', 'Meaning', 'Product', 'Value', 'WorkPackage']);
+    expect(byShape).toEqual(['Deliverable', 'Meaning', 'Value']);
     for (const shape of drawn) {
       if (!shape.querySelector(`.${RENDER_CLASSES.badge}`)) expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
     }

@@ -314,10 +314,18 @@ export class RdfLabelEditingProvider {
         options: { centerVertically: true, autoResize: false, resizable: false },
       };
     }
-    // A note's text from its left; an element's clear of the badge glyph in its corner.
-    const side = figure?.kind === 'note' ? { left: 6, right: 12 } : { left: NOTATION_DEFAULTS.badgeSize + NOTATION_DEFAULTS.badgePadding, right: NOTATION_DEFAULTS.badgeSize + NOTATION_DEFAULTS.badgePadding };
+    // A note's text from its left; an element's clear of the badge glyph in its corner — aligned, from the other side.
+    const badge = NOTATION_DEFAULTS.badgeSize + NOTATION_DEFAULTS.badgePadding;
+    const pad = NOTATION_DEFAULTS.badgePadding;
+    const side =
+      figure?.kind === 'note'
+        ? { left: 6, right: 12 }
+        : look.textAlignment === 'left'
+          ? { left: pad, right: badge + pad }
+          : look.textAlignment === 'right'
+            ? { left: pad, right: badge + pad }
+            : { left: badge, right: badge };
     const position = look.textPosition ?? 'middle';
-    const pad = 4;
     // At the bottom: its lines as they wrap now, their last at the bottom.
     const lines = Math.max(1, wrapLabel(text, Math.max(1, width - side.left - side.right), fontSize).length);
     const top = position === 'bottom' ? Math.max(pad, height - pad - lines * Math.round(fontSize * 1.2)) : pad;

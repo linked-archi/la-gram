@@ -2203,4 +2203,34 @@ describe('the Appearance tab', () => {
     await page.keyboard.press('Escape');
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
+
+  it('objects, a product, a work package and the 3D-box elements are boxes with their glyph, as Archi draws them', async () => {
+    const placed = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const types = ['BusinessObject', 'DataObject', 'Product', 'WorkPackage', 'Device', 'Equipment', 'Facility', 'Plateau', 'Grouping'];
+      return types.map((type, i) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, app.session.modelIri, { label: type }).value as string;
+        app.components.viewManager.addElementToView(app.session.activeViewIri, iri, {
+          x: 200 + 160 * (i % 4),
+          y: 420 + 80 * Math.floor(i / 4),
+          width: 120,
+          height: 55,
+        });
+        return iri;
+      });
+    });
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.components.eventBus.emit('model-changed', { origin: 'test' }));
+    for (const iri of placed) {
+      const shape = page.locator(`.djs-shape[data-element-id="${iri}"] [data-rendering-mode]`);
+      await until(async () => (await shape.count()) === 1, 'the object drawn');
+      expect(await shape.getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+      expect(await shape.locator('.la-shape-badge').count()).toBe(1);
+    }
+    // A grouping: dashed, its name from its top left.
+    const grouping = page.locator(`.djs-shape[data-element-id="${placed[8]}"]`);
+    expect(await grouping.locator('.la-shape-body').getAttribute('stroke-dasharray')).toBeTruthy();
+    expect(await grouping.locator('.la-shape-label').getAttribute('text-anchor')).toBe('start');
+    await session.screenshot('objects');
+  });
 });

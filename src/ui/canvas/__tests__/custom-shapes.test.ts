@@ -195,21 +195,16 @@ describe('ArchiMate\'s shapes, from its notation files', () => {
     expect(pathNumbers(shapePath(AM4('Cloud'), 0, 0, 130, 60))).toEqual(
       pathNumbers(pictureAttribute('archimate4/icons/meaning.svg', 'path', 'd')),
     );
-    // The picture draws the silhouette open at the bottom-left corner; the outline closes it.
-    expect(pathNumbers(shapePath(AM4('Box3D'), 0, 0, 130, 60))).toEqual([
-      ...pathNumbers(pictureAttribute('archimate4/icons/device.svg', 'polyline', 'points')),
-      0,
-      60,
-    ]);
-    expect(pathNumbers(shapeGeometry(AM4('TabbedRectangle'), 130, 60).details!)).toEqual(
-      pathNumbers(pictureAttribute('archimate4/icons/product.svg', 'polyline', 'points')),
-    );
-    expect(shapeGeometry(AM4('BandedRectangle'), 130, 60).details).toBe(
-      `M0,${Number(pictureAttribute('archimate4/icons/business-object.svg', 'line', 'y1'))}L130,10.4`,
-    );
-    // The grouping picture's tab: up the left edge, across, and down to the body.
-    const tab = pathNumbers(pictureAttribute('archimate4/icons/grouping.svg', 'polyline', 'points'));
-    expect(tab).toEqual([0, 21, 0, 0, 104, 0, 104, 21]);
+    // A device, a product, an object and a contract are drawn as a box with its glyph now, as Archi
+    // draws them; the 3D, tabbed and banded boxes stay declared — the other figure Archi offers — as
+    // the published pictures drew them before: the 3D silhouette (open at the bottom left, which the
+    // outline closes), the product's tab, the band at the top.
+    expect(pathNumbers(shapePath(AM4('Box3D'), 0, 0, 130, 60))).toEqual([0, 12, 12, 0, 130, 0, 130, 48, 118, 60, 0, 60]);
+    expect(pathNumbers(shapeGeometry(AM4('TabbedRectangle'), 130, 60).details!)).toEqual([0, 10.4, 65, 10.4, 65, 0]);
+    expect(shapeGeometry(AM4('BandedRectangle'), 130, 60).details).toBe('M0,10.4L130,10.4');
+    // The folder — a grouping's other figure, as its published picture drew it — its tab up the
+    // left edge, across, and down to the body.
+    const tab = [0, 21, 0, 0, 104, 0, 104, 21];
     expect(pathNumbers(shapePath(AM4('Folder'), 0, 0, 130, 60)).slice(0, 6)).toEqual(tab.slice(2));
   });
 });

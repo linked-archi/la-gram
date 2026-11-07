@@ -786,8 +786,18 @@ export function labelLayout(
   const lineHeight = round(fontSize * 1.2);
   const pad = NOTATION_DEFAULTS.badgePadding;
 
+  // Aligned left or right, the lines run from the side clear of the badge's corner to the badge.
+  const aligned = !options.outside && !options.below && (options.align === 'left' || options.align === 'right');
+  const badgeLeft = options.badgePlacement === 'TopLeft';
+  const badgeRight = options.badgePlacement === 'TopRight';
+  const band = {
+    left: badgeLeft ? 2 * pad + NOTATION_DEFAULTS.badgeSize : pad,
+    right: badgeRight ? w - 2 * pad - NOTATION_DEFAULTS.badgeSize : w - pad,
+  };
   // With a badge in a corner, give up its width so the two do not overlap.
-  const available = options.outside
+  const available = aligned
+    ? Math.max(band.right - band.left, w * 0.5)
+    : options.outside
     ? Math.max(w, NOTATION_DEFAULTS.width)
     : options.below
     ? w
@@ -822,8 +832,8 @@ export function labelLayout(
   // down by the ascent of one line.
   const y = round(centreY - block / 2 + fontSize * 0.85);
   // Aligned, the lines start — or end — at the edge of the band they were wrapped to.
-  if (!options.below && options.align === 'left') return { lines, x: round((w - available) / 2), y, lineHeight, anchor: 'start' };
-  if (!options.below && options.align === 'right') return { lines, x: round((w + available) / 2), y, lineHeight, anchor: 'end' };
+  if (aligned && options.align === 'left') return { lines, x: round(band.left), y, lineHeight, anchor: 'start' };
+  if (aligned && options.align === 'right') return { lines, x: round(band.right), y, lineHeight, anchor: 'end' };
   return { lines, x: round(w / 2), y, lineHeight };
 }
 
