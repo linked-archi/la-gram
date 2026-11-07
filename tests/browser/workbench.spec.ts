@@ -1975,7 +1975,7 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
     expect(await panel.getByText('Definition').count()).toBe(0);
     expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Note information', 'Appearance']);
     await panel.locator('.vtab[data-tab="appearance"]').click();
-    expect(await panel.locator('.appearance-field').count()).toBe(10);
+    expect(await panel.locator('.appearance-field').count()).toBe(11);
     await panel.locator('.appearance-field[data-field="fillColor"] input').evaluate((input: HTMLInputElement) => {
       input.value = '#ffd6e0';
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2099,6 +2099,86 @@ describe('an element placed twice in one view', () => {
 
     await page.locator(`model-explorer .row[data-iri="${actor}"]`).click();
     await until(async () => (await page.locator('.djs-shape.selected').count()) === 2, 'both placements selected');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+});
+
+describe('the Appearance tab', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** Set a field of the Appearance tab as a person does: the value typed or picked, then committed. */
+  const setField = (selector: string, value: string) =>
+    page.locator('property-panel').locator(selector).evaluate((input: HTMLInputElement | HTMLSelectElement, v) => {
+      input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+
+  it('an element’s line colour and width, and a relationship line’s, are drawn as set', async () => {
+    await dropActor(page, 200, 200);
+    await dropActor(page, 500, 200);
+    await until(async () => (await model(page)).actors.length === 2, 'two actors');
+    const [a, b] = (await model(page)).actors;
+    const rel = await page.evaluate(
+      ([source, target]) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const iri = app.components.relationshipManager.createQualifiedRelationship({
+          typeIri: 'https://meta.linked.archi/archimate4/onto#Association',
+          sourceIri: source,
+          targetIri: target,
+          modelIri: app.session.modelIri,
+        }).iri;
+        app.components.viewManager.addRelationshipToView(app.session.activeViewIri, iri);
+        app.components.eventBus.emit('model-changed', { origin: 'test' });
+        return iri as string;
+      },
+      [a!, b!],
+    );
+    const panel = page.locator('property-panel');
+    const body = page.locator(`.djs-shape[data-element-id="${a}"] .la-shape-body`);
+
+    // Selected on the canvas — through its selection, as a click selects.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await panel.locator('.vtab[data-tab="appearance"]').click();
+    await setField('.appearance-field[data-field="lineColor"] input', '#d93025');
+    await until(async () => (await body.getAttribute('stroke')) === '#d93025', 'the element’s outline in its new colour');
+    await setField('.appearance-field[data-field="lineWidth"] select', '3');
+    await until(async () => (await body.getAttribute('stroke-width')) === '3', 'the element’s outline in its new width');
+    expect(await body.getAttribute('stroke')).toBe('#d93025');
+
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), rel);
+    const line = page.locator(`.djs-connection[data-element-id="${rel}"] .la-connection`);
+    await until(async () => (await panel.locator('.appearance-field[data-field="lineColor"]').count()) === 1, 'the line’s Appearance');
+    await setField('.appearance-field[data-field="lineColor"] input', '#1a73e8');
+    await until(async () => (await line.getAttribute('stroke')) === '#1a73e8', 'the line in its new colour');
+    await setField('.appearance-field[data-field="lineWidth"] select', '2');
+    await until(async () => (await line.getAttribute('stroke-width')) === '2', 'the line in its new width');
+    expect(await line.getAttribute('stroke')).toBe('#1a73e8');
+    await session.screenshot('appearance-lines');
+
+    // A gradient: the fill shades from its colour at the left.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await until(async () => (await panel.locator('.appearance-field[data-field="gradient"]').count()) === 1, 'the element’s Appearance');
+    await setField('.appearance-field[data-field="gradient"] select', 'left');
+    await until(async () => ((await body.getAttribute('fill')) ?? '').startsWith('url(#la-gradient-left-'), 'the element filled with a gradient');
+
+    // "Notation only" on: the look set here is not drawn, and the tab says so; its button draws it again.
+    await page.locator('canvas-toolbar button[data-switch="notation-only"]').click();
+    await until(async () => (await body.getAttribute('stroke')) !== '#d93025', 'the element drawn as its notation has it');
+    const notice = panel.locator('.appearance-notice');
+    await notice.waitFor({ state: 'visible' });
+    expect(await notice.textContent()).toContain('Notation only');
+    await session.screenshot('appearance-notation-only');
+    await notice.locator('button.show-own').click();
+    await until(async () => (await body.getAttribute('stroke')) === '#d93025', 'the element drawn with its own look again');
+    expect(await notice.count()).toBe(0);
+    expect(await page.locator('canvas-toolbar button[data-switch="notation-only"]').getAttribute('aria-pressed')).toBe('false');
+    await session.screenshot('appearance-element');
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
 });

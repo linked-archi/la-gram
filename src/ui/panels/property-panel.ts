@@ -193,6 +193,26 @@ const LINE_WIDTHS: ReadonlyArray<[number, string]> = [
   [3, 'Heavy'],
 ];
 
+/** Archi's gradients: none, or the side the fill shades from. */
+const GRADIENTS: ReadonlyArray<[string, string]> = [
+  ['', 'None'],
+  ['top', 'Top'],
+  ['left', 'Left'],
+  ['right', 'Right'],
+  ['bottom', 'Bottom'],
+];
+
+/** The Appearance tab's rows, left and right, as Archi lays them out. */
+const APPEARANCE_ROWS: ReadonlyArray<[string, string | undefined]> = [
+  ['fillColor', 'gradient'],
+  ['fillOpacity', undefined],
+  ['lineColor', 'lineWidth'],
+  ['lineOpacity', 'borderStyle'],
+  ['iconColor', undefined],
+  ['textAlignment', 'textPosition'],
+  ['font', 'fontColor'],
+];
+
 const BORDER_STYLES: ReadonlyArray<[NonNullable<Appearance['borderStyle']>, string]> = [
   ['SolidLine', 'Solid'],
   ['DashedLine', 'Dashed'],
@@ -852,7 +872,7 @@ export class PropertyPanel extends LitElement {
     /* The Appearance tab: two columns of fields, as Archi lays them out; one when narrow. */
     .appearance {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       max-width: 760px;
       gap: 4px 24px;
       padding: 8px 12px;
@@ -934,6 +954,29 @@ export class PropertyPanel extends LitElement {
       stroke: #3c4043;
       stroke-width: 1.4;
       display: block;
+    }
+
+    .appearance-notice {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 8px 12px 0;
+      padding: 6px 10px;
+      max-width: 736px;
+      border-radius: 4px;
+      background: #fef7e0;
+      color: #3c4043;
+      font-size: 12px;
+    }
+
+    .appearance-notice button {
+      flex: none;
+      font: inherit;
+      border: 1px solid #dadce0;
+      background: #fff;
+      border-radius: 3px;
+      cursor: pointer;
+      padding: 2px 8px;
     }
 
     .appearance-footer {
@@ -1048,6 +1091,10 @@ export class PropertyPanel extends LitElement {
    */
   @property({ attribute: false })
   appearance?: AppearanceSelection;
+
+  /** Whether the canvas draws the notation alone (its toolbar's *Notation only*): the Appearance tab then says so. */
+  @property({ type: Boolean, attribute: false })
+  notationOnly = false;
 
   @state() private _newValue = '';
 
@@ -1604,11 +1651,13 @@ export class PropertyPanel extends LitElement {
   }
 
   /**
-   * The Appearance tab, as Archi's: fill colour and opacity, line colour,
-   * width, opacity and style, where the text sits, its font and colour — the
+   * The Appearance tab, laid out as Archi's, row by row: fill colour and
+   * gradient, fill opacity, line colour and width, line opacity and style,
+   * icon colour, text alignment and position, font and font colour — the
    * fields every one selected has, each showing the first one's own value, or
    * what it is drawn with where it sets none; a value of its own can be taken
-   * back to the default.
+   * back to the default. With the canvas drawing the notation alone, it says
+   * so, and offers to draw the look set here.
    */
   private _renderAppearance(selection: AppearanceSelection) {
     const { own, defaults, fields } = selection;
@@ -1620,7 +1669,7 @@ export class PropertyPanel extends LitElement {
         : nothing;
     const field = (key: string, label: string, controls: unknown) =>
       html`<div class="appearance-field" data-field=${key}><span class="field-label">${label}</span><span class="controls">${controls}</span></div>`;
-    const colour = (key: 'fillColor' | 'lineColor' | 'fontColor', label: string) =>
+    const colour = (key: 'fillColor' | 'lineColor' | 'fontColor' | 'iconColor', label: string) =>
       field(
         key,
         label,
@@ -1678,90 +1727,124 @@ export class PropertyPanel extends LitElement {
     const lineWidth = shown('lineWidth') ?? 1;
     const count = selection.targets.length;
     const ownSet = fields.filter((key) => own[key] !== undefined);
+    const cells: Record<string, unknown> = {
+      fillColor: has('fillColor') ? colour('fillColor', 'Fill colour') : nothing,
+      gradient: has('gradient')
+        ? field(
+            'gradient',
+            'Gradient',
+            html`<select
+                aria-label="Gradient"
+                @change=${(e: Event) =>
+                  this._appearanceChange({ gradient: ((e.target as HTMLSelectElement).value || null) as Appearance['gradient'] | null })}
+              >
+                ${GRADIENTS.map(([value, name]) => html`<option value=${value} ?selected=${(shown('gradient') ?? '') === value}>${name}</option>`)}
+              </select>${reset('gradient')}`,
+          )
+        : nothing,
+      fillOpacity: has('fillColor') ? opacity('fillColor', 'Fill opacity') : nothing,
+      lineColor: has('lineColor') ? colour('lineColor', 'Line colour') : nothing,
+      lineWidth: has('lineWidth')
+        ? field(
+            'lineWidth',
+            'Line width',
+            html`<select
+                aria-label="Line width"
+                @change=${(e: Event) => this._appearanceChange({ lineWidth: Number((e.target as HTMLSelectElement).value) })}
+              >
+                ${LINE_WIDTHS.some(([n]) => n === lineWidth) ? nothing : html`<option value=${lineWidth} selected>${lineWidth}</option>`}
+                ${LINE_WIDTHS.map(([n, name]) => html`<option value=${n} ?selected=${n === lineWidth}>${name}</option>`)}
+              </select>${reset('lineWidth')}`,
+          )
+        : nothing,
+      lineOpacity: has('lineColor') ? opacity('lineColor', 'Line opacity') : nothing,
+      borderStyle: has('borderStyle')
+        ? field(
+            'borderStyle',
+            'Line style',
+            html`<select
+                aria-label="Line style"
+                @change=${(e: Event) =>
+                  this._appearanceChange({ borderStyle: (e.target as HTMLSelectElement).value as Appearance['borderStyle'] })}
+              >
+                ${BORDER_STYLES.map(([value, name]) => html`<option value=${value} ?selected=${shown('borderStyle') === value}>${name}</option>`)}
+              </select>${reset('borderStyle')}`,
+          )
+        : nothing,
+      iconColor: has('iconColor') ? colour('iconColor', 'Icon colour') : nothing,
+      textAlignment: has('textAlignment') ? segmented('textAlignment', 'Text alignment', ALIGNMENTS) : nothing,
+      textPosition: has('textPosition') ? segmented('textPosition', 'Text position', POSITIONS) : nothing,
+      font: has('fontName')
+        ? field(
+            'font',
+            'Font',
+            html`<input
+                class="font-name"
+                list="font-names"
+                aria-label="Font"
+                placeholder="Default"
+                .value=${live(own.fontName ?? '')}
+                @change=${(e: Event) => this._appearanceChange({ fontName: (e.target as HTMLInputElement).value.trim() || null })}
+              /><datalist id="font-names">${FONT_NAMES.map((name) => html`<option value=${name}></option>`)}</datalist>
+              <input
+                type="number"
+                min="4"
+                max="96"
+                aria-label="Font size"
+                .value=${live(String(shown('fontSize') ?? ''))}
+                @change=${(e: Event) => {
+                  const size = Math.round(Number((e.target as HTMLInputElement).value));
+                  this._appearanceChange({ fontSize: size >= 1 ? size : null });
+                }}
+              />
+              <span class="segmented" role="group" aria-label="Font style">
+                ${(['bold', 'italic', 'underline'] as const).map(
+                  (word) => html`<button
+                    type="button"
+                    title=${word[0]!.toUpperCase() + word.slice(1)}
+                    aria-label=${word}
+                    data-value=${word}
+                    aria-pressed=${hasFontStyle(fontStyle, word) ? 'true' : 'false'}
+                    style=${word === 'bold' ? 'font-weight:bold' : word === 'italic' ? 'font-style:italic' : 'text-decoration:underline'}
+                    @click=${() => toggleStyle(word)}
+                  >
+                    ${word[0]!.toUpperCase()}
+                  </button>`,
+                )}
+              </span>
+              ${own.fontName !== undefined || own.fontSize !== undefined || own.fontStyle !== undefined
+                ? html`<button
+                    class="remove"
+                    title="Back to the default font"
+                    @click=${() => this._appearanceChange({ fontName: null, fontSize: null, fontStyle: null })}
+                  >
+                    ×
+                  </button>`
+                : nothing}`,
+          )
+        : nothing,
+      fontColor: has('fontColor') ? colour('fontColor', 'Font colour') : nothing,
+    };
+    // Archi's rows; one with neither field is left out, a missing one leaves its place empty.
+    const rows = APPEARANCE_ROWS.filter((row) => row.some((key) => key && cells[key] !== nothing));
+    const notationOnly = this.notationOnly && selection.targets.some((t) => t.kind === 'element' || t.kind === 'relationship');
     return html`
+      ${notationOnly
+        ? html`<div class="appearance-notice" role="status">
+            <span
+              ><strong>Notation only</strong> is on: elements and relationships are drawn as their notation has them, without the
+              look set here.</span
+            >
+            <button class="show-own" @click=${() => this._notationOnly(false)}>Draw the look set here</button>
+          </div>`
+        : nothing}
       <div class="appearance">
-        ${has('fillColor') ? colour('fillColor', 'Fill colour') : nothing}
-        ${has('fillColor') ? opacity('fillColor', 'Fill opacity') : nothing}
-        ${has('lineColor') ? colour('lineColor', 'Line colour') : nothing}
-        ${has('lineWidth')
-          ? field(
-              'lineWidth',
-              'Line width',
-              html`<select
-                  aria-label="Line width"
-                  @change=${(e: Event) => this._appearanceChange({ lineWidth: Number((e.target as HTMLSelectElement).value) })}
-                >
-                  ${LINE_WIDTHS.some(([n]) => n === lineWidth) ? nothing : html`<option value=${lineWidth} selected>${lineWidth}</option>`}
-                  ${LINE_WIDTHS.map(([n, name]) => html`<option value=${n} ?selected=${n === lineWidth}>${name}</option>`)}
-                </select>${reset('lineWidth')}`,
-            )
-          : nothing}
-        ${has('lineColor') ? opacity('lineColor', 'Line opacity') : nothing}
-        ${has('borderStyle')
-          ? field(
-              'borderStyle',
-              'Line style',
-              html`<select
-                  aria-label="Line style"
-                  @change=${(e: Event) =>
-                    this._appearanceChange({ borderStyle: (e.target as HTMLSelectElement).value as Appearance['borderStyle'] })}
-                >
-                  ${BORDER_STYLES.map(([value, name]) => html`<option value=${value} ?selected=${shown('borderStyle') === value}>${name}</option>`)}
-                </select>${reset('borderStyle')}`,
-            )
-          : nothing}
-        ${has('textAlignment') ? segmented('textAlignment', 'Text alignment', ALIGNMENTS) : nothing}
-        ${has('textPosition') ? segmented('textPosition', 'Text position', POSITIONS) : nothing}
-        ${has('fontName')
-          ? field(
-              'font',
-              'Font',
-              html`<input
-                  class="font-name"
-                  list="font-names"
-                  aria-label="Font"
-                  placeholder="Default"
-                  .value=${live(own.fontName ?? '')}
-                  @change=${(e: Event) => this._appearanceChange({ fontName: (e.target as HTMLInputElement).value.trim() || null })}
-                /><datalist id="font-names">${FONT_NAMES.map((name) => html`<option value=${name}></option>`)}</datalist>
-                <input
-                  type="number"
-                  min="4"
-                  max="96"
-                  aria-label="Font size"
-                  .value=${live(String(shown('fontSize') ?? ''))}
-                  @change=${(e: Event) => {
-                    const size = Math.round(Number((e.target as HTMLInputElement).value));
-                    this._appearanceChange({ fontSize: size >= 1 ? size : null });
-                  }}
-                />
-                <span class="segmented" role="group" aria-label="Font style">
-                  ${(['bold', 'italic', 'underline'] as const).map(
-                    (word) => html`<button
-                      type="button"
-                      title=${word[0]!.toUpperCase() + word.slice(1)}
-                      aria-label=${word}
-                      data-value=${word}
-                      aria-pressed=${hasFontStyle(fontStyle, word) ? 'true' : 'false'}
-                      style=${word === 'bold' ? 'font-weight:bold' : word === 'italic' ? 'font-style:italic' : 'text-decoration:underline'}
-                      @click=${() => toggleStyle(word)}
-                    >
-                      ${word[0]!.toUpperCase()}
-                    </button>`,
-                  )}
-                </span>
-                ${own.fontName !== undefined || own.fontSize !== undefined || own.fontStyle !== undefined
-                  ? html`<button
-                      class="remove"
-                      title="Back to the default font"
-                      @click=${() => this._appearanceChange({ fontName: null, fontSize: null, fontStyle: null })}
-                    >
-                      ×
-                    </button>`
-                  : nothing}`,
-            )
-          : nothing}
-        ${has('fontColor') ? colour('fontColor', 'Font colour') : nothing}
+        ${rows.map(
+          ([left, right]) =>
+            html`${cells[left!] === nothing ? html`<div class="appearance-gap"></div>` : cells[left!]}${right && cells[right] !== nothing
+              ? cells[right]
+              : html`<div class="appearance-gap"></div>`}`,
+        )}
         <div class="appearance-footer">
           ${count > 1 ? html`<span>Changes apply to the ${count} selected.</span>` : nothing}
           ${ownSet.length > 0
@@ -1776,6 +1859,11 @@ export class PropertyPanel extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /** Draw the notation alone, or the look set in the view: `notation-only`, as the canvas toolbar's switch. */
+  private _notationOnly(on: boolean): void {
+    this.dispatchEvent(new CustomEvent<{ on: boolean }>('notation-only', { detail: { on }, bubbles: true, composed: true }));
   }
 
   /** A value changed in the Appearance tab: `appearance-change`, for the host to write undoably. */

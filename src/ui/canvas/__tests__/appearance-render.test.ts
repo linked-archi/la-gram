@@ -86,6 +86,34 @@ describe('a placement drawn with its own look', () => {
   });
 });
 
+describe('a gradient, and the glyph’s colour', () => {
+  it('a placement’s fill shades from its colour at the side given to white; its badge in the icon colour', () => {
+    const badged: VisualStyle = { ...NOTATION, renderingMode: 'ShapeWithBadge', iconSymbol: 'archimate4/icons/glyphs/actor.svg', iconPlacement: 'TopRight' };
+    const type: ElementTypeInfo = { iri: TYPE_IRI, label: 'Component', isAbstract: false, style: badged, renderingMode: effectiveRenderingMode(badged) };
+    harness = createRenderHarness(paletteWith([type]));
+    const shape = harness.drawShape(
+      { iri: 'https://example.org/model/e1', typeIri: TYPE_IRI, kind: 'element', label: 'Payment API', named: true, appearance: { fillColor: '#ffd6e0', gradient: 'left', iconColor: '#1a237e' } },
+      { width: 160, height: 80 },
+    );
+    const fill = body(shape).getAttribute('fill')!;
+    expect(fill).toMatch(/^url\(#la-gradient-left-ffd6e0\)$/);
+    const gradient = shape.querySelector(`linearGradient#la-gradient-left-ffd6e0`)!;
+    expect([gradient.getAttribute('x1'), gradient.getAttribute('x2')]).toEqual(['0', '1']);
+    expect([...gradient.querySelectorAll('stop')].map((s) => s.getAttribute('stop-color'))).toEqual(['#ffd6e0', '#ffffff']);
+    const badge = shape.querySelector(`.${RENDER_CLASSES.badge}`)!;
+    expect(badge.getAttribute('filter')).toBe('url(#la-icon-colour-1a237e)');
+    expect(shape.querySelector('filter#la-icon-colour-1a237e feFlood')!.getAttribute('flood-color')).toBe('#1a237e');
+  });
+
+  it('a note’s fill shades too, in its kind’s colour when it has none of its own', () => {
+    const shape = boot().drawShape(
+      { iri: 'https://example.org/model/n2', typeIri: '', kind: 'figure', label: 'n', figure: { kind: 'note', gradient: 'top' } },
+      { width: 185, height: 80 },
+    );
+    expect(body(shape).getAttribute('fill')).toBe('url(#la-gradient-top-fff7b3)');
+  });
+});
+
 describe('a line drawn with its own look', () => {
   it('a relationship’s: its colour and width — its name in its font when names are shown', () => {
     const line = boot({ relationshipNames: true }).drawConnection(

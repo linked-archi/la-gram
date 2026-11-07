@@ -7,6 +7,8 @@
  * | key | core-vis | value |
  * | --- | --- | --- |
  * | `fillColor`, `lineColor`, `fontColor` | `arch-vis:fillColor` … | a CSS colour; its alpha its opacity |
+ * | `gradient` | `arch-vis:gradient` (0.7) | `arch-vis:GradientTop`, `GradientLeft`, `GradientRight`, `GradientBottom` |
+ * | `iconColor` | `arch-vis:iconColor` (0.7) | a CSS colour: the glyph's |
  * | `lineWidth` | `arch-vis:lineWidth` (0.7) | a positive integer |
  * | `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
  * | `fontName` | `arch-vis:fontName` | a font family |
@@ -17,12 +19,13 @@
  *
  * ## A colour's alpha
  *
- * core-vis says a colour is a CSS colour string, but converters and meta's own
- * examples write the ArchiMate exchange format's alpha as it is — a
- * percentage, `rgba(255,247,179,100)` — or out of 255. CSS reads any alpha
- * above 1 as opaque, so {@link cssColour} reads one above 1 as meant: a
- * percentage up to 100, else out of 255. la-gram writes `#rrggbb`, or
- * `#rrggbbaa` when a colour is not opaque, which no reader can take two ways.
+ * core-vis says a colour is a CSS colour string, its alpha CSS's (0–1), but
+ * the ArchiMate converter wrote the exchange format's alpha as it is before
+ * core-vis 0.7 said so — a percentage, `rgba(255,247,179,100)` — or out of
+ * 255. CSS reads any alpha above 1 as opaque, so {@link cssColour} reads one
+ * above 1 as meant: a percentage up to 100, else out of 255. la-gram writes
+ * `#rrggbb`, or `#rrggbbaa` when a colour is not opaque, which no reader can
+ * take two ways.
  */
 
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
@@ -32,13 +35,19 @@ const VIS = NAMESPACES['arch-vis'];
 export type TextAlignment = 'left' | 'center' | 'right';
 export type TextPosition = 'top' | 'middle' | 'bottom';
 export type BorderStyle = 'SolidLine' | 'DashedLine' | 'DottedLine';
+/** The side a fill shades from — its colour there, white at the opposite side. */
+export type Gradient = 'top' | 'left' | 'right' | 'bottom';
 
 export interface Appearance {
   fillColor?: string;
+  /** None when absent: the fill all one colour. */
+  gradient?: Gradient;
   lineColor?: string;
   fontColor?: string;
   lineWidth?: number;
   borderStyle?: BorderStyle;
+  /** The colour of an element's glyph — its badge, or its icon — drawn as published when absent. */
+  iconColor?: string;
   fontName?: string;
   fontSize?: number;
   /** `bold`, `italic`, `underline`, separated by spaces, in that order. */
@@ -55,9 +64,11 @@ export type AppearanceChanges = { [K in AppearanceKey]?: Appearance[K] | null };
 /** The keys, in the order the Appearance tab lists them. */
 export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'fillColor',
+  'gradient',
   'lineColor',
   'lineWidth',
   'borderStyle',
+  'iconColor',
   'textAlignment',
   'textPosition',
   'fontName',
@@ -70,13 +81,16 @@ const ENUMERATIONS = {
   borderStyle: { SolidLine: VIS + 'SolidLine', DashedLine: VIS + 'DashedLine', DottedLine: VIS + 'DottedLine' },
   textAlignment: { left: VIS + 'AlignLeft', center: VIS + 'AlignCenter', right: VIS + 'AlignRight' },
   textPosition: { top: VIS + 'PositionTop', middle: VIS + 'PositionMiddle', bottom: VIS + 'PositionBottom' },
+  gradient: { top: VIS + 'GradientTop', left: VIS + 'GradientLeft', right: VIS + 'GradientRight', bottom: VIS + 'GradientBottom' },
 } as const satisfies Partial<Record<AppearanceKey, Record<string, string>>>;
 
 /** Each key's predicate. */
 export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   fillColor: VIS + 'fillColor',
+  gradient: VIS + 'gradient',
   lineColor: VIS + 'lineColor',
   fontColor: VIS + 'fontColor',
+  iconColor: VIS + 'iconColor',
   lineWidth: VIS + 'lineWidth',
   borderStyle: VIS + 'borderStyle',
   fontName: VIS + 'fontName',
@@ -91,7 +105,7 @@ export function appearanceObject(
   key: AppearanceKey,
   value: NonNullable<Appearance[AppearanceKey]>,
 ): { iri: string } | { integer: number } | { string: string } | undefined {
-  if (key === 'borderStyle' || key === 'textAlignment' || key === 'textPosition') {
+  if (isEnumeration(key)) {
     const iri = (ENUMERATIONS[key] as Record<string, string>)[String(value)];
     return iri ? { iri } : undefined;
   }
@@ -110,8 +124,8 @@ export function appearanceObject(
 /** A value as read from a style: `undefined` for what is not one of the key's. */
 export function appearanceValue<K extends AppearanceKey>(key: K, term: { termType: string; value: string }): Appearance[K] | undefined {
   const value = term.value.trim();
-  if (key === 'borderStyle' || key === 'textAlignment' || key === 'textPosition') {
-    const members = ENUMERATIONS[key as 'borderStyle' | 'textAlignment' | 'textPosition'] as Record<string, string>;
+  if (isEnumeration(key)) {
+    const members = ENUMERATIONS[key] as Record<string, string>;
     return Object.keys(members).find((member) => members[member] === value) as Appearance[K] | undefined;
   }
   if (key === 'lineWidth' || key === 'fontSize') {
@@ -119,10 +133,14 @@ export function appearanceValue<K extends AppearanceKey>(key: K, term: { termTyp
     return (Number.isFinite(n) && n > 0 ? n : undefined) as Appearance[K] | undefined;
   }
   if (key === 'fontStyle') return fontStyleOf(value) as Appearance[K] | undefined;
-  if (key === 'fillColor' || key === 'lineColor' || key === 'fontColor') {
+  if (key === 'fillColor' || key === 'lineColor' || key === 'fontColor' || key === 'iconColor') {
     return (value ? cssColour(value) : undefined) as Appearance[K] | undefined;
   }
   return (value || undefined) as Appearance[K] | undefined;
+}
+
+function isEnumeration(key: AppearanceKey): key is keyof typeof ENUMERATIONS {
+  return key in ENUMERATIONS;
 }
 
 const FONT_STYLES = ['bold', 'italic', 'underline'] as const;

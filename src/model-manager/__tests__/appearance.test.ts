@@ -37,6 +37,8 @@ describe('an appearance’s values, as core-vis writes them', () => {
     expect(appearanceObject('textAlignment', 'left')).toEqual({ iri: VIS + 'AlignLeft' });
     expect(appearanceObject('textPosition', 'bottom')).toEqual({ iri: VIS + 'PositionBottom' });
     expect(appearanceObject('borderStyle', 'DashedLine')).toEqual({ iri: VIS + 'DashedLine' });
+    expect(appearanceObject('gradient', 'left')).toEqual({ iri: VIS + 'GradientLeft' });
+    expect(appearanceObject('iconColor', '#1a237e')).toEqual({ string: '#1a237e' });
     expect(appearanceObject('lineWidth', 2.4)).toEqual({ integer: 2 });
     expect(appearanceObject('fontSize', 0)).toBeUndefined();
     expect(appearanceObject('fontStyle', 'Italic  BOLD plain')).toEqual({ string: 'bold italic' });
@@ -48,6 +50,8 @@ describe('an appearance’s values, as core-vis writes them', () => {
     const literal = (value: string) => ({ termType: 'Literal', value });
     expect(appearanceValue('textAlignment', iri(VIS + 'AlignRight'))).toBe('right');
     expect(appearanceValue('textAlignment', iri(VIS + 'TopRight'))).toBeUndefined();
+    expect(appearanceValue('gradient', iri(VIS + 'GradientBottom'))).toBe('bottom');
+    expect(appearanceValue('iconColor', literal('rgba(26,35,126,1)'))).toBe('#1a237e');
     expect(appearanceValue('lineWidth', literal('3'))).toBe(3);
     expect(appearanceValue('fontSize', literal('-1'))).toBeUndefined();
     expect(appearanceValue('fillColor', literal('rgba(181,201,255,100)'))).toBe('#b5c9ff');

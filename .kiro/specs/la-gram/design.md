@@ -1645,7 +1645,8 @@ values are named, written and read:
 
 | `Appearance` key | core-vis | written as |
 | --- | --- | --- |
-| `fillColor`, `lineColor`, `fontColor` | `arch-vis:fillColor` … | `#rrggbb`, or `#rrggbbaa` when not opaque — the alpha is the opacity |
+| `fillColor`, `lineColor`, `fontColor`, `iconColor` | `arch-vis:fillColor` …, `iconColor` (0.7) | `#rrggbb`, or `#rrggbbaa` when not opaque — the alpha is the opacity |
+| `gradient` | `arch-vis:gradient` (0.7) | `arch-vis:GradientTop`, `GradientLeft`, `GradientRight`, `GradientBottom` |
 | `lineWidth` | `arch-vis:lineWidth` (0.7) | an `xsd:integer`; Archi's normal, medium, heavy are 1, 2, 3 |
 | `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
 | `fontName`, `fontSize` | `arch-vis:fontName`, `fontSize` | a string; an `xsd:integer` |
@@ -1653,11 +1654,13 @@ values are named, written and read:
 | `textAlignment` | `arch-vis:textAlignment` (0.7) | `arch-vis:AlignLeft`, `AlignCenter`, `AlignRight` |
 | `textPosition` | `arch-vis:textPosition` (0.7) | `arch-vis:PositionTop`, `PositionMiddle`, `PositionBottom` |
 
-A colour is read as meant (`cssColour`): core-vis says a CSS colour string,
-but converters — and meta's own examples — write the exchange format's alpha as
-it is, a percentage (`rgba(181,201,255,100)`), or out of 255, which CSS reads
-as opaque whatever it is; an alpha above 1 is read as a percentage up to 100,
-out of 255 beyond. la-gram writes `#rrggbbaa`, which no reader takes two ways.
+A colour is read as meant (`cssColour`): core-vis says a CSS colour string, its
+alpha CSS's (0–1, said in so many words since 0.7), but the ArchiMate converter
+wrote the exchange format's alpha as it is before then, a percentage
+(`rgba(181,201,255,100)`), or out of 255, which CSS reads as opaque whatever it
+is; an alpha above 1 is read as a percentage up to 100, out of 255 beyond.
+la-gram writes `#rrggbbaa`, which no reader takes two ways, and so does the
+converter now.
 
 **Store.** `ViewManager.setAppearance(viewIri, iri, changes)` takes a node's or
 a link's IRI — of the view, else nothing is written — and sets each value
@@ -1684,12 +1687,17 @@ it is, the first one's own look, what it is drawn with where it sets nothing
 colour, else its line colour — `lineDefaults`, `figureDefaults`), and the
 fields every one selected has (`APPEARANCE_FIELDS`): a relationship's line no
 fill, line style or alignment — its line style says what kind of relationship
-it is — a group no alignment (its name sits in its tab), a line from a note its
-colour and width only.
+it is — only an element an icon colour, a group no alignment (its name sits in
+its tab), a line from a note its colour and width only.
 
 **Renderer.** The business object's `appearance` is drawn over the notation's
 style (`withOwnStyle`): fill, line colour, outline style, `lineWidth` as the
-stroke width, the font (`fontOf`, `fontAttributes`: the name quoted before
+stroke width, a gradient (`applyGradient`: a `linearGradient` from the fill at
+the side named to white, the body filled with it), the glyph's colour
+(`colourGlyph`: an SVG filter flooding the badge's or icon's opaque lines with
+it, as core-vis glyphs are drawn — opaque lines, transparent where the fill
+shows — the image itself unchanged), each defined in the shape's own `<defs>`,
+named by what it draws, so a shape draws alike on the canvas and exported, the font (`fontOf`, `fontAttributes`: the name quoted before
 la-gram's own family, which stands in where it is not installed; bold, italic,
 underline), and the text's place — `labelLayout`'s `align` (the lines start or
 end at the edge of the band they were wrapped to, `anchor` `start` or `end`)
@@ -1707,10 +1715,14 @@ notation; figures and lines from notes keep theirs.
 by `mount-ui` for a selection made on the canvas — not for a concept picked in
 the tree, which is the model's — and adds the *Appearance* tab, last; a figure
 or a line from a note has its information tab and this one. `_renderAppearance`
-lays the fields out in two columns as Archi does: fill colour and opacity, line
-colour and width, line opacity and style, text alignment and position
-(segmented buttons), font (a name, offered from a list or typed; a size; bold,
-italic, underline) and font colour. Each shows the first one's own value, else
+lays the fields out in Archi's rows of two (`APPEARANCE_ROWS`, a missing field's
+place left empty, a row with neither left out): fill colour and gradient, fill
+opacity, line colour and width, line opacity and style, icon colour, text
+alignment and position (segmented buttons), font (a name, offered from a list or
+typed; a size; bold, italic, underline) and font colour. While the canvas draws
+the notation alone, a notice over the fields says so for an element or a
+relationship, its button sending `notation-only` (`{ on: false }`), as the
+toolbar's switch does (`propertyPanel.notationOnly` follows the switch). Each shows the first one's own value, else
 the default; one of its own has a reset, and *Reset all* takes every one back.
 A change is an `appearance-change` event; `mount-ui` writes it to every one
 selected inside one `recordChange`, so it is one undo step, and re-reads the

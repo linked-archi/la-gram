@@ -382,18 +382,22 @@ describe('the workbench', () => {
     expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).at(-1)).toBe('appearance');
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
     await panel.updateComplete;
+    // Archi's rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
     expect([...root.querySelectorAll('.appearance-field')].map((f) => f.getAttribute('data-field'))).toEqual([
       'fillColor',
+      'gradient',
       'fillOpacity',
       'lineColor',
       'lineWidth',
       'lineOpacity',
       'borderStyle',
+      'iconColor',
       'textAlignment',
       'textPosition',
       'font',
       'fontColor',
     ]);
+    expect(root.querySelectorAll('.appearance > *').length).toBe(15); // 7 rows of two, and the footer
     expect(root.querySelector('.appearance-footer')!.textContent).toContain('Changes apply to the 2 selected.');
 
     // A fill picked: both, on their own styles, drawn so.
@@ -415,11 +419,16 @@ describe('the workbench', () => {
     await panel.updateComplete;
     expect(root.querySelector('.appearance-field[data-field="textAlignment"] button[data-value="left"]')!.getAttribute('aria-pressed')).toBe('true');
 
-    // "Notation only": drawn as the notation has it, the look kept.
+    // "Notation only": drawn as the notation has it, the look kept — and the tab says so, offering to draw it.
     ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-switch="notation-only"]')!.click();
     expect(drawnFill(a)).toBe(notationFill);
-    ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-switch="notation-only"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.appearance-notice')!.textContent).toContain('Notation only');
+    root.querySelector<HTMLButtonElement>('.appearance-notice .show-own')!.click();
+    await panel.updateComplete;
     expect(drawnFill(a)).toBe('#ffd6e080');
+    expect(ui.canvasToolbar.notationOnly).toBe(false);
+    expect(root.querySelector('.appearance-notice')).toBeNull();
 
     // Each change one step back, for both.
     await ui.runCommand({ command: 'undo' });

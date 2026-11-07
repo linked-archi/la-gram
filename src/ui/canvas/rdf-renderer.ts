@@ -31,8 +31,9 @@
  * ## Its own look in the view
  *
  * What a placement's or a line's own style sets (`model-manager/appearance.ts`,
- * the property panel's Appearance tab) is drawn over its notation's: fill, line
- * colour and width, outline style, font, and where its name sits — unless
+ * the property panel's Appearance tab) is drawn over its notation's: fill and
+ * its gradient, line colour and width, outline style, the glyph's colour, font,
+ * and where its name sits — unless
  * {@link RenderOptions.notationOnly} says to draw the notation alone. The text
  * keeps the notation's colour when only the line colour is set, as Archi has
  * it. A figure, or a line from a note, has no notation: its own look is always
@@ -45,9 +46,11 @@
  * therefore same-origin. `<image href>` needs no fetch, keeps rendering
  * synchronous (diagram-js redraws on every change, so an async icon path would
  * mean a second render pass and a cache to manage), and cannot inject foreign
- * markup into the document. Inlining would only buy the ability to recolour the
- * glyph, which the ArchiMate notation never asks for: the guide draws the badge
- * as published. The trade-off is that a 404 is only visible at load time, so an
+ * markup into the document. Inlining would buy the ability to recolour the
+ * glyph, which the notation never asks for: the guide draws the badge as
+ * published. A placement given an icon colour (Archi's) has it drawn through an
+ * SVG filter instead — the glyph's opaque lines flooded with the colour, its
+ * transparent parts left so. The trade-off is that a 404 is only visible at load time, so an
  * `error` listener removes the badge node when the browser reports one.
  *
  * ## A relationship's name
@@ -75,7 +78,7 @@ import type {
   VisualStyle,
 } from '../../metamodel-manager/notation.js';
 import type { FigureInfo } from '../../model-manager/interfaces.js';
-import { hasFontStyle, type Appearance, type TextAlignment, type TextPosition } from '../../model-manager/appearance.js';
+import { hasFontStyle, type Appearance, type Gradient, type TextAlignment, type TextPosition } from '../../model-manager/appearance.js';
 import { figureColours } from '../figure-bar.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
@@ -364,6 +367,55 @@ function fontAttributes(font: TextFont): Record<string, string | number> {
   };
 }
 
+/** Where a gradient runs, in the body's bounding box: from its colour at a side to white at the opposite one. */
+const GRADIENT_VECTORS: Record<Gradient, { x1: number; y1: number; x2: number; y2: number }> = {
+  top: { x1: 0, y1: 0, x2: 0, y2: 1 },
+  bottom: { x1: 0, y1: 1, x2: 0, y2: 0 },
+  left: { x1: 0, y1: 0, x2: 1, y2: 0 },
+  right: { x1: 1, y1: 0, x2: 0, y2: 0 },
+};
+
+/** A colour as part of an id. */
+function colourSlug(colour: string): string {
+  return colour.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Put a definition in a shape's own group, so the shape draws as it is
+ * wherever it is — on the canvas, exported. Named by what it draws, so two
+ * shapes defining the same one define it alike.
+ */
+function defineIn(group: SVGElement, definition: SVGElement): void {
+  const defs = svgEl('defs');
+  defs.appendChild(definition);
+  group.insertBefore(defs, group.firstChild);
+}
+
+/** Shade `body`'s fill from its colour at `side` to white at the opposite side. */
+function applyGradient(group: SVGElement, body: SVGElement, side: Gradient): void {
+  const fill = body.getAttribute('fill');
+  if (!fill || fill === 'none' || fill.startsWith('url(')) return;
+  const id = `la-gradient-${side}-${colourSlug(fill)}`;
+  const gradient = svgEl('linearGradient', { id, ...GRADIENT_VECTORS[side] });
+  gradient.appendChild(svgEl('stop', { offset: 0, 'stop-color': fill }));
+  gradient.appendChild(svgEl('stop', { offset: 1, 'stop-color': '#ffffff' }));
+  defineIn(group, gradient);
+  body.setAttribute('fill', `url(#${id})`);
+}
+
+/**
+ * Draw a glyph in `colour`: its opaque lines painted so, what shows the fill
+ * through it left so — as core-vis's glyphs are drawn (`arch-vis:iconSymbol`).
+ */
+function colourGlyph(group: SVGElement, glyph: SVGElement, colour: string): void {
+  const id = `la-icon-colour-${colourSlug(colour)}`;
+  const filter = svgEl('filter', { id, x: 0, y: 0, width: 1, height: 1, 'color-interpolation-filters': 'sRGB' });
+  filter.appendChild(svgEl('feFlood', { 'flood-color': colour, result: 'colour' }));
+  filter.appendChild(svgEl('feComposite', { in: 'colour', in2: 'SourceAlpha', operator: 'in' }));
+  defineIn(group, filter);
+  glyph.setAttribute('filter', `url(#${id})`);
+}
+
 /** A notation's style with a thing's own fill, line colour and outline over it. */
 function withOwnStyle(notation: VisualStyle | undefined, own: Appearance): VisualStyle {
   return {
@@ -432,9 +484,11 @@ export class RdfRenderer extends BaseRenderer {
     group.setAttribute('data-rendering-mode', mode);
 
     if (mode === 'IconCentric') {
-      this.drawIconCentric(group, width, height, label, href as string, own?.fontColor ?? notation?.fontColor, font);
+      const icon = this.drawIconCentric(group, width, height, label, href as string, own?.fontColor ?? notation?.fontColor, font);
+      if (own?.iconColor) colourGlyph(group, icon, own.iconColor);
     } else {
-      this.drawShapeBody(group, style, width, height, own?.lineWidth);
+      const body = this.drawShapeBody(group, style, width, height, own?.lineWidth);
+      if (own?.gradient) applyGradient(group, body, own.gradient);
       // Its own text colour, else the notation's — not a line colour of its own.
       const color = own?.fontColor ?? notation?.fontColor ?? notation?.lineColor ?? NOTATION_DEFAULTS.lineColor;
       if (!labelFitsInside(width, height)) {
@@ -448,7 +502,8 @@ export class RdfRenderer extends BaseRenderer {
       const badgePlacement =
         mode === 'ShapeWithBadge' && href ? (style?.iconPlacement ?? 'TopRight') : undefined;
       if (badgePlacement && href) {
-        this.drawBadge(group, href, badgePlacement, layout.content);
+        const badge = this.drawBadge(group, href, badgePlacement, layout.content);
+        if (own?.iconColor) colourGlyph(group, badge, own.iconColor);
       }
       this.appendLabel(group, label, layout.label, {
         // The label makes room for the badge only when the two share a box.
@@ -505,6 +560,7 @@ export class RdfRenderer extends BaseRenderer {
       const body = svgEl('rect', { x: 0, y: tabHeight, width, height: Math.max(0, height - tabHeight), fill: colours.fillColor, ...outline });
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
+      if (figure.gradient) applyGradient(group, body, figure.gradient);
       this.appendFigureText(group, text, { x: 6, y: 0, width: tabWidth - 8, height: tabHeight }, 1, colours.fontColor, font);
     } else if (figure.kind === 'note') {
       const fold = Math.min(14, width / 4, height / 4);
@@ -515,6 +571,7 @@ export class RdfRenderer extends BaseRenderer {
       });
       body.setAttribute('class', RENDER_CLASSES.body);
       group.appendChild(body);
+      if (figure.gradient) applyGradient(group, body, figure.gradient);
       // The fold a shade of the note: its own yellow, or the colour given, darkened.
       const corner = svgEl('path', {
         d: `M${round2(width - fold)},0 V${round2(fold)} H${round2(width)} Z`,
@@ -541,13 +598,14 @@ export class RdfRenderer extends BaseRenderer {
       );
     } else {
       const shapeType = figureShapeType(figure);
-      this.drawShapeBody(
+      const body = this.drawShapeBody(
         group,
         { shapeType, fillColor: colours.fillColor, lineColor: colours.lineColor, ...(figure.borderStyle ? { borderStyle: figure.borderStyle } : {}) } as VisualStyle,
         width,
         height,
         figure.lineWidth,
       );
+      if (figure.gradient) applyGradient(group, body, figure.gradient);
       const layout = containerLayout(shapeLayout(shapeType, width, height), element);
       this.appendLabel(group, text, layout.label, {
         color: colours.fontColor,
@@ -690,7 +748,7 @@ export class RdfRenderer extends BaseRenderer {
     href: string,
     fontColor: string | undefined,
     font: TextFont = fontOf(undefined),
-  ): void {
+  ): SVGElement {
     const container = svgEl('rect', { x: 0, y: 0, width, height });
     container.setAttribute('class', RENDER_CLASSES.hitContainer);
     container.setAttribute('fill', 'none');
@@ -718,6 +776,7 @@ export class RdfRenderer extends BaseRenderer {
       color: fontColor ?? NOTATION_DEFAULTS.lineColor,
       font,
     });
+    return icon;
   }
 
   /** Multi-line label, centred in `area` (or below the icon, or under the shape). */

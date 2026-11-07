@@ -14,16 +14,19 @@ import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 /** What a thing drawn is, for its look: an element's placement, a figure of a kind, a line. */
 export type AppearanceKind = 'element' | 'relationship' | 'connector' | FigureKind;
 
+const FIGURE_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'iconColor');
+
 /**
- * The fields each kind has. A relationship's line keeps its notation's line
- * style, which says what kind of relationship it is; a group's name sits in
- * its tab; a line from a note has no text.
+ * The fields each kind has. Only an element has a glyph to colour. A
+ * relationship's line keeps its notation's line style, which says what kind of
+ * relationship it is; a group's name sits in its tab; a line from a note has
+ * no text.
  */
 export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]> = {
   element: APPEARANCE_KEYS,
-  shape: APPEARANCE_KEYS,
-  note: APPEARANCE_KEYS,
-  group: APPEARANCE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
+  shape: FIGURE_KEYS,
+  note: FIGURE_KEYS,
+  group: FIGURE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
   relationship: ['lineColor', 'lineWidth', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
   connector: ['lineColor', 'lineWidth'],
 };
@@ -68,7 +71,7 @@ export function figureDefaults(kind: FigureKind): Appearance {
 /**
  * How an element is drawn where its placement sets nothing: its notation's
  * colours and outline — its text in the notation's text colour, else its line
- * colour, as core-vis has it — centred.
+ * colour, as core-vis has it — centred; its glyph as published, shown black.
  */
 export function elementDefaults(notation: { fillColor?: string; lineColor?: string; fontColor?: string; borderStyle?: Appearance['borderStyle'] } | undefined): Appearance {
   const lineColor = notation?.lineColor ?? NOTATION_DEFAULTS.lineColor;
@@ -78,6 +81,7 @@ export function elementDefaults(notation: { fillColor?: string; lineColor?: stri
     lineColor,
     fontColor: notation?.fontColor ?? lineColor,
     borderStyle: notation?.borderStyle ?? 'SolidLine',
+    iconColor: '#000000',
     textAlignment: 'center',
     textPosition: 'middle',
   };

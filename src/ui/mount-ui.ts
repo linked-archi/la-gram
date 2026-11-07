@@ -1325,6 +1325,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // The notation alone, without the look set in the view: off unless switched on, remembered per browser.
   const showNotationOnly = (on: boolean): void => {
     canvasToolbar.notationOnly = on;
+    // The Appearance tab says so: what is set there is not drawn meanwhile.
+    propertyPanel.notationOnly = on;
     diagramCanvas.setNotationOnly(on);
   };
   showNotationOnly(notationOnly());
@@ -1334,6 +1336,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     showNotationOnly(on);
   };
   canvasToolbar.addEventListener('notation-only', onNotationOnly);
+  propertyPanel.addEventListener('notation-only', onNotationOnly);
 
   // Figures — groups, notes, shapes — from the toolbar's second row: open or closed, remembered per browser.
   canvasToolbar.figuresOpen = figureBarOpen();
@@ -2673,6 +2676,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
     propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
     canvasToolbar.removeEventListener('notation-only', onNotationOnly);
+    propertyPanel.removeEventListener('notation-only', onNotationOnly);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);
