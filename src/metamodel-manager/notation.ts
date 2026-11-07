@@ -43,6 +43,7 @@ const T = {
   inNotationSet: `${ARCH_VIS}inNotationSet`,
   notationFor: `${ARCH_VIS}notationFor`,
   defaultStyle: `${ARCH_VIS}defaultStyle`,
+  alternativeStyle: `${ARCH_VIS}alternativeStyle`,
   shapeType: `${ARCH_VIS}shapeType`,
   fillColor: `${ARCH_VIS}fillColor`,
   lineColor: `${ARCH_VIS}lineColor`,
@@ -97,6 +98,8 @@ export type ShapeType =
  */
 export interface CustomShape {
   iri: string;
+  /** Its name (`skos:prefLabel`), for offering it as a figure. */
+  label?: string;
   /** `arch-vis:fallbackShape`: drawn when the templates cannot be. */
   fallback?: ShapeType;
   /** `arch-vis:shapeVariables`: `name = expression` assignments, `;`-separated. */
@@ -157,6 +160,13 @@ export interface VisualStyle extends NotationLook {
   defaultHeight?: number;
   /** Line style of the shape's outline (`arch-vis:borderStyle`); solid when absent. */
   borderStyle?: LineStyle;
+  /**
+   * The other figures the concept may be drawn as (`arch-vis:alternativeStyle`
+   * on its notation): each its shape and rendering mode, an outline's style —
+   * its colours and glyph this style's. A diagram element drawn as one says so
+   * with the alternative's shape type on its own style.
+   */
+  alternatives?: VisualStyle[];
 }
 
 /** Visual style for a relationship type. */
@@ -249,6 +259,7 @@ export function readCustomShape(store: Store, iri: string): CustomShape | undefi
     ...(optional(T.detailPath) ? { details: optional(T.detailPath) } : {}),
     ...(optional(T.contentBox) ? { contentBox: optional(T.contentBox) } : {}),
     ...(optional(T.labelBox) ? { labelBox: optional(T.labelBox) } : {}),
+    ...(store.getObjects(subject, namedNode(T.prefLabel), null).length > 0 ? { label: labelFor(store, iri) } : {}),
   };
 }
 
@@ -535,6 +546,12 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
       style = extractElementStyle(store, styleTerm) ?? style;
       relationshipStyle = extractRelationshipStyle(store, styleTerm) ?? relationshipStyle;
     }
+    // Its other figures, in the order the notation gives them.
+    const alternatives = store
+      .getObjects(notationTerm, namedNode(T.alternativeStyle), null)
+      .map((term) => extractElementStyle(store, term))
+      .filter((alternative): alternative is VisualStyle => alternative !== undefined);
+    if (style && alternatives.length > 0) style = { ...style, alternatives };
 
     notations.set(conceptIri, {
       conceptIri,

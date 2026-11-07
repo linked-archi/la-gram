@@ -48,9 +48,10 @@
  * Then, on the merged model:
  *
  * - **Two placements**: both sides placed the same element (or drew the same
- *   relationship) in the same view, each with a node of its own. The canvas
- *   shows one per view, so the merged model holds one — the one whose IRI sorts
- *   first, with what each side drew at it — and the conflict offers the other.
+ *   relationship) in the same view, each with a node of its own. An element
+ *   may be placed in a view more than once, so the merged model keeps both,
+ *   with what each side drew at it; the conflict offers to keep only one — two
+ *   people placing the same element at once most likely meant it once.
  * - **Count limits** broken by the combination: each side added a value where
  *   the shapes allow two, or each removed a different one of the values a
  *   shape requires. Checked with the in-app SHACL validator ({@link shaclCountCheck}),
@@ -757,8 +758,8 @@ class ThreeWay {
 
   /**
    * Both sides placed the same concept in the same view anew (`via`: a node's
-   * `arch-vis:archElement`, a link's `arch-vis:archRelationship`). Keep the one
-   * whose IRI sorts first, with what its side drew at it.
+   * `arch-vis:archElement`, a link's `arch-vis:archRelationship`). Both are
+   * kept, each with what its side drew at it; the conflict offers each alone.
    */
   private placements(via: string, placed: Set<string>): void {
     // By concept and view: the node or link each side added there ('' for more than one).
@@ -780,11 +781,9 @@ class ThreeWay {
       if (!ours || !theirs || ours === theirs) continue;
       if (!this.merged.has(`${ours} <${via}> ${concept} .`) || !this.merged.has(`${theirs} <${via}> ${concept} .`)) continue;
       const options = { ours: this.drawnAt('ours', ours), theirs: this.drawnAt('theirs', theirs) };
-      const keep: MergeSide = ours < theirs ? 'ours' : 'theirs';
-      const held = options[keep];
-      const keepSet = new Set(held);
-      for (const line of options[other(keep)]) if (!keepSet.has(line)) this.merged.delete(line);
-      for (const line of [...options.ours, ...options.theirs]) placed.add(subjectOf(line));
+      // Held: both, as merged — picking a side keeps that one alone.
+      const held = [...new Set([...options.ours, ...options.theirs])].sort();
+      for (const line of held) placed.add(subjectOf(line));
       this.conflicts.push({ kind: 'placement', subjects: [ours, theirs].map(iriOf).sort(), held, options });
     }
   }

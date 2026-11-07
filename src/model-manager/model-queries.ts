@@ -230,8 +230,8 @@ const FOLDER_PREDICATES = new Set([IRI.dctermsIsPartOf, ...[SCHEMA_NAME, SCHEMA_
  * A converter states a folder's contents from both ends — the member's
  * `dcterms:isPartOf` and the folder's `schema:itemListElement` — and either is
  * enough here: their union is read. The list's `schema:position` is not: it is
- * the order the source file happened to hold (Archi's, say, which its own tree
- * does not show), not an order anybody arranged. A folder with several parent
+ * the order the source file happened to hold (an Archi model's, say), not an
+ * order anybody arranged. A folder with several parent
  * folders is placed under one of them, the same one every time.
  */
 export function readFolders(store: RdfStore): FolderSummary[] {

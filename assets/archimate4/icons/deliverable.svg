@@ -1,7 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="130" height="60">
 
-    <path d='M 0 0 H 130.0 V 49.6 C 65.0,18.4 65.0,80.8 0,49.6Z' stroke-width='1.0' fill='#FFE0E0'
-          stroke='rgb(51, 51, 51)' look='allInOne'/>
-
+    <rect width='130.0px' stroke-width='1.0' fill='#FFE0E0' stroke='rgb(51, 51, 51)' look='allInOne'
+          height='60.0px'/>
+    <g transform='translate(109.0,4.0)'>
+        <svg xmlns="http://www.w3.org/2000/svg" height="16.0" version="1.1" viewBox="0 0 160 160" width="16.0">
+            <path d="M5,30H155V108Q117,88 80,108T5,108Z" fill="none" stroke="#333333" stroke-miterlimit="10" stroke-width="10"/>
+        </svg>
+    </g>
 
 </svg>

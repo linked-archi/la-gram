@@ -461,12 +461,12 @@ describe('real published ArchiMate 4.0 notation file', () => {
     const am4 = shapes('archimate4/archimate4-notation.ttl', 'https://meta.linked.archi/archimate4/onto#');
     const am3 = shapes('archimate3/archimate3.2-notation.ttl', 'https://meta.linked.archi/archimate3/onto#');
     const expected: Array<[typeof am4, string, string]> = [
-      // A business or data object: a box, its glyph — a box with a band across its top — as its badge, as Archi draws one.
+      // A business or data object: a box, its glyph — a box with a band across its top — as its badge.
       [am4, 'BusinessObject', 'Rectangle'],
       [am4, 'DataObject', 'Rectangle'],
       [am3, 'BusinessObject', 'Rectangle'],
       [am3, 'DataObject', 'Rectangle'],
-      // A product, and a device, equipment, facility or plateau: a box with its glyph, as Archi draws them.
+      // A product, and a device, equipment, facility or plateau: a box with its glyph.
       [am4, 'Product', 'Rectangle'],
       [am4, 'Device', 'Rectangle'],
       [am4, 'Equipment', 'Rectangle'],
@@ -475,22 +475,24 @@ describe('real published ArchiMate 4.0 notation file', () => {
       [am4, 'WorkPackage', 'RoundedRectangle'],
       [am3, 'Product', 'Rectangle'],
       [am3, 'Device', 'Rectangle'],
-      [am4, 'Deliverable', 'WavyRectangle'],
-      [am4, 'Meaning', 'Cloud'],
-      // A grouping: a dashed box with its folder glyph, as Archi draws one.
+      // A deliverable a box, a meaning — a motivation element — its corners cut, each with its glyph.
+      [am4, 'Deliverable', 'Rectangle'],
+      [am4, 'Meaning', 'Octagon'],
+      [am4, 'Value', 'Octagon'],
+      // A grouping: a dashed box with its folder glyph.
       [am4, 'Grouping', 'Rectangle'],
       [am4, 'Location', 'Rectangle'],
       [am4, 'Resource', 'Rectangle'],
       [am4, 'Node', 'Rectangle'],
       [am4, 'Process', 'RoundedRectangle'],
       [am3, 'Contract', 'Rectangle'],
-      [am3, 'Representation', 'WavyBandedRectangle'],
+      [am3, 'Representation', 'Rectangle'],
       [am3, 'Gap', 'WavyRectangle'],
-      [am3, 'Meaning', 'Cloud'],
+      [am3, 'Meaning', 'Octagon'],
       [am3, 'Grouping', 'Rectangle'],
     ];
     // ArchiMate's own shapes are declared in its notation file, with a core fallback.
-    const core = new Set(['Rectangle', 'RoundedRectangle']);
+    const core = new Set(['Rectangle', 'RoundedRectangle', 'Octagon']);
     for (const [shapesOf, local, shape] of expected) {
       const style = shapesOf(local)!;
       if (core.has(shape)) {
@@ -502,6 +504,11 @@ describe('real published ArchiMate 4.0 notation file', () => {
         expect(style.shapeType, local).toBe(shape === 'Cloud' ? 'Ellipse' : 'Rectangle');
       }
     }
+    // The figure each was drawn as before stays offered: the notation's alternative.
+    expect(am4('DataObject')?.alternatives?.map((a) => [a.customShape?.label, a.renderingMode])).toEqual([['Banded Rectangle', 'ShapeOnly']]);
+    expect(am4('Device')?.alternatives?.map((a) => [a.customShape?.label, a.renderingMode])).toEqual([['3D Box', 'ShapeWithBadge']]);
+    expect(am4('Value')?.alternatives?.map((a) => [a.shapeType, a.customShape])).toEqual([['Ellipse', undefined]]);
+    expect(am3('Contract')?.alternatives?.[0]?.customShape?.iri).toMatch(/#DoubleBandedRectangle$/);
     expect(am4('Grouping')?.borderStyle).toBe('DashedLine');
     expect(am3('Grouping')?.borderStyle).toBe('DashedLine');
     // Its name at its top left: core-vis 0.7's text placement, said by the notation.

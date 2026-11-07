@@ -157,10 +157,11 @@ import {
 import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
-import { sameAppearance, type Appearance } from '../../model-manager/appearance.js';
+import { sameAppearance, type Appearance, type AppearanceKey } from '../../model-manager/appearance.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
-import { iconHref } from './notation-shapes.js';
+import { iconHref, shapeGeometry, shapePath } from './notation-shapes.js';
 import {
+  APPEARANCE_FIELDS,
   appearanceOfFigure,
   elementDefaults,
   fieldsFor,
@@ -169,6 +170,7 @@ import {
   type AppearanceSelection,
   type AppearanceTarget,
   type FigureChoices,
+  type FigureOption,
 } from '../appearance-selection.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
@@ -969,6 +971,8 @@ export class DiagramCanvas {
       this.syncFromStore();
       return;
     }
+    // Another view: the format painter put down, its look the last view's.
+    if (viewIri !== this.viewIri) this.stopFormatPainter();
     this.viewIri = viewIri;
     this.clearDiagram();
     if (viewIri && this.viewManager) this.syncFromStore();
@@ -1767,11 +1771,16 @@ export class DiagramCanvas {
     const first = described[0];
     if (!first) return undefined;
     const figure = this.figureChoices(selected, first.own, first.defaults);
+    const fields = fieldsFor(described.map((d) => d.target.kind));
+    // What each is drawn with: its own value, else its default — the first one's is not the others'.
+    const shown = (d: (typeof described)[number], key: AppearanceKey) => d.own[key] ?? d.defaults[key];
+    const mixed = fields.filter((key) => described.some((d) => shown(d, key) !== shown(first, key)));
     return {
       targets: described.map((d) => d.target),
       own: first.own,
       defaults: first.defaults,
-      fields: fieldsFor(described.map((d) => d.target.kind)),
+      fields,
+      ...(mixed.length > 0 ? { mixed } : {}),
       ...(figure ? { figure } : {}),
     };
   }
@@ -1785,10 +1794,48 @@ export class DiagramCanvas {
     const hrefs = selected.map((element) => iconHref(this.notationStyles.styleFor(element.businessObject?.typeIri)?.iconSymbol, assetUrl));
     const [iconHrefOfFirst] = hrefs;
     if (!iconHrefOfFirst || hrefs.some((href) => !href)) return undefined;
+    const typeIri = selected[0]!.businessObject?.typeIri;
+    const style = this.notationStyles.styleFor(typeIri);
+    const notationMode = this.notationStyles.renderingModeFor(typeIri);
+    const outline = (shape: VisualStyleShape, badge: boolean, dashed: boolean): FigureOption['preview'] => {
+      const details = shapeGeometry(shape, 72, 40).details;
+      return { outline: shapePath(shape, 0, 0, 72, 40), ...(details ? { details } : {}), badge, dashed };
+    };
+    const defaultShape = style?.customShape ?? style?.shapeType;
+    const dashed = style?.borderStyle === 'DashedLine';
+    const NAMES: Record<string, string> = { ShapeWithBadge: 'Shape with icon', IconCentric: 'Icon', ShapeOnly: 'Shape only' };
+    const generic = (mode: 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly', notation: boolean): FigureOption => ({
+      label: NAMES[mode]!,
+      mode,
+      ...(notation ? { notation: true } : {}),
+      changes: { renderingMode: notation ? null : mode, shapeType: null },
+      preview: mode === 'IconCentric' ? { icon: true } : outline(defaultShape, mode === 'ShapeWithBadge', dashed),
+    });
+    const options: FigureOption[] = [generic(notationMode, true)];
+    // The notation's other figures, for one type: another's may not be this one's.
+    const oneType = selected.every((element) => element.businessObject?.typeIri === typeIri);
+    for (const alternative of oneType ? (style?.alternatives ?? []) : []) {
+      const shapeIri = alternative.customShape?.iri ?? (alternative.shapeType ? NAMESPACES['arch-vis'] + alternative.shapeType : undefined);
+      if (!shapeIri) continue;
+      const mode = alternative.renderingMode === 'IconCentric' ? 'IconCentric' : alternative.renderingMode === 'ShapeOnly' ? 'ShapeOnly' : 'ShapeWithBadge';
+      options.push({
+        label: alternative.customShape?.label ?? humanize(alternative.shapeType ?? 'Shape'),
+        mode,
+        shapeIri,
+        changes: { renderingMode: mode, shapeType: shapeIri },
+        preview: outline(alternative.customShape ?? alternative.shapeType, mode === 'ShapeWithBadge', (alternative.borderStyle ?? style?.borderStyle) === 'DashedLine'),
+      });
+    }
+    for (const mode of ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'] as const) if (mode !== notationMode) options.push(generic(mode, false));
+    // Drawn now as its own shape, its own mode — else as the notation draws it.
+    const selectedIndex = own.shapeType
+      ? options.findIndex((option) => option.shapeIri === own.shapeType)
+      : own.renderingMode
+        ? options.findIndex((option) => !option.shapeIri && (option.notation ? notationMode : option.mode) === own.renderingMode)
+        : 0;
     return {
-      modes: ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'],
-      notation: this.notationStyles.renderingModeFor(selected[0]!.businessObject?.typeIri),
-      ...(own.renderingMode ? { own: own.renderingMode } : {}),
+      options,
+      selected: Math.max(0, selectedIndex),
       iconHref: iconHrefOfFirst,
       fillColor: own.fillColor ?? defaults.fillColor ?? NOTATION_DEFAULTS.fillColor,
       lineColor: own.lineColor ?? defaults.lineColor ?? NOTATION_DEFAULTS.lineColor,
@@ -2019,6 +2066,23 @@ export class DiagramCanvas {
         existing.waypoints = route;
         services.eventBus.fire('elements.changed', { elements: [existing] });
       }
+      // What it says, and where — changed by a collaborator, or an edit undone.
+      const drawn = existing.businessObject;
+      if (drawn) {
+        const kept = link.text && link.label ? labelOffsetOf(existing.waypoints ?? [], link.label) : undefined;
+        const shown = drawn.labelOffset;
+        const moved = !kept || !shown ? kept !== shown : Math.abs(kept.x - shown.x) > 1 || Math.abs(kept.y - shown.y) > 1;
+        if ((drawn.label ?? '') !== (link.text ?? '') || moved) {
+          if (link.text) Object.assign(drawn, { label: link.text, named: true });
+          else {
+            delete drawn.label;
+            drawn.named = false;
+          }
+          if (kept) drawn.labelOffset = kept;
+          else delete drawn.labelOffset;
+          services.eventBus.fire('element.changed', { element: existing });
+        }
+      }
       this.restyle(existing, link.appearance);
       return;
     }
@@ -2028,12 +2092,16 @@ export class DiagramCanvas {
       typeIri: '',
       kind: 'connector',
       ...(link.appearance ? { appearance: link.appearance } : {}),
+      ...(link.text ? { label: link.text, named: true } : {}),
     };
     const connection = services.elementFactory.createConnection({ id: link.linkIri, businessObject, source, target, waypoints: [] });
     connection.waypoints =
       link.waypoints.length > 0
         ? this.drawnRoute(link.waypoints, source, target)
         : services.layouter.layoutConnection(connection, { source, target });
+    // What it says, where the view keeps it.
+    const labelOffset = link.text && link.label ? labelOffsetOf(connection.waypoints, link.label) : undefined;
+    if (labelOffset) businessObject.labelOffset = labelOffset;
     services.canvas.addConnection(connection, services.canvas.getRootElement());
     this.applyKeptMarkers(connection);
   }
@@ -3415,8 +3483,7 @@ export class DiagramCanvas {
 
   /**
    * After an existing element is placed, draw its relationships to every
-   * element already in the view — what users of Archi expect, and what makes
-   * "add to view" useful for exploring a model.
+   * element already in the view — what makes "add to view" useful for exploring a model.
    */
   /** What a relationship's connection carries of its derivation: nothing for one the model states. */
   /** A relationship's own name, for its line: none when the model gives it none. */
@@ -4166,6 +4233,71 @@ export class DiagramCanvas {
       if (!services || event.element !== services.canvas.getRootElement()) return;
       if (services.selection.get().length === 0) this.eventBus.emit('selection-changed', { iri: undefined, iris: [] });
     });
+
+    // The format painter: a click picks a look, or gives the picked one — not a selection.
+    djs.on('element.click', 2000, (event: { element?: DjsShape }) => {
+      if (!this.painter || !event.element) return undefined;
+      this.paint(event.element);
+      return true;
+    });
+    // Esc puts the format painter down.
+    djs.on('keyboard.keydown', 2000, (event: { keyEvent?: KeyboardEvent }) => {
+      if (!this.painter || event.keyEvent?.key !== 'Escape') return undefined;
+      this.stopFormatPainter();
+      return true;
+    });
+  }
+
+  /**
+   * The format painter: off, picking what to copy the look of, or
+   * — a look picked — giving it to what is clicked.
+   */
+  private painter: { look?: { own: Appearance } } | undefined;
+
+  /** Start the format painter — or, started, stop it (the toolbar's button). */
+  toggleFormatPainter(): void {
+    if (this.painter) this.stopFormatPainter();
+    else {
+      this.painter = {};
+      this.container.classList.add('la-format-painter');
+      this.eventBus.emit('format-painter-changed', { state: 'pick' });
+    }
+  }
+
+  /** Stop the format painter (Esc, the toolbar's button again, another view opened). */
+  stopFormatPainter(): void {
+    if (!this.painter) return;
+    this.painter = undefined;
+    this.container.classList.remove('la-format-painter', 'la-format-painting');
+    this.eventBus.emit('format-painter-changed', { state: 'off' });
+  }
+
+  /** Whether the format painter is on, and what it does with the next click. */
+  formatPainterState(): 'off' | 'pick' | 'paint' {
+    return !this.painter ? 'off' : this.painter.look ? 'paint' : 'pick';
+  }
+
+  /**
+   * A click with the format painter on: the first picks the clicked thing's own
+   * look; each after gives it to the clicked one, as one undoable step — what
+   * its kind has of it, a value the picked look leaves unset taken back to the
+   * target's default, its figure left as it is.
+   */
+  private paint(element: DjsShape): void {
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    if (!viewIri || !viewManager || !this.painter) return;
+    const drawn = this.appearanceOfDrawn(viewIri, element);
+    if (!drawn) return;
+    if (!this.painter.look) {
+      this.painter.look = { own: drawn.own };
+      this.container.classList.add('la-format-painting');
+      this.eventBus.emit('format-painter-changed', { state: 'paint' });
+      return;
+    }
+    const look = this.painter.look.own;
+    const changes = Object.fromEntries(APPEARANCE_FIELDS[drawn.target.kind].map((key) => [key, look[key] ?? null]));
+    this.recordChange(() => viewManager.setAppearance?.(viewIri, drawn.target.iri, changes));
   }
 
   /** Write a shape's current bounds back to the model. */
@@ -4597,6 +4729,9 @@ function localName(iri: string): string {
 }
 
 /** The element a shape is drawn inside, when it is inside one rather than on the diagram. */
+/** A shape to outline: a core one's name, or a notation's own. */
+type VisualStyleShape = Parameters<typeof shapePath>[0];
+
 /** The node of the shape a shape is drawn inside — an element's placement, a figure — if any. */
 function containerIri(shape: DjsShape): string | undefined {
   const parent = shape.parent as DjsShape | undefined;

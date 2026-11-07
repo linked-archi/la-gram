@@ -247,19 +247,24 @@ describe('a node’s bounds and a line’s route merge as a whole', () => {
 });
 
 describe('the same element placed on a diagram by both sides', () => {
-  it('keeps one node, the one whose IRI sorts first; the other comes with what its side drew at it', () => {
+  it('keeps both nodes, each with what its side drew at it; the conflict offers each alone', () => {
     const f = fixture('placement.trig');
     const { merged, conflicts } = merge(f);
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]).toMatchObject({ kind: 'placement', subjects: [`${M}node-crm-a`, `${M}node-crm-b`] });
+    // An element may be placed twice in a view: both placements, and the line theirs drew at its own.
     expect(has(merged, '<https://example.org/m/node-crm-a>')).toBe(true);
-    expect(has(merged, '<https://example.org/m/node-crm-b>')).toBe(false);
-    expect(has(merged, '<https://example.org/m/link-flow>')).toBe(false);
-    // The relationship itself is no placement: it stays — but not shown in the view without its link.
-    expect(has(merged, '<https://example.org/m/flow> <https://meta.linked.archi/core#source>')).toBe(true);
-    expect(has(merged, '<https://example.org/m/flow> <https://meta.linked.archi/core#inView>')).toBe(false);
-    // CRM is in the view on both sides.
+    expect(has(merged, '<https://example.org/m/node-crm-b>')).toBe(true);
+    expect(has(merged, '<https://example.org/m/link-flow> <https://meta.linked.archi/core-vis#source> <https://example.org/m/node-crm-b>')).toBe(true);
+    expect(has(merged, '<https://example.org/m/flow> <https://meta.linked.archi/core#inView>')).toBe(true);
     expect(has(merged, '<https://example.org/m/crm> <https://meta.linked.archi/core#inView>')).toBe(true);
+    // Mine alone: theirs' node goes, with its line — the relationship stays, not shown in the view without it.
+    const mine = applyChoice(merged, conflicts[0], 'ours');
+    expect(has(mine, '<https://example.org/m/node-crm-b>')).toBe(false);
+    expect(has(mine, '<https://example.org/m/link-flow>')).toBe(false);
+    expect(has(mine, '<https://example.org/m/flow> <https://meta.linked.archi/core#source>')).toBe(true);
+    expect(has(mine, '<https://example.org/m/flow> <https://meta.linked.archi/core#inView>')).toBe(false);
+    expect(has(mine, '<https://example.org/m/crm> <https://meta.linked.archi/core#inView>')).toBe(true);
     const theirs = applyChoice(merged, conflicts[0], 'theirs');
     expect(has(theirs, '<https://example.org/m/node-crm-a>')).toBe(false);
     expect(has(theirs, '<https://example.org/m/node-crm-b>')).toBe(true);
@@ -268,7 +273,7 @@ describe('the same element placed on a diagram by both sides', () => {
     expect(has(theirs, '<https://example.org/m/crm> <https://meta.linked.archi/core#inView>')).toBe(true);
   });
 
-  it('keeps the same node whichever side is ours', () => {
+  it('keeps the same nodes whichever side is ours', () => {
     const f = fixture('placement.trig');
     expect(mergeSnapshots(f.base, f.theirs, f.ours).merged).toEqual(merge(f).merged);
   });

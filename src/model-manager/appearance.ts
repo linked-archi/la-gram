@@ -1,7 +1,7 @@
 /**
  * How one thing drawn in a view looks — an element's placement, a figure, a
  * relationship's line, a line from a note — set on its own core-vis style
- * (`arch-vis:style`), as Archi's Appearance tab sets it on one diagram object.
+ * (`arch-vis:style`): the look of that one diagram object.
  * Each value absent leaves the notation's choice, or la-gram's.
  *
  * | key | core-vis | value |
@@ -11,6 +11,7 @@
  * | `iconColor` | `arch-vis:iconColor` (0.7) | a CSS colour: the glyph's |
  * | `lineStyle` | `arch-vis:lineStyle` | a line from a note's: `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
  * | `sourceDecor`, `targetDecor` | `arch-vis:sourceDecor`, `targetDecor` | a line from a note's ends: `arch-vis:NoDecoration`, `OpenArrowhead`, … |
+ * | `shapeType` | `arch-vis:shapeType` | the shape an element's placement is drawn as: one of its notation's alternatives (`arch-vis:alternativeStyle`) |
  * | `renderingMode` | `arch-vis:renderingMode` | `arch-vis:ShapeWithBadge`, `IconCentric`, `ShapeOnly`: the figure an element's placement is drawn as (the Figure tab) |
  * | `lineWidth` | `arch-vis:lineWidth` (0.7) | a positive integer |
  * | `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
@@ -80,8 +81,10 @@ export interface Appearance {
   fontStyle?: string;
   textAlignment?: TextAlignment;
   textPosition?: TextPosition;
-  /** The figure an element's placement is drawn as, in place of its notation's (Archi's Figure tab). */
+  /** The figure an element's placement is drawn as, in place of its notation's (the Figure tab). */
   renderingMode?: FigureMode;
+  /** The shape it is drawn as, by IRI — a figure's, or one of its notation's alternatives (the Figure tab). */
+  shapeType?: string;
   /** A line from a note's style — a relationship's is its notation's, which says what it is. */
   lineStyle?: BorderStyle;
   /** What a line from a note is drawn with at its start, and at its end. */
@@ -109,6 +112,7 @@ export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'fontStyle',
   'fontColor',
   'renderingMode',
+  'shapeType',
   'lineStyle',
   'sourceDecor',
   'targetDecor',
@@ -140,6 +144,7 @@ export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   textAlignment: VIS + 'textAlignment',
   textPosition: VIS + 'textPosition',
   renderingMode: VIS + 'renderingMode',
+  shapeType: VIS + 'shapeType',
   lineStyle: VIS + 'lineStyle',
   sourceDecor: VIS + 'sourceDecor',
   targetDecor: VIS + 'targetDecor',
@@ -153,6 +158,10 @@ export function appearanceObject(
   if (isEnumeration(key)) {
     const iri = (ENUMERATIONS[key] as Record<string, string>)[String(value)];
     return iri ? { iri } : undefined;
+  }
+  if (key === 'shapeType') {
+    const iri = String(value).trim();
+    return /^[a-z][\w+.-]*:/i.test(iri) ? { iri } : undefined;
   }
   if (key === 'lineWidth' || key === 'fontSize') {
     const n = Math.round(Number(value));
@@ -173,6 +182,7 @@ export function appearanceValue<K extends AppearanceKey>(key: K, term: { termTyp
     const members = ENUMERATIONS[key] as Record<string, string>;
     return Object.keys(members).find((member) => members[member] === value) as Appearance[K] | undefined;
   }
+  if (key === 'shapeType') return (term.termType === 'NamedNode' ? value : undefined) as Appearance[K] | undefined;
   if (key === 'lineWidth' || key === 'fontSize') {
     const n = Number(value);
     return (Number.isFinite(n) && n > 0 ? n : undefined) as Appearance[K] | undefined;
@@ -284,6 +294,8 @@ export function lookOf(style: object | undefined): Appearance {
   const look: Record<string, unknown> = {};
   if (!style) return look as Appearance;
   for (const key of APPEARANCE_KEYS) {
+    // A notation's shape type is the shape's local name, not a placement's IRI: not a look to take over.
+    if (key === 'shapeType') continue;
     const value = (style as Record<string, unknown>)[key];
     if (value !== undefined && value !== null) look[key] = value;
   }

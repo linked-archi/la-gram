@@ -198,6 +198,31 @@ describe('a line drawn with its own look', () => {
     expect(solid.getAttribute('stroke-dasharray')).toBeNull();
   });
 
+  it('a line from a note’s text: at its middle, in its line colour or its font’s — names shown or not', () => {
+    const line = boot({ relationshipNames: false }).drawConnection(
+      { iri: 'https://example.org/model/l1', typeIri: '', kind: 'connector', label: 'asks', named: true, appearance: { lineColor: '#7a0019', fontSize: 14 } },
+      [
+        { x: 0, y: 0 },
+        { x: 300, y: 0 },
+      ],
+    );
+    expect(line).toBeTruthy();
+    const text = harness!.container.querySelector(`.${RENDER_CLASSES.connectionLabel} text`)!;
+    expect([text.textContent, text.getAttribute('font-size'), text.getAttribute('fill')]).toEqual(['asks', '14', '#7a0019']);
+    harness!.destroy();
+    boot({ relationshipNames: false, notationOnly: true }).drawConnection(
+      { iri: 'https://example.org/model/l2', typeIri: '', kind: 'connector', label: 'asks', named: true, appearance: { fontColor: '#1a73e8' } },
+      [
+        { x: 0, y: 0 },
+        { x: 300, y: 0 },
+      ],
+    );
+    expect(harness!.container.querySelector(`.${RENDER_CLASSES.connectionLabel} text`)!.getAttribute('fill')).toBe('#1a73e8');
+    harness!.destroy();
+    boot().drawConnection({ iri: 'https://example.org/model/l3', typeIri: '', kind: 'connector' });
+    expect(harness!.container.querySelector(`.${RENDER_CLASSES.connectionLabel}`)).toBeNull();
+  });
+
   it('a line from a note’s, which has no notation: its own even with "Notation only"', () => {
     const line = boot({ relationshipNames: false, notationOnly: true }).drawConnection({
       iri: 'https://example.org/model/l1',

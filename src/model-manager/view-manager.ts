@@ -144,7 +144,7 @@ export class OxigraphViewManager implements ViewManager {
       // told by the node's type, so an element renamed does not read a view again.
       const figureText = (q: Quad) =>
         q.predicate.value === IRI.prefLabel &&
-        this.objects(q.subject, T.rdfType).some((t) => t === IRI.ContainerNode || t === IRI.LabelNode);
+        this.objects(q.subject, T.rdfType).some((t) => t === IRI.ContainerNode || t === IRI.LabelNode || t === IRI.Link);
       const shapes = (q: Quad) => shapesAView(q) || figureText(q);
       observed.onEveryWrite((diff) => {
         if (this.cache?.size && (diff.added.some(shapes) || diff.removed.some(shapes))) this.cache.clear();
@@ -305,6 +305,8 @@ export class OxigraphViewManager implements ViewManager {
             sourceNodeIri && targetNodeIri ? this.addConnector(copy.value, { sourceNodeIri, targetNodeIri }, link.waypoints) : undefined;
           if (copied) linkCopies.set(link.linkIri, copied);
           if (copied && link.appearance) this.setAppearance(copy.value, copied, link.appearance);
+          if (copied && link.text) this.store.addQuads([triple(nn(copied), T.prefLabel, langLiteral(link.text))]);
+          if (copied && link.label) this.setLinkLabel(copy.value, copied, link.label);
           return false;
         }
         const copied = this.addRelationshipToView(
@@ -704,8 +706,11 @@ export class OxigraphViewManager implements ViewManager {
     const targetElementIri = endOf(targetNode);
     if (!sourceElementIri || !targetElementIri) return undefined;
     const appearance = this.appearanceOf(link);
+    // A line from a note may say something: its text, as a figure's.
+    const text = connector ? this.read(link as NamedNode, T.prefLabel)[0]?.object.value : undefined;
     return {
       ...(appearance ? { appearance } : {}),
+      ...(text ? { text } : {}),
       linkIri: link.value,
       relationshipIri,
       ...(connector ? { connector: true } : {}),

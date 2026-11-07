@@ -37,8 +37,7 @@
  * its gradient, line colour and width, outline style, the glyph's colour, font,
  * and where its name sits — unless
  * {@link RenderOptions.notationOnly} says to draw the notation alone. The text
- * keeps the notation's colour when only the line colour is set, as Archi has
- * it. A figure, or a line from a note, has no notation: its own look is always
+ * keeps the notation's colour when only the line colour is set. A figure, or a line from a note, has no notation: its own look is always
  * drawn.
  *
  * ## Icons are `<image href>`, not inlined SVG
@@ -50,7 +49,7 @@
  * mean a second render pass and a cache to manage), and cannot inject foreign
  * markup into the document. Inlining would buy the ability to recolour the
  * glyph, which the notation never asks for: the guide draws the badge as
- * published. A placement given an icon colour (Archi's) has it drawn through an
+ * published. A placement given an icon colour has it drawn through an
  * SVG filter instead — the glyph's opaque lines flooded with the colour, its
  * transparent parts left so. The trade-off is that a 404 is only visible at load time, so an
  * `error` listener removes the badge node when the browser reports one.
@@ -211,10 +210,11 @@ export function drawnConnectionLabel(
   notationFontSize?: number,
 ): ConnectionLabelLayout | undefined {
   const businessObject = connection.businessObject;
-  if (!options.relationshipNames || businessObject?.kind !== 'relationship' || !businessObject.named || !businessObject.label) {
-    return undefined;
-  }
-  const fontSize = (options.notationOnly ? undefined : businessObject.appearance?.fontSize) ?? notationFontSize;
+  // A line from a note says what it says always; a relationship's name, when names are shown.
+  const connector = businessObject?.kind === 'connector';
+  const named = connector || (options.relationshipNames && businessObject?.kind === 'relationship' && businessObject.named);
+  if (!businessObject || !named || !businessObject.label) return undefined;
+  const fontSize = (options.notationOnly && !connector ? undefined : businessObject.appearance?.fontSize) ?? notationFontSize;
   const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, {
     badge: !!businessObject.derivation,
     offset: businessObject.labelOffset,
@@ -345,6 +345,14 @@ interface TextFont {
   style?: string;
 }
 
+/** A font as CSS `font` shorthand, to measure text in — only where it is a look's own, not la-gram's. */
+function cssFontOf(font: TextFont): string | undefined {
+  if (font.family === NOTATION_DEFAULTS.fontFamily && !font.style) return undefined;
+  const italic = hasFontStyle(font.style, 'italic') ? 'italic ' : '';
+  const bold = hasFontStyle(font.style, 'bold') ? 'bold ' : '';
+  return `${italic}${bold}${font.size}px ${font.family}`;
+}
+
 /** The font a look sets, la-gram's where it sets none. */
 function fontOf(own: Appearance | undefined): TextFont {
   return {
@@ -420,6 +428,13 @@ function colourGlyph(group: SVGElement, glyph: SVGElement, colour: string): void
   glyph.setAttribute('filter', `url(#${id})`);
 }
 
+/** A style drawn as another shape: its shape type, and the notation's own shape when it is one. */
+function withShape(style: VisualStyle | undefined, shape: Pick<VisualStyle, 'shapeType' | 'customShape'> | undefined): VisualStyle | undefined {
+  if (!shape) return style;
+  const { customShape: _drop, ...rest } = style ?? ({} as VisualStyle);
+  return { ...rest, ...(shape.shapeType ? { shapeType: shape.shapeType } : {}), ...(shape.customShape ? { customShape: shape.customShape } : {}) } as VisualStyle;
+}
+
 /** A notation's style with a thing's own fill, line colour and outline over it. */
 function withOwnStyle(notation: VisualStyle | undefined, own: Appearance): VisualStyle {
   return {
@@ -470,7 +485,8 @@ export class RdfRenderer extends BaseRenderer {
     const notation = this.notationStyles.styleFor(typeIri);
     // Its own look in this view over its notation's, over la-gram's.
     const own = this.ownAppearance(businessObject);
-    const style = own ? withOwnStyle(notation, own) : notation;
+    // Drawn as another of its notation's figures, when the placement says so (the Figure tab).
+    const style = withShape(own ? withOwnStyle(notation, own) : notation, this.ownShape(businessObject));
     const look: Appearance = { ...lookOf(notation), ...own };
     const font = fontOf(look);
 
@@ -530,7 +546,7 @@ export class RdfRenderer extends BaseRenderer {
   /**
    * A figure: drawing only, no model element behind it.
    *
-   * - a group: a box with its name in a tab at its top left, as Archi draws one;
+   * - a group: a box with its name in a tab at its top left;
    * - a shape: its core-vis shape type, its text in the middle — or, holding
    *   something, at its top, as an element's name is;
    * - a note: a sticky note, folded at its top right, its text from the top left.
@@ -640,7 +656,7 @@ export class RdfRenderer extends BaseRenderer {
     align: TextAlignment = 'left',
     position: TextPosition = 'top',
   ): void {
-    const lines = text === '' ? [] : wrapLabel(text, Math.max(0, area.width), font.size, maxLines);
+    const lines = text === '' ? [] : wrapLabel(text, Math.max(0, area.width), font.size, maxLines, cssFontOf(font));
     if (lines.length === 0) return;
     const lineHeight = Math.round(font.size * 1.2);
     const block = lines.length * lineHeight;
@@ -662,6 +678,12 @@ export class RdfRenderer extends BaseRenderer {
       element.appendChild(span);
     });
     group.appendChild(element);
+  }
+
+  /** The shape a placement's own style draws it as — one its notation offers — or none. */
+  private ownShape(businessObject: RdfBusinessObject | undefined): Pick<VisualStyle, 'shapeType' | 'customShape'> | undefined {
+    const iri = this.ownAppearance(businessObject)?.shapeType;
+    return iri && businessObject?.kind === 'element' ? this.notationStyles.shapeFor(businessObject.typeIri, iri) : undefined;
   }
 
   /** A thing's own look, drawn — unless the canvas draws the notation alone. */
@@ -699,6 +721,8 @@ export class RdfRenderer extends BaseRenderer {
             : {};
       return { ...placed, ...lookOf(figure) };
     }
+    // A line from a note has no notation: its own look, always.
+    if (businessObject?.kind === 'connector') return { ...businessObject.appearance };
     const own = this.ownAppearance(businessObject);
     if (businessObject?.kind === 'relationship') {
       return { ...lookOf(this.notationStyles.relationshipStyleFor(businessObject.typeIri)), ...own };
@@ -839,6 +863,7 @@ export class RdfRenderer extends BaseRenderer {
       outside: options.outside,
       maxLines: options.maxLines,
       fontSize: font.size,
+      ...(cssFontOf(font) ? { font: cssFontOf(font) } : {}),
       ...(options.align ? { align: options.align } : {}),
       ...(options.position ? { position: options.position } : {}),
     });
@@ -940,6 +965,9 @@ export class RdfRenderer extends BaseRenderer {
     this.applyDecoration(parentGfx, line, own?.sourceDecor, 'source', lineColor);
     this.applyDecoration(parentGfx, line, own?.targetDecor, 'target', lineColor);
     parentGfx.appendChild(line);
+    // What it says, at its middle — or where it was moved to — as a relationship's name is drawn.
+    const label = drawnConnectionLabel(connection, this.renderOptions);
+    if (label) this.drawConnectionLabel(parentGfx, label, own?.fontColor ?? lineColor, undefined, { ...fontOf(own), size: label.fontSize });
     return line;
   }
 
@@ -1139,11 +1167,13 @@ export class RdfRenderer extends BaseRenderer {
     // (Task 22) — so kept until the shape moves, resizes, is retyped or the
     // notation changes.
     const ownMode = this.ownAppearance(shape.businessObject)?.renderingMode;
-    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${ownMode ?? ''},${this.notationStyles.version}`;
+    const ownShapeIri = this.ownAppearance(shape.businessObject)?.shapeType;
+    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${ownMode ?? ''},${ownShapeIri ?? ''},${this.notationStyles.version}`;
     const known = this.shapePaths.get(shape);
     if (known?.stamp === stamp) return known.path;
 
-    const style = this.notationStyles.styleFor(typeIri);
+    // The outline drawn: its own figure's, when it has one.
+    const style = withShape(this.notationStyles.styleFor(typeIri), this.ownShape(shape.businessObject));
 
     const x = (shape['x'] as number) ?? 0;
     const y = (shape['y'] as number) ?? 0;

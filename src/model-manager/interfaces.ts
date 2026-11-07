@@ -111,6 +111,8 @@ export interface LinkInfo {
    * `…ElementIri` a figure's node where the end is a figure.
    */
   connector?: boolean;
+  /** A connector's text (`skos:prefLabel`): what a line from a note says. */
+  text?: string;
   /**
    * Where the relationship's name was moved to: its `arch-vis:LabelNode`'s
    * bounds, in the diagram's coordinates. Absent, the name is at the middle of

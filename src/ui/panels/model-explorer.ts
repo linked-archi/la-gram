@@ -342,7 +342,7 @@ function statedOf(contents: ModelContents): Stated {
   };
 }
 
-/** Order within a folder: by name, as Archi's tree has it; by `key` between namesakes. */
+/** Order within a folder: by name; by `key` between namesakes. */
 function byName<T extends { label: string }>(key: (item: T) => string): (a: T, b: T) => number {
   return (a, b) => a.label.localeCompare(b.label) || key(a).localeCompare(key(b));
 }

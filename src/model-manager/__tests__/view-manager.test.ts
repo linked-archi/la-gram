@@ -950,4 +950,18 @@ describe('a line from a note: a link standing for no relationship', () => {
     const copiedNote = views.getNodes(copy).find((n) => n.figure)!.nodeIri;
     expect(views.getLinks(copy)).toEqual([expect.objectContaining({ connector: true, sourceElementIri: app, targetNodeIri: copiedNote })]);
   });
+
+  it('says what its skos:prefLabel says — read again once written — and is copied saying it, where it was moved to', () => {
+    const { store, views, view, note, appNode } = setup();
+    const link = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode })!;
+    expect(views.getLinks(view)[0]?.text).toBeUndefined();
+    store.addQuads([DataFactory.quad(nn(link), nn(NAMESPACES.skos + 'prefLabel'), DataFactory.literal('asks', 'en'))]);
+    views.setLinkLabel(view, link, { x: 140, y: 20, width: 40, height: 16 });
+    expect(views.getLinks(view)[0]).toMatchObject({ text: 'asks', label: { x: 140, y: 20, width: 40, height: 16 } });
+    const copy = views.duplicateView(view).value;
+    expect(views.getLinks(copy)[0]).toMatchObject({ connector: true, text: 'asks', label: { x: 140, y: 20, width: 40, height: 16 } });
+    // Its text goes with it.
+    views.removeRelationshipFromView(view, link);
+    expect(store.getQuads(nn(link), null, null)).toEqual([]);
+  });
 });

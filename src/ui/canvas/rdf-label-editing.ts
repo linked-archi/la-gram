@@ -95,6 +95,8 @@ function isElementShape(element: LabelledShape | undefined): element is Labelled
  */
 function isNameableLine(element: LabelledShape | undefined): boolean {
   const businessObject = element?.businessObject;
+  // A line from a note: what it says, its own text.
+  if (businessObject?.kind === 'connector') return !!element?.waypoints && !!element.parent && !!businessObject.iri;
   return (
     !!element?.waypoints &&
     !!element.parent &&
@@ -203,6 +205,10 @@ export class RdfLabelEditingProvider {
   private readonly renderer: DrawnLook | null;
   /** What the text box does not take from its style: set on its content once open. */
   private extraStyle: { fontStyle: string; textDecoration: string; color: string } = { fontStyle: '', textDecoration: '', color: '' };
+  /** Text kept at the bottom of its box as it is typed: the box's height and padding, in pixels. */
+  private bottomAligned: { height: number; pad: number } | undefined;
+  /** Stops keeping it there, once the box closes. */
+  private stopBottomAligning: (() => void) | undefined;
 
   constructor(
     eventBus: EventBusLike,
@@ -240,6 +246,8 @@ export class RdfLabelEditingProvider {
     eventBus.on('directEditing.deactivate', () => {
       if (editing) canvas.removeMarker(editing, EDITING_MARKER);
       editing = undefined;
+      this.stopBottomAligning?.();
+      this.stopBottomAligning = undefined;
     });
 
     // The whole name selected, so typing replaces it (a new element is named after its type).
@@ -249,6 +257,18 @@ export class RdfLabelEditingProvider {
       if (!content || !document) return;
       // Italic, underlined, in its colour — what the text box's own style leaves out.
       Object.assign(content.style, this.extraStyle);
+      // At the bottom: the last line kept there as lines are typed or taken away.
+      const bottom = this.bottomAligned;
+      if (bottom) {
+        const keep = () => {
+          content.style.paddingTop = `${bottom.pad}px`;
+          const lines = content.scrollHeight - 2 * bottom.pad;
+          content.style.paddingTop = `${Math.max(bottom.pad, bottom.height - bottom.pad - lines)}px`;
+        };
+        keep();
+        content.addEventListener('input', keep);
+        this.stopBottomAligning = () => content.removeEventListener('input', keep);
+      }
       const range = document.createRange();
       range.selectNodeContents(content);
       const selected = document.defaultView?.getSelection();
@@ -267,6 +287,7 @@ export class RdfLabelEditingProvider {
 
   activate(element: unknown): DirectEditingContext | null {
     const shape = element as LabelledShape;
+    this.bottomAligned = undefined;
     if (isNameableLine(shape)) return this.lineContext(shape);
     if (!isElementShape(shape)) return null;
     const zoom = this.canvas.zoom();
@@ -329,6 +350,7 @@ export class RdfLabelEditingProvider {
     // At the bottom: its lines as they wrap now, their last at the bottom.
     const lines = Math.max(1, wrapLabel(text, Math.max(1, width - side.left - side.right), fontSize).length);
     const top = position === 'bottom' ? Math.max(pad, height - pad - lines * Math.round(fontSize * 1.2)) : pad;
+    this.bottomAligned = position === 'bottom' ? { height: box.height, pad: pad * zoom } : undefined;
     return {
       text,
       bounds: { x: box.x, y: box.y, width: box.width, height: box.height },

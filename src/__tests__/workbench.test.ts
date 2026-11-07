@@ -372,7 +372,7 @@ describe('the workbench', () => {
     await panel.updateComplete;
     expect(root.querySelector('.vtab[data-tab="appearance"]')).toBeNull();
 
-    // Both selected on the canvas: the tab, with every field an element's placement has — then Figure, as in Archi.
+    // Both selected on the canvas: the tab, with every field an element's placement has — then Figure.
     ui.diagramCanvas.selectIris([a, b]);
     await panel.updateComplete;
     expect(panel.appearance?.targets).toEqual([
@@ -382,7 +382,7 @@ describe('the workbench', () => {
     expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-2)).toEqual(['appearance', 'figure']);
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
     await panel.updateComplete;
-    // Archi's rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
+    // Its rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
     expect([...root.querySelectorAll('.appearance-field')].map((f) => f.getAttribute('data-field'))).toEqual([
       'fillColor',
       'gradient',
@@ -399,6 +399,17 @@ describe('the workbench', () => {
     ]);
     expect(root.querySelectorAll('.appearance > *').length).toBe(15); // 7 rows of two, and the footer
     expect(root.querySelector('.appearance-footer')!.textContent).toContain('Changes apply to the 2 selected.');
+    // Where they differ, the field says so — what it shows is the first one's.
+    expect(panel.appearance?.mixed).toBeUndefined();
+    views.setAppearance!(view, nodeB, { lineWidth: 3 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    await panel.updateComplete;
+    expect(panel.appearance?.mixed).toEqual(['lineWidth']);
+    expect(root.querySelector('.appearance-field[data-field="lineWidth"]')!.getAttribute('data-mixed')).toBe('true');
+    expect(root.querySelector('.appearance-field[data-field="lineColor"]')!.hasAttribute('data-mixed')).toBe(false);
+    views.setAppearance!(view, nodeB, { lineWidth: null });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    await panel.updateComplete;
 
     // A fill picked: both, on their own styles, drawn so.
     const fill = root.querySelector<HTMLInputElement>('.appearance-field[data-field="fillColor"] input')!;
@@ -457,6 +468,37 @@ describe('the workbench', () => {
     for (const iri of [a, b]) els.deleteElement(iri);
   });
 
+  it('copies one thing’s look to others with the format painter, each one undoable step; Esc puts it down', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const [from, to] = ['Painted from', 'Painted to'].map((label) => els.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label }).value);
+    const fromNode = views.addElementToView(view, from!, { x: 100, y: 900, width: 120, height: 55 });
+    const toNode = views.addElementToView(view, to!, { x: 300, y: 900, width: 120, height: 55 });
+    views.setAppearance!(view, fromNode, { fillColor: '#ffd6e0', fontStyle: 'bold', textAlignment: 'left', renderingMode: 'IconCentric' });
+    views.setAppearance!(view, toNode, { lineWidth: 3 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const djs = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const click = (iri: string) => djs.get('eventBus').fire('element.click', { element: djs.get('elementRegistry').get(iri) });
+    const button = () => ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="format-painter"]')!;
+
+    ui.diagramCanvas.selectIris([]);
+    button().click();
+    expect(ui.canvasToolbar.formatPainter).toBe('pick');
+    click(from!);
+    expect(ui.canvasToolbar.formatPainter).toBe('paint');
+    click(to!);
+    // Its look, not its figure; what it leaves unset taken back — the line width.
+    expect(views.getNode(view, toNode)?.appearance).toEqual({ fillColor: '#ffd6e0', fontStyle: 'bold', textAlignment: 'left' });
+    // A click with the painter selects nothing.
+    expect(ui.diagramCanvas.selectedIris()).toEqual([]);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getNode(view, toNode)?.appearance).toEqual({ lineWidth: 3 });
+    djs.get('eventBus').fire('keyboard.keydown', { keyEvent: new KeyboardEvent('keydown', { key: 'Escape' }) });
+    expect(ui.canvasToolbar.formatPainter).toBe('off');
+    for (const iri of [from!, to!]) els.deleteElement(iri);
+  });
+
   it('draws an element as another figure from the Figure tab: its icon, or its shape alone', async () => {
     const els = app.components.elementManager;
     const views = app.components.viewManager;
@@ -470,7 +512,11 @@ describe('the workbench', () => {
 
     ui.diagramCanvas.selectIris([actor]);
     await panel.updateComplete;
-    expect(panel.appearance?.figure).toMatchObject({ modes: ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'], notation: 'ShapeWithBadge' });
+    expect(panel.appearance?.figure?.options.map((o) => [o.label, o.mode, !!o.notation])).toEqual([
+      ['Shape with icon', 'ShapeWithBadge', true],
+      ['Icon', 'IconCentric', false],
+      ['Shape only', 'ShapeOnly', false],
+    ]);
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
     await panel.updateComplete;
     const choice = (mode: string) => root.querySelector<HTMLButtonElement>(`.figure-choice[data-mode="${mode}"]`)!;
@@ -487,6 +533,30 @@ describe('the workbench', () => {
     expect(drawnMode()).toBe('ShapeWithBadge');
     await ui.runCommand({ command: 'undo' });
     expect(drawnMode()).toBe('IconCentric');
+
+    // A data object: also its notation's other figure — the banded box — drawn as its shape, its glyph left off.
+    const data = els.createElement(`${AM4}DataObject`, app.session.modelIri!, { label: 'Banded' }).value;
+    const dataNode = views.addElementToView(view, data, { x: 300, y: 800, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([data]);
+    await panel.updateComplete;
+    expect(panel.appearance?.figure?.options.map((o) => o.label)).toEqual(['Shape with icon', 'Banded Rectangle', 'Icon', 'Shape only']);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-shape="BandedRectangle"]')!.click();
+    expect(views.getNode(view, dataNode)?.appearance).toEqual({
+      renderingMode: 'ShapeOnly',
+      shapeType: 'https://meta.linked.archi/archimate4/notation#BandedRectangle',
+    });
+    const banded = document.querySelector(`[data-element-iri="${data}"]`)!;
+    expect([banded.getAttribute('data-rendering-mode'), !!banded.querySelector('.la-shape-details'), !!banded.querySelector('.la-shape-badge')]).toEqual([
+      'ShapeOnly',
+      true,
+      false,
+    ]);
+    await panel.updateComplete;
+    expect(root.querySelector('.figure-choice[data-shape="BandedRectangle"]')!.getAttribute('aria-checked')).toBe('true');
+    els.deleteElement(data);
 
     // A figure has no figure to choose.
     const note = views.addFigure!(view, { kind: 'note', text: 'n', bounds: { x: 400, y: 800, width: 185, height: 80 } });

@@ -187,14 +187,14 @@ export interface AppearanceChangeDetail {
   changes: AppearanceChanges;
 }
 
-/** Archi's line widths. */
+/** The line widths offered. */
 const LINE_WIDTHS: ReadonlyArray<[number, string]> = [
   [1, 'Normal'],
   [2, 'Medium'],
   [3, 'Heavy'],
 ];
 
-/** Archi's gradients: none, or the side the fill shades from. */
+/** The gradients offered: none, or the side the fill shades from. */
 const GRADIENTS: ReadonlyArray<[string, string]> = [
   ['', 'None'],
   ['top', 'Top'],
@@ -215,7 +215,7 @@ const DECORATIONS: ReadonlyArray<[NonNullable<Appearance['targetDecor']>, string
   ['CircleDot', 'Dot'],
 ];
 
-/** The Appearance tab's rows, left and right, as Archi lays them out; a line's style beside its opacity, its ends under them. */
+/** The Appearance tab's rows, left and right; a line's style beside its opacity, its ends under them. */
 const APPEARANCE_ROWS: ReadonlyArray<[string, string | undefined]> = [
   ['fillColor', 'gradient'],
   ['fillOpacity', undefined],
@@ -247,7 +247,7 @@ const FONT_NAMES = [
   'Courier New',
 ];
 
-/** Archi's alignment buttons: lines set left, centred, right — and high, middle, low in a box. */
+/** The alignment buttons: lines set left, centred, right — and high, middle, low in a box. */
 const ALIGNMENTS: ReadonlyArray<[NonNullable<Appearance['textAlignment']>, string, string]> = [
   ['left', 'Left', 'M2 3h12M2 7h8M2 11h10'],
   ['center', 'Centre', 'M2 3h12M4 7h8M3 11h10'],
@@ -544,13 +544,6 @@ function storedRelationshipsOpen(): boolean {
 }
 
 const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'figure'];
-
-/** The Figure tab's choices, named. */
-const FIGURE_NAMES: Record<FigureMode, string> = {
-  ShapeWithBadge: 'Shape with icon',
-  IconCentric: 'Icon',
-  ShapeOnly: 'Shape only',
-};
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
 function storedTab(): PanelSection {
@@ -890,7 +883,7 @@ export class PropertyPanel extends LitElement {
       color: var(--la-text-muted, #5f6368);
     }
 
-    /* The Appearance tab: two columns of fields, as Archi lays them out; one when narrow. */
+    /* The Appearance tab: two columns of fields; one when narrow. */
     .appearance {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -975,6 +968,12 @@ export class PropertyPanel extends LitElement {
       stroke: #3c4043;
       stroke-width: 1.4;
       display: block;
+    }
+
+    .appearance-field .mixed {
+      display: block;
+      font-size: 10px;
+      color: #b06000;
     }
 
     .figure-choices {
@@ -1698,7 +1697,11 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
-  /** A figure's information: its text — its name, labelled so. No type, definition, properties or analysis: a figure is drawing, not a model element. */
+  /**
+   * A figure's information, or a line's from one: its text — its name, labelled
+   * so. No type, definition, properties or analysis: it is drawing, not a model
+   * element.
+   */
   private _renderFigureText() {
     const text: PropertyEntry = {
       ...(this._entries.find((e) => e.predicate === SKOS_PREF_LABEL) ?? {
@@ -1712,7 +1715,7 @@ export class PropertyPanel extends LitElement {
   }
 
   /**
-   * The Appearance tab, laid out as Archi's, row by row: fill colour and
+   * The Appearance tab, row by row: fill colour and
    * gradient, fill opacity, line colour and width, line opacity and style,
    * icon colour, text alignment and position, font and font colour — the
    * fields every one selected has, each showing the first one's own value, or
@@ -1728,8 +1731,22 @@ export class PropertyPanel extends LitElement {
       own[key] !== undefined
         ? html`<button class="remove" title="Back to the default" @click=${() => this._appearanceChange({ [key]: null })}>×</button>`
         : nothing;
+    // A field whose value differs among the selected says so: what it shows is the first one's.
+    const mixed = new Set<string>(selection.mixed ?? []);
+    const MIXED_BY: Record<string, string[]> = {
+      fillOpacity: ['fillColor'],
+      lineOpacity: ['lineColor'],
+      font: ['fontName', 'fontSize', 'fontStyle'],
+    };
+    const isMixed = (key: string) => (MIXED_BY[key] ?? [key]).some((k) => mixed.has(k));
     const field = (key: string, label: string, controls: unknown) =>
-      html`<div class="appearance-field" data-field=${key}><span class="field-label">${label}</span><span class="controls">${controls}</span></div>`;
+      html`<div class="appearance-field" data-field=${key} data-mixed=${isMixed(key) ? 'true' : nothing}>
+        <span class="field-label"
+          >${label}${isMixed(key)
+            ? html`<span class="mixed" title="The selected differ here: this is the first one's">mixed</span>`
+            : nothing}</span
+        ><span class="controls">${controls}</span>
+      </div>`;
     const colour = (key: 'fillColor' | 'lineColor' | 'fontColor' | 'iconColor', label: string) =>
       field(
         key,
@@ -1912,7 +1929,7 @@ export class PropertyPanel extends LitElement {
         : nothing,
       fontColor: has('fontColor') ? colour('fontColor', 'Font colour') : nothing,
     };
-    // Archi's rows; one with neither field is left out, a missing one leaves its place empty.
+    // The rows; one with neither field is left out, a missing one leaves its place empty.
     const rows = APPEARANCE_ROWS.filter((row) => row.some((key) => key && cells[key] !== nothing));
     const notationOnly = this.notationOnly && selection.targets.some((t) => t.kind === 'element' || t.kind === 'relationship');
     return html`
@@ -1949,37 +1966,45 @@ export class PropertyPanel extends LitElement {
   }
 
   /**
-   * The Figure tab, as Archi's: what an element is drawn as — its shape with
-   * its glyph as a badge, the glyph itself with its name under it, or the shape
-   * alone — each a preview to pick; the notation's marked, and picked, its own
-   * figure taken away.
+   * The Figure tab: what an element is drawn as — its notation's
+   * own figure, the notation's other figures (a banded box, a 3D box, …), its
+   * glyph with its name under it, its shape alone — each a preview to pick. The
+   * notation's is marked, and picked takes the placement's own figure away.
    */
   private _renderFigureChoices(choices: FigureChoices, count: number) {
-    const shown = choices.own ?? choices.notation;
     // Inside an <svg>, fragments in SVG's namespace.
-    const bar = svg`<rect x="22" y="40" width="36" height="4" rx="1" fill="#9aa0a6"></rect>`;
-    const preview = (mode: FigureMode) =>
-      mode === 'IconCentric'
-        ? html`<svg viewBox="0 0 80 48" aria-hidden="true"><image href=${choices.iconHref} x="24" y="2" width="32" height="34"></image>${bar}</svg>`
-        : html`<svg viewBox="0 0 80 48" aria-hidden="true">
-            <rect x="4" y="4" width="72" height="40" rx="3" fill=${choices.fillColor} stroke=${choices.lineColor}></rect>
-            ${mode === 'ShapeWithBadge' ? svg`<image href=${choices.iconHref} x="58" y="7" width="14" height="14"></image>` : nothing}
-            <rect x="20" y="22" width="40" height="4" rx="1" fill="#9aa0a6"></rect>
-          </svg>`;
+    const preview = (option: FigureChoices['options'][number]) => {
+      const drawn = option.preview;
+      if ('icon' in drawn) {
+        return html`<svg viewBox="0 0 80 48" aria-hidden="true">
+          <image href=${choices.iconHref} x="24" y="2" width="32" height="34"></image>
+          <rect x="22" y="40" width="36" height="4" rx="1" fill="#9aa0a6"></rect>
+        </svg>`;
+      }
+      return html`<svg viewBox="0 0 80 48" aria-hidden="true">
+        <g transform="translate(4,4)">
+          <path d=${drawn.outline} fill=${choices.fillColor} stroke=${choices.lineColor} stroke-dasharray=${drawn.dashed ? '4 2' : nothing}></path>
+          ${drawn.details ? svg`<path d=${drawn.details} fill="none" stroke=${choices.lineColor}></path>` : nothing}
+        </g>
+        ${drawn.badge ? svg`<image href=${choices.iconHref} x="58" y="7" width="14" height="14"></image>` : nothing}
+        <rect x="20" y="24" width="40" height="4" rx="1" fill="#9aa0a6"></rect>
+      </svg>`;
+    };
     return html`
       <div class="figure-choices" role="radiogroup" aria-label="Figure">
-        ${choices.modes.map(
-          (mode) => html`<button
+        ${choices.options.map(
+          (option, index) => html`<button
             type="button"
             class="figure-choice"
             role="radio"
-            data-mode=${mode}
-            aria-checked=${shown === mode ? 'true' : 'false'}
-            title=${FIGURE_NAMES[mode]}
-            @click=${() => this._appearanceChange({ renderingMode: mode === choices.notation ? null : mode })}
+            data-mode=${option.shapeIri ? 'alternative' : option.mode}
+            data-shape=${option.shapeIri ? option.shapeIri.split(/[#/]/).pop()! : nothing}
+            aria-checked=${index === choices.selected ? 'true' : 'false'}
+            title=${option.label}
+            @click=${() => this._appearanceChange(option.changes)}
           >
-            ${preview(mode)}
-            <span>${FIGURE_NAMES[mode]}${mode === choices.notation ? html`<span class="muted-note"> (notation)</span>` : nothing}</span>
+            ${preview(option)}
+            <span>${option.label}${option.notation ? html`<span class="muted-note"> (notation)</span>` : nothing}</span>
           </button>`,
         )}
       </div>
@@ -2162,9 +2187,10 @@ export class PropertyPanel extends LitElement {
               ? this._renderFigureText()
               : active === 'info' && drawing === 'line' && this.heading?.line
                 ? html`<p class="line-note">
-                    From <strong>${this.heading.line.from}</strong> to <strong>${this.heading.line.to}</strong> — drawn
-                    in this view only; no relationship in the model.
-                  </p>`
+                      From <strong>${this.heading.line.from}</strong> to <strong>${this.heading.line.to}</strong> — drawn
+                      in this view only; no relationship in the model.
+                    </p>
+                    ${this._renderFigureText()}`
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}

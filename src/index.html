@@ -184,6 +184,17 @@
       position: relative;
     }
 
+    /* The format painter: picking a look, then giving it. */
+    .la-diagram-host.la-format-painter svg,
+    .la-diagram-host.la-format-painter .djs-element {
+      cursor: crosshair;
+    }
+
+    .la-diagram-host.la-format-painting svg,
+    .la-diagram-host.la-format-painting .djs-element {
+      cursor: copy;
+    }
+
     .la-diagram-host .djs-context-pad .entry {
       background: #fff;
       border: 1px solid #dadce0;

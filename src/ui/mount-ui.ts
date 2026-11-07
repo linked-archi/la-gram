@@ -1336,6 +1336,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     showNotationOnly(on);
   };
   canvasToolbar.addEventListener('notation-only', onNotationOnly);
+
+  // The format painter, from the toolbar's button; its state shown on the button.
+  const onFormatPainter = (): void => diagramCanvas.toggleFormatPainter();
+  canvasToolbar.addEventListener('format-painter', onFormatPainter);
+  const onFormatPainterChanged: ModelEventHandler = (event) => {
+    canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
+  };
+  eventBus.on('format-painter-changed', onFormatPainterChanged);
   propertyPanel.addEventListener('notation-only', onNotationOnly);
 
   // Figures — groups, notes, shapes — from the toolbar's second row: open or closed, remembered per browser.
@@ -2676,6 +2684,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
     propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
     canvasToolbar.removeEventListener('notation-only', onNotationOnly);
+    canvasToolbar.removeEventListener('format-painter', onFormatPainter);
+    eventBus.off('format-painter-changed', onFormatPainterChanged);
     propertyPanel.removeEventListener('notation-only', onNotationOnly);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);

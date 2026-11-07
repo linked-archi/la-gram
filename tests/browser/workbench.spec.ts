@@ -2063,6 +2063,8 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
       'lineStyle',
       'sourceDecor',
       'targetDecor',
+      'font',
+      'fontColor',
     ]);
     // Dotted, a filled arrow at its end: drawn so.
     const drawnLine = page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connector`);
@@ -2079,6 +2081,38 @@ describe('figures from the toolbar: groups, notes, shapes', () => {
     expect(await drawnLine.getAttribute('marker-start')).toBeNull();
     await panel.locator('.vtab[data-tab="info"]').click();
     expect(await panel.locator('.line-note').textContent()).toContain('Ask the CFO');
+
+    // What it says, typed on it: its skos:prefLabel, drawn at its middle, shown as its Text.
+    const mid = await page.evaluate((iri) => {
+      const d = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram();
+      const drawn = d.get('elementRegistry').get(iri);
+      const canvas = d.get('canvas');
+      const vb = canvas.viewbox();
+      const svg = canvas._svg.getBoundingClientRect();
+      const [p, q] = [drawn.waypoints[0], drawn.waypoints[drawn.waypoints.length - 1]];
+      return { x: svg.x + ((p.x + q.x) / 2 - vb.x) * vb.scale, y: svg.y + ((p.y + q.y) / 2 - vb.y) * vb.scale };
+    }, line!.iri);
+    const editor = page.locator('.djs-direct-editing-content');
+    await page.mouse.dblclick(mid.x, mid.y);
+    await editor.waitFor({ state: 'visible' });
+    expect(await editor.innerText()).toBe('');
+    await page.keyboard.type('asks first');
+    await page.keyboard.press('Enter');
+    await editor.waitFor({ state: 'hidden' });
+    const said = () =>
+      page.evaluate((iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getLinks(app.session.activeViewIri).find((l: any) => l.linkIri === iri)?.text;
+      }, line!.iri);
+    await until(async () => (await said()) === 'asks first', 'the line’s text in the view');
+    const drawnText = page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connection-label tspan`);
+    await until(async () => (await drawnText.allTextContents()).join(' ') === 'asks first', 'the text on the line');
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_UI__.diagramCanvas.reveal(iri);
+    }, line!.iri);
+    const textField = panel.locator('.property-list .property-row .property-value');
+    await until(async () => (await textField.count()) === 1 && (await textField.inputValue()) === 'asks first', 'the line’s Text field');
+    expect(await panel.locator('.property-list').textContent()).toContain('Text');
     await session.screenshot('workbench-figures');
     expect(session.diagnostics.pageErrors).toEqual([]);
     expect(session.diagnostics.unexpectedConsoleErrors).toEqual([]);
@@ -2220,11 +2254,11 @@ describe('the Appearance tab', () => {
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
 
-  it('objects, a product, a work package and the 3D-box elements are boxes with their glyph, as Archi draws them', async () => {
+  it('objects, a product, a work package and the 3D-box elements are boxes with their glyph', async () => {
     const placed = await page.evaluate(() => {
       const app = (window as any).__LA_GRAM_APP__;
       const AM4 = 'https://meta.linked.archi/archimate4/onto#';
-      const types = ['BusinessObject', 'DataObject', 'Product', 'WorkPackage', 'Device', 'Equipment', 'Facility', 'Plateau', 'Grouping'];
+      const types = ['BusinessObject', 'DataObject', 'Product', 'WorkPackage', 'Device', 'Equipment', 'Facility', 'Plateau', 'Grouping', 'Deliverable', 'Meaning', 'Value', 'ValueStream'];
       return types.map((type, i) => {
         const iri = app.components.elementManager.createElement(AM4 + type, app.session.modelIri, { label: type }).value as string;
         app.components.viewManager.addElementToView(app.session.activeViewIri, iri, {
@@ -2248,5 +2282,46 @@ describe('the Appearance tab', () => {
     expect(await grouping.locator('.la-shape-body').getAttribute('stroke-dasharray')).toBeTruthy();
     expect(await grouping.locator('.la-shape-label').getAttribute('text-anchor')).toBe('start');
     await session.screenshot('objects');
+    // A data object's Figure tab: its notation's own figure, its banded box, its icon, its shape alone.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), placed[1]);
+    const panel = page.locator('property-panel');
+    await panel.locator('.vtab[data-tab="figure"]').click();
+    expect((await panel.locator('.figure-choice').allInnerTexts()).map((t) => t.trim())).toEqual([
+      'Shape with icon (notation)',
+      'Banded Rectangle',
+      'Icon',
+      'Shape only',
+    ]);
+    await session.screenshot('figure-alternatives');
+  });
+
+  it('renamed in place, text set at the bottom stays at the bottom as lines are typed', async () => {
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#BusinessActor', app.session.modelIri, {
+        label: 'Bottom',
+      }).value as string;
+      const node = app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 900, y: 420, width: 160, height: 120 });
+      app.components.viewManager.setAppearance(app.session.activeViewIri, node, { textPosition: 'bottom' });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await page.keyboard.press('F2');
+    const parent = page.locator('.djs-direct-editing-parent');
+    const content = page.locator('.djs-direct-editing-content');
+    await parent.waitFor({ state: 'visible' });
+    const gap = async () => {
+      const [box, text] = [await parent.boundingBox(), await content.boundingBox()];
+      return box!.y + box!.height - (text!.y + text!.height);
+    };
+    const paddingTop = () => content.evaluate((el: HTMLElement) => parseFloat(el.style.paddingTop));
+    const before = await paddingTop();
+    await page.keyboard.type(' with a name long enough to wrap onto several lines of its own');
+    // More lines: the padding above them shrinks, and their last stays at the bottom.
+    expect(await paddingTop()).toBeLessThan(before);
+    expect(Math.abs(await gap())).toBeLessThan(3);
+    await page.keyboard.press('Escape');
+    expect(session.diagnostics.pageErrors).toEqual([]);
   });
 });

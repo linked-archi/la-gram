@@ -1,8 +1,8 @@
 /**
  * Whether the canvas draws each element and relationship as its notation does,
  * leaving out the look set on it in the view (the Appearance tab's): the canvas
- * toolbar's "Notation only" switch. Off by default — a diagram converted from
- * Archi shows its own colours — and remembered per browser, as "Relationship
+ * toolbar's "Notation only" switch. Off by default — a converted diagram shows
+ * its own colours — and remembered per browser, as "Relationship
  * names" is (`relationship-names.ts`).
  */
 

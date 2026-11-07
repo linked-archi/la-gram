@@ -33,6 +33,11 @@ import {
   type RelationshipVisualStyle,
   type VisualStyle,
 } from '../../metamodel-manager/notation.js';
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { SHAPE_TYPES } from './notation-shapes.js';
+
+/** Where core-vis's own shapes are named: `arch-vis:Rectangle`. */
+const CORE_SHAPE_NS = NAMESPACES['arch-vis'];
 
 /** Empty palette, used before a metamodel is loaded. */
 export function emptyPaletteDefinition(): PaletteDefinition {
@@ -95,6 +100,25 @@ export class NotationStyleRegistry {
     const info = this.elementType(typeIri);
     if (info) return info.style;
     return this.indexEntry(typeIri)?.style;
+  }
+
+  /**
+   * The shape a placement of `typeIri` is drawn as when its own style names
+   * `shapeIri`: its notation's default shape, one of its alternatives
+   * (`arch-vis:alternativeStyle`), or a core shape. `undefined` for a shape the
+   * type's notation does not offer, which is then drawn as its default.
+   */
+  shapeFor(typeIri: string | undefined, shapeIri: string): Pick<VisualStyle, 'shapeType' | 'customShape'> | undefined {
+    const style = this.styleFor(typeIri);
+    for (const candidate of [style, ...(style?.alternatives ?? [])]) {
+      if (!candidate) continue;
+      if (candidate.customShape?.iri === shapeIri) return { shapeType: candidate.shapeType, customShape: candidate.customShape };
+      if (!candidate.customShape && candidate.shapeType && shapeIri === CORE_SHAPE_NS + candidate.shapeType) {
+        return { shapeType: candidate.shapeType };
+      }
+    }
+    const local = shapeIri.startsWith(CORE_SHAPE_NS) ? shapeIri.slice(CORE_SHAPE_NS.length) : undefined;
+    return local && (SHAPE_TYPES as readonly string[]).includes(local) ? { shapeType: local as VisualStyle['shapeType'] } : undefined;
   }
 
   /**

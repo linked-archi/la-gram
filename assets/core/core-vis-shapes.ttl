@@ -50,7 +50,8 @@ must belong to exactly one view); the remainder is cardinality and datatype hygi
     skos:historyNote              '''0.3.0 — StyleShape checks the style terms core-vis 0.7 adds:
 lineWidth a positive integer, fontStyle the keywords bold, italic and underline, textAlignment,
 textPosition and gradient members of their enumerations, iconColor a single string — and, as a
-line's own style may now say them, lineStyle, sourceDecor and targetDecor members of theirs.
+line's own style may now say them, lineStyle, sourceDecor and targetDecor members of theirs. A
+VisualNotation's arch-vis:alternativeStyle is a Style.
 
 0.2.0 — LinkShape accepts a Link as well as a Node at either end of
 a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
@@ -570,6 +571,11 @@ it.'''@en ;
         sh:maxCount 1 ;
         sh:class    arch-vis:Style ;
         sh:message  "arch-vis:defaultStyle points to at most one arch-vis:Style."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:alternativeStyle ;
+        sh:class    arch-vis:Style ;
+        sh:message  "arch-vis:alternativeStyle points to an arch-vis:Style: another figure the concept may be drawn as."@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:nestedEnd ;

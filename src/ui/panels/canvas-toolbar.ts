@@ -149,6 +149,10 @@ export class CanvasToolbar extends LitElement {
   @property({ type: Boolean, attribute: false })
   relationshipNames = false;
 
+  /** The format painter: off, picking a look, or giving the picked one (the button's state). */
+  @property({ attribute: false })
+  formatPainter: 'off' | 'pick' | 'paint' = 'off';
+
   /** Whether the canvas draws the notation alone, without the look set in the view (the switch's state). */
   @property({ type: Boolean, attribute: false })
   notationOnly = false;
@@ -225,6 +229,21 @@ export class CanvasToolbar extends LitElement {
             </button>
           `,
         )}
+        <button
+          type="button"
+          data-action="format-painter"
+          title=${this.formatPainter === 'off'
+            ? 'Format painter — click what to copy the look of, then what to give it to; Esc to stop'
+            : this.formatPainter === 'pick'
+              ? 'Format painter: click what to copy the look of (Esc or here to stop)'
+              : 'Format painter: click what to give the look to (Esc or here to stop)'}
+          aria-label="Format painter"
+          aria-pressed=${this.formatPainter === 'off' ? 'false' : 'true'}
+          data-state=${this.formatPainter}
+          @click=${() => this.dispatchEvent(new CustomEvent('format-painter', { bubbles: true, composed: true }))}
+        >
+          \u{1F58C}
+        </button>
         <span class="separator" aria-hidden="true"></span>
         <button
           type="button"

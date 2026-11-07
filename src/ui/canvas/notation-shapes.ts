@@ -663,16 +663,25 @@ export interface LabelLayout {
  * Split a label into lines that plausibly fit `availableWidth`.
  *
  * Uses a fixed 0.55em-per-character estimate rather than measuring, so the
- * result is deterministic. Words longer than a line are hard-broken.
+ * result is deterministic. Words longer than a line are hard-broken. Given a
+ * `font` of its own — a placement's own font name or style, a CSS `font` — the
+ * lines are measured in it where the browser can measure (jsdom cannot, and
+ * keeps the estimate): an estimate made for la-gram's font would wrap a wide
+ * or bold one too late and a narrow one too early.
  */
 export function wrapLabel(
   label: string,
   availableWidth: number,
   fontSize: number = NOTATION_DEFAULTS.fontSize,
   maxLines: number = NOTATION_DEFAULTS.maxLabelLines,
+  font?: string,
 ): string[] {
   const text = label.trim();
   if (text === '') return [];
+  if (font) {
+    if (textMeasure === undefined) textMeasure = canvasTextMeasure();
+    if (textMeasure) return wrapMeasured(text, availableWidth, maxLines, (line) => textMeasure!(line, font));
+  }
 
   const perChar = fontSize * 0.55;
   const budget = Math.max(3, Math.floor(availableWidth / perChar));
@@ -703,6 +712,37 @@ export function wrapLabel(
     }
   }
 
+  if (current !== '') lines.push(current);
+  return lines.slice(0, maxLines);
+}
+
+/** {@link wrapLabel} by measured widths: greedy, a word wider than a line broken where it no longer fits. */
+function wrapMeasured(text: string, width: number, maxLines: number, measure: (line: string) => number): string[] {
+  const lines: string[] = [];
+  let current = '';
+  const fits = (line: string) => measure(line) <= width;
+  for (const word of text.split(/\s+/)) {
+    const candidate = current === '' ? word : `${current} ${word}`;
+    if (fits(candidate)) {
+      current = candidate;
+      continue;
+    }
+    if (current !== '') {
+      lines.push(current);
+      if (lines.length >= maxLines) return lines;
+      current = '';
+    }
+    // A word wider than a line, broken where it stops fitting — at least a character a line.
+    let remaining = word;
+    while (!fits(remaining) && remaining.length > 1) {
+      let cut = 1;
+      while (cut < remaining.length && fits(remaining.slice(0, cut + 1))) cut += 1;
+      lines.push(remaining.slice(0, cut));
+      if (lines.length >= maxLines) return lines;
+      remaining = remaining.slice(cut);
+    }
+    current = remaining;
+  }
   if (current !== '') lines.push(current);
   return lines.slice(0, maxLines);
 }
@@ -778,6 +818,8 @@ export function labelLayout(
     align?: 'left' | 'center' | 'right';
     /** Down the shape (`arch-vis:textPosition`): in the middle when absent, unless a badge says otherwise. Inside it only. */
     position?: 'top' | 'middle' | 'bottom';
+    /** The label's own font (a CSS `font`), when not la-gram's: the lines are measured in it ({@link wrapLabel}). */
+    font?: string;
   } = {},
 ): LabelLayout {
   const w = size(width, NOTATION_DEFAULTS.width);
@@ -804,7 +846,7 @@ export function labelLayout(
     : options.badgePlacement
       ? Math.max(w - NOTATION_DEFAULTS.badgeSize - 2 * pad, w * 0.5)
       : Math.max(w - 2 * pad, w * 0.5);
-  const lines = wrapLabel(label, available, fontSize, options.maxLines);
+  const lines = wrapLabel(label, available, fontSize, options.maxLines, options.font);
   const block = lines.length * lineHeight;
 
   if (options.outside) {

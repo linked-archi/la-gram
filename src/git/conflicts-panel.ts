@@ -8,7 +8,7 @@
  * |---|---|
  * | a value, a relationship's ends, a type | *Keep mine* · *Take theirs* |
  * | a node's bounds, a line's route | *Keep mine* · *Take theirs* |
- * | placed twice on a diagram | *Keep mine* · *Take theirs* |
+ * | placed twice on a diagram (both kept until one is chosen) | *Keep only mine* · *Keep only theirs* |
  * | a count limit broken | *Keep mine* · *Take theirs* (each side's values) |
  * | deleted on one side, changed on the other | *Keep it* · *Delete it* |
  *
@@ -188,10 +188,15 @@ export class ConflictsPanel extends LitElement {
             { side: other(c.deletedBy ?? 'ours'), label: 'Keep it', value: `Changed ${c.deletedBy === 'ours' ? 'in theirs' : 'here'}` },
             { side: c.deletedBy ?? 'ours', label: 'Delete it', value: `Deleted ${c.deletedBy === 'ours' ? 'here' : 'in theirs'}` },
           ]
-        : [
-            { side: 'ours', label: 'Keep mine', value: this.versionText(c, c.options.ours) },
-            { side: 'theirs', label: 'Take theirs', value: this.versionText(c, c.options.theirs) },
-          ];
+        : c.kind === 'placement'
+          ? [
+              { side: 'ours', label: 'Keep only mine', value: this.versionText(c, c.options.ours) },
+              { side: 'theirs', label: 'Keep only theirs', value: this.versionText(c, c.options.theirs) },
+            ]
+          : [
+              { side: 'ours', label: 'Keep mine', value: this.versionText(c, c.options.ours) },
+              { side: 'theirs', label: 'Take theirs', value: this.versionText(c, c.options.theirs) },
+            ];
     return html`
       <div class="conflict ${entry.picked ? 'chosen' : ''}" data-kind=${c.kind}>
         <div
@@ -235,7 +240,7 @@ export class ConflictsPanel extends LitElement {
       case 'route':
         return 'the line’s route';
       case 'placement':
-        return 'placed on the diagram on both sides';
+        return 'placed on the diagram on both sides — both kept';
       case 'count':
         return c.message ?? 'a count limit';
       case 'value': {

@@ -723,8 +723,8 @@ triple of `dcterms:isPartOf`, `schema:itemListElement`, `schema:item` or
 rename elsewhere does not read them.
 
 **By kind** (Req 10.10; key decision 14). `folderLayout` (`model-manager/folders.ts`, pure over
-the contents) puts the folders in the tree's three groups, as Archi keeps them
-— a kind of concept in folders of its own — without knowing any tool's folder
+the contents) puts the folders in the tree's three groups — a kind of concept
+in folders of its own — without knowing any tool's folder
 names. A converter's folder for the model itself (`modelFolderOf`: the one top
 folder, holding folders and none of the model's concepts, named as the model is
 — its name, or its IRI's last segment, the model id the converters name it by;
@@ -1620,7 +1620,14 @@ a relationship's line's go; `addConnector` writes one (an element's IRI names
 its first placement) and `reconnectConnector` re-points it; `duplicateView`
 copies it between the copies of its ends. On the canvas its business object is
 `kind: 'connector'` (`syncConnector`), drawn thin, dashed and grey with no
-decorations (`drawConnector`). The rules answer a connect with a figure at an
+decorations (`drawConnector`). What it says is the link's `skos:prefLabel`
+(`LinkInfo.text`; the view's cache is read again when a link's is written):
+the business object's `label`, drawn by `drawConnectionLabel` at the middle or
+at its `labelOffset` — `drawnConnectionLabel` lays it out always, not only with
+*Relationship names* on, in its own font — and written on the canvas as a
+relationship's name is (`isNameableLine` takes a connector; the relabel command
+and `labelWriter` write any IRI's), moved as one is (`rdf-link-label`, the
+view's `arch-vis:LabelNode`); `duplicateView` copies both. The rules answer a connect with a figure at an
 end with `{ connector: true }` (`checkConnector`: two different shapes, no
 relationship type picked in the palette), and `connection.start` allows a
 figure; `RdfModeling.connect` creates the line with no relationship hint, and
@@ -1638,8 +1645,8 @@ and deleting one of them later deleted the parentless line again and threw.
 ### Appearance
 
 Req 3.15. How one thing drawn in a view looks — an element's placement, a
-relationship's line, a figure, a line from a note — as Archi's Appearance tab
-sets it on one diagram object, kept on that node's or link's own core-vis
+relationship's line, a figure, a line from a note — set on that one diagram
+object, kept on that node's or link's own core-vis
 style (`arch-vis:style`). `model-manager/appearance.ts` is the one place the
 values are named, written and read:
 
@@ -1647,7 +1654,7 @@ values are named, written and read:
 | --- | --- | --- |
 | `fillColor`, `lineColor`, `fontColor`, `iconColor` | `arch-vis:fillColor` …, `iconColor` (0.7) | `#rrggbb`, or `#rrggbbaa` when not opaque — the alpha is the opacity |
 | `gradient` | `arch-vis:gradient` (0.7) | `arch-vis:GradientTop`, `GradientLeft`, `GradientRight`, `GradientBottom` |
-| `lineWidth` | `arch-vis:lineWidth` (0.7) | an `xsd:integer`; Archi's normal, medium, heavy are 1, 2, 3 |
+| `lineWidth` | `arch-vis:lineWidth` (0.7) | an `xsd:integer`; normal, medium, heavy are 1, 2, 3 |
 | `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
 | `fontName`, `fontSize` | `arch-vis:fontName`, `fontSize` | a string; an `xsd:integer` |
 | `fontStyle` | `arch-vis:fontStyle` (0.7) | `bold`, `italic`, `underline`, separated by spaces, in that order |
@@ -1706,11 +1713,11 @@ la-gram's own family, which stands in where it is not installed; bold, italic,
 underline), and the text's place — `labelLayout`'s `align` (the lines start or
 end at the edge of the band they were wrapped to, `anchor` `start` or `end`)
 and `position` (top or bottom, unless a `Center` or `BottomCenter` badge says
-where). The text keeps the notation's colour when only the line colour is set,
-as Archi has it. A relationship's line takes its colour, width and its name's
+where). The text keeps the notation's colour when only the line colour is
+set. A relationship's line takes its colour, width and its name's
 font and size (`connectionLabelLayout`'s `fontSize`); a figure its outline, font
 and text place (a note from its top left unless set; `appendFigureText`); a
-line from a note its colour and width. `RenderOptions.notationOnly` — the
+line from a note its colour, width and its text's font. `RenderOptions.notationOnly` — the
 toolbar's *Notation only* switch (`notation-only.ts`, remembered per browser,
 `setNotationOnly` redraws everything) — leaves out the look of what has a
 notation; figures and lines from notes keep theirs.
@@ -1719,7 +1726,7 @@ notation; figures and lines from notes keep theirs.
 by `mount-ui` for a selection made on the canvas — not for a concept picked in
 the tree, which is the model's — and adds the *Appearance* tab, last; a figure
 or a line from a note has its information tab and this one. `_renderAppearance`
-lays the fields out in Archi's rows of two (`APPEARANCE_ROWS`, a missing field's
+lays the fields out in rows of two (`APPEARANCE_ROWS`, a missing field's
 place left empty, a row with neither left out): fill colour and gradient, fill
 opacity, line colour and width, line opacity and style, icon colour, text
 alignment and position (segmented buttons), font (a name, offered from a list or
@@ -1749,6 +1756,19 @@ size under the line's own (`drawnConnectionLabel`'s `notationFontSize`, passed
 by the canvas and `rdf-link-label`). The Appearance tab's defaults
 (`elementDefaults`, `lineDefaults`) show the notation's values.
 
+**Format painter.** The canvas toolbar's 🖌 (`data-action="format-painter"`)
+calls `toggleFormatPainter`; the canvas holds `painter` — on, and once picked
+the look it copies — and says so with `format-painter-changed` (`off`, `pick`,
+`paint`: the button's state, the canvas's cursor classes `la-format-painter`,
+`la-format-painting`). With it on, an `element.click` listener ahead of
+selection (priority 2000) takes the click: the first picks the clicked thing's
+own look (`appearanceOfDrawn`), each after writes it to the clicked one with
+`setAppearance` inside one `recordChange` — every field of
+`APPEARANCE_FIELDS[kind]`, `null` where the picked look has none, so the target
+takes its default there; `renderingMode` and `shapeType`, the *Figure* tab's, are
+in no kind's fields and stay as they are. Esc (`keyboard.keydown`), the button
+again, or another view (`showView`) puts it down.
+
 **In-place renaming.** `RdfRenderer.drawnLook(element)` is the look a name is
 drawn with now — a figure's own, from a note's or a group's top left — and
 `drawnMode(element)` the figure it is drawn as. The label-editing provider
@@ -1760,9 +1780,16 @@ middle, from its top, or — at the bottom — its padding leaving the lines as 
 wrap now at the bottom; a group's box its tab, an element drawn as its icon the
 band under it. A relationship's box is laid out in its name's size.
 
-**Figure.** Req 3.16. A placement's own `arch-vis:renderingMode` (an
-`Appearance` key the Appearance tab leaves out, `FigureMode`) chooses what it
-is drawn as: `effectiveMode` takes it over the notation's, still `ShapeOnly`
+**Figure.** Req 3.16. A placement's own `arch-vis:renderingMode` and
+`arch-vis:shapeType` (`Appearance` keys the Appearance tab leaves out) choose
+what it is drawn as. A notation's other figures, `arch-vis:alternativeStyle`,
+are read onto its default style (`VisualStyle.alternatives`, a custom shape's
+`skos:prefLabel` its `label`); `NotationStyleRegistry.shapeFor(type, shapeIri)`
+resolves a placement's shape among the type's default and alternatives (or a
+core shape), and the renderer draws and docks it (`withShape`, `ownShape`, the
+outline's cache stamp including it). `figureChoices` lists the options — the
+notation's own, its alternatives, the generic modes — each with what picking it
+writes and a preview outline (`shapePath`, `shapeGeometry`'s details). The mode: `effectiveMode` takes it over the notation's, still `ShapeOnly`
 without a drawable glyph, and the docking outline's cache stamp includes it.
 `selectedAppearance` adds `figure` (`FigureChoices`) when every one selected is
 an element whose notation has a glyph: the three modes, the notation's, the
@@ -2024,9 +2051,11 @@ for the same reason (a retarget changes four triples, a retype several).
 
 Then on the merged model: **two placements** — both sides placed the same
 element (or drew the same relationship) in a view, each with a node of its own;
-the canvas shows one per view (*Known limitations* 1), so the merged model keeps
-the one whose IRI sorts first, with what its side drew at it (its links, their
-routes, the `arch:inView` written with them), and offers the other — and **count limits** the combination breaks (each side added a value to a
+an element may be placed in a view more than once (Req 3.14), so the merged
+model keeps both, each with what its side drew at it (its links, their routes,
+the `arch:inView` written with them) — `held` the two together — and the
+conflict offers to keep only one (*Keep only mine*, *Keep only theirs*): two
+people placing the same element at once most likely meant it once — and **count limits** the combination breaks (each side added a value to a
 `sh:maxCount 2` property; each removed a different one of the values a
 `sh:minCount` requires), checked on the nodes both sides changed and reported
 only where neither side alone breaks them.
@@ -2480,9 +2509,9 @@ dialog; the modules' section).
     a position, which nothing it shows uses.
     The converters also give each folder entry a `schema:position`, but that is
     the order the source file lists them in — for an Archi model, the order the
-    concepts were made in, not what Archi's tree shows, which is by name
-    (ArchiSurance's views came out "Phase D" before "Phase A"). So la-gram sorts
-    by name, subfolders first, as Archi does, and ignores the position. The
+    concepts were made in, not an order anybody arranged (ArchiSurance's views
+    came out "Phase D" before "Phase A"). So la-gram sorts by name, subfolders
+    first, and ignores the position. The
     Folders | Types switch is shown for a model without folders too, *Folders*
     greyed out: a switch that appeared only with folders left a user looking
     for it on a model whose export had none, with nothing to say why.

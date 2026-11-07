@@ -40,7 +40,9 @@ its glyph's colour — as ArchiMate tools let a modeller set them on one diagram
 leaves the choice to the notation or the renderer. arch-vis:lineStyle, sourceDecor and targetDecor
 name what they may be said of with arch:domainIncludes — a relationship, a relationship type's
 notation, a style, and so one line's own — where an rdfs:domain of arch:QualifiedRelationship made
-every notation saying them a relationship. A colour's alpha is CSS's, 0 to 1: the comments
+every notation saying them a relationship. arch-vis:alternativeStyle gives a notation other figures for
+its concept — ArchiMate's banded, tabbed, wavy and 3D boxes, its cloud and folder, now that each element
+is drawn by default as a box with its glyph. A colour's alpha is CSS's, 0 to 1: the comments
 had given an example with the exchange format's percentage, rgba(255,255,181,100), which CSS reads
 as opaque whatever it is.
 
@@ -394,8 +396,8 @@ arch-vis:gradient
                  owl:FunctionalProperty ;
     rdfs:label   "gradient"@en ;
     rdfs:comment '''The fill shades from its colour (arch-vis:fillColor) at the side named
-(arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom) to white at the opposite side,
-as Archi's gradient does. Absent, the fill is all one colour.'''@en ;
+(arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom) to white at the opposite side.
+Absent, the fill is all one colour.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   arch-vis:Gradient ;
 .
@@ -427,8 +429,8 @@ arch-vis:lineWidth
                  owl:FunctionalProperty ;
     rdfs:label   "lineWidth"@en ;
     rdfs:comment '''Width of the lines drawn — a node's outline, a link's line — in the diagram's
-units, as its bounds are. 1 when absent. ArchiMate tools offer 1, 2 and 3 (Archi's normal, medium
-and heavy), as the exchange format's style lineWidth carries them.'''@en ;
+units, as its bounds are. 1 when absent; 1, 2 and 3 are a normal, medium and heavy line, the values
+the exchange format's style lineWidth carries.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:integer ;
 .
@@ -1090,6 +1092,18 @@ arch-vis:defaultStyle
     rdfs:label   "defaultStyle"@en ;
     rdfs:comment '''Links a VisualNotation to its default Style — the construction recipe
 for rendering this concept. Contains shape type, colors, icon, and dimensions.'''@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch-vis:Style ;
+.
+
+arch-vis:alternativeStyle
+    a            owl:ObjectProperty ;
+    rdfs:label   "alternativeStyle"@en ;
+    rdfs:comment '''Another figure the concept may be drawn as, besides its default Style
+(arch-vis:defaultStyle) — a business object, for example, as a box with its glyph or as a banded
+box. It says only what differs from the default: its shape type and rendering mode, an outline's
+style; colours and the glyph are the default's. A diagram element drawn as it says so on its own style
+(arch-vis:style) with the alternative's arch-vis:shapeType and arch-vis:renderingMode.'''@en ;
     rdfs:domain  arch-vis:VisualNotation ;
     rdfs:range   arch-vis:Style ;
 .

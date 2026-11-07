@@ -37,7 +37,8 @@ two can be compared.
 - **`sh:maxCount 1` is read per target class**, not as a rule for every subject; shapes nested in `sh:or`,
   `sh:xone` and the like, and `sh:maxCount 0`, are not read.
 - **Two placements** of one element (or relationship) in one view, one by each side, are a conflict of their own:
-  the merged model keeps the node whose IRI sorts first.
+  the merged model keeps the node whose IRI sorts first. Since 2026-11-07, with an element placeable more than
+  once in a view, it keeps both; the conflict offers *Keep only mine* / *Keep only theirs*.
 - Added while building it, to report: a relationship's connection (types, ends, `rdf:reifies`, the reified and
   qualified triples) and a concept's types merge as a whole too, reported as single-value conflicts.
 

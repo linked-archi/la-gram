@@ -118,6 +118,34 @@ describe('naming a relationship on its line', () => {
   });
 });
 
+describe('what a line from a note says, typed on it', () => {
+  const LINK = 'https://example.org/m/view-1-link-1';
+  const line = (extra: Record<string, unknown> = {}) => ({
+    id: LINK,
+    parent: {},
+    waypoints: [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+    ],
+    businessObject: { iri: LINK, linkIri: LINK, typeIri: '', kind: 'connector' as const, ...extra },
+  });
+
+  it('is offered on a drawn line, its box at the middle holding its text; written, rewritten and emptied', () => {
+    expect(isRenamable(line())).toBe(true);
+    expect(isRenamable({ ...line(), parent: undefined })).toBe(false);
+    expect(isRenamable(line({ iri: '' }))).toBe(false);
+    const { provider, executed } = providerWith();
+    const said = provider.activate(line({ label: 'asks', named: true }))!;
+    expect(said.text).toBe('asks');
+    expect(said.bounds.x + said.bounds.width / 2).toBeCloseTo(100);
+    expect(provider.activate(line())!.text).toBe('');
+    provider.update(line(), ' asks\n first ');
+    provider.update(line({ label: 'asks first', named: true }), 'asks first');
+    provider.update(line({ label: 'asks first', named: true }), '');
+    expect(executed.map((c) => c.label)).toEqual(['asks first', '']);
+  });
+});
+
 describe('the box a name is typed in, set as the name is drawn', () => {
   const shape = (extra: Record<string, unknown> = {}, size = { width: 160, height: 80 }) => ({
     id: IRI,

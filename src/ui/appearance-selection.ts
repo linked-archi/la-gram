@@ -17,7 +17,7 @@ export type AppearanceKind = 'element' | 'relationship' | 'connector' | FigureKi
 /** A line from a note's own: its style and its ends — a relationship's are its notation's, which say what it is. */
 const LINE_KEYS: readonly AppearanceKey[] = ['lineStyle', 'sourceDecor', 'targetDecor'];
 /** What the Appearance tab sets for a shape: all but the figure, which is the Figure tab's, and a line's own. */
-const LOOK_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'renderingMode' && !LINE_KEYS.includes(key));
+const LOOK_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'renderingMode' && key !== 'shapeType' && !LINE_KEYS.includes(key));
 const FIGURE_KEYS = LOOK_KEYS.filter((key) => key !== 'iconColor');
 
 /**
@@ -32,7 +32,7 @@ export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]>
   note: FIGURE_KEYS,
   group: FIGURE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
   relationship: ['lineColor', 'lineWidth', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
-  connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor'],
+  connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
 };
 
 /** One thing selected: its node's or link's IRI, and what it is. */
@@ -41,18 +41,31 @@ export interface AppearanceTarget {
   kind: AppearanceKind;
 }
 
+/** One figure the Figure tab offers. */
+export interface FigureOption {
+  label: string;
+  /** How it is drawn: its rendering mode. */
+  mode: FigureMode;
+  /** The notation's own figure: drawn without one of the placement's own. */
+  notation?: boolean;
+  /** One of the notation's other figures (`arch-vis:alternativeStyle`), by its shape's IRI. */
+  shapeIri?: string;
+  /** What choosing it writes on each one selected: its shape and mode — none of either for the notation's own. */
+  changes: { renderingMode: FigureMode | null; shapeType: string | null };
+  /** Its preview: the glyph alone, or an outline 72 × 40 — its inner lines, its glyph as a badge or none. */
+  preview: { icon: true } | { outline: string; details?: string; badge: boolean; dashed: boolean };
+}
+
 /**
- * The figures the selected elements may be drawn as — the Figure tab, as
- * Archi's: a shape with its glyph as a badge, the glyph itself with the name
- * under it, or the shape alone. Offered when every one selected is an element
- * whose notation has a glyph.
+ * The figures the selected elements may be drawn as — the Figure tab: their
+ * notation's own, its other figures (when every one selected is
+ * of one type), the glyph itself with the name under it, the shape alone.
+ * Offered when every one selected is an element whose notation has a glyph.
  */
 export interface FigureChoices {
-  modes: FigureMode[];
-  /** What the notation draws it as: the figure without one of its own. */
-  notation: FigureMode;
-  /** The first one's own figure, when it has one. */
-  own?: FigureMode;
+  options: FigureOption[];
+  /** The one the first selected is drawn as: an index into {@link options}. */
+  selected: number;
   /** For the previews: the glyph, and the first one's fill and line colours. */
   iconHref: string;
   fillColor: string;
@@ -69,6 +82,8 @@ export interface AppearanceSelection {
   defaults: Appearance;
   /** The fields every one selected has, in the tab's order. */
   fields: AppearanceKey[];
+  /** Those whose value — its own, else its default — differs among the selected: the tab says so. */
+  mixed?: AppearanceKey[];
 }
 
 /** The fields every kind given has. */
