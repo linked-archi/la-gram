@@ -31,7 +31,9 @@
  * ## Its own look in the view
  *
  * What a placement's or a line's own style sets (`model-manager/appearance.ts`,
- * the property panel's Appearance tab) is drawn over its notation's: fill and
+ * the property panel's Appearance tab) is drawn over its notation's — which may
+ * set any of it too, core-vis 0.7's font, line width, text placement, gradient
+ * and icon colour as well as its colours — over la-gram's: fill and
  * its gradient, line colour and width, outline style, the glyph's colour, font,
  * and where its name sits — unless
  * {@link RenderOptions.notationOnly} says to draw the notation alone. The text
@@ -78,7 +80,7 @@ import type {
   VisualStyle,
 } from '../../metamodel-manager/notation.js';
 import type { FigureInfo } from '../../model-manager/interfaces.js';
-import { hasFontStyle, type Appearance, type Gradient, type TextAlignment, type TextPosition } from '../../model-manager/appearance.js';
+import { hasFontStyle, lookOf, type Appearance, type Gradient, type TextAlignment, type TextPosition } from '../../model-manager/appearance.js';
 import { figureColours } from '../figure-bar.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import {
@@ -205,12 +207,14 @@ export function labelOffsetOf(
 export function drawnConnectionLabel(
   connection: Pick<RenderableElement, 'waypoints' | 'businessObject'>,
   options: RenderOptions,
+  /** The relationship's notation's font size, under the line's own. */
+  notationFontSize?: number,
 ): ConnectionLabelLayout | undefined {
   const businessObject = connection.businessObject;
   if (!options.relationshipNames || businessObject?.kind !== 'relationship' || !businessObject.named || !businessObject.label) {
     return undefined;
   }
-  const fontSize = options.notationOnly ? undefined : businessObject.appearance?.fontSize;
+  const fontSize = (options.notationOnly ? undefined : businessObject.appearance?.fontSize) ?? notationFontSize;
   const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, {
     badge: !!businessObject.derivation,
     offset: businessObject.labelOffset,
@@ -351,7 +355,7 @@ function fontOf(own: Appearance | undefined): TextFont {
 }
 
 /** A font name before la-gram's own, which stands in where it is not installed. */
-function fontFamilyOf(name: string | undefined): string {
+export function fontFamilyOf(name: string | undefined): string {
   const family = name?.replace(/["\\;{}<>]/g, '').trim();
   return family ? `"${family}", ${NOTATION_DEFAULTS.fontFamily}` : NOTATION_DEFAULTS.fontFamily;
 }
@@ -464,10 +468,11 @@ export class RdfRenderer extends BaseRenderer {
     const businessObject = element.businessObject;
     const typeIri = businessObject?.typeIri;
     const notation = this.notationStyles.styleFor(typeIri);
-    // Its own look in this view over its notation's.
+    // Its own look in this view over its notation's, over la-gram's.
     const own = this.ownAppearance(businessObject);
     const style = own ? withOwnStyle(notation, own) : notation;
-    const font = fontOf(own);
+    const look: Appearance = { ...lookOf(notation), ...own };
+    const font = fontOf(look);
 
     const width = element.width ?? style?.defaultWidth ?? NOTATION_DEFAULTS.width;
     const height = element.height ?? style?.defaultHeight ?? NOTATION_DEFAULTS.height;
@@ -475,7 +480,8 @@ export class RdfRenderer extends BaseRenderer {
       businessObject?.label ?? this.notationStyles.labelFor(typeIri) ?? localName(element.id);
 
     const href = iconHref(style?.iconSymbol, assetUrl);
-    const mode = this.effectiveMode(typeIri, href);
+    // Its own figure, when the placement has one (the Figure tab).
+    const mode = this.effectiveMode(typeIri, href, own?.renderingMode);
 
     const group = svgEl('g');
     group.setAttribute('class', `${RENDER_CLASSES.shape} la-mode-${mode}`);
@@ -484,13 +490,13 @@ export class RdfRenderer extends BaseRenderer {
     group.setAttribute('data-rendering-mode', mode);
 
     if (mode === 'IconCentric') {
-      const icon = this.drawIconCentric(group, width, height, label, href as string, own?.fontColor ?? notation?.fontColor, font);
-      if (own?.iconColor) colourGlyph(group, icon, own.iconColor);
+      const icon = this.drawIconCentric(group, width, height, label, href as string, look.fontColor, font);
+      if (look.iconColor) colourGlyph(group, icon, look.iconColor);
     } else {
-      const body = this.drawShapeBody(group, style, width, height, own?.lineWidth);
-      if (own?.gradient) applyGradient(group, body, own.gradient);
+      const body = this.drawShapeBody(group, style, width, height, look.lineWidth);
+      if (look.gradient) applyGradient(group, body, look.gradient);
       // Its own text colour, else the notation's — not a line colour of its own.
-      const color = own?.fontColor ?? notation?.fontColor ?? notation?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+      const color = look.fontColor ?? notation?.lineColor ?? NOTATION_DEFAULTS.lineColor;
       if (!labelFitsInside(width, height)) {
         // A junction: no room for a badge, and its name, if it has one, under it.
         if (businessObject?.named) this.appendLabel(group, label, { x: 0, y: 0, width, height }, { outside: true, color, font });
@@ -503,7 +509,7 @@ export class RdfRenderer extends BaseRenderer {
         mode === 'ShapeWithBadge' && href ? (style?.iconPlacement ?? 'TopRight') : undefined;
       if (badgePlacement && href) {
         const badge = this.drawBadge(group, href, badgePlacement, layout.content);
-        if (own?.iconColor) colourGlyph(group, badge, own.iconColor);
+        if (look.iconColor) colourGlyph(group, badge, look.iconColor);
       }
       this.appendLabel(group, label, layout.label, {
         // The label makes room for the badge only when the two share a box.
@@ -512,8 +518,8 @@ export class RdfRenderer extends BaseRenderer {
         // The label's own colour, else the line colour, as the vocabulary says.
         color,
         font,
-        ...(own?.textAlignment ? { align: own.textAlignment } : {}),
-        ...(own?.textPosition ? { position: own.textPosition } : {}),
+        ...(look.textAlignment ? { align: look.textAlignment } : {}),
+        ...(look.textPosition ? { position: look.textPosition } : {}),
       });
     }
 
@@ -670,10 +676,41 @@ export class RdfRenderer extends BaseRenderer {
    * style with no `iconSymbol` at all. This adds the case the guide does not
    * cover: a declared icon whose URI is unusable.
    */
-  private effectiveMode(typeIri: string | undefined, href: string | null): RenderingMode {
-    const declared = this.notationStyles.renderingModeFor(typeIri);
+  private effectiveMode(typeIri: string | undefined, href: string | null, own?: RenderingMode): RenderingMode {
+    const declared = own ?? this.notationStyles.renderingModeFor(typeIri);
     if (declared === 'ShapeOnly') return 'ShapeOnly';
     return href ? declared : 'ShapeOnly';
+  }
+
+  /**
+   * The look a shape or a line is drawn with — its own over its notation's,
+   * as the canvas draws it now — for what types on it (the in-place editor):
+   * a figure's own, its text from a note's top left, a group's in its tab.
+   */
+  drawnLook(element: RenderableElement): Appearance {
+    const businessObject = element.businessObject;
+    if (businessObject?.kind === 'figure') {
+      const figure = businessObject.figure;
+      const placed: Appearance =
+        figure?.kind === 'note'
+          ? { textAlignment: 'left', textPosition: 'top' }
+          : figure?.kind === 'group'
+            ? { textAlignment: 'left', textPosition: 'top' }
+            : {};
+      return { ...placed, ...lookOf(figure) };
+    }
+    const own = this.ownAppearance(businessObject);
+    if (businessObject?.kind === 'relationship') {
+      return { ...lookOf(this.notationStyles.relationshipStyleFor(businessObject.typeIri)), ...own };
+    }
+    return { ...lookOf(this.notationStyles.styleFor(businessObject?.typeIri)), ...own };
+  }
+
+  /** The figure an element's shape is drawn as now: its own, else its notation's, as far as its glyph allows. */
+  drawnMode(element: RenderableElement): RenderingMode {
+    const typeIri = element.businessObject?.typeIri;
+    const href = iconHref(this.notationStyles.styleFor(typeIri)?.iconSymbol, assetUrl);
+    return this.effectiveMode(typeIri, href, this.ownAppearance(element.businessObject)?.renderingMode);
   }
 
   /** The filled, stroked `shapeType` body, and its inner lines over it. */
@@ -838,16 +875,17 @@ export class RdfRenderer extends BaseRenderer {
     const style: RelationshipVisualStyle | undefined = this.notationStyles.relationshipStyleFor(
       businessObject?.typeIri,
     );
-    // Its own colour and width in this view over its notation's; its style — what it means — the notation's.
+    // Its own colour, width and font in this view over its notation's; its style — what it means — the notation's.
     const own = this.ownAppearance(businessObject);
-    const lineColor = own?.lineColor ?? style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+    const look: Appearance = { ...lookOf(style), ...own };
+    const lineColor = look.lineColor ?? NOTATION_DEFAULTS.lineColor;
     const waypoints = connection.waypoints ?? [];
 
     const line = svgEl('polyline', {
       points: waypoints.map((p) => `${p.x},${p.y}`).join(' '),
       fill: 'none',
       stroke: lineColor,
-      'stroke-width': own?.lineWidth ?? NOTATION_DEFAULTS.strokeWidth,
+      'stroke-width': look.lineWidth ?? NOTATION_DEFAULTS.strokeWidth,
       'stroke-linejoin': 'round',
     });
     line.setAttribute('class', RENDER_CLASSES.connection);
@@ -871,8 +909,8 @@ export class RdfRenderer extends BaseRenderer {
       line.setAttribute('data-derivation', derivation);
       this.drawDerivationBadge(parentGfx, waypoints, derivation, businessObject?.derivationRule, lineColor);
     }
-    const label = drawnConnectionLabel(connection, this.renderOptions);
-    if (label) this.drawConnectionLabel(parentGfx, label, own?.fontColor ?? lineColor, opacity, { ...fontOf(own), size: label.fontSize });
+    const label = drawnConnectionLabel(connection, this.renderOptions, style?.fontSize);
+    if (label) this.drawConnectionLabel(parentGfx, label, look.fontColor ?? lineColor, opacity, { ...fontOf(look), size: label.fontSize });
     return line;
   }
 
@@ -1093,7 +1131,8 @@ export class RdfRenderer extends BaseRenderer {
     // Asked for once a link end — four times a shape when a view is drawn
     // (Task 22) — so kept until the shape moves, resizes, is retyped or the
     // notation changes.
-    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${this.notationStyles.version}`;
+    const ownMode = this.ownAppearance(shape.businessObject)?.renderingMode;
+    const stamp = `${shape['x']},${shape['y']},${shape.width},${shape.height},${typeIri},${ownMode ?? ''},${this.notationStyles.version}`;
     const known = this.shapePaths.get(shape);
     if (known?.stamp === stamp) return known.path;
 
@@ -1104,7 +1143,7 @@ export class RdfRenderer extends BaseRenderer {
     const width = shape.width ?? style?.defaultWidth ?? NOTATION_DEFAULTS.width;
     const height = shape.height ?? style?.defaultHeight ?? NOTATION_DEFAULTS.height;
 
-    const mode = this.effectiveMode(typeIri, iconHref(style?.iconSymbol, assetUrl));
+    const mode = this.effectiveMode(typeIri, iconHref(style?.iconSymbol, assetUrl), ownMode);
     const outline = mode === 'IconCentric' ? 'Rectangle' : (style?.customShape ?? style?.shapeType);
 
     const path = shapePath(outline, x, y, width, height);

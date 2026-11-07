@@ -156,6 +156,7 @@ export class RdfLinkLabelMove {
     'elementRegistry',
     'rdfRenderOptions',
     'rdfLinkLabelMovable',
+    'notationStyles',
   ];
 
   constructor(
@@ -167,6 +168,7 @@ export class RdfLinkLabelMove {
     elementRegistry: RegistryLike,
     renderOptions: RenderOptions,
     movable: LinkLabelMovable,
+    notationStyles: { relationshipStyleFor(typeIri: string | undefined): { fontSize?: number } | undefined } | null = null,
   ) {
     commandStack.registerHandler(MOVE_LINK_LABEL_COMMAND, MoveLinkLabelHandler);
     // The name drawn where it is now, without a command: while dragging, and when a drag is dropped.
@@ -176,7 +178,7 @@ export class RdfLinkLabelMove {
       const line = event.element;
       const press = event.originalEvent;
       if (!line?.waypoints || !press || press.button !== 0) return undefined;
-      const drawn = drawnConnectionLabel(line, renderOptions);
+      const drawn = drawnConnectionLabel(line, renderOptions, notationStyles?.relationshipStyleFor(line.businessObject?.typeIri)?.fontSize);
       if (!drawn || !movable(line)) return undefined;
       const at = this.diagramPoint(press);
       const box = drawn.box;

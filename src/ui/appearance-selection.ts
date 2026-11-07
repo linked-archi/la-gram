@@ -6,7 +6,7 @@
  * fields every one of them has, and a change applies to them all.
  */
 
-import { APPEARANCE_KEYS, type Appearance, type AppearanceKey } from '../model-manager/appearance.js';
+import { APPEARANCE_KEYS, lookOf, type Appearance, type AppearanceKey, type FigureMode } from '../model-manager/appearance.js';
 import type { FigureKind } from '../model-manager/interfaces.js';
 import { FIGURE_DEFAULT_COLOURS } from './figure-bar.js';
 import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
@@ -14,7 +14,9 @@ import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 /** What a thing drawn is, for its look: an element's placement, a figure of a kind, a line. */
 export type AppearanceKind = 'element' | 'relationship' | 'connector' | FigureKind;
 
-const FIGURE_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'iconColor');
+/** What the Appearance tab sets: all but the figure, which is the Figure tab's. */
+const LOOK_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'renderingMode');
+const FIGURE_KEYS = LOOK_KEYS.filter((key) => key !== 'iconColor');
 
 /**
  * The fields each kind has. Only an element has a glyph to colour. A
@@ -23,7 +25,7 @@ const FIGURE_KEYS = APPEARANCE_KEYS.filter((key) => key !== 'iconColor');
  * no text.
  */
 export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]> = {
-  element: APPEARANCE_KEYS,
+  element: LOOK_KEYS,
   shape: FIGURE_KEYS,
   note: FIGURE_KEYS,
   group: FIGURE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
@@ -37,8 +39,28 @@ export interface AppearanceTarget {
   kind: AppearanceKind;
 }
 
+/**
+ * The figures the selected elements may be drawn as — the Figure tab, as
+ * Archi's: a shape with its glyph as a badge, the glyph itself with the name
+ * under it, or the shape alone. Offered when every one selected is an element
+ * whose notation has a glyph.
+ */
+export interface FigureChoices {
+  modes: FigureMode[];
+  /** What the notation draws it as: the figure without one of its own. */
+  notation: FigureMode;
+  /** The first one's own figure, when it has one. */
+  own?: FigureMode;
+  /** For the previews: the glyph, and the first one's fill and line colours. */
+  iconHref: string;
+  fillColor: string;
+  lineColor: string;
+}
+
 export interface AppearanceSelection {
   targets: AppearanceTarget[];
+  /** The Figure tab's choices, for elements with a glyph. */
+  figure?: FigureChoices;
   /** What the first one sets on its own style. */
   own: Appearance;
   /** What the first one is drawn with where it sets nothing: its notation's, or la-gram's. */
@@ -70,27 +92,37 @@ export function figureDefaults(kind: FigureKind): Appearance {
 
 /**
  * How an element is drawn where its placement sets nothing: its notation's
- * colours and outline — its text in the notation's text colour, else its line
- * colour, as core-vis has it — centred; its glyph as published, shown black.
+ * look — its colours and outline, and what core-vis 0.7 lets a notation say of
+ * its font, line width, text placement, gradient and glyph — its text in the
+ * notation's text colour, else its line colour, as core-vis has it; where the
+ * notation says nothing, la-gram's: centred, the glyph as published (shown
+ * black).
  */
-export function elementDefaults(notation: { fillColor?: string; lineColor?: string; fontColor?: string; borderStyle?: Appearance['borderStyle'] } | undefined): Appearance {
-  const lineColor = notation?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+export function elementDefaults(notation: object | undefined): Appearance {
+  const said = lookOf(notation);
+  const lineColor = said.lineColor ?? NOTATION_DEFAULTS.lineColor;
   return {
     ...BASE,
-    fillColor: notation?.fillColor ?? NOTATION_DEFAULTS.fillColor,
-    lineColor,
-    fontColor: notation?.fontColor ?? lineColor,
-    borderStyle: notation?.borderStyle ?? 'SolidLine',
     iconColor: '#000000',
     textAlignment: 'center',
     textPosition: 'middle',
+    ...said,
+    fillColor: said.fillColor ?? NOTATION_DEFAULTS.fillColor,
+    lineColor,
+    fontColor: said.fontColor ?? lineColor,
+    borderStyle: said.borderStyle ?? 'SolidLine',
   };
 }
 
-/** How a line is drawn where it sets nothing: its notation's colour — a line from a note's own grey — its name in it. */
-export function lineDefaults(lineColor: string | undefined): Appearance {
-  const colour = lineColor ?? NOTATION_DEFAULTS.lineColor;
-  return { ...BASE, lineColor: colour, fontColor: colour };
+/**
+ * How a line is drawn where it sets nothing: its notation's colour, width and
+ * font — a line from a note's own grey — its name in its notation's text
+ * colour, else its line colour.
+ */
+export function lineDefaults(notation: object | undefined): Appearance {
+  const said = lookOf(notation);
+  const colour = said.lineColor ?? NOTATION_DEFAULTS.lineColor;
+  return { ...BASE, ...said, lineColor: colour, fontColor: said.fontColor ?? colour };
 }
 
 /** The look a figure's info carries. */

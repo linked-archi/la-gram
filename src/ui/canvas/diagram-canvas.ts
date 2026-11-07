@@ -158,6 +158,8 @@ import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type Li
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
 import { sameAppearance, type Appearance } from '../../model-manager/appearance.js';
+import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { iconHref } from './notation-shapes.js';
 import {
   appearanceOfFigure,
   elementDefaults,
@@ -166,6 +168,7 @@ import {
   lineDefaults,
   type AppearanceSelection,
   type AppearanceTarget,
+  type FigureChoices,
 } from '../appearance-selection.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
@@ -1734,6 +1737,11 @@ export class DiagramCanvas {
     else if (retexted || recoloured) services.eventBus.fire('element.changed', { element: existing });
   }
 
+  /** The font size a relationship's notation gives its name, under the line's own. */
+  private nameFontSizeOf(line: DjsShape): number | undefined {
+    return this.notationStyles.relationshipStyleFor(line.businessObject?.typeIri)?.fontSize;
+  }
+
   /** Draw a placement or a line with its look as the store now says, when that changed. */
   private restyle(drawn: DjsShape, appearance: Appearance | undefined): void {
     const businessObject = drawn.businessObject;
@@ -1758,11 +1766,32 @@ export class DiagramCanvas {
       .filter((d): d is { target: AppearanceTarget; own: Appearance; defaults: Appearance } => d !== undefined);
     const first = described[0];
     if (!first) return undefined;
+    const figure = this.figureChoices(selected, first.own, first.defaults);
     return {
       targets: described.map((d) => d.target),
       own: first.own,
       defaults: first.defaults,
       fields: fieldsFor(described.map((d) => d.target.kind)),
+      ...(figure ? { figure } : {}),
+    };
+  }
+
+  /**
+   * The figures the selection may be drawn as (the Figure tab): only when every
+   * one is an element whose notation has a glyph to draw — a badge, or the figure.
+   */
+  private figureChoices(selected: DjsShape[], own: Appearance, defaults: Appearance): FigureChoices | undefined {
+    if (selected.length === 0 || selected.some((element) => element.businessObject?.kind !== 'element')) return undefined;
+    const hrefs = selected.map((element) => iconHref(this.notationStyles.styleFor(element.businessObject?.typeIri)?.iconSymbol, assetUrl));
+    const [iconHrefOfFirst] = hrefs;
+    if (!iconHrefOfFirst || hrefs.some((href) => !href)) return undefined;
+    return {
+      modes: ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'],
+      notation: this.notationStyles.renderingModeFor(selected[0]!.businessObject?.typeIri),
+      ...(own.renderingMode ? { own: own.renderingMode } : {}),
+      iconHref: iconHrefOfFirst,
+      fillColor: own.fillColor ?? defaults.fillColor ?? NOTATION_DEFAULTS.fillColor,
+      lineColor: own.lineColor ?? defaults.lineColor ?? NOTATION_DEFAULTS.lineColor,
     };
   }
 
@@ -1796,9 +1825,7 @@ export class DiagramCanvas {
       return {
         target: { iri: link.linkIri, kind: connector ? 'connector' : 'relationship' },
         own: link.appearance ?? {},
-        defaults: lineDefaults(
-          connector ? CONNECTOR_STYLE.lineColor : this.notationStyles.relationshipStyleFor(businessObject.typeIri)?.lineColor,
-        ),
+        defaults: lineDefaults(connector ? { lineColor: CONNECTOR_STYLE.lineColor } : this.notationStyles.relationshipStyleFor(businessObject.typeIri)),
       };
     }
     return undefined;
@@ -2352,7 +2379,9 @@ export class DiagramCanvas {
         ]),
       ];
       // A line's name reaches past its route's box: the crop takes it in.
-      const label = element.waypoints ? drawnConnectionLabel(element as never, this.renderOptions)?.box : undefined;
+      const label = element.waypoints
+        ? drawnConnectionLabel(element as never, this.renderOptions, this.nameFontSizeOf(element))?.box
+        : undefined;
       if (label) {
         points.push({ x: label.x, y: label.y }, { x: label.x + label.width, y: label.y + label.height });
       }
@@ -2613,7 +2642,7 @@ export class DiagramCanvas {
         });
       }
       // A name shown off the middle of its line: back to the middle, undoably.
-      if (shown.labelOffset && drawnConnectionLabel(element, this.renderOptions) && this.canMoveLinkLabel(element)) {
+      if (shown.labelOffset && drawnConnectionLabel(element, this.renderOptions, this.nameFontSizeOf(element)) && this.canMoveLinkLabel(element)) {
         actions.push({
           id: 'name-to-middle',
           label: 'Move name back to the middle',

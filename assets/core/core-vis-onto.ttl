@@ -24,13 +24,24 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-11-04"^^xsd:date ;
+    dcterms:modified     "2026-11-07"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.6"@en ;
+    owl:versionInfo "0.7"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.6: A Link may end on another Link. A relationship can have a relationship as
+    skos:historyNote '''0.7: A diagram element's own style says more than its colours and its font:
+arch-vis:lineWidth, the width of its outline or its line; arch-vis:fontStyle, whether its text is
+bold, italic or underlined; where its text sits — arch-vis:textAlignment across it
+(arch-vis:AlignLeft, AlignCenter, AlignRight), arch-vis:textPosition down it
+(arch-vis:PositionTop, PositionMiddle, PositionBottom); arch-vis:gradient, the side its fill shades
+from (arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom); and arch-vis:iconColor,
+its glyph's colour — as ArchiMate tools let a modeller set them on one diagram element. Each absent
+leaves the choice to the notation or the renderer. A colour's alpha is CSS's, 0 to 1: the comments
+had given an example with the exchange format's percentage, rgba(255,255,181,100), which CSS reads
+as opaque whatever it is.
+
+0.6: A Link may end on another Link. A relationship can have a relationship as
 its arch:source or arch:target, and its edge on a diagram then ends on the edge drawn for that
 relationship — as a connection may end on a connection in the ArchiMate exchange format. The
 range of arch-vis:source and arch-vis:target is widened from arch-vis:Node to
@@ -85,21 +96,33 @@ arch-vis:ContainerNode
     a               owl:Class ;
     rdfs:subClassOf arch-vis:Node ;
     rdfs:label      "Container"@en ;
-    rdfs:comment    ""@en ;
+    rdfs:comment    '''A shape on a diagram that stands for no model element: a group around what is
+drawn inside it (arch-vis:inNode), a pool, a lane — or a plain shape, a rectangle, an ellipse, a
+diamond, whose own arch-vis:style gives its arch-vis:shapeType. It carries no arch-vis:archElement.
+Its text, when it has one (a group's name), is its skos:prefLabel, language-tagged; its colours
+are its style's (arch-vis:fillColor, arch-vis:lineColor, arch-vis:fontColor). The ArchiMate
+exchange format's Container node is one.'''@en ;
 .
 
 arch-vis:LabelNode
     a               owl:Class ;
     rdfs:subClassOf arch-vis:Node ;
     rdfs:label      "LabelNode"@en ;
-    rdfs:comment    ""@en ;
+    rdfs:comment    '''Text on a diagram. Pointed at by another diagram element's arch-vis:label, it
+places that element's text apart from it — a relationship's name moved off the middle of its line —
+and the text is the name of what that element draws, unless the LabelNode gives its own as
+skos:prefLabel. Pointed at by none, it is free-standing text: a note, its text its skos:prefLabel,
+language-tagged, its colours its arch-vis:style's. The ArchiMate exchange format's Label node is
+one. Either way it stands for no model element and carries no arch-vis:archElement.'''@en ;
 .
 
 arch-vis:ArchNode
     a               owl:Class ;
     rdfs:subClassOf arch-vis:Node ;
     rdfs:label      "ArchNode"@en ;
-    rdfs:comment    ""@en ;
+    rdfs:comment    '''The appearance of a model element on a diagram: its arch-vis:archElement names
+the element. An element may be drawn by more than one ArchNode in one view — placed again to keep
+lines short — each a node of its own, moved, nested and removed on its own.'''@en ;
 .
 
 arch-vis:Link
@@ -108,7 +131,12 @@ arch-vis:Link
     rdfs:label      "Link"@en ;
     rdfs:comment    '''An edge on a diagram: it joins a source to a target, may route through a
 PointList, and may carry a LabelNode. Each end is a Node, or another Link where the relationship
-the edge draws has a relationship as its source or target.'''@en ;
+the edge draws has a relationship as its source or target. A relationship may be drawn by more
+than one Link in one view, each joining the nodes it is drawn between.
+
+A Link with no arch-vis:archRelationship stands for no relationship: a line drawn on the diagram
+only — from a note to what it is about, as the ArchiMate exchange format's Line connection — its
+ends Nodes. It puts nothing in the view's arch:inView.'''@en ;
 .
 
 arch-vis:Point
@@ -244,7 +272,8 @@ arch-vis:archRelationship
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "archRelationship"@en ;
-    rdfs:comment "Links a diagram Link to the qualified relationship resource it represents."@en ;
+    rdfs:comment '''Links a diagram Link to the qualified relationship resource it represents.
+Absent, the Link stands for no relationship: a line drawn on the diagram only.'''@en ;
     rdfs:domain  arch-vis:Link ;
     rdfs:range   arch:QualifiedRelationship ;
 .
@@ -313,7 +342,10 @@ arch-vis:fillColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "fillColor"@en ;
-    rdfs:comment "CSS rgba() string, e.g. rgba(255,255,181,100)"@en ;
+    rdfs:comment '''A CSS colour string — #rrggbb, #rrggbbaa, rgb() or rgba(), e.g. #fff7b3, or
+rgba(255,247,179,0.5) half transparent. Its alpha is CSS's, from 0 (transparent) to 1 (opaque); opaque
+when it has none. Converters before core-vis 0.7 wrote the ArchiMate exchange format's alpha as it is,
+a percentage (rgba(255,247,179,100)); a reader may take an alpha above 1 as one.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
 .
@@ -322,7 +354,7 @@ arch-vis:lineColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "lineColor"@en ;
-    rdfs:comment "CSS rgba() string"@en ;
+    rdfs:comment "A CSS colour string, its alpha CSS's (0–1), as arch-vis:fillColor's."@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
 .
@@ -347,10 +379,75 @@ arch-vis:fontColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "fontColor"@en ;
-    rdfs:comment '''Colour of the element's label, as a CSS colour string. When it is absent a renderer
-draws the label in the line colour (arch-vis:lineColor).'''@en ;
+    rdfs:comment '''Colour of the element's label, as a CSS colour string (its alpha CSS's, as
+arch-vis:fillColor's). When it is absent a renderer draws the label in the line colour
+(arch-vis:lineColor).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
+.
+
+arch-vis:gradient
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "gradient"@en ;
+    rdfs:comment '''The fill shades from its colour (arch-vis:fillColor) at the side named
+(arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom) to white at the opposite side,
+as Archi's gradient does. Absent, the fill is all one colour.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:Gradient ;
+.
+
+arch-vis:iconColor
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "iconColor"@en ;
+    rdfs:comment '''Colour of the glyph drawn for an element (arch-vis:iconSymbol) — its badge, or its icon —
+as a CSS colour string: the glyph's opaque lines are drawn in it. Absent, the glyph is drawn as
+published.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:fontStyle
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fontStyle"@en ;
+    rdfs:comment '''How the text is set: one or more of the keywords bold, italic and underline,
+separated by spaces ("bold", "bold italic"), as the ArchiMate exchange format's font style lists
+them. Plain when absent.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:lineWidth
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "lineWidth"@en ;
+    rdfs:comment '''Width of the lines drawn — a node's outline, a link's line — in the diagram's
+units, as its bounds are. 1 when absent. ArchiMate tools offer 1, 2 and 3 (Archi's normal, medium
+and heavy), as the exchange format's style lineWidth carries them.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:integer ;
+.
+
+arch-vis:textAlignment
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "textAlignment"@en ;
+    rdfs:comment '''Where a node's text sits across it: from its left, centred, or to its right.
+Absent, the renderer's choice — centred, for an element.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:TextAlignment ;
+.
+
+arch-vis:textPosition
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "textPosition"@en ;
+    rdfs:comment '''Where a node's text sits down it: from its top, in its middle, or at its bottom.
+Absent, the renderer's choice.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:TextPosition ;
 .
 
 
@@ -604,6 +701,94 @@ arch-vis:BottomCenter
     a            arch-vis:IconPlacement ;
     rdfs:label   "Bottom Center"@en ;
     rdfs:comment "Icon placed at the bottom center of the shape."@en ;
+.
+
+
+#################################################################
+# Gradient Individuals
+#################################################################
+
+arch-vis:Gradient
+    a            owl:Class ;
+    rdfs:label   "Gradient"@en ;
+    rdfs:comment "Enumeration of the sides a fill shades from (arch-vis:gradient)."@en ;
+.
+
+arch-vis:GradientTop
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Top"@en ;
+    rdfs:comment "The fill colour at the top, white at the bottom."@en ;
+.
+
+arch-vis:GradientLeft
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Left"@en ;
+    rdfs:comment "The fill colour at the left, white at the right."@en ;
+.
+
+arch-vis:GradientRight
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Right"@en ;
+    rdfs:comment "The fill colour at the right, white at the left."@en ;
+.
+
+arch-vis:GradientBottom
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Bottom"@en ;
+    rdfs:comment "The fill colour at the bottom, white at the top."@en ;
+.
+
+
+#################################################################
+# TextAlignment and TextPosition Individuals
+#################################################################
+
+arch-vis:TextAlignment
+    a            owl:Class ;
+    rdfs:label   "TextAlignment"@en ;
+    rdfs:comment "Enumeration of where a node's text sits across it (arch-vis:textAlignment)."@en ;
+.
+
+arch-vis:AlignLeft
+    a            arch-vis:TextAlignment ;
+    rdfs:label   "Align Left"@en ;
+    rdfs:comment "Each line of the text starts at the node's left."@en ;
+.
+
+arch-vis:AlignCenter
+    a            arch-vis:TextAlignment ;
+    rdfs:label   "Align Center"@en ;
+    rdfs:comment "Each line of the text is centred across the node."@en ;
+.
+
+arch-vis:AlignRight
+    a            arch-vis:TextAlignment ;
+    rdfs:label   "Align Right"@en ;
+    rdfs:comment "Each line of the text ends at the node's right."@en ;
+.
+
+arch-vis:TextPosition
+    a            owl:Class ;
+    rdfs:label   "TextPosition"@en ;
+    rdfs:comment "Enumeration of where a node's text sits down it (arch-vis:textPosition)."@en ;
+.
+
+arch-vis:PositionTop
+    a            arch-vis:TextPosition ;
+    rdfs:label   "Position Top"@en ;
+    rdfs:comment "The text starts at the node's top."@en ;
+.
+
+arch-vis:PositionMiddle
+    a            arch-vis:TextPosition ;
+    rdfs:label   "Position Middle"@en ;
+    rdfs:comment "The text is centred down the node."@en ;
+.
+
+arch-vis:PositionBottom
+    a            arch-vis:TextPosition ;
+    rdfs:label   "Position Bottom"@en ;
+    rdfs:comment "The text ends at the node's bottom."@en ;
 .
 
 

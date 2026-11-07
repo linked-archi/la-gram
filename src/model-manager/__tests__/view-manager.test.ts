@@ -808,6 +808,12 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'lineWidth'))[0]?.object).toMatchObject({ value: '2', datatype: { value: XSD + 'integer' } });
   });
 
+  it('a placement’s figure — the Figure tab’s — as core-vis’s rendering mode', () => {
+    views.setAppearance(view, first, { renderingMode: 'IconCentric' });
+    expect(objects(store, `${first}-style`, VIS_NS + 'renderingMode')).toEqual([VIS_NS + 'IconCentric']);
+    expect(views.getNode(view, first)?.appearance).toEqual({ renderingMode: 'IconCentric' });
+  });
+
   it('a value taken back with null; all of them, and the style goes too', () => {
     views.setAppearance(view, first, { fillColor: '#ffd6e0', lineColor: '#7a0019' });
     views.setAppearance(view, first, { fillColor: null });

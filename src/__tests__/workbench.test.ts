@@ -372,14 +372,14 @@ describe('the workbench', () => {
     await panel.updateComplete;
     expect(root.querySelector('.vtab[data-tab="appearance"]')).toBeNull();
 
-    // Both selected on the canvas: the tab, last among them, with every field an element's placement has.
+    // Both selected on the canvas: the tab, with every field an element's placement has — then Figure, as in Archi.
     ui.diagramCanvas.selectIris([a, b]);
     await panel.updateComplete;
     expect(panel.appearance?.targets).toEqual([
       { iri: nodeA, kind: 'element' },
       { iri: nodeB, kind: 'element' },
     ]);
-    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).at(-1)).toBe('appearance');
+    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-2)).toEqual(['appearance', 'figure']);
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
     await panel.updateComplete;
     // Archi's rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
@@ -441,9 +441,65 @@ describe('the workbench', () => {
     expect([views.getNode(view, nodeA)?.appearance, views.getNode(view, nodeB)?.appearance]).toEqual([undefined, undefined]);
     expect(drawnFill(a)).toBe(notationFill);
 
+    // What la-gram writes on a placement's style, its own shapes accept.
+    root.querySelector<HTMLButtonElement>('.appearance-field[data-field="textAlignment"] button[data-value="right"]')!.click();
+    root.querySelector<HTMLButtonElement>('.appearance-field[data-field="font"] button[data-value="bold"]')!.click();
+    const gradient = root.querySelector<HTMLSelectElement>('.appearance-field[data-field="gradient"] select')!;
+    gradient.value = 'top';
+    gradient.dispatchEvent(new Event('change'));
+    expect(views.getNode(view, nodeA)?.appearance).toMatchObject({ textAlignment: 'right', fontStyle: 'bold', gradient: 'top' });
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+    root.querySelector<HTMLButtonElement>('.reset-appearance')!.click();
+
     ui.diagramCanvas.selectIris([]);
     ui.selectConcept(undefined);
     for (const iri of [a, b]) els.deleteElement(iri);
+  });
+
+  it('draws an element as another figure from the Figure tab: its icon, or its shape alone', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const actor = els.createElement(`${AM4}BusinessActor`, app.session.modelIri!, { label: 'Figured' }).value;
+    const node = views.addElementToView(view, actor, { x: 100, y: 800, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnMode = () => document.querySelector(`[data-element-iri="${actor}"]`)?.getAttribute('data-rendering-mode');
+
+    ui.diagramCanvas.selectIris([actor]);
+    await panel.updateComplete;
+    expect(panel.appearance?.figure).toMatchObject({ modes: ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'], notation: 'ShapeWithBadge' });
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    const choice = (mode: string) => root.querySelector<HTMLButtonElement>(`.figure-choice[data-mode="${mode}"]`)!;
+    expect(choice('ShapeWithBadge').getAttribute('aria-checked')).toBe('true');
+
+    choice('IconCentric').click();
+    expect(views.getNode(view, node)?.appearance).toEqual({ renderingMode: 'IconCentric' });
+    expect(drawnMode()).toBe('IconCentric');
+    await panel.updateComplete;
+    expect(choice('IconCentric').getAttribute('aria-checked')).toBe('true');
+    // The notation's figure: its own taken away.
+    choice('ShapeWithBadge').click();
+    expect(views.getNode(view, node)?.appearance).toBeUndefined();
+    expect(drawnMode()).toBe('ShapeWithBadge');
+    await ui.runCommand({ command: 'undo' });
+    expect(drawnMode()).toBe('IconCentric');
+
+    // A figure has no figure to choose.
+    const note = views.addFigure!(view, { kind: 'note', text: 'n', bounds: { x: 400, y: 800, width: 185, height: 80 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([note]);
+    await panel.updateComplete;
+    expect(panel.appearance?.figure).toBeUndefined();
+    expect(root.querySelector('.vtab[data-tab="figure"]')).toBeNull();
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    views.removeElementFromView(view, note);
+    els.deleteElement(actor);
   });
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {

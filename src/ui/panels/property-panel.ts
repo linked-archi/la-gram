@@ -19,7 +19,7 @@
  * ElementManager when one is given.
  */
 
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
@@ -35,8 +35,9 @@ import {
   type Appearance,
   type AppearanceChanges,
   type AppearanceKey,
+  type FigureMode,
 } from '../../model-manager/appearance.js';
-import type { AppearanceSelection } from '../appearance-selection.js';
+import type { AppearanceSelection, FigureChoices } from '../appearance-selection.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
@@ -513,7 +514,7 @@ function rowKey(entry: PropertyEntry): string {
 const ID_ROW = 'id';
 
 /** The panel's vertical tabs, top to bottom. */
-export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance';
+export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appearance' | 'figure';
 
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
@@ -529,7 +530,14 @@ function storedRelationshipsOpen(): boolean {
   }
 }
 
-const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance'];
+const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'figure'];
+
+/** The Figure tab's choices, named. */
+const FIGURE_NAMES: Record<FigureMode, string> = {
+  ShapeWithBadge: 'Shape with icon',
+  IconCentric: 'Icon',
+  ShapeOnly: 'Shape only',
+};
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
 function storedTab(): PanelSection {
@@ -954,6 +962,46 @@ export class PropertyPanel extends LitElement {
       stroke: #3c4043;
       stroke-width: 1.4;
       display: block;
+    }
+
+    .figure-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 12px;
+    }
+
+    .figure-choice {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: 112px;
+      padding: 8px 6px 6px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: #fff;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .figure-choice[aria-checked='true'] {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+    }
+
+    .figure-choice svg {
+      width: 80px;
+      height: 48px;
+    }
+
+    .figure-choice .muted-note {
+      color: #80868b;
+    }
+
+    .figure-footer {
+      padding: 0 12px;
     }
 
     .appearance-notice {
@@ -1861,6 +1909,45 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
+  /**
+   * The Figure tab, as Archi's: what an element is drawn as — its shape with
+   * its glyph as a badge, the glyph itself with its name under it, or the shape
+   * alone — each a preview to pick; the notation's marked, and picked, its own
+   * figure taken away.
+   */
+  private _renderFigureChoices(choices: FigureChoices, count: number) {
+    const shown = choices.own ?? choices.notation;
+    // Inside an <svg>, fragments in SVG's namespace.
+    const bar = svg`<rect x="22" y="40" width="36" height="4" rx="1" fill="#9aa0a6"></rect>`;
+    const preview = (mode: FigureMode) =>
+      mode === 'IconCentric'
+        ? html`<svg viewBox="0 0 80 48" aria-hidden="true"><image href=${choices.iconHref} x="24" y="2" width="32" height="34"></image>${bar}</svg>`
+        : html`<svg viewBox="0 0 80 48" aria-hidden="true">
+            <rect x="4" y="4" width="72" height="40" rx="3" fill=${choices.fillColor} stroke=${choices.lineColor}></rect>
+            ${mode === 'ShapeWithBadge' ? svg`<image href=${choices.iconHref} x="58" y="7" width="14" height="14"></image>` : nothing}
+            <rect x="20" y="22" width="40" height="4" rx="1" fill="#9aa0a6"></rect>
+          </svg>`;
+    return html`
+      <div class="figure-choices" role="radiogroup" aria-label="Figure">
+        ${choices.modes.map(
+          (mode) => html`<button
+            type="button"
+            class="figure-choice"
+            role="radio"
+            data-mode=${mode}
+            aria-checked=${shown === mode ? 'true' : 'false'}
+            title=${FIGURE_NAMES[mode]}
+            @click=${() => this._appearanceChange({ renderingMode: mode === choices.notation ? null : mode })}
+          >
+            ${preview(mode)}
+            <span>${FIGURE_NAMES[mode]}${mode === choices.notation ? html`<span class="muted-note"> (notation)</span>` : nothing}</span>
+          </button>`,
+        )}
+      </div>
+      ${count > 1 ? html`<div class="appearance-footer figure-footer"><span>Changes apply to the ${count} selected.</span></div>` : nothing}
+    `;
+  }
+
   /** Draw the notation alone, or the look set in the view: `notation-only`, as the canvas toolbar's switch. */
   private _notationOnly(on: boolean): void {
     this.dispatchEvent(new CustomEvent<{ on: boolean }>('notation-only', { detail: { on }, bubbles: true, composed: true }));
@@ -2000,6 +2087,7 @@ export class PropertyPanel extends LitElement {
               : []),
           ]),
       ...(appearance ? [{ id: 'appearance' as const, title: 'Appearance' }] : []),
+      ...(appearance?.figure ? [{ id: 'figure' as const, title: 'Figure' }] : []),
     ];
     // A remembered tab this concept does not have (a model has no analysis) falls back.
     const remembered = this._tab ?? 'info';
@@ -2029,6 +2117,8 @@ export class PropertyPanel extends LitElement {
         <div class="pane" role="tabpanel" data-tab=${active}>
           ${active === 'appearance' && appearance
             ? this._renderAppearance(appearance)
+            : active === 'figure' && appearance?.figure
+              ? this._renderFigureChoices(appearance.figure, appearance.targets.length)
             : active === 'info' && drawing === 'figure'
               ? this._renderFigureText()
               : active === 'info' && drawing === 'line' && this.heading?.line

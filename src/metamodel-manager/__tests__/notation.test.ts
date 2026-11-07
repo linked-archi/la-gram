@@ -191,6 +191,34 @@ describe('buildVisualNotations — element notation', () => {
   });
 });
 
+describe('buildVisualNotations — what core-vis 0.7 lets a notation say of the look', () => {
+  it('a font, a line width, the text’s place, a gradient and the glyph’s colour, an element’s and a relationship’s', () => {
+    const set = buildVisualNotations(
+      storeFromTurtle(`${PREFIXES}
+:ArchiMate40StandardNotation a arch-vis:NotationSet .
+:ActorNotation a arch-vis:VisualNotation ; arch-vis:notationFor am4:BusinessActor ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:defaultStyle [ arch-vis:shapeType arch-vis:Rectangle ; arch-vis:fontName "Georgia" ; arch-vis:fontSize 9 ;
+        arch-vis:fontStyle "italic" ; arch-vis:lineWidth 2 ; arch-vis:textAlignment arch-vis:AlignLeft ;
+        arch-vis:textPosition arch-vis:PositionTop ; arch-vis:gradient arch-vis:GradientTop ; arch-vis:iconColor "#1a237e" ] .
+:ServingNotation a arch-vis:VisualNotation ; arch-vis:notationFor am4:Serving ; arch-vis:inNotationSet :ArchiMate40StandardNotation ;
+    arch-vis:lineWidth 2 ; arch-vis:fontSize 10 ; arch-vis:fontColor "#5f6368" .
+`),
+    );
+    expect(set!.notations.get(BUSINESS_ACTOR)!.style).toMatchObject({
+      fontName: 'Georgia',
+      fontSize: 9,
+      fontStyle: 'italic',
+      lineWidth: 2,
+      textAlignment: 'left',
+      textPosition: 'top',
+      gradient: 'top',
+      iconColor: '#1a237e',
+    });
+    // A relationship's notation that says only how its line and name look is one.
+    expect(set!.notations.get(SERVING)!.relationshipStyle).toMatchObject({ lineWidth: 2, fontSize: 10, fontColor: '#5f6368' });
+  });
+});
+
 describe('buildVisualNotations — relationship notation', () => {
   const RELATIONSHIP_NOTATION = `${PREFIXES}
 :ArchiMate40StandardNotation a arch-vis:NotationSet ; skos:prefLabel "Standard"@en .

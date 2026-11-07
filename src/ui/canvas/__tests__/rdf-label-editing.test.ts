@@ -118,8 +118,46 @@ describe('naming a relationship on its line', () => {
   });
 });
 
+describe('the box a name is typed in, set as the name is drawn', () => {
+  const shape = (extra: Record<string, unknown> = {}, size = { width: 160, height: 80 }) => ({
+    id: IRI,
+    parent: {},
+    x: 0,
+    y: 0,
+    ...size,
+    businessObject: { iri: IRI, typeIri: 'x', kind: 'element' as const, label: 'Payment API', named: true, ...extra },
+  });
+
+  it('in the placement’s font, size and style, aligned as its text is', () => {
+    const { provider } = providerWith({ look: { fontName: 'Georgia', fontSize: 14, fontStyle: 'bold italic', textAlignment: 'left', fontColor: '#1a73e8' } });
+    const context = provider.activate(shape())!;
+    expect(context.style).toMatchObject({ fontFamily: `"Georgia", ${NOTATION_DEFAULTS.fontFamily}`, fontSize: '14px', fontWeight: 'bold', textAlign: 'left' });
+    expect(context.options?.centerVertically).toBe(true);
+  });
+
+  it('from the top, or with its last line at the bottom; under an element drawn as its icon', () => {
+    expect(providerWith({ look: { textPosition: 'top' } }).provider.activate(shape())!.options?.centerVertically).toBe(false);
+    const bottom = providerWith({ look: { textPosition: 'bottom' } }).provider.activate(shape())!;
+    expect(parseFloat(bottom.style!.paddingTop!)).toBeGreaterThan(40);
+    const icon = providerWith({ mode: 'IconCentric' }).provider.activate(shape())!;
+    expect(icon.bounds.y).toBeGreaterThan(40);
+    expect(icon.bounds.y + icon.bounds.height).toBe(80);
+  });
+
+  it('a group’s in its tab, a note’s from its top left', () => {
+    const group = providerWith({ look: { textAlignment: 'left', textPosition: 'top' } }).provider.activate(
+      shape({ kind: 'figure', figure: { kind: 'group' } }, { width: 400, height: 300 }),
+    )!;
+    expect([group.bounds.y, group.bounds.height, group.style?.textAlign]).toEqual([0, 20, 'left']);
+    const note = providerWith({ look: { textAlignment: 'left', textPosition: 'top' } }).provider.activate(
+      shape({ kind: 'figure', figure: { kind: 'note' } }, { width: 185, height: 80 }),
+    )!;
+    expect([note.style?.textAlign, note.style?.paddingLeft, note.options?.centerVertically]).toEqual(['left', '6px', false]);
+  });
+});
+
 /** The provider over stand-ins for diagram-js's services; the canvas at zoom 1, unscrolled. */
-function providerWith() {
+function providerWith(drawn?: { look?: Record<string, unknown>; mode?: string }) {
   const executed: RelabelContext[] = [];
   const provider = new RdfLabelEditingProvider(
     { on: () => undefined },
@@ -133,6 +171,10 @@ function providerWith() {
     { registerProvider: () => undefined } as never,
     { registerHandler: () => undefined, execute: (_command, context) => void executed.push(context) },
     { get: () => [] },
+    // How la-gram's renderer draws the name, when the test says.
+    drawn
+      ? { get: (name: string) => (name === 'rdfRenderer' ? { drawnLook: () => drawn.look ?? {}, drawnMode: () => drawn.mode ?? 'ShapeWithBadge' } : null) }
+      : null,
   );
   return { provider, executed };
 }

@@ -9,6 +9,7 @@
  * | `fillColor`, `lineColor`, `fontColor` | `arch-vis:fillColor` … | a CSS colour; its alpha its opacity |
  * | `gradient` | `arch-vis:gradient` (0.7) | `arch-vis:GradientTop`, `GradientLeft`, `GradientRight`, `GradientBottom` |
  * | `iconColor` | `arch-vis:iconColor` (0.7) | a CSS colour: the glyph's |
+ * | `renderingMode` | `arch-vis:renderingMode` | `arch-vis:ShapeWithBadge`, `IconCentric`, `ShapeOnly`: the figure an element's placement is drawn as (the Figure tab) |
  * | `lineWidth` | `arch-vis:lineWidth` (0.7) | a positive integer |
  * | `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
  * | `fontName` | `arch-vis:fontName` | a font family |
@@ -35,6 +36,8 @@ const VIS = NAMESPACES['arch-vis'];
 export type TextAlignment = 'left' | 'center' | 'right';
 export type TextPosition = 'top' | 'middle' | 'bottom';
 export type BorderStyle = 'SolidLine' | 'DashedLine' | 'DottedLine';
+/** How an element is drawn: a shape with its glyph as a badge, the glyph as the figure, or the shape alone. */
+export type FigureMode = 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly';
 /** The side a fill shades from — its colour there, white at the opposite side. */
 export type Gradient = 'top' | 'left' | 'right' | 'bottom';
 
@@ -54,6 +57,8 @@ export interface Appearance {
   fontStyle?: string;
   textAlignment?: TextAlignment;
   textPosition?: TextPosition;
+  /** The figure an element's placement is drawn as, in place of its notation's (Archi's Figure tab). */
+  renderingMode?: FigureMode;
 }
 
 export type AppearanceKey = keyof Appearance;
@@ -75,6 +80,7 @@ export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'fontSize',
   'fontStyle',
   'fontColor',
+  'renderingMode',
 ];
 
 const ENUMERATIONS = {
@@ -82,6 +88,7 @@ const ENUMERATIONS = {
   textAlignment: { left: VIS + 'AlignLeft', center: VIS + 'AlignCenter', right: VIS + 'AlignRight' },
   textPosition: { top: VIS + 'PositionTop', middle: VIS + 'PositionMiddle', bottom: VIS + 'PositionBottom' },
   gradient: { top: VIS + 'GradientTop', left: VIS + 'GradientLeft', right: VIS + 'GradientRight', bottom: VIS + 'GradientBottom' },
+  renderingMode: { ShapeWithBadge: VIS + 'ShapeWithBadge', IconCentric: VIS + 'IconCentric', ShapeOnly: VIS + 'ShapeOnly' },
 } as const satisfies Partial<Record<AppearanceKey, Record<string, string>>>;
 
 /** Each key's predicate. */
@@ -98,6 +105,7 @@ export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   fontStyle: VIS + 'fontStyle',
   textAlignment: VIS + 'textAlignment',
   textPosition: VIS + 'textPosition',
+  renderingMode: VIS + 'renderingMode',
 };
 
 /** How a value is written: an enumeration's member (an IRI), an integer, or a string. */
@@ -232,6 +240,17 @@ function round3(n: number): number {
 /** Whether two appearances say the same. */
 export function sameAppearance(a: Appearance | undefined, b: Appearance | undefined): boolean {
   return APPEARANCE_KEYS.every((key) => (a?.[key] ?? undefined) === (b?.[key] ?? undefined));
+}
+
+/** The look a style — a notation's, a thing's own — says, from whatever of the keys it has. */
+export function lookOf(style: object | undefined): Appearance {
+  const look: Record<string, unknown> = {};
+  if (!style) return look as Appearance;
+  for (const key of APPEARANCE_KEYS) {
+    const value = (style as Record<string, unknown>)[key];
+    if (value !== undefined && value !== null) look[key] = value;
+  }
+  return look as Appearance;
 }
 
 /** An appearance with nothing set is none. */

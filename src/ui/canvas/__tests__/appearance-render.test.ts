@@ -114,6 +114,58 @@ describe('a gradient, and the glyph’s colour', () => {
   });
 });
 
+describe('a notation’s look, beneath the placement’s own', () => {
+  const SAYS: VisualStyle = { ...NOTATION, fontName: 'Georgia', fontSize: 9, lineWidth: 2, textAlignment: 'left', gradient: 'top' };
+  function drawWith(style: VisualStyle, appearance?: Appearance, options?: RenderOptions): SVGElement {
+    const type: ElementTypeInfo = { iri: TYPE_IRI, label: 'Component', isAbstract: false, style, renderingMode: effectiveRenderingMode(style) };
+    harness = createRenderHarness(paletteWith([type]), options);
+    return harness.drawShape(
+      { iri: 'https://example.org/model/e1', typeIri: TYPE_IRI, kind: 'element', label: 'Payment API', named: true, ...(appearance ? { appearance } : {}) },
+      { width: 160, height: 80 },
+    );
+  }
+
+  it('drawn where the placement sets nothing — "Notation only" too — and under what it sets', () => {
+    const shape = drawWith(SAYS);
+    expect(label(shape).getAttribute('font-family')).toBe(`"Georgia", ${NOTATION_DEFAULTS.fontFamily}`);
+    expect([label(shape).getAttribute('font-size'), label(shape).getAttribute('text-anchor')]).toEqual(['9', 'start']);
+    expect(body(shape).getAttribute('stroke-width')).toBe('2');
+    expect(body(shape).getAttribute('fill')).toBe('url(#la-gradient-top-b5ffff)');
+    harness!.destroy();
+    const own = drawWith(SAYS, { fontSize: 14, lineWidth: 3, textAlignment: 'right' });
+    expect([label(own).getAttribute('font-size'), label(own).getAttribute('text-anchor')]).toEqual(['14', 'end']);
+    expect(body(own).getAttribute('stroke-width')).toBe('3');
+    harness!.destroy();
+    const notationOnly = drawWith(SAYS, { fontSize: 14 }, { relationshipNames: false, notationOnly: true });
+    expect(label(notationOnly).getAttribute('font-size')).toBe('9');
+  });
+});
+
+describe('a placement drawn as another figure (the Figure tab)', () => {
+  const BADGED: VisualStyle = { ...NOTATION, renderingMode: 'ShapeWithBadge', iconSymbol: 'archimate4/icons/glyphs/actor.svg', iconPlacement: 'TopRight' };
+  function draw(appearance?: Appearance): SVGElement {
+    const type: ElementTypeInfo = { iri: TYPE_IRI, label: 'Actor', isAbstract: false, style: BADGED, renderingMode: effectiveRenderingMode(BADGED) };
+    harness = createRenderHarness(paletteWith([type]));
+    return harness.drawShape(
+      { iri: 'https://example.org/model/a1', typeIri: TYPE_IRI, kind: 'element', label: 'Clerk', named: true, ...(appearance ? { appearance } : {}) },
+      { width: 120, height: 60 },
+    );
+  }
+
+  it('its icon, its name under it — or its shape alone; its notation’s figure otherwise', () => {
+    expect(draw().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    harness!.destroy();
+    const icon = draw({ renderingMode: 'IconCentric' });
+    expect(icon.getAttribute('data-rendering-mode')).toBe('IconCentric');
+    expect(icon.querySelector(`.${RENDER_CLASSES.icon}`)).not.toBeNull();
+    expect(icon.querySelector(`.${RENDER_CLASSES.body}`)).toBeNull();
+    harness!.destroy();
+    const plain = draw({ renderingMode: 'ShapeOnly' });
+    expect(plain.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
+    expect(plain.querySelector(`.${RENDER_CLASSES.badge}`)).toBeNull();
+  });
+});
+
 describe('a line drawn with its own look', () => {
   it('a relationship’s: its colour and width — its name in its font when names are shown', () => {
     const line = boot({ relationshipNames: true }).drawConnection(

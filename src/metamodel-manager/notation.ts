@@ -22,6 +22,7 @@
 import { DataFactory } from 'n3';
 import type { Store, Term } from 'n3';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { APPEARANCE_PREDICATES, appearanceValue, type Appearance } from '../model-manager/appearance.js';
 
 const { namedNode } = DataFactory;
 
@@ -127,8 +128,19 @@ export type Decoration =
   | 'HalfArrowhead'
   | 'CircleDot';
 
+/**
+ * What a notation's style may say of the look an element's or a relationship's
+ * own style may set too (core-vis 0.7): drawn beneath that, over la-gram's.
+ */
+export type NotationLook = Pick<
+  Appearance,
+  'lineWidth' | 'fontName' | 'fontSize' | 'fontStyle' | 'textAlignment' | 'textPosition' | 'gradient' | 'iconColor'
+>;
+
+const NOTATION_LOOK_KEYS = ['lineWidth', 'fontName', 'fontSize', 'fontStyle', 'textAlignment', 'textPosition', 'gradient', 'iconColor'] as const;
+
 /** Visual style for an element type — the construction recipe. */
-export interface VisualStyle {
+export interface VisualStyle extends NotationLook {
   /** A core shape — for a notation's own shape, its fallback. */
   shapeType?: ShapeType;
   /** A notation's own shape, drawn from its templates in place of {@link shapeType}. */
@@ -148,11 +160,13 @@ export interface VisualStyle {
 }
 
 /** Visual style for a relationship type. */
-export interface RelationshipVisualStyle {
+export interface RelationshipVisualStyle extends Pick<NotationLook, 'lineWidth' | 'fontName' | 'fontSize' | 'fontStyle'> {
   lineStyle?: LineStyle;
   sourceDecor?: Decoration;
   targetDecor?: Decoration;
   lineColor?: string;
+  /** Colour of its name; its line colour when absent. */
+  fontColor?: string;
   /**
    * The ends nesting may draw inside the other instead of a line
    * (`arch-vis:nestedEnd`): `target` for a part inside its whole, `source` for
@@ -409,6 +423,17 @@ function resolveDefaultNotationSet(store: Store): string | null {
 // Extraction
 // ---------------------------------------------------------------------------
 
+/** What a style says of the look core-vis 0.7 names: font, line width, text placement, gradient, icon colour. */
+function readLook(store: Store, styleTerm: Term): NotationLook {
+  const look: Record<string, unknown> = {};
+  for (const key of NOTATION_LOOK_KEYS) {
+    const object = store.getObjects(styleTerm, namedNode(APPEARANCE_PREDICATES[key]), null)[0];
+    const value = object ? appearanceValue(key, object) : undefined;
+    if (value !== undefined) look[key] = value;
+  }
+  return look as NotationLook;
+}
+
 function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undefined {
   const { shapeType, customShape } = readShape(store, styleTerm);
   const fillColor = objectValue(store, styleTerm, T.fillColor) ?? undefined;
@@ -429,6 +454,7 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
   );
   // Fallback rule: iconPlacement absent but iconSymbol present → TopRight.
   const iconPlacement = declaredPlacement ?? (iconSymbol ? 'TopRight' : undefined);
+  const look = readLook(store, styleTerm);
 
   const hasAny =
     shapeType !== undefined ||
@@ -440,13 +466,15 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
     defaultHeight !== undefined ||
     borderStyle !== undefined ||
     fontColor !== undefined ||
-    customShape !== undefined;
+    customShape !== undefined ||
+    Object.keys(look).length > 0;
   if (!hasAny) return undefined;
 
   const style: VisualStyle = { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
   if (customShape) style.customShape = customShape;
   if (borderStyle) style.borderStyle = borderStyle;
   if (fontColor) style.fontColor = fontColor;
+  Object.assign(style, look);
   return style;
 }
 
@@ -459,9 +487,20 @@ function extractRelationshipStyle(store: Store, subject: Term): RelationshipVisu
     .map((end) => (end.value === `${ARCH_VIS}SourceEnd` ? 'source' : end.value === `${ARCH_VIS}TargetEnd` ? 'target' : undefined))
     .filter((end): end is 'source' | 'target' => end !== undefined)
     .sort();
-  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0) return undefined;
+  const { lineWidth, fontName, fontSize, fontStyle } = readLook(store, subject);
+  const fontColor = objectValue(store, subject, T.fontColor) ?? undefined;
+  const look = {
+    ...(lineWidth !== undefined ? { lineWidth } : {}),
+    ...(fontName !== undefined ? { fontName } : {}),
+    ...(fontSize !== undefined ? { fontSize } : {}),
+    ...(fontStyle !== undefined ? { fontStyle } : {}),
+    ...(fontColor !== undefined ? { fontColor } : {}),
+  };
+  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0 && Object.keys(look).length === 0) {
+    return undefined;
+  }
   const lineColor = objectValue(store, subject, T.lineColor) ?? undefined;
-  return { lineStyle, sourceDecor, targetDecor, lineColor, ...(nestedEnds.length > 0 ? { nestedEnds } : {}) };
+  return { lineStyle, sourceDecor, targetDecor, lineColor, ...look, ...(nestedEnds.length > 0 ? { nestedEnds } : {}) };
 }
 
 /**

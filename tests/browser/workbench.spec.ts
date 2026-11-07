@@ -2181,4 +2181,26 @@ describe('the Appearance tab', () => {
     await session.screenshot('appearance-element');
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
+
+  it('the Figure tab draws an element as its icon; renamed in place, the box is under the icon', async () => {
+    const [a] = (await model(page)).actors;
+    const panel = page.locator('property-panel');
+    const shape = page.locator(`.djs-shape[data-element-id="${a}"]`);
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await panel.locator('.vtab[data-tab="figure"]').click();
+    await panel.locator('.figure-choice[data-mode="IconCentric"]').click();
+    await until(async () => (await shape.locator('[data-rendering-mode]').getAttribute('data-rendering-mode')) === 'IconCentric', 'drawn as its icon');
+    await session.screenshot('appearance-figure');
+    // Renamed in place: the box is the band under the icon, not the whole shape.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await page.keyboard.press('F2');
+    const editor = page.locator('.djs-direct-editing-parent');
+    await editor.waitFor({ state: 'visible' });
+    // The element's bounds: the icon figure's hit area (the shape's own box takes in its selection outline).
+    const [box, drawn] = [await editor.boundingBox(), await shape.locator('.la-icon-container').boundingBox()];
+    expect(box!.height).toBeLessThan(drawn!.height / 2);
+    expect(box!.y + box!.height).toBeCloseTo(drawn!.y + drawn!.height, -1);
+    await page.keyboard.press('Escape');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
 });

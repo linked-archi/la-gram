@@ -1733,6 +1733,39 @@ collaborator).
 is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),
 `lineWidth`, and the font's name, size, style and colour.
 
+**A notation's look.** `extractElementStyle` reads a style's core-vis 0.7 terms
+(`NotationLook`: `lineWidth`, `fontName`, `fontSize`, `fontStyle`,
+`textAlignment`, `textPosition`, `gradient`, `iconColor`) onto `VisualStyle`,
+and `extractRelationshipStyle` a relationship's line width, font and
+`fontColor` — a relationship notation saying only those is one. The renderer
+draws `{ ...lookOf(notation), ...own }` (`lookOf` picks the appearance keys any
+style has), so the notation's look is drawn where the placement sets nothing,
+*Notation only* included; a relationship's name is laid out in its notation's
+size under the line's own (`drawnConnectionLabel`'s `notationFontSize`, passed
+by the canvas and `rdf-link-label`). The Appearance tab's defaults
+(`elementDefaults`, `lineDefaults`) show the notation's values.
+
+**In-place renaming.** `RdfRenderer.drawnLook(element)` is the look a name is
+drawn with now — a figure's own, from a note's or a group's top left — and
+`drawnMode(element)` the figure it is drawn as. The label-editing provider
+(through the injector, so a diagram without la-gram's renderer keeps the plain
+box) sets the text box by them: the font family, size and weight in its style,
+italic, underline and colour on its content once open (the box's own style
+leaves them out); `textAlign` the alignment; centred down the box in the
+middle, from its top, or — at the bottom — its padding leaving the lines as they
+wrap now at the bottom; a group's box its tab, an element drawn as its icon the
+band under it. A relationship's box is laid out in its name's size.
+
+**Figure.** Req 3.16. A placement's own `arch-vis:renderingMode` (an
+`Appearance` key the Appearance tab leaves out, `FigureMode`) chooses what it
+is drawn as: `effectiveMode` takes it over the notation's, still `ShapeOnly`
+without a drawable glyph, and the docking outline's cache stamp includes it.
+`selectedAppearance` adds `figure` (`FigureChoices`) when every one selected is
+an element whose notation has a glyph: the three modes, the notation's, the
+first one's own, the glyph and its colours for the previews. The panel's
+*Figure* tab (`_renderFigureChoices`) shows a preview each (lit's `svg` tag for
+what is inside an `<svg>`); picking the notation's sends `renderingMode: null`.
+
 ### Version history
 
 A *checkpoint* — what the History tab calls it, so that "commit" means a Git
