@@ -71,7 +71,7 @@ import { PropertyCatalog, curieOf } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
-import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
+import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
@@ -905,9 +905,43 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   propertyPanel.addEventListener('property-retype', onPropertyRetype);
 
+  // ── Export the open diagram (File menu, the canvas's right-click menu) ─
+  /**
+   * Saves the open diagram as an SVG or a PNG file named after the view, with
+   * its pictures in the file (Req 14.2): a PNG is drawn from an SVG, which
+   * loads nothing from outside itself, and an SVG file is opened away from the
+   * app. A picture that cannot be read is reported — linked still in an SVG,
+   * left out of a PNG.
+   */
+  const exportView = async (format: 'svg' | 'png'): Promise<void> => {
+    if (activeKind !== 'diagram') {
+      dialogs.toast('Open a diagram view to export it.', 'warning');
+      return;
+    }
+    const name = (viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-');
+    const { svg, missing } = await inlineImages(exportSvg(diagramCanvas.toSvg()), { dropMissing: format === 'png' });
+    if (format === 'svg') {
+      await saveFile(svg, `${name}.svg`, 'image/svg+xml');
+    } else {
+      // Twice its size: sharp on a high-density screen, in a document or a slide.
+      await saveFile(await exportPng(svg, undefined, undefined, 2), `${name}.png`, 'image/png');
+    }
+    if (missing.length > 0) {
+      const [what, it] = missing.length === 1 ? ['a picture', 'it'] : [`${missing.length} pictures`, 'them'];
+      const instead = format === 'svg' ? `the SVG links to ${it} instead` : `the PNG leaves ${it} out`;
+      dialogs.toast(`Could not read ${what} to put in the file, so ${instead}: ${missing.join(', ')}`, 'warning');
+    }
+  };
+
   // ── The canvas's right-click menu: what the rest of the app does ─────
   const onCanvasContextAction = (action: CanvasContextAction, iri: string): void => {
     switch (action) {
+      case 'export-svg':
+      case 'export-png':
+        void exportView(action === 'export-svg' ? 'svg' : 'png').catch((error: unknown) =>
+          dialogs.toast(`Export failed: ${error instanceof Error ? error.message : String(error)}`, 'error'),
+        );
+        return;
       case 'properties':
         selectConcept(iri, { fromCanvas: true });
         shell.showTab('properties');
@@ -2391,16 +2425,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         case 'save-no-geometry':
           save('turtle', 'no-geometry');
           return;
-        case 'export-svg': {
-          const svg = exportSvg(diagramCanvas.toSvg());
-          await saveFile(svg, `${(viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-')}.svg`, 'image/svg+xml');
+        case 'export-svg':
+          await exportView('svg');
           return;
-        }
-        case 'export-png': {
-          const png = await exportPng(exportSvg(diagramCanvas.toSvg()));
-          await saveFile(png, `${(viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-')}.png`, 'image/png');
+        case 'export-png':
+          await exportView('png');
           return;
-        }
         case 'rename-model': {
           const name = await dialogs.prompt('Rename model', 'Model name', session.modelLabel());
           if (name) session.renameModel(name);

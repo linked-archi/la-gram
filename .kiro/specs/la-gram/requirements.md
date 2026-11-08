@@ -325,7 +325,9 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 
 ### Requirement 14: Diagram Export (la-gram)
 
-1. The open view exports as SVG and PNG, cropped to content, without interaction chrome
+1. The open view exports as SVG and PNG, cropped to content, without interaction chrome; from the File menu and from the right-click menu on the empty canvas (*Export view as SVG*, *Export view as PNG*), named after the view. The SVG is a well-formed XML document with every definition it uses (the lines' end markers)
+2. The exported file holds its pictures — the notation's glyphs and badges, the pictures set in the Image tab or for an element, the lines' end symbols — as `data:` URIs, each read once, so that an SVG shows them wherever it is opened and a PNG is drawn with them. A picture that cannot be read (its site gives no CORS permission, or it is gone) stays linked in an SVG and is left out of a PNG — never drawn as a broken image — and a message names it
+3. A PNG is drawn at twice the drawn size, sharp on a high-density screen, in a document or a slide; less when that would be larger than a browser can draw (16 384 pixels a side, 120 million in all)
 
 ### Requirement 15: Web & Desktop (la-gram)
 

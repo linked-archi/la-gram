@@ -528,6 +528,30 @@ graph for a concept the model does not name: that read, for every line each
 time a view is drawn, is what Task 22 took out. The name is the model's; where
 it is drawn, once moved, is the view's: see key decisions 15 and 16.
 
+**Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
+`svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file
+as a DOM — the viewport's layers cloned, interaction chrome taken out, every
+`<defs>` of the canvas (the lines' end markers are in their own,
+`defs.la-notation-markers`), a white background, cropped to what is drawn and
+the lines' names — and writes it with `XMLSerializer`: an HTML serialisation
+(`innerHTML`) writes a non-breaking space as `&nbsp;`, which XML does not know.
+Its pictures are still the addresses drawn on the canvas: the bundled glyphs at
+the app's own addresses (`assetUrl`, with `?v=`; `app://` in the desktop app),
+pictures at theirs. A PNG is drawn by loading the SVG into an `<img>` and that
+onto a canvas, and an SVG drawn as an image loads nothing from outside itself:
+every glyph was a broken image. So `inlineImages` reads each picture's address
+once (`readImageAsDataUrl`: `fetch`, the type from the response or, when it says
+none, the address's extension; a page served in its place is not a picture) and
+writes it into both `href` and `xlink:href` as a `data:` URI. What cannot be read
+— a site sending no `Access-Control-Allow-Origin`, which the canvas can still
+show but the app cannot read — stays linked in an SVG (a viewer opening the file
+online loads it) and is taken out of a PNG (`dropMissing`), and the toast names
+it. `exportPng` takes a scale (2 from the menus): the SVG's own `width` and
+`height` set to the PNG's, its `viewBox` kept, so the vector is rasterised at
+that size rather than drawn small and stretched; it is lowered to fit a canvas
+a browser can draw. Both menus run the same `exportView`; the right-click menu's
+entries are in an *export* section of their own.
+
 **Moving a relationship's name** (`rdf-link-label.ts`). A press on a drawn name
 starts diagram-js's `dragging` (`rdf.linkLabel.*`), the selection kept. The press
 reaches the line as `element.mousedown` whatever node it landed on — the name's

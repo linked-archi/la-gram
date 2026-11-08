@@ -1516,13 +1516,40 @@ describe('the workbench', () => {
     const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();
     const onView = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(canvasRoot) as Record<string, { action: () => void }>;
     expect(Object.keys(onView)).toEqual([
-      'rename-view', 'set-viewpoint', 'duplicate-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri', 'delete-view',
+      'rename-view', 'set-viewpoint', 'duplicate-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
+      'export-svg', 'export-png', 'delete-view',
     ]);
     onView['properties']!.action();
     expect([ui.propertyPanel.selectedIri, ui.propertyPanel.heading?.kind]).toEqual([view, 'View']);
     onView['select-all']!.action();
     const selected = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(): Array<{ id: string }> } }).get('selection').get();
     expect(selected.map((e) => e.id)).toEqual(expect.arrayContaining([placed, other, drawn]));
+
+    // Export from the same menu: the view saved as SVG, named after it, its pictures in the file (Req 14.2).
+    const originalFetch = globalThis.fetch;
+    const fetched: string[] = [];
+    globalThis.fetch = (async (url: string) => {
+      fetched.push(String(url));
+      const body = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+      return { ok: true, blob: async () => ({ type: 'image/svg+xml', arrayBuffer: async () => body.buffer }) };
+    }) as unknown as typeof fetch;
+    try {
+      const before = saved.length;
+      onView['export-svg']!.action();
+      await vi.waitFor(() => expect(saved.length).toBe(before + 1));
+      const exported = saved.at(-1)!;
+      expect(exported.fileName).toBe(`${(app.components.viewManager.getView!(view)!.label || 'view').replace(/[^\w.-]+/g, '-')}.svg`);
+      expect(exported.mediaType).toBe('image/svg+xml');
+      const doc = new DOMParser().parseFromString(exported.content as string, 'image/svg+xml');
+      const hrefs = Array.from(doc.getElementsByTagName('image')).map((image) => image.getAttribute('href') ?? '');
+      expect(hrefs.length).toBeGreaterThan(0);
+      expect(hrefs.filter((href) => !href.startsWith('data:image/svg+xml;base64,'))).toEqual([]);
+      expect(fetched.length).toBeGreaterThan(0);
+      // Each glyph read once, however often it is drawn.
+      expect(new Set(fetched).size).toBe(fetched.length);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
     app.components.relationshipManager.deleteRelationship!(drawn);
     els.deleteElement(other);
 

@@ -603,6 +603,16 @@ describe('a relationship’s name on its line', () => {
     expect(drawnName()).toBe('Serves pages');
     // The export's crop takes the name in.
     expect(f.canvas.toSvg()).toContain('Serves pages');
+    // The export is an XML document: no interaction chrome, the line's end marker defined in it (Req 14.1).
+    const exported = new DOMParser().parseFromString(f.canvas.toSvg(), 'image/svg+xml');
+    expect(exported.getElementsByTagName('parsererror')).toHaveLength(0);
+    expect(exported.documentElement.getAttribute('viewBox')).toMatch(/^-?\d+ -?\d+ \d+ \d+$/);
+    expect(exported.querySelectorAll('.djs-hit, .djs-outline')).toHaveLength(0);
+    const ends = [...exported.querySelectorAll('[marker-end], [marker-start]')].map(
+      (line) => (line.getAttribute('marker-end') ?? line.getAttribute('marker-start'))!.slice(5, -1),
+    );
+    expect(ends.length).toBeGreaterThan(0);
+    for (const id of ends) expect(exported.getElementById(id)?.localName).toBe('marker');
 
     // Renamed elsewhere — the property panel, the model tree's dialog, a collaborator.
     f.store.removeQuads([name('Serves pages') as never]);

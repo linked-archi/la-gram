@@ -1333,8 +1333,52 @@ describe('changing an element’s type', () => {
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
       'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
-      'Copy IRI', 'Delete view…',
+      'Copy IRI', 'Export view as SVG', 'Export view as PNG', 'Delete view…',
     ]);
+    // Export from it: the pictures — the notation's glyphs — in the file, and a PNG drawn with them, at twice the size.
+    const exported: Record<string, Buffer> = {};
+    for (const id of ['export-svg', 'export-png']) {
+      if (!(await menu.isVisible())) {
+        await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
+        await menu.waitFor({ state: 'visible' });
+      }
+      const [download] = await Promise.all([page.waitForEvent('download'), menu.locator(`.entry[data-id="${id}"]`).click()]);
+      expect(download.suggestedFilename()).toMatch(id === 'export-svg' ? /\.svg$/ : /\.png$/);
+      exported[id] = await readFile((await download.path())!);
+    }
+    const svgFile = exported['export-svg']!.toString('utf8');
+    const pictures = [...svgFile.matchAll(/<image\b[^>]*\bhref="([^"]*)"/g)].map((m) => m[1]!);
+    expect(pictures.length).toBeGreaterThanOrEqual(2);
+    expect(pictures.filter((href) => !href.startsWith('data:image/'))).toEqual([]);
+    const png = exported['export-png']!;
+    const [svgWidth, svgHeight] = [/<svg\b[^>]*\bwidth="(\d+)"/, /<svg\b[^>]*\bheight="(\d+)"/].map((re) => Number(svgFile.match(re)![1]));
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([svgWidth! * 2, svgHeight! * 2]);
+    // The PNG has the glyphs drawn: the actor's badge, top right of "Clerk", is not all fill colour.
+    const inked = await page.evaluate(async ({ data, box }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      [canvas.width, canvas.height] = [image.width, image.height];
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(box.x, box.y, box.width, box.height).data;
+      let dark = 0;
+      for (let i = 0; i < pixels.length; i += 4) if (pixels[i]! + pixels[i + 1]! + pixels[i + 2]! < 200) dark++;
+      return dark;
+    }, {
+      data: png.toString('base64'),
+      // Clerk is at x 500 of the drawing; the drawing's left edge is the SVG's viewBox x.
+      box: await (async () => {
+        const viewBox = svgFile.match(/viewBox="(-?[\d.]+) (-?[\d.]+)/)!;
+        const [vx, vy] = [Number(viewBox[1]), Number(viewBox[2])];
+        return { x: (500 + 120 - 26 - vx) * 2, y: (100 + 2 - vy) * 2, width: 24 * 2, height: 24 * 2 };
+      })(),
+    });
+    expect(inked).toBeGreaterThan(20);
+    if (await menu.isVisible()) await page.keyboard.press('Escape');
+    await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
+    await menu.waitFor({ state: 'visible' });
     await menu.locator('.entry', { hasText: 'Select all' }).click();
     // An entry that changes neither the model nor the zoom closes the menu too.
     await menu.waitFor({ state: 'hidden' });
@@ -1361,7 +1405,7 @@ describe('changing an element’s type', () => {
     expect(await shown()).toEqual([modelIri, 'Model']);
     await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80);
     await until(async () => (await shown())[0] === ids.v, 'the view shown again');
-    findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view: ok');
+    findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view; export as SVG and PNG from it, glyphs in the files: ok');
   }, 90_000);
 
   it('goes back to the previous view as it was left — zoom and scroll — from the toolbar or with Alt+←', async () => {

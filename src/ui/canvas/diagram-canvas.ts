@@ -352,7 +352,9 @@ export type CanvasContextAction =
   | 'rename-view'
   | 'set-viewpoint'
   | 'duplicate-view'
-  | 'delete-view';
+  | 'delete-view'
+  | 'export-svg'
+  | 'export-png';
 
 /** What {@link DiagramCanvasOptions.confirmRetypeElement} is asked about. */
 export interface RetypeElementRequest {
@@ -2654,7 +2656,10 @@ export class DiagramCanvas {
   /**
    * The drawn diagram as a standalone SVG document, cropped to its content —
    * what "export view as SVG/PNG" saves. Interaction chrome (hit areas,
-   * outlines, bendpoint handles) is stripped.
+   * outlines, bendpoint handles) is stripped. Written as XML (an HTML
+   * serialisation would write a non-breaking space as `&nbsp;`, which XML does
+   * not know), with every `<defs>` of the canvas — the lines' end markers are
+   * in their own. Its pictures are still linked: `inlineImages` puts them in.
    */
   toSvg(padding = 20): string {
     const services = this.services();
@@ -2701,20 +2706,28 @@ export class DiagramCanvas {
 
     const layer = svg.querySelector('.viewport')?.cloneNode(true) as Element | undefined;
     if (layer) {
-      layer.removeAttribute('transform');
       for (const chrome of layer.querySelectorAll(
         '.djs-hit, .djs-outline, .djs-bendpoint, .djs-segment-dragger, .djs-dragger, .djs-resizer, .djs-context-pad',
       )) {
         chrome.remove();
       }
     }
-    const defs = svg.querySelector('defs')?.outerHTML ?? '';
-    return (
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
-      `width="${width}" height="${height}" viewBox="${x} ${y} ${width} ${height}">` +
-      `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="#ffffff"/>` +
-      `${defs}${layer?.innerHTML ?? ''}</svg>`
-    );
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const doc = svg.ownerDocument;
+    const out = doc.createElementNS(SVG_NS, 'svg');
+    out.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    out.setAttribute('width', String(width));
+    out.setAttribute('height', String(height));
+    out.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
+    for (const defs of Array.from(svg.children).filter((child) => child.localName === 'defs')) {
+      out.appendChild(defs.cloneNode(true));
+    }
+    const background = doc.createElementNS(SVG_NS, 'rect');
+    for (const [name, value] of Object.entries({ x, y, width, height })) background.setAttribute(name, String(value));
+    background.setAttribute('fill', '#ffffff');
+    out.appendChild(background);
+    for (const child of Array.from(layer?.childNodes ?? [])) out.appendChild(child);
+    return new XMLSerializer().serializeToString(out);
   }
 
   /** Tear the diagram down and leave the host container empty. */
@@ -3022,6 +3035,8 @@ export class DiagramCanvas {
         { id: 'properties', label: 'View properties', section: 'show', run: host('properties') },
         { id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') },
         { id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') },
+        { id: 'export-svg', label: 'Export view as SVG', section: 'export', run: host('export-svg') },
+        { id: 'export-png', label: 'Export view as PNG', section: 'export', run: host('export-png') },
         { id: 'delete-view', label: 'Delete view…', section: 'delete', run: host('delete-view') },
       );
     }
