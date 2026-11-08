@@ -75,8 +75,10 @@ export function aboutBlocks(context: AboutContext): DetailBlock[] {
     {
       kind: 'text',
       text:
-        'la-gram models architecture in the languages Linked.Archi publishes — ArchiMate and the others in its ' +
-        'catalogue — its palette, rules, notation and checks taken from the metamodels themselves, the model kept as RDF.',
+        'la-gram models architecture in any language whose metamodel follows the Linked.Archi principles: the ' +
+        'reference metamodels published at meta.linked.archi — ArchiMate and the others in its catalogue — or your ' +
+        'own, loaded from an address or a file. Its palette, rules, notation and checks come from the metamodels ' +
+        'themselves, and the model is kept as RDF.',
     },
     { kind: 'links', links: links(['docs', 'catalogue', 'source', 'issues']) },
     { kind: 'heading', text: 'Licence' },

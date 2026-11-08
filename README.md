@@ -3,12 +3,15 @@
 A semantic architecture modeller for [Linked.Archi](https://meta.linked.archi/) metamodels.
 
 The model lives in an RDF store; the diagram, the model tree, files and the
-collaboration document are views of it. Metamodels — ArchiMate 4.0 and 3.2
-and Basic bundled (Basic is the generic language, to add alongside another or
-use alone: its Connection relates any two elements), and every other language,
-framework and extension published on `meta.linked.archi` (the Metamodels menu
-lists its catalogue) — are loaded at runtime, so the palette, the relationship
-rules, the notation and the validation all come from data.
+collaboration document are views of it. It works with any metamodel that
+follows the Linked.Archi principles, loaded at runtime, so the palette, the
+relationship rules, the notation and the validation all come from data: the
+reference metamodels — ArchiMate 4.0 and 3.2 and Basic bundled (Basic is the
+generic language, to add alongside another or use alone: its Connection relates
+any two elements), and every other language, framework and extension published
+on `meta.linked.archi` (the Metamodels menu lists its catalogue) — and your own,
+from an address (*Metamodels › Load by IRI…*) or a file (*Metamodels › Upload
+metamodel or asset file…*).
 
 - **Model / views** — one model, any number of diagram, catalog and matrix views; an element is one resource wherever it appears. Delete from a view or from the model.
 - **Model tree** — the whole model on the left in three groups, Views, Elements and Relationships: by type, or with the model's own folders in them, each kind in folders of its own. A model converted from Archi (or another tool that keeps folders) opens in its folders, each folded, subfolders then concepts by name, and what no folder holds by type after them; *Folders* | *Types* in the tree's header switches, remembered in this browser (on a model without folders, *Folders* is greyed out). Make folders from the right-click menu — *New folder…* on a group or in a folder, *Rename…*, *Delete folder* (what it holds is kept) — and file a view, element, relationship or folder with *Move to folder…*, which lists the group's folders with their paths, filters by any words you type and puts the ones you last used first, or by dragging rows onto a folder. Ctrl/Cmd- or Shift-click selects several in the tree, and a selection on the canvas moves too (right-click one of them); all undoable, and saved with the model. To keep an Archi model's folders, export it from Archi with `--xmlexchange.exportFolders` before converting it — without that option Archi's Exchange file has none. Filter by name or type; the open view's concepts are marked.

@@ -62,3 +62,6 @@ out/
 
 # Collaboration server working state (see server/collab-server.mjs)
 data/
+# Docs build venv and agent task artefacts
+.venv-docs/
+.agents/
