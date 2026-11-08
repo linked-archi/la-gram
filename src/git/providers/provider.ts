@@ -44,6 +44,22 @@ export interface CommitResult {
   webUrl: string;
 }
 
+/**
+ * A file committed as the merge of another commit into a branch: a commit with
+ * two parents, so the host counts the other commit as merged — a merge request
+ * from the branch then merges cleanly (*Update from main*).
+ */
+export interface MergeCommitChange {
+  branch: string;
+  /** The commit the branch is at: the first parent. The branch moves only if it is still there. */
+  head: string;
+  /** The commit merged in: the second parent. */
+  mergeOf: string;
+  path: string;
+  text: string;
+  message: string;
+}
+
 /** The files of a branch. */
 export interface FileList {
   /** Every file's path, folders left out. */
@@ -51,6 +67,52 @@ export interface FileList {
   /** Whether the host stopped short of the whole tree (a very large repository). */
   truncated: boolean;
 }
+
+/** A commit, as a file's history lists it. */
+export interface GitCommit {
+  commit: string;
+  /** Its parents: the first is the commit before it on the branch. */
+  parents: string[];
+  /** Who wrote it (Git's author name). */
+  author: string;
+  /** When it was written, ISO 8601. */
+  date: string;
+  message: string;
+  /** Its page on the host. */
+  webUrl: string;
+}
+
+/** A page of a file's commits. */
+export interface CommitPage {
+  /** Newest first. */
+  commits: GitCommit[];
+  /** Whether there may be older ones: the page was full. */
+  more: boolean;
+}
+
+/** A merge request — a pull request on GitHub. */
+export interface MergeRequest {
+  /** Its number in the repository: GitHub's pull request number, GitLab's `iid`. */
+  number: number;
+  title: string;
+  webUrl: string;
+  /** The branch it merges. */
+  source: string;
+  /** The branch it merges into. */
+  target: string;
+}
+
+/** A merge request to open. */
+export interface MergeRequestChange {
+  source: string;
+  target: string;
+  title: string;
+  /** Markdown. */
+  description: string;
+}
+
+/** Commits listed a page at a time. */
+export const COMMITS_PER_PAGE = 100;
 
 /** How many pages of a paged listing are read at most (100 entries a page). */
 export const MAX_PAGES = 50;
@@ -69,6 +131,20 @@ export interface GitHostProvider {
   listFiles(ref: string): Promise<FileList>;
   /** The repository's branches, by name. */
   listBranches(): Promise<string[]>;
+  /** The last commit two commits have in common. */
+  mergeBase(a: string, b: string): Promise<string>;
+  /** A file's commits on a branch (or from a commit), newest first, a page of {@link COMMITS_PER_PAGE} at a time (`page` from 1). */
+  fileCommits(ref: string, path: string, page?: number): Promise<CommitPage>;
+  /** The open merge request from `source` into `target`, if there is one. */
+  findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined>;
+  /** Open a merge request (a pull request on GitHub). */
+  openMergeRequest(change: MergeRequestChange): Promise<MergeRequest>;
+  /**
+   * Commit a file as a merge — a commit with two parents. Only where the host's
+   * API can make one: GitHub's Git database API can, GitLab's REST API cannot
+   * (a commit there has one parent).
+   */
+  commitMerge?(change: MergeCommitChange): Promise<CommitResult>;
 }
 
 /** `fetch`, injectable for tests. */
@@ -88,6 +164,10 @@ export abstract class RestProvider implements GitHostProvider {
   abstract commitFile(change: FileChange): Promise<CommitResult>;
   abstract listFiles(ref: string): Promise<FileList>;
   abstract listBranches(): Promise<string[]>;
+  abstract mergeBase(a: string, b: string): Promise<string>;
+  abstract fileCommits(ref: string, path: string, page?: number): Promise<CommitPage>;
+  abstract findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined>;
+  abstract openMergeRequest(change: MergeRequestChange): Promise<MergeRequest>;
 
   /**
    * Every entry of a paged listing (`per_page=100&page=N`), reading pages until

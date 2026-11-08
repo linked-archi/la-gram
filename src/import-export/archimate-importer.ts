@@ -31,14 +31,17 @@
  * | `<property propertyDefinitionRef>`    | `<model>/property/<slug>` with the value       |
  * | `<view xsi:type="Diagram">`           | `arch:Diagram` (+ viewpoint when it resolves)   |
  * | `<node elementRef x y w h>`           | `arch-vis:ArchNode` with bounds                 |
- * | a `<node>` inside another             | `arch-vis:inNode` to its nearest element ancestor |
+ * | `<node xsi:type="Container">`         | a group: `arch-vis:ContainerNode`, its `<label>` its text |
+ * | `<node xsi:type="Label">`             | a note: `arch-vis:LabelNode`, its `<label>` its text |
+ * | a `<node>` inside another             | `arch-vis:inNode` to it                         |
  * | `<connection relationshipRef>`        | `arch-vis:Link`, bendpoints as its route        |
+ * | `<connection>` with no `relationshipRef` | a line standing for no relationship (an `arch-vis:Link` with no `archRelationship`) — a note's to what it is about |
+ * | a node's or a connection's `<style>`  | its own `arch-vis:style`: fill and line colours (the alpha a percentage, written `#rrggbbaa`), `lineWidth`, the font's name, size, style and colour — its look in the Appearance tab |
  *
- * Types the loaded ontology does not define are reported, not invented.
- * Nodes that stand for no element (labels, visual groups) are counted and
- * skipped: core-vis has `arch-vis:ContainerNode` for them, but this editor does
- * not draw them yet. A second placement of one element in one view is skipped
- * too — the editor keeps one placement per element per view.
+ * Types the loaded ontology does not define are reported, not invented. An
+ * element placed more than once in a view is placed so in the editor too, each
+ * connection drawn between the placements it joins — a relationship drawn twice,
+ * twice.
  */
 
 import { DataFactory } from 'n3';
@@ -46,6 +49,7 @@ import type { Term } from '@rdfjs/types';
 import type { ElementManager, Point, RelationshipManager, ViewManager } from '../model-manager/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { ensureNamespace } from '../rdf-engine/iri.js';
+import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '../model-manager/appearance.js';
 import { derivedNamespace } from '../model-manager/model-namespace.js';
 
 /** The ArchiMate 3.2 ontology namespace exchange types map into. */
@@ -109,6 +113,10 @@ export interface ExchangeNode {
   elementRef?: string;
   /** The node it is drawn inside, when nested. */
   parentId?: string;
+  /** A Container's or a Label's text (`<label>`). */
+  label?: string;
+  /** Its `<style>`, as its look. */
+  style?: Appearance;
   x: number;
   y: number;
   w: number;
@@ -123,6 +131,8 @@ export interface ExchangeConnection {
   source: string;
   target: string;
   bendpoints: Point[];
+  /** Its `<style>`, as its look. */
+  style?: Appearance;
 }
 
 /** A diagram. */
@@ -156,6 +166,48 @@ export function getChildText(parent: Element, localName: string): string | null 
   const child = getChildElements(parent, localName)[0];
   const text = child?.textContent?.trim();
   return text ? text : null;
+}
+
+/**
+ * A node's or a connection's `<style>` as its look: its fill and line colours
+ * — the alpha the format's percentage — its line width, and its font's name,
+ * size, style and colour. Nothing, without one.
+ */
+export function parseExchangeStyle(el: Element): Appearance | undefined {
+  const style = getChildElements(el, 'style')[0];
+  if (!style) return undefined;
+  const colour = (parent: Element, name: string): string | undefined => {
+    const c = getChildElements(parent, name)[0];
+    const rgb = c ? ['r', 'g', 'b'].map((channel) => Number(c.getAttribute(channel))) : [];
+    if (!c || rgb.length !== 3 || rgb.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return undefined;
+    const alpha = c.getAttribute('a');
+    const hex = `#${rgb.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+    return withAlpha(hex, alpha === null || alpha === '' ? 1 : Number(alpha) / 100);
+  };
+  const appearance: Appearance = {};
+  const fillColor = colour(style, 'fillColor');
+  if (fillColor) appearance.fillColor = fillColor;
+  const lineColor = colour(style, 'lineColor');
+  if (lineColor) appearance.lineColor = lineColor;
+  const lineWidth = Number(style.getAttribute('lineWidth'));
+  if (Number.isInteger(lineWidth) && lineWidth >= 1) appearance.lineWidth = lineWidth;
+  const font = getChildElements(style, 'font')[0];
+  if (font) {
+    const name = font.getAttribute('name')?.trim();
+    if (name) appearance.fontName = name;
+    const size = Math.round(Number(font.getAttribute('size')));
+    if (size >= 1) appearance.fontSize = size;
+    const fontStyle = fontStyleOf(font.getAttribute('style') ?? undefined);
+    if (fontStyle) appearance.fontStyle = fontStyle;
+    const fontColor = colour(font, 'color');
+    if (fontColor) appearance.fontColor = fontColor;
+  }
+  return appearanceOrNone(appearance);
+}
+
+function styleOf(el: Element): { style?: Appearance } {
+  const style = parseExchangeStyle(el);
+  return style ? { style } : {};
 }
 
 /** `xsi:type`, however the file spelled it. */
@@ -269,6 +321,8 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
               kind: getXsiType(nodeEl) ?? 'Element',
               ...(parentId ? { parentId } : {}),
               ...(nodeEl.getAttribute('elementRef') ? { elementRef: nodeEl.getAttribute('elementRef') as string } : {}),
+              ...(getChildText(nodeEl, 'label') ? { label: getChildText(nodeEl, 'label') as string } : {}),
+              ...styleOf(nodeEl),
               x: num(nodeEl, 'x'),
               y: num(nodeEl, 'y'),
               w: num(nodeEl, 'w'),
@@ -288,6 +342,7 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
             source: connEl.getAttribute('source') ?? '',
             target: connEl.getAttribute('target') ?? '',
             bendpoints: getChildElements(connEl, 'bendpoint').map((bp) => ({ x: num(bp, 'x'), y: num(bp, 'y') })),
+            ...styleOf(connEl),
           });
         }
         model.views.push(view);
@@ -355,6 +410,8 @@ export interface ImportReport {
   unrecognizedTypes: string[];
   /** Nodes standing for no element, or repeating one already placed. */
   skippedNodes: number;
+  /** Visual groups and notes, drawn as figures. */
+  figureCount: number;
 }
 
 /** An IRI-safe local part from an exchange identifier. */
@@ -401,6 +458,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     connectionCount: 0,
     unrecognizedTypes: [],
     skippedNodes: 0,
+    figureCount: 0,
   };
   const unrecognized = new Set<string>();
   const iriOf = new Map<string, string>();
@@ -481,26 +539,37 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     report.viewCount += 1;
 
     const nodeRect = new Map<string, ExchangeNode>();
+    /** Each node drawn, by its id: the view's node for it — a placement of its element, or a figure. */
     const nodeElement = new Map<string, string>();
     for (const node of view.nodes) {
+      const bounds = { x: node.x, y: node.y, width: node.w || 120, height: node.h || 55 };
+      // A visual group, or a note: drawing with no element behind it.
+      const figure = node.kind === 'Container' ? 'group' : node.kind === 'Label' ? 'note' : undefined;
+      if (figure && deps.views.addFigure) {
+        nodeElement.set(node.id, deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }));
+        report.figureCount += 1;
+        continue;
+      }
       const elementIri = node.elementRef ? iriOf.get(node.elementRef) : undefined;
-      if (!elementIri || deps.views.getNode(viewIri, elementIri)) {
+      if (!elementIri) {
         report.skippedNodes += 1;
         continue;
       }
-      deps.views.addElementToView(viewIri, elementIri, { x: node.x, y: node.y, width: node.w || 120, height: node.h || 55 });
+      // Placed again when the file places it again: each node a placement of its own.
+      const placed = deps.views.addElementToView(viewIri, elementIri, bounds, { another: true });
+      nodeElement.set(node.id, placed);
+      // Looking as it did in the tool that wrote the file.
+      if (node.style) deps.views.setAppearance?.(viewIri, placed, node.style);
       nodeRect.set(node.id, node);
-      nodeElement.set(node.id, elementIri);
       report.nodeCount += 1;
     }
 
-    // Nested nodes: inside their nearest ancestor that stands for an element (a
-    // visual group in between is not drawn).
+    // Nested nodes: inside their nearest ancestor that is drawn — an element or a figure.
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
-    for (const [nodeId, elementIri] of nodeElement) {
+    for (const [nodeId, drawn] of nodeElement) {
       let ancestor = byId.get(nodeId)?.parentId;
       while (ancestor && !nodeElement.has(ancestor)) ancestor = byId.get(ancestor)?.parentId;
-      if (ancestor) deps.views.setNodeParent?.(viewIri, elementIri, nodeElement.get(ancestor));
+      if (ancestor) deps.views.setNodeParent?.(viewIri, drawn, nodeElement.get(ancestor));
     }
 
     // A connection may end on another connection — a relationship whose source
@@ -508,9 +577,28 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     // An end on a connection has no rectangle to clip to, so the route stops at
     // the last bend and the canvas docks it onto the line.
     const drawnConnections = new Set<string>();
+    /** The relationships drawn in this view so far: one drawn again is another line of it. */
+    const drawnRelationships = new Set<string>();
     let pending = view.connections;
     for (;;) {
       const waiting = pending.filter((conn) => {
+        // A line standing for no relationship — a note's, to what it is about — between two nodes drawn.
+        if (!conn.relationshipRef) {
+          const sourceNodeIri = nodeElement.get(conn.source);
+          const targetNodeIri = nodeElement.get(conn.target);
+          const src = byId.get(conn.source);
+          const tgt = byId.get(conn.target);
+          if (!sourceNodeIri || !targetNodeIri || !src || !tgt || !deps.views.addConnector) return false;
+          const first = conn.bendpoints[0];
+          const last = conn.bendpoints[conn.bendpoints.length - 1];
+          const route = first && last ? [clipToRect(src, first), ...conn.bendpoints, clipToRect(tgt, last)] : undefined;
+          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route);
+          if (line) {
+            report.connectionCount += 1;
+            if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
+          }
+          return false;
+        }
         const relIri = conn.relationshipRef ? iriOf.get(conn.relationshipRef) : undefined;
         const src = nodeRect.get(conn.source);
         const tgt = nodeRect.get(conn.target);
@@ -523,9 +611,17 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           first && last
             ? [...(src ? [clipToRect(src, first)] : []), ...conn.bendpoints, ...(tgt ? [clipToRect(tgt, last)] : [])]
             : undefined;
-        if (deps.views.addRelationshipToView(viewIri, relIri, route)) {
+        // Between the placements the connection joins.
+        const ends = {
+          ...(nodeElement.get(conn.source) ? { sourceNodeIri: nodeElement.get(conn.source) } : {}),
+          ...(nodeElement.get(conn.target) ? { targetNodeIri: nodeElement.get(conn.target) } : {}),
+        };
+        const line = deps.views.addRelationshipToView(viewIri, relIri, route, ends, { another: drawnRelationships.has(relIri) });
+        if (line) {
+          if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
           report.connectionCount += 1;
           drawnConnections.add(conn.id);
+          drawnRelationships.add(relIri);
         }
         return false;
       });

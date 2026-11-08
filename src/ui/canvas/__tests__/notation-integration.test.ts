@@ -151,16 +151,13 @@ describe('bundled ArchiMate 4.0 → palette → canvas', () => {
 
     const drawn = container.querySelectorAll(`.${RENDER_CLASSES.shape}`);
     expect(drawn).toHaveLength(types.length);
-    // The published notation puts a badge on all of them but those its pictures
-    // tell apart by their shape alone.
+    // The published notation puts a badge on every one of them — each a box with
+    // its glyph, by default.
     const byShape = [...drawn]
       .filter((shape) => !shape.querySelector(`.${RENDER_CLASSES.badge}`))
       .map((shape) => shape.getAttribute('data-type-iri')!.split('#')[1])
       .sort();
-    expect(byShape).toEqual(['BusinessObject', 'DataObject', 'Deliverable', 'Grouping', 'Meaning', 'Product', 'Value', 'WorkPackage']);
-    for (const shape of drawn) {
-      if (!shape.querySelector(`.${RENDER_CLASSES.badge}`)) expect(shape.getAttribute('data-rendering-mode')).toBe('ShapeOnly');
-    }
+    expect(byShape).toEqual([]);
   });
 
   it('renders a Serving relationship with the published line style and arrowhead', () => {

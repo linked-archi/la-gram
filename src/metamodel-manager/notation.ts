@@ -22,6 +22,7 @@
 import { DataFactory } from 'n3';
 import type { Store, Term } from 'n3';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { APPEARANCE_PREDICATES, appearanceValue, type Appearance } from '../model-manager/appearance.js';
 
 const { namedNode } = DataFactory;
 
@@ -42,6 +43,7 @@ const T = {
   inNotationSet: `${ARCH_VIS}inNotationSet`,
   notationFor: `${ARCH_VIS}notationFor`,
   defaultStyle: `${ARCH_VIS}defaultStyle`,
+  alternativeStyle: `${ARCH_VIS}alternativeStyle`,
   shapeType: `${ARCH_VIS}shapeType`,
   fillColor: `${ARCH_VIS}fillColor`,
   lineColor: `${ARCH_VIS}lineColor`,
@@ -62,6 +64,10 @@ const T = {
   sourceDecor: `${ARCH_VIS}sourceDecor`,
   targetDecor: `${ARCH_VIS}targetDecor`,
   nestedEnd: `${ARCH_VIS}nestedEnd`,
+  labelAnchor: `${ARCH_VIS}labelAnchor`,
+  labelExpression: `${ARCH_VIS}labelExpression`,
+  expression: `${ARCH_VIS}expression`,
+  inPresentationContext: `${ARCH}inPresentationContext`,
   prefLabel: `${SKOS}prefLabel`,
   rdfsLabel: `${RDFS}label`,
 } as const;
@@ -96,6 +102,8 @@ export type ShapeType =
  */
 export interface CustomShape {
   iri: string;
+  /** Its name (`skos:prefLabel`), for offering it as a figure. */
+  label?: string;
   /** `arch-vis:fallbackShape`: drawn when the templates cannot be. */
   fallback?: ShapeType;
   /** `arch-vis:shapeVariables`: `name = expression` assignments, `;`-separated. */
@@ -127,8 +135,26 @@ export type Decoration =
   | 'HalfArrowhead'
   | 'CircleDot';
 
+/**
+ * What a notation's style may say of the look an element's or a relationship's
+ * own style may set too (core-vis 0.7): drawn beneath that, over la-gram's.
+ */
+export type NotationLook = Pick<
+  Appearance,
+  'lineWidth' | 'fontName' | 'fontSize' | 'fontStyle' | 'textAlignment' | 'textPosition' | 'gradient' | 'iconColor'
+>;
+
+const NOTATION_LOOK_KEYS = ['lineWidth', 'fontName', 'fontSize', 'fontStyle', 'textAlignment', 'textPosition', 'gradient', 'iconColor'] as const;
+
 /** Visual style for an element type — the construction recipe. */
-export interface VisualStyle {
+export interface VisualStyle extends NotationLook {
+  /**
+   * What the label of a concept drawn so says (core-vis 0.7's
+   * `arch-vis:labelExpression`): its notation's expressions, each for one
+   * presentation context (core's `arch:inPresentationContext`) or — without
+   * one — for every context. The name alone when there are none.
+   */
+  labelExpressions?: LabelExpression[];
   /** A core shape — for a notation's own shape, its fallback. */
   shapeType?: ShapeType;
   /** A notation's own shape, drawn from its templates in place of {@link shapeType}. */
@@ -145,14 +171,25 @@ export interface VisualStyle {
   defaultHeight?: number;
   /** Line style of the shape's outline (`arch-vis:borderStyle`); solid when absent. */
   borderStyle?: LineStyle;
+  /**
+   * The other figures the concept may be drawn as (`arch-vis:alternativeStyle`
+   * on its notation): each its shape and rendering mode, an outline's style —
+   * its colours and glyph this style's. A diagram element drawn as one says so
+   * with the alternative's shape type on its own style.
+   */
+  alternatives?: VisualStyle[];
 }
 
 /** Visual style for a relationship type. */
-export interface RelationshipVisualStyle {
+export interface RelationshipVisualStyle extends Pick<NotationLook, 'lineWidth' | 'fontName' | 'fontSize' | 'fontStyle'> {
   lineStyle?: LineStyle;
   sourceDecor?: Decoration;
   targetDecor?: Decoration;
   lineColor?: string;
+  /** Colour of its name; its line colour when absent. */
+  fontColor?: string;
+  /** Where along its lines its name sits (`arch-vis:labelAnchor`); at their middle when absent. */
+  labelAnchor?: 'source' | 'middle' | 'target';
   /**
    * The ends nesting may draw inside the other instead of a line
    * (`arch-vis:nestedEnd`): `target` for a part inside its whole, `source` for
@@ -176,6 +213,13 @@ export interface VisualNotation {
 }
 
 /** A named collection of visual notation descriptors. */
+/** A label expression as a notation or a presentation context gives it: its text, and the context it is for. */
+export interface LabelExpression {
+  expression: string;
+  /** The presentation context it is for; every context when absent. */
+  context?: string;
+}
+
 export interface NotationSet {
   iri: string;
   label: string;
@@ -235,6 +279,7 @@ export function readCustomShape(store: Store, iri: string): CustomShape | undefi
     ...(optional(T.detailPath) ? { details: optional(T.detailPath) } : {}),
     ...(optional(T.contentBox) ? { contentBox: optional(T.contentBox) } : {}),
     ...(optional(T.labelBox) ? { labelBox: optional(T.labelBox) } : {}),
+    ...(store.getObjects(subject, namedNode(T.prefLabel), null).length > 0 ? { label: labelFor(store, iri) } : {}),
   };
 }
 
@@ -409,6 +454,17 @@ function resolveDefaultNotationSet(store: Store): string | null {
 // Extraction
 // ---------------------------------------------------------------------------
 
+/** What a style says of the look core-vis 0.7 names: font, line width, text placement, gradient, icon colour. */
+function readLook(store: Store, styleTerm: Term): NotationLook {
+  const look: Record<string, unknown> = {};
+  for (const key of NOTATION_LOOK_KEYS) {
+    const object = store.getObjects(styleTerm, namedNode(APPEARANCE_PREDICATES[key]), null)[0];
+    const value = object ? appearanceValue(key, object) : undefined;
+    if (value !== undefined) look[key] = value;
+  }
+  return look as NotationLook;
+}
+
 function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undefined {
   const { shapeType, customShape } = readShape(store, styleTerm);
   const fillColor = objectValue(store, styleTerm, T.fillColor) ?? undefined;
@@ -429,6 +485,7 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
   );
   // Fallback rule: iconPlacement absent but iconSymbol present → TopRight.
   const iconPlacement = declaredPlacement ?? (iconSymbol ? 'TopRight' : undefined);
+  const look = readLook(store, styleTerm);
 
   const hasAny =
     shapeType !== undefined ||
@@ -440,13 +497,15 @@ function extractElementStyle(store: Store, styleTerm: Term): VisualStyle | undef
     defaultHeight !== undefined ||
     borderStyle !== undefined ||
     fontColor !== undefined ||
-    customShape !== undefined;
+    customShape !== undefined ||
+    Object.keys(look).length > 0;
   if (!hasAny) return undefined;
 
   const style: VisualStyle = { shapeType, fillColor, lineColor, iconSymbol, iconPlacement, renderingMode, defaultWidth, defaultHeight };
   if (customShape) style.customShape = customShape;
   if (borderStyle) style.borderStyle = borderStyle;
   if (fontColor) style.fontColor = fontColor;
+  Object.assign(style, look);
   return style;
 }
 
@@ -459,9 +518,24 @@ function extractRelationshipStyle(store: Store, subject: Term): RelationshipVisu
     .map((end) => (end.value === `${ARCH_VIS}SourceEnd` ? 'source' : end.value === `${ARCH_VIS}TargetEnd` ? 'target' : undefined))
     .filter((end): end is 'source' | 'target' => end !== undefined)
     .sort();
-  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0) return undefined;
+  const { lineWidth, fontName, fontSize, fontStyle } = readLook(store, subject);
+  const fontColor = objectValue(store, subject, T.fontColor) ?? undefined;
+  const anchor = objectValue(store, subject, T.labelAnchor);
+  const labelAnchor: RelationshipVisualStyle['labelAnchor'] =
+    anchor === `${ARCH_VIS}AnchorSource` ? 'source' : anchor === `${ARCH_VIS}AnchorMiddle` ? 'middle' : anchor === `${ARCH_VIS}AnchorTarget` ? 'target' : undefined;
+  const look = {
+    ...(lineWidth !== undefined ? { lineWidth } : {}),
+    ...(fontName !== undefined ? { fontName } : {}),
+    ...(fontSize !== undefined ? { fontSize } : {}),
+    ...(fontStyle !== undefined ? { fontStyle } : {}),
+    ...(fontColor !== undefined ? { fontColor } : {}),
+    ...(labelAnchor !== undefined ? { labelAnchor } : {}),
+  };
+  if (lineStyle === undefined && sourceDecor === undefined && targetDecor === undefined && nestedEnds.length === 0 && Object.keys(look).length === 0) {
+    return undefined;
+  }
   const lineColor = objectValue(store, subject, T.lineColor) ?? undefined;
-  return { lineStyle, sourceDecor, targetDecor, lineColor, ...(nestedEnds.length > 0 ? { nestedEnds } : {}) };
+  return { lineStyle, sourceDecor, targetDecor, lineColor, ...look, ...(nestedEnds.length > 0 ? { nestedEnds } : {}) };
 }
 
 /**
@@ -496,6 +570,18 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
       style = extractElementStyle(store, styleTerm) ?? style;
       relationshipStyle = extractRelationshipStyle(store, styleTerm) ?? relationshipStyle;
     }
+    // Its other figures, in the order the notation gives them.
+    const alternatives = store
+      .getObjects(notationTerm, namedNode(T.alternativeStyle), null)
+      .map((term) => extractElementStyle(store, term))
+      .filter((alternative): alternative is VisualStyle => alternative !== undefined);
+    if (style && alternatives.length > 0) style = { ...style, alternatives };
+    // What its label says: the notation's own, and its default style's.
+    const labelExpressions = [
+      ...labelExpressionsOf(store, notationTerm),
+      ...store.getObjects(notationTerm, namedNode(T.defaultStyle), null).flatMap((term) => labelExpressionsOf(store, term)),
+    ];
+    if (labelExpressions.length > 0) style = { ...(style ?? {}), labelExpressions };
 
     notations.set(conceptIri, {
       conceptIri,
@@ -509,6 +595,35 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
   if (notations.size === 0) return null;
 
   return { iri: setIri, label: labelFor(store, setIri), notations };
+}
+
+/** The label expressions `subject` gives (`arch-vis:labelExpression`), each with the presentation context it is for. */
+export function labelExpressionsOf(store: Store, subject: Term): LabelExpression[] {
+  const found: LabelExpression[] = [];
+  for (const label of store.getObjects(subject, namedNode(T.labelExpression), null)) {
+    const expression = objectValue(store, label, T.expression);
+    if (expression === null) continue;
+    const context = objectValue(store, label, T.inPresentationContext);
+    found.push({ expression, ...(context !== null ? { context } : {}) });
+  }
+  return found;
+}
+
+/**
+ * Of the label expressions a place gives, the one that applies in
+ * `context`: the one for it, else one for every context.
+ */
+export function labelExpressionIn(expressions: readonly LabelExpression[] | undefined, context: string | undefined): string | undefined {
+  if (!expressions) return undefined;
+  return (
+    (context ? expressions.find((e) => e.context === context)?.expression : undefined) ??
+    expressions.find((e) => e.context === undefined)?.expression
+  );
+}
+
+/** A presentation context's name, as a palette shows it. */
+export function presentationContextLabel(store: Store, contextIri: string): string {
+  return labelFor(store, contextIri);
 }
 
 /**

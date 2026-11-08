@@ -362,6 +362,38 @@ describe('render template', () => {
     expect(o.match(/Shape:/g)).toHaveLength(1);
   });
 
+  it("links a finding's shape to its IRI — or, written inline, the shape it is written in — without showing the concept", () => {
+    const flow = {
+      ...makeResult('Violation', 'urn:a', 'An element cannot compose itself.'),
+      sourceShape: nn('https://meta.linked.archi/archimate4/element-shapes#NoSelfCompositionShape'),
+    };
+    const inline = {
+      ...makeResult('Violation', 'urn:b', 'Name it'),
+      sourceShape: nn('n3-17'),
+      withinShape: nn('https://meta.linked.archi/archimate4/element-shapes#ArchiMateElementShape'),
+    };
+    const own = { ...makeResult('Warning', 'urn:c', 'Ours'), sourceShape: nn('urn:example:shapes#OwnShape') };
+    const ctx = makeCtx({ conforms: false, results: [flow, inline, own] });
+    const o = flat(ctx.render());
+    expect(o).toMatch(
+      /Shape: <a class="shape" href=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#NoSelfCompositionShape target="_blank" rel="noopener noreferrer" title=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#NoSelfCompositionShape[\s\S]*?>NoSelfCompositionShape<\/a/,
+    );
+    expect(o).toMatch(/href=https:\/\/meta\.linked\.archi\/archimate4\/element-shapes#ArchiMateElementShape [\s\S]*?>ArchiMateElementShape<\/a/);
+    expect(o).not.toContain('n3-17');
+    // Not a web address: named, the IRI on hover, no link.
+    expect(o).toContain('Shape: <span title=urn:example:shapes#OwnShape>OwnShape</span>');
+
+    // Opening the link does not also show the concept.
+    const find = (t: any): any =>
+      t?.strings?.join('').includes('class="shape"') ? t : (t?.values ?? []).map(find).find(Boolean);
+    const link = find(ctx._renderResultItem(flow));
+    const handlers = link.values.filter((v: unknown) => typeof v === 'function');
+    expect(handlers).toHaveLength(2);
+    const event = { stopPropagation: vi.fn() };
+    for (const h of handlers) h(event);
+    expect(event.stopPropagation).toHaveBeenCalledTimes(2);
+  });
+
   it('renders empty state when no results', () => {
     const ctx = makeCtx({ conforms: true, results: [] });
     const o = flat(ctx.render());
@@ -570,8 +602,8 @@ describe('model checks', () => {
     expect(model.allResults).toHaveLength(3);
     let o = flat(model.render());
     expect(o).toContain('✗ 1 violation(s), 1 warning(s), 1 info(s)');
-    expect(o).toContain('Check: <span title=https://meta.linked.archi/core-questions#orphans>orphans</span>');
-    expect(o).toContain('Shape: <span');
+    expect(o).toMatch(/Check: <a class="shape" href=https:\/\/meta\.linked\.archi\/core-questions#orphans [\s\S]*?>orphans<\/a/);
+    expect(o).toContain('Shape: <a class="shape" href=http://example.org/shape#MyShape');
     // On the open view: only what is on it.
     const view = withChecks({ viewIris: new Set(['urn:a']) });
     o = flat(view.render());

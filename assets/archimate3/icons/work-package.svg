@@ -1,7 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="130" height="60">
 
-    <rect rx='10.0' ry='10.0' width='130.0px' stroke-width='1.0' fill='rgb(255, 224, 224)' stroke='rgb(51, 51, 51)'
-          look='allInOne' height='60.0px'/>
-
+    <rect rx='10.0' ry='10.0' width='130.0px' stroke-width='1.0' fill='#FFE0E0' stroke='rgb(51, 51, 51)' look='allInOne'
+          height='60.0px'/>
+    <g transform='translate(109.0,4.0)'>
+        <svg xmlns="http://www.w3.org/2000/svg" height="16.0" version="1.1" viewBox="0 0 160 160" width="16.0">
+            <path d="M120,70A45,45 0 1 0 75,115H122" fill="none" stroke="#333333" stroke-miterlimit="10" stroke-width="12"/>
+            <polygon fill="#333333" points="116,90 154,115 116,140"/>
+        </svg>
+    </g>
 
 </svg>

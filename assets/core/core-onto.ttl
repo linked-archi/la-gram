@@ -34,13 +34,23 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
     '''@en ;
     dcterms:created                                         "2019-03-17"^^xsd:date ;
     dcterms:issued                                          "2019-03-17"^^xsd:date ;
-    dcterms:modified                                        "2026-09-07"^^xsd:date ;
+    dcterms:modified                                        "2026-11-08"^^xsd:date ;
     dcterms:publisher                                            "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                                             "draft" ;
     owl:versionIRI                                          <https://meta.linked.archi/core#> ;
-    owl:versionInfo                                         "0.4.0"@en ;
-    owl:priorVersion                                        <https://meta.linked.archi/core/0.3.2#> ;
-    skos:historyNote                                        '''0.4.0 — membership properties reworked.
+    owl:versionInfo                                         "0.5.0"@en ;
+    owl:priorVersion                                        <https://meta.linked.archi/core/0.4.0#> ;
+    skos:historyNote                                        '''0.5.0 — names, labels and pictures per presentation context.
+arch:inPresentationContext says which presentation context — which audience — something is for: a
+name an element is given for that audience (a SKOS-XL label, skosxl:altLabel, whose plain form is
+also the element's skos:altLabel), a picture of it for that audience (a schema:ImageObject given as
+arch:altVisNotation), or, on a diagram, what its label says there (core-vis 0.7's
+arch-vis:LabelExpression) and how it looks there (an arch-vis:Style). skos:prefLabel stays the one
+canonical name and arch:prefVisNotation the one canonical picture. arch:prefVisNotation and
+arch:altVisNotation say where they apply with :domainIncludes, where an rdfs:domain of skos:Concept
+made every element given a picture a SKOS concept. See DD-34 and DD-35.
+
+0.4.0 — membership properties reworked.
 arch:inView and arch:inModel replace arch:exposedInView and arch:partOfModel, and arch:contains is
 deprecated as an undeclared inverse of what was then partOfModel. All three old properties are
 retained and owl:deprecated; the two renamed ones are rdfs:subPropertyOf their replacements so
@@ -963,21 +973,23 @@ here, target points to the element at which the relationship arrives.''' ;
 :domainIncludes
     a               owl:AnnotationProperty ;
     skos:prefLabel  "domainIncludes" ;
-    skos:definition "defines classes for the subject of a Relationship. It is not to be used for validation" ;
+    skos:definition "The classes a property's subject is expected to be. Guidance, not a constraint: not used for validation."@en ;
     skos:closeMatch schema:domainIncludes ;
-    skos:scopeNote  '''Values of this property define the type of the source Element; in simple relationships, this
-    would be the subject. This property is used for guiding modelling but not restricting relationships. Relationship
-     restrictions, like other types of restrictions, should be implemented using SHACL. ''' ;
+    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its source element; on a relationship
+proposal order (:RelationshipProposalOrder), the sources it is scoped to. Unlike rdfs:domain it infers nothing about
+what uses the property: it guides modelling tools and readers, and restricts nothing. Restrictions, as all
+constraints, are SHACL's.'''@en ;
 .
 
 :rangeIncludes
     a               owl:AnnotationProperty ;
     skos:prefLabel  "rangeIncludes" ;
-    skos:definition "defines classes for the object of a Relationship. It is not to be used for validation" ;
+    skos:definition "The classes a property's object is expected to be. Guidance, not a constraint: not used for validation."@en ;
     skos:closeMatch schema:rangeIncludes ;
-    skos:scopeNote  '''Values of this property define the type of the target Element; in simple relationships, this
-    would be the subject. This property is used for guiding modelling but not restricting relationships. Relationship
-     restrictions, like other types of restrictions, should be implemented using SHACL. ''' ;
+    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its target element; on a relationship
+proposal order (:RelationshipProposalOrder), the targets it is scoped to. Unlike rdfs:range it infers nothing about
+the values: it guides modelling tools and readers, and restricts nothing. Restrictions, as all constraints, are
+SHACL's.'''@en ;
 .
 
 :RelationshipProposalOrder
@@ -1656,9 +1668,13 @@ The relationship between the three visual layers:
 
 A VisualNotation instance typically carries both: the defaultStyle (recipe) and
 arch:prefVisNotation (rendered output). A tool can generate the prefVisNotation SVG
-from the VisualNotation descriptor.'''@en ;
+from the VisualNotation descriptor.
+
+On a model element itself, it is that element's own picture, for every audience: a logo, a product
+image. One for one audience is an arch:altVisNotation with arch:inPresentationContext. A value is the
+image's own IRI, or a schema:ImageObject with its schema:contentUrl; it is for no single context.'''@en ;
     rdfs:subPropertyOf    schema:image ;
-    rdfs:domain           skos:Concept ;
+    :domainIncludes       skos:Concept, :ModelConcept, <https://meta.linked.archi/core-vis#VisualNotation> ;
     schema:domainIncludes :ModelConcept ;
     rdfs:range            schema:ImageObject ;
     skos:broader          :PresentationCategory ;
@@ -1676,9 +1692,28 @@ PresentationContext or NotationSet. For example, a BusinessActor might have:
 - altVisNotation → monochrome version (for printing)
 
 When multiple notation sets exist, each VisualNotation in a non-default set
-produces an altVisNotation on the concept it describes.'''@en ;
+produces an altVisNotation on the concept it describes.
+
+A picture for one audience is a schema:ImageObject with its schema:contentUrl (an xsd:anyURI: an
+http(s) URL, or a data: URI of an image) and arch:inPresentationContext, the presentation context it is
+for; an element has at most one per context. Without a context, a value — the image's own IRI, or an
+ImageObject — is an alternative for no particular audience. How a picture for an audience is drawn on
+a diagram: core-vis's arch-vis:IconCentric.'''@en ;
+    skos:example          '''
+## The gateway's own picture, and the one executives see.
+ex:paymentGateway
+    arch:prefVisNotation ex:paymentGateway-picture ;
+    arch:altVisNotation  ex:paymentGateway-picture-executive .
+ex:paymentGateway-picture
+    a                 schema:ImageObject ;
+    schema:contentUrl "https://example.org/pictures/gateway.svg"^^xsd:anyURI .
+ex:paymentGateway-picture-executive
+    a                          schema:ImageObject ;
+    schema:contentUrl          "https://example.org/pictures/card-payments.png"^^xsd:anyURI ;
+    arch:inPresentationContext am4pc:ExecutiveContext .
+'''@en ;
     rdfs:subPropertyOf    schema:image ;
-    rdfs:domain           skos:Concept ;
+    :domainIncludes       skos:Concept, :ModelConcept, <https://meta.linked.archi/core-vis#VisualNotation> ;
     schema:domainIncludes :ModelConcept ;
     rdfs:range            schema:ImageObject ;
     skos:broader          :PresentationCategory ;
@@ -2346,6 +2381,64 @@ am4pc:ExecutiveContext
 '''@en ;
     rdfs:domain     skos:Concept ;
     rdfs:range      <https://meta.linked.archi/core-vis#NotationSet> ;
+    skos:broader    :PresentationCategory ;
+.
+
+:inPresentationContext
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "inPresentationContext"@en ;
+    skos:definition '''The presentation context — the audience — something is for, and only for: a name an
+element is given for that audience, or what its label says on a diagram shown to it. Its object is a
+concept of a presentationContextScheme; something without one is for every audience.
+
+A name for an audience is a SKOS-XL label (skosxl:Label, its text skosxl:literalForm, language
+tagged), given to the element as skosxl:altLabel — never skosxl:prefLabel: SKOS-XL makes every
+skosxl:prefLabel a skos:prefLabel too, and SKOS allows one skos:prefLabel per language, which is the
+element's canonical name. The label's literal form is also the element's skos:altLabel, so that
+tools reading plain SKOS see it as one of its names. An element has at most one name per context and
+language.
+
+A picture for an audience is a schema:ImageObject given as arch:altVisNotation (the element's own
+picture for every audience is arch:prefVisNotation); an element has at most one per context.
+
+What a label says on a diagram is a core-vis arch-vis:LabelExpression, and how a diagram element looks
+is its arch-vis:Style: one with this property applies when its context is the one presented, one without
+it in every context. A diagram element has at most one style for every context and one for each context;
+in a context, the latter is drawn over the former.'''@en ;
+    skos:example '''
+## A name for developers; the canonical name for everyone else.
+ex:paymentGateway
+    skos:prefLabel    "Payment gateway"@en ;
+    skosxl:altLabel   ex:paymentGateway-name-developer ;
+    skos:altLabel     "pgw-svc"@en .
+ex:paymentGateway-name-developer
+    a                          skosxl:Label ;
+    skosxl:literalForm         "pgw-svc"@en ;
+    arch:inPresentationContext am4pc:DeveloperContext .
+
+## What application components' labels say for architects: the name, the type under it.
+am4not:ApplicationComponentNotation
+    arch-vis:labelExpression [
+        a                          arch-vis:LabelExpression ;
+        arch:inPresentationContext am4pc:ArchitectContext ;
+        arch-vis:expression        "{name}\n«{type}»"
+    ] .
+
+## The gateway's picture for executives, and its placement drawn as it for them.
+ex:paymentGateway arch:altVisNotation ex:paymentGateway-picture-executive .
+ex:paymentGateway-picture-executive
+    a                          schema:ImageObject ;
+    schema:contentUrl          "https://example.org/pictures/card-payments.png"^^xsd:anyURI ;
+    arch:inPresentationContext am4pc:ExecutiveContext .
+ex:gatewayNode arch-vis:style ex:gatewayNode-style, ex:gatewayNode-style-executive .
+ex:gatewayNode-style-executive
+    a                          arch-vis:Style ;
+    arch:inPresentationContext am4pc:ExecutiveContext ;
+    arch-vis:renderingMode     arch-vis:IconCentric .
+'''@en ;
+    rdfs:range      skos:Concept ;
+    :domainIncludes <http://www.w3.org/2008/05/skos-xl#Label>, <https://meta.linked.archi/core-vis#LabelExpression>,
+                    schema:ImageObject, <https://meta.linked.archi/core-vis#Style> ;
     skos:broader    :PresentationCategory ;
 .
 

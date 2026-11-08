@@ -43,7 +43,11 @@ Or load manually alongside other shapes:
   core-shapes.ttl + archimate3.2-principle-shapes.ttl + your-model-data.ttl
 '''@en ;
     dcterms:created               "2022-11-14"^^xsd:date ;
-    dcterms:modified              "2025-12-01"^^xsd:date ;
+    skos:historyNote              '''2026-11-06: OrphanedElementShape written with MINUS rather than
+FILTER NOT EXISTS — the same results, without testing every element against every other one; and
+targeted at ArchiMate 3.2's elements and junctions rather than arch:Element, so that it judges no other
+notation's elements and, with ArchiMate 4.0 loaded too, does not report an element twice.'''@en ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/principle-shapes/0.1.0#> ;
@@ -710,7 +714,19 @@ Or load manually alongside other shapes:
 
 :OrphanedElementShape
     a              sh:NodeShape ;
-    sh:targetClass arch:Element ;
+    # ArchiMate 3.2's elements only — the roots amelsh:ArchiMateElementShape targets, and
+    # the junctions — not arch:Element: in a graph holding other notations' models, or
+    # ArchiMate 4.0's beside 3.2's, this rule would judge their elements too, and an
+    # element would be reported once for each ArchiMate version loaded.
+    sh:targetClass am:CoreLayerElement ,
+                   am:StrategyLayerElement ,
+                   am:ImplementationAndMigrationLayerElement ,
+                   am:MotivationElement ,
+                   am:BehaviorElement ,
+                   am:StructureElement ,
+                   am:CompositeElement ,
+                   am:Junction_And ,
+                   am:Junction_Or ;
     sh:severity    sh:Info ;
     skos:prefLabel "Orphaned Element"@en ;
     skos:definition
@@ -724,11 +740,10 @@ Or load manually alongside other shapes:
             SELECT $this
             WHERE {
                 $this a/rdfs:subClassOf* arch:Element .
-                FILTER NOT EXISTS {
-                    { $this ?p ?other . ?other a/rdfs:subClassOf* arch:Element . }
-                    UNION
-                    { ?other ?p $this . ?other a/rdfs:subClassOf* arch:Element . }
-                }
+                # MINUS, not FILTER NOT EXISTS: the same results, without testing every
+                # element against every other one — which grows with the square of the model.
+                MINUS { $this ?p ?other . ?other a ?otherType . ?otherType rdfs:subClassOf* arch:Element . }
+                MINUS { ?other ?p $this . ?other a ?otherType . ?otherType rdfs:subClassOf* arch:Element . }
             }
         """ ;
     ] ;

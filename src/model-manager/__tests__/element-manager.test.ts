@@ -5,6 +5,8 @@ import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { OxigraphElementManager } from '../element-manager.js';
 import { OxigraphRelationshipManager } from '../relationship-manager.js';
 import { OxigraphViewManager } from '../view-manager.js';
+import { contextNameChange } from '../context-names.js';
+import { pictureChange } from '../element-pictures.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const { namedNode, literal, quad } = DataFactory;
@@ -93,6 +95,40 @@ describe('OxigraphElementManager', () => {
       manager.deleteElement(node.value);
       expect(store.getQuads(node)).toHaveLength(0);
       expect(store.getQuads(null, null, node)).toHaveLength(0);
+    });
+
+    it('takes with it its names for each audience, and its placements’ and lines’ own styles and label expressions', () => {
+      const DEVELOPER = 'https://example.org/contexts#Developer';
+      const a = manager.createElement(typeIri, modelIri, { label: 'A' });
+      const b = manager.createElement(typeIri, modelIri, { label: 'B' });
+      const view = views.createView('Diagram', undefined, { modelIri, label: 'V' }).value;
+      const placed = views.addElementToView(view, a.value, { x: 0, y: 0, width: 120, height: 55 });
+      views.addElementToView(view, b.value, { x: 300, y: 0, width: 120, height: 55 });
+      const rel = rels.createQualifiedRelationship({ typeIri: 'https://example.org/archimate#Serving', sourceIri: a.value, targetIri: b.value }).iri;
+      const line = views.addRelationshipToView(view, rel)!;
+      views.setAppearance(view, placed, { fillColor: '#ffd6e0' });
+      views.setLabelExpression(view, placed, DEVELOPER, '{name}');
+      views.setAppearance(view, line, { lineWidth: 2 });
+      for (const iri of [a.value, rel]) {
+        const { add } = contextNameChange(store, iri, DEVELOPER, 'dev name');
+        store.addQuads(add);
+      }
+      // Its pictures, and its placement's look for one context.
+      store.addQuads(pictureChange(store, a.value, undefined, 'https://example.org/a.svg').add);
+      store.addQuads(pictureChange(store, a.value, DEVELOPER, 'https://example.org/a-dev.svg').add);
+      views.setAppearance(view, placed, { renderingMode: 'IconCentric' }, DEVELOPER);
+      const subjects = () => new Set(store.getQuads(null, null, null).map((q) => q.subject.value));
+      const owned = [...subjects()].filter(
+        (s) => s.startsWith(`${placed}-`) || s.startsWith(`${line}-`) || s.startsWith(`${a.value}-name`) || s.startsWith(`${a.value}-picture`) || s.startsWith(`${rel}-name`),
+      );
+      // The placement's styles (for every context and for developers) and its label expression, the line's style,
+      // the element's and the relationship's names, the element's two pictures.
+      expect(owned).toHaveLength(8);
+      manager.deleteElement(a.value);
+      const left = subjects();
+      expect(owned.filter((s) => left.has(s))).toEqual([]);
+      // The other element keeps its own.
+      expect(left.has(b.value)).toBe(true);
     });
 
     it('does not affect other elements', () => {

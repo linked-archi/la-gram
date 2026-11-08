@@ -52,13 +52,18 @@ const EXCHANGE = `<?xml version="1.0" encoding="UTF-8"?>
       <view identifier="id-v1" xsi:type="Diagram" viewpoint="Application Cooperation">
         <name xml:lang="en">Main</name>
         <node identifier="n-group" xsi:type="Container" x="10" y="10" w="400" h="300">
+          <label xml:lang="en">Front end</label>
           <node identifier="n-web" elementRef="id-web" xsi:type="Element" x="40" y="40" w="120" h="55"/>
+        </node>
+        <node identifier="n-note" xsi:type="Label" x="500" y="10" w="185" h="80">
+          <label xml:lang="en">Remember the SLA</label>
         </node>
         <node identifier="n-api" elementRef="id-api" xsi:type="Element" x="300" y="40" w="120" h="55"/>
         <node identifier="n-api2" elementRef="id-api" xsi:type="Element" x="300" y="200" w="120" h="55"/>
         <connection identifier="c1" relationshipRef="id-r1" xsi:type="Relationship" source="n-api" target="n-web">
           <bendpoint x="230" y="150"/>
         </connection>
+        <connection identifier="c2" xsi:type="Line" source="n-note" target="n-api"/>
       </view>
     </diagrams>
   </views>
@@ -101,7 +106,12 @@ describe('parseArchiMateExchange', () => {
     const view = model.views[0];
     expect(view.viewpoint).toBe('Application Cooperation');
     // Nested nodes are flattened, coordinates kept absolute.
-    expect(view.nodes.map((n) => n.id)).toEqual(['n-group', 'n-web', 'n-api', 'n-api2']);
+    expect(view.nodes.map((n) => n.id)).toEqual(['n-group', 'n-web', 'n-note', 'n-api', 'n-api2']);
+    // A container's and a label's text.
+    expect(view.nodes.filter((n) => n.label).map((n) => [n.id, n.kind, n.label])).toEqual([
+      ['n-group', 'Container', 'Front end'],
+      ['n-note', 'Label', 'Remember the SLA'],
+    ]);
     expect(view.connections[0].bendpoints).toEqual([{ x: 230, y: 150 }]);
   });
 
@@ -165,10 +175,11 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       elementCount: 4,
       relationshipCount: 3,
       viewCount: 1,
-      nodeCount: 2,
-      connectionCount: 1,
+      nodeCount: 3, // id-api placed twice
+      connectionCount: 2, // the relationship's, and the note's line
       unrecognizedTypes: ['SomethingProprietary'],
-      skippedNodes: 2, // the container, and the second placement of id-api
+      skippedNodes: 0,
+      figureCount: 2, // the container and the label: a group and a note
     });
 
     const web = `${ns}element-id-web`;
@@ -189,8 +200,23 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     // Geometry: absolute bounds, and a route docked on the shapes' edges.
     const viewIri = `${ns}view-id-v1`;
     expect(views.getNode(viewIri, web)?.bounds).toEqual({ x: 40, y: 40, width: 120, height: 55 });
-    const [link] = views.getLinks(viewIri);
+    // The container is a group holding the element; the label a note.
+    const figures = views.getNodes(viewIri).filter((n) => n.figure);
+    const group = figures.find((n) => n.figure?.kind === 'group')!;
+    expect(group).toMatchObject({ figure: { kind: 'group', text: 'Front end' }, bounds: { x: 10, y: 10, width: 400, height: 300 } });
+    expect(views.getNode(viewIri, web)?.parentElementIri).toBe(group.elementIri);
+    expect(figures.find((n) => n.figure?.kind === 'note')?.figure?.text).toBe('Remember the SLA');
+    const link = views.getLinks(viewIri).find((l) => !l.connector)!;
     expect(link.relationshipIri).toBe(r1);
+    // The note's line to the API stands for no relationship: drawn between the note and the placement it names.
+    const note = figures.find((n) => n.figure?.kind === 'note')!;
+    const line = views.getLinks(viewIri).find((l) => l.connector)!;
+    expect(line).toMatchObject({ sourceNodeIri: note.nodeIri, targetElementIri: `${ns}element-id-api` });
+    expect(views.getNodes(viewIri).find((n) => n.nodeIri === line.targetNodeIri)?.bounds.y).toBe(40);
+    // id-api is placed twice; the connection joins the placement the file names (n-api, at 300,40).
+    const apiNodes = views.getNodes(viewIri).filter((n) => n.elementIri === `${ns}element-id-api`);
+    expect(apiNodes.map((n) => n.bounds.y).sort((a, b) => a - b)).toEqual([40, 200]);
+    expect(apiNodes.find((n) => n.nodeIri === link.sourceNodeIri)?.bounds.y).toBe(40);
     expect(link.waypoints).toHaveLength(3);
     expect(link.waypoints[1]).toEqual({ x: 230, y: 150 });
 
@@ -201,7 +227,55 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     expect(modelQuads(store).every((x) => x.subject.termType === 'NamedNode')).toBe(true);
   });
 
-  it('draws a node nested in another inside its nearest element ancestor', () => {
+  it('gives each node and connection the look its <style> gives it: colours (the alpha a percentage), line width, font', () => {
+    const STYLED = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="m">
+  <name xml:lang="en">Styled</name>
+  <elements>
+    <element identifier="e-a" xsi:type="ApplicationComponent"><name xml:lang="en">A</name></element>
+    <element identifier="e-b" xsi:type="ApplicationComponent"><name xml:lang="en">B</name></element>
+  </elements>
+  <relationships><relationship identifier="r" xsi:type="Serving" source="e-a" target="e-b"/></relationships>
+  <views><diagrams><view identifier="v" xsi:type="Diagram"><name xml:lang="en">V</name>
+    <node identifier="n-a" elementRef="e-a" xsi:type="Element" x="0" y="0" w="120" h="55">
+      <style lineWidth="2"><lineColor r="122" g="0" b="25"/><fillColor r="255" g="214" b="224" a="50"/>
+        <font name="Georgia" size="9" style="bold italic"><color r="26" g="115" b="232"/></font></style>
+    </node>
+    <node identifier="n-b" elementRef="e-b" xsi:type="Element" x="300" y="0" w="120" h="55"/>
+    <node identifier="n-note" xsi:type="Label" x="0" y="200" w="185" h="80"><label xml:lang="en">Note</label>
+      <style><fillColor r="255" g="247" b="179" a="100"/></style></node>
+    <connection identifier="c" relationshipRef="r" xsi:type="Relationship" source="n-a" target="n-b">
+      <style lineWidth="3"><lineColor r="26" g="115" b="232"/></style>
+    </connection>
+  </view></diagrams></views>
+</model>`;
+    const parsed = parseArchiMateExchange(STYLED);
+    expect(parsed.views[0]!.nodes.find((n) => n.id === 'n-b')?.style).toBeUndefined();
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/styled/';
+    applyExchangeModel(parsed, {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    const viewIri = `${ns}view-v`;
+    expect(views.getNode(viewIri, `${ns}element-e-a`)?.appearance).toEqual({
+      fillColor: '#ffd6e080',
+      lineColor: '#7a0019',
+      lineWidth: 2,
+      fontName: 'Georgia',
+      fontSize: 9,
+      fontStyle: 'bold italic',
+      fontColor: '#1a73e8',
+    });
+    expect(views.getNode(viewIri, `${ns}element-e-b`)?.appearance).toBeUndefined();
+    expect(views.getNodes(viewIri).find((n) => n.figure)?.figure).toMatchObject({ kind: 'note', fillColor: '#fff7b3' });
+    expect(views.getLinks(viewIri)[0]?.appearance).toEqual({ lineColor: '#1a73e8', lineWidth: 3 });
+  });
+
+  it('draws a node nested in another inside it — a visual group in between too', () => {
     const NESTED = `<?xml version="1.0" encoding="UTF-8"?>
 <model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
   <name xml:lang="en">Nested</name>
@@ -229,11 +303,51 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       knownClass: () => true,
     });
     const viewIri = views.getViews().find((v) => v.label === 'Deployment')!.iri;
+    // The visual group between them is drawn: the software inside it, it inside the node.
+    const group = views.getNodes(viewIri).find((n) => n.figure?.kind === 'group')!;
+    expect(group.parentElementIri).toBe(`${ns}element-id-node`);
     expect(views.getNode(viewIri, `${ns}element-id-os`)).toMatchObject({
-      parentElementIri: `${ns}element-id-node`,
+      parentElementIri: group.elementIri,
       bounds: { x: 40, y: 80, width: 120, height: 55 },
     });
     expect(views.getNode(viewIri, `${ns}element-id-node`)?.parentElementIri).toBeUndefined();
+  });
+
+  it('draws a relationship twice when the view does, each between the placements it joins', () => {
+    const TWICE = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
+  <name xml:lang="en">Twice</name>
+  <elements>
+    <element identifier="id-api" xsi:type="ApplicationComponent"><name xml:lang="en">API</name></element>
+    <element identifier="id-web" xsi:type="ApplicationComponent"><name xml:lang="en">Web</name></element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-s" xsi:type="Serving" source="id-api" target="id-web"/>
+  </relationships>
+  <views><diagrams>
+    <view identifier="id-v" xsi:type="Diagram"><name xml:lang="en">Twice</name>
+      <node identifier="n-api1" elementRef="id-api" xsi:type="Element" x="0" y="0" w="120" h="55"/>
+      <node identifier="n-api2" elementRef="id-api" xsi:type="Element" x="0" y="300" w="120" h="55"/>
+      <node identifier="n-web" elementRef="id-web" xsi:type="Element" x="400" y="150" w="120" h="55"/>
+      <connection identifier="c1" relationshipRef="id-s" xsi:type="Relationship" source="n-api1" target="n-web"/>
+      <connection identifier="c2" relationshipRef="id-s" xsi:type="Relationship" source="n-api2" target="n-web"/>
+    </view>
+  </diagrams></views>
+</model>`;
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/twice/';
+    const report = applyExchangeModel(parseArchiMateExchange(TWICE), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    expect(report.connectionCount).toBe(2);
+    const viewIri = views.getViews().find((v) => v.label === 'Twice')!.iri;
+    const nodes = new Map(views.getNodes(viewIri).map((n) => [n.nodeIri, n]));
+    const links = views.getLinks(viewIri);
+    expect(links.map((l) => nodes.get(l.sourceNodeIri)?.bounds.y).sort((a, b) => a! - b!)).toEqual([0, 300]);
   });
 
   it('draws a connection that ends on a connection on that connection’s link, whatever their order', () => {

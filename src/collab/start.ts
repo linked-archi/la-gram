@@ -126,6 +126,7 @@ export function startCollaboration(app: App, ui: MountedUi, options: Collaborati
     doc = new Y.Doc();
     const color = PEER_COLORS[doc.clientID % PEER_COLORS.length];
     binding = new RdfYjsBinding(store, doc, {
+      singleValued: () => app.singleValued(),
       onRemoteChange: () => {
         // A collaborator moved the model to another namespace (or replaced it):
         // follow it to its new IRIs before redrawing.

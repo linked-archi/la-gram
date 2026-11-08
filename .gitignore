@@ -5,6 +5,12 @@ node_modules/
 dist/
 build/
 
+# la-gram-git's package: what the build copies in beside its dist/
+packages/la-gram-git/assets/
+packages/la-gram-git/ci/
+packages/la-gram-git/LICENSE
+packages/la-gram-git/*.tgz
+
 # Test / coverage output
 coverage/
 .vitest/

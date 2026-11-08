@@ -484,14 +484,20 @@ async function nodeAssetRoot(readFile: ReadFileUtf8): Promise<string> {
   return discoveredAssetRoot;
 }
 
+/** The build's digest of the bundled assets (`webpack.config.js`); none under Vitest. Shown in About. */
+export const ASSETS_VERSION = typeof __LA_GRAM_ASSETS_VERSION__ === 'string' ? __LA_GRAM_ASSETS_VERSION__ : '';
+
 /**
  * URL a bundled asset is served from in the browser.
  *
  * Resolved against the document base URI when there is one, so a deployment
- * under a sub-path still addresses the emitted files correctly.
+ * under a sub-path still addresses the emitted files correctly. A build puts
+ * its assets' digest on it (`?v=…`): the static servers send no cache headers,
+ * and a browser would otherwise draw a glyph from its copy of the old file
+ * after the assets were synced again. The servers read the path alone.
  */
 export function assetUrl(assetPath: string): string {
-  const relative = `${ASSET_ROOT}/${assetPath}`;
+  const relative = `${ASSET_ROOT}/${assetPath}${ASSETS_VERSION ? `?v=${ASSETS_VERSION}` : ''}`;
   const baseUri = typeof document !== 'undefined' ? document.baseURI : undefined;
   return baseUri ? new URL(relative, baseUri).href : relative;
 }

@@ -10,6 +10,8 @@
 @prefix sh:      <http://www.w3.org/ns/shacl#> .
 
 @prefix arch:    <https://meta.linked.archi/core#> .
+@prefix skosxl:  <http://www.w3.org/2008/05/skos-xl#> .
+@prefix schema:  <http://schema.org/> .
 @prefix :        <https://meta.linked.archi/core-shapes#> .
 
 #################################################################
@@ -31,21 +33,58 @@ C4, Backstage) import this file and add type-specific constraints.
 Label requirements are deliberately not here. arch:Element means "a node in a model", and
 several notations have nodes that are legitimately unnamed — BPMN gateways and events,
 ArchiMate junctions — so each metamodel states its own naming rule in its own shapes. See the
-labelling contract in this file and DD-24.'''@en ;
+labelling contract in this file and DD-24.
+
+Viewpoint conformance is here too: a View declares one viewpoint, its type and contents
+match what that viewpoint admits, and a viewpoint says what it admits. The rules read
+the viewpoint definitions from the loaded graph (arch:includesConcept, arch:viewType),
+so they work for any viewpoint — a language's catalogue, a framework's, or your own.'''@en ;
     skos:editorialNote '''Contains no label shape by design. See "WHERE THE LABEL RULE LIVES"
 below: requiring skos:prefLabel on every arch:Element is not a sound cross-notation rule,
 because routing and connector constructs are genuine elements that notations permit to be
 unnamed. Naming rules are owned by each metamodel's shapes graph.'''@en ;
     dcterms:created               "2019-03-17"^^xsd:date ;
-    dcterms:modified              "2026-09-07"^^xsd:date ;
+    dcterms:modified              "2026-11-08"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/core-shapes/0.2.0#> ;
-    owl:versionInfo               "0.2.0"@en ;
-    owl:priorVersion              <https://meta.linked.archi/core-shapes/0.1.0#> ;
+    owl:versionIRI                <https://meta.linked.archi/core-shapes/0.4.0#> ;
+    owl:versionInfo               "0.4.0"@en ;
+    owl:priorVersion              <https://meta.linked.archi/core-shapes/0.3.0#> ;
     skos:historyNote              '''0.2.0 — added archsh:InModelShape and archsh:InViewShape for the
-membership properties introduced in core 0.4.0. Neither shape requires the property; both bound it.'''@en ;
+membership properties introduced in core 0.4.0. Neither shape requires the property; both bound it.'''@en,
+                                  '''0.3.0 (2026-11-06) — the five viewpoint conformance shapes moved here
+from the ArchiMate 3.2 and 4.0 viewpoint shapes, which had the same rules twice: a model that loads
+both languages had every finding reported twice. They use no ArchiMate term, so core states them
+once, under the 4.0 names (3.2 called two of them ViewMustDeclareViewpointShape and
+ElementConformanceShape). The ArchiMate viewpoint shapes now import this file and add nothing.'''@en,
+                                  '''0.4.0 (2026-11-08) — names per presentation context (core 0.5.0's
+arch:inPresentationContext on SKOS-XL labels): a name has one language-tagged literal form and is for at
+most one context; a name for one context is a skosxl:altLabel, not a skosxl:prefLabel; an element has at
+most one name per context and language; and, a warning, a name's literal form is also the element's
+skos:altLabel, so that tools reading plain SKOS see it. Pictures likewise (arch:prefVisNotation,
+arch:altVisNotation): a picture has at most one schema:contentUrl and one context, one for a context has
+its schema:contentUrl, a canonical picture is for no single context, and an element has at most one
+picture per context.'''@en ;
+    sh:declare [
+        sh:prefix    "arch" ;
+        sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "rdf" ;
+        sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "rdfs" ;
+        sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "skos" ;
+        sh:namespace "http://www.w3.org/2004/02/skos/core#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "skosxl" ;
+        sh:namespace "http://www.w3.org/2008/05/skos-xl#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "schema" ;
+        sh:namespace "http://schema.org/"^^xsd:anyURI ;
+    ] ;
 .
 
 #################################################################
@@ -440,5 +479,372 @@ mark, which is what tells it from a Concern's noun phrase — as a language-tagg
             sh:property [ sh:path sh:namespace ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:anyURI ] ;
         ] ;
         sh:message  "Each sh:declare entry pairs one sh:prefix with one sh:namespace (an xsd:anyURI)."@en ;
+    ] ;
+.
+
+#################################################################
+# Viewpoint conformance — views and the viewpoints they declare
+#
+# Five shapes, data-driven: they read each viewpoint's definition
+# from the loaded graph (arch:includesConcept, arch:viewType) rather
+# than naming any viewpoint, so they judge a language's catalogue, a
+# framework's and an organisation's own viewpoints alike. They use
+# no notation's terms, which is why they are here and stated once:
+# the ArchiMate 3.2 and 4.0 viewpoint shapes each had a copy, and a
+# model loading both languages had every finding twice.
+#
+#   1. ViewDeclaresViewpointShape            sh:Warning
+#   2. ViewTypeConformanceShape              sh:Warning
+#   3. ViewElementConformanceShape           sh:Warning
+#   4. RelationshipEndpointConformanceShape  sh:Info
+#   5. ViewpointCompletenessShape            sh:Info
+#
+# Organisations may promote any of them.
+#
+# They target arch:View and arch:Viewpoint, superclasses of what a
+# model types its views and viewpoints as, so core-onto.ttl must be
+# in the shapes graph for sh:targetClass and sh:class to reach a
+# Diagram. The SPARQL ones walk rdfs:subClassOf* in the data graph,
+# so a language's ontology must be loaded as data for its element
+# types to be recognised.
+#
+# sh:severity is repeated on property shapes. SHACL takes the
+# severity of a result from the shape that declares the violated
+# constraint, and a property shape does not inherit sh:severity
+# from the node shape it is nested in — without its own it defaults
+# to sh:Violation. The node-level declaration governs constraints
+# stated on the node shape itself, sh:sparql among them, which is
+# why shapes 2, 3 and 4 need nothing further.
+#################################################################
+
+#################################################################
+# 1. Viewpoint declaration
+#
+# Every View declares exactly one viewpoint, as an arch:Viewpoint
+# individual rather than a string.
+#
+# Targets arch:View, not arch:Diagram: arch:Catalog and arch:Matrix
+# are Views too, and a viewpoint governs them as it governs a
+# diagram.
+#################################################################
+
+:ViewDeclaresViewpointShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:View ;
+    sh:severity    sh:Warning ;
+    sh:property [
+        sh:path     arch:viewConformsToViewpoint ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class    arch:Viewpoint ;
+        sh:message  "Every View must declare exactly one arch:viewConformsToViewpoint, and the value must be an arch:Viewpoint."@en ;
+        sh:severity sh:Warning ;
+    ] ;
+.
+
+#################################################################
+# 2. View type conformance
+#
+# A View's rdf:type must be compatible with its viewpoint's
+# arch:viewType. A viewpoint declaring arch:viewType arch:Catalog
+# is not satisfied by a Diagram.
+#################################################################
+
+:ViewTypeConformanceShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:View ;
+    sh:severity    sh:Warning ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "View type {?viewType} does not match any arch:viewType declared by viewpoint {?vp}."@en ;
+        sh:select   """
+            SELECT $this ?vp ?viewType
+            WHERE {
+                $this arch:viewConformsToViewpoint ?vp .
+                $this rdf:type ?viewType .
+                ?viewType rdfs:subClassOf* arch:View .
+                FILTER(?viewType != arch:View)
+                FILTER NOT EXISTS {
+                    ?vp arch:viewType ?allowedType .
+                    ?viewType rdfs:subClassOf* ?allowedType .
+                }
+                FILTER EXISTS {
+                    ?vp arch:viewType ?anyType .
+                }
+            }
+        """ ;
+    ] ;
+.
+
+#################################################################
+# 3. Element conformance
+#
+# Elements presented in a View must be instances of types the
+# viewpoint's arch:includesConcept allows. The type is walked
+# through rdf:type/rdfs:subClassOf*, so a viewpoint may admit an
+# abstract class and with it every type beneath.
+#
+# Keyed on arch:inView rather than the arch-vis: node layer
+# (DD-30): a rule reading the visual graph would report nothing for
+# a model published without views, or for a notation carrying no
+# geometry.
+#################################################################
+
+:ViewElementConformanceShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:View ;
+    sh:severity    sh:Warning ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "Element {?element} of type {?elementType} is not allowed in viewpoint {?vp} (not in arch:includesConcept)."@en ;
+        sh:select   """
+            SELECT $this ?vp ?element ?elementType WHERE {
+                $this arch:viewConformsToViewpoint ?vp .
+                ?element arch:inView $this .
+                ?element rdf:type ?elementType .
+                ?elementType rdfs:subClassOf* arch:Element .
+                FILTER(?elementType != arch:Element)
+
+                FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
+
+                # MINUS, not FILTER NOT EXISTS: the same results (?element and ?vp are bound
+                # above), and much faster on a large model.
+                MINUS {
+                    ?element rdf:type/rdfs:subClassOf* ?allowedType .
+                    ?vp arch:includesConcept ?allowedType .
+                }
+            }
+        """ ;
+    ] ;
+.
+
+#################################################################
+# 4. Relationship endpoint conformance
+#
+# A qualified relationship presented in a View should connect
+# elements the viewpoint itself allows. An endpoint outside the
+# palette is suspicious rather than wrong — the relationship may be
+# drawn to something the viewpoint tolerates as context — so this
+# is sh:Info.
+#################################################################
+
+:RelationshipEndpointConformanceShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:View ;
+    sh:severity    sh:Info ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "Relationship {?rel} in view has endpoint {?endpoint} of type {?endpointType} not in viewpoint {?vp} palette."@en ;
+        sh:select   """
+            SELECT $this ?vp ?rel ?endpoint ?endpointType
+            WHERE {
+                $this arch:viewConformsToViewpoint ?vp .
+                ?rel arch:inView $this .
+                ?rel a/rdfs:subClassOf* arch:QualifiedRelationship .
+
+                { ?rel arch:source ?endpoint . }
+                UNION
+                { ?rel arch:target ?endpoint . }
+
+                ?endpoint rdf:type ?endpointType .
+                ?endpointType rdfs:subClassOf* arch:Element .
+                FILTER(?endpointType != arch:Element)
+
+                FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
+
+                # MINUS, not FILTER NOT EXISTS: the same results (?endpoint and ?vp are bound
+                # above), and much faster on a large model.
+                MINUS {
+                    ?endpoint rdf:type/rdfs:subClassOf* ?allowedType .
+                    ?vp arch:includesConcept ?allowedType .
+                }
+            }
+        """ ;
+    ] ;
+.
+
+#################################################################
+# 5. Viewpoint completeness
+#
+# A viewpoint should say which concepts it admits, which concerns it
+# frames and which kinds of view realise it. A viewpoint that frames
+# no concern is not a viewpoint in the ISO 42010 sense. Not errors —
+# an incomplete viewpoint definition, which is why this is sh:Info.
+#################################################################
+
+:ViewpointCompletenessShape
+    a              sh:NodeShape ;
+    sh:targetClass arch:Viewpoint ;
+    sh:severity    sh:Info ;
+    sh:property [
+        sh:path     arch:includesConcept ;
+        sh:minCount 1 ;
+        sh:message  "Viewpoint should declare at least one arch:includesConcept."@en ;
+        sh:severity sh:Info ;
+    ] ;
+    sh:property [
+        sh:path     arch:viewpointFramesConcern ;
+        sh:minCount 1 ;
+        sh:message  "Viewpoint should declare at least one arch:viewpointFramesConcern."@en ;
+        sh:severity sh:Info ;
+    ] ;
+    sh:property [
+        sh:path     arch:viewType ;
+        sh:minCount 1 ;
+        sh:message  "Viewpoint should declare at least one arch:viewType."@en ;
+        sh:severity sh:Info ;
+    ] ;
+.
+
+
+#################################################################
+# NAMES PER PRESENTATION CONTEXT (core 0.5.0)
+#
+# An element's canonical name is its skos:prefLabel (the labelling contract
+# above). A name for one audience is a SKOS-XL label — a resource, so that it
+# can say which presentation context it is for — given as skosxl:altLabel, its
+# literal form also the element's skos:altLabel. See DD-34.
+#################################################################
+
+:PresentationNameShape
+    a                  sh:NodeShape ;
+    sh:targetClass     skosxl:Label ;
+    sh:targetObjectsOf skosxl:altLabel ;
+    rdfs:label         "Name for a presentation context shape"@en ;
+    sh:property [
+        sh:path     skosxl:literalForm ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype rdf:langString ;
+        sh:message  "A SKOS-XL label has exactly one skosxl:literalForm, language tagged: \"pgw-svc\"@en."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A name is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
+.
+
+:CanonicalNameForEveryContextShape
+    a                  sh:NodeShape ;
+    sh:targetObjectsOf skosxl:prefLabel ;
+    rdfs:label         "Preferred SKOS-XL label shape"@en ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 0 ;
+        sh:message  '''A name for one presentation context is a skosxl:altLabel. A skosxl:prefLabel is also the
+element's skos:prefLabel — its canonical name, one per language — so it cannot be one audience's.'''@en ;
+    ] ;
+.
+
+:OneNamePerContextShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf skosxl:altLabel ;
+    rdfs:label          "One name per presentation context shape"@en ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this} has {?count} names for presentation context {?context} in language \"{?language}\": it may have one."@en ;
+        sh:select   """
+            SELECT $this ?context ?language (COUNT(DISTINCT ?name) AS ?count)
+            WHERE {
+                $this skosxl:altLabel ?name .
+                ?name arch:inPresentationContext ?context ;
+                      skosxl:literalForm ?form .
+                BIND(LANG(?form) AS ?language)
+            }
+            GROUP BY $this ?context ?language
+            HAVING (COUNT(DISTINCT ?name) > 1)
+        """ ;
+    ] ;
+.
+
+:PresentationNameAlsoPlainShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf skosxl:altLabel ;
+    rdfs:label          "Name also a plain SKOS label shape"@en ;
+    sh:severity         sh:Warning ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this}'s name {?form} is not also its skos:altLabel: tools that read plain SKOS do not see it."@en ;
+        sh:select   """
+            SELECT $this ?form
+            WHERE {
+                $this skosxl:altLabel ?name .
+                ?name skosxl:literalForm ?form .
+                FILTER NOT EXISTS { $this skos:altLabel ?form }
+            }
+        """ ;
+    ] ;
+.
+
+
+#################################################################
+# PICTURES PER PRESENTATION CONTEXT (core 0.5.0)
+#
+# An element's canonical picture is its arch:prefVisNotation; one for an
+# audience is an arch:altVisNotation whose value is a schema:ImageObject with
+# its schema:contentUrl and arch:inPresentationContext — as a name for an
+# audience is a SKOS-XL label. See DD-34.
+#################################################################
+
+:PictureShape
+    a                  sh:NodeShape ;
+    sh:targetClass     schema:ImageObject ;
+    sh:targetObjectsOf arch:altVisNotation ;
+    rdfs:label         "Picture shape"@en ;
+    sh:property [
+        sh:path     schema:contentUrl ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message  "A picture has at most one schema:contentUrl, an xsd:anyURI: an http(s) URL or a data: URI of an image."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A picture is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
+.
+
+:CanonicalPictureShape
+    a                  sh:NodeShape ;
+    sh:targetObjectsOf arch:prefVisNotation ;
+    rdfs:label         "Canonical picture shape"@en ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 0 ;
+        sh:message  "An element's arch:prefVisNotation is its picture for every audience; one for an audience is an arch:altVisNotation."@en ;
+    ] ;
+.
+
+:PictureForAudienceShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf arch:altVisNotation ;
+    rdfs:label          "Pictures per presentation context shape"@en ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this}'s picture {?picture} is for presentation context {?context} but has no schema:contentUrl."@en ;
+        sh:select   """
+            SELECT $this ?picture ?context
+            WHERE {
+                $this arch:altVisNotation ?picture .
+                ?picture arch:inPresentationContext ?context .
+                FILTER NOT EXISTS { ?picture schema:contentUrl ?url }
+            }
+        """ ;
+    ] ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this} has {?count} pictures for presentation context {?context}: it may have one."@en ;
+        sh:select   """
+            SELECT $this ?context (COUNT(DISTINCT ?picture) AS ?count)
+            WHERE {
+                $this arch:altVisNotation ?picture .
+                ?picture arch:inPresentationContext ?context .
+            }
+            GROUP BY $this ?context
+            HAVING (COUNT(DISTINCT ?picture) > 1)
+        """ ;
     ] ;
 .

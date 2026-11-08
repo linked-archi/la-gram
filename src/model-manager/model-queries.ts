@@ -26,7 +26,7 @@ import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import type { ViewInfo } from './interfaces.js';
-import { IRI, T, humanize, localName, nn } from './vocabulary.js';
+import { IRI, T, humanize, localName, nn, relationshipClassAmong } from './vocabulary.js';
 import { certaintyNamed, isCertaintyPredicate, isLedTo, ruleOf, type DerivationCertainty } from './derivations.js';
 
 /** What names a concept, in the order {@link labelOf} prefers them. */
@@ -230,8 +230,8 @@ const FOLDER_PREDICATES = new Set([IRI.dctermsIsPartOf, ...[SCHEMA_NAME, SCHEMA_
  * A converter states a folder's contents from both ends — the member's
  * `dcterms:isPartOf` and the folder's `schema:itemListElement` — and either is
  * enough here: their union is read. The list's `schema:position` is not: it is
- * the order the source file happened to hold (Archi's, say, which its own tree
- * does not show), not an order anybody arranged. A folder with several parent
+ * the order the source file happened to hold (an Archi model's, say), not an
+ * order anybody arranged. A folder with several parent
  * folders is placed under one of them, the same one every time.
  */
 export function readFolders(store: RdfStore): FolderSummary[] {
@@ -366,7 +366,7 @@ function summarize(
     case 'unclassified':
       return { kind, summary: { iri, typeIri, typeLabel: typeLabel(typeIri), label: nameOf(iri) } };
     case 'relationship': {
-      const relType = types.find((t) => t !== IRI.QualifiedRelationship) ?? typeIri;
+      const relType = relationshipClassAmong(types, closure) ?? typeIri;
       const sourceIri = facts.ends.get(IRI.source) ?? facts.ends.get(IRI.legacyRelSource);
       const targetIri = facts.ends.get(IRI.target) ?? facts.ends.get(IRI.legacyRelTarget);
       const explicit = facts.names.get(T.prefLabel.value)?.[0]?.value;

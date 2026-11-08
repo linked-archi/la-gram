@@ -1,14 +1,16 @@
 {
   "name": "la-gram",
   "version": "0.1.0",
-  "description": "RDF Architecture Modeler — RDF-native architecture modeling tool",
+  "description": "Semantic architecture modeller for Linked.Archi metamodels",
   "productName": "la-gram",
   "main": "dist/electron/main.cjs",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "webpack --mode production",
     "build:web": "webpack --mode production --config-name web",
+    "build:cli": "webpack --mode production --config-name la-gram-git",
     "build:electron": "webpack --mode production --config-name electron-main --config-name electron-preload --config-name electron-renderer",
     "build:dev": "webpack --mode development",
     "serve": "python3 -m http.server 8080 --directory dist/web",
@@ -23,6 +25,7 @@
     "dev": "npm run build:dev -- --config-name web && npm run serve",
     "typecheck": "tsc --noEmit",
     "sync-assets": "node scripts/sync-assets.mjs",
+    "icons": "node scripts/make-icons.mjs",
     "package": "npm run build:electron && node scripts/package-electron.mjs",
     "bench": "node scripts/bench.mjs",
     "bench:model": "node scripts/bench-model.mjs"

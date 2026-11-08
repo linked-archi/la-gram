@@ -6,6 +6,7 @@
  * the model clean after, File → Modules…, and stopping.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { DataFactory } from 'n3';
 import { createApp, type App } from '../../app.js';
 import { mountUi, type MountedUi } from '../../ui/mount-ui.js';
 import type { Dialogs, FormField, FormOptions, FormValues } from '../../ui/dialogs.js';
@@ -29,6 +30,18 @@ const host = fakeHost([
   { method: 'GET', url: GH, body: { default_branch: 'main' } },
   { method: 'GET', url: /\/contents\/models\/.*\?ref=main$/, status: 404, body: { message: 'Not Found' } },
   { method: 'PUT', url: /\/contents\/models\//, status: 201, body: { content: { sha: 'blob1' }, commit: { sha: 'abc1234def', html_url: 'https://github.com/acme/arch/commit/abc1234def' } } },
+  {
+    method: 'GET',
+    url: `${GH}/commits?sha=main&path=models%2Fshop-floor.ttl&per_page=100&page=1`,
+    body: [
+      {
+        sha: 'abc1234def',
+        html_url: 'https://github.com/acme/arch/commit/abc1234def',
+        parents: [],
+        commit: { message: 'Add Shop Floor', author: { name: 'Ada', date: '2026-11-05T10:00:00Z' } },
+      },
+    ],
+  },
 ]);
 
 /** The host, and the file as last committed — read back by Open from Git. */
@@ -99,11 +112,13 @@ describe('the Git module in the File menu', () => {
     expect(app.isDirty()).toBe(false);
   });
 
-  it('bound now: Save to Git names where, and Save to Git as… is offered', () => {
+  it('bound now: Save to Git names where, and Save to Git as…, Update from main… and Open merge request… are offered', () => {
     expect(entries()).toEqual([
       'git:open Open from Git… [GitHub, GitLab]',
       'git:save Save to Git [acme/arch · main]',
       'git:save-as Save to Git as… [another branch or file]',
+      'git:update Update from main… [merge another branch into main]',
+      'git:review Open merge request… [a pull request from main]',
     ]);
   });
 
@@ -115,6 +130,15 @@ describe('the Git module in the File menu', () => {
     expect(app.session.modelLabel()).toBe('Shop Floor');
     expect(app.isDirty()).toBe(false);
     expect(entries()).toContain('git:save Save to Git [acme/arch · main]');
+  });
+
+  it('the History tab: the bound file’s Git commits beside the checkpoints, read when the tab opens', async () => {
+    ui.shell.showTab('history');
+    const history = ui.historyPanel;
+    await vi.waitFor(() => expect(history.shadowRoot!.querySelector('li[data-git="abc1234def"]')).not.toBeNull());
+    expect(history.git?.where).toBe('acme/arch · main · models/shop-floor.ttl');
+    expect(history.shadowRoot!.querySelector('li[data-git="abc1234def"] .message')!.textContent).toContain('Add Shop Floor');
+    ui.shell.showTab('properties');
   });
 
   it('the token is not in the page’s storage (not remembered), nor in the address', () => {
@@ -150,8 +174,57 @@ describe('the Git module in the File menu', () => {
     expect(toggle).toHaveBeenCalledWith('git', false);
   });
 
-  it('stopped: its entries are gone', () => {
+  it('a merge’s conflicts: the Conflicts tab, with how many are left; a choice changes the model; done, the tab goes', async () => {
+    const merge = git.context.merge!;
+    const model = app.session.modelIri!;
+    const name = (label: string) => `<${model}> <http://www.w3.org/2004/02/skos/core#prefLabel> "${label}"@en .`;
+    const held = [name('Shop Floor')];
+    merge.conflicts(
+      [{ kind: 'value', subjects: [model], predicate: 'http://www.w3.org/2004/02/skos/core#prefLabel', language: 'en', held, options: { ours: held, theirs: [name('Shop Floor (theirs)')] } }],
+      { branch: 'main', commit: 'abc1234def' },
+    );
+    expect(ui.shell.moduleTabs).toEqual([{ id: 'conflicts', label: 'Conflicts' }]);
+    expect(ui.shell.bottomTab).toBe('conflicts');
+    expect(ui.shell.tabBadges['conflicts']).toBe('1');
+    expect(merge.unresolved()).toBe(1);
+
+    const panel = ui.shell.querySelector('git-conflicts')!;
+    await panel.updateComplete;
+    (panel.shadowRoot!.querySelector('button[data-side="theirs"]') as HTMLButtonElement).click();
+    expect(app.session.modelLabel()).toBe('Shop Floor (theirs)');
+    expect(merge.unresolved()).toBe(0);
+    expect(ui.shell.tabBadges['conflicts']).toBeUndefined();
+    // Changed back to mine.
+    await panel.updateComplete;
+    (panel.shadowRoot!.querySelector('button[data-side="ours"]') as HTMLButtonElement).click();
+    expect(app.session.modelLabel()).toBe('Shop Floor');
+
+    merge.clear();
+    expect(ui.shell.moduleTabs).toEqual([]);
+    expect(ui.shell.querySelector('git-conflicts')).toBeNull();
+    expect(ui.shell.bottomTab).toBe('properties');
+  });
+
+  it('another model opened: its conflicts are not shown', () => {
+    const merge = git.context.merge!;
+    merge.conflicts([{ kind: 'route', subjects: ['urn:x'], held: [], options: { ours: [], theirs: [] } }], { branch: 'main', commit: 'abc' });
+    expect(merge.unresolved()).toBe(1);
+    app.newModel('Another');
+    expect(merge.unresolved()).toBe(0);
+    expect(ui.shell.moduleTabs).toEqual([]);
+  });
+
+  it('counts the triples with a blank node, for the warning before a save', () => {
+    expect(git.context.merge!.blankNodes()).toBe(0);
+    app.components.store.addQuads([
+      DataFactory.quad(DataFactory.namedNode('urn:a'), DataFactory.namedNode('urn:p'), DataFactory.blankNode('b1')) as never,
+    ]);
+    expect(git.context.merge!.blankNodes()).toBe(1);
+  });
+
+  it('stopped: its entries are gone, and the History tab has no Git history', () => {
     git.stop();
     expect(entries()).toEqual([]);
+    expect(ui.historyPanel.git).toBeUndefined();
   });
 });

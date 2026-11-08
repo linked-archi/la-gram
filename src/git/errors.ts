@@ -71,7 +71,7 @@ export function responseError(status: number, what: string, options: { rateLimit
     );
   }
   if (status === 404) return new GitError('not-found', `${capitalize(what)} was not found — or the token cannot see it.`, status);
-  if (status === 409 || /changed since|has been changed|does not match|sha\W*wasn.t supplied|already exists/.test(hint)) {
+  if (status === 409 || /changed since|has been changed|does not match|sha\W*wasn.t supplied|already exists|not a fast.forward/.test(hint)) {
     if (/branch|reference/.test(hint) && /already exists/.test(hint)) {
       return new GitError('exists', `A branch of that name is already in the repository.`, status);
     }

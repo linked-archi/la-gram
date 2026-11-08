@@ -25,11 +25,16 @@
  * A set CRDT keeps both values when two people change the same property at once
  * — two `arch-vis:bounds-x` after concurrent moves, two English labels after
  * concurrent renames. After every remote change the binding therefore
- * normalises the properties that are single-valued by definition: it keeps the
- * greatest key and retracts the others, locally and in the document. Every
+ * normalises the properties that take one value (or one per language): it keeps
+ * the greatest key and retracts the others, locally and in the document. Every
  * client applies the same rule to the same set, so they converge without
  * coordinating. (Selecting a concept also locks it for the others — see
  * `presence.ts` — which makes such races rare in the first place.)
+ *
+ * Which properties those are is defined once, for the room and the Git merge
+ * alike (`rdf-engine/single-valued.ts`): built-in rules, and the loaded
+ * metamodels' functional properties and `sh:maxCount 1` / `sh:uniqueLang`
+ * shapes, these for the classes the shapes target.
  *
  * ## Echo prevention
  *
@@ -39,10 +44,11 @@
  */
 
 import * as Y from 'yjs';
-import { Parser as N3Parser } from 'n3';
-import type { Quad } from '@rdfjs/types';
+import { DataFactory, Parser as N3Parser } from 'n3';
+import type { NamedNode, Quad } from '@rdfjs/types';
 import { quadKey, type ObservableRdfStore, type StoreChange } from '../rdf-engine/observable-store.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { SingleValued, languageOf } from '../rdf-engine/single-valued.js';
 import { modelQuads } from '../model-manager/model-queries.js';
 
 /** Transaction origin of changes this client made. */
@@ -51,30 +57,7 @@ export const LOCAL_ORIGIN = 'la-gram:local';
 /** Name of the shared map. */
 export const TRIPLES_MAP = 'triples';
 
-/**
- * Predicates with one value per subject — or, for labels, one per language.
- * Everything geometric, plus the endpoint and membership links a diagram
- * element must not have two of.
- */
-const SINGLE_VALUED = new Set([
-  NAMESPACES['arch-vis'] + 'bounds-x',
-  NAMESPACES['arch-vis'] + 'bounds-y',
-  NAMESPACES['arch-vis'] + 'bounds-w',
-  NAMESPACES['arch-vis'] + 'bounds-h',
-  NAMESPACES['arch-vis'] + 'point-x',
-  NAMESPACES['arch-vis'] + 'point-y',
-  NAMESPACES['arch-vis'] + 'archElement',
-  NAMESPACES['arch-vis'] + 'archRelationship',
-  NAMESPACES['arch-vis'] + 'view',
-  NAMESPACES['arch-vis'] + 'source',
-  NAMESPACES['arch-vis'] + 'target',
-  NAMESPACES['arch-vis'] + 'points',
-  NAMESPACES.rdf + 'first',
-  NAMESPACES.rdf + 'rest',
-  NAMESPACES.arch + 'source',
-  NAMESPACES.arch + 'target',
-  NAMESPACES.skos + 'prefLabel',
-]);
+const RDF_TYPE = DataFactory.namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode;
 
 /** Parse N-Triples keys back into quads (default graph). */
 export function keysToQuads(keys: Iterable<string>): Quad[] {
@@ -96,6 +79,13 @@ export type SeedPolicy =
 export interface RdfYjsBindingOptions {
   /** Called after remote changes were applied to the store. */
   onRemoteChange?: (change: StoreChange) => void;
+  /**
+   * Which properties take one value, or one per language: the loaded
+   * metamodels' rules as well as the built-in ones. Asked at each remote change,
+   * so a metamodel loaded during the session counts. The built-in rules when
+   * absent.
+   */
+  singleValued?: () => SingleValued;
 }
 
 export class RdfYjsBinding {
@@ -191,22 +181,24 @@ export class RdfYjsBinding {
    * Deterministic (greatest key wins), so every client ends in the same state.
    */
   private normalize(touched: Quad[]): void {
-    const groups = new Set<string>();
+    const rules = this.options.singleValued?.() ?? SingleValued.builtIn();
+    const groups = new Map<string, { subject: Quad['subject']; predicate: Quad['predicate'] }>();
     for (const q of touched) {
-      if (SINGLE_VALUED.has(q.predicate.value)) groups.add(`${q.subject.value}\u0000${q.predicate.value}`);
+      if (rules.mayLimit(q.predicate.value)) groups.set(`${q.subject.termType}:${q.subject.value}\u0000${q.predicate.value}`, q);
     }
     if (groups.size === 0) return;
     const losers: Quad[] = [];
-    for (const group of groups) {
-      const [subject, predicate] = group.split('\u0000');
+    for (const { subject, predicate } of groups.values()) {
       const values = this.store
-        .getQuads({ termType: 'NamedNode', value: subject } as never, { termType: 'NamedNode', value: predicate } as never)
+        .getQuads(subject as NamedNode, predicate as NamedNode)
         .filter((q) => q.graph.termType === 'DefaultGraph');
       if (values.length < 2) continue;
-      // Labels are single-valued per language, not overall.
+      const limit = rules.limitOf(predicate.value, () => this.typesOf(subject));
+      if (!limit) continue;
+      // One per language: group by language; one overall: a single group.
       const byLang = new Map<string, Quad[]>();
       for (const q of values) {
-        const lang = predicate === NAMESPACES.skos + 'prefLabel' ? ((q.object as { language?: string }).language ?? '') : '';
+        const lang = limit === 'one-per-language' ? languageOf(q.object) : '';
         const list = byLang.get(lang) ?? [];
         list.push(q);
         byLang.set(lang, list);
@@ -220,5 +212,13 @@ export class RdfYjsBinding {
     if (losers.length === 0) return;
     // A local change: the store listener forwards the retraction to the room.
     this.store.removeQuads(losers);
+  }
+
+  /** A subject's types in the model. */
+  private typesOf(subject: Quad['subject']): string[] {
+    return this.store
+      .getQuads(subject as NamedNode, RDF_TYPE)
+      .filter((q) => q.graph.termType === 'DefaultGraph' && q.object.termType === 'NamedNode')
+      .map((q) => q.object.value);
   }
 }

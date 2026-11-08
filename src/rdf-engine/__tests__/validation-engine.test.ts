@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { decodeQuads, encodeQuads } from '../term-codec.js';
-import { ValidationEngine } from '../validation-engine.js';
+import { ValidationEngine, fromPlainReport } from '../validation-engine.js';
 import { WorkerValidationService, type WorkerLike } from '../validation-service.js';
 import { RdfShaclValidator } from '../shacl-validator.js';
 import { createApp, type App } from '../../app.js';
@@ -15,6 +15,11 @@ import { checkRelationshipsByTables } from '../../model-manager/relationship-val
 
 const { namedNode, blankNode, literal, quad, defaultGraph } = DataFactory;
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+
+
+/** A finding of the SPARQL-based constraints, or of the references — the engine's own checks. */
+const ownChecks = (r: { sourceConstraintComponent?: string; sourceShape: string }) =>
+  r.sourceConstraintComponent === 'http://www.w3.org/ns/shacl#SPARQLConstraintComponent' || r.sourceShape === '';
 
 describe('quads as plain data', () => {
   it('round-trip: IRIs, blank nodes, literals with a language or a datatype, triple terms, named graphs', () => {
@@ -61,23 +66,105 @@ describe('the engine', () => {
     const { split, tables, closure } = app.relationshipCheck();
     const expected = [...new RdfShaclValidator().validate(data, split.kept).results, ...checkRelationshipsByTables(data, split, tables, closure)];
     const report = engine.validate();
-    expect(keys(report.results)).toEqual(keys(expected));
+    // SHACL's and the tables' as SHACL finds them; the SPARQL-based constraints' and the references' are the engine's own (below).
+    expect(keys(report.results.filter((r) => !ownChecks(r)))).toEqual(keys(expected));
     expect(report.conforms).toBe(false);
     expect([...keys(report.results)].some((k) => k.startsWith(iri.bad))).toBe(true);
     expect([...keys(report.results)].some((k) => k.startsWith(iri.unnamed))).toBe(true);
+  });
+
+  it('a finding of a shape written inline names the shape it is written in, as data and back', () => {
+    const shape = 'https://meta.linked.archi/archimate4/element-shapes#ArchiMateElementShape';
+    const report = engine.validate();
+    const label = (r: { focusNode: unknown; resultPath: unknown }) =>
+      String((r.focusNode as { value?: string }).value ?? r.focusNode) === iri.unnamed &&
+      String((r.resultPath as { value?: string }).value ?? r.resultPath) === 'http://www.w3.org/2004/02/skos/core#prefLabel';
+    expect(report.results.find(label)?.withinShape).toBe(shape);
+    expect(fromPlainReport(report, (v) => namedNode(v)).results.find(label)?.withinShape?.value).toBe(shape);
   });
 
   it('follows changes: a relationship removed takes its findings with it', () => {
     const removed = app.components.store.getQuads(namedNode(iri.bad) as never, null, null, defaultGraph() as never);
     const direct = app.components.store.getQuads(namedNode(iri.data) as never, namedNode(AM4 + 'serves') as never, null);
     engine.apply([], encodeQuads([...removed, ...direct]));
-    expect([...keys(engine.validate().results)].some((k) => k.startsWith(iri.bad) || k.startsWith(`${iri.data} `))).toBe(false);
+    // The data object it pointed to may now be found an orphan (a SPARQL-based principle): left out here.
+    expect([...keys(engine.validate().results.filter((r) => !ownChecks(r)))].some((k) => k.startsWith(iri.bad) || k.startsWith(`${iri.data} `))).toBe(false);
     engine.apply(encodeQuads([...removed, ...direct]), []);
     expect([...keys(engine.validate().results)].some((k) => k.startsWith(iri.bad))).toBe(true);
   });
 
   it('an empty model, or no setup yet, conforms', () => {
     expect(new ValidationEngine().validate()).toMatchObject({ conforms: true, results: [] });
+  });
+});
+
+describe('the engine’s own checks: the SPARQL-based constraints and the references', () => {
+  let app: App;
+  let engine: ValidationEngine;
+  let actor: string;
+  let role: string;
+  const PART_OF = AM4 + 'composedOf';
+  const SPARQL = 'http://www.w3.org/ns/shacl#SPARQLConstraintComponent';
+  const own = () => engine.validate().results.filter(ownChecks);
+
+  beforeAll(async () => {
+    app = await createApp({ assetMode: 'offline', validationDelayMs: 1e9 });
+    const { modelIri } = app.newModel('Rules');
+    const { elementManager: e, relationshipManager: r } = app.components;
+    actor = e.createElement(AM4 + 'BusinessActor', modelIri, { label: 'Clerk' }).value;
+    role = e.createElement(AM4 + 'Role', modelIri, { label: 'Agent' }).value;
+    r.createQualifiedRelationship({ typeIri: AM4 + 'Assignment', sourceIri: actor, targetIri: role });
+    engine = new ValidationEngine();
+    engine.setup((app as unknown as { validationSetup(s: Quad[]): never }).validationSetup(app.shapesGraph()));
+    engine.load(encodeQuads(app.components.store.getQuads(null, null, null, defaultGraph() as never)));
+    engine.validate();
+  });
+
+  it('an element composed of itself: found by ArchiMate 4.0’s rule, which the SHACL library cannot run — and gone when undone', () => {
+    const loop = quad(namedNode(actor), namedNode(PART_OF), namedNode(actor)) as unknown as Quad;
+    engine.apply(encodeQuads([loop]), []);
+    const found = own().filter((r) => r.sourceConstraintComponent === SPARQL && r.focusNode === actor);
+    // A loop of one is a cycle too.
+    expect(found.map((r) => [r.sourceShape.split('#')[1], r.message, r.severity]).sort()).toEqual([
+      ['NoCircularCompositionShape', 'Circular composition is not allowed.', 'Violation'],
+      ['NoSelfCompositionShape', 'An element cannot compose itself.', 'Violation'],
+    ]);
+    engine.apply([], encodeQuads([loop]));
+    expect(own().some((r) => /#NoSelfCompositionShape|#NoCircularCompositionShape/.test(r.sourceShape))).toBe(false);
+  });
+
+  it('a relationship to an element the model does not have: a violation about the relationship, its path the property', () => {
+    const ghost = 'https://example.org/m/ghost';
+    const dangling = [
+      quad(namedNode('https://example.org/m/rel-ghost'), namedNode('https://meta.linked.archi/core#source'), namedNode(actor)),
+      quad(namedNode('https://example.org/m/rel-ghost'), namedNode('https://meta.linked.archi/core#target'), namedNode(ghost)),
+    ] as unknown as Quad[];
+    engine.apply(encodeQuads(dangling), []);
+    expect(own().filter((r) => r.sourceShape === '')).toEqual([
+      {
+        focusNode: 'https://example.org/m/rel-ghost',
+        resultPath: 'https://meta.linked.archi/core#target',
+        sourceShape: '',
+        message: `Its target is not in the model: ${ghost}`,
+        severity: 'Violation',
+      },
+    ]);
+    // The element added after all: nothing missing.
+    const appears = quad(namedNode(ghost), namedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), namedNode(AM4 + 'Role')) as unknown as Quad;
+    engine.apply(encodeQuads([appears]), []);
+    expect(own().filter((r) => r.sourceShape === '')).toEqual([]);
+    // And deleted again: the relationship's reference is found again, though only the element changed.
+    engine.apply([], encodeQuads([appears]));
+    expect(own().filter((r) => r.sourceShape === '').map((r) => r.focusNode)).toEqual(['https://example.org/m/rel-ghost']);
+    engine.apply([], encodeQuads([...dangling]));
+  });
+
+  it('without SPARQL-based constraints asked for, none is run', () => {
+    const off = new ValidationEngine({ sparql: false });
+    off.setup((app as unknown as { validationSetup(s: Quad[]): never }).validationSetup(app.shapesGraph()));
+    off.load(encodeQuads(app.components.store.getQuads(null, null, null, defaultGraph() as never)));
+    off.apply(encodeQuads([quad(namedNode(actor), namedNode(PART_OF), namedNode(actor)) as unknown as Quad]), []);
+    expect(off.validate().results.some((r) => r.sourceConstraintComponent === SPARQL)).toBe(false);
   });
 });
 
@@ -202,6 +289,32 @@ describe('what the engine validates besides the model', () => {
     expect(engine.validate().timing.nodes).toBe(2); // v2, and vp it now points to
     engine.apply(encodeQuads([quad(ex('Clerk'), SUB, ex('Actor')) as unknown as Quad]), []);
     expect(engine.validate().timing.nodes).toBe('all');
+  });
+
+  it('what a shape finds of an outside resource itself is left out — unless the model says something of it', () => {
+    const SH = 'http://www.w3.org/ns/shacl#';
+    const shape = namedNode('https://ex.org/ViewpointShape');
+    const property = blankNode('includes');
+    const shapes = [
+      quad(shape, RDF_TYPE, namedNode(SH + 'NodeShape')),
+      quad(shape, namedNode(SH + 'targetClass'), ex('Viewpoint')),
+      quad(shape, namedNode(SH + 'property'), property),
+      quad(property, namedNode(SH + 'path'), ex('includes')),
+      quad(property, namedNode(SH + 'minCount'), literal('1', namedNode('http://www.w3.org/2001/XMLSchema#integer'))),
+    ] as unknown as Quad[];
+    const engine = engineWith([view]);
+    engine.setup({
+      shapes: encodeQuads(shapes),
+      hierarchy: [],
+      outsideTypes: encodeQuads([quad(ex('vp'), RDF_TYPE, ex('Viewpoint'), meta) as unknown as Quad]),
+      unqualifiedForms: [],
+      tables: null,
+    });
+    // The viewpoint's other statements are its metamodel's, not validated: it would be found to include nothing.
+    expect(engine.validate()).toMatchObject({ conforms: true, results: [] });
+    // The model describes it: then it is the model's.
+    engine.apply(encodeQuads([quad(ex('vp'), ex('note'), literal('ours')) as unknown as Quad]), []);
+    expect(engine.validate().results.map((r) => r.focusNode)).toEqual(['https://ex.org/vp']);
   });
 
   it('a type in the model is not a reference', () => {

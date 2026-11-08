@@ -1,0 +1,52 @@
+# Ours deletes Billing, with what deleting it takes: its serving relationship
+# (direct and qualified triples too), its node, the relationship's link and
+# route. Theirs renames Billing. A conflict: the merged model keeps Billing as
+# theirs has it, with everything ours deleted along with it; ours' option
+# deletes it all again.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-removed> {
+    m:billing a am4:ApplicationComponent ;
+        skos:prefLabel "Billing"@en , "Facturation"@fr ;
+        arch:inModel m:model ;
+        arch:inView m:view ;
+        am4:serves m:portal ;
+        arch:hasQualifiedRelationship m:serving .
+    m:serving a am4:Serving ;
+        arch:source m:billing ;
+        arch:target m:portal ;
+        rdf:reifies <<( m:billing am4:serves m:portal )>> ;
+        arch:inModel m:model ;
+        arch:inView m:view .
+    m:node-billing a vis:ArchNode ;
+        vis:view m:view ;
+        vis:archElement m:billing ;
+        vis:bounds-x "0"^^xsd:double ; vis:bounds-y "0"^^xsd:double ;
+        vis:bounds-w "120"^^xsd:double ; vis:bounds-h "55"^^xsd:double .
+    m:link-serving a vis:Link ;
+        vis:view m:view ;
+        vis:archRelationship m:serving ;
+        vis:source m:node-billing ;
+        vis:target m:node-portal ;
+        vis:points m:link-serving-points-0 .
+    m:link-serving-points-0 rdf:first m:link-serving-p0 ; rdf:rest m:link-serving-points-1 .
+    m:link-serving-p0 a vis:Point ; vis:point-x "150"^^xsd:double ; vis:point-y "100"^^xsd:double .
+    m:link-serving-points-1 rdf:first m:link-serving-p1 ; rdf:rest rdf:nil .
+    m:link-serving-p1 a vis:Point ; vis:point-x "250"^^xsd:double ; vis:point-y "100"^^xsd:double .
+}
+<urn:theirs-added> {
+    m:billing skos:prefLabel "Invoicing"@en .
+}
+<urn:theirs-removed> {
+    m:billing skos:prefLabel "Billing"@en .
+}

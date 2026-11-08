@@ -11,12 +11,14 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
-import { mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
-import type { Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
+import { modelTitle, mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
+import type { DetailBlock, DetailsOptions, Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
 import type { NamedPicker } from '../ui/panels/named-picker.js';
 import { labelOf, modelQuads, readModelContents } from '../model-manager/model-queries.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { installJsdomSvgSupport } from '../ui/__tests__/jsdom-svg-support.js';
+import { rememberImageSize } from '../ui/canvas/rdf-renderer.js';
+import { KEPT_PICTURE_LIMIT } from '../ui/panels/property-panel.js';
 
 installJsdomSvgSupport();
 
@@ -181,7 +183,8 @@ describe('the workbench', () => {
     expect(ui.shell.tabBadges.validation).toBeUndefined();
     await ui.validationPanel.updateComplete;
     const summary = () => ui.validationPanel.shadowRoot!.querySelector('.summary')!.textContent!.replace(/\s+/g, ' ');
-    expect(summary()).toContain('1 more in the model');
+    // Its missing name, and — a SPARQL-based principle, as Info — that it relates to nothing.
+    expect(summary()).toContain('2 more in the model');
     ui.validationPanel.shadowRoot!.querySelector<HTMLButtonElement>('.summary .rest')!.click();
     expect(ui.validationPanel.scope).toBe('model');
     expect(ui.shell.tabBadges.validation).toBe('1');
@@ -349,6 +352,803 @@ describe('the workbench', () => {
     ui.selectConcept(undefined);
     app.components.elementManager.deleteElement(el);
     vi.unstubAllGlobals();
+  });
+
+  it('shows the look of what is selected on the canvas in an Appearance tab, and changes it for every one selected, undoably', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const model = app.session.modelIri!;
+    const view = app.session.activeViewIri!;
+    const a = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Styled A' }).value;
+    const b = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Styled B' }).value;
+    const nodeA = views.addElementToView(view, a, { x: 100, y: 700, width: 120, height: 55 });
+    const nodeB = views.addElementToView(view, b, { x: 300, y: 700, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnFill = (iri: string) => document.querySelector(`[data-element-iri="${iri}"] .la-shape-body`)?.getAttribute('fill');
+    const notationFill = drawnFill(a);
+
+    // Picked in the tree: the model's concept, not a diagram's — no Appearance.
+    ui.selectConcept(a);
+    await panel.updateComplete;
+    expect(root.querySelector('.vtab[data-tab="appearance"]')).toBeNull();
+
+    // Both selected on the canvas: the tab, with every field an element's placement has — then Figure.
+    ui.diagramCanvas.selectIris([a, b]);
+    await panel.updateComplete;
+    expect(panel.appearance?.targets).toEqual([
+      { iri: nodeA, kind: 'element' },
+      { iri: nodeB, kind: 'element' },
+    ]);
+    expect([...root.querySelectorAll('.vtab')].map((t) => t.getAttribute('data-tab')).slice(-4)).toEqual(['appearance', 'label', 'figure', 'image']);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
+    await panel.updateComplete;
+    // Its rows: fill colour and gradient, fill opacity, line colour and width, line opacity and style, icon colour, …
+    expect([...root.querySelectorAll('.appearance-field')].map((f) => f.getAttribute('data-field'))).toEqual([
+      'fillColor',
+      'gradient',
+      'fillOpacity',
+      'lineColor',
+      'lineWidth',
+      'lineOpacity',
+      'borderStyle',
+      'iconColor',
+      'textAlignment',
+      'textPosition',
+      'font',
+      'fontColor',
+    ]);
+    expect(root.querySelectorAll('.appearance > *').length).toBe(15); // 7 rows of two, and the footer
+    expect(root.querySelector('.appearance-footer')!.textContent).toContain('Changes apply to the 2 selected.');
+    // Where they differ, the field says so — what it shows is the first one's.
+    expect(panel.appearance?.mixed).toBeUndefined();
+    views.setAppearance!(view, nodeB, { lineWidth: 3 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    await panel.updateComplete;
+    expect(panel.appearance?.mixed).toEqual(['lineWidth']);
+    expect(root.querySelector('.appearance-field[data-field="lineWidth"]')!.getAttribute('data-mixed')).toBe('true');
+    expect(root.querySelector('.appearance-field[data-field="lineColor"]')!.hasAttribute('data-mixed')).toBe(false);
+    views.setAppearance!(view, nodeB, { lineWidth: null });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    await panel.updateComplete;
+
+    // A fill picked: both, on their own styles, drawn so.
+    const fill = root.querySelector<HTMLInputElement>('.appearance-field[data-field="fillColor"] input')!;
+    fill.value = '#ffd6e0';
+    fill.dispatchEvent(new Event('change'));
+    expect([views.getNode(view, nodeA)?.appearance, views.getNode(view, nodeB)?.appearance]).toEqual([
+      { fillColor: '#ffd6e0' },
+      { fillColor: '#ffd6e0' },
+    ]);
+    expect([drawnFill(a), drawnFill(b)]).toEqual(['#ffd6e0', '#ffd6e0']);
+    // Half opaque, keeping the colour; the text to the left.
+    await panel.updateComplete;
+    const opacity = root.querySelector<HTMLInputElement>('.appearance-field[data-field="fillOpacity"] input')!;
+    opacity.value = '50';
+    opacity.dispatchEvent(new Event('change'));
+    root.querySelector<HTMLButtonElement>('.appearance-field[data-field="textAlignment"] button[data-value="left"]')!.click();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ fillColor: '#ffd6e080', textAlignment: 'left' });
+    await panel.updateComplete;
+    expect(root.querySelector('.appearance-field[data-field="textAlignment"] button[data-value="left"]')!.getAttribute('aria-pressed')).toBe('true');
+
+    // "Notation only": drawn as the notation has it, the look kept — and the tab says so, offering to draw it.
+    ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-switch="notation-only"]')!.click();
+    expect(drawnFill(a)).toBe(notationFill);
+    await panel.updateComplete;
+    expect(root.querySelector('.appearance-notice')!.textContent).toContain('Notation only');
+    root.querySelector<HTMLButtonElement>('.appearance-notice .show-own')!.click();
+    await panel.updateComplete;
+    expect(drawnFill(a)).toBe('#ffd6e080');
+    expect(ui.canvasToolbar.notationOnly).toBe(false);
+    expect(root.querySelector('.appearance-notice')).toBeNull();
+
+    // Each change one step back, for both.
+    await ui.runCommand({ command: 'undo' });
+    await ui.runCommand({ command: 'undo' });
+    await panel.updateComplete;
+    expect(views.getNode(view, nodeB)?.appearance).toEqual({ fillColor: '#ffd6e0' });
+    expect(panel.appearance?.own).toEqual({ fillColor: '#ffd6e0' });
+    // Reset all: back to the notation's.
+    root.querySelector<HTMLButtonElement>('.reset-appearance')!.click();
+    expect([views.getNode(view, nodeA)?.appearance, views.getNode(view, nodeB)?.appearance]).toEqual([undefined, undefined]);
+    expect(drawnFill(a)).toBe(notationFill);
+
+    // What la-gram writes on a placement's style, its own shapes accept.
+    root.querySelector<HTMLButtonElement>('.appearance-field[data-field="textAlignment"] button[data-value="right"]')!.click();
+    root.querySelector<HTMLButtonElement>('.appearance-field[data-field="font"] button[data-value="bold"]')!.click();
+    const gradient = root.querySelector<HTMLSelectElement>('.appearance-field[data-field="gradient"] select')!;
+    gradient.value = 'top';
+    gradient.dispatchEvent(new Event('change'));
+    expect(views.getNode(view, nodeA)?.appearance).toMatchObject({ textAlignment: 'right', fontStyle: 'bold', gradient: 'top' });
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+    root.querySelector<HTMLButtonElement>('.reset-appearance')!.click();
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    for (const iri of [a, b]) els.deleteElement(iri);
+  });
+
+  it('copies one thing’s look to others with the format painter, each one undoable step; Esc puts it down', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const [from, to] = ['Painted from', 'Painted to'].map((label) => els.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label }).value);
+    const fromNode = views.addElementToView(view, from!, { x: 100, y: 900, width: 120, height: 55 });
+    const toNode = views.addElementToView(view, to!, { x: 300, y: 900, width: 120, height: 55 });
+    views.setAppearance!(view, fromNode, { fillColor: '#ffd6e0', fontStyle: 'bold', textAlignment: 'left', renderingMode: 'IconCentric' });
+    views.setAppearance!(view, toNode, { lineWidth: 3 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const djs = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const click = (iri: string) => djs.get('eventBus').fire('element.click', { element: djs.get('elementRegistry').get(iri) });
+    const button = () => ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="format-painter"]')!;
+
+    ui.diagramCanvas.selectIris([]);
+    button().click();
+    expect(ui.canvasToolbar.formatPainter).toBe('pick');
+    click(from!);
+    expect(ui.canvasToolbar.formatPainter).toBe('paint');
+    click(to!);
+    // Its look, not its figure; what it leaves unset taken back — the line width.
+    expect(views.getNode(view, toNode)?.appearance).toEqual({ fillColor: '#ffd6e0', fontStyle: 'bold', textAlignment: 'left' });
+    // A click with the painter selects nothing.
+    expect(ui.diagramCanvas.selectedIris()).toEqual([]);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getNode(view, toNode)?.appearance).toEqual({ lineWidth: 3 });
+    djs.get('eventBus').fire('keyboard.keydown', { keyEvent: new KeyboardEvent('keydown', { key: 'Escape' }) });
+    expect(ui.canvasToolbar.formatPainter).toBe('off');
+    for (const iri of [from!, to!]) els.deleteElement(iri);
+  });
+
+  it('draws an element as another figure from the Figure tab: its icon, or its shape alone', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const actor = els.createElement(`${AM4}BusinessActor`, app.session.modelIri!, { label: 'Figured' }).value;
+    const node = views.addElementToView(view, actor, { x: 100, y: 800, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnMode = () => document.querySelector(`[data-element-iri="${actor}"]`)?.getAttribute('data-rendering-mode');
+
+    ui.diagramCanvas.selectIris([actor]);
+    await panel.updateComplete;
+    expect(panel.appearance?.figure?.options.map((o) => [o.label, o.mode, !!o.notation])).toEqual([
+      ['Shape with icon', 'ShapeWithBadge', true],
+      ['Icon', 'IconCentric', false],
+      ['Shape only', 'ShapeOnly', false],
+    ]);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    const choice = (mode: string) => root.querySelector<HTMLButtonElement>(`.figure-choice[data-mode="${mode}"]`)!;
+    expect(choice('ShapeWithBadge').getAttribute('aria-checked')).toBe('true');
+
+    choice('IconCentric').click();
+    expect(views.getNode(view, node)?.appearance).toEqual({ renderingMode: 'IconCentric' });
+    expect(drawnMode()).toBe('IconCentric');
+    await panel.updateComplete;
+    expect(choice('IconCentric').getAttribute('aria-checked')).toBe('true');
+    // The notation's figure: its own taken away.
+    choice('ShapeWithBadge').click();
+    expect(views.getNode(view, node)?.appearance).toBeUndefined();
+    expect(drawnMode()).toBe('ShapeWithBadge');
+    await ui.runCommand({ command: 'undo' });
+    expect(drawnMode()).toBe('IconCentric');
+
+    // A data object: also its notation's other figure — the banded box — drawn as its shape, its glyph left off.
+    const data = els.createElement(`${AM4}DataObject`, app.session.modelIri!, { label: 'Banded' }).value;
+    const dataNode = views.addElementToView(view, data, { x: 300, y: 800, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([data]);
+    await panel.updateComplete;
+    expect(panel.appearance?.figure?.options.map((o) => o.label)).toEqual(['Shape with icon', 'Banded Rectangle', 'Icon', 'Shape only']);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-shape="BandedRectangle"]')!.click();
+    expect(views.getNode(view, dataNode)?.appearance).toEqual({
+      renderingMode: 'ShapeOnly',
+      shapeType: 'https://meta.linked.archi/archimate4/notation#BandedRectangle',
+    });
+    const banded = document.querySelector(`[data-element-iri="${data}"]`)!;
+    expect([banded.getAttribute('data-rendering-mode'), !!banded.querySelector('.la-shape-details'), !!banded.querySelector('.la-shape-badge')]).toEqual([
+      'ShapeOnly',
+      true,
+      false,
+    ]);
+    await panel.updateComplete;
+    expect(root.querySelector('.figure-choice[data-shape="BandedRectangle"]')!.getAttribute('aria-checked')).toBe('true');
+    els.deleteElement(data);
+
+    // A figure has no figure to choose.
+    const note = views.addFigure!(view, { kind: 'note', text: 'n', bounds: { x: 400, y: 800, width: 185, height: 80 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([note]);
+    await panel.updateComplete;
+    expect(panel.appearance?.figure).toBeUndefined();
+    expect(root.querySelector('.vtab[data-tab="figure"]')).toBeNull();
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    views.removeElementFromView(view, note);
+    els.deleteElement(actor);
+  });
+
+  it('puts a picture in an element or a figure from the Image tab, and sets where a line’s name sits', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const LOGO = 'https://example.org/pictures/logo.png';
+    rememberImageSize(LOGO, { width: 24, height: 24 });
+    const [a, b] = ['Pictured', 'Pictured too'].map((label) => els.createElement(`${AM4}ApplicationComponent`, model, { label }).value);
+    const nodeA = views.addElementToView(view, a!, { x: 100, y: 1000, width: 120, height: 55 });
+    const nodeB = views.addElementToView(view, b!, { x: 400, y: 1000, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const pictureOf = (iri: string) => document.querySelector(`[data-element-iri="${iri}"] .la-shape-image`);
+
+    ui.diagramCanvas.selectIris([a!]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.image-preview')!.textContent).toContain('No image');
+    expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    // No picture in the model yet: the tab says where they will be listed.
+    expect(root.querySelector('.image-used-empty')!.textContent).toContain('None yet');
+
+    // A file kept in the model: a picture, small enough — else the tab says why, and nothing is written.
+    const chooser = () => root.querySelector<HTMLInputElement>('.image-file')!;
+    const choose = (file: File) => {
+      Object.defineProperty(chooser(), 'files', { value: [file], configurable: true });
+      chooser().dispatchEvent(new Event('change'));
+    };
+    choose(new File(['not a picture'], 'notes.txt', { type: 'text/plain' }));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')!.textContent).toContain('notes.txt is not a picture');
+    choose(new File([new Uint8Array(KEPT_PICTURE_LIMIT + 1)], 'huge.png', { type: 'image/png' }));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')!.textContent).toContain('too large to keep in the model');
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    choose(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'dot.png', { type: 'image/png' }));
+    await vi.waitFor(() => expect(views.getNode(view, nodeA)?.appearance?.image).toBe('data:image/png;base64,iVBORw0KGgo='));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')).toBeNull();
+    expect([...root.querySelectorAll('.image-choice')].map((c) => c.getAttribute('title'))).toEqual(['A picture kept in the model']);
+    const address = () => root.querySelector<HTMLInputElement>('.image-address')!;
+    // Not a picture's address: said where it was typed, nothing written.
+    address().value = 'javascript:alert(1)';
+    address().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')!.textContent).toContain('https://');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: 'data:image/png;base64,iVBORw0KGgo=' });
+    address().value = LOGO;
+    address().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-error')).toBeNull();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO });
+    expect(pictureOf(a!)?.getAttribute('href')).toBe(LOGO);
+    const position = root.querySelector<HTMLSelectElement>('.image-tab select')!;
+    position.value = 'BottomRight';
+    position.dispatchEvent(new Event('change'));
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO, imagePosition: 'BottomRight' });
+    expect(pictureOf(a!)?.getAttribute('data-image-position')).toBe('BottomRight');
+    // What la-gram writes, core-vis's shapes accept.
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+
+    // As the figure: its own icon, drawn as the glyph would be, its name under it — no picture inside, no position.
+    const drawAs = (value: string) => {
+      const radio = root.querySelector<HTMLInputElement>(`.image-draw-as input[value="${value}"]`)!;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    };
+    drawAs('figure');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'IconCentric' });
+    const drawnA = () => document.querySelector(`[data-element-iri="${a}"]`)!;
+    expect(drawnA().getAttribute('data-rendering-mode')).toBe('IconCentric');
+    expect(drawnA().querySelector('.la-shape-icon')?.getAttribute('href')).toBe(LOGO);
+    await panel.updateComplete;
+    expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+    // The Figure tab says so; a figure picked there puts the notation's glyph back.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.figure-own-picture')!.textContent).toContain('own picture');
+    expect(root.querySelector('.figure-choice[aria-checked="true"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'IconCentric' });
+    // And back inside, at the top left.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    drawAs('inside');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO });
+    expect(drawnA().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+
+    // Another element: the model's pictures to pick from.
+    ui.diagramCanvas.selectIris([b!]);
+    await panel.updateComplete;
+    expect([...root.querySelectorAll('.image-choice')].map((c) => c.getAttribute('title'))).toEqual([LOGO]);
+    root.querySelector<HTMLButtonElement>('.image-choice')!.click();
+    expect(views.getNode(view, nodeB)?.appearance).toEqual({ image: LOGO });
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.remove-image')!.click();
+    expect(views.getNode(view, nodeB)?.appearance).toBeUndefined();
+    expect(pictureOf(b!)).toBeNull();
+    await ui.runCommand({ command: 'undo' });
+    expect(pictureOf(b!)?.getAttribute('href')).toBe(LOGO);
+
+    // A note may have one too; a line has no Image tab — its Appearance says where its name sits.
+    const note = views.addFigure!(view, { kind: 'note', text: 'n', bounds: { x: 700, y: 1000, width: 185, height: 80 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([note]);
+    await panel.updateComplete;
+    // A note's picture is inside it: a figure has no icon for one to stand in for.
+    expect(panel.appearance?.image).toEqual({ position: 'TopLeft', canBeFigure: false, used: [LOGO] });
+    const serving = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: a!, targetIri: b! }).iri;
+    views.addRelationshipToView(view, serving);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.diagramCanvas.selectIris([serving]);
+    await panel.updateComplete;
+    expect(panel.appearance?.image).toBeUndefined();
+    expect(root.querySelector('.vtab[data-tab="image"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="appearance"]')!.click();
+    await panel.updateComplete;
+    const anchor = (value: string) => root.querySelector<HTMLButtonElement>(`.appearance-field[data-field="labelAnchor"] button[data-value="${value}"]`)!;
+    expect(anchor('middle').getAttribute('aria-pressed')).toBe('true');
+    anchor('target').click();
+    const link = views.getLinks(view).find((l) => l.relationshipIri === serving)!;
+    expect(link.appearance).toEqual({ labelAnchor: 'target' });
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(link.linkIri))).toEqual([]);
+
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    views.removeElementFromView(view, note);
+    for (const iri of [a!, b!]) els.deleteElement(iri);
+  });
+
+  it('says more on an element’s label from the Label tab: for the presentation chosen, or for every one', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const DCT = NAMESPACES.dcterms;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const a = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Labelled' }).value;
+    const creator = (name: string) => DataFactory.quad(DataFactory.namedNode(a), DataFactory.namedNode(DCT + 'creator'), DataFactory.literal(name));
+    store.addQuads([creator('Ana')] as never);
+    const node = views.addElementToView(view, a, { x: 100, y: 1200, width: 160, height: 80 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnLines = () => [...document.querySelectorAll(`[data-element-iri="${a}"] .la-shape-label tspan`)].map((t) => t.textContent);
+    const area = () => root.querySelector<HTMLTextAreaElement>('.label-expression')!;
+    const type = async (text: string) => {
+      area().value = text;
+      area().dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+
+    // No presentation chosen: what the label says in every presentation.
+    expect(ui.diagramCanvas.presentationContextInUse).toBeUndefined();
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="label"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.label-scope')!.textContent).toContain('No presentation is chosen');
+    expect(root.querySelector('.label-every')).toBeNull();
+    expect(area().placeholder).toBe('{name}');
+    await type('{name}\nby {dcterms:creator}');
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ expression: '{name}\nby {dcterms:creator}' }]);
+    expect(drawnLines()).toEqual(['Labelled', 'by Ana']);
+    expect(root.querySelector('.label-shown')!.textContent).toBe('Labelled\nby Ana');
+    // What it shows follows the model.
+    store.removeQuads([creator('Ana')] as never);
+    store.addQuads([creator('Bo')] as never);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
+
+    // Developers chosen: the tab says so; the one for every presentation is what it says until developers get their own.
+    app.setPresentationContext(`${PC}DeveloperContext`);
+    await panel.updateComplete;
+    expect(ui.diagramCanvas.presentationContextInUse).toBe(`${PC}DeveloperContext`);
+    expect(root.querySelector('.label-scope')!.textContent).toContain('every presentation');
+    const every = () => root.querySelector<HTMLInputElement>('.label-every input')!;
+    expect(every().checked).toBe(true);
+    every().checked = false;
+    every().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.label-scope')!.textContent).toContain('Developer / Engineering');
+    await type('{name}\n«{type}»');
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([
+      { context: `${PC}DeveloperContext`, expression: '{name}\n«{type}»' },
+      { expression: '{name}\nby {dcterms:creator}' },
+    ]);
+    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+    // A placeholder it cannot read: said, and drawn as written.
+    await type('{name} {nope:x}');
+    expect(root.querySelector('.label-errors')!.textContent).toContain('no prefix nope: is known');
+    expect(drawnLines().join(' ')).toContain('{nope:x}');
+    await type('{name}\n«{type}»');
+    // What core-vis's shapes say of it, la-gram writes.
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(node))).toEqual([]);
+
+    // Architects: the one for every presentation.
+    app.setPresentationContext(`${PC}ArchitectContext`);
+    expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
+    // Back to the notation's — for architects, and for every presentation; the developers' is theirs still. Undoably.
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.label-reset')!.click();
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ context: `${PC}DeveloperContext`, expression: '{name}\n«{type}»' }]);
+    expect(drawnLines()).toEqual(['Labelled']);
+    await ui.runCommand({ command: 'undo' });
+    await Promise.resolve();
+    expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
+
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    els.deleteElement(a);
+  });
+
+  it('names an element for each presentation (SKOS-XL): drawn, and shown by a label, where that one is chosen', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const view = app.session.activeViewIri!;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const a = els.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label: 'Payment gateway' }).value;
+    const node = views.addElementToView(view, a, { x: 100, y: 1400, width: 160, height: 80 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnLines = () => [...document.querySelectorAll(`[data-element-iri="${a}"] .la-shape-label tspan`)].map((t) => t.textContent);
+
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="info"]')!.click();
+    await panel.updateComplete;
+    // Every audience the metamodel names, one field each.
+    const rows = () => [...root.querySelectorAll('.context-name')];
+    expect(rows().map((r) => r.querySelector('.context-label')!.textContent!.trim()).sort()).toEqual([
+      'Architect',
+      'Developer / Engineering',
+      'Executive / C-Level',
+      'Governance / Compliance',
+      'Operations / Infrastructure',
+    ]);
+    const field = (context: string) => root.querySelector<HTMLInputElement>(`.context-name[data-context="${PC}${context}"] input`)!;
+    field('DeveloperContext').value = 'pgw-svc';
+    field('DeveloperContext').dispatchEvent(new Event('change'));
+    // A skosxl:altLabel for developers; its plain form a skos:altLabel; the canonical name as it was.
+    const SKOSXL = 'http://www.w3.org/2008/05/skos-xl#';
+    const xl = store.getQuads(DataFactory.namedNode(a) as never, DataFactory.namedNode(SKOSXL + 'altLabel') as never);
+    expect(xl).toHaveLength(1);
+    expect(store.getQuads(xl[0]!.object as never, DataFactory.namedNode(SKOSXL + 'literalForm') as never)[0]?.object.value).toBe('pgw-svc');
+    expect(labelOf(store, a)).toBe('Payment gateway');
+    // Its own name until developers are chosen; then theirs.
+    expect(drawnLines()).toEqual(['Payment gateway']);
+    app.setPresentationContext(`${PC}DeveloperContext`);
+    expect(drawnLines()).toEqual(['pgw-svc']);
+    // A shape drawn before its placement was in the store knows only its element — until the next sync —
+    // and a name written meanwhile (no sync follows a change made in the panel) is drawn on it all the same.
+    const djs = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const drawnShape = djs.get('elementRegistry').get(a);
+    delete drawnShape.businessObject.nodeIri;
+    delete drawnShape.businessObject.labelText;
+    djs.get('eventBus').fire('element.changed', { element: drawnShape });
+    expect(drawnLines()).toEqual(['Payment gateway']);
+    ui.diagramCanvas.refreshLabels();
+    expect(drawnLines()).toEqual(['pgw-svc']);
+    expect(drawnShape.businessObject.nodeIri).toBe(node);
+    await panel.updateComplete;
+    expect(root.querySelector('.context-name[data-active="true"]')!.getAttribute('data-context')).toBe(`${PC}DeveloperContext`);
+    // A label expression shows it as {name}, the canonical one as {skos:prefLabel}.
+    views.setLabelExpression!(view, node, undefined, '{name} ({skos:prefLabel})');
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(drawnLines().join(' ')).toBe('pgw-svc (Payment gateway)');
+    // Core's shapes accept what la-gram writes; a second name for developers, written by hand, they report.
+    const fromCore = () =>
+      ui.validationPanel.results.filter(
+        (r) => r.sourceShape?.value.startsWith('https://meta.linked.archi/core-shapes#') && JSON.stringify(r).includes(a),
+      );
+    app.runValidation();
+    expect(fromCore()).toEqual([]);
+    const second = DataFactory.namedNode(`${a}-another-name`);
+    const extra = [
+      DataFactory.quad(DataFactory.namedNode(a), DataFactory.namedNode(SKOSXL + 'altLabel'), second),
+      DataFactory.quad(second, DataFactory.namedNode(SKOSXL + 'literalForm'), DataFactory.literal('pgw', 'en')),
+      DataFactory.quad(second, DataFactory.namedNode(NAMESPACES.arch + 'inPresentationContext'), DataFactory.namedNode(`${PC}DeveloperContext`)),
+    ];
+    store.addQuads(extra as never);
+    app.runValidation();
+    expect(fromCore().map((r) => r.sourceShape?.value.split('#')[1]).sort()).toEqual(['OneNamePerContextShape', 'PresentationNameAlsoPlainShape']);
+    store.removeQuads(extra as never);
+    // Taken away: its own name again — undoably.
+    await panel.updateComplete;
+    field('DeveloperContext').value = '';
+    field('DeveloperContext').dispatchEvent(new Event('change'));
+    expect(store.getQuads(DataFactory.namedNode(a) as never, DataFactory.namedNode(SKOSXL + 'altLabel') as never)).toHaveLength(0);
+    expect(drawnLines().join(' ')).toBe('Payment gateway (Payment gateway)');
+    await ui.runCommand({ command: 'undo' });
+    await Promise.resolve();
+    expect(drawnLines().join(' ')).toBe('pgw-svc (Payment gateway)');
+
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    els.deleteElement(a);
+  });
+
+  it('sets a picture for each presentation from the Image tab, and an element’s own pictures by presentation', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const EXECUTIVE = `${PC}ExecutiveContext`;
+    const DEVELOPER = `${PC}DeveloperContext`;
+    const FOR_EXECUTIVES = 'https://example.org/pictures/for-executives.png';
+    const FOR_EVERYONE = 'https://example.org/pictures/for-everyone.png';
+    const CARD = 'https://example.org/pictures/card-payments.png';
+    for (const url of [FOR_EXECUTIVES, FOR_EVERYONE]) rememberImageSize(url, { width: 20, height: 20 });
+    const a = els.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label: 'Gateway' }).value;
+    const node = views.addElementToView(view, a, { x: 100, y: 1600, width: 160, height: 80 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawn = () => document.querySelector(`[data-element-iri="${a}"]`)!;
+    const inside = () => drawn().querySelector('.la-shape-image')?.getAttribute('href') ?? null;
+    const openImageTab = async () => {
+      ui.diagramCanvas.selectIris([a]);
+      await panel.updateComplete;
+      root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+      await panel.updateComplete;
+    };
+    const type = async (url: string) => {
+      const address = root.querySelector<HTMLInputElement>('.image-address')!;
+      address.value = url;
+      address.dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+
+    // Executives chosen: what is set is for them alone — a style of its own for that context.
+    app.setPresentationContext(EXECUTIVE);
+    await openImageTab();
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    await type(FOR_EXECUTIVES);
+    expect(views.getNode(view, node)?.appearance).toBeUndefined();
+    expect(views.getNode(view, node)?.contextAppearances).toEqual({ [EXECUTIVE]: { image: FOR_EXECUTIVES } });
+    expect(inside()).toBe(FOR_EXECUTIVES);
+    // Developers see none.
+    app.setPresentationContext(DEVELOPER);
+    expect(inside()).toBeNull();
+    await panel.updateComplete;
+    expect(root.querySelector('.image-preview')!.textContent).toContain('No image');
+    // The same in every presentation: written once, for everyone — executives keep theirs over it.
+    const every = root.querySelector<HTMLInputElement>('.look-every input')!;
+    every.checked = true;
+    every.dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.look-scope')!.textContent).toContain('every presentation');
+    await type(FOR_EVERYONE);
+    expect(views.getNode(view, node)?.appearance).toEqual({ image: FOR_EVERYONE });
+    expect(inside()).toBe(FOR_EVERYONE);
+    app.setPresentationContext(EXECUTIVE);
+    expect(inside()).toBe(FOR_EXECUTIVES);
+
+    // An element's own picture for executives (Pictures by presentation), drawn as its figure there.
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="info"]')!.click();
+    await panel.updateComplete;
+    expect([...root.querySelectorAll('.context-picture')].map((r) => r.getAttribute('data-context'))).toContain('every');
+    const pictureField = root.querySelector<HTMLInputElement>(`.context-picture[data-context="${EXECUTIVE}"] input.property-value`)!;
+    pictureField.value = CARD;
+    pictureField.dispatchEvent(new Event('change'));
+    const ARCH = NAMESPACES.arch;
+    const alt = app.components.store.getQuads(DataFactory.namedNode(a) as never, DataFactory.namedNode(ARCH + 'altVisNotation') as never);
+    expect(alt).toHaveLength(1);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    expect(panel.appearance?.image?.elementPicture).toBe(CARD);
+    root.querySelector<HTMLButtonElement>('.element-picture-as-figure')!.click();
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric' });
+    const icon = drawn().querySelector('.la-shape-icon')!;
+    expect([drawn().getAttribute('data-rendering-mode'), icon.getAttribute('href'), icon.getAttribute('data-element-picture')]).toEqual([
+      'IconCentric',
+      CARD,
+      'true',
+    ]);
+    // Developers: the box, the picture for everyone inside it, the type's glyph as its badge.
+    app.setPresentationContext(DEVELOPER);
+    expect(drawn().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(inside()).toBe(FOR_EVERYONE);
+
+    // What la-gram writes, core's and core-vis's shapes accept.
+    const fromCore = () =>
+      ui.validationPanel.results.filter(
+        (r) => /meta\.linked\.archi\/core(-vis)?-shapes#/.test(r.sourceShape?.value ?? '') && JSON.stringify(r).includes(a),
+      );
+    app.runValidation();
+    expect(fromCore()).toEqual([]);
+    // A second style for executives, written by hand, they report: at most one a context.
+    const store = app.components.store;
+    const extra = DataFactory.namedNode(`${node}-another-style`);
+    const added = [
+      DataFactory.quad(DataFactory.namedNode(node), DataFactory.namedNode(NAMESPACES['arch-vis'] + 'style'), extra),
+      DataFactory.quad(extra, DataFactory.namedNode(NAMESPACES.rdf + 'type'), DataFactory.namedNode(NAMESPACES['arch-vis'] + 'Style')),
+      DataFactory.quad(extra, DataFactory.namedNode(ARCH + 'inPresentationContext'), DataFactory.namedNode(EXECUTIVE)),
+    ];
+    store.addQuads(added as never);
+    app.runValidation();
+    expect(
+      ui.validationPanel.results.filter((r) => r.sourceShape?.value === 'https://meta.linked.archi/core-vis-shapes#DiagElementShape' && JSON.stringify(r).includes(node)),
+    ).toHaveLength(1);
+    store.removeQuads(added as never);
+
+    // The Figure tab, for executives: the figure picked is drawn — their own figure taken away.
+    app.setPresentationContext(EXECUTIVE);
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    // Their style said nothing else — the picture as the figure took the place of the one inside — so it goes.
+    expect(views.getNode(view, node)?.contextAppearances).toBeUndefined();
+    expect(drawn().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(inside()).toBe(FOR_EVERYONE);
+    await ui.runCommand({ command: 'undo' });
+    expect(drawn().getAttribute('data-rendering-mode')).toBe('IconCentric');
+
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    els.deleteElement(a);
+  });
+
+  it('sets every look for one presentation or for all: the Appearance, Figure and Image tabs, notes and lines, the format painter, the tree', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const EXECUTIVE = `${PC}ExecutiveContext`;
+    const DEVELOPER = `${PC}DeveloperContext`;
+    const [a, b] = ['Looked', 'Painted'].map((label) => els.createElement(`${AM4}ApplicationComponent`, model, { label }).value);
+    const nodeA = views.addElementToView(view, a!, { x: 100, y: 1800, width: 160, height: 80 });
+    const nodeB = views.addElementToView(view, b!, { x: 400, y: 1800, width: 160, height: 80 });
+    const note = views.addFigure!(view, { kind: 'note', text: 'Ask', bounds: { x: 700, y: 1800, width: 185, height: 80 } });
+    const serving = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: a!, targetIri: b! }).iri;
+    views.addRelationshipToView(view, serving);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const fill = (iri: string) => document.querySelector(`[data-element-iri="${iri}"] .la-shape-body`)?.getAttribute('fill');
+    const mode = (iri: string) => document.querySelector(`[data-element-iri="${iri}"]`)?.getAttribute('data-rendering-mode');
+    const notationFill = fill(a!);
+    const select = async (iri: string, tab: string) => {
+      ui.diagramCanvas.selectIris([iri]);
+      await panel.updateComplete;
+      root.querySelector<HTMLButtonElement>(`.vtab[data-tab="${tab}"]`)!.click();
+      await panel.updateComplete;
+    };
+    const colour = async (field: string, value: string) => {
+      const input = root.querySelector<HTMLInputElement>(`.appearance-field[data-field="${field}"] input`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+    const every = async (on: boolean) => {
+      const box = root.querySelector<HTMLInputElement>('.look-every input')!;
+      box.checked = on;
+      box.dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+
+    // Executives chosen, nothing set: the Appearance tab sets their look alone.
+    app.setPresentationContext(EXECUTIVE);
+    await select(a!, 'appearance');
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    await colour('fillColor', '#ffd6e0');
+    expect(views.getNode(view, nodeA)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#ffd6e0' } });
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    expect(fill(a!)).toBe('#ffd6e0');
+    app.setPresentationContext(DEVELOPER);
+    expect(fill(a!)).toBe(notationFill);
+
+    // For every presentation — shown in the Figure tab too, the scope shared — a figure: drawn so for developers;
+    // executives' fill stays theirs.
+    app.setPresentationContext(EXECUTIVE);
+    await select(a!, 'appearance');
+    await every(true);
+    expect(root.querySelector('.look-scope')!.textContent).toContain('every presentation');
+    // Its defaults, for every presentation: the notation's; for executives, they would be its look for every one.
+    expect(panel.appearance?.own).toEqual({});
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.look-scope')!.textContent).toContain('every presentation');
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeOnly"]')!.click();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ renderingMode: 'ShapeOnly' });
+    expect(views.getNode(view, nodeA)?.contextAppearances?.[EXECUTIVE]).toEqual({ fillColor: '#ffd6e0' });
+    // For executives alone: the notation's figure, over the one for every presentation — said out.
+    await panel.updateComplete;
+    await every(false);
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    expect(views.getNode(view, nodeA)?.contextAppearances?.[EXECUTIVE]).toEqual({ fillColor: '#ffd6e0', renderingMode: 'ShapeWithBadge' });
+    expect(mode(a!)).toBe('ShapeWithBadge');
+    app.setPresentationContext(DEVELOPER);
+    expect(mode(a!)).toBe('ShapeOnly');
+    // Reset all, for executives: their own Appearance values taken away — their fill the one for every presentation;
+    // their figure, the Figure tab's, stays.
+    app.setPresentationContext(EXECUTIVE);
+    await select(a!, 'appearance');
+    expect(panel.appearance?.scope).toBe('context');
+    expect(panel.appearance?.own).toEqual({ fillColor: '#ffd6e0', renderingMode: 'ShapeWithBadge' });
+    expect(panel.appearance?.defaults.renderingMode).toBe('ShapeOnly');
+    root.querySelector<HTMLButtonElement>('.reset-appearance')!.click();
+    expect(views.getNode(view, nodeA)?.contextAppearances).toEqual({ [EXECUTIVE]: { renderingMode: 'ShapeWithBadge' } });
+    expect(fill(a!)).toBe(notationFill);
+    await ui.runCommand({ command: 'undo' });
+    expect(fill(a!)).toBe('#ffd6e0');
+
+    // A note and a line, for executives.
+    await select(note, 'appearance');
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    await colour('fillColor', '#b5c9ff');
+    expect(views.getNode(view, note)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#b5c9ff' } });
+    expect(fill(note)).toBe('#b5c9ff');
+    await select(serving, 'appearance');
+    await colour('lineColor', '#7a0019');
+    const link = views.getLinks(view).find((l) => l.relationshipIri === serving)!;
+    expect(link.contextAppearances).toEqual({ [EXECUTIVE]: { lineColor: '#7a0019' } });
+    const stroke = () => document.querySelector(`.djs-connection[data-element-id="${serving}"] .la-connection`)?.getAttribute('stroke');
+    expect(stroke()).toBe('#7a0019');
+    app.setPresentationContext(DEVELOPER);
+    expect(fill(note)).not.toBe('#b5c9ff');
+    expect(stroke()).not.toBe('#7a0019');
+
+    // The format painter, for executives: what the first looks like for them, given to the next for them.
+    app.setPresentationContext(EXECUTIVE);
+    ui.diagramCanvas.selectIris([]);
+    const djs = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const click = (iri: string) => djs.get('eventBus').fire('element.click', { element: djs.get('elementRegistry').get(iri) });
+    ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="format-painter"]')!.click();
+    click(a!);
+    click(b!);
+    expect(views.getNode(view, nodeB)?.contextAppearances?.[EXECUTIVE]).toMatchObject({ fillColor: '#ffd6e0' });
+    expect(views.getNode(view, nodeB)?.appearance).toBeUndefined();
+    djs.get('eventBus').fire('keyboard.keydown', { keyEvent: new KeyboardEvent('keydown', { key: 'Escape' }) });
+
+    // The tree: an element's own picture as its row's icon.
+    const PICTURE = 'https://example.org/pictures/looked.png';
+    const ARCH = NAMESPACES.arch;
+    const pictureNode = DataFactory.namedNode(`${a}-picture`);
+    app.components.store.addQuads([
+      DataFactory.quad(DataFactory.namedNode(a!), DataFactory.namedNode(ARCH + 'prefVisNotation'), pictureNode),
+      DataFactory.quad(pictureNode, DataFactory.namedNode('http://schema.org/contentUrl'), DataFactory.literal(PICTURE, DataFactory.namedNode(NAMESPACES.xsd + 'anyURI'))),
+    ] as never);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.modelExplorer.requestUpdate();
+    await ui.modelExplorer.updateComplete;
+    ui.modelExplorer.refresh();
+    ui.modelExplorer.revealIri(a!);
+    await ui.modelExplorer.updateComplete;
+    const pictures = [...ui.modelExplorer.shadowRoot!.querySelectorAll<HTMLImageElement>('img.icon-picture')].map((img) => img.getAttribute('src'));
+    expect(pictures).toContain(PICTURE);
+
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    views.removeElementFromView(view, note);
+    for (const iri of [a!, b!]) els.deleteElement(iri);
   });
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {
@@ -599,9 +1399,18 @@ describe('the workbench', () => {
     await commit('Renamed');
     expect(history.commits.map((c) => c.message)).toEqual(['Renamed', 'Teller added']);
 
-    // The second commit's changes are the rename: one name out, one in.
+    // The second commit's changes are the rename: by element, the name old → new…
     await history.updateComplete;
     history.shadowRoot!.querySelector<HTMLElement>(`[data-commit="${history.commits[0].id}"]`)!.click();
+    await history.updateComplete;
+    const byElement = history.shadowRoot!.querySelector('model-diff-view')!;
+    await byElement.updateComplete;
+    const row = byElement.shadowRoot!.querySelector(`li.change[data-subject="${placed}"]`)!;
+    expect(row.querySelector('.name')!.textContent!.trim()).toBe('Cashier');
+    expect(row.querySelector('.type')!.textContent).toBe('Business Actor');
+    expect(row.querySelector('ul.details')!.textContent!.trim()).toBe('Name (en): “Teller” → “Cashier”');
+    // …and as triples: one name out, one in.
+    history.shadowRoot!.querySelector<HTMLInputElement>('input[name="view"][value="triples"]')!.click();
     await history.updateComplete;
     expect(history.shadowRoot!.querySelector('pre.added')!.textContent).toContain('"Cashier"@en');
     expect(history.shadowRoot!.querySelector('pre.removed')!.textContent).toContain('"Teller"@en');
@@ -614,6 +1423,55 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'undo' });
     expect(labelOf(store, placed)).toBe('Cashier');
     els.deleteElement(placed);
+  });
+
+  it('shows its icon and name, which open About, and a Help menu: shortcuts, guides, About', async () => {
+    await ui.appToolbar.updateComplete;
+    const bar = ui.appToolbar.shadowRoot!;
+    const brand = bar.querySelector<HTMLButtonElement>('button.brand')!;
+    expect([brand.querySelector('img')?.getAttribute('src'), brand.textContent?.trim(), brand.title]).toEqual([
+      'favicon.svg',
+      'la-gram',
+      'About la-gram',
+    ]);
+
+    // About, in parts, where the dialogs show parts.
+    const details = vi.fn(async () => undefined);
+    script.dialogs.details = details;
+    try {
+      brand.click();
+      await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(1));
+      const [title, blocks, options] = details.mock.calls[0] as unknown as [string, DetailBlock[], DetailsOptions];
+      expect(title).toBe('About la-gram');
+      expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Architecture Modeller' });
+      expect(blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []))).toContainEqual(['Metamodels', 'ArchiMate 4.0 Metamodel']);
+      expect(options.copy?.text).toMatch(/^la-gram \(development build\) · .* · metamodels: ArchiMate 4\.0 Metamodel/);
+
+      // Help: the shortcuts first, the guides and la-gram's pages opening apart, About last.
+      bar.querySelector<HTMLButtonElement>('[data-menu="help"]')!.click();
+      await ui.appToolbar.updateComplete;
+      const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
+      expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
+        'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues', 'about',
+      ]);
+      const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
+      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);
+      bar.querySelector<HTMLButtonElement>('.dropdown [data-command="shortcuts"]')!.click();
+      await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(2));
+      expect(details.mock.calls[1]![0]).toBe('Keyboard shortcuts');
+      await ui.appToolbar.updateComplete;
+      expect(bar.querySelector('.dropdown')).toBeNull();
+    } finally {
+      delete script.dialogs.details;
+    }
+
+    // Where the dialogs show no parts: the same, as text.
+    const info = script.dialogs.info as ReturnType<typeof vi.fn>;
+    info.mockClear();
+    await ui.runCommand({ command: 'about' });
+    const [title, lines] = info.mock.calls[0] as [string, string[]];
+    expect(title).toBe('About la-gram');
+    expect(lines.slice(0, 3)).toEqual(['la-gram', 'Semantic Architecture Modeller', 'Development build']);
   });
 
   it('hides and shows the model tree from the toolbar', async () => {
@@ -707,13 +1565,40 @@ describe('the workbench', () => {
     const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();
     const onView = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(canvasRoot) as Record<string, { action: () => void }>;
     expect(Object.keys(onView)).toEqual([
-      'rename-view', 'set-viewpoint', 'duplicate-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri', 'delete-view',
+      'rename-view', 'set-viewpoint', 'duplicate-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
+      'export-svg', 'export-png', 'delete-view',
     ]);
     onView['properties']!.action();
     expect([ui.propertyPanel.selectedIri, ui.propertyPanel.heading?.kind]).toEqual([view, 'View']);
     onView['select-all']!.action();
     const selected = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(): Array<{ id: string }> } }).get('selection').get();
     expect(selected.map((e) => e.id)).toEqual(expect.arrayContaining([placed, other, drawn]));
+
+    // Export from the same menu: the view saved as SVG, named after it, its pictures in the file (Req 14.2).
+    const originalFetch = globalThis.fetch;
+    const fetched: string[] = [];
+    globalThis.fetch = (async (url: string) => {
+      fetched.push(String(url));
+      const body = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+      return { ok: true, blob: async () => ({ type: 'image/svg+xml', arrayBuffer: async () => body.buffer }) };
+    }) as unknown as typeof fetch;
+    try {
+      const before = saved.length;
+      onView['export-svg']!.action();
+      await vi.waitFor(() => expect(saved.length).toBe(before + 1));
+      const exported = saved.at(-1)!;
+      expect(exported.fileName).toBe(`${(app.components.viewManager.getView!(view)!.label || 'view').replace(/[^\w.-]+/g, '-')}.svg`);
+      expect(exported.mediaType).toBe('image/svg+xml');
+      const doc = new DOMParser().parseFromString(exported.content as string, 'image/svg+xml');
+      const hrefs = Array.from(doc.getElementsByTagName('image')).map((image) => image.getAttribute('href') ?? '');
+      expect(hrefs.length).toBeGreaterThan(0);
+      expect(hrefs.filter((href) => !href.startsWith('data:image/svg+xml;base64,'))).toEqual([]);
+      expect(fetched.length).toBeGreaterThan(0);
+      // Each glyph read once, however often it is drawn.
+      expect(new Set(fetched).size).toBe(fetched.length);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
     app.components.relationshipManager.deleteRelationship!(drawn);
     els.deleteElement(other);
 
@@ -862,8 +1747,11 @@ describe('the workbench', () => {
     app.components.viewManager.addElementToView(app.session.activeViewIri!, el, { x: 50, y: 50, width: 120, height: 55 });
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     expect(app.isDirty()).toBe(true);
+    // The tab says which model, marked while it has unsaved changes.
+    expect(document.title).toBe(`• ${app.session.modelLabel()} — la-gram`);
 
     await ui.runCommand({ command: 'save' });
+    expect(document.title).toBe(`${app.session.modelLabel()} — la-gram`);
 
     const file = saved.at(-1)!;
     expect(file.mediaType).toBe('text/turtle');
@@ -879,6 +1767,17 @@ describe('the workbench', () => {
     app.session.openView(other.iri);
     app.session.openView(first);
     expect(app.isDirty()).toBe(false);
+
+    // Renamed: the tab follows (and the rename is a change).
+    const name = app.session.modelLabel();
+    script.answers.push('Payments platform');
+    await ui.runCommand({ command: 'rename-model' });
+    expect(document.title).toBe(modelTitle('Payments platform', app.isDirty()));
+    expect(document.title).toContain('Payments platform — la-gram');
+    script.answers.push(name);
+    await ui.runCommand({ command: 'rename-model' });
+    await ui.runCommand({ command: 'save' });
+    expect(document.title).toBe(`${name} — la-gram`);
   });
 
   it('opens a saved model again: same elements, views and geometry', async () => {
@@ -1121,6 +2020,6 @@ describe('the workbench', () => {
     );
     const label = app.components.store.getQuads(nn(web.iri), nn(NAMESPACES.skos + 'prefLabel'))[0].object as { language?: string };
     expect(label.language).toBe('en');
-    expect(ui.validationPanel.results.some((r) => r.focusNode.value === web.iri)).toBe(false);
+    expect(ui.validationPanel.results.some((r) => r.focusNode.value === web.iri && r.resultPath.value === NAMESPACES.skos + 'prefLabel')).toBe(false);
   });
 });

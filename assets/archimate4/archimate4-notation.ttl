@@ -28,7 +28,7 @@ and relationships. Defines the standard visual appearance (shape, color, icon,
 line style) for each model concept, enabling palette generation and diagram
 rendering from structured metadata.'''@en ;
     dcterms:created               "2026-05-16"^^xsd:date ;
-    dcterms:modified              "2026-10-11"^^xsd:date ;
+    dcterms:modified              "2026-11-07"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/notation/4.0#> ;
@@ -266,15 +266,24 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/grouping.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :Folder ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:borderStyle   arch-vis:DashedLine ;
-        arch-vis:fillColor     "#E5DFD3" ;
+        arch-vis:fillColor     "#FFFFFF" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/grouping.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
+        arch-vis:textAlignment arch-vis:AlignLeft ;
+        arch-vis:textPosition  arch-vis:PositionTop ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :Folder ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:borderStyle   arch-vis:DashedLine ;
     ] ;
 .
 
@@ -339,14 +348,20 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/business-object.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :BandedRectangle ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#FFFFB5" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/object.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :BandedRectangle ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
     ] ;
 .
 
@@ -357,14 +372,20 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/product.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :TabbedRectangle ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#FFFFB5" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/product.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :TabbedRectangle ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
     ] ;
 .
 
@@ -411,14 +432,20 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/data-object.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :BandedRectangle ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#AFFFFF" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/data-object.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :BandedRectangle ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
     ] ;
 .
 
@@ -447,7 +474,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/device.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :Box3D ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -455,6 +482,12 @@ rendering from structured metadata.'''@en ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :Box3D ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
     ] ;
 .
 
@@ -537,7 +570,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/equipment.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :Box3D ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -545,6 +578,12 @@ rendering from structured metadata.'''@en ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :Box3D ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
     ] ;
 .
 
@@ -555,7 +594,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/facility.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :Box3D ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#AFFFAF" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -563,6 +602,12 @@ rendering from structured metadata.'''@en ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :Box3D ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
     ] ;
 .
 
@@ -807,14 +852,20 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/meaning.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :Cloud ;
+        arch-vis:shapeType     arch-vis:Octagon ;
         arch-vis:fillColor     "#CBCBFF" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/meaning.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :Cloud ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
     ] ;
 .
 
@@ -825,14 +876,20 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/value.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     arch-vis:Ellipse ;
+        arch-vis:shapeType     arch-vis:Octagon ;
         arch-vis:fillColor     "#CBCBFF" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/value.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     arch-vis:Ellipse ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
     ] ;
 .
 
@@ -846,7 +903,7 @@ rendering from structured metadata.'''@en ;
         arch-vis:shapeType     arch-vis:RoundedRectangle ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/work-package.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
@@ -861,14 +918,20 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/deliverable.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :WavyRectangle ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
-        arch-vis:renderingMode arch-vis:ShapeOnly ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
         arch-vis:iconSymbol    "https://meta.linked.archi/archimate4/icons/glyphs/deliverable.svg"^^xsd:anyURI ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :WavyRectangle ;
+        arch-vis:renderingMode arch-vis:ShapeOnly ;
     ] ;
 .
 
@@ -879,7 +942,7 @@ rendering from structured metadata.'''@en ;
     arch:prefVisNotation  <https://meta.linked.archi/archimate4/icons/plateau.svg> ;
     arch-vis:defaultStyle [
         a                      arch-vis:Style ;
-        arch-vis:shapeType     :Box3D ;
+        arch-vis:shapeType     arch-vis:Rectangle ;
         arch-vis:fillColor     "#FFE0E0" ;
         arch-vis:lineColor     "#000000" ;
         arch-vis:renderingMode arch-vis:ShapeWithBadge ;
@@ -887,6 +950,12 @@ rendering from structured metadata.'''@en ;
         arch-vis:iconPlacement arch-vis:TopRight ;
         arch-vis:defaultWidth  "120.0"^^xsd:double ;
         arch-vis:defaultHeight "55.0"^^xsd:double ;
+    ] ;
+    # The other figure it may be drawn as.
+    arch-vis:alternativeStyle [
+        a                      arch-vis:Style ;
+        arch-vis:shapeType     :Box3D ;
+        arch-vis:renderingMode arch-vis:ShapeWithBadge ;
     ] ;
 .
 

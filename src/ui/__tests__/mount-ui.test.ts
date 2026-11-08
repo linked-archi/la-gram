@@ -39,7 +39,7 @@ import { ModelOperations } from '../../model-manager/model-operations.js';
 import { TtlFileIO } from '../../import-export/ttl-file-io.js';
 import { EventBus } from '../event-bus.js';
 import { App, type AppComponents } from '../../app.js';
-import { mountUi, DEFAULT_MODEL_IRI, type MountedUi } from '../mount-ui.js';
+import { mountUi, modelTitle, DEFAULT_MODEL_IRI, type MountedUi } from '../mount-ui.js';
 import type { Dialogs } from '../dialogs.js';
 import { RELATIONSHIP_REPLACE_MENU_ID } from '../canvas/rdf-replace-menu-provider.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
@@ -820,5 +820,16 @@ describe('mountUi', () => {
       expect(eventBus.listenerCount('validation-updated')).toBe(0);
       expect(eventBus.listenerCount('metamodel-loaded')).toBe(0);
     });
+  });
+});
+
+describe('the page title with a model open', () => {
+  it("is the model's name and la-gram, marked while it has unsaved changes", () => {
+    expect(modelTitle('Payments platform', false)).toBe('Payments platform — la-gram');
+    expect(modelTitle('Payments platform', true)).toBe('• Payments platform — la-gram');
+  });
+
+  it('names an unnamed model', () => {
+    expect(modelTitle('  ', false)).toBe('Untitled model — la-gram');
   });
 });

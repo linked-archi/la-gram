@@ -1,0 +1,30 @@
+# Ours deletes CRM. Theirs relates Portal to it: a new serving relationship,
+# with its direct triple, its qualified predicate and the triple it reifies.
+# A conflict: the merged model keeps CRM; ours' option deletes CRM and the new
+# relationship with everything pointing at it — Portal stays.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-removed> {
+    m:crm a am4:ApplicationComponent ;
+        skos:prefLabel "CRM"@en ;
+        arch:inModel m:model .
+}
+<urn:theirs-added> {
+    m:serving-crm a am4:Serving ;
+        arch:source m:portal ;
+        arch:target m:crm ;
+        rdf:reifies <<( m:portal am4:serves m:crm )>> ;
+        arch:inModel m:model .
+    m:portal am4:serves m:crm ;
+        arch:hasQualifiedRelationship m:serving-crm .
+}

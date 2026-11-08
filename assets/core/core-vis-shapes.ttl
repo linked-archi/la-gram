@@ -40,19 +40,33 @@ clean. The two load-bearing rules here are ArchNodeShape (a diagram node that cl
 stand for a model element must say which one) and PlacedDiagElementShape (a shape or edge
 must belong to exactly one view); the remainder is cardinality and datatype hygiene.'''@en ;
     dcterms:created               "2026-08-13"^^xsd:date ;
-    dcterms:modified              "2026-11-04"^^xsd:date ;
+    dcterms:modified              "2026-11-07"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.2.0#> ;
-    owl:versionInfo               "0.2.0"@en ;
-    owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.1.0#> ;
-    skos:historyNote              '''0.2.0 — LinkShape accepts a Link as well as a Node at either end of
+    owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.3.0#> ;
+    owl:versionInfo               "0.3.0"@en ;
+    owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.2.0#> ;
+    skos:historyNote              '''0.3.0 — StyleShape checks the style terms core-vis 0.7 adds:
+lineWidth a positive integer, fontStyle the keywords bold, italic and underline, textAlignment,
+textPosition and gradient members of their enumerations, iconColor a single string, image a single
+xsd:anyURI, imagePosition an IconPlacement, labelAnchor a LabelAnchor — and, as a line's own style
+may now say them, lineStyle, sourceDecor and targetDecor members of theirs. A VisualNotation's
+arch-vis:alternativeStyle is a Style. A LabelExpression has one expression, a string, and is for at
+most one presentation context (core's arch:inPresentationContext); whatever arch-vis:labelExpression is
+said of — a Style, a VisualNotation, a presentation context — it points to LabelExpressions. A diagram
+element may have several styles — at most one for every presentation context and one for each — where
+arch-vis:style was at most one; a Style is for at most one presentation context.
+
+0.2.0 — LinkShape accepts a Link as well as a Node at either end of
 a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
 relationship ends on that relationship's edge.'''@en ;
     sh:declare [
         sh:prefix    "arch-vis" ;
         sh:namespace "https://meta.linked.archi/core-vis#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "arch" ;
+        sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ;
     ] ;
     dcterms:source                <https://meta.linked.archi/core-vis#> ;
     prov:wasDerivedFrom           <https://meta.linked.archi/core-vis#> ;
@@ -101,6 +115,18 @@ reasoner should use, not a closed-world check.'''@en ;
 #     arch-vis:target is the Link drawn for that relationship (core-vis
 #     0.6). Point the end at that Link; do not mint a Node for it.
 #
+#  5. Giving a drawing a model concept. A group, a plain shape, a
+#     free-standing note and a line from a note stand for nothing in
+#     the model: a group or a shape is an
+#     arch-vis:ContainerNode, a note an arch-vis:LabelNode no element's
+#     arch-vis:label points at — their text their skos:prefLabel, their
+#     colours their arch-vis:style's — and a line from a note an
+#     arch-vis:Link with no arch-vis:archRelationship. None carries
+#     arch-vis:archElement or arch-vis:archRelationship, and none puts
+#     anything in the view's arch:inView. Do not mint a model element
+#     to give an Exchange file's Container or Label node somewhere to
+#     hang.
+#
 # Bounds are not required. A LabelNode whose position a renderer derives
 # from its owner has no bounds of its own, and a notation is free to
 # leave geometry to the layout engine. Where bounds are present all four
@@ -123,8 +149,8 @@ reasoner should use, not a closed-world check.'''@en ;
         sh:nodeKind sh:IRI ;
         sh:message  '''An ArchNode is the diagram appearance of a model element, so it must
 carry exactly one arch-vis:archElement naming that element by IRI. A diagram node with no
-archElement is either a plain ContainerNode (grouping, pool, lane) or a LabelNode — type it
-as one of those instead.'''@en ;
+archElement is either a ContainerNode (group, pool, lane, plain shape) or a LabelNode (a
+label, a note) — type it as one of those instead.'''@en ;
     ] ;
 .
 
@@ -181,9 +207,23 @@ edges may be labelled — the domain is DiagElement since core-vis 0.3.'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:style ;
-        sh:maxCount 1 ;
         sh:class    arch-vis:Style ;
-        sh:message  "arch-vis:style points to at most one arch-vis:Style."@en ;
+        sh:message  "arch-vis:style points to arch-vis:Styles."@en ;
+    ] ;
+    # At most one style for every presentation context, and one for each context (core-vis 0.7).
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-vis-shapes#> ;
+        sh:message  "{$this} has {?count} styles for {?scope}: at most one for every presentation context, and one for each."@en ;
+        sh:select   """
+            SELECT $this ?scope (COUNT(DISTINCT ?style) AS ?count)
+            WHERE {
+                $this arch-vis:style ?style .
+                OPTIONAL { ?style arch:inPresentationContext ?context }
+                BIND(COALESCE(STR(?context), "every presentation context") AS ?scope)
+            }
+            GROUP BY $this ?scope
+            HAVING (COUNT(DISTINCT ?style) > 1)
+        """ ;
     ] ;
 .
 
@@ -354,10 +394,16 @@ it.'''@en ;
     sh:targetClass arch-vis:Style ;
     rdfs:label     "Style shape"@en ;
     sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A Style is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
+    sh:property [
         sh:path     arch-vis:fillColor ;
         sh:maxCount 1 ;
         sh:datatype xsd:string ;
-        sh:message  "fillColor is a single CSS colour string, e.g. rgba(255,255,181,100)."@en ;
+        sh:message  "fillColor is a single CSS colour string, e.g. #ffffb5 or rgba(255,255,181,0.5)."@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:lineColor ;
@@ -435,6 +481,96 @@ ShapeWithBadge.'''@en ;
         sh:message  '''borderStyle must be a single member of the LineStyle enumeration
 (arch-vis:SolidLine, arch-vis:DashedLine, arch-vis:DottedLine). Absent means solid.'''@en ;
     ] ;
+    sh:property [
+        sh:path     arch-vis:fontStyle ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern  "^(bold|italic|underline)( (bold|italic|underline))*$" ;
+        sh:message  '''fontStyle is a single string of the keywords bold, italic and underline,
+separated by spaces, e.g. "bold italic".'''@en ;
+    ] ;
+    sh:property [
+        sh:path         arch-vis:lineWidth ;
+        sh:maxCount     1 ;
+        sh:datatype     xsd:integer ;
+        sh:minInclusive 1 ;
+        sh:message      "lineWidth is a single positive xsd:integer."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:textAlignment ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:TextAlignment ;
+        sh:message  '''textAlignment must be a single member of the TextAlignment enumeration
+(arch-vis:AlignLeft, AlignCenter, AlignRight).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:textPosition ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:TextPosition ;
+        sh:message  '''textPosition must be a single member of the TextPosition enumeration
+(arch-vis:PositionTop, PositionMiddle, PositionBottom).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:gradient ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:Gradient ;
+        sh:message  '''gradient must be a single member of the Gradient enumeration
+(arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:iconColor ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "iconColor is a single CSS colour string."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:image ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message  "image is a single xsd:anyURI: an http(s) URL, or a data: URI of an image."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:imagePosition ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:IconPlacement ;
+        sh:message  '''imagePosition must be a single member of the IconPlacement enumeration
+(arch-vis:TopLeft, TopCenter, TopRight, MiddleLeft, Center, MiddleRight, BottomLeft, BottomCenter,
+BottomRight, Fill).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:labelAnchor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LabelAnchor ;
+        sh:message  '''labelAnchor must be a single member of the LabelAnchor enumeration
+(arch-vis:AnchorSource, AnchorMiddle, AnchorTarget).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:lineStyle ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LineStyle ;
+        sh:message  '''lineStyle must be a single member of the LineStyle enumeration
+(arch-vis:SolidLine, arch-vis:DashedLine, arch-vis:DottedLine).'''@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:sourceDecor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:Decoration ;
+        sh:message  "sourceDecor must be a single member of the Decoration enumeration (arch-vis:NoDecoration, OpenArrowhead, …)."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:targetDecor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:Decoration ;
+        sh:message  "targetDecor must be a single member of the Decoration enumeration (arch-vis:NoDecoration, OpenArrowhead, …)."@en ;
+    ] ;
 .
 
 
@@ -486,6 +622,19 @@ it.'''@en ;
         sh:maxCount 1 ;
         sh:class    arch-vis:Style ;
         sh:message  "arch-vis:defaultStyle points to at most one arch-vis:Style."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:alternativeStyle ;
+        sh:class    arch-vis:Style ;
+        sh:message  "arch-vis:alternativeStyle points to an arch-vis:Style: another figure the concept may be drawn as."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:labelAnchor ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:class    arch-vis:LabelAnchor ;
+        sh:message  '''labelAnchor must be a single member of the LabelAnchor enumeration
+(arch-vis:AnchorSource, AnchorMiddle, AnchorTarget).'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:nestedEnd ;
@@ -583,5 +732,45 @@ for renderers that cannot draw it.'''@en ;
         sh:maxCount 1 ;
         sh:datatype xsd:string ;
         sh:message  'arch-vis:labelBox is a single "x y width height" string.'@en ;
+    ] ;
+.
+
+
+#################################################################
+# Label expressions (core-vis 0.7)
+#
+# What a label says, as text with placeholders: one expression, a string,
+# and at most one presentation context it is for (core's
+# arch:inPresentationContext). A diagram element's style, a concept's notation
+# and a presentation context may each give label expressions.
+#################################################################
+
+:LabelExpressionShape
+    a              sh:NodeShape ;
+    sh:targetClass arch-vis:LabelExpression ;
+    rdfs:label     "LabelExpression shape"@en ;
+    sh:property [
+        sh:path     arch-vis:expression ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message  "A LabelExpression has exactly one arch-vis:expression, a string: the label's text with its {…} placeholders."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A LabelExpression is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
+.
+
+:LabelExpressionUseShape
+    a                  sh:NodeShape ;
+    sh:targetSubjectsOf arch-vis:labelExpression ;
+    rdfs:label         "Label expression use shape"@en ;
+    sh:property [
+        sh:path     arch-vis:labelExpression ;
+        sh:class    arch-vis:LabelExpression ;
+        sh:message  "labelExpression points to an arch-vis:LabelExpression."@en ;
     ] ;
 .

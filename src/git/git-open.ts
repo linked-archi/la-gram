@@ -58,9 +58,9 @@ const NEEDS_TOKEN = new Set(['auth', 'forbidden', 'not-found', 'rate-limit']);
 
 /**
  * A repository, read with the access it needs: without a token unless one is
- * kept, asking for one once when the host refuses.
+ * kept, asking for one once when the host refuses (the History tab too).
  */
-class Access {
+export class Access {
   private constructor(
     private readonly ctx: GitOpenContext,
     readonly link: RepositoryLink,
@@ -78,12 +78,16 @@ class Access {
     return this.token !== undefined;
   }
 
-  /** Run a read; `null` when the user cancels the token prompt. */
-  async run<T>(read: (provider: GitHostProvider) => Promise<T>): Promise<T | null> {
+  /**
+   * Run a read; `null` when the user cancels the token prompt. Not to `ask`, a
+   * refusal a token may cure is said so, and nothing is asked.
+   */
+  async run<T>(read: (provider: GitHostProvider) => Promise<T>, ask = true): Promise<T | null> {
     try {
       return await read(this.provider);
     } catch (err: unknown) {
       if (!(err instanceof GitError) || this.token !== undefined || !NEEDS_TOKEN.has(err.kind)) throw err;
+      if (!ask) throw new GitError(err.kind, `${err.message} A token may be needed to read it.`, err.status);
       const token = await tokenFor(this.ctx, this.link, 'open');
       if (token === null) return null;
       this.token = token;

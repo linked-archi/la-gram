@@ -24,8 +24,18 @@
     dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
     dcterms:title                      "Linked.Archi ArchiMate 4.0 Element & Metamodel Shapes"@en ;
     dcterms:description                '''SHACL shapes for validating ArchiMate 4.0 element instances and
-metamodel patterns. Adapted from 3.2 shapes for the domain-based structure of 4.0.
-Draft — needs validation against the ArchiMate 4.0 relationship validity matrix.'''@en ;
+the metamodel patterns the relationship tables cannot express: element names, self-loops
+and cycles of composition and aggregation, a part in one whole only, attribute values,
+junctions joining relationships of one type, and deep specialization chains. Which element
+types a relationship may connect is checked by archimate4-relationship-shapes.ttl, generated
+from the specification's relationship tables (Appendix B), and is not repeated here.'''@en ;
+    skos:historyNote              '''2026-11-06: removed the shapes that restated which element types a
+relationship may connect — assignment, access, triggering and flow source and target,
+same-type specialization, motivation elements in triggering and flow. They rejected
+relationships the specification's tables permit — flow and triggering between active
+structure elements, which derivation rules DR 6 and DR 7 give; plateau triggering plateau;
+a component assigned to a data object or a role — and the relationship shapes check those
+types already.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate4-doc/>,
                                   <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html>,
                                   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html>,
@@ -43,7 +53,7 @@ Draft — needs validation against the ArchiMate 4.0 relationship validity matri
                                   <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html>,
                                   <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html> ;
     dcterms:created               "2026-04-19"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/element-shapes/4.0#> ;
@@ -146,29 +156,6 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
     ] ;
 .
 
-## Specialization same-type constraint
-:SpecializationSameTypeShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am4:specializes ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Specialization must connect elements of the same ArchiMate type."@en ;
-        sh:select """
-            SELECT $this ?target WHERE {
-                $this am4:specializes ?target .
-                $this rdf:type ?sourceType .
-                ?target rdf:type ?targetType .
-                ?sourceType rdfs:subClassOf* arch:Element .
-                ?targetType rdfs:subClassOf* arch:Element .
-                FILTER NOT EXISTS {
-                    $this rdf:type ?commonType .
-                    ?target rdf:type ?commonType .
-                    ?commonType rdfs:subClassOf* arch:Element .
-                }
-            }
-        """ ;
-    ] ;
-.
 
 ## Access type — deprecated: the kind of access is the class (am4:ReadAccess, …)
 :AccessTypeShape
@@ -192,37 +179,6 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
         sh:datatype    xsd:string ;
         sh:in          ( "+" "++" "-" "--" ) ;
         sh:message     "influenceStrength must be one of: +, ++, -, --."@en ;
-    ] ;
-.
-
-## Motivation elements — no triggering or flow
-:MotivationNoTriggeringShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am4:triggers ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Motivation elements cannot participate in triggering relationships."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am4:triggers ?target .
-                $this rdf:type/rdfs:subClassOf* am4:MotivationElement .
-            }
-        """ ;
-    ] ;
-.
-
-:MotivationNoFlowShape
-    a sh:NodeShape ;
-    sh:targetSubjectsOf am4:flowsTo ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Motivation elements cannot participate in flow relationships."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am4:flowsTo ?target .
-                $this rdf:type/rdfs:subClassOf* am4:MotivationElement .
-            }
-        """ ;
     ] ;
 .
 
@@ -282,190 +238,6 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
                 ?whole1 am4:composedOf $this .
                 ?whole2 am4:composedOf $this .
                 FILTER(?whole1 != ?whole2)
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# Generic Metamodel — Assignment constraints
-# Source: https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html
-#################################################################
-
-## Assignment source must be an ActiveStructureElement
-:AssignmentSourceConstraint
-    a              sh:NodeShape ;
-    sh:targetSubjectsOf am4:assignedTo ;
-    skos:prefLabel "Assignment Source Constraint"@en ;
-    skos:definition "Assignment can only originate from active structure elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Assignment can only originate from active structure elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am4:assignedTo ?target .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:ActiveStructureElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## Assignment target must be a BehaviorElement
-:AssignmentTargetConstraint
-    a              sh:NodeShape ;
-    sh:targetObjectsOf am4:assignedTo ;
-    skos:prefLabel "Assignment Target Constraint"@en ;
-    skos:definition "Assignment can only target behavior elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Assignment can only target behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am4:assignedTo $this .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# Generic Metamodel — Access constraints
-# Source: https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html
-#################################################################
-
-## Access source must be a BehaviorElement
-:AccessSourceConstraint
-    a              sh:NodeShape ;
-    sh:targetSubjectsOf am4:accesses ;
-    skos:prefLabel "Access Source Constraint"@en ;
-    skos:definition "Access can only originate from behavior elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Access can only originate from behavior elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am4:accesses ?target .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## Access target must be a PassiveStructureElement
-:AccessTargetConstraint
-    a              sh:NodeShape ;
-    sh:targetObjectsOf am4:accesses ;
-    skos:prefLabel "Access Target Constraint"@en ;
-    skos:definition "Access can only target passive structure elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Access can only target passive structure elements."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am4:accesses $this .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:PassiveStructureElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# Generic Metamodel — Triggering constraints
-# Source: https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html
-#################################################################
-
-## Triggering source must be a BehaviorElement (not MotivationElement)
-:TriggeringSourceConstraint
-    a              sh:NodeShape ;
-    sh:targetSubjectsOf am4:triggers ;
-    skos:prefLabel "Triggering Source Constraint"@en ;
-    skos:definition "Triggering can only originate from behavior elements, not motivation elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Triggering can only originate from behavior elements (not motivation elements)."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am4:triggers ?target .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## Triggering target must be a BehaviorElement (not MotivationElement)
-:TriggeringTargetConstraint
-    a              sh:NodeShape ;
-    sh:targetObjectsOf am4:triggers ;
-    skos:prefLabel "Triggering Target Constraint"@en ;
-    skos:definition "Triggering can only target behavior elements, not motivation elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Triggering can only target behavior elements (not motivation elements)."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am4:triggers $this .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-# Generic Metamodel — Flow constraints
-# Source: https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html
-#################################################################
-
-## Flow source must be a BehaviorElement (not MotivationElement)
-:FlowSourceConstraint
-    a              sh:NodeShape ;
-    sh:targetSubjectsOf am4:flowsTo ;
-    skos:prefLabel "Flow Source Constraint"@en ;
-    skos:definition "Flow can only originate from behavior elements, not motivation elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Flow can only originate from behavior elements (not motivation elements)."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                $this am4:flowsTo ?target .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:BehaviorElement .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-## Flow target must be a BehaviorElement (not MotivationElement)
-:FlowTargetConstraint
-    a              sh:NodeShape ;
-    sh:targetObjectsOf am4:flowsTo ;
-    skos:prefLabel "Flow Target Constraint"@en ;
-    skos:definition "Flow can only target behavior elements, not motivation elements."@en ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate4/element-shapes#> ;
-        sh:message "Flow can only target behavior elements (not motivation elements)."@en ;
-        sh:select """
-            SELECT $this WHERE {
-                ?source am4:flowsTo $this .
-                FILTER NOT EXISTS {
-                    $this rdf:type/rdfs:subClassOf* am4:BehaviorElement .
-                }
             }
         """ ;
     ] ;

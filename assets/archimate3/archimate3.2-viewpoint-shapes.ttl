@@ -7,10 +7,7 @@
 @prefix bibo:    <http://purl.org/ontology/bibo/> .
 @prefix vann:    <http://purl.org/vocab/vann/> .
 @prefix cc:      <http://creativecommons.org/ns#> .
-@prefix sh:      <http://www.w3.org/ns/shacl#> .
 
-@prefix arch:    <https://meta.linked.archi/core#> .
-@prefix am:      <https://meta.linked.archi/archimate3/onto#> .
 @prefix :        <https://meta.linked.archi/archimate3/viewpoint-shapes#> .
 
 <https://meta.linked.archi/archimate3/viewpoint-shapes#>
@@ -20,267 +17,43 @@
     cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
     vann:preferredNamespaceUri    "https://meta.linked.archi/archimate3/viewpoint-shapes#" ;
     vann:preferredNamespacePrefix "amvpsh" ;
-    dcterms:title                      "Linked.Archi ArchiMate 3.2 Viewpoint Conformance Shapes"@en ;
-    dcterms:description                '''SHACL shapes for validating that architecture Views conform to
-their declared Viewpoints. These shapes enforce:
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
+    dcterms:title                 "Linked.Archi ArchiMate 3.2 Viewpoint Conformance Shapes"@en ;
+    dcterms:description           '''Viewpoint conformance for ArchiMate 3.2 models. The rules are in the core
+shapes, which this document imports, and it adds none of its own:
 
-1. Element conformance — elements presented in a View, linked by
-   arch:inView, must be instances of types listed in the viewpoint's
-   arch:includesConcept. The same applies to the endpoints of any
-   QualifiedRelationship presented in the View.
-2. View type conformance — a View's rdf:type must match one of the
-   viewpoint's arch:viewType values (Diagram, Catalog, Matrix).
-3. Viewpoint declaration — every View must declare which viewpoint it
-   conforms to via arch:viewConformsToViewpoint.
+1. Viewpoint declaration — every View declares exactly one viewpoint, as an
+   arch:Viewpoint individual rather than a literal.
+2. View type conformance — a View's rdf:type must match one of the viewpoint's
+   arch:viewType values (Diagram, Catalog, Matrix).
+3. Element conformance — elements presented in a View, linked by arch:inView,
+   must be instances of types the viewpoint's arch:includesConcept allows.
+4. Relationship endpoint conformance — the endpoints of a relationship drawn on
+   a View should themselves be in the viewpoint's palette.
+5. Viewpoint completeness — a viewpoint should declare what it admits, the
+   concerns it frames and which kinds of view realise it.
 
-These shapes are data-driven: they read the viewpoint definitions from
-the loaded graph (arch:includesConcept, arch:viewType) rather than
-hardcoding per-viewpoint rules. This means they work for any viewpoint
-— ArchiMate example viewpoints, custom viewpoints, or viewpoints from
-other frameworks — as long as the viewpoint data is loaded.
+They read the viewpoint definitions from the loaded graph rather than naming any
+viewpoint, and use no ArchiMate term, so core states them once for every language:
+ArchiMate example viewpoints, custom viewpoints and other frameworks' alike. A rule
+that only ArchiMate 3.2 viewpoints need would go here.
 
-Shapes use sh:severity sh:Warning by default. Organizations may promote
-specific shapes to sh:Violation based on governance policies. Where a
-shape states its constraints as sh:property, the severity is declared on
-the property shapes as well as the node shape, because SHACL does not
-propagate sh:severity from a node shape to the property shapes nested
-under it.
-
-Usage: load
-  core-shapes.ttl + archimate3.2-viewpoint-shapes.ttl +
-  archimate3.2-viewpoints.ttl + your-model-data.ttl
-'''@en ;
+Usage: load the core shapes with the 3.2 viewpoint catalogue and the model.
+core-onto.ttl and the 3.2 ontology go in the shapes graph and the data: the shapes
+target arch:View and arch:Viewpoint, and their SPARQL walks rdfs:subClassOf* in
+the data.'''@en ;
     dcterms:created               "2022-11-14"^^xsd:date ;
-    dcterms:modified              "2026-09-25"^^xsd:date ;
-    skos:editorialNote '''The element and relationship conformance constraints key on arch:inView
-(core 0.4.0, DD-30). sh:severity is stated on the property shapes of :ViewMustDeclareViewpointShape and
-:ViewpointCompletenessShape, not only on the node shapes: SHACL gives a result the severity of the shape
-carrying the violated constraint. The SPARQL-based shapes state sh:sparql on the node shape, so they take
-its severity.'''@en ;
-    dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
+    skos:historyNote              '''2026-11-06 — the five shapes moved to the core shapes, under the 4.0
+names: archsh:ViewDeclaresViewpointShape (here ViewMustDeclareViewpointShape),
+archsh:ViewTypeConformanceShape, archsh:ViewElementConformanceShape (here
+ElementConformanceShape), archsh:RelationshipEndpointConformanceShape and
+archsh:ViewpointCompletenessShape. The 4.0 viewpoint shapes had the same rules, so a model
+loading both languages had each finding twice.'''@en ;
+    dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate3/viewpoint-shapes/3.2#> ;
     owl:versionInfo               "3.2"@en ;
     rdfs:seeAlso                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Example-Viewpoints.html>,
                                   <https://www.iso.org/standard/74393.html> ;
-    sh:declare [
-        sh:prefix "am" ;
-        sh:namespace "https://meta.linked.archi/archimate3/onto#"^^xsd:anyURI ;
-    ] , [
-        sh:prefix "arch" ;
-        sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ;
-    ] , [
-        sh:prefix "rdf" ;
-        sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ;
-    ] , [
-        sh:prefix "rdfs" ;
-        sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ;
-    ] ;
-    dcterms:creator               "Kalin Maldzhanski"^^xsd:string .
-
-
-#################################################################
-#
-#  1. VIEWPOINT DECLARATION
-#
-#  Every View must declare which Viewpoint it conforms to.
-#
-#  sh:severity is repeated on the property shape. SHACL takes the
-#  severity of a result from the shape that declares the violated
-#  constraint, and a property shape is a shape in its own right — it
-#  does not inherit sh:severity from the enclosing node shape, and
-#  defaults to sh:Violation when it declares none. Without the inner
-#  declaration a view with no viewpoint reported a Violation, against
-#  this file's stated policy of warning by default. The node-level
-#  declaration is kept because it governs any constraint stated
-#  directly on the node shape, sh:sparql among them.
-#
-#################################################################
-
-:ViewMustDeclareViewpointShape
-    a              sh:NodeShape ;
-    sh:targetClass arch:View ;
-    sh:severity    sh:Warning ;
-    sh:property [
-        sh:path     arch:viewConformsToViewpoint ;
-        sh:minCount 1 ;
-        sh:maxCount 1 ;
-        sh:class    arch:Viewpoint ;
-        sh:message  "Every View must declare exactly one arch:viewConformsToViewpoint."@en ;
-        sh:severity sh:Warning ;
-    ] ;
-.
-
-
-#################################################################
-#
-#  2. VIEW TYPE CONFORMANCE
-#
-#  A View's rdf:type must be compatible with the viewpoint's
-#  arch:viewType. For example, if a viewpoint declares
-#  arch:viewType arch:Diagram, then Views conforming to it
-#  must be typed as arch:Diagram (or a subclass).
-#
-#################################################################
-
-:ViewTypeConformanceShape
-    a              sh:NodeShape ;
-    sh:targetClass arch:View ;
-    sh:severity    sh:Warning ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/viewpoint-shapes#> ;
-        sh:message  "View type {?viewType} does not match any arch:viewType declared by viewpoint {?vp}."@en ;
-        sh:select """
-            SELECT $this ?vp ?viewType
-            WHERE {
-                $this arch:viewConformsToViewpoint ?vp .
-                $this rdf:type ?viewType .
-                ?viewType rdfs:subClassOf* arch:View .
-                FILTER(?viewType != arch:View)
-                FILTER NOT EXISTS {
-                    ?vp arch:viewType ?allowedType .
-                    ?viewType rdfs:subClassOf* ?allowedType .
-                }
-                FILTER EXISTS {
-                    ?vp arch:viewType ?anyType .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-#
-#  3. ELEMENT CONFORMANCE
-#
-#  Elements presented in a View (via arch:inView) must be
-#  instances of types listed in the viewpoint's
-#  arch:includesConcept. This is the core viewpoint conformance
-#  check — it ensures that a View only contains elements that
-#  the viewpoint allows.
-#
-#  Keyed on arch:inView, not on the arch-vis: node layer. A
-#  conformance rule that read the visual graph would report
-#  nothing for a model converted with --views-profile no-views,
-#  or for a notation that supplies no geometry. See DD-30.
-#
-#  The shape walks rdf:type/rdfs:subClassOf* to handle the
-#  abstract class hierarchy (e.g., BusinessProcess is-a
-#  BehaviorElement is-a Element).
-#
-#################################################################
-
-:ElementConformanceShape
-    a              sh:NodeShape ;
-    sh:targetClass arch:View ;
-    sh:severity    sh:Warning ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/viewpoint-shapes#> ;
-        sh:message  "Element {?element} of type {?elemType} is not allowed in viewpoint {?vp} (not in arch:includesConcept)."@en ;
-        sh:select """
-            SELECT $this ?vp ?element ?elemType
-            WHERE {
-                $this arch:viewConformsToViewpoint ?vp .
-                ?element arch:inView $this .
-                ?element rdf:type ?elemType .
-                ?elemType rdfs:subClassOf* arch:Element .
-                FILTER(?elemType != arch:Element)
-
-                # The viewpoint must have at least one includesConcept
-                FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
-
-                # The element's type (or any of its superclasses) must match
-                FILTER NOT EXISTS {
-                    ?element rdf:type/rdfs:subClassOf* ?allowedType .
-                    ?vp arch:includesConcept ?allowedType .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-#
-#  4. RELATIONSHIP CONFORMANCE
-#
-#  Qualified relationships exposed in a View should connect
-#  elements that are themselves allowed in the viewpoint.
-#  A relationship whose source or target is not in the
-#  viewpoint's includesConcept palette is suspicious.
-#
-#################################################################
-
-:RelationshipEndpointConformanceShape
-    a              sh:NodeShape ;
-    sh:targetClass arch:View ;
-    sh:severity    sh:Info ;
-    sh:sparql [
-        sh:prefixes <https://meta.linked.archi/archimate3/viewpoint-shapes#> ;
-        sh:message  "Relationship {?rel} in view has endpoint {?endpoint} of type {?endpointType} not in viewpoint {?vp} palette."@en ;
-        sh:select """
-            SELECT $this ?vp ?rel ?endpoint ?endpointType
-            WHERE {
-                $this arch:viewConformsToViewpoint ?vp .
-                ?rel arch:inView $this .
-                ?rel a/rdfs:subClassOf* arch:QualifiedRelationship .
-
-                # Check both source and target
-                { ?rel arch:source ?endpoint . }
-                UNION
-                { ?rel arch:target ?endpoint . }
-
-                ?endpoint rdf:type ?endpointType .
-                ?endpointType rdfs:subClassOf* arch:Element .
-                FILTER(?endpointType != arch:Element)
-
-                FILTER EXISTS { ?vp arch:includesConcept ?anyConcept . }
-
-                FILTER NOT EXISTS {
-                    ?endpoint rdf:type/rdfs:subClassOf* ?allowedType .
-                    ?vp arch:includesConcept ?allowedType .
-                }
-            }
-        """ ;
-    ] ;
-.
-
-
-#################################################################
-#
-#  5. VIEWPOINT COMPLETENESS
-#
-#  A viewpoint should have at least one includesConcept,
-#  at least one targetsStakeholder, and at least one
-#  viewpointFramesConcern. These are not hard errors but
-#  indicate an incomplete viewpoint definition.
-#
-#  Each property shape repeats sh:severity sh:Info, for the reason
-#  given on :ViewMustDeclareViewpointShape above.
-#
-#################################################################
-
-:ViewpointCompletenessShape
-    a              sh:NodeShape ;
-    sh:targetClass arch:Viewpoint ;
-    sh:severity    sh:Info ;
-    sh:property [
-        sh:path     arch:includesConcept ;
-        sh:minCount 1 ;
-        sh:message  "Viewpoint should declare at least one arch:includesConcept."@en ;
-        sh:severity sh:Info ;
-    ] ;
-    sh:property [
-        sh:path     arch:viewpointFramesConcern ;
-        sh:minCount 1 ;
-        sh:message  "Viewpoint should declare at least one arch:viewpointFramesConcern."@en ;
-        sh:severity sh:Info ;
-    ] ;
-    sh:property [
-        sh:path     arch:viewType ;
-        sh:minCount 1 ;
-        sh:message  "Viewpoint should declare at least one arch:viewType."@en ;
-        sh:severity sh:Info ;
-    ] ;
 .

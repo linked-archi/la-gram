@@ -235,6 +235,137 @@ describe('GitLab', () => {
   });
 });
 
+describe('merging (the Git collaboration plan)', () => {
+  it('GitHub: the merge base of two commits, by the compare API', async () => {
+    const host = fakeHost([{ method: 'GET', url: `${GH}/compare/aaa111...bbb222`, body: { merge_base_commit: { sha: 'base000' } } }]);
+    expect(await new GitHubProvider(github, TOKEN, host.fetch).mergeBase('aaa111', 'bbb222')).toBe('base000');
+  });
+
+  it('GitHub: a merge commit — the head’s tree, a blob, a tree, a commit with both parents, the branch moved without force', async () => {
+    const host = fakeHost([
+      { method: 'GET', url: `${GH}/git/commits/head111`, body: { tree: { sha: 'tree0' } } },
+      { method: 'POST', url: `${GH}/git/blobs`, status: 201, body: { sha: 'blob9' } },
+      { method: 'POST', url: `${GH}/git/trees`, status: 201, body: { sha: 'tree9' } },
+      { method: 'POST', url: `${GH}/git/commits`, status: 201, body: { sha: 'merge9', html_url: 'https://github.com/acme/arch/commit/merge9' } },
+      { method: 'PATCH', url: `${GH}/git/refs/heads/la-gram/feature`, body: { object: { sha: 'merge9' } } },
+    ]);
+    const result = await new GitHubProvider(github, TOKEN, host.fetch).commitMerge({
+      branch: 'la-gram/feature',
+      head: 'head111',
+      mergeOf: 'main222',
+      path: 'models/shop.ttl',
+      text: TEXT,
+      message: 'Merge main into la-gram/feature',
+    });
+    expect(result).toEqual({ version: 'blob9', commit: 'merge9', branch: 'la-gram/feature', webUrl: 'https://github.com/acme/arch/commit/merge9' });
+    const bodies = host.calls.map((c) => c.body);
+    expect(fromBase64(String(bodies[1]?.['content']))).toBe(TEXT);
+    expect(bodies[2]).toEqual({ base_tree: 'tree0', tree: [{ path: 'models/shop.ttl', mode: '100644', type: 'blob', sha: 'blob9' }] });
+    expect(bodies[3]).toEqual({ message: 'Merge main into la-gram/feature', tree: 'tree9', parents: ['head111', 'main222'] });
+    expect(bodies[4]).toEqual({ sha: 'merge9', force: false });
+    expect(host.calls.every((c) => c.headers['Authorization'] === `Bearer ${TOKEN}`)).toBe(true);
+  });
+
+  it('GitHub: the branch moved on meanwhile — not a fast-forward — is a conflict', async () => {
+    const host = fakeHost([
+      { method: 'GET', url: `${GH}/git/commits/head111`, body: { tree: { sha: 'tree0' } } },
+      { method: 'POST', url: `${GH}/git/blobs`, status: 201, body: { sha: 'blob9' } },
+      { method: 'POST', url: `${GH}/git/trees`, status: 201, body: { sha: 'tree9' } },
+      { method: 'POST', url: `${GH}/git/commits`, status: 201, body: { sha: 'merge9', html_url: 'x' } },
+      { method: 'PATCH', url: `${GH}/git/refs/heads/main`, status: 422, body: { message: 'Update is not a fast forward' } },
+    ]);
+    const err = await failure(
+      new GitHubProvider(github, TOKEN, host.fetch).commitMerge({ branch: 'main', head: 'head111', mergeOf: 'x', path: 'models/shop.ttl', text: TEXT, message: 'm' }),
+    );
+    expect(err.kind).toBe('conflict');
+  });
+
+  it('GitLab: the merge base of two commits; no merge commit', async () => {
+    const host = fakeHost([{ method: 'GET', url: `${GL}/repository/merge_base?refs%5B%5D=aaa111&refs%5B%5D=bbb222`, body: { id: 'base000' } }]);
+    const provider = new GitLabProvider(gitlab, TOKEN, host.fetch);
+    expect(await provider.mergeBase('aaa111', 'bbb222')).toBe('base000');
+    expect(provider.commitMerge).toBeUndefined();
+  });
+});
+
+describe('review (the Git collaboration plan, Phase 2)', () => {
+  const ghCommit = (sha: string, parent: string) => ({
+    sha,
+    html_url: `https://github.com/acme/arch/commit/${sha}`,
+    parents: [{ sha: parent }],
+    commit: { message: `Change ${sha}\n\nMore words.`, author: { name: 'Ada', date: '2026-11-05T10:00:00Z' }, committer: { date: '2026-11-05T10:05:00Z' } },
+    author: { login: 'ada' },
+  });
+
+  it('GitHub: a file’s commits on a branch, a page at a time — newest first, with parents, author, date and link', async () => {
+    const full = Array.from({ length: 100 }, (_, i) => ghCommit(`c${i}`, `c${i + 1}`));
+    const host = fakeHost([
+      { method: 'GET', url: `${GH}/commits?sha=la-gram%2Ffeature&path=models%2Fshop.ttl&per_page=100&page=1`, body: full },
+      { method: 'GET', url: `${GH}/commits?sha=la-gram%2Ffeature&path=models%2Fshop.ttl&per_page=100&page=2`, body: [ghCommit('c100', 'root')] },
+    ]);
+    const provider = new GitHubProvider(github, TOKEN, host.fetch);
+    const first = await provider.fileCommits('la-gram/feature', 'models/shop.ttl');
+    expect(first.more).toBe(true);
+    expect(first.commits[0]).toEqual({
+      commit: 'c0',
+      parents: ['c1'],
+      author: 'Ada',
+      date: '2026-11-05T10:00:00Z',
+      message: 'Change c0\n\nMore words.',
+      webUrl: 'https://github.com/acme/arch/commit/c0',
+    });
+    const second = await provider.fileCommits('la-gram/feature', 'models/shop.ttl', 2);
+    expect([second.commits.map((c) => c.commit), second.more]).toEqual([['c100'], false]);
+  });
+
+  it('GitHub: the open pull request from a branch, by owner:branch; none is undefined', async () => {
+    const pull = { number: 7, title: 'Shop', html_url: 'https://github.com/acme/arch/pull/7', head: { ref: 'la-gram/shop' }, base: { ref: 'main' } };
+    const host = fakeHost([
+      { method: 'GET', url: `${GH}/pulls?state=open&head=acme%3Ala-gram%2Fshop&base=main`, body: [pull] },
+      { method: 'GET', url: `${GH}/pulls?state=open&head=acme%3Aother&base=main`, body: [] },
+    ]);
+    const provider = new GitHubProvider(github, TOKEN, host.fetch);
+    expect(await provider.findMergeRequest('la-gram/shop', 'main')).toEqual({
+      number: 7, title: 'Shop', webUrl: 'https://github.com/acme/arch/pull/7', source: 'la-gram/shop', target: 'main',
+    });
+    expect(await provider.findMergeRequest('other', 'main')).toBeUndefined();
+  });
+
+  it('GitHub: opens a pull request — title, head, base and body', async () => {
+    const host = fakeHost([
+      {
+        method: 'POST', url: `${GH}/pulls`, status: 201,
+        body: { number: 8, title: 'Shop', html_url: 'https://github.com/acme/arch/pull/8', head: { ref: 'la-gram/shop' }, base: { ref: 'main' } },
+      },
+    ]);
+    const opened = await new GitHubProvider(github, TOKEN, host.fetch).openMergeRequest({ source: 'la-gram/shop', target: 'main', title: 'Shop', description: '**2** changed' });
+    expect(opened).toEqual({ number: 8, title: 'Shop', webUrl: 'https://github.com/acme/arch/pull/8', source: 'la-gram/shop', target: 'main' });
+    expect(host.calls[0]?.body).toEqual({ title: 'Shop', head: 'la-gram/shop', base: 'main', body: '**2** changed' });
+    expect(host.calls[0]?.headers['Authorization']).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('GitLab: a file’s commits, the open merge request, and opening one', async () => {
+    const mr = { iid: 3, title: 'Shop', web_url: 'https://gitlab.com/acme/platform/arch/-/merge_requests/3', source_branch: 'la-gram/shop', target_branch: 'main' };
+    const host = fakeHost([
+      {
+        method: 'GET', url: `${GL}/repository/commits?ref_name=main&path=models%2Fshop.ttl&per_page=100&page=1`,
+        body: [{ id: 'g1', parent_ids: ['g0'], message: 'Change g1\n', title: 'Change g1', author_name: 'Grace', authored_date: '2026-11-05T11:00:00.000+01:00', web_url: 'https://gitlab.com/acme/platform/arch/-/commit/g1' }],
+      },
+      { method: 'GET', url: `${GL}/merge_requests?state=opened&source_branch=la-gram%2Fshop&target_branch=main`, body: [mr] },
+      { method: 'POST', url: `${GL}/merge_requests`, status: 201, body: mr },
+    ]);
+    const provider = new GitLabProvider(gitlab, TOKEN, host.fetch);
+    expect(await provider.fileCommits('main', 'models/shop.ttl')).toEqual({
+      commits: [{ commit: 'g1', parents: ['g0'], author: 'Grace', date: '2026-11-05T11:00:00.000+01:00', message: 'Change g1\n', webUrl: 'https://gitlab.com/acme/platform/arch/-/commit/g1' }],
+      more: false,
+    });
+    const found = { number: 3, title: 'Shop', webUrl: mr.web_url, source: 'la-gram/shop', target: 'main' };
+    expect(await provider.findMergeRequest('la-gram/shop', 'main')).toEqual(found);
+    expect(await provider.openMergeRequest({ source: 'la-gram/shop', target: 'main', title: 'Shop', description: 'd' })).toEqual(found);
+    expect(host.calls.at(-1)?.body).toEqual({ source_branch: 'la-gram/shop', target_branch: 'main', title: 'Shop', description: 'd' });
+  });
+});
+
 describe('failures, in words, and never with the token', () => {
   const ask = (status: number, text: string, headers: Record<string, string> = {}) =>
     failure(new GitHubProvider(github, TOKEN, fakeHost([{ method: 'GET', url: GH, status, text, headers }]).fetch).defaultBranch());

@@ -34,9 +34,15 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
 import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
-import type { HistoryCommitDetail, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
+import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { contextNameChange, contextNameOf } from '../model-manager/context-names.js';
+import { pictureChange, pictureOf } from '../model-manager/element-pictures.js';
+import type { AppearanceChanges } from '../model-manager/appearance.js';
+import { contextChoices } from './presentation-contexts.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
+import { notationOnly, rememberNotationOnly } from './notation-only.js';
+import { figureBarOpen, rememberFigureBarOpen } from './figure-bar.js';
 import {
   KIND_FOLDER_NAMES,
   applyFolderChange,
@@ -53,7 +59,7 @@ import {
   type FolderKind,
 } from '../model-manager/folders.js';
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
-import { localName as localNameOf } from '../model-manager/vocabulary.js';
+import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
 import {
   listQuestions,
   offeredQuestions,
@@ -65,9 +71,10 @@ import { PropertyCatalog, curieOf } from '../model-manager/property-catalog.js';
 import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
-import { exportPng, exportSvg } from '../import-export/svg-png-exporter.js';
+import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
+import { aboutBlocks, BUILD, isMacPlatform, runtimeOf, shortcutBlocks, versionText, type AboutContext } from './help.js';
 import type { ModelEventHandler } from './event-bus.js';
-import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
+import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
 import { CATALOGUE_KIND_LABELS } from '../metamodel-manager/catalogue.js';
 
@@ -97,12 +104,17 @@ import type {
   PaletteHoverDetail,
   PaletteAxisChangeDetail,
 } from './panels/palette-panel.js';
-import type { CanvasToolbar, ToolbarToolDetail } from './panels/canvas-toolbar.js';
+import type { CanvasToolbar, ToolbarFigureDetail, ToolbarToolDetail } from './panels/canvas-toolbar.js';
 import type {
   PropertyPanel,
   PropertyEditDetail,
   PropertyChangeDetail,
   PropertyAnalysis,
+  PropertyHeading,
+  AppearanceChangeDetail,
+  ContextNameChangeDetail,
+  ContextPictureChangeDetail,
+  LabelExpressionChangeDetail,
 } from './panels/property-panel.js';
 import type {
   ModelExplorer,
@@ -111,7 +123,7 @@ import type {
   ExplorerDragDetail,
   ExplorerMoveDetail,
 } from './panels/model-explorer.js';
-import type { ValidationPanel, ValidationNavigateDetail } from './panels/validation-panel.js';
+import type { ValidationPanel, ValidationNavigateDetail, FocusDescription } from './panels/validation-panel.js';
 import type { SparqlEditor } from './panels/sparql-editor.js';
 import type { TypeGuidePanel } from './panels/type-guide-panel.js';
 import type { CatalogView, CatalogSelectDetail } from './views/catalog-view.js';
@@ -123,7 +135,7 @@ import { layoutPositions } from './panels/graph-view.js';
 import { mostSpecificType, relationshipGraph } from '../model-manager/relationship-graph.js';
 import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
-import { assetUrl } from '../metamodel-manager/bundled-assets.js';
+import { ASSETS_VERSION, assetUrl } from '../metamodel-manager/bundled-assets.js';
 import { iconHref, NOTATION_DEFAULTS, withRelationshipIcons } from './canvas/notation-shapes.js';
 import { NotationStyleRegistry } from './canvas/notation-styles.js';
 
@@ -151,6 +163,11 @@ const KIND_PLURALS: Record<FolderKind, string> = { view: 'views', element: 'elem
 
 /** CSS marker on shapes with SHACL violations. */
 export const VIOLATION_MARKER = 'la-violation';
+
+/** The page's title with a model open: its name, marked "•" while it has unsaved changes. */
+export function modelTitle(modelName: string, dirty: boolean): string {
+  return `${dirty ? '• ' : ''}${modelName.trim() || 'Untitled model'} — la-gram`;
+}
 
 /** Empty palette used until a metamodel is loaded. */
 function emptyPalette(): PaletteDefinition {
@@ -234,10 +251,36 @@ export interface MountedUi {
   setModuleSwitches(list: () => ModuleSwitch[], toggle: (id: string, on: boolean) => Promise<void>): void;
   /** A part's own section of File › Settings…. Returns what takes it away. */
   addSettingsSection(section: SettingsSection): () => void;
+  /**
+   * A module's tab in the bottom panel, after la-gram's own: `element` is shown
+   * in it. Returns what shows it, sets its badge, and takes it away.
+   */
+  addBottomTab(tab: { id: string; label: string; element: HTMLElement }): BottomTabHandle;
+  /** A concept as the model tree and the Validation tab name it: its name, its type in words. */
+  describeConcept(iri: string): FocusDescription;
+  /** A property as the Properties tab names it (`Name`, `Documentation`). */
+  propertyName(predicate: string): string;
+  /** A class as the palette and the model tree name it (`Application Component`). */
+  typeName(iri: string): string;
+  /**
+   * The bound file's Git history for the History tab (Task 21): `source` gives
+   * it for a model, `undefined` for one not bound. Returns what takes it away.
+   */
+  setGitHistory(source: (modelIri: string) => HistoryGitSource | undefined): () => void;
   /** Refresh every panel from the store. */
   refresh(): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
+}
+
+/** A module's tab of the bottom panel ({@link MountedUi.addBottomTab}). */
+export interface BottomTabHandle {
+  /** Open it, unfolding the panel. */
+  show(): void;
+  /** A small count on it; none for `undefined`. */
+  setBadge(text: string | undefined): void;
+  /** Take it away (another tab opens if it was open). */
+  remove(): void;
 }
 
 /** A part's section of File › Settings… ({@link MountedUi.addSettingsSection}, Req 19.5). */
@@ -312,9 +355,10 @@ function defaultSaveFile(content: string | Blob, fileName: string, mediaType: st
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Most specific type of a resource: the one whose closure is largest. */
+/** Most specific type of a resource: the one whose closure is largest, never the core's generic relationship types. */
 function mainType(types: string[], closure: TypeClosure): string | undefined {
-  const specific = types.filter((t) => t !== NAMESPACES.arch + 'QualifiedRelationship');
+  const generic = new Set([NAMESPACES.arch + 'QualifiedRelationship', NAMESPACES.arch + 'ModelConcept']);
+  const specific = types.filter((t) => !generic.has(t));
   return [...(specific.length > 0 ? specific : types)].sort((a, b) => closure(b).length - closure(a).length)[0];
 }
 
@@ -323,6 +367,8 @@ function mainType(types: string[], closure: TypeClosure): string | undefined {
  * `<app-shell>` under `root`.
  */
 export function mountUi(app: App, root: HTMLElement, options: MountOptions = {}): MountedUi {
+  /** The page's own title (index.html's), put back when the UI is taken down. */
+  const pageTitle = globalThis.document?.title ?? '';
   const {
     eventBus,
     store,
@@ -498,6 +544,37 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     onNotice: (message, level) => dialogs.toast(message, level),
   });
 
+  // What label expressions read (core-vis 0.7's arch-vis:labelExpression): the model's
+  // statements, names, type names, and the prefixes the vocabularies in use declare —
+  // worked out again only when the model or the metamodels change, not for every label.
+  let labelPrefixes: ReturnType<typeof app.modelIO.collectPrefixes> | undefined;
+  const forgetLabelPrefixes = (): void => {
+    labelPrefixes = undefined;
+  };
+  diagramCanvas.labelSource = {
+    values: (subject, predicate) =>
+      statementsOf(store, namedNode(subject) as unknown as NamedNode, namedNode(predicate) as unknown as NamedNode).map((q) =>
+        q.object.termType === 'Literal'
+          ? { literal: q.object.value, ...((q.object as { language?: string }).language ? { language: (q.object as { language: string }).language } : {}) }
+          : { iri: q.object.value },
+      ),
+    subjectsOf: (object, predicate) =>
+      store.getQuads(null, namedNode(predicate) as never, namedNode(object) as never).map((q) => q.subject.value),
+    // A resource's name for the presentation context chosen (a SKOS-XL name), else its own.
+    nameOf: (iri) => contextNameOf(store, iri, app.activePresentationContext()) ?? (hasLabel(store, iri) ? labelOf(store, iri) : undefined),
+    nameForContext: (iri) => contextNameOf(store, iri, app.activePresentationContext()),
+    pictureFor: (iri) => pictureOf(store, iri, app.activePresentationContext()),
+    typeOf: (iri) => {
+      const typeIri = describe(iri)?.typeIri;
+      return typeIri ? labelOf(store, typeIri) : undefined;
+    },
+    get prefixes() {
+      return (labelPrefixes ??= app.modelIO.collectPrefixes(session.modelIri));
+    },
+  };
+  eventBus.on('model-changed', forgetLabelPrefixes);
+  eventBus.on('metamodel-loaded', forgetLabelPrefixes);
+
   // ── Bottom, "Validation" and "SPARQL Query" tabs ─────────────────────
   const validationPanel = document.createElement('validation-panel');
   validationPanel.slot = 'validation';
@@ -600,11 +677,27 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   modelExplorer.contentsProvider = modelContents;
   modelExplorer.placedProvider = placedInView;
+  // An element's own picture for the presentation chosen, as its row's icon (core 0.5.0).
+  modelExplorer.pictureProvider = (iri) => pictureOf(store, iri, app.activePresentationContext());
   modelExplorer.eventBus = eventBus;
   modelExplorer.activeViewIri = session.activeViewIri;
 
   // ── Selection routing ────────────────────────────────────────────────
+  /** A figure — a group, a shape, a note — in the open view: drawing, with no model element behind it. */
+  const figureOf = (iri: string) => {
+    const viewIri = session.activeViewIri;
+    return viewIri ? viewManager.getNode?.(viewIri, iri)?.figure : undefined;
+  };
+
+  /** A line drawn from a figure, in the open view: the link standing for no relationship. */
+  const connectorOf = (iri: string) => {
+    const viewIri = session.activeViewIri;
+    return viewIri ? viewManager.getLinks(viewIri).find((link) => link.linkIri === iri && link.connector) : undefined;
+  };
+
   const analysisFor = (iri: string): PropertyAnalysis | undefined => {
+    // A figure, or a line drawn from one, relates to nothing and appears in its one view.
+    if (figureOf(iri) || connectorOf(iri)) return undefined;
     const info = describe(iri);
     if (!info) return undefined;
     const views = (typeof viewManager.viewsContaining === 'function' ? viewManager.viewsContaining(iri) : []).map((v) => ({
@@ -638,7 +731,31 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     return { relationships, views };
   };
 
-  const headingFor = (iri: string) => {
+  const headingFor = (iri: string): PropertyHeading => {
+    // A line drawn from a figure: what it joins.
+    const connector = connectorOf(iri);
+    if (connector) {
+      const endName = (nodeIri: string, conceptIri: string): string => {
+        const figure = figureOf(nodeIri);
+        if (figure) return figure.text || (figure.kind === 'group' ? 'a group' : figure.kind === 'note' ? 'a note' : 'a shape');
+        return labelOf(store, conceptIri) || localNameOf(conceptIri);
+      };
+      return {
+        kind: 'Line',
+        line: { from: endName(connector.sourceNodeIri, connector.sourceElementIri), to: endName(connector.targetNodeIri, connector.targetElementIri) },
+      };
+    }
+    // A figure says what it is — no type to change, no model element.
+    const figure = figureOf(iri);
+    if (figure) {
+      const kind = figure.kind === 'group' ? 'Group' : figure.kind === 'note' ? 'Note' : 'Shape';
+      const { kind: figureKind, fillColor, lineColor, fontColor } = figure;
+      return {
+        kind,
+        ...(figure.kind === 'shape' && figure.shapeType ? { typeLabel: humanize(localNameOf(figure.shapeType)) } : {}),
+        figure: { kind: figureKind, ...(fillColor ? { fillColor } : {}), ...(lineColor ? { lineColor } : {}), ...(fontColor ? { fontColor } : {}) },
+      };
+    }
     const types = statementsOf(store, namedNode(iri) as unknown as NamedNode, namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode).map((q) => q.object.value);
     const typeIri = mainType(types, closure);
     const all = new Set(types.flatMap((t) => closure(t)));
@@ -693,11 +810,25 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
    *   selected on the canvas: neither revealed in the tree nor taking the
    *   type guide from a palette pick.
    */
+  /**
+   * The scope of the Appearance, Figure and Image tabs: the look for the
+   * presentation chosen, or for every one — `undefined` for the default, which
+   * the canvas works out. Chosen with the panel's scope bar; forgotten when the
+   * selection or the presentation changes.
+   */
+  let lookScope: 'context' | 'every' | undefined;
+  /** The look of what is selected on the canvas, in that scope. */
+  const selectedLook = () => diagramCanvas.selectedAppearance(lookScope);
+
   const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean; fromGraph?: boolean; theView?: boolean } = {}): void => {
     if (selecting) return;
     selecting = true;
     try {
       propertyPanel.selectedIri = iri ?? '';
+      // Its look in the view, for what is selected on the canvas — not a concept picked in the tree.
+      // Another selection: the tabs' scope back to its default.
+      lookScope = undefined;
+      propertyPanel.appearance = iri && options.fromCanvas && !options.theView ? selectedLook() : undefined;
       propertyPanel.heading = iri ? headingFor(iri) : undefined;
       propertyPanel.analysis = iri ? analysisFor(iri) : undefined;
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -782,9 +913,43 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   propertyPanel.addEventListener('property-retype', onPropertyRetype);
 
+  // ── Export the open diagram (File menu, the canvas's right-click menu) ─
+  /**
+   * Saves the open diagram as an SVG or a PNG file named after the view, with
+   * its pictures in the file (Req 14.2): a PNG is drawn from an SVG, which
+   * loads nothing from outside itself, and an SVG file is opened away from the
+   * app. A picture that cannot be read is reported — linked still in an SVG,
+   * left out of a PNG.
+   */
+  const exportView = async (format: 'svg' | 'png'): Promise<void> => {
+    if (activeKind !== 'diagram') {
+      dialogs.toast('Open a diagram view to export it.', 'warning');
+      return;
+    }
+    const name = (viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-');
+    const { svg, missing } = await inlineImages(exportSvg(diagramCanvas.toSvg()), { dropMissing: format === 'png' });
+    if (format === 'svg') {
+      await saveFile(svg, `${name}.svg`, 'image/svg+xml');
+    } else {
+      // Twice its size: sharp on a high-density screen, in a document or a slide.
+      await saveFile(await exportPng(svg, undefined, undefined, 2), `${name}.png`, 'image/png');
+    }
+    if (missing.length > 0) {
+      const [what, it] = missing.length === 1 ? ['a picture', 'it'] : [`${missing.length} pictures`, 'them'];
+      const instead = format === 'svg' ? `the SVG links to ${it} instead` : `the PNG leaves ${it} out`;
+      dialogs.toast(`Could not read ${what} to put in the file, so ${instead}: ${missing.join(', ')}`, 'warning');
+    }
+  };
+
   // ── The canvas's right-click menu: what the rest of the app does ─────
   const onCanvasContextAction = (action: CanvasContextAction, iri: string): void => {
     switch (action) {
+      case 'export-svg':
+      case 'export-png':
+        void exportView(action === 'export-svg' ? 'svg' : 'png').catch((error: unknown) =>
+          dialogs.toast(`Export failed: ${error instanceof Error ? error.message : String(error)}`, 'error'),
+        );
+        return;
       case 'properties':
         selectConcept(iri, { fromCanvas: true });
         shell.showTab('properties');
@@ -1251,6 +1416,129 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   canvasToolbar.addEventListener('relationship-names', onRelationshipNames);
 
+  // The notation alone, without the look set in the view: off unless switched on, remembered per browser.
+  const showNotationOnly = (on: boolean): void => {
+    canvasToolbar.notationOnly = on;
+    // The Appearance tab says so: what is set there is not drawn meanwhile.
+    propertyPanel.notationOnly = on;
+    diagramCanvas.setNotationOnly(on);
+  };
+  showNotationOnly(notationOnly());
+  const onNotationOnly = (event: Event): void => {
+    const on = (event as CustomEvent<{ on: boolean }>).detail?.on === true;
+    rememberNotationOnly(on);
+    showNotationOnly(on);
+  };
+  canvasToolbar.addEventListener('notation-only', onNotationOnly);
+
+  // The format painter, from the toolbar's button; its state shown on the button.
+  const onFormatPainter = (): void => diagramCanvas.toggleFormatPainter();
+  canvasToolbar.addEventListener('format-painter', onFormatPainter);
+  const onFormatPainterChanged: ModelEventHandler = (event) => {
+    canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
+  };
+  eventBus.on('format-painter-changed', onFormatPainterChanged);
+  propertyPanel.addEventListener('notation-only', onNotationOnly);
+
+  // Figures — groups, notes, shapes — from the toolbar's second row: open or closed, remembered per browser.
+  canvasToolbar.figuresOpen = figureBarOpen();
+  const onFiguresOpen = (event: Event): void => {
+    const open = (event as CustomEvent<{ open: boolean }>).detail?.open === true;
+    rememberFigureBarOpen(open);
+    canvasToolbar.figuresOpen = open;
+  };
+  canvasToolbar.addEventListener('figures-open', onFiguresOpen);
+  const onFigureDragStart = (event: Event): void => {
+    const detail = (event as CustomEvent<ToolbarFigureDetail>).detail;
+    if (!detail) return;
+    diagramCanvas.startCreateFigure(detail.kind, detail.shapeType, detail.sourceEvent);
+  };
+  canvasToolbar.addEventListener('figure-drag-start', onFigureDragStart);
+
+  // The look of what is selected on the canvas, from the Appearance tab: one undoable step for every one of them.
+  const onAppearanceChange = (event: Event): void => {
+    const detail = (event as CustomEvent<AppearanceChangeDetail>).detail;
+    const changes = detail?.changes;
+    const viewIri = session.activeViewIri;
+    const targets = propertyPanel.appearance?.targets ?? [];
+    if (!changes || !viewIri || targets.length === 0 || !viewManager.setAppearance) return;
+    // For one presentation context — its style for it (core-vis 0.7) — or for every one; and, written for every one,
+    // what the context's own says of the same taken away, so that it shows there too.
+    const cleared = detail.clearContext
+      ? (Object.fromEntries(detail.clearContext.keys.map((key) => [key, null])) as AppearanceChanges)
+      : undefined;
+    diagramCanvas.recordChange(() => {
+      for (const target of targets) {
+        viewManager.setAppearance!(viewIri, target.iri, changes, detail.context);
+        if (cleared && detail.clearContext && target.kind === 'element') viewManager.setAppearance!(viewIri, target.iri, cleared, detail.clearContext.context);
+      }
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.appearance = selectedLook();
+  };
+  propertyPanel.addEventListener('appearance-change', onAppearanceChange);
+
+  // The scope bar: the look for the presentation chosen, or for every one.
+  const onLookScopeChange = (event: Event): void => {
+    lookScope = (event as CustomEvent<{ everyContext: boolean }>).detail?.everyContext ? 'every' : 'context';
+    propertyPanel.appearance = selectedLook();
+  };
+  propertyPanel.addEventListener('look-scope-change', onLookScopeChange);
+
+  // The Label tab: what the selected elements' labels say, in the presentation context chosen or in every one.
+  const onLabelExpressionChange = (event: Event): void => {
+    const detail = (event as CustomEvent<LabelExpressionChangeDetail>).detail;
+    const viewIri = session.activeViewIri;
+    const targets = (propertyPanel.appearance?.targets ?? []).filter((t) => t.kind === 'element');
+    const write = viewManager.setLabelExpression?.bind(viewManager);
+    if (!detail || !viewIri || targets.length === 0 || !write) return;
+    const context = diagramCanvas.presentationContextInUse;
+    diagramCanvas.recordChange(() => {
+      for (const target of targets) {
+        if (detail.all) {
+          if (context) write(viewIri, target.iri, context, null);
+          write(viewIri, target.iri, undefined, null);
+        } else if (detail.everyContext || !context) {
+          write(viewIri, target.iri, undefined, detail.expression);
+          // So that it shows in this context too.
+          if (context) write(viewIri, target.iri, context, null);
+        } else write(viewIri, target.iri, context, detail.expression);
+      }
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.appearance = selectedLook();
+  };
+  propertyPanel.addEventListener('label-expression-change', onLabelExpressionChange);
+
+  // Names by presentation: an element's name for one audience (core 0.5.0's SKOS-XL names), undoably.
+  const onContextNameChange = (event: Event): void => {
+    const detail = (event as CustomEvent<ContextNameChangeDetail>).detail;
+    if (!detail) return;
+    changeProperties(detail.elementIri, () => {
+      const { remove, add } = contextNameChange(store, detail.elementIri, detail.context, detail.name);
+      if (remove.length > 0) store.removeQuads(remove);
+      if (add.length > 0) store.addQuads(add);
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.reload();
+  };
+  propertyPanel.addEventListener('context-name-change', onContextNameChange);
+
+  // Pictures by presentation: an element's own picture for every audience, or for one (core 0.5.0), undoably.
+  const onContextPictureChange = (event: Event): void => {
+    const detail = (event as CustomEvent<ContextPictureChangeDetail>).detail;
+    if (!detail) return;
+    changeProperties(detail.elementIri, () => {
+      const { remove, add } = pictureChange(store, detail.elementIri, detail.context ?? undefined, detail.url);
+      if (remove.length > 0) store.removeQuads(remove);
+      if (add.length > 0) store.addQuads(add);
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.reload();
+    modelExplorer.requestUpdate();
+  };
+  propertyPanel.addEventListener('context-picture-change', onContextPictureChange);
+
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
   let currentAxisIri: string | undefined;
@@ -1481,14 +1769,25 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const shown = shell.visibleBottomTab === 'history';
     if (shown !== historyShown) {
       historyShown = shown;
-      void refreshHistory();
+      void refreshHistory(shown);
     }
   };
 
   // ── History: commit, compare, restore ────────────────────────────────
   let historyShown = false;
+  /** The bound file's Git history, from the Git module while it runs. */
+  let gitHistory: ((modelIri: string) => HistoryGitSource | undefined) | undefined;
+  historyPanel.diffOptions = () => ({ singleValued: app.singleValued() });
+  historyPanel.words = { typeName: typeLabelOf, propertyName: (p) => fieldName(p, undefined, propertyPanel.nameOf) };
+  /** While the tab is shown: the bound file's Git history — read again when the tab opens (`opened`). */
+  const showGitHistory = (opened = false): void => {
+    if (!historyShown) return;
+    const modelIri = session.modelIri;
+    historyPanel.git = modelIri ? gitHistory?.(modelIri) : undefined;
+    if (opened) historyPanel.reloadGit();
+  };
   /** The open model's commits, and — while the tab is shown — its working state to compare with. */
-  const refreshHistory = async (): Promise<void> => {
+  const refreshHistory = async (opened = false): Promise<void> => {
     const modelIri = session.modelIri;
     historyPanel.canCommit = Boolean(modelIri);
     historyPanel.prefixes = app.modelIO.collectPrefixes(modelIri);
@@ -1499,6 +1798,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       historyPanel.commits = [];
     }
     historyPanel.working = historyShown && modelIri ? versionHistory.workingSnapshot() : undefined;
+    showGitHistory(opened);
+  };
+  const setGitHistory = (source: (modelIri: string) => HistoryGitSource | undefined): (() => void) => {
+    gitHistory = source;
+    showGitHistory(true);
+    return () => {
+      if (gitHistory !== source) return;
+      gitHistory = undefined;
+      historyPanel.git = undefined;
+    };
+  };
+  const onDiffSelect = (e: Event): void => {
+    const { iri } = (e as CustomEvent<{ iri: string }>).detail;
+    // Only what the model has now: a concept the version compared had, and the model no longer does, is not there to show.
+    if (store.getQuads(namedNode(iri) as never, null, null, DataFactory.defaultGraph() as never).length > 0) selectConcept(iri);
   };
   const onHistoryCommit = async (e: Event): Promise<void> => {
     const modelIri = session.modelIri;
@@ -1531,6 +1845,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   historyPanel.addEventListener('history-commit', onHistoryCommit);
   historyPanel.addEventListener('history-restore', onHistoryRestore);
+  historyPanel.addEventListener('diff-select', onDiffSelect);
   shell.addEventListener('bottom-panel-changed', onBottomPanelChanged);
   // The Graph tab may be the one left open last time.
   queueMicrotask(onBottomPanelChanged);
@@ -1749,15 +2064,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   // ── Toolbar state ────────────────────────────────────────────────────
   const presentationContexts = (): LabelledIri[] => {
-    const out: LabelledIri[] = [];
+    const out: Array<{ iri: string; label: string; schemeLabel: string }> = [];
     for (const m of app.loadedMetamodels()) {
       const scheme = m.presentationContextSchemeIri;
       if (!scheme) continue;
       for (const q of store.getQuads(null, namedNode(NAMESPACES.skos + 'inScheme') as unknown as NamedNode, namedNode(scheme) as unknown as NamedNode)) {
-        out.push({ iri: q.subject.value, label: labelOf(store, q.subject.value) });
+        if (out.some((c) => c.iri === q.subject.value)) continue;
+        out.push({ iri: q.subject.value, label: labelOf(store, q.subject.value), schemeLabel: labelOf(store, scheme) });
       }
     }
-    return out;
+    // Two languages' audiences may share a name — ArchiMate 3.2's and 4.0's do: each then says whose it is.
+    return contextChoices(out);
   };
 
   // ── Back and forward between views: the history ─────────────────────
@@ -1770,9 +2087,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   /** The visit Back or Forward is opening, to put back as it was left. */
   let travelling: ViewVisit | undefined;
 
+  /**
+   * The model's name and whether it has unsaved changes: in the toolbar, and in
+   * the page's title — the browser tab, the desktop window — as
+   * "• Payments platform — la-gram", so a tab or window says which model it holds.
+   */
+  const showModelName = (): void => {
+    const name = session.modelLabel();
+    const dirty = app.isDirty();
+    appToolbar.modelLabel = name;
+    appToolbar.dirty = dirty;
+    if (globalThis.document) document.title = modelTitle(name, dirty);
+  };
+
   const refreshToolbar = (): void => {
-    appToolbar.modelLabel = session.modelLabel();
-    appToolbar.dirty = app.isDirty();
+    showModelName();
     appToolbar.views = viewManager.getViews();
     appToolbar.activeViewIri = session.activeViewIri ?? '';
     const named = (iri: string | undefined) => (iri ? viewManager.getView?.(iri)?.label || 'Untitled view' : '');
@@ -1786,6 +2115,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }));
     appToolbar.presentationContexts = presentationContexts();
     appToolbar.activeContextIri = app.activePresentationContext() ?? '';
+    // Names by presentation: the same audiences, the chosen one marked.
+    propertyPanel.presentationContexts = appToolbar.presentationContexts;
+    propertyPanel.activeContextIri = appToolbar.activeContextIri;
   };
 
   // ── Modules: their File-menu entries, and File › Settings… ──────────
@@ -1817,6 +2149,26 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     moduleSwitches = { list, toggle };
     updateSettingsMenu();
   };
+  const addBottomTab = ({ id, label, element }: { id: string; label: string; element: HTMLElement }): BottomTabHandle => {
+    element.slot = id;
+    shell.appendChild(element);
+    shell.moduleTabs = [...shell.moduleTabs.filter((t) => t.id !== id), { id, label }];
+    const setBadge = (text: string | undefined): void => {
+      const { [id]: _old, ...others } = shell.tabBadges;
+      shell.tabBadges = text ? { ...others, [id]: text } : others;
+    };
+    return {
+      show: () => shell.showTab(id),
+      setBadge,
+      remove: () => {
+        setBadge(undefined);
+        element.remove();
+        shell.moduleTabs = shell.moduleTabs.filter((t) => t.id !== id);
+        if (shell.bottomTab === id) shell.bottomTab = 'properties';
+      },
+    };
+  };
+
   const addSettingsSection = (section: SettingsSection): (() => void) => {
     settingsSections.set(section.id, section);
     updateSettingsMenu();
@@ -2034,6 +2386,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     refreshToolbar();
   };
 
+  /** A dialog in parts — About, the shortcuts — or, where the dialogs offer none, the same as text. */
+  const showDetails = (title: string, blocks: DetailBlock[], options?: DetailsOptions): Promise<void> =>
+    dialogs.details ? dialogs.details(title, blocks, options) : dialogs.info(title, detailLines(blocks));
+
   const runCommand = async (detail: ToolbarCommandDetail): Promise<void> => {
     const { command, value } = detail;
     try {
@@ -2093,16 +2449,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         case 'save-no-geometry':
           save('turtle', 'no-geometry');
           return;
-        case 'export-svg': {
-          const svg = exportSvg(diagramCanvas.toSvg());
-          await saveFile(svg, `${(viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-')}.svg`, 'image/svg+xml');
+        case 'export-svg':
+          await exportView('svg');
           return;
-        }
-        case 'export-png': {
-          const png = await exportPng(exportSvg(diagramCanvas.toSvg()));
-          await saveFile(png, `${(viewManager.getView?.(session.activeViewIri ?? '')?.label || 'view').replace(/[^\w.-]+/g, '-')}.png`, 'image/png');
+        case 'export-png':
+          await exportView('png');
           return;
-        }
         case 'rename-model': {
           const name = await dialogs.prompt('Rename model', 'Model name', session.modelLabel());
           if (name) session.renameModel(name);
@@ -2111,6 +2463,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         }
         case 'model-settings':
           await editModelSettings();
+          return;
+        case 'about': {
+          const context: AboutContext = {
+            build: BUILD,
+            runtime: runtimeOf(globalThis.navigator?.userAgent ?? ''),
+            metamodels: app.loadedMetamodels().map((m) => m.info.name || labelOf(store, m.metamodelIri)),
+            ...(ASSETS_VERSION ? { assetsVersion: ASSETS_VERSION } : {}),
+          };
+          await showDetails('About la-gram', aboutBlocks(context), { copy: { label: 'Copy version info', text: versionText(context) } });
+          return;
+        }
+        case 'shortcuts':
+          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform()));
           return;
         case 'open-view':
           if (value) session.openView(value);
@@ -2227,7 +2592,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const viewIri = session.activeViewIri;
     validationPanel.viewIris = viewIri ? viewMembers(store, viewIri) : undefined;
     const violations = validationPanel.shownResults.filter((r) => r.severity === 'Violation').length;
-    shell.tabBadges = violations > 0 ? { validation: String(violations) } : {};
+    const { validation: _shown, ...others } = shell.tabBadges;
+    shell.tabBadges = violations > 0 ? { ...others, validation: String(violations) } : others;
   };
   const onValidationScopeChange = (): void => scopeValidation();
 
@@ -2368,17 +2734,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onModelChanged: ModelEventHandler = (event) => {
     if (event.detail?.origin !== 'canvas') diagramCanvas.syncFromStore();
     propertyPanel.reload();
-    // What is not committed yet, while the History tab shows it.
-    if (historyShown && session.modelIri) historyPanel.working = versionHistory.workingSnapshot();
+    // What is not committed yet, while the History tab shows it — and where the model is bound now (a merge rebinds it).
+    if (historyShown && session.modelIri) {
+      historyPanel.working = versionHistory.workingSnapshot();
+      showGitHistory();
+    }
     if (propertyPanel.selectedIri) {
+      // Undone, redone, changed by a collaborator: the tab shows the look in force.
+      if (propertyPanel.appearance) propertyPanel.appearance = selectedLook();
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
       // A view's viewpoint may have changed — unless the guide shows a palette pick.
       if (!guideFromPalette) typeGuidePanel.guideIri = guideIriFor(propertyPanel.selectedIri);
     }
-    appToolbar.dirty = app.isDirty();
-    appToolbar.modelLabel = session.modelLabel();
+    showModelName();
   };
 
   const onElementDeleted: ModelEventHandler = (event) => {
@@ -2391,9 +2761,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onContextChanged: ModelEventHandler = () => {
     regeneratePalette();
     refreshToolbar();
+    // Another audience: the tabs' scope back to its default; the names and pictures by presentation marked; the
+    // tree's pictures for it.
+    lookScope = undefined;
+    modelExplorer.requestUpdate();
+    if (propertyPanel.appearance) propertyPanel.appearance = selectedLook();
+    propertyPanel.reload();
   };
 
-  const onSaved: ModelEventHandler = () => refreshToolbar();
+  const onSaved: ModelEventHandler = () => {
+    refreshToolbar();
+    // Saved to Git: a new commit to list.
+    showGitHistory();
+  };
 
   // Anything that changes the model changes the RDF text. The panel ignores
   // this while hidden and debounces it while shown.
@@ -2459,6 +2839,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const dispose = (): void => {
+    if (globalThis.document) document.title = pageTitle;
     if (iconRepair) clearTimeout(iconRepair);
     stopIndexing?.();
     canvasResize?.disconnect();
@@ -2468,6 +2849,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     eventBus.off('view-opened', onViewOpened);
     eventBus.off('views-changed', onViewsChanged);
     eventBus.off('model-changed', onModelChanged);
+    eventBus.off('model-changed', forgetLabelPrefixes);
+    eventBus.off('metamodel-loaded', forgetLabelPrefixes);
     eventBus.off('selection-changed', onCanvasSelection);
     eventBus.off('element-deleted', onElementDeleted);
     eventBus.off('relationship-deleted', onElementDeleted);
@@ -2492,6 +2875,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     shell.removeEventListener('bottom-panel-changed', onBottomPanelChanged);
     historyPanel.removeEventListener('history-commit', onHistoryCommit);
     historyPanel.removeEventListener('history-restore', onHistoryRestore);
+    historyPanel.removeEventListener('diff-select', onDiffSelect);
     appToolbar.removeEventListener('toolbar-command', onToolbarCommand);
     palettePanel.removeEventListener('palette-axis-change', onAxisChange);
     palettePanel.removeEventListener('palette-drag-start', onPaletteDragStart);
@@ -2499,6 +2883,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     clearTimeout(paletteHover);
     canvasToolbar.removeEventListener('toolbar-tool', onToolbarTool);
     canvasToolbar.removeEventListener('relationship-names', onRelationshipNames);
+    canvasToolbar.removeEventListener('figures-open', onFiguresOpen);
+    canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
+    propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
+    propertyPanel.removeEventListener('look-scope-change', onLookScopeChange);
+    propertyPanel.removeEventListener('label-expression-change', onLabelExpressionChange);
+    propertyPanel.removeEventListener('context-name-change', onContextNameChange);
+    propertyPanel.removeEventListener('context-picture-change', onContextPictureChange);
+    canvasToolbar.removeEventListener('notation-only', onNotationOnly);
+    canvasToolbar.removeEventListener('format-painter', onFormatPainter);
+    eventBus.off('format-painter-changed', onFormatPainterChanged);
+    propertyPanel.removeEventListener('notation-only', onNotationOnly);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);
@@ -2560,6 +2955,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     addFileMenu,
     setModuleSwitches,
     addSettingsSection,
+    addBottomTab,
+    describeConcept: (iri) => validationPanel.describe?.(iri) ?? { name: labelOf(store, iri) },
+    propertyName: (predicate) => fieldName(predicate, undefined, propertyPanel.nameOf),
+    typeName: typeLabelOf,
+    setGitHistory,
     refresh,
     dispose,
   };

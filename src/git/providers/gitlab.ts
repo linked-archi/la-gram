@@ -13,11 +13,49 @@
  * | commit | `POST /projects/{id}/repository/commits` — one `create` or `update` action with `last_commit_id` = the version replaced (400 when the file moved on); `start_sha` / `start_branch` for a new branch. The commit is the file's new version |
  * | files | `GET /projects/{id}/repository/tree?recursive=true&ref=`, paged |
  * | branches | `GET /projects/{id}/repository/branches`, paged |
+ * | merge base | `GET /projects/{id}/repository/merge_base?refs[]=a&refs[]=b` → `id` |
+ * | a file's commits | `GET /projects/{id}/repository/commits?ref_name={ref}&path={path}`, a page of 100 at a time |
+ * | the open merge request | `GET /projects/{id}/merge_requests?state=opened&source_branch=&target_branch=` |
+ * | open a merge request | `POST /projects/{id}/merge_requests` — `source_branch`, `target_branch`, `title`, `description` |
+ *
+ * No merge commit: a commit made through the REST API has one parent, so
+ * *Update from main* commits to a new branch started from the other one's head
+ * instead (`git-merge.ts`).
  *
  * The Commits API rather than the Repository Files API's `PUT`: it answers with
  * the commit, which is the file's version from then on.
  */
-import { RestProvider, fromBase64, type CommitResult, type FileChange, type FileList, type GitFile } from './provider.js';
+import {
+  RestProvider,
+  fromBase64,
+  COMMITS_PER_PAGE,
+  type CommitPage,
+  type CommitResult,
+  type FileChange,
+  type FileList,
+  type GitFile,
+  type MergeRequest,
+  type MergeRequestChange,
+} from './provider.js';
+
+interface CommitEntry {
+  id: string;
+  parent_ids?: string[];
+  message?: string;
+  title?: string;
+  author_name?: string;
+  authored_date?: string;
+  committed_date?: string;
+  web_url: string;
+}
+
+interface GitLabMergeRequest {
+  iid: number;
+  title: string;
+  web_url: string;
+  source_branch: string;
+  target_branch: string;
+}
 
 export class GitLabProvider extends RestProvider {
   private get project(): string {
@@ -95,4 +133,58 @@ export class GitLabProvider extends RestProvider {
     const { items } = await this.paged<{ name: string }>(`/projects/${this.project}/repository/branches`, `the project ${this.link.repository}`);
     return items.map((b) => b.name);
   }
+
+  async mergeBase(a: string, b: string): Promise<string> {
+    const commit = await this.request<{ id: string }>(
+      'GET',
+      `/projects/${this.project}/repository/merge_base?refs%5B%5D=${encodeURIComponent(a)}&refs%5B%5D=${encodeURIComponent(b)}`,
+      `the commits ${a.slice(0, 8)} and ${b.slice(0, 8)}`,
+    );
+    return commit!.id;
+  }
+
+  async fileCommits(ref: string, path: string, page = 1): Promise<CommitPage> {
+    const entries =
+      (await this.request<CommitEntry[]>(
+        'GET',
+        `/projects/${this.project}/repository/commits?ref_name=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}&per_page=${COMMITS_PER_PAGE}&page=${page}`,
+        `the history of ${path}`,
+      )) ?? [];
+    return {
+      commits: entries.map((e) => ({
+        commit: e.id,
+        parents: e.parent_ids ?? [],
+        author: e.author_name ?? '',
+        date: e.authored_date ?? e.committed_date ?? '',
+        message: e.message ?? e.title ?? '',
+        webUrl: e.web_url,
+      })),
+      more: entries.length === COMMITS_PER_PAGE,
+    };
+  }
+
+  async findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined> {
+    const open =
+      (await this.request<GitLabMergeRequest[]>(
+        'GET',
+        `/projects/${this.project}/merge_requests?state=opened&source_branch=${encodeURIComponent(source)}&target_branch=${encodeURIComponent(target)}`,
+        `the merge requests from ${source}`,
+      )) ?? [];
+    const found = open.find((m) => m.source_branch === source && m.target_branch === target);
+    return found ? mergeRequest(found) : undefined;
+  }
+
+  async openMergeRequest(change: MergeRequestChange): Promise<MergeRequest> {
+    const opened = await this.request<GitLabMergeRequest>(
+      'POST',
+      `/projects/${this.project}/merge_requests`,
+      `a merge request from ${change.source} into ${change.target}`,
+      { body: { source_branch: change.source, target_branch: change.target, title: change.title, description: change.description } },
+    );
+    return mergeRequest(opened!);
+  }
+}
+
+function mergeRequest(m: GitLabMergeRequest): MergeRequest {
+  return { number: m.iid, title: m.title, webUrl: m.web_url, source: m.source_branch, target: m.target_branch };
 }

@@ -1,0 +1,23 @@
+# Ours deletes CRM; theirs files it in the folder — the folder names it, so the
+# reference is on another subject. A conflict: the merged model keeps CRM, filed;
+# ours' option deletes CRM and the folder's entry for it.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-removed> {
+    m:crm a am4:ApplicationComponent ;
+        skos:prefLabel "CRM"@en ;
+        arch:inModel m:model .
+}
+<urn:theirs-added> {
+    m:folder schema:itemListElement m:crm .
+}

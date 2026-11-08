@@ -1,0 +1,20 @@
+# Both sides stamp the model's dcterms:modified — la-gram does when it renames
+# the model, moves its namespace or makes a view. Two stamps are no
+# disagreement: the later one is kept, and there is no conflict.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+<urn:base-added>     { m:model dcterms:modified "2026-11-01T09:00:00.000Z"^^xsd:dateTime . }
+<urn:ours-added>     { m:model dcterms:modified "2026-11-05T14:30:00.000Z"^^xsd:dateTime . }
+<urn:ours-removed>   { m:model dcterms:modified "2026-11-01T09:00:00.000Z"^^xsd:dateTime . }
+<urn:theirs-added>   { m:model dcterms:modified "2026-11-05T10:15:00.000Z"^^xsd:dateTime . }
+<urn:theirs-removed> { m:model dcterms:modified "2026-11-01T09:00:00.000Z"^^xsd:dateTime . }
