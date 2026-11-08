@@ -78,6 +78,7 @@ describe('About la-gram', () => {
     const links = blocks.flatMap((b) => (b.kind === 'links' ? b.links.map((l) => l.href) : []));
     expect(links).toContain('https://meta.linked.archi/docs/');
     expect(links).toContain('https://www.apache.org/licenses/LICENSE-2.0');
+    expect(links).toContain('https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/issues');
     expect(versionText(context)).toBe(
       'la-gram 0.1.0 · Web — Chrome 142 · metamodels: ArchiMate 4.0 Metamodel · bundled metamodels: e4882df07d49',
     );

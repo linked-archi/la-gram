@@ -43,7 +43,9 @@ rules, the notation and the validation all come from data.
 
 ## Run
 
-Requires Node 22+.
+You need [Node.js](https://nodejs.org/) 22 or later, which comes with npm. `npm ci` installs everything
+else, the desktop app's Electron included (a download of about 100 MB, once). Google Chrome is needed
+only for the browser tests and `npm run icons`.
 
 ```bash
 npm ci
@@ -62,6 +64,30 @@ Then open http://localhost:8080. Useful URL parameters:
 | `rdf` | `?rdf=1` | start with the RDF panel open |
 | `base` | `?base=https://acme.com/ea/` | base for new models' namespaces (`{base}{notation}/{uuid}/`), `https://example.org/` by default |
 | `git` | `?git=https://github.com/acme/arch/blob/main/models/shop.ttl` | open a model from Git at startup; `off` switches Git storage off for the session |
+
+### Desktop app
+
+The same app as a desktop application (Electron 44), reading and writing files through the system's
+dialogs. From a checkout, after `npm ci`:
+
+```bash
+npm run build:electron && npm run electron   # build and run it
+npm run package                              # the app for this machine, in dist/packages/
+npm run package -- --platform win32 --arch x64   # or for another: darwin, win32, linux; x64, arm64
+```
+
+`npm run package` writes `dist/packages/la-gram-<platform>-<arch>/` — on macOS `la-gram.app`, which can
+be moved to Applications. The app carries everything it needs, the bundled metamodels included, so it
+works offline and needs nothing installed — no Node. It is not signed. An app you package yourself
+opens as it is; one downloaded from elsewhere is stopped the first time — on macOS, open it from
+*System Settings › Privacy & Security › Open Anyway*; on Windows, *More info › Run anyway*.
+
+- In a terminal inside VS Code, run it with `ELECTRON_RUN_AS_NODE` unset
+  (`env -u ELECTRON_RUN_AS_NODE npm run electron`): VS Code sets it, and Electron then starts as plain
+  Node.
+- If Electron was not downloaded (an install with `--ignore-scripts`), `node node_modules/electron/install.js`
+  fetches it.
+- The renderer is sandboxed and without Node, and reaches files only through the native dialogs.
 
 ### Deployment configuration
 
@@ -94,7 +120,6 @@ An optional `la-gram.config.json` beside `index.html` sets, for everyone using t
 
 It is read once at startup, from the app's own address only. A file that fails the check — not JSON, an unknown value, anything that looks like a token or password (tokens are never configured) — is reported, and Git storage stays off until it is fixed. Keys la-gram does not know are reported and ignored.
 
-Desktop: `npm run build:electron && npm run electron` runs it (Electron 44; the renderer is sandboxed and without Node, and reaches files only through the native dialogs); `npm run package` builds the app for this machine into `dist/packages/la-gram-<platform>-<arch>/` (`-- --platform win32 --arch x64` for another). The app carries only the desktop build — the bundled metamodels included, so it works offline — and is not signed: on macOS, open it with right-click › Open the first time. In a terminal inside VS Code, run it with `ELECTRON_RUN_AS_NODE` unset (`env -u ELECTRON_RUN_AS_NODE npm run electron`): VS Code sets it, and Electron then starts as plain Node.
 
 ### Bundled metamodels, and refreshing them
 

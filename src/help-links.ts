@@ -35,6 +35,8 @@ export const HELP_LINKS: readonly HelpLink[] = [
   { id: 'catalogue', label: 'Metamodel catalogue', href: 'https://meta.linked.archi/', group: 'guides' },
   { id: 'readme', label: 'la-gram: what it does (README)', href: `${REPOSITORY}/-/blob/main/README.md`, group: 'la-gram' },
   { id: 'source', label: 'Source code', href: REPOSITORY, group: 'la-gram' },
+  // GitLab's tracker: anyone may read it; reporting takes a GitLab account.
+  { id: 'issues', label: 'Report a problem or an idea', href: `${REPOSITORY}/-/issues`, group: 'la-gram' },
 ];
 
 /** la-gram's licence, as published by Apache. */
