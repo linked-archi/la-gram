@@ -236,9 +236,13 @@ are no longer wanted.
    protected branches and tags.
 2. **Let anyone download the apps:** *Settings › General › Visibility, project features, permissions*:
    the package registry for everyone with access.
-3. **Add the deploy variables:** *Settings › CI/CD › Variables › Add variable*, each with *Protect
-   variable* ticked, *Expand variable reference* cleared, and *Environments* `production` — only the
-   job that deploys the web app (`web-deploy`, environment `production`) then gets them:
+3. **Create the environment `production`,** so the variable form can offer it: *Operate ›
+   Environments › Create an environment*, the name `production` (its URL
+   `https://app.linked.archi/la-gram/`), *Save*. (The first deploy would create it too, but the
+   variables come first.)
+4. **Add the deploy variables:** *Settings › CI/CD › Variables › Add variable*, each with *Protect
+   variable* ticked, *Expand variable reference* cleared, and the environment scope `production` — only
+   the job that deploys the web app (`web-deploy`, environment `production`) then gets them:
 
    | Key | Type | Visibility | Value |
    |---|---|---|---|
@@ -253,9 +257,22 @@ are no longer wanted.
    three are no secrets. The key and the user are the ones meta.linked.archi's deploy uses (its
    project's *Settings › CI/CD › Variables*); a key of la-gram's own, added to the deploy user's
    `~/.ssh/authorized_keys`, works as well.
-4. **On the server:** create `/var/www/linked-archi-app/la-gram` for the deploy user, and add the
-   locations in [`deploy/nginx-la-gram.conf`](deploy/nginx-la-gram.conf) to the app.linked.archi
-   server block, as the file says.
+5. **On the server:** the folder, for the deploy user —
+
+   ```bash
+   sudo mkdir -p /var/www/linked-archi-app/la-gram
+   sudo chown -R deploy:www-data /var/www/linked-archi-app
+   ```
+
+   — and the web server's site for app.linked.archi, which is kept with the host's own configuration.
+   What la-gram needs of it: the folder served at `/la-gram/` (`/la-gram` sent there); `.wasm` as
+   `application/wasm` and `.ttl` as `text/turtle`; `index.html` and the bundled metamodels revalidated
+   on every load (they change with a release under the same names — the metamodels carry `?v=`), the
+   scripts and the WebAssembly, named by their content, cacheable for good. A Content-Security-Policy,
+   if the site sends one, must allow scripts from the site with `'wasm-unsafe-eval'` (no
+   `'unsafe-eval'` is needed: a production build has no `eval`), workers from `blob:`, images from
+   `data:`, `blob:` and `https:`, inline styles, and connections to `https:` and `wss:`. After that,
+   retry the release's `web-deploy` job (or run the next release).
 
 #### Each release
 

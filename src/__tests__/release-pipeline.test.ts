@@ -1,7 +1,7 @@
 /**
  * la-gram's release in `.gitlab-ci.yml`: a tag `la-gram-v<version>` publishes
  * the desktop apps and the web app, and nothing of la-gram-git's; la-gram-git's
- * tag publishes nothing of la-gram's. And the server's configuration serves the
+ * tag publishes nothing of la-gram's. And the README sets up on the server the
  * folder the pipeline copies the web app into.
  */
 import { describe, it, expect } from 'vitest';
@@ -86,22 +86,12 @@ describe("la-gram's release pipeline", () => {
     expect(release).toMatch(/- job: web # VERSION\n {6}artifacts: true/);
   });
 
-  it('copies the web app where the server serves /la-gram/ from', () => {
-    const nginx = read('deploy/nginx-la-gram.conf');
-    const root = /location \^~ \/la-gram\/ \{\n\s+root (\S+);/.exec(nginx)?.[1];
-    expect(root).toBeDefined();
-    const folder = `${root}/la-gram`;
-    expect(pipeline).toContain(`LA_GRAM_DEPLOY_PATH  the folder nginx serves as /la-gram/ (${folder})`);
-    expect(read('README.md')).toContain(`| \`LA_GRAM_DEPLOY_PATH\` | Variable | Visible | \`${folder}\` |`);
+  it('copies the web app into the folder the README sets up on the server', () => {
+    const folder = /LA_GRAM_DEPLOY_PATH  the folder nginx serves as \/la-gram\/ \((\S+)\)/.exec(pipeline)?.[1];
+    expect(folder).toBe('/var/www/linked-archi-app/la-gram');
+    const readme = read('README.md');
+    expect(readme).toContain(`| \`LA_GRAM_DEPLOY_PATH\` | Variable | Visible | \`${folder}\` |`);
+    expect(readme).toContain(`sudo mkdir -p ${folder}`);
     expect(job('web-deploy')).toContain('rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"');
-  });
-
-  it("serves it under the desktop app's own script policy", () => {
-    const nginx = read('deploy/nginx-la-gram.conf');
-    const electron = read('src/electron-main.ts');
-    const directive = (text: string, name: string) => new RegExp(`${name} [^;"]+`).exec(text)?.[0];
-    for (const name of ['default-src', 'script-src', 'style-src', 'object-src', 'worker-src']) {
-      expect(directive(nginx, name), name).toBe(directive(electron, name));
-    }
   });
 });

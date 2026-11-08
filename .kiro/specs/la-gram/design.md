@@ -550,7 +550,7 @@ is taken down. The toolbar's menus, buttons and toggles do not shrink; the
 model's name does, down to 64 px, and media queries narrow the selectors, then
 hide their names, then the toggles' words, so the bar holds from 1100 px.
 
-**Releases** (Req 15.8; `.gitlab-ci.yml`, `deploy/nginx-la-gram.conf`). A tag
+**Releases** (Req 15.8; `.gitlab-ci.yml`). A tag
 `la-gram-v<version>` starts the tests, then `web` (the web build; it also runs
 on every merge request, and hands the version on as a dotenv variable, since
 the Release's fields take variables, not shell) and `desktop`, a matrix of five
@@ -570,11 +570,12 @@ token; then `web-deploy` copies the web build over SSH (meta.linked.archi's
 variables, and `LA_GRAM_DEPLOY_PATH`), and `la-gram-release` makes the Release
 with the `glab` image and the `release` keyword. The web app needs nothing to
 run under `/la-gram/`: webpack's `publicPath` is `auto`, and the bundled
-assets resolve against `document.baseURI`. nginx serves the folder with `^~`
-(the host's regular-expression locations, as for RDF, do not take la-gram's
-`.ttl` files), the page and the assets revalidated and the content-named
-scripts and WebAssembly kept a year, and the desktop app's Content-Security-
-Policy with `https:` and `wss:` connections.
+assets resolve against `document.baseURI`. The host's site for app.linked.archi
+— kept with the host's configuration, not here — serves the folder under
+`/la-gram/` (its exact name taking the host over from the `*.linked.archi`
+catch-all), the page and the metamodels revalidated, the content-named scripts
+and WebAssembly kept, and the desktop app's Content-Security-Policy with
+`https:` and `wss:` connections; the README says what la-gram needs of it.
 
 **Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
 `svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file

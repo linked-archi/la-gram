@@ -298,8 +298,8 @@ desktop:
 
 # The web app onto the server that serves app.linked.archi — the host that
 # serves meta.linked.archi — over SSH: the build into LA_GRAM_DEPLOY_PATH, files
-# no longer built taken away. The host's nginx serves it under /la-gram/
-# (deploy/nginx-la-gram.conf).
+# no longer built taken away. The host's nginx serves it under /la-gram/ (its
+# site for app.linked.archi, kept with the host's configuration).
 #
 # CI/CD variables (Settings → CI/CD → Variables), as meta.linked.archi's deploy has,
 # each protected, scoped to the environment production (only this job sees them),
