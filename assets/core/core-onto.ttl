@@ -34,13 +34,19 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
     '''@en ;
     dcterms:created                                         "2019-03-17"^^xsd:date ;
     dcterms:issued                                          "2019-03-17"^^xsd:date ;
-    dcterms:modified                                        "2026-09-07"^^xsd:date ;
+    dcterms:modified                                        "2026-11-08"^^xsd:date ;
     dcterms:publisher                                            "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                                             "draft" ;
     owl:versionIRI                                          <https://meta.linked.archi/core#> ;
-    owl:versionInfo                                         "0.4.0"@en ;
-    owl:priorVersion                                        <https://meta.linked.archi/core/0.3.2#> ;
-    skos:historyNote                                        '''0.4.0 — membership properties reworked.
+    owl:versionInfo                                         "0.5.0"@en ;
+    owl:priorVersion                                        <https://meta.linked.archi/core/0.4.0#> ;
+    skos:historyNote                                        '''0.5.0 — names and labels per presentation context.
+arch:inPresentationContext says which presentation context — which audience — something is for: a
+name an element is given for that audience (a SKOS-XL label, skosxl:altLabel, whose plain form is
+also the element's skos:altLabel), or what its label says on a diagram there (core-vis 0.7's
+arch-vis:LabelExpression). skos:prefLabel stays the one canonical name. See DD-34.
+
+0.4.0 — membership properties reworked.
 arch:inView and arch:inModel replace arch:exposedInView and arch:partOfModel, and arch:contains is
 deprecated as an undeclared inverse of what was then partOfModel. All three old properties are
 retained and owl:deprecated; the two renamed ones are rdfs:subPropertyOf their replacements so
@@ -2348,6 +2354,46 @@ am4pc:ExecutiveContext
 '''@en ;
     rdfs:domain     skos:Concept ;
     rdfs:range      <https://meta.linked.archi/core-vis#NotationSet> ;
+    skos:broader    :PresentationCategory ;
+.
+
+:inPresentationContext
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "inPresentationContext"@en ;
+    skos:definition '''The presentation context — the audience — something is for, and only for: a name an
+element is given for that audience, or what its label says on a diagram shown to it. Its object is a
+concept of a presentationContextScheme; something without one is for every audience.
+
+A name for an audience is a SKOS-XL label (skosxl:Label, its text skosxl:literalForm, language
+tagged), given to the element as skosxl:altLabel — never skosxl:prefLabel: SKOS-XL makes every
+skosxl:prefLabel a skos:prefLabel too, and SKOS allows one skos:prefLabel per language, which is the
+element's canonical name. The label's literal form is also the element's skos:altLabel, so that
+tools reading plain SKOS see it as one of its names. An element has at most one name per context and
+language.
+
+What a label says on a diagram is a core-vis arch-vis:LabelExpression; one with this property
+applies when its context is the one presented, one without it in every context.'''@en ;
+    skos:example '''
+## A name for developers; the canonical name for everyone else.
+ex:paymentGateway
+    skos:prefLabel    "Payment gateway"@en ;
+    skosxl:altLabel   ex:paymentGateway-name-developer ;
+    skos:altLabel     "pgw-svc"@en .
+ex:paymentGateway-name-developer
+    a                          skosxl:Label ;
+    skosxl:literalForm         "pgw-svc"@en ;
+    arch:inPresentationContext am4pc:DeveloperContext .
+
+## What application components' labels say for architects: the name, the type under it.
+am4not:ApplicationComponentNotation
+    arch-vis:labelExpression [
+        a                          arch-vis:LabelExpression ;
+        arch:inPresentationContext am4pc:ArchitectContext ;
+        arch-vis:expression        "{name}\n«{type}»"
+    ] .
+'''@en ;
+    rdfs:range      skos:Concept ;
+    :domainIncludes <http://www.w3.org/2008/05/skos-xl#Label>, <https://meta.linked.archi/core-vis#LabelExpression> ;
     skos:broader    :PresentationCategory ;
 .
 

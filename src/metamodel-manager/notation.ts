@@ -67,6 +67,7 @@ const T = {
   labelAnchor: `${ARCH_VIS}labelAnchor`,
   labelExpression: `${ARCH_VIS}labelExpression`,
   expression: `${ARCH_VIS}expression`,
+  inPresentationContext: `${ARCH}inPresentationContext`,
   prefLabel: `${SKOS}prefLabel`,
   rdfsLabel: `${RDFS}label`,
 } as const;
@@ -149,10 +150,11 @@ const NOTATION_LOOK_KEYS = ['lineWidth', 'fontName', 'fontSize', 'fontStyle', 't
 export interface VisualStyle extends NotationLook {
   /**
    * What the label of a concept drawn so says (core-vis 0.7's
-   * `arch-vis:labelExpression`): its notation's, the one for this notation set
-   * before one for every set. The name alone when absent.
+   * `arch-vis:labelExpression`): its notation's expressions, each for one
+   * presentation context (core's `arch:inPresentationContext`) or — without
+   * one — for every context. The name alone when there are none.
    */
-  labelExpression?: string;
+  labelExpressions?: LabelExpression[];
   /** A core shape — for a notation's own shape, its fallback. */
   shapeType?: ShapeType;
   /** A notation's own shape, drawn from its templates in place of {@link shapeType}. */
@@ -211,11 +213,16 @@ export interface VisualNotation {
 }
 
 /** A named collection of visual notation descriptors. */
+/** A label expression as a notation or a presentation context gives it: its text, and the context it is for. */
+export interface LabelExpression {
+  expression: string;
+  /** The presentation context it is for; every context when absent. */
+  context?: string;
+}
+
 export interface NotationSet {
   iri: string;
   label: string;
-  /** What the label of every concept it draws says, where nothing else does (`arch-vis:labelExpression` on the set). */
-  labelExpression?: string;
   /** conceptIri → notation. */
   notations: Map<string, VisualNotation>;
 }
@@ -569,12 +576,12 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
       .map((term) => extractElementStyle(store, term))
       .filter((alternative): alternative is VisualStyle => alternative !== undefined);
     if (style && alternatives.length > 0) style = { ...style, alternatives };
-    // What its label says: the notation's own, or its default style's.
-    const labelExpression = labelExpressionOf(store, notationTerm, setIri) ?? store
-      .getObjects(notationTerm, namedNode(T.defaultStyle), null)
-      .map((term) => labelExpressionOf(store, term, setIri))
-      .find((text) => text !== undefined);
-    if (labelExpression !== undefined) style = { ...(style ?? {}), labelExpression };
+    // What its label says: the notation's own, and its default style's.
+    const labelExpressions = [
+      ...labelExpressionsOf(store, notationTerm),
+      ...store.getObjects(notationTerm, namedNode(T.defaultStyle), null).flatMap((term) => labelExpressionsOf(store, term)),
+    ];
+    if (labelExpressions.length > 0) style = { ...(style ?? {}), labelExpressions };
 
     notations.set(conceptIri, {
       conceptIri,
@@ -587,24 +594,36 @@ export function buildVisualNotations(store: Store, notationSetIri?: string): Not
 
   if (notations.size === 0) return null;
 
-  const labelExpression = labelExpressionOf(store, namedNode(setIri), setIri);
-  return { iri: setIri, label: labelFor(store, setIri), notations, ...(labelExpression !== undefined ? { labelExpression } : {}) };
+  return { iri: setIri, label: labelFor(store, setIri), notations };
+}
+
+/** The label expressions `subject` gives (`arch-vis:labelExpression`), each with the presentation context it is for. */
+export function labelExpressionsOf(store: Store, subject: Term): LabelExpression[] {
+  const found: LabelExpression[] = [];
+  for (const label of store.getObjects(subject, namedNode(T.labelExpression), null)) {
+    const expression = objectValue(store, label, T.expression);
+    if (expression === null) continue;
+    const context = objectValue(store, label, T.inPresentationContext);
+    found.push({ expression, ...(context !== null ? { context } : {}) });
+  }
+  return found;
 }
 
 /**
- * The label expression `subject` gives (`arch-vis:labelExpression`): the one
- * for `setIri` (`arch-vis:inNotationSet`) before one for every set.
+ * Of the label expressions a place gives, the one that applies in
+ * `context`: the one for it, else one for every context.
  */
-function labelExpressionOf(store: Store, subject: Term, setIri: string): string | undefined {
-  let forEvery: string | undefined;
-  for (const label of store.getObjects(subject, namedNode(T.labelExpression), null)) {
-    const text = objectValue(store, label, T.expression);
-    if (text === null) continue;
-    const scope = objectValue(store, label, T.inNotationSet);
-    if (scope === setIri) return text;
-    if (scope === null) forEvery ??= text;
-  }
-  return forEvery;
+export function labelExpressionIn(expressions: readonly LabelExpression[] | undefined, context: string | undefined): string | undefined {
+  if (!expressions) return undefined;
+  return (
+    (context ? expressions.find((e) => e.context === context)?.expression : undefined) ??
+    expressions.find((e) => e.context === undefined)?.expression
+  );
+}
+
+/** A presentation context's name, as a palette shows it. */
+export function presentationContextLabel(store: Store, contextIri: string): string {
+  return labelFor(store, contextIri);
 }
 
 /**

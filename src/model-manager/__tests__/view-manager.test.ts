@@ -905,28 +905,28 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(views.getLinks(view)[0]?.label).toEqual(moved);
   });
 
-  it('what a placement’s label says: one expression a notation set, one for every set — replaced, taken away, copied, gone with it', () => {
-    const DETAILED = 'https://example.org/notation#Detailed';
+  it('what a placement’s label says: one expression a presentation context, one for every context — replaced, taken away, copied, gone with it', () => {
+    const DEVELOPER = 'https://example.org/contexts#Developer';
     views.setLabelExpression(view, first, undefined, '{name}');
-    views.setLabelExpression(view, first, DETAILED, '{name}\n«{type}»');
+    views.setLabelExpression(view, first, DEVELOPER, '{name}\n«{type}»');
     expect(views.getNode(view, first)?.labelExpressions).toEqual([
-      { notationSet: DETAILED, expression: '{name}\n«{type}»' },
+      { context: DEVELOPER, expression: '{name}\n«{type}»' },
       { expression: '{name}' },
     ]);
     // As core-vis 0.7 writes it: on the placement's own style, named after it.
     const scoped = objects(store, `${first}-style`, VIS_NS + 'labelExpression').find((iri) => iri !== `${first}-label-expression`)!;
     expect(scoped).toMatch(new RegExp(`^${first}-label-expression-[0-9a-f]{8}$`));
     expect(objects(store, scoped, RDF_TYPE)).toEqual([VIS_NS + 'LabelExpression']);
-    expect(objects(store, scoped, VIS_NS + 'inNotationSet')).toEqual([DETAILED]);
+    expect(objects(store, scoped, NAMESPACES.arch + 'inPresentationContext')).toEqual([DEVELOPER]);
     // Replaced for its set; the other placement of the element says nothing of its own.
-    views.setLabelExpression(view, first, DETAILED, '{name} ({dcterms:creator})');
-    expect(views.getNode(view, first)?.labelExpressions?.[0]).toEqual({ notationSet: DETAILED, expression: '{name} ({dcterms:creator})' });
+    views.setLabelExpression(view, first, DEVELOPER, '{name} ({dcterms:creator})');
+    expect(views.getNode(view, first)?.labelExpressions?.[0]).toEqual({ context: DEVELOPER, expression: '{name} ({dcterms:creator})' });
     expect(views.getNode(view, second)?.labelExpressions).toBeUndefined();
     // Copied with its view.
     const copy = views.duplicateView(view).value;
     expect(views.getNodes(copy).find((n) => n.bounds.y === 0)?.labelExpressions).toHaveLength(2);
     // Taken away, both: no style left.
-    views.setLabelExpression(view, first, DETAILED, null);
+    views.setLabelExpression(view, first, DEVELOPER, null);
     views.setLabelExpression(view, first, undefined, '');
     expect(views.getNode(view, first)?.labelExpressions).toBeUndefined();
     expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);

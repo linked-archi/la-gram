@@ -28,6 +28,7 @@ import type {
 import type { NotationIndexEntry } from '../../metamodel-manager/notation-resolver.js';
 import {
   effectiveRenderingMode,
+  labelExpressionIn,
   type Decoration,
   type RenderingMode,
   type RelationshipVisualStyle,
@@ -59,17 +60,17 @@ export class NotationStyleRegistry {
   /** Re-index from a freshly generated palette. */
   /** How many times the styles were replaced: what was drawn from older ones is stale. */
   version = 0;
-  /** The notation set in use — the presentation's, else the metamodel's — and its name. */
-  activeNotationSet: string | undefined;
-  activeNotationSetLabel: string | undefined;
-  /** What that set says every label says, where nothing else does. */
-  private setLabelExpression: string | undefined;
+  /** The presentation context chosen — the audience — and its name; none when none is. */
+  activePresentationContext: string | undefined;
+  activePresentationContextLabel: string | undefined;
+  /** What that context says every label says, where nothing else does. */
+  private contextLabelExpression: string | undefined;
 
   update(paletteDefinition: PaletteDefinition): void {
     this.version++;
-    this.activeNotationSet = paletteDefinition.notationSetIri;
-    this.activeNotationSetLabel = paletteDefinition.notationSetLabel;
-    this.setLabelExpression = paletteDefinition.notationSetLabelExpression;
+    this.activePresentationContext = paletteDefinition.presentationContextIri;
+    this.activePresentationContextLabel = paletteDefinition.presentationContextLabel;
+    this.contextLabelExpression = paletteDefinition.presentationContextLabelExpression;
     this.elements = new Map();
     this.relationships = new Map();
     this.index = new Map(Object.entries(paletteDefinition.notationIndex ?? {}));
@@ -147,12 +148,13 @@ export class NotationStyleRegistry {
   }
 
   /**
-   * What the label of an element of `typeIri` says, by its notation: the
-   * type's notation's expression (inherited as its style is), else the set's —
-   * `undefined` for its name alone.
+   * What the label of an element of `typeIri` says without one of its own: its
+   * type's notation's for the context chosen, else its notation's for every
+   * context (inherited as its style is), else the context's — `undefined` for
+   * its name alone.
    */
   labelExpressionFor(typeIri: string | undefined): string | undefined {
-    return this.styleFor(typeIri)?.labelExpression ?? this.setLabelExpression;
+    return labelExpressionIn(this.styleFor(typeIri)?.labelExpressions, this.activePresentationContext) ?? this.contextLabelExpression;
   }
 
   /** Display label for an element type, when the palette knows it. */

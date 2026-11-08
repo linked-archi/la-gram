@@ -322,6 +322,7 @@ describe('PropertyPanel', () => {
         '_renderNamed',
         '_renderId',
         '_renderDerivation',
+        '_renderContextNames',
         '_takesLinks',
         '_renderRelationshipGroup',
         '_toggleRelationships',

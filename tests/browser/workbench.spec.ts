@@ -466,7 +466,8 @@ describe('the layout and the property panel', () => {
       'Analysis',
       'Appears in views',
     ]);
-    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition']);
+    // Its name for each audience (the metamodel's presentation contexts) last: "Names by presentation", by its first word.
+    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition', 'Names']);
     // Named, not by IRI: the model by its name, the ID by its short identifier; a click shows the IRIs.
     const modelRow = panel.locator('.pane li.property-row', { has: page.locator('.field-name', { hasText: 'Model' }) });
     expect(await modelRow.locator('.named').innerText()).not.toMatch(/^https?:/);

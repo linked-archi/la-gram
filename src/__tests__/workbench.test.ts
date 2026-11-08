@@ -712,13 +712,14 @@ describe('the workbench', () => {
     for (const iri of [a!, b!]) els.deleteElement(iri);
   });
 
-  it('says more on an element’s label from the Label tab: in the presentation in use, or in every one', async () => {
+  it('says more on an element’s label from the Label tab: for the presentation chosen, or for every one', async () => {
     const els = app.components.elementManager;
     const views = app.components.viewManager;
     const store = app.components.store;
     const view = app.session.activeViewIri!;
     const model = app.session.modelIri!;
     const DCT = NAMESPACES.dcterms;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
     const a = els.createElement(`${AM4}ApplicationComponent`, model, { label: 'Labelled' }).value;
     const creator = (name: string) => DataFactory.quad(DataFactory.namedNode(a), DataFactory.namedNode(DCT + 'creator'), DataFactory.literal(name));
     store.addQuads([creator('Ana')] as never);
@@ -727,60 +728,149 @@ describe('the workbench', () => {
     const panel = ui.propertyPanel;
     const root = panel.shadowRoot!;
     const drawnLines = () => [...document.querySelectorAll(`[data-element-iri="${a}"] .la-shape-label tspan`)].map((t) => t.textContent);
-    const set = ui.diagramCanvas.notationSetInUse!;
-    expect(set).toBe('https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation');
+    const area = () => root.querySelector<HTMLTextAreaElement>('.label-expression')!;
+    const type = async (text: string) => {
+      area().value = text;
+      area().dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
 
+    // No presentation chosen: what the label says in every presentation.
+    expect(ui.diagramCanvas.presentationContextInUse).toBeUndefined();
     ui.diagramCanvas.selectIris([a]);
     await panel.updateComplete;
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="label"]')!.click();
     await panel.updateComplete;
-    expect(root.querySelector('.label-scope')!.textContent).toContain('the presentation selected now');
-    const area = () => root.querySelector<HTMLTextAreaElement>('.label-expression')!;
+    expect(root.querySelector('.label-scope')!.textContent).toContain('No presentation is chosen');
+    expect(root.querySelector('.label-every')).toBeNull();
     expect(area().placeholder).toBe('{name}');
-    area().value = '{name}\nby {dcterms:creator}';
-    area().dispatchEvent(new Event('change'));
-    // For the notation set in use, on the placement's own style; drawn so, line by line.
-    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ notationSet: set, expression: '{name}\nby {dcterms:creator}' }]);
+    await type('{name}\nby {dcterms:creator}');
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ expression: '{name}\nby {dcterms:creator}' }]);
     expect(drawnLines()).toEqual(['Labelled', 'by Ana']);
-    await panel.updateComplete;
     expect(root.querySelector('.label-shown')!.textContent).toBe('Labelled\nby Ana');
     // What it shows follows the model.
     store.removeQuads([creator('Ana')] as never);
     store.addQuads([creator('Bo')] as never);
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
-    // A placeholder it cannot read: said, and drawn as written.
-    area().value = '{name} {nope:x}';
-    area().dispatchEvent(new Event('change'));
+
+    // Developers chosen: the tab says so; the one for every presentation is what it says until developers get their own.
+    app.setPresentationContext(`${PC}DeveloperContext`);
     await panel.updateComplete;
+    expect(ui.diagramCanvas.presentationContextInUse).toBe(`${PC}DeveloperContext`);
+    expect(root.querySelector('.label-scope')!.textContent).toContain('every presentation');
+    const every = () => root.querySelector<HTMLInputElement>('.label-every input')!;
+    expect(every().checked).toBe(true);
+    every().checked = false;
+    every().dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.label-scope')!.textContent).toContain('Developer / Engineering');
+    await type('{name}\n«{type}»');
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([
+      { context: `${PC}DeveloperContext`, expression: '{name}\n«{type}»' },
+      { expression: '{name}\nby {dcterms:creator}' },
+    ]);
+    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+    // A placeholder it cannot read: said, and drawn as written.
+    await type('{name} {nope:x}');
     expect(root.querySelector('.label-errors')!.textContent).toContain('no prefix nope: is known');
     expect(drawnLines().join(' ')).toContain('{nope:x}');
-    area().value = '{name}\n«{type}»';
-    area().dispatchEvent(new Event('change'));
-    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+    await type('{name}\n«{type}»');
     // What core-vis's shapes say of it, la-gram writes.
     app.runValidation();
     expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(node))).toEqual([]);
 
-    // The same in every presentation: moved to the one for every set.
-    await panel.updateComplete;
-    const every = root.querySelector<HTMLInputElement>('.label-every input')!;
-    every.checked = true;
-    every.dispatchEvent(new Event('change'));
-    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ expression: '{name}\n«{type}»' }]);
-    // One for another set is not drawn in this one.
-    views.setLabelExpression!(view, node, 'https://example.org/notation#Other', 'elsewhere');
-    app.components.eventBus.emit('model-changed', { origin: 'test' });
-    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
-    // Back to the notation's: its name alone — undoably.
+    // Architects: the one for every presentation.
+    app.setPresentationContext(`${PC}ArchitectContext`);
+    expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
+    // Back to the notation's — for architects, and for every presentation; the developers' is theirs still. Undoably.
     await panel.updateComplete;
     root.querySelector<HTMLButtonElement>('.label-reset')!.click();
-    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ notationSet: 'https://example.org/notation#Other', expression: 'elsewhere' }]);
+    expect(views.getNode(view, node)?.labelExpressions).toEqual([{ context: `${PC}DeveloperContext`, expression: '{name}\n«{type}»' }]);
     expect(drawnLines()).toEqual(['Labelled']);
     await ui.runCommand({ command: 'undo' });
     await Promise.resolve();
-    expect(drawnLines()).toEqual(['Labelled', '«Application', 'Component»']);
+    expect(drawnLines()).toEqual(['Labelled', 'by Bo']);
 
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    els.deleteElement(a);
+  });
+
+  it('names an element for each presentation (SKOS-XL): drawn, and shown by a label, where that one is chosen', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const view = app.session.activeViewIri!;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const a = els.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label: 'Payment gateway' }).value;
+    const node = views.addElementToView(view, a, { x: 100, y: 1400, width: 160, height: 80 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawnLines = () => [...document.querySelectorAll(`[data-element-iri="${a}"] .la-shape-label tspan`)].map((t) => t.textContent);
+
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="info"]')!.click();
+    await panel.updateComplete;
+    // Every audience the metamodel names, one field each.
+    const rows = () => [...root.querySelectorAll('.context-name')];
+    expect(rows().map((r) => r.querySelector('.context-label')!.textContent!.trim()).sort()).toEqual([
+      'Architect',
+      'Developer / Engineering',
+      'Executive / C-Level',
+      'Governance / Compliance',
+      'Operations / Infrastructure',
+    ]);
+    const field = (context: string) => root.querySelector<HTMLInputElement>(`.context-name[data-context="${PC}${context}"] input`)!;
+    field('DeveloperContext').value = 'pgw-svc';
+    field('DeveloperContext').dispatchEvent(new Event('change'));
+    // A skosxl:altLabel for developers; its plain form a skos:altLabel; the canonical name as it was.
+    const SKOSXL = 'http://www.w3.org/2008/05/skos-xl#';
+    const xl = store.getQuads(DataFactory.namedNode(a) as never, DataFactory.namedNode(SKOSXL + 'altLabel') as never);
+    expect(xl).toHaveLength(1);
+    expect(store.getQuads(xl[0]!.object as never, DataFactory.namedNode(SKOSXL + 'literalForm') as never)[0]?.object.value).toBe('pgw-svc');
+    expect(labelOf(store, a)).toBe('Payment gateway');
+    // Its own name until developers are chosen; then theirs.
+    expect(drawnLines()).toEqual(['Payment gateway']);
+    app.setPresentationContext(`${PC}DeveloperContext`);
+    expect(drawnLines()).toEqual(['pgw-svc']);
+    await panel.updateComplete;
+    expect(root.querySelector('.context-name[data-active="true"]')!.getAttribute('data-context')).toBe(`${PC}DeveloperContext`);
+    // A label expression shows it as {name}, the canonical one as {skos:prefLabel}.
+    views.setLabelExpression!(view, node, undefined, '{name} ({skos:prefLabel})');
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(drawnLines().join(' ')).toBe('pgw-svc (Payment gateway)');
+    // Core's shapes accept what la-gram writes; a second name for developers, written by hand, they report.
+    const fromCore = () =>
+      ui.validationPanel.results.filter(
+        (r) => r.sourceShape?.value.startsWith('https://meta.linked.archi/core-shapes#') && JSON.stringify(r).includes(a),
+      );
+    app.runValidation();
+    expect(fromCore()).toEqual([]);
+    const second = DataFactory.namedNode(`${a}-another-name`);
+    const extra = [
+      DataFactory.quad(DataFactory.namedNode(a), DataFactory.namedNode(SKOSXL + 'altLabel'), second),
+      DataFactory.quad(second, DataFactory.namedNode(SKOSXL + 'literalForm'), DataFactory.literal('pgw', 'en')),
+      DataFactory.quad(second, DataFactory.namedNode(NAMESPACES.arch + 'inPresentationContext'), DataFactory.namedNode(`${PC}DeveloperContext`)),
+    ];
+    store.addQuads(extra as never);
+    app.runValidation();
+    expect(fromCore().map((r) => r.sourceShape?.value.split('#')[1]).sort()).toEqual(['OneNamePerContextShape', 'PresentationNameAlsoPlainShape']);
+    store.removeQuads(extra as never);
+    // Taken away: its own name again — undoably.
+    await panel.updateComplete;
+    field('DeveloperContext').value = '';
+    field('DeveloperContext').dispatchEvent(new Event('change'));
+    expect(store.getQuads(DataFactory.namedNode(a) as never, DataFactory.namedNode(SKOSXL + 'altLabel') as never)).toHaveLength(0);
+    expect(drawnLines().join(' ')).toBe('Payment gateway (Payment gateway)');
+    await ui.runCommand({ command: 'undo' });
+    await Promise.resolve();
+    expect(drawnLines().join(' ')).toBe('pgw-svc (Payment gateway)');
+
+    app.setPresentationContext(undefined);
     ui.diagramCanvas.selectIris([]);
     ui.selectConcept(undefined);
     els.deleteElement(a);

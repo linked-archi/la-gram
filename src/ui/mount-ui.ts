@@ -36,6 +36,7 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { contextNameChange, contextNameOf } from '../model-manager/context-names.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
 import { notationOnly, rememberNotationOnly } from './notation-only.js';
 import { figureBarOpen, rememberFigureBarOpen } from './figure-bar.js';
@@ -107,6 +108,7 @@ import type {
   PropertyAnalysis,
   PropertyHeading,
   AppearanceChangeDetail,
+  ContextNameChangeDetail,
   LabelExpressionChangeDetail,
 } from './panels/property-panel.js';
 import type {
@@ -546,7 +548,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       ),
     subjectsOf: (object, predicate) =>
       store.getQuads(null, namedNode(predicate) as never, namedNode(object) as never).map((q) => q.subject.value),
-    nameOf: (iri) => (hasLabel(store, iri) ? labelOf(store, iri) : undefined),
+    // A resource's name for the presentation context chosen (a SKOS-XL name), else its own.
+    nameOf: (iri) => contextNameOf(store, iri, app.activePresentationContext()) ?? (hasLabel(store, iri) ? labelOf(store, iri) : undefined),
+    nameForContext: (iri) => contextNameOf(store, iri, app.activePresentationContext()),
     typeOf: (iri) => {
       const typeIri = describe(iri)?.typeIri;
       return typeIri ? labelOf(store, typeIri) : undefined;
@@ -1403,30 +1407,44 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   propertyPanel.addEventListener('appearance-change', onAppearanceChange);
 
-  // The Label tab: what the selected elements' labels say, in the notation set in use or in every set.
+  // The Label tab: what the selected elements' labels say, in the presentation context chosen or in every one.
   const onLabelExpressionChange = (event: Event): void => {
     const detail = (event as CustomEvent<LabelExpressionChangeDetail>).detail;
     const viewIri = session.activeViewIri;
     const targets = (propertyPanel.appearance?.targets ?? []).filter((t) => t.kind === 'element');
     const write = viewManager.setLabelExpression?.bind(viewManager);
     if (!detail || !viewIri || targets.length === 0 || !write) return;
-    const set = diagramCanvas.notationSetInUse;
+    const context = diagramCanvas.presentationContextInUse;
     diagramCanvas.recordChange(() => {
       for (const target of targets) {
         if (detail.all) {
-          if (set) write(viewIri, target.iri, set, null);
+          if (context) write(viewIri, target.iri, context, null);
           write(viewIri, target.iri, undefined, null);
-        } else if (detail.everySet || !set) {
+        } else if (detail.everyContext || !context) {
           write(viewIri, target.iri, undefined, detail.expression);
-          // So that it shows in this set too.
-          if (set) write(viewIri, target.iri, set, null);
-        } else write(viewIri, target.iri, set, detail.expression);
+          // So that it shows in this context too.
+          if (context) write(viewIri, target.iri, context, null);
+        } else write(viewIri, target.iri, context, detail.expression);
       }
     });
     diagramCanvas.refreshLabels();
     propertyPanel.appearance = diagramCanvas.selectedAppearance();
   };
   propertyPanel.addEventListener('label-expression-change', onLabelExpressionChange);
+
+  // Names by presentation: an element's name for one audience (core 0.5.0's SKOS-XL names), undoably.
+  const onContextNameChange = (event: Event): void => {
+    const detail = (event as CustomEvent<ContextNameChangeDetail>).detail;
+    if (!detail) return;
+    changeProperties(detail.elementIri, () => {
+      const { remove, add } = contextNameChange(store, detail.elementIri, detail.context, detail.name);
+      if (remove.length > 0) store.removeQuads(remove);
+      if (add.length > 0) store.addQuads(add);
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.reload();
+  };
+  propertyPanel.addEventListener('context-name-change', onContextNameChange);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -1990,6 +2008,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }));
     appToolbar.presentationContexts = presentationContexts();
     appToolbar.activeContextIri = app.activePresentationContext() ?? '';
+    // Names by presentation: the same audiences, the chosen one marked.
+    propertyPanel.presentationContexts = appToolbar.presentationContexts;
+    propertyPanel.activeContextIri = appToolbar.activeContextIri;
   };
 
   // ── Modules: their File-menu entries, and File › Settings… ──────────
@@ -2621,6 +2642,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onContextChanged: ModelEventHandler = () => {
     regeneratePalette();
     refreshToolbar();
+    // Another audience: the Label tab's context, and the names by presentation marked.
+    if (propertyPanel.appearance) propertyPanel.appearance = diagramCanvas.selectedAppearance();
+    propertyPanel.reload();
   };
 
   const onSaved: ModelEventHandler = () => {
@@ -2740,6 +2764,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
     propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
     propertyPanel.removeEventListener('label-expression-change', onLabelExpressionChange);
+    propertyPanel.removeEventListener('context-name-change', onContextNameChange);
     canvasToolbar.removeEventListener('notation-only', onNotationOnly);
     canvasToolbar.removeEventListener('format-painter', onFormatPainter);
     eventBus.off('format-painter-changed', onFormatPainterChanged);

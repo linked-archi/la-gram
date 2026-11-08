@@ -1368,23 +1368,27 @@ export class DiagramCanvas {
   }
 
   /**
-   * The label expression an element's placement is drawn with in the notation
-   * set in use: its own for that set, its own for every set, its type's
-   * notation's, the set's — `undefined` for its name alone.
+   * The label expression an element's placement is drawn with in the
+   * presentation context chosen: its own for that context, its own for every
+   * context, its type's notation's (for the context, else for every one), the
+   * context's — `undefined` for its name alone.
    */
   labelExpressionOf(node: Pick<NodeInfo, 'labelExpressions'>, typeIri: string | undefined): { expression: string; own: boolean } | undefined {
-    const set = this.notationStyles.activeNotationSet;
-    const own = node.labelExpressions?.find((l) => l.notationSet === set) ?? node.labelExpressions?.find((l) => !l.notationSet);
+    const context = this.notationStyles.activePresentationContext;
+    const own =
+      (context ? node.labelExpressions?.find((l) => l.context === context) : undefined) ?? node.labelExpressions?.find((l) => !l.context);
     if (own) return { expression: own.expression, own: true };
     const notation = this.notationStyles.labelExpressionFor(typeIri);
     return notation !== undefined ? { expression: notation, own: false } : undefined;
   }
 
   /**
-   * What each element's label says, by its expression (`labelExpressionOf`),
-   * drawn in place of its name; redrawn where that changed. After a sync, a
-   * command — a rename on the canvas is not followed by one — and a change of
-   * notation set (another presentation).
+   * What each element's label says, by its expression (`labelExpressionOf`) —
+   * else its name for the presentation context chosen (a SKOS-XL name) —
+   * drawn in place of its canonical name; and each relationship's name on its
+   * line, its name for that context. Redrawn where that changed. After a
+   * sync, a command — a rename on the canvas is not followed by one — and a
+   * change of presentation context.
    */
   private refreshLabelTexts(): void {
     const services = this.services();
@@ -1397,11 +1401,26 @@ export class DiagramCanvas {
       const node = key ? nodes.get(key) : undefined;
       if (!node) continue;
       const said = this.labelExpressionOf(node, businessObject.typeIri);
-      const text = said && this.labelSourceOf ? labelFromExpression(said.expression, node.elementIri, this.labelSourceOf) : undefined;
+      const source = this.labelSourceOf;
+      const text = !source
+        ? undefined
+        : said
+          ? labelFromExpression(said.expression, node.elementIri, source)
+          : source.nameForContext?.(node.elementIri);
       if (businessObject.labelText === text) continue;
       if (text === undefined) delete businessObject.labelText;
       else businessObject.labelText = text;
       services.eventBus.fire('element.changed', { element: shape });
+    }
+    // A relationship's name on its line: its name for the context chosen.
+    const source = this.labelSourceOf;
+    for (const line of services.elementRegistry.getAll().filter((e) => e.businessObject?.kind === 'relationship' && e.waypoints)) {
+      const businessObject = line.businessObject!;
+      const text = source?.nameForContext?.(businessObject.iri);
+      if (businessObject.labelText === text) continue;
+      if (text === undefined) delete businessObject.labelText;
+      else businessObject.labelText = text;
+      services.eventBus.fire('element.changed', { element: line });
     }
   }
 
@@ -1853,25 +1872,25 @@ export class DiagramCanvas {
     };
   }
 
-  /** The notation set in use — the presentation's, else the metamodel's: what a label expression for one set is for. */
-  get notationSetInUse(): string | undefined {
-    return this.notationStyles.activeNotationSet;
+  /** The presentation context chosen — the audience — that a name or a label expression for one context is for. */
+  get presentationContextInUse(): string | undefined {
+    return this.notationStyles.activePresentationContext;
   }
 
   /** What the Label tab shows of an element's placement. */
   private labelChoices(viewIri: string, shape: DjsShape, nodeIri: string): LabelChoices {
-    const set = this.notationStyles.activeNotationSet;
+    const context = this.notationStyles.activePresentationContext;
     const node = this.viewManager?.getNode(viewIri, nodeIri);
     const own = node?.labelExpressions ?? [];
-    const forSet = set ? own.find((l) => l.notationSet === set)?.expression : undefined;
-    const forEvery = own.find((l) => !l.notationSet)?.expression;
+    const forContext = context ? own.find((l) => l.context === context)?.expression : undefined;
+    const forEvery = own.find((l) => !l.context)?.expression;
     const inherited = this.notationStyles.labelExpressionFor(shape.businessObject?.typeIri);
-    const inForce = forSet ?? forEvery ?? inherited;
+    const inForce = forContext ?? forEvery ?? inherited;
     const businessObject = shape.businessObject;
     return {
-      ...(set ? { notationSet: set } : {}),
-      ...(this.notationStyles.activeNotationSetLabel ? { notationSetLabel: this.notationStyles.activeNotationSetLabel } : {}),
-      ...(forSet !== undefined ? { forSet } : {}),
+      ...(context ? { context } : {}),
+      ...(this.notationStyles.activePresentationContextLabel ? { contextLabel: this.notationStyles.activePresentationContextLabel } : {}),
+      ...(forContext !== undefined ? { forContext } : {}),
       ...(forEvery !== undefined ? { forEvery } : {}),
       ...(inherited !== undefined ? { inherited } : {}),
       shown: businessObject?.labelText ?? businessObject?.label ?? '',

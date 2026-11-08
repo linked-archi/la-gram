@@ -176,7 +176,9 @@ const TEST_METAMODEL = `
   ex:ExecutiveContext
     rdf:type skos:Concept ;
     skos:prefLabel "Executive"@en ;
-    arch:usesNotationSet ex:AltNotation .
+    arch:usesNotationSet ex:AltNotation ;
+    # What every label shown to executives says, where nothing else does.
+    arch-vis:labelExpression [ rdf:type arch-vis:LabelExpression ; arch-vis:expression "{name}" ] .
 
   # ── Viewpoint (real predicate: arch:includesConcept) ─────────────
   ex:BusinessViewpoint
@@ -358,6 +360,17 @@ describe('SparqlPaletteGenerator', () => {
         presentationContextIri: `${EX}ExecutiveContext`,
       });
       expect(p.notationSetIri).toBe(`${EX}AltNotation`);
+    });
+
+    it('carries the presentation context chosen: its name, and what it says every label says', () => {
+      const p = generator.generatePalette(ONTOLOGY_IRI, { presentationContextIri: `${EX}ExecutiveContext` });
+      expect([p.presentationContextIri, p.presentationContextLabel, p.presentationContextLabelExpression]).toEqual([
+        `${EX}ExecutiveContext`,
+        'Executive',
+        '{name}',
+      ]);
+      // None chosen: none.
+      expect(generator.generatePalette(ONTOLOGY_IRI).presentationContextIri).toBeUndefined();
     });
   });
 

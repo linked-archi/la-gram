@@ -10,6 +10,7 @@
 @prefix sh:      <http://www.w3.org/ns/shacl#> .
 
 @prefix arch:    <https://meta.linked.archi/core#> .
+@prefix skosxl:  <http://www.w3.org/2008/05/skos-xl#> .
 @prefix :        <https://meta.linked.archi/core-shapes#> .
 
 #################################################################
@@ -42,20 +43,25 @@ below: requiring skos:prefLabel on every arch:Element is not a sound cross-notat
 because routing and connector constructs are genuine elements that notations permit to be
 unnamed. Naming rules are owned by each metamodel's shapes graph.'''@en ;
     dcterms:created               "2019-03-17"^^xsd:date ;
-    dcterms:modified              "2026-11-06"^^xsd:date ;
+    dcterms:modified              "2026-11-08"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/core-shapes/0.3.0#> ;
-    owl:versionInfo               "0.3.0"@en ;
-    owl:priorVersion              <https://meta.linked.archi/core-shapes/0.2.0#> ;
+    owl:versionIRI                <https://meta.linked.archi/core-shapes/0.4.0#> ;
+    owl:versionInfo               "0.4.0"@en ;
+    owl:priorVersion              <https://meta.linked.archi/core-shapes/0.3.0#> ;
     skos:historyNote              '''0.2.0 — added archsh:InModelShape and archsh:InViewShape for the
 membership properties introduced in core 0.4.0. Neither shape requires the property; both bound it.'''@en,
                                   '''0.3.0 (2026-11-06) — the five viewpoint conformance shapes moved here
 from the ArchiMate 3.2 and 4.0 viewpoint shapes, which had the same rules twice: a model that loads
 both languages had every finding reported twice. They use no ArchiMate term, so core states them
 once, under the 4.0 names (3.2 called two of them ViewMustDeclareViewpointShape and
-ElementConformanceShape). The ArchiMate viewpoint shapes now import this file and add nothing.'''@en ;
+ElementConformanceShape). The ArchiMate viewpoint shapes now import this file and add nothing.'''@en,
+                                  '''0.4.0 (2026-11-08) — names per presentation context (core 0.5.0's
+arch:inPresentationContext on SKOS-XL labels): a name has one language-tagged literal form and is for at
+most one context; a name for one context is a skosxl:altLabel, not a skosxl:prefLabel; an element has at
+most one name per context and language; and, a warning, a name's literal form is also the element's
+skos:altLabel, so that tools reading plain SKOS see it.'''@en ;
     sh:declare [
         sh:prefix    "arch" ;
         sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ;
@@ -65,6 +71,12 @@ ElementConformanceShape). The ArchiMate viewpoint shapes now import this file an
     ] , [
         sh:prefix    "rdfs" ;
         sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "skos" ;
+        sh:namespace "http://www.w3.org/2004/02/skos/core#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "skosxl" ;
+        sh:namespace "http://www.w3.org/2008/05/skos-xl#"^^xsd:anyURI ;
     ] ;
 .
 
@@ -674,5 +686,87 @@ mark, which is what tells it from a Concern's noun phrase — as a language-tagg
         sh:minCount 1 ;
         sh:message  "Viewpoint should declare at least one arch:viewType."@en ;
         sh:severity sh:Info ;
+    ] ;
+.
+
+
+#################################################################
+# NAMES PER PRESENTATION CONTEXT (core 0.5.0)
+#
+# An element's canonical name is its skos:prefLabel (the labelling contract
+# above). A name for one audience is a SKOS-XL label — a resource, so that it
+# can say which presentation context it is for — given as skosxl:altLabel, its
+# literal form also the element's skos:altLabel. See DD-34.
+#################################################################
+
+:PresentationNameShape
+    a                  sh:NodeShape ;
+    sh:targetClass     skosxl:Label ;
+    sh:targetObjectsOf skosxl:altLabel ;
+    rdfs:label         "Name for a presentation context shape"@en ;
+    sh:property [
+        sh:path     skosxl:literalForm ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype rdf:langString ;
+        sh:message  "A SKOS-XL label has exactly one skosxl:literalForm, language tagged: \"pgw-svc\"@en."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A name is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
+.
+
+:CanonicalNameForEveryContextShape
+    a                  sh:NodeShape ;
+    sh:targetObjectsOf skosxl:prefLabel ;
+    rdfs:label         "Preferred SKOS-XL label shape"@en ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 0 ;
+        sh:message  '''A name for one presentation context is a skosxl:altLabel. A skosxl:prefLabel is also the
+element's skos:prefLabel — its canonical name, one per language — so it cannot be one audience's.'''@en ;
+    ] ;
+.
+
+:OneNamePerContextShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf skosxl:altLabel ;
+    rdfs:label          "One name per presentation context shape"@en ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this} has {?count} names for presentation context {?context} in language \"{?language}\": it may have one."@en ;
+        sh:select   """
+            SELECT $this ?context ?language (COUNT(DISTINCT ?name) AS ?count)
+            WHERE {
+                $this skosxl:altLabel ?name .
+                ?name arch:inPresentationContext ?context ;
+                      skosxl:literalForm ?form .
+                BIND(LANG(?form) AS ?language)
+            }
+            GROUP BY $this ?context ?language
+            HAVING (COUNT(DISTINCT ?name) > 1)
+        """ ;
+    ] ;
+.
+
+:PresentationNameAlsoPlainShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf skosxl:altLabel ;
+    rdfs:label          "Name also a plain SKOS label shape"@en ;
+    sh:severity         sh:Warning ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this}'s name {?form} is not also its skos:altLabel: tools that read plain SKOS do not see it."@en ;
+        sh:select   """
+            SELECT $this ?form
+            WHERE {
+                $this skosxl:altLabel ?name .
+                ?name skosxl:literalForm ?form .
+                FILTER NOT EXISTS { $this skos:altLabel ?form }
+            }
+        """ ;
     ] ;
 .

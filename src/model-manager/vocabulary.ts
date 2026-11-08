@@ -75,6 +75,8 @@ export function dateTimeLiteral(date: Date = new Date()): Literal {
 
 const ARCH = NAMESPACES.arch;
 const VIS = NAMESPACES['arch-vis'];
+const SKOS = NAMESPACES.skos;
+const SKOSXL = 'http://www.w3.org/2008/05/skos-xl#';
 
 /** IRIs, as strings, for comparisons. */
 export const IRI = {
@@ -123,7 +125,13 @@ export const IRI = {
   labelExpression: VIS + 'labelExpression',
   LabelExpression: VIS + 'LabelExpression',
   expression: VIS + 'expression',
-  inNotationSet: VIS + 'inNotationSet',
+  /** The presentation context a name or a label expression is for (core 0.5.0). */
+  inPresentationContext: ARCH + 'inPresentationContext',
+  /** A name as a resource (SKOS-XL), its text, an element's alternative names. */
+  skosxlLabel: SKOSXL + 'Label',
+  skosxlAltLabel: SKOSXL + 'altLabel',
+  skosxlLiteralForm: SKOSXL + 'literalForm',
+  altLabel: SKOS + 'altLabel',
   shapeType: VIS + 'shapeType',
   fillColor: VIS + 'fillColor',
   lineColor: VIS + 'lineColor',

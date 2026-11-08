@@ -41,17 +41,18 @@ export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]>
 
 /**
  * The Label tab: what the first one's label says (core-vis 0.7's label
- * expressions) in the notation set in use — the presentation's — and in
- * every set; what its notation says where it says nothing of its own; what it
+ * expressions) in the presentation context chosen, and in every context; what
+ * its notation or the context says where it says nothing of its own; what it
  * shows now, and what the expression in force cannot read.
  */
 export interface LabelChoices {
-  notationSet?: string;
-  notationSetLabel?: string;
-  /** Its own expression for the set in use, and for every set. */
-  forSet?: string;
+  /** The presentation context chosen, and its name; none when none is. */
+  context?: string;
+  contextLabel?: string;
+  /** Its own expression for that context, and for every context. */
+  forContext?: string;
   forEvery?: string;
-  /** Its type's notation's, or the set's: what it says without one of its own. */
+  /** Its type's notation's, or the context's: what it says without one of its own. */
   inherited?: string;
   /** What its label shows now. */
   shown: string;

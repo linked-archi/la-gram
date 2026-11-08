@@ -250,12 +250,15 @@ export function drawnConnectionLabel(
   const businessObject = connection.businessObject;
   // A line from a note says what it says always; a relationship's name, when names are shown.
   const connector = businessObject?.kind === 'connector';
-  const named = connector || (options.relationshipNames && businessObject?.kind === 'relationship' && businessObject.named);
-  if (!businessObject || !named || !businessObject.label) return undefined;
+  const named =
+    connector || (options.relationshipNames && businessObject?.kind === 'relationship' && (businessObject.named || !!businessObject.labelText));
+  // A relationship's name for the presentation context shown, else its own.
+  const text = businessObject?.labelText ?? businessObject?.label;
+  if (!businessObject || !named || !text) return undefined;
   const own = options.notationOnly && !connector ? undefined : businessObject.appearance;
   const fontSize = own?.fontSize ?? notation?.fontSize;
   const anchor = own?.labelAnchor ?? notation?.labelAnchor;
-  const layout = connectionLabelLayout(connection.waypoints ?? [], businessObject.label, {
+  const layout = connectionLabelLayout(connection.waypoints ?? [], text, {
     badge: !!businessObject.derivation,
     offset: businessObject.labelOffset,
     ...(fontSize ? { fontSize } : {}),

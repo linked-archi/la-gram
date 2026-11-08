@@ -14,7 +14,7 @@
   dcterms:language <http://id.loc.gov/vocabulary/iso639-1/en>;
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:issued "2024-06-01"^^xsd:date;
-  dcterms:modified "2026-11-07"^^xsd:date;
+  dcterms:modified "2026-11-08"^^xsd:date;
   dcterms:publisher <https://linked.archi>;
   foaf:homepage <https://meta.linked.archi/>;
   dcat:themeTaxonomy <https://meta.linked.archi/catalog#themes>;
@@ -92,24 +92,25 @@
     <https://meta.linked.archi/examples/cloudplatform/model/>, <https://meta.linked.archi/examples/cloudplatform/onto>,
     <https://meta.linked.archi/examples/cloudplatform/reference-data>, <https://meta.linked.archi/examples/cloudplatform/shapes>,
     <https://meta.linked.archi/examples/cloudplatform/tax>, <https://meta.linked.archi/examples/cloudplatform/viewpoints>,
-    <https://meta.linked.archi/examples/diagram/>, <https://meta.linked.archi/examples/leanix-docs-example/>,
-    <https://meta.linked.archi/examples/meridian/>, <https://meta.linked.archi/examples/nordfreight/>,
-    <https://meta.linked.archi/examples/payflow/>, <https://meta.linked.archi/examples/uml/>,
-    <https://meta.linked.archi/financial-architecture/metamodel>, <https://meta.linked.archi/financial-architecture/onto>,
-    <https://meta.linked.archi/financial-architecture/reference-data>, <https://meta.linked.archi/financial-architecture/shapes>,
-    <https://meta.linked.archi/financial-architecture/tax>, <https://meta.linked.archi/iso12207>,
-    <https://meta.linked.archi/iso15288>, <https://meta.linked.archi/iso25010>, <https://meta.linked.archi/iso25011>,
-    <https://meta.linked.archi/iso25012>, <https://meta.linked.archi/iso42010>, <https://meta.linked.archi/iso42020>,
-    <https://meta.linked.archi/leanix/crossmappings>, <https://meta.linked.archi/leanix/deliverable-templates>,
-    <https://meta.linked.archi/leanix/metamodel>, <https://meta.linked.archi/leanix/notation>,
-    <https://meta.linked.archi/leanix/onto>, <https://meta.linked.archi/leanix/shapes>,
-    <https://meta.linked.archi/leanix/tax>, <https://meta.linked.archi/leanix/v3/metamodel>,
-    <https://meta.linked.archi/leanix/v3/onto>, <https://meta.linked.archi/leanix/viewpoints>,
-    <https://meta.linked.archi/ml-systems/metamodel>, <https://meta.linked.archi/ml-systems/onto>,
-    <https://meta.linked.archi/ml-systems/quality-attributes>, <https://meta.linked.archi/ml-systems/shapes>,
-    <https://meta.linked.archi/ml-systems/tax>, <https://meta.linked.archi/platform-design>,
-    <https://meta.linked.archi/quality-attributes>, <https://meta.linked.archi/ref-arch>,
-    <https://meta.linked.archi/simple-example>, <https://meta.linked.archi/tactics>, <https://meta.linked.archi/tech-radar/metamodel>,
+    <https://meta.linked.archi/examples/diagram/>, <https://meta.linked.archi/examples/labels/>,
+    <https://meta.linked.archi/examples/leanix-docs-example/>, <https://meta.linked.archi/examples/meridian/>,
+    <https://meta.linked.archi/examples/nordfreight/>, <https://meta.linked.archi/examples/payflow/>,
+    <https://meta.linked.archi/examples/uml/>, <https://meta.linked.archi/financial-architecture/metamodel>,
+    <https://meta.linked.archi/financial-architecture/onto>, <https://meta.linked.archi/financial-architecture/reference-data>,
+    <https://meta.linked.archi/financial-architecture/shapes>, <https://meta.linked.archi/financial-architecture/tax>,
+    <https://meta.linked.archi/iso12207>, <https://meta.linked.archi/iso15288>, <https://meta.linked.archi/iso25010>,
+    <https://meta.linked.archi/iso25011>, <https://meta.linked.archi/iso25012>, <https://meta.linked.archi/iso42010>,
+    <https://meta.linked.archi/iso42020>, <https://meta.linked.archi/leanix/crossmappings>,
+    <https://meta.linked.archi/leanix/deliverable-templates>, <https://meta.linked.archi/leanix/metamodel>,
+    <https://meta.linked.archi/leanix/notation>, <https://meta.linked.archi/leanix/onto>,
+    <https://meta.linked.archi/leanix/shapes>, <https://meta.linked.archi/leanix/tax>,
+    <https://meta.linked.archi/leanix/v3/metamodel>, <https://meta.linked.archi/leanix/v3/onto>,
+    <https://meta.linked.archi/leanix/viewpoints>, <https://meta.linked.archi/ml-systems/metamodel>,
+    <https://meta.linked.archi/ml-systems/onto>, <https://meta.linked.archi/ml-systems/quality-attributes>,
+    <https://meta.linked.archi/ml-systems/shapes>, <https://meta.linked.archi/ml-systems/tax>,
+    <https://meta.linked.archi/platform-design>, <https://meta.linked.archi/quality-attributes>,
+    <https://meta.linked.archi/ref-arch>, <https://meta.linked.archi/simple-example>,
+    <https://meta.linked.archi/tactics>, <https://meta.linked.archi/tech-radar/metamodel>,
     <https://meta.linked.archi/tech-radar/onto>, <https://meta.linked.archi/tech-radar/shapes>,
     <https://meta.linked.archi/tech-radar/tax>, <https://meta.linked.archi/time-framework/crossmappings>,
     <https://meta.linked.archi/time-framework/derivation>, <https://meta.linked.archi/time-framework/metamodel>,
@@ -3478,8 +3479,8 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/core#";
   vann:preferredNamespacePrefix "arch";
-  owl:versionInfo "0.4.0";
-  dcterms:modified "2026-09-07"^^xsd:date;
+  owl:versionInfo "0.5.0";
+  dcterms:modified "2026-11-08"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -3567,8 +3568,8 @@ so they work for any viewpoint — a language's catalogue, a framework's, or you
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-shapes#";
   vann:preferredNamespacePrefix "archsh";
-  owl:versionInfo "0.3.0";
-  dcterms:modified "2026-11-06"^^xsd:date;
+  owl:versionInfo "0.4.0";
+  dcterms:modified "2026-11-08"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -4681,6 +4682,18 @@ arch-vis:Node."""@en;
   dcat:distribution [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/examples/diagram/diagram-example.ttl>;
       dcat:downloadURL <https://meta.linked.archi/examples/diagram/diagram-example.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/examples/labels/> a dcat:Dataset;
+  dcterms:title "Example presentation contexts"@en;
+  dcterms:conformsTo arch:Model;
+  vann:preferredNamespaceUri "https://meta.linked.archi/examples/labels/";
+  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
+  dcat:landingPage <https://meta.linked.archi/examples/labels/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/examples/labels/labels-per-presentation.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/examples/labels/labels-per-presentation.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 

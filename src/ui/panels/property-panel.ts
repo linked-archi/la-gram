@@ -44,6 +44,7 @@ import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
 import { localName } from '../../model-manager/vocabulary.js';
+import { contextNamesOf } from '../../model-manager/context-names.js';
 import { fieldName, type NameOf } from '../../model-manager/field-names.js';
 import { isQualifiedPredicate } from '../../model-manager/cascade.js';
 import './named-picker.js';
@@ -189,15 +190,22 @@ export interface AppearanceChangeDetail {
   changes: AppearanceChanges;
 }
 
+/** A name typed for one presentation context (`context-name-change`); `null` takes it away. */
+export interface ContextNameChangeDetail {
+  elementIri: string;
+  context: string;
+  name: string | null;
+}
+
 /**
  * The Label tab's change (`label-expression-change`): what the selected say,
- * in the notation set in use — or, `everySet`, in every set, the one for the
- * set in use taken away so it shows there too; `null` takes it away. `all`
- * takes both away: the notation's again.
+ * in the presentation context chosen — or, `everyContext`, in every context,
+ * the one for the context chosen taken away so it shows there too; `null`
+ * takes it away. `all` takes both away: the notation's or the context's again.
  */
 export interface LabelExpressionChangeDetail {
   expression: string | null;
-  everySet: boolean;
+  everyContext: boolean;
   all?: boolean;
 }
 
@@ -332,7 +340,8 @@ const DEFAULT_FIELD_PLACEHOLDER: Record<string, string> = {
  * Not listed: the views a concept is in are in the toolbar and under
  * "Appears in views", so an `arch:inView` row per view repeats them.
  */
-const HIDDEN_FIELDS = new Set([NAMESPACES.arch + 'inView', NAMESPACES.rdf + 'reifies']);
+// A SKOS-XL name's link: the names for each presentation are shown as such (Names by presentation).
+const HIDDEN_FIELDS = new Set([NAMESPACES.arch + 'inView', NAMESPACES.rdf + 'reifies', 'http://www.w3.org/2008/05/skos-xl#altLabel']);
 
 /** SHACL property constraint extracted from a shapes graph. */
 export interface ShaclPropertyShape {
@@ -1060,6 +1069,31 @@ export class PropertyPanel extends LitElement {
       font-size: 12px;
     }
 
+    /* Names by presentation: one field a context. */
+    .context-name-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .context-name {
+      display: grid;
+      grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .context-name[data-active='true'] .context-label {
+      font-weight: 600;
+    }
+
+    .context-label .muted {
+      color: #80868b;
+      font-weight: normal;
+    }
+
     /* The Label tab: the expression, what it shows, and what it can say. */
     .label-tab {
       display: flex;
@@ -1386,6 +1420,13 @@ export class PropertyPanel extends LitElement {
   @property({ attribute: false })
   appearance?: AppearanceSelection;
 
+  /** The loaded metamodels' presentation contexts — the audiences — and the one chosen: for *Names by presentation*. */
+  @property({ attribute: false })
+  presentationContexts: Array<{ iri: string; label: string }> = [];
+
+  @property({ attribute: false })
+  activeContextIri = '';
+
   /** Whether the canvas draws the notation alone (its toolbar's *Notation only*): the Appearance tab then says so. */
   @property({ type: Boolean, attribute: false })
   notationOnly = false;
@@ -1420,7 +1461,7 @@ export class PropertyPanel extends LitElement {
     // Another selection: the Label tab edits what is in force for it, not the last one's choice.
     if (changedProperties.has('appearance')) {
       const before = (changedProperties.get('appearance') as AppearanceSelection | undefined)?.targets.map((t) => t.iri).join(' ');
-      if (before !== this.appearance?.targets.map((t) => t.iri).join(' ')) this._labelEverySet = undefined;
+      if (before !== this.appearance?.targets.map((t) => t.iri).join(' ')) this._labelEveryContext = undefined;
     }
     if (
       changedProperties.has('selectedIri') ||
@@ -2261,8 +2302,8 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
-  /** Whether the Label tab edits the expression for every presentation (else the one in use); `undefined` until toggled. */
-  @state() private _labelEverySet: boolean | undefined;
+  /** Whether the Label tab edits the expression for every presentation (else the one chosen); `undefined` until toggled. */
+  @state() private _labelEveryContext: boolean | undefined;
 
   /**
    * The Label tab: what the selected elements' labels say — text with
@@ -2271,44 +2312,51 @@ export class PropertyPanel extends LitElement {
    * now, and what cannot be read.
    */
   private _renderLabelTab(choices: LabelChoices, count: number) {
-    // Editing the one for every set when it is the one in force here, or when asked to.
-    const everySet = this._labelEverySet ?? (choices.forSet === undefined && choices.forEvery !== undefined);
-    const text = everySet ? choices.forEvery : choices.forSet;
-    const own = choices.forSet !== undefined || choices.forEvery !== undefined;
+    // With no presentation chosen, the one for every presentation is all there is to edit.
+    const chosen = choices.context !== undefined;
+    // Editing the one for every context when it is the one in force here, or when asked to.
+    const everyContext = !chosen || (this._labelEveryContext ?? (choices.forContext === undefined && choices.forEvery !== undefined));
+    const text = everyContext ? choices.forEvery : choices.forContext;
+    const own = choices.forContext !== undefined || choices.forEvery !== undefined;
     const change = (detail: LabelExpressionChangeDetail) =>
       this.dispatchEvent(new CustomEvent<LabelExpressionChangeDetail>('label-expression-change', { detail, bubbles: true, composed: true }));
-    const setName = choices.notationSetLabel ?? 'the notation in use';
+    const contextName = choices.contextLabel ?? 'the presentation chosen';
     return html`
       <div class="label-tab">
         <p class="label-scope">
-          ${everySet
-            ? html`What the label says in <strong>every presentation</strong>.`
-            : html`What the label says in <strong>${setName}</strong> — the presentation selected now.`}
+          ${!chosen
+            ? html`No presentation is chosen: what the label says in <strong>every presentation</strong>. Choose one above the
+                canvas to say what it says there.`
+            : everyContext
+              ? html`What the label says in <strong>every presentation</strong>.`
+              : html`What the label says for <strong>${contextName}</strong> — the presentation chosen now.`}
         </p>
-        <label class="label-every">
-          <input
-            type="checkbox"
-            .checked=${live(everySet)}
-            @change=${(e: Event) => {
-              const every = (e.target as HTMLInputElement).checked;
-              this._labelEverySet = every;
-              // What is written moves with it: for every set, or for this one.
-              const current = (every ? choices.forSet : choices.forEvery) ?? text;
-              if (current !== undefined) change({ expression: current, everySet: every });
-            }}
-          />
-          The same in every presentation
-        </label>
+        ${chosen
+          ? html`<label class="label-every">
+              <input
+                type="checkbox"
+                .checked=${live(everyContext)}
+                @change=${(e: Event) => {
+                  const every = (e.target as HTMLInputElement).checked;
+                  this._labelEveryContext = every;
+                  // What is written moves with it: for every context, or for this one.
+                  const current = (every ? choices.forContext : choices.forEvery) ?? text;
+                  if (current !== undefined) change({ expression: current, everyContext: every });
+                }}
+              />
+              The same in every presentation
+            </label>`
+          : nothing}
         <textarea
           class="label-expression"
           rows="4"
           aria-label="Label expression"
           placeholder=${choices.inherited ?? '{name}'}
           .value=${live(text ?? '')}
-          @change=${(e: Event) => change({ expression: (e.target as HTMLTextAreaElement).value || null, everySet })}
+          @change=${(e: Event) => change({ expression: (e.target as HTMLTextAreaElement).value || null, everyContext })}
         ></textarea>
         ${choices.inherited !== undefined && !own
-          ? html`<p class="muted label-inherited">Its notation's, shown above until it says its own.</p>`
+          ? html`<p class="muted label-inherited">Its notation's or the presentation's, shown above until it says its own.</p>`
           : nothing}
         ${choices.errors.length > 0
           ? html`<ul class="label-errors" role="alert">${choices.errors.map((error) => html`<li>${error}</li>`)}</ul>`
@@ -2319,7 +2367,7 @@ export class PropertyPanel extends LitElement {
         </div>
         <div class="label-actions">
           ${own
-            ? html`<button class="label-reset" @click=${() => change({ expression: null, everySet: true, all: true })}>
+            ? html`<button class="label-reset" @click=${() => change({ expression: null, everyContext: true, all: true })}>
                 Back to the notation's
               </button>`
             : nothing}
@@ -2328,7 +2376,8 @@ export class PropertyPanel extends LitElement {
         <details class="label-help">
           <summary>What it can say</summary>
           <ul>
-            <li><code>{name}</code> — its name; <code>{type}</code> — its type</li>
+            <li><code>{name}</code> — its name for the presentation chosen; <code>{type}</code> — its type;
+              <code>{skos:prefLabel}</code> — its own name, whatever the presentation</li>
             <li><code>{dcterms:creator}</code>, <code>{&lt;https://…&gt;}</code> — a property's values; a resource by its name, several joined by commas</li>
             <li><code>{am4:assignedTo/skos:prefLabel}</code> — a path; <code>{^arch:target}</code> — a property followed backwards</li>
             <li><code>{{</code> and <code>}}</code> — a brace</li>
@@ -2337,6 +2386,47 @@ export class PropertyPanel extends LitElement {
         </details>
       </div>
     `;
+  }
+
+  /**
+   * *Names by presentation*: what an element or a relationship is called for
+   * each presentation context (core 0.5.0's SKOS-XL names), each typed in its
+   * own field — empty, it is called by its own name there; the context chosen
+   * now marked. A change is `context-name-change`, for the host to write.
+   */
+  private _renderContextNames() {
+    const kind = this.heading?.kind;
+    const contexts = this.presentationContexts ?? [];
+    if ((kind !== 'Element' && kind !== 'Relationship') || contexts.length === 0 || !this.rdfStore || !this.selectedIri) {
+      return nothing;
+    }
+    const iri = this.selectedIri;
+    const names = contextNamesOf(this.rdfStore, iri);
+    const nameFor = (context: string) => (names.find((n) => n.context === context && n.language === 'en') ?? names.find((n) => n.context === context))?.name ?? '';
+    return html`<li class="property-row wide context-names">
+      <div class="property-label"><span class="field-name" title="What it is called for each audience">Names by presentation</span></div>
+      <ul class="context-name-list">
+        ${contexts.map(
+          (context) => html`<li class="context-name" data-context=${context.iri} data-active=${context.iri === this.activeContextIri ? 'true' : nothing}>
+            <span class="context-label">${context.label}${context.iri === this.activeContextIri ? html` <span class="muted">(chosen)</span>` : nothing}</span>
+            <input
+              class="property-value"
+              aria-label=${`Name for ${context.label}`}
+              placeholder="Its own name"
+              .value=${live(nameFor(context.iri))}
+              @change=${(e: Event) =>
+                this.dispatchEvent(
+                  new CustomEvent<ContextNameChangeDetail>('context-name-change', {
+                    detail: { elementIri: iri, context: context.iri, name: (e.target as HTMLInputElement).value.trim() || null },
+                    bubbles: true,
+                    composed: true,
+                  }),
+                )}
+            />
+          </li>`,
+        )}
+      </ul>
+    </li>`;
   }
 
   /** What was typed as a picture's address and is not one: said under the field, nothing written. */
@@ -2702,6 +2792,7 @@ export class PropertyPanel extends LitElement {
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
+                ${this._renderContextNames()}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0

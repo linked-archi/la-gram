@@ -48,14 +48,14 @@ export interface ViewInfo {
 }
 
 /** One element's placement in a diagram view (`arch-vis:ArchNode`) — or a figure's. */
-/** A placement's own label expression: its text, and the notation set it is for — every set when absent. */
+/** A placement's own label expression: its text, and the presentation context it is for — every context when absent. */
 export interface LabelExpressionInfo {
-  notationSet?: string;
+  context?: string;
   expression: string;
 }
 
 export interface NodeInfo {
-  /** What its label says, as its own style gives it: one expression a notation set, one for every set. */
+  /** What its label says, as its own style gives it: one expression a presentation context, one for every context. */
   labelExpressions?: LabelExpressionInfo[];
   nodeIri: string;
   /** The element the node draws; for a figure, which stands for none, the node itself. */
@@ -294,10 +294,11 @@ export interface ViewManager {
   setAppearance?(viewIri: string, iri: string, changes: AppearanceChanges): void;
   /**
    * What a placement's label says (core-vis 0.7's `arch-vis:labelExpression`):
-   * its expression in one notation set, or — `notationSet` absent — in every
-   * set; `null` or empty takes it away. On the node's own style.
+   * its expression for one presentation context (core's
+   * `arch:inPresentationContext`), or — `context` absent — for every context;
+   * `null` or empty takes it away. On the node's own style.
    */
-  setLabelExpression?(viewIri: string, nodeIri: string, notationSet: string | undefined, expression: string | null): void;
+  setLabelExpression?(viewIri: string, nodeIri: string, context: string | undefined, expression: string | null): void;
   /** Every picture (`arch-vis:image`) any style of the model draws, once each, in order: to pick one again. */
   usedImages?(): string[];
   /**

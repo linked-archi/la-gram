@@ -89,10 +89,33 @@ export function relationshipClassOf(store: RdfStore, relationshipIri: string): s
  * The quads of a link: its own, its point list cells and points — and those of
  * every link ending on it (core-vis 0.6), which cannot outlive it.
  */
+/**
+ * What goes with a diagram element or a concept that nothing else uses: a
+ * node's or a link's own style (`arch-vis:style`) and the label expressions it
+ * gives (core-vis 0.7), and a concept's SKOS-XL names (core 0.5.0) — each only
+ * when no other subject points at it.
+ */
+function ownedQuads(store: RdfStore, subject: Term): Quad[] {
+  const quads: Quad[] = [];
+  const alone = (predicate: NamedNode, object: Term) => store.getQuads(null, predicate, object as NamedNode).length <= 1;
+  for (const style of store.getQuads(subject as NamedNode, T.visStyle)) {
+    if (style.object.termType === 'Literal' || !alone(T.visStyle, style.object)) continue;
+    quads.push(...store.getQuads(style.object as NamedNode, null, null));
+    for (const label of store.getQuads(style.object as NamedNode, T.labelExpression)) {
+      if (label.object.termType !== 'Literal' && alone(T.labelExpression, label.object)) quads.push(...store.getQuads(label.object as NamedNode, null, null));
+    }
+  }
+  for (const name of store.getQuads(subject as NamedNode, T.skosxlAltLabel)) {
+    if (name.object.termType !== 'Literal' && alone(T.skosxlAltLabel, name.object)) quads.push(...store.getQuads(name.object as NamedNode, null, null));
+  }
+  return quads;
+}
+
 function linkQuads(store: RdfStore, link: Term, seen: Set<string> = new Set()): Quad[] {
   if (seen.has(link.value)) return [];
   seen.add(link.value);
-  const quads = [...store.getQuads(link as NamedNode, null, null)];
+  // Its own style goes with it.
+  const quads = [...store.getQuads(link as NamedNode, null, null), ...ownedQuads(store, link)];
   // Its label node — where its name was moved to — goes with it.
   for (const label of store.getQuads(link as NamedNode, T.visLabel)) quads.push(...store.getQuads(label.object as NamedNode, null, null));
   for (const end of [T.visSource, T.visTarget]) {
@@ -120,7 +143,8 @@ export function collectRelationshipQuads(store: RdfStore, relationshipIri: strin
   if (seen.has(relationshipIri)) return [];
   seen.add(relationshipIri);
   const rel = nn(relationshipIri);
-  const quads: Quad[] = [...store.getQuads(rel, null, null)];
+  // Its names for each audience go with it.
+  const quads: Quad[] = [...store.getQuads(rel, null, null), ...ownedQuads(store, rel)];
 
   // The unqualified triple, unless a sibling occurrence keeps it true.
   const sourceIri = objects(store, rel, T.source)[0] ?? objects(store, rel, nn(IRI.legacyRelSource))[0];
@@ -178,7 +202,8 @@ export function collectElementQuads(store: RdfStore, elementIri: string): Quad[]
 
   for (const q of store.getQuads(null, T.archElement, element)) {
     const node = q.subject;
-    quads.push(...store.getQuads(node as NamedNode, null, null));
+    // A placement's own style — its look, what its label says — goes with it.
+    quads.push(...store.getQuads(node as NamedNode, null, null), ...ownedQuads(store, node));
     for (const end of [T.visSource, T.visTarget]) {
       for (const link of store.getQuads(null, end, node as NamedNode)) {
         quads.push(...linkQuads(store, link.subject));
@@ -187,6 +212,8 @@ export function collectElementQuads(store: RdfStore, elementIri: string): Quad[]
   }
 
   quads.push(...store.getQuads(element, null, null));
+  // Its names for each audience.
+  quads.push(...ownedQuads(store, element));
   quads.push(...store.getQuads(null, null, element).filter((q) => q.graph.termType === 'DefaultGraph'));
   return dedupe(quads);
 }

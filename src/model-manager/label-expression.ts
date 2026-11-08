@@ -28,8 +28,10 @@ export interface LabelSource {
   values(subject: string, predicate: string): LabelValue[];
   /** What has `object` as a value of `predicate`. */
   subjectsOf(object: string, predicate: string): string[];
-  /** A resource's name, as the model tree shows it. */
+  /** A resource's name for the presentation context shown: its name for that audience, else its canonical name. */
   nameOf(iri: string): string | undefined;
+  /** Its name for the presentation context shown alone (a SKOS-XL name) — `undefined` when it has none, or none is shown. */
+  nameForContext?(iri: string): string | undefined;
   /** The name of a concept's type. */
   typeOf(iri: string): string | undefined;
   /** The prefixes a prefixed name may use: the vocabularies' in use and the model's own. */

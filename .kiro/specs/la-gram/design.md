@@ -1755,28 +1755,59 @@ parses an expression (`parseLabelExpression`: lines of text and placeholders —
 followed backwards — and what could not be read) and evaluates it for a concept
 (`evaluateLabelExpression`, `labelFromExpression`) over a `LabelSource` the
 workbench gives the canvas (`diagramCanvas.labelSource`: the store's values and
-subjects, `labelOf` for names, the type's name, and `collectPrefixes`, kept
-until the model or the metamodels change). Where it is said: a placement's own
-style (`ViewManager.setLabelExpression`, read into `NodeInfo.labelExpressions`;
-`{node}-label-expression`, or `…-label-expression-{hash of the set}` for one
-set — named so the merge can match it — removed with the node, copied by
-`duplicateView`); a type's notation (`buildVisualNotations` puts it on the
-style, so the notation lookup — superclasses included — carries it); and the
-notation set (`NotationSet.labelExpression`, the palette's
-`notationSetLabelExpression`). `NotationStyleRegistry` keeps the active set
-(`activeNotationSet`, the palette's `notationSetIri`) and answers
-`labelExpressionFor(type)`; `DiagramCanvas.labelExpressionOf` picks the
-placement's own for the active set, its own for every set, else the
-notation's. `refreshLabelTexts` evaluates it for every element placement and
-sets the business object's `labelText` — drawn in place of `label`, which stays
-the name renaming edits — after a sync, a palette change (another
-presentation) and every command (a rename on the canvas is followed by no
-sync). `wrapLabel` wraps each of a label's lines on its own. The panel's
-`_renderLabelTab` edits the active set's expression or — *The same in every
-presentation* — the one for every set, and sends `label-expression-change`
-(`LabelExpressionChangeDetail`); `mount-ui` writes it for every element
-selected in one `recordChange`, the one for the active set taken away when one
-for every set is written.
+subjects; `nameOf`, a resource's name for the presentation context chosen — its
+SKOS-XL name there, else `labelOf`; `nameForContext`, that name alone; the
+type's name; and `collectPrefixes`, kept until the model or the metamodels
+change). Expressions are scoped to a presentation context (core 0.5.0's
+`arch:inPresentationContext`), not to a notation set, which several contexts may
+share (DD-34 in meta's design decisions). Where one is said: a placement's own
+style (`ViewManager.setLabelExpression(view, node, context, text)`, read into
+`NodeInfo.labelExpressions` — `{ context?, expression }` — named
+`{node}-label-expression`, or `…-label-expression-{hash of the context}` for
+one context, so the merge can match it; removed with the node, copied by
+`duplicateView`); a type's notation (`buildVisualNotations` puts every
+expression of the notation and its default style on the style,
+`VisualStyle.labelExpressions`, so the notation lookup — superclasses included
+— carries them); and the presentation context (`PaletteGenerator` reads the
+chosen one's into `PaletteDefinition.presentationContextLabelExpression`, with
+`presentationContextIri` and `presentationContextLabel`).
+`NotationStyleRegistry` keeps the context chosen (`activePresentationContext`)
+and answers `labelExpressionFor(type)` — the notation's for the context, else
+for every context (`labelExpressionIn`), else the context's;
+`DiagramCanvas.labelExpressionOf` puts the placement's own for the context and
+for every context first. `refreshLabelTexts` sets each element placement's
+`labelText` — the expression's text, else its name for the context
+(`nameForContext`) — drawn in place of `label`, which stays the name renaming
+edits, and each relationship line's `labelText` to its name for the context
+(`drawnConnectionLabel` draws it); after a sync, a palette change (another
+context) and every command (a rename on the canvas is followed by no sync).
+`wrapLabel` wraps each of a label's lines on its own. The panel's
+`_renderLabelTab` edits the context's expression or — *The same in every
+presentation*, the only one with no context chosen — the one for every
+context, and sends `label-expression-change` (`LabelExpressionChangeDetail`:
+`expression`, `everyContext`, `all`); `mount-ui` writes it for every element
+selected in one `recordChange`, the one for the context chosen taken away when
+one for every context is written.
+
+**Names by presentation.** `model-manager/context-names.ts` reads an element's
+SKOS-XL names (`contextNamesOf`: each `skosxl:altLabel` with an
+`arch:inPresentationContext`, its `skosxl:literalForm` and language;
+`contextNameOf(store, iri, context, language)` — in that language, else none,
+else any) and works out a change (`contextNameChange`: the label for that
+context and language and its link go, with its plain `skos:altLabel` unless
+another of its names has the same text; a new one is `{element}-name-{hash}` —
+`-{language}` beyond English — typed `skosxl:Label`, its literal form, its
+context, linked by `skosxl:altLabel`, its text also a `skos:altLabel`). The
+property panel lists the loaded metamodels' presentation contexts
+(`presentationContexts`, set with the toolbar's; the chosen one,
+`activeContextIri`, marked) as *Names by presentation* in the information tab
+of an element or a relationship (`_renderContextNames`), each a field;
+`skosxl:altLabel` is a hidden field there (`HIDDEN_FIELDS`). A change is
+`context-name-change` (`ContextNameChangeDetail`); `mount-ui` applies
+`contextNameChange` in `changeProperties` — one undoable step — and redraws the
+labels. Switching context (`presentation-context-changed`) regenerates the
+palette, which carries the context to the canvas, and refreshes the panel's
+Label tab and names.
 
 **Exchange import.** A node's or a connection's `<style>` (`parseExchangeStyle`)
 is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),

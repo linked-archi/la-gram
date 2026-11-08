@@ -69,6 +69,7 @@ import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { mintIri } from '../rdf-engine/iri.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
+import { shortHash } from './short-hash.js';
 import {
   APPEARANCE_KEYS,
   APPEARANCE_PREDICATES,
@@ -285,7 +286,7 @@ export class OxigraphViewManager implements ViewManager {
       copies.set(node.nodeIri, copied);
       // Looking as it did: a figure's appearance is copied with it; its label saying what it said.
       if (node.appearance) this.setAppearance(copy.value, copied, node.appearance);
-      for (const label of node.labelExpressions ?? []) this.setLabelExpression(copy.value, copied, label.notationSet, label.expression);
+      for (const label of node.labelExpressions ?? []) this.setLabelExpression(copy.value, copied, label.context, label.expression);
     }
     for (const node of nodes) {
       const parent = node.parentNodeIri ? copies.get(node.parentNodeIri) : undefined;
@@ -888,28 +889,28 @@ export class OxigraphViewManager implements ViewManager {
     return [...new Set(images)].sort();
   }
 
-  setLabelExpression(viewIri: string, nodeIri: string, notationSet: string | undefined, expression: string | null): void {
+  setLabelExpression(viewIri: string, nodeIri: string, context: string | undefined, expression: string | null): void {
     const subject = nn(nodeIri);
     if (!this.objects(subject, T.visView).includes(viewIri) || !this.readNode(subject) || this.figureOf(subject)) return;
     const text = expression?.replace(/\r\n?/g, '\n') ?? '';
-    // The one it has for that scope goes — a blank node another tool wrote too, when nothing else points at it.
+    // The one it has for that context goes — a blank node another tool wrote too, when nothing else points at it.
     const style = this.read(subject, T.visStyle)[0]?.object;
     if (style) {
       for (const q of this.read(style as NamedNode, T.labelExpression)) {
-        const scope = this.objects(q.object, T.inNotationSet)[0];
-        if (scope !== notationSet) continue;
+        const scope = this.objects(q.object, T.inPresentationContext)[0];
+        if (scope !== context) continue;
         const shared = this.read(null, T.labelExpression, q.object as NamedNode).length > 1;
         this.remove([q, ...(shared ? [] : this.read(q.object as NamedNode))]);
       }
     }
     if (text.trim() !== '') {
       const own = this.ownStyle(subject);
-      const label = nn(this.labelExpressionIriOf(nodeIri, notationSet));
+      const label = nn(this.labelExpressionIriOf(nodeIri, context));
       this.store.addQuads([
         triple(own, T.labelExpression, label),
         triple(label, T.rdfType, T.LabelExpression),
         triple(label, T.expression, DataFactory.literal(text)),
-        ...(notationSet ? [triple(label, T.inNotationSet, nn(notationSet))] : []),
+        ...(context ? [triple(label, T.inPresentationContext, nn(context))] : []),
       ]);
     }
     // Nothing left to say: no style at all.
@@ -919,9 +920,9 @@ export class OxigraphViewManager implements ViewManager {
     }
   }
 
-  /** A placement's own label expression, named after it — and the set it is for, when it is for one — so it goes with it. */
-  private labelExpressionIriOf(nodeIri: string, notationSet: string | undefined): string {
-    return notationSet ? `${nodeIri}-label-expression-${shortHash(notationSet)}` : `${nodeIri}-label-expression`;
+  /** A placement's own label expression, named after it — and the context it is for, when it is for one — so it goes with it. */
+  private labelExpressionIriOf(nodeIri: string, context: string | undefined): string {
+    return context ? `${nodeIri}-label-expression-${shortHash(context)}` : `${nodeIri}-label-expression`;
   }
 
   /** The label expressions a node's own style points at. */
@@ -936,11 +937,11 @@ export class OxigraphViewManager implements ViewManager {
     for (const label of this.ownLabelExpressions(node)) {
       const expression = this.read(label as NamedNode, T.expression)[0]?.object.value;
       if (expression === undefined) continue;
-      const notationSet = this.objects(label, T.inNotationSet)[0];
-      labels.push({ expression, ...(notationSet ? { notationSet } : {}) });
+      const context = this.objects(label, T.inPresentationContext)[0];
+      labels.push({ expression, ...(context ? { context } : {}) });
     }
-    // For every set last: one for the set in use is found first.
-    return labels.sort((a, b) => (a.notationSet ? 0 : 1) - (b.notationSet ? 0 : 1) || (a.notationSet ?? '').localeCompare(b.notationSet ?? ''));
+    // For every context last: one for the context shown is found first.
+    return labels.sort((a, b) => (a.context ? 0 : 1) - (b.context ? 0 : 1) || (a.context ?? '').localeCompare(b.context ?? ''));
   }
 
   /** How a node or a link looks, from its own style; `undefined` when it sets nothing. */
@@ -1156,14 +1157,4 @@ export function addRelationshipsToView(
     if (waiting.length === pending.length) return drawn;
     pending = waiting;
   }
-}
-
-/** A short, steady name for an IRI: FNV-1a, 32 bits, in hex. */
-function shortHash(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, '0');
 }
