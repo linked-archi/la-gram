@@ -20,7 +20,7 @@ specification is `docs/linked-archi-tool-spec.md`.
 graph TB
     subgraph Browser["Browser / Electron renderer (TypeScript, Lit, webpack)"]
         subgraph UI["UI layer — src/ui"]
-            Toolbar["app-toolbar<br/>file · metamodels · views · panel toggles · presence"]
+            Toolbar["app-toolbar<br/>name · file · metamodels · help · views · panel toggles · presence"]
             Tree["model-explorer<br/>model tree (left)"]
             Canvas["DiagramCanvas<br/>diagram-js + RDF modules"]
             Alt["catalog-view · matrix-view"]
@@ -527,6 +527,28 @@ store answers from its copy in JavaScript — not `label`, which looks in every
 graph for a concept the model does not name: that read, for every line each
 time a view is drawn, is what Task 22 took out. The name is the model's; where
 it is drawn, once moved, is the view's: see key decisions 15 and 16.
+
+**Help and About** (Req 15.4–15.7; `src/help-links.ts`, `src/ui/help.ts`,
+the toolbar's `_helpMenu`, `installMenu` in `electron-main.ts`). The pages the
+Help menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
+desktop app's menu bar read the same. About and the keyboard shortcuts are
+`DetailBlock`s — a header, headings, text, links, two columns — that
+`Dialogs.details` shows; it is optional, and `mount-ui` shows a `Dialogs`
+without it the same blocks as text (`detailLines`), so the scripted dialogs of
+the tests need nothing new. The version and the open-source components come
+from the build (`__LA_GRAM_BUILD__`: `package.json`'s version, and each
+component's own `package.json` — name, version, licence — Electron in the
+desktop builds); under Vitest there is none, and About says "Development
+build". Where it runs is read off the user agent (`runtimeOf`). The shortcuts
+are written once as `Mod+Shift+Z` and shown for the platform (`keyCombo`: `⇧⌘Z`
+on a Mac, `Ctrl+Shift+Z` elsewhere), each one checked against the code that
+binds it — diagram-js's `KeyboardBindings`, the lasso's and the selection's
+Shift, F2 in `rdf-label-editing`, Alt+arrows in `mount-ui`, the SPARQL
+editor's keymap. The title is the open model's (`modelTitle`, set with the
+toolbar's name and unsaved mark); the page's own title is put back when the UI
+is taken down. The toolbar's menus, buttons and toggles do not shrink; the
+model's name does, down to 64 px, and media queries narrow the selectors, then
+hide their names, then the toggles' words, so the bar holds from 1100 px.
 
 **Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
 `svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file

@@ -194,6 +194,53 @@ describe('views: one model, many views', () => {
   });
 });
 
+describe('the name, the icon, Help and About', () => {
+  it('shows the icon by the name, and the title by the model; About from either, the shortcuts from Help', async () => {
+    const { page, session } = await openPage();
+    const bar = page.locator('app-toolbar');
+    // The icon loads, beside the name, on one line.
+    const brand = bar.locator('button.brand');
+    await expect(brand.innerText()).resolves.toBe('la-gram');
+    const icon = await brand.locator('img').evaluate((img: HTMLImageElement) => [img.complete, img.naturalWidth > 0, img.getBoundingClientRect().height]);
+    expect(icon).toEqual([true, true, 20]);
+    expect((await brand.boundingBox())!.height).toBeLessThan(32);
+    expect(await page.title()).toBe('Untitled model — la-gram');
+    // The favicons the page names are served.
+    for (const href of await page.locator('link[rel="icon"]').evaluateAll((links) => links.map((l) => (l as HTMLLinkElement).href))) {
+      expect((await page.request.get(href)).status()).toBe(200);
+    }
+
+    // About, from the name: what it is, its version, its licence, what it is built with.
+    await brand.click();
+    const dialog = page.locator('.la-dialog.la-dialog-details');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-details-title').innerText()).toBe('la-gram');
+    expect(await dialog.locator('.la-details-note').innerText()).toMatch(/^Version \d+\.\d+\.\d+$/);
+    expect(await dialog.locator('.la-details-header img').evaluate((img: HTMLImageElement) => img.naturalWidth > 0)).toBe(true);
+    const text = await dialog.innerText();
+    expect(text).toContain('Apache License 2.0');
+    expect(text).toMatch(/diagram-js \d/);
+    expect(text).toContain('ArchiMate 4.0 Metamodel');
+    await session.screenshot('help-about');
+    await dialog.locator('.la-button.primary').click();
+    await dialog.waitFor({ state: 'hidden' });
+
+    // Help: the shortcuts, the guides opening in another tab, About.
+    await bar.locator('button[data-menu="help"]').click();
+    const links = bar.locator('.dropdown a[data-link]');
+    expect(await links.count()).toBeGreaterThan(5);
+    expect(await links.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
+    await bar.locator('.dropdown [data-command="shortcuts"]').click();
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Keyboard shortcuts');
+    expect(await dialog.locator('kbd').count()).toBeGreaterThan(10);
+    await session.screenshot('help-shortcuts');
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    findings.push('icon by the name, title by the model, About (version, licence, built with), Help with the shortcuts and the guides: ok');
+  }, 90_000);
+});
+
 describe('the RDF panel', () => {
   let page: Page;
   let session: BrowserSession;

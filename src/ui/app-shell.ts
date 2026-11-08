@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
 
 /**
- * Main application shell providing the layout for the RDF Architecture Modeler.
+ * Main application shell providing the layout for la-gram.
  * Uses CSS Grid with named slots for each panel area:
  *
  * ```

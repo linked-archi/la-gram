@@ -43,11 +43,38 @@ const sharedExperiments = { asyncWebAssembly: true };
  *
  *   LA_GRAM_GIT=off npm run build      no Git storage (Req 18.1)
  */
-const buildFlags = () =>
+const buildFlags = ({ desktop = false } = {}) =>
   new webpack.DefinePlugin({
     __LA_GRAM_GIT__: JSON.stringify(process.env.LA_GRAM_GIT !== 'off'),
     __LA_GRAM_ASSETS_VERSION__: JSON.stringify(assetsVersion()),
+    __LA_GRAM_BUILD__: JSON.stringify(buildInfo(desktop)),
   });
+
+/**
+ * The main open-source components la-gram is built with — each as its own
+ * package says: name, version, licence — and la-gram's version, for About.
+ * Electron in the desktop build only.
+ */
+function buildInfo(desktop) {
+  const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
+  const names = [
+    'diagram-js',
+    'oxigraph',
+    'n3',
+    'rdf-validate-shacl',
+    'lit',
+    '@codemirror/view',
+    'cytoscape',
+    'yjs',
+    '@hocuspocus/provider',
+    ...(desktop ? ['electron'] : []),
+  ];
+  const components = names.map((name) => {
+    const own = JSON.parse(readFileSync(path.resolve(__dirname, 'node_modules', name, 'package.json'), 'utf8'));
+    return { name, version: own.version, license: typeof own.license === 'string' ? own.license : 'see its package' };
+  });
+  return { version: pkg.version, components };
+}
 
 /**
  * A digest of every bundled asset — names and contents — that `assetUrl` puts
@@ -120,6 +147,10 @@ const bundledAssetsPlugin = () =>
         from: path.resolve(__dirname, 'node_modules/diagram-js/assets/diagram-js.css'),
         to: 'diagram-js.css',
       },
+      // The favicon: the SVG, and the ICO rendered from it (`npm run icons`)
+      // for browsers that take no SVG favicon. Linked from index.html.
+      { from: path.resolve(__dirname, 'src/icons/favicon.svg'), to: 'favicon.svg' },
+      { from: path.resolve(__dirname, 'src/icons/favicon.ico'), to: 'favicon.ico' },
     ],
   });
 
@@ -155,7 +186,7 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'RDF Architecture Modeler',
+        title: 'la-gram — Semantic Architecture Modeller',
       }),
       bundledAssetsPlugin(),
       buildFlags(),
@@ -181,6 +212,13 @@ export default (_env, argv) => {
     resolve: { ...sharedResolve },
     module: { rules: [...sharedModuleRules] },
     experiments: { ...sharedExperiments },
+    plugins: [
+      // la-gram's version, for the About panel.
+      buildFlags({ desktop: true }),
+      // The window's icon (Windows, Linux) and the Dock's while unpackaged on
+      // macOS; the packaged apps take app-icon.icns / .ico (scripts/package-electron.mjs).
+      new CopyWebpackPlugin({ patterns: [{ from: path.resolve(__dirname, 'src/icons/app-icon.png'), to: 'app-icon.png' }] }),
+    ],
     devtool,
   };
 
@@ -229,10 +267,10 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'RDF Architecture Modeler',
+        title: 'la-gram — Semantic Architecture Modeller',
       }),
       bundledAssetsPlugin(),
-      buildFlags(),
+      buildFlags({ desktop: true }),
       ...deploymentConfig(),
     ],
     devtool,

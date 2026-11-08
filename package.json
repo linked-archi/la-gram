@@ -1,7 +1,7 @@
 {
   "name": "la-gram",
   "version": "0.1.0",
-  "description": "RDF Architecture Modeler — RDF-native architecture modeling tool",
+  "description": "Semantic architecture modeller for Linked.Archi metamodels",
   "productName": "la-gram",
   "main": "dist/electron/main.cjs",
   "private": true,
@@ -25,6 +25,7 @@
     "dev": "npm run build:dev -- --config-name web && npm run serve",
     "typecheck": "tsc --noEmit",
     "sync-assets": "node scripts/sync-assets.mjs",
+    "icons": "node scripts/make-icons.mjs",
     "package": "npm run build:electron && node scripts/package-electron.mjs",
     "bench": "node scripts/bench.mjs",
     "bench:model": "node scripts/bench-model.mjs"

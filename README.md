@@ -1,6 +1,6 @@
 # la-gram
 
-An RDF-first architecture modeller for [Linked.Archi](https://meta.linked.archi/) metamodels.
+A semantic architecture modeller for [Linked.Archi](https://meta.linked.archi/) metamodels.
 
 The model lives in an RDF store; the diagram, the model tree, files and the
 collaboration document are views of it. Metamodels — ArchiMate 4.0 and 3.2
@@ -38,6 +38,7 @@ rules, the notation and the validation all come from data.
 - **History** — the History tab saves *checkpoints* of the model, each with a message; lists them with what each changed, shows what a checkpoint changed — or how the model differs from it now — **by element** (each concept added, removed or changed: a name old → new, a relationship's ends, a view's shapes placed, moved, rerouted) or as triples added and removed, and restores one (undoably). Checkpoints are kept on this machine (IndexedDB), per model: they are not Git commits — *File › Save to Git…* makes those. For a model bound to a file in Git, the tab lists that file's commits beside the checkpoints, newest first — each with its author and a link to it on the host — read when the tab opens and on *Read again*; a commit's changes are shown the same way, against the commit before it or the model now, and *Open this version* makes the model the file at that commit (undoably), still bound to its branch. Bound to a branch other than the default, the first entry is the branch against the default: what merging it would bring.
 - **See the RDF** — the "{ } RDF" toggle opens a panel on the right with the live model as Turtle (or any other format), written as it would be saved: the open view (its concepts and diagram), the selection, or the whole model — a large model's size rather than its text, with Copy and Download.
 - **Layout** — the model tree on the left; the palette on the right, relationship types first and each section folding; under the canvas, tabs for **Properties**, **Validation** (with the violation count), **SPARQL Query**, **Graph** and **History**. The tree, the palette and the RDF panel hide from the toolbar ("☰ Model", "▦ Palette", "{ } RDF") and resize by their inner edge; the bottom panel resizes by its top edge, folds to its tabs (click the open tab) and maximizes over the workspace (⤢; Esc restores) — as does the RDF panel, from its own header. Sizes are remembered.
+- **Help and About** — the toolbar's *Help* menu lists the keyboard shortcuts (⌘ and ⌥ on a Mac), the Linked.Archi guides (the documentation, the quick start, the modelling guide, the ArchiMate 4.0 primer, names, labels and pictures per audience, the metamodel catalogue) and la-gram's README and source, each opened in another tab; *About la-gram* — or a click on the icon and name at the top left — shows the version, where it runs (the browser, or the desktop app's Electron), the metamodels loaded and the bundled snapshot, the licence and the open-source components it is built with, and copies that line for a report. The tab and the window are titled by the open model ("• Payments platform — la-gram" while it has unsaved changes). In the desktop app, the menu bar's Help lists the same pages and *About la-gram* opens the system's About panel. The toolbar fits from 1100 px wide: on a narrower window its selectors and panel toggles drop their words (each says it on hover).
 - **Your namespace** — every IRI is an HTTP URI in the model's namespace, written as `m:element-…`, `m:view-…`. New models start under the placeholder `https://example.org/`; **Model settings** (click the model name) sets your own namespace and prefix and moves the model into it.
 
 ## Run
@@ -115,6 +116,15 @@ comes from the checkout's last generated site (`.onto-docs/catalog.ttl`; run
 `.scripts/docgen/generate-docs.sh` there for a current one). Everything bundled is
 meta.linked.archi's. Asset fetches always revalidate, so after a rebuild a plain reload loads the
 new files.
+
+### Icons
+
+The favicon is `src/icons/favicon.svg`: the Linked.Archi mark, simplified to stay legible at 16 px.
+The desktop app's icon is `src/icons/app-icon.svg`, the same mark on a tile (the bare mark at 32 px
+and less). Their renderings are kept beside them — `favicon.ico` for browsers that take no SVG
+favicon, `app-icon.icns` and `app-icon.ico` for `npm run package`, `app-icon.png` for the window
+and, unpackaged on macOS, the Dock. Run `npm run icons` after changing an SVG (it draws with the
+system Chrome, or `LA_GRAM_CHROME`).
 
 ## la-gram-git — models in Git, on the command line and in CI
 

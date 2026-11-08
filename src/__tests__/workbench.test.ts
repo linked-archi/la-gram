@@ -11,8 +11,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import { createApp, type App } from '../app.js';
-import { mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
-import type { Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
+import { modelTitle, mountUi, VIOLATION_MARKER, type MountedUi } from '../ui/mount-ui.js';
+import type { DetailBlock, DetailsOptions, Dialogs, FormField, FormOptions, FormValues } from '../ui/dialogs.js';
 import type { NamedPicker } from '../ui/panels/named-picker.js';
 import { labelOf, modelQuads, readModelContents } from '../model-manager/model-queries.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
@@ -1425,6 +1425,55 @@ describe('the workbench', () => {
     els.deleteElement(placed);
   });
 
+  it('shows its icon and name, which open About, and a Help menu: shortcuts, guides, About', async () => {
+    await ui.appToolbar.updateComplete;
+    const bar = ui.appToolbar.shadowRoot!;
+    const brand = bar.querySelector<HTMLButtonElement>('button.brand')!;
+    expect([brand.querySelector('img')?.getAttribute('src'), brand.textContent?.trim(), brand.title]).toEqual([
+      'favicon.svg',
+      'la-gram',
+      'About la-gram',
+    ]);
+
+    // About, in parts, where the dialogs show parts.
+    const details = vi.fn(async () => undefined);
+    script.dialogs.details = details;
+    try {
+      brand.click();
+      await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(1));
+      const [title, blocks, options] = details.mock.calls[0] as unknown as [string, DetailBlock[], DetailsOptions];
+      expect(title).toBe('About la-gram');
+      expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Architecture Modeller' });
+      expect(blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []))).toContainEqual(['Metamodels', 'ArchiMate 4.0 Metamodel']);
+      expect(options.copy?.text).toMatch(/^la-gram \(development build\) · .* · metamodels: ArchiMate 4\.0 Metamodel/);
+
+      // Help: the shortcuts first, the guides and la-gram's pages opening apart, About last.
+      bar.querySelector<HTMLButtonElement>('[data-menu="help"]')!.click();
+      await ui.appToolbar.updateComplete;
+      const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
+      expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
+        'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'readme', 'source', 'about',
+      ]);
+      const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
+      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);
+      bar.querySelector<HTMLButtonElement>('.dropdown [data-command="shortcuts"]')!.click();
+      await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(2));
+      expect(details.mock.calls[1]![0]).toBe('Keyboard shortcuts');
+      await ui.appToolbar.updateComplete;
+      expect(bar.querySelector('.dropdown')).toBeNull();
+    } finally {
+      delete script.dialogs.details;
+    }
+
+    // Where the dialogs show no parts: the same, as text.
+    const info = script.dialogs.info as ReturnType<typeof vi.fn>;
+    info.mockClear();
+    await ui.runCommand({ command: 'about' });
+    const [title, lines] = info.mock.calls[0] as [string, string[]];
+    expect(title).toBe('About la-gram');
+    expect(lines.slice(0, 3)).toEqual(['la-gram', 'Semantic Architecture Modeller', 'Development build']);
+  });
+
   it('hides and shows the model tree from the toolbar', async () => {
     const toggle = () => ui.appToolbar.shadowRoot!.querySelector<HTMLButtonElement>('[data-command="toggle-explorer"]')!;
     await ui.appToolbar.updateComplete;
@@ -1698,8 +1747,11 @@ describe('the workbench', () => {
     app.components.viewManager.addElementToView(app.session.activeViewIri!, el, { x: 50, y: 50, width: 120, height: 55 });
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     expect(app.isDirty()).toBe(true);
+    // The tab says which model, marked while it has unsaved changes.
+    expect(document.title).toBe(`• ${app.session.modelLabel()} — la-gram`);
 
     await ui.runCommand({ command: 'save' });
+    expect(document.title).toBe(`${app.session.modelLabel()} — la-gram`);
 
     const file = saved.at(-1)!;
     expect(file.mediaType).toBe('text/turtle');
@@ -1715,6 +1767,17 @@ describe('the workbench', () => {
     app.session.openView(other.iri);
     app.session.openView(first);
     expect(app.isDirty()).toBe(false);
+
+    // Renamed: the tab follows (and the rename is a change).
+    const name = app.session.modelLabel();
+    script.answers.push('Payments platform');
+    await ui.runCommand({ command: 'rename-model' });
+    expect(document.title).toBe(modelTitle('Payments platform', app.isDirty()));
+    expect(document.title).toContain('Payments platform — la-gram');
+    script.answers.push(name);
+    await ui.runCommand({ command: 'rename-model' });
+    await ui.runCommand({ command: 'save' });
+    expect(document.title).toBe(`${name} — la-gram`);
   });
 
   it('opens a saved model again: same elements, views and geometry', async () => {

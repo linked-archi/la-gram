@@ -64,6 +64,44 @@ export interface FormOptions {
   openSection?: string;
 }
 
+/** A part of a {@link Dialogs.details} dialog. */
+export type DetailBlock =
+  /** What the dialog is about: a picture, a name, a line under it and a note. */
+  | { kind: 'header'; image?: string; title: string; subtitle?: string; note?: string }
+  | { kind: 'heading'; text: string }
+  | { kind: 'text'; text: string }
+  /** Pages, each opened in the browser. */
+  | { kind: 'links'; links: Array<{ label: string; href: string }> }
+  /** Two columns; with `keys`, the first is keys to press, alternatives apart by " / ". */
+  | { kind: 'rows'; rows: Array<[string, string]>; keys?: boolean };
+
+export interface DetailsOptions {
+  /** A button that copies `text` — the version, for a report — and leaves the dialog open. */
+  copy?: { label: string; text: string };
+  /** A class on the dialog, to size it. */
+  className?: string;
+}
+
+/** A {@link DetailBlock} list as lines of text: what {@link Dialogs.info} shows where `details` is not offered. */
+export function detailLines(blocks: DetailBlock[]): string[] {
+  return blocks.flatMap((block) => {
+    switch (block.kind) {
+      case 'header':
+        return [block.title, ...(block.subtitle ? [block.subtitle] : []), ...(block.note ? [block.note] : [])];
+      case 'heading':
+        return ['', block.text];
+      case 'text':
+        return [block.text];
+      case 'links':
+        return block.links.map((link) => `${link.label}: ${link.href}`);
+      case 'rows': {
+        const width = Math.max(0, ...block.rows.map(([key]) => key.length));
+        return block.rows.map(([key, value]) => `${key.padEnd(width)}  ${value}`);
+      }
+    }
+  });
+}
+
 /** The dialogs the UI needs. */
 export interface Dialogs {
   /** Ask for a line of text; `null` when cancelled. */
@@ -76,6 +114,12 @@ export interface Dialogs {
   choose(title: string, options: ChoiceOption[], initial?: string): Promise<string | null>;
   /** Show information (rows of text). */
   info(title: string, lines: string[]): Promise<void>;
+  /**
+   * Show information in parts — a header, headings, text, links, two columns —
+   * as About and the keyboard shortcuts do. Optional: without it, {@link info}
+   * shows the same as text ({@link detailLines}).
+   */
+  details?(title: string, blocks: DetailBlock[], options?: DetailsOptions): Promise<void>;
   /** A short, non-blocking message. */
   toast(message: string, level?: 'info' | 'warning' | 'error'): void;
 }
@@ -447,6 +491,81 @@ export const domDialogs: Dialogs = {
       [el('div', { class: 'la-dialog-info' }, ...lines.map((l) => el('div', { text: l })))],
       [{ label: 'Close', value: () => undefined, primary: true }],
       undefined,
+    );
+  },
+
+  details(title, blocks, options = {}) {
+    const body = blocks.map((block): Node => {
+      switch (block.kind) {
+        case 'header':
+          return el(
+            'div',
+            { class: 'la-details-header' },
+            ...(block.image ? [el('img', { src: block.image, alt: '', width: '56', height: '56' })] : []),
+            el(
+              'div',
+              {},
+              el('div', { class: 'la-details-title', text: block.title }),
+              ...(block.subtitle ? [el('div', { class: 'la-details-subtitle', text: block.subtitle })] : []),
+              ...(block.note ? [el('div', { class: 'la-details-note', text: block.note })] : []),
+            ),
+          );
+        case 'heading':
+          return el('div', { class: 'la-details-heading', text: block.text });
+        case 'text':
+          return el('p', { class: 'la-details-text', text: block.text });
+        case 'links':
+          return el(
+            'div',
+            { class: 'la-details-links' },
+            ...block.links.map((link) => el('a', { href: link.href, target: '_blank', rel: 'noopener noreferrer', text: link.label })),
+          );
+        case 'rows':
+          return el(
+            'table',
+            { class: `la-details-rows${block.keys ? ' keys' : ''}` },
+            ...block.rows.map(([key, value]) =>
+              el(
+                'tr',
+                {},
+                el(
+                  'td',
+                  {},
+                  ...(block.keys
+                    ? key.split(' / ').flatMap((combo, i) => [...(i > 0 ? [' or '] : []), el('kbd', { text: combo })])
+                    : [key]),
+                ),
+                el('td', { text: value }),
+              ),
+            ),
+          );
+      }
+    });
+    const copy = options.copy;
+    return modal<void>(
+      title,
+      body,
+      [
+        ...(copy
+          ? [
+              {
+                label: copy.label,
+                value: () => undefined,
+                // Copies and stays open.
+                accept: () => {
+                  void Promise.resolve(globalThis.navigator?.clipboard?.writeText(copy.text))
+                    .then(() => domDialogs.toast('Copied'))
+                    .catch(() => domDialogs.toast(copy.text));
+                  return false;
+                },
+              },
+            ]
+          : []),
+        { label: 'Close', value: () => undefined, primary: true },
+      ],
+      undefined,
+      undefined,
+      `la-dialog-details${options.className ? ` ${options.className}` : ''}`,
     );
   },
 

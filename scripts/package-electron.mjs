@@ -48,6 +48,9 @@ const paths = await packager({
   prune: false,
   asar: true,
   overwrite: true,
+  // The packager adds the platform's extension: app-icon.icns on macOS, .ico on
+  // Windows (rendered by `npm run icons`); Linux takes the window's icon.
+  icon: path.join(root, 'src/icons/app-icon'),
   appBundleId: 'archi.linked.la-gram',
   appCategoryType: 'public.app-category.developer-tools',
 });

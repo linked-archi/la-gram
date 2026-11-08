@@ -72,8 +72,9 @@ import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type Seria
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
+import { aboutBlocks, BUILD, isMacPlatform, runtimeOf, shortcutBlocks, versionText, type AboutContext } from './help.js';
 import type { ModelEventHandler } from './event-bus.js';
-import { domDialogs, type Dialogs, type FormField, type FormValues } from './dialogs.js';
+import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
 import { CATALOGUE_KIND_LABELS } from '../metamodel-manager/catalogue.js';
 
@@ -134,7 +135,7 @@ import { layoutPositions } from './panels/graph-view.js';
 import { mostSpecificType, relationshipGraph } from '../model-manager/relationship-graph.js';
 import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
-import { assetUrl } from '../metamodel-manager/bundled-assets.js';
+import { ASSETS_VERSION, assetUrl } from '../metamodel-manager/bundled-assets.js';
 import { iconHref, NOTATION_DEFAULTS, withRelationshipIcons } from './canvas/notation-shapes.js';
 import { NotationStyleRegistry } from './canvas/notation-styles.js';
 
@@ -162,6 +163,11 @@ const KIND_PLURALS: Record<FolderKind, string> = { view: 'views', element: 'elem
 
 /** CSS marker on shapes with SHACL violations. */
 export const VIOLATION_MARKER = 'la-violation';
+
+/** The page's title with a model open: its name, marked "•" while it has unsaved changes. */
+export function modelTitle(modelName: string, dirty: boolean): string {
+  return `${dirty ? '• ' : ''}${modelName.trim() || 'Untitled model'} — la-gram`;
+}
 
 /** Empty palette used until a metamodel is loaded. */
 function emptyPalette(): PaletteDefinition {
@@ -361,6 +367,8 @@ function mainType(types: string[], closure: TypeClosure): string | undefined {
  * `<app-shell>` under `root`.
  */
 export function mountUi(app: App, root: HTMLElement, options: MountOptions = {}): MountedUi {
+  /** The page's own title (index.html's), put back when the UI is taken down. */
+  const pageTitle = globalThis.document?.title ?? '';
   const {
     eventBus,
     store,
@@ -2079,9 +2087,21 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   /** The visit Back or Forward is opening, to put back as it was left. */
   let travelling: ViewVisit | undefined;
 
+  /**
+   * The model's name and whether it has unsaved changes: in the toolbar, and in
+   * the page's title — the browser tab, the desktop window — as
+   * "• Payments platform — la-gram", so a tab or window says which model it holds.
+   */
+  const showModelName = (): void => {
+    const name = session.modelLabel();
+    const dirty = app.isDirty();
+    appToolbar.modelLabel = name;
+    appToolbar.dirty = dirty;
+    if (globalThis.document) document.title = modelTitle(name, dirty);
+  };
+
   const refreshToolbar = (): void => {
-    appToolbar.modelLabel = session.modelLabel();
-    appToolbar.dirty = app.isDirty();
+    showModelName();
     appToolbar.views = viewManager.getViews();
     appToolbar.activeViewIri = session.activeViewIri ?? '';
     const named = (iri: string | undefined) => (iri ? viewManager.getView?.(iri)?.label || 'Untitled view' : '');
@@ -2366,6 +2386,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     refreshToolbar();
   };
 
+  /** A dialog in parts — About, the shortcuts — or, where the dialogs offer none, the same as text. */
+  const showDetails = (title: string, blocks: DetailBlock[], options?: DetailsOptions): Promise<void> =>
+    dialogs.details ? dialogs.details(title, blocks, options) : dialogs.info(title, detailLines(blocks));
+
   const runCommand = async (detail: ToolbarCommandDetail): Promise<void> => {
     const { command, value } = detail;
     try {
@@ -2439,6 +2463,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         }
         case 'model-settings':
           await editModelSettings();
+          return;
+        case 'about': {
+          const context: AboutContext = {
+            build: BUILD,
+            runtime: runtimeOf(globalThis.navigator?.userAgent ?? ''),
+            metamodels: app.loadedMetamodels().map((m) => m.info.name || labelOf(store, m.metamodelIri)),
+            ...(ASSETS_VERSION ? { assetsVersion: ASSETS_VERSION } : {}),
+          };
+          await showDetails('About la-gram', aboutBlocks(context), { copy: { label: 'Copy version info', text: versionText(context) } });
+          return;
+        }
+        case 'shortcuts':
+          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform()));
           return;
         case 'open-view':
           if (value) session.openView(value);
@@ -2711,8 +2748,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       // A view's viewpoint may have changed — unless the guide shows a palette pick.
       if (!guideFromPalette) typeGuidePanel.guideIri = guideIriFor(propertyPanel.selectedIri);
     }
-    appToolbar.dirty = app.isDirty();
-    appToolbar.modelLabel = session.modelLabel();
+    showModelName();
   };
 
   const onElementDeleted: ModelEventHandler = (event) => {
@@ -2803,6 +2839,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
 
   const dispose = (): void => {
+    if (globalThis.document) document.title = pageTitle;
     if (iconRepair) clearTimeout(iconRepair);
     stopIndexing?.();
     canvasResize?.disconnect();

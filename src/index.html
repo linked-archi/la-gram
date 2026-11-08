@@ -3,11 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>la-gram — RDF Architecture Modeller</title>
+  <title>la-gram — Semantic Architecture Modeller</title>
   <!-- diagram-js's own stylesheet, emitted next to the bundle by
        CopyWebpackPlugin. Without it the canvas draws but selection outlines,
        the palette and the context pad are unstyled and effectively invisible. -->
   <link rel="stylesheet" href="diagram-js.css" />
+  <!-- The favicon: the SVG where a browser takes one, else the ICO (its 32 px
+       frame named, so a browser that takes both prefers the SVG). -->
+  <link rel="icon" href="favicon.ico" sizes="32x32" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <style>
     /* ── Base layout ───────────────────────────────────────────────────
        app-shell sizes itself with height: 100%, which collapses to zero
@@ -585,6 +589,86 @@
       font-size: 12px;
       white-space: pre;
       overflow-x: auto;
+    }
+    /* About, the keyboard shortcuts: a header, headings, text, links, two columns. */
+    .la-dialog.la-dialog-details {
+      width: min(560px, calc(100vw - 32px));
+    }
+    .la-dialog-details .la-dialog-body {
+      max-height: 70vh;
+      overflow: auto;
+    }
+    .la-details-header {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .la-details-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #202124;
+    }
+    .la-details-subtitle {
+      color: #3c4043;
+    }
+    .la-details-note {
+      color: #5f6368;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .la-details-heading {
+      margin: 14px 0 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .la-details-text {
+      margin: 4px 0;
+      color: #3c4043;
+    }
+    .la-details-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+    }
+    .la-details-links a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+    .la-details-links a:hover {
+      text-decoration: underline;
+    }
+    .la-details-rows {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .la-details-rows td {
+      padding: 3px 12px 3px 0;
+      vertical-align: top;
+      color: #3c4043;
+    }
+    .la-details-rows td:first-child {
+      color: #5f6368;
+      white-space: nowrap;
+      width: 1%;
+    }
+    /* The keys' column as wide in every section, so what they do lines up. */
+    .la-details-rows.keys td:first-child {
+      width: 13em;
+    }
+    .la-details-rows kbd {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      padding: 1px 6px;
+      border: 1px solid #dadce0;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      background: #f8f9fa;
+      color: #202124;
     }
     .la-dialog-footer {
       display: flex;

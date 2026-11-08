@@ -18,7 +18,19 @@
  * server, it has an origin (IndexedDB keeps the working state), and every
  * response carries the Content-Security-Policy below.
  */
-import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  protocol,
+  safeStorage,
+  shell,
+  type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions,
+} from 'electron';
+import { HELP_LINKS, LICENCE, TAGLINE } from './help-links.js';
 import { readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { SecretFile } from './platform/secret-file.js';
@@ -27,6 +39,8 @@ const SCHEME = 'app';
 const HOST = 'la-gram';
 const ORIGIN = `${SCHEME}://${HOST}`;
 const RENDERER_ROOT = path.join(__dirname, 'renderer');
+/** The app's icon, 512 px, copied beside main.cjs by the build (src/icons/app-icon.png). */
+const APP_ICON = path.join(__dirname, 'app-icon.png');
 
 /**
  * Script only from the app itself, and WebAssembly (Oxigraph); styles inline too
@@ -185,6 +199,8 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    // The window's icon on Windows and Linux; macOS takes the app bundle's.
+    icon: APP_ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -227,7 +243,44 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+/**
+ * The menu bar: the platform's usual menus, and a Help menu with la-gram's
+ * pages — the same as the toolbar's Help — in place of Electron's own links.
+ * About la-gram is in the app menu on macOS, at the end of Help elsewhere; it
+ * shows the version, what la-gram is and its licence.
+ */
+function installMenu(): void {
+  const mac = process.platform === 'darwin';
+  app.setAboutPanelOptions({
+    applicationName: 'la-gram',
+    applicationVersion: __LA_GRAM_BUILD__.version,
+    credits: `${TAGLINE}\nLicensed under the ${LICENCE.name}`,
+    website: HELP_LINKS.find((l) => l.id === 'source')?.href,
+    iconPath: APP_ICON,
+  });
+  const open = (href: string) => () => void shell.openExternal(href);
+  const help: MenuItemConstructorOptions[] = [
+    ...HELP_LINKS.filter((l) => l.group === 'guides').map((l) => ({ label: l.label, click: open(l.href) })),
+    { type: 'separator' },
+    ...HELP_LINKS.filter((l) => l.group === 'la-gram').map((l) => ({ label: l.label, click: open(l.href) })),
+    ...(mac ? [] : ([{ type: 'separator' }, { role: 'about', label: 'About la-gram' }] as MenuItemConstructorOptions[])),
+  ];
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      ...(mac ? ([{ role: 'appMenu' }] as MenuItemConstructorOptions[]) : []),
+      { role: 'fileMenu' },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+      { role: 'help', submenu: help },
+    ]),
+  );
+}
+
 app.whenReady().then(() => {
+  // Unpackaged (npm run electron), macOS shows Electron's own icon in the Dock.
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(APP_ICON);
+  installMenu();
   protocol.handle(SCHEME, serve);
   registerBridge();
   createWindow();

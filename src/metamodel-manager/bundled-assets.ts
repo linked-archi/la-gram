@@ -484,8 +484,8 @@ async function nodeAssetRoot(readFile: ReadFileUtf8): Promise<string> {
   return discoveredAssetRoot;
 }
 
-/** The build's digest of the bundled assets (`webpack.config.js`); none under Vitest. */
-const ASSETS_VERSION = typeof __LA_GRAM_ASSETS_VERSION__ === 'string' ? __LA_GRAM_ASSETS_VERSION__ : '';
+/** The build's digest of the bundled assets (`webpack.config.js`); none under Vitest. Shown in About. */
+export const ASSETS_VERSION = typeof __LA_GRAM_ASSETS_VERSION__ === 'string' ? __LA_GRAM_ASSETS_VERSION__ : '';
 
 /**
  * URL a bundled asset is served from in the browser.
