@@ -71,8 +71,30 @@ without `arch:inPresentationContext`.
 2. la-gram: README, `.kiro/specs/la-gram/requirements.md` (Req 3.17 and a new criterion for element pictures),
    `design.md`, and a change-log entry.
 
-## Out of scope for now (recorded as follow-ups in `tasks.md`)
+## R7 — la-gram: every look per presentation (phase F, added 2026-11-08: "complete the whole task")
 
-- The Appearance and Figure tabs per context (the mechanism, R2, already allows it).
-- Per-context looks for figures (groups, notes, shapes) and lines.
+1. The Appearance, Figure and Image tabs share one scope: with a presentation chosen, each says which presentation
+   its changes are for and offers *The same in every presentation*; the choice is shared by the three tabs (they
+   write the same style), and goes back to its default — the presentation chosen when the first one selected has a
+   look of its own for it or none at all for every presentation, else every presentation — when the selection or the
+   presentation changes. With none chosen, every presentation only.
+2. In the scope of one presentation, the Appearance tab shows the first one's own values for it, and as defaults
+   what it is drawn with otherwise (its look for every presentation over its notation's); *Reset all* takes the
+   presentation's own Appearance values away (its figure, the Figure tab's, stays). A change for every presentation leaves the presentation's own values as they are (it is
+   drawn over); one for the presentation chosen writes its style for it.
+3. In the scope of one presentation, the Figure tab writes the figure on its style for it; the notation's own figure
+   there is written as the notation's mode and default shape when its look for every presentation says another, and
+   as nothing (the style for every presentation's figure, which is the notation's) otherwise.
+4. Groups, notes and shapes (figures), relationships' lines and lines from notes have looks per presentation as
+   element placements do: their own style per context (R2), drawn for the presentation chosen, edited in the
+   Appearance and Image tabs per scope.
+5. The format painter copies what the thing clicked first looks like for the presentation chosen (its look for every
+   presentation with that presentation's laid over it) and gives it, for the presentation chosen — or, with none
+   chosen, for every presentation — to each thing clicked after.
+6. The model tree shows an element's own picture — for the presentation chosen, else for every presentation — as its
+   row's icon, in place of its type's swatch; the palette lists types, not elements, and is unchanged.
+
+## Out of scope
+
 - Converters: the exchange format has no presentation contexts.
+- A notation's look per presentation context other than through a notation set (DD-31).

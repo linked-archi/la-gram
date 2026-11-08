@@ -310,6 +310,7 @@ export class OxigraphViewManager implements ViewManager {
             sourceNodeIri && targetNodeIri ? this.addConnector(copy.value, { sourceNodeIri, targetNodeIri }, link.waypoints) : undefined;
           if (copied) linkCopies.set(link.linkIri, copied);
           if (copied && link.appearance) this.setAppearance(copy.value, copied, link.appearance);
+          for (const [context, look] of Object.entries(link.contextAppearances ?? {})) if (copied) this.setAppearance(copy.value, copied, look, context);
           if (copied && link.text) this.store.addQuads([triple(nn(copied), T.prefLabel, langLiteral(link.text))]);
           if (copied && link.label) this.setLinkLabel(copy.value, copied, link.label);
           return false;
@@ -324,6 +325,7 @@ export class OxigraphViewManager implements ViewManager {
         if (!copied) return true;
         linkCopies.set(link.linkIri, copied);
         if (link.appearance) this.setAppearance(copy.value, copied, link.appearance);
+        for (const [context, look] of Object.entries(link.contextAppearances ?? {})) this.setAppearance(copy.value, copied, look, context);
         // A name moved off the middle of its line stays where it was put.
         if (link.label) this.setLinkLabel(copy.value, copied, link.label);
         return false;
@@ -683,7 +685,8 @@ export class OxigraphViewManager implements ViewManager {
       : undefined;
     // A placement's own look; a figure's is in its figure.
     const appearance = figure ? undefined : this.appearanceOf(node);
-    const contextAppearances = figure ? undefined : this.contextAppearancesOf(node);
+    // How it looks for each presentation — a figure's too; its look for every one is in its figure.
+    const contextAppearances = this.contextAppearancesOf(node);
     const labelExpressions = figure ? [] : this.labelExpressionsOf(node);
     return {
       nodeIri: node.value,
@@ -716,10 +719,12 @@ export class OxigraphViewManager implements ViewManager {
     const targetElementIri = endOf(targetNode);
     if (!sourceElementIri || !targetElementIri) return undefined;
     const appearance = this.appearanceOf(link);
+    const contextAppearances = this.contextAppearancesOf(link);
     // A line from a note may say something: its text, as a figure's.
     const text = connector ? this.read(link as NamedNode, T.prefLabel)[0]?.object.value : undefined;
     return {
       ...(appearance ? { appearance } : {}),
+      ...(contextAppearances ? { contextAppearances } : {}),
       ...(text ? { text } : {}),
       linkIri: link.value,
       relationshipIri,

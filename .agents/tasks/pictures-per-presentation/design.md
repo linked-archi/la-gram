@@ -170,3 +170,46 @@ context; `StyleShape` gets `arch:inPresentationContext` max 1, IRI.
   `T.visStyle` and decide per use (every-context style vs context style).
 - The format painter copies the every-context look only (follow-up).
 - Merge: the new resources are named, so the merge matches them.
+
+## 7. Phase F — every look per presentation (R7)
+
+### 7.1 Model
+- `readNode` reads `contextAppearances` for figures too (today it skips them); `readLink` reads them for links.
+  `duplicateView` copies a link's (as a node's).
+- `FigureInfo` stays the figure's look for every presentation.
+
+### 7.2 Canvas
+- `lookFor(info)` for nodes and links; figures drawn with `figureFor(node) = { ...node.figure, ...context look }`
+  (`syncFigure` compares with `sameAppearance`); lines restyled with their look for the context in the link sync
+  and connectors' sync.
+- `refreshLabelTexts` (the per-context refresh) also restyles figures and lines: for every shape and connection,
+  its node or link (by key), its look for the presentation chosen.
+- `selectedAppearance(scope?)`: `scope` `'context' | 'every'` given by the panel (default: computed — R7.1). With
+  the context scope: `own` = the context's own look of the first one, `defaults` = its look for every presentation
+  over the kind's defaults, `mixed` over the context looks; `figureChoices` marks the figure drawn for the context.
+  `AppearanceSelection` gains `scope: 'context' | 'every'`, `contextLabel`, and `hasContextLook` (the first one
+  has a style for the presentation chosen) and `hasEveryLook` for the default rule.
+- `appearanceOfDrawn` also returns the target's context look (`contextOwn`).
+
+### 7.3 Panel and wiring
+- One state `_lookEveryContext` (replacing `_imageEveryContext`) for the Appearance, Figure and Image tabs, reset
+  as R7.1; a shared scope bar (`_renderLookScope`) on the three tabs; the panel sends `look-scope-change`
+  `{ everyContext }` so `mount-ui` re-reads `selectedAppearance(scope)`.
+- `_appearanceChange` in the context scope sends `context`; in the every scope, the Appearance tab sends nothing more
+  (R7.2), the Image tab `clearContext` (as now), the Figure tab `clearContext` for figure keys.
+- Figure tab in the context scope: options' `changes` computed for the context (R7.3) by `figureChoices(…,
+  scope)`.
+- Format painter (`paint`): picks `lookFor` of the first; writes with `context` when a presentation is chosen.
+
+### 7.4 Model tree (`model-explorer.ts`)
+- A row's icon: the element's picture for the presentation chosen (`pictureOf`), else its type swatch; the explorer
+  gets a `pictureOf?(iri)` provider from `mount-ui` and refreshes on `presentation-context-changed` and model
+  changes.
+
+### 7.5 Tests
+- view-manager: figures' and links' context looks read and copied.
+- workbench: Appearance tab per scope (writes, defaults, reset), Figure tab per scope (notation's figure over
+  another for every presentation), a note's and a line's look per presentation drawn, the format painter per
+  presentation, the shared scope across tabs; the tree icon.
+- browser: a colour for executives only.
+

@@ -669,6 +669,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   modelExplorer.contentsProvider = modelContents;
   modelExplorer.placedProvider = placedInView;
+  // An element's own picture for the presentation chosen, as its row's icon (core 0.5.0).
+  modelExplorer.pictureProvider = (iri) => pictureOf(store, iri, app.activePresentationContext());
   modelExplorer.eventBus = eventBus;
   modelExplorer.activeViewIri = session.activeViewIri;
 
@@ -800,13 +802,25 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
    *   selected on the canvas: neither revealed in the tree nor taking the
    *   type guide from a palette pick.
    */
+  /**
+   * The scope of the Appearance, Figure and Image tabs: the look for the
+   * presentation chosen, or for every one — `undefined` for the default, which
+   * the canvas works out. Chosen with the panel's scope bar; forgotten when the
+   * selection or the presentation changes.
+   */
+  let lookScope: 'context' | 'every' | undefined;
+  /** The look of what is selected on the canvas, in that scope. */
+  const selectedLook = () => diagramCanvas.selectedAppearance(lookScope);
+
   const selectConcept = (iri: string | undefined, options: { fromCanvas?: boolean; fromGraph?: boolean; theView?: boolean } = {}): void => {
     if (selecting) return;
     selecting = true;
     try {
       propertyPanel.selectedIri = iri ?? '';
       // Its look in the view, for what is selected on the canvas — not a concept picked in the tree.
-      propertyPanel.appearance = iri && options.fromCanvas && !options.theView ? diagramCanvas.selectedAppearance() : undefined;
+      // Another selection: the tabs' scope back to its default.
+      lookScope = undefined;
+      propertyPanel.appearance = iri && options.fromCanvas && !options.theView ? selectedLook() : undefined;
       propertyPanel.heading = iri ? headingFor(iri) : undefined;
       propertyPanel.analysis = iri ? analysisFor(iri) : undefined;
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -1418,9 +1432,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       }
     });
     diagramCanvas.refreshLabels();
-    propertyPanel.appearance = diagramCanvas.selectedAppearance();
+    propertyPanel.appearance = selectedLook();
   };
   propertyPanel.addEventListener('appearance-change', onAppearanceChange);
+
+  // The scope bar: the look for the presentation chosen, or for every one.
+  const onLookScopeChange = (event: Event): void => {
+    lookScope = (event as CustomEvent<{ everyContext: boolean }>).detail?.everyContext ? 'every' : 'context';
+    propertyPanel.appearance = selectedLook();
+  };
+  propertyPanel.addEventListener('look-scope-change', onLookScopeChange);
 
   // The Label tab: what the selected elements' labels say, in the presentation context chosen or in every one.
   const onLabelExpressionChange = (event: Event): void => {
@@ -1443,7 +1464,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       }
     });
     diagramCanvas.refreshLabels();
-    propertyPanel.appearance = diagramCanvas.selectedAppearance();
+    propertyPanel.appearance = selectedLook();
   };
   propertyPanel.addEventListener('label-expression-change', onLabelExpressionChange);
 
@@ -1472,6 +1493,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     });
     diagramCanvas.refreshLabels();
     propertyPanel.reload();
+    modelExplorer.requestUpdate();
   };
   propertyPanel.addEventListener('context-picture-change', onContextPictureChange);
 
@@ -2652,7 +2674,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }
     if (propertyPanel.selectedIri) {
       // Undone, redone, changed by a collaborator: the tab shows the look in force.
-      if (propertyPanel.appearance) propertyPanel.appearance = diagramCanvas.selectedAppearance();
+      if (propertyPanel.appearance) propertyPanel.appearance = selectedLook();
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
       propertyPanel.analysis = analysisFor(propertyPanel.selectedIri);
       propertyPanel.typeChoices = typeChoicesFor(propertyPanel.heading);
@@ -2673,8 +2695,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onContextChanged: ModelEventHandler = () => {
     regeneratePalette();
     refreshToolbar();
-    // Another audience: the Label tab's context, and the names by presentation marked.
-    if (propertyPanel.appearance) propertyPanel.appearance = diagramCanvas.selectedAppearance();
+    // Another audience: the tabs' scope back to its default; the names and pictures by presentation marked; the
+    // tree's pictures for it.
+    lookScope = undefined;
+    modelExplorer.requestUpdate();
+    if (propertyPanel.appearance) propertyPanel.appearance = selectedLook();
     propertyPanel.reload();
   };
 
@@ -2794,6 +2819,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     canvasToolbar.removeEventListener('figures-open', onFiguresOpen);
     canvasToolbar.removeEventListener('figure-drag-start', onFigureDragStart);
     propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
+    propertyPanel.removeEventListener('look-scope-change', onLookScopeChange);
     propertyPanel.removeEventListener('label-expression-change', onLabelExpressionChange);
     propertyPanel.removeEventListener('context-name-change', onContextNameChange);
     propertyPanel.removeEventListener('context-picture-change', onContextPictureChange);

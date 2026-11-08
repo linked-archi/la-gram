@@ -141,8 +141,16 @@ export interface AppearanceSelection {
   image?: ImageChoices;
   /** The Label tab's, for elements. */
   label?: LabelChoices;
-  /** The presentation context chosen, when there is one: what a change for one context is for. */
+  /** The presentation context chosen, when there is one: what a change for one context is for — and its name. */
   context?: string;
+  contextLabel?: string;
+  /**
+   * Whose look `own` and `defaults` are (core-vis 0.7: a style per context): the
+   * one for the presentation chosen — its own values, and what it is drawn with
+   * otherwise — or the one for every presentation. Every presentation with none
+   * chosen.
+   */
+  scope?: 'context' | 'every';
   /** What the first one sets on its own style. */
   own: Appearance;
   /** What the first one is drawn with where it sets nothing: its notation's, or la-gram's. */

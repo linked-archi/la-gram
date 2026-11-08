@@ -972,6 +972,20 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(store.getQuads(nn(secondStyle), null, null)).toEqual([]);
   });
 
+  it('a note’s and a line’s look for one presentation context too: read, copied with the view', () => {
+    const EXECUTIVE = 'https://example.org/contexts#Executive';
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setAppearance(view, note, { fillColor: '#ffd6e0' }, EXECUTIVE);
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: first })!;
+    views.setAppearance(view, link, { lineColor: '#7a0019', lineWidth: 3 }, EXECUTIVE);
+    expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n' });
+    expect(views.getNode(view, note)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#ffd6e0' } });
+    expect(views.getLinks(view)[0]?.contextAppearances).toEqual({ [EXECUTIVE]: { lineColor: '#7a0019', lineWidth: 3 } });
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.figure)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#ffd6e0' } });
+    expect(views.getLinks(copy)[0]?.contextAppearances).toEqual({ [EXECUTIVE]: { lineColor: '#7a0019', lineWidth: 3 } });
+  });
+
   it('a figure’s, every value of it, copied with its view', () => {
     const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
     views.setAppearance(view, note, { textAlignment: 'center', textPosition: 'middle', borderStyle: 'DashedLine', fontColor: '#7a0019' });

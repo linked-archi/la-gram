@@ -102,6 +102,8 @@ export interface FigureColours {
 
 /** One relationship drawn in a diagram view (`arch-vis:Link`). */
 export interface LinkInfo {
+  /** How the line looks in each presentation context it has a style for (core-vis 0.7), over {@link appearance}. */
+  contextAppearances?: Record<string, Appearance>;
   linkIri: string;
   relationshipIri: string;
   /** What the link starts at: a node, or the link of the relationship it starts at. */

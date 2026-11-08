@@ -365,6 +365,14 @@ export interface RetypeElementRequest {
 }
 
 /** What {@link DiagramCanvasOptions.describeElement} returns. */
+/** One thing drawn, for the Appearance, Figure and Image tabs: its node or link, its own look for every presentation and for the one chosen, and its defaults. */
+interface DrawnLook {
+  target: AppearanceTarget;
+  own: Appearance;
+  defaults: Appearance;
+  contextOwn?: Appearance;
+}
+
 export interface ConceptDescription {
   typeIri?: string;
   label?: string;
@@ -1208,8 +1216,8 @@ export class DiagramCanvas {
     const links = this.viewManager.getLinks(viewIri);
     this.appearanceToDraw = new Map();
     for (const drawn of [...nodes, ...links]) {
-      // A placement's look for the presentation chosen: its style for every context, its style for that one over it.
-      const look = 'nodeIri' in drawn ? this.lookFor(drawn) : drawn.appearance;
+      // A placement's or a line's look for the presentation chosen: its style for every context, its style for that one over it.
+      const look = this.lookFor(drawn);
       if (look) this.appearanceToDraw.set('nodeIri' in drawn ? drawn.nodeIri : drawn.linkIri, look);
     }
     const wantedShapes = new Set(nodes.map((n) => n.nodeIri));
@@ -1335,7 +1343,7 @@ export class DiagramCanvas {
           Object.assign(drawn, derived);
           services.eventBus.fire('elements.changed', { elements: [existing] });
         }
-        this.restyle(existing, link.appearance);
+        this.restyle(existing, this.lookFor(link));
         continue;
       }
       this.addRelationship(
@@ -1363,6 +1371,19 @@ export class DiagramCanvas {
    * every context, laid over value by value by its style for that context
    * (core-vis 0.7) — `undefined` when it sets nothing.
    */
+  /** Its own look for the presentation chosen alone — `undefined` with none chosen, or none of its own for it. */
+  private contextLookOf(info: Pick<NodeInfo, 'contextAppearances'>): Appearance | undefined {
+    const context = this.notationStyles.activePresentationContext;
+    return context ? info.contextAppearances?.[context] : undefined;
+  }
+
+  /** A figure as it is drawn for the presentation chosen: its look for every one, the chosen one's laid over it. */
+  private figureFor(node: Pick<NodeInfo, 'figure' | 'contextAppearances'>): FigureInfo | undefined {
+    const context = this.notationStyles.activePresentationContext;
+    const forContext = context ? node.contextAppearances?.[context] : undefined;
+    return node.figure && forContext ? { ...node.figure, ...forContext } : node.figure;
+  }
+
   private lookFor(node: Pick<NodeInfo, 'appearance' | 'contextAppearances'>): Appearance | undefined {
     const context = this.notationStyles.activePresentationContext;
     const forContext = context ? node.contextAppearances?.[context] : undefined;
@@ -1435,10 +1456,24 @@ export class DiagramCanvas {
       else businessObject.elementPicture = picture;
       services.eventBus.fire('element.changed', { element: shape });
     }
-    // A relationship's name on its line: its name for the context chosen.
+    // A figure, for the presentation chosen: its look for it over its look for every one.
+    for (const shape of services.elementRegistry.getAll().filter((e) => e.businessObject?.kind === 'figure' && !e.waypoints)) {
+      const node = nodes.get(this.nodeKeyOf(shape) ?? '');
+      const figure = node ? this.figureFor(node) : undefined;
+      if (!figure || sameAppearance(shape.businessObject!.figure, figure)) continue;
+      shape.businessObject!.figure = figure;
+      services.eventBus.fire('element.changed', { element: shape });
+    }
+    // A line — a relationship's, or one from a note — its look for the presentation chosen; a relationship's name its name there.
+    const allLinks = this.viewManager.getLinks(viewIri);
+    // By its link — or, a line not told its link yet, by its relationship's first.
+    const links = new Map([...allLinks.map((link) => [link.relationshipIri, link] as const).reverse(), ...allLinks.map((link) => [link.linkIri, link] as const)]);
     const source = this.labelSourceOf;
-    for (const line of services.elementRegistry.getAll().filter((e) => e.businessObject?.kind === 'relationship' && e.waypoints)) {
+    for (const line of services.elementRegistry.getAll().filter((e) => (e.businessObject?.kind === 'relationship' || e.businessObject?.kind === 'connector') && e.waypoints)) {
       const businessObject = line.businessObject!;
+      const link = links.get(this.linkKeyOf(line) ?? '');
+      if (link) this.restyle(line, this.lookFor(link));
+      if (businessObject.kind !== 'relationship') continue;
       const text = source?.nameForContext?.(businessObject.iri);
       if (businessObject.labelText === text) continue;
       if (text === undefined) delete businessObject.labelText;
@@ -1811,7 +1846,7 @@ export class DiagramCanvas {
    */
   private syncFigure(node: NodeInfo): void {
     const services = this.services();
-    const figure = node.figure;
+    const figure = this.figureFor(node);
     if (!services || !figure) return;
     const existing = this.shapeOfNode(node.nodeIri);
     const container = this.containerFor(node.parentNodeIri);
@@ -1858,19 +1893,26 @@ export class DiagramCanvas {
    * with where it sets nothing, and the fields every one of them has.
    * `undefined` with nothing drawn selected, or no view open.
    */
-  selectedAppearance(): AppearanceSelection | undefined {
+  selectedAppearance(scope?: 'context' | 'every'): AppearanceSelection | undefined {
     const viewIri = this.viewIri;
     if (!viewIri || !this.viewManager) return undefined;
     const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
     const described = selected
       .map((element) => this.appearanceOfDrawn(viewIri, element))
-      .filter((d): d is { target: AppearanceTarget; own: Appearance; defaults: Appearance } => d !== undefined);
+      .filter((d): d is DrawnLook => d !== undefined);
     const first = described[0];
     if (!first) return undefined;
-    // Elements: drawn with their look for the presentation chosen (a style for it over the one for every presentation).
+    // With a presentation chosen, the look edited is its own — or the look for every presentation: by default its own
+    // when the first one has one, or has no look at all for every presentation (core-vis 0.7: a style per context).
     const context = this.notationStyles.activePresentationContext;
+    const hasContextLook = !!first.contextOwn && Object.keys(first.contextOwn).length > 0;
+    const hasEveryLook = Object.keys(first.own).length > 0;
+    const inScope: 'context' | 'every' = !context ? 'every' : (scope ?? (hasContextLook || !hasEveryLook ? 'context' : 'every'));
+    // In the scope of one presentation: its own values; what it is drawn with otherwise, its look for every one.
+    const ownOf = (d: DrawnLook): Appearance => (inScope === 'context' ? (d.contextOwn ?? {}) : d.own);
+    const defaultsOf = (d: DrawnLook): Appearance => (inScope === 'context' ? { ...d.defaults, ...d.own } : d.defaults);
     const firstNode = first.target.kind === 'element' ? this.viewManager.getNode(viewIri, first.target.iri) : undefined;
-    const figure = this.figureChoices(selected, (firstNode && this.lookFor(firstNode)) ?? first.own, first.defaults);
+    const figure = this.figureChoices(selected, { ...first.own, ...(first.contextOwn ?? {}) }, first.defaults, inScope === 'context' ? first.own : undefined);
     // A picture for elements and figures — every one selected — not for a line.
     const elements = described.every((d) => d.target.kind === 'element');
     // What a style says of the picture: its own icon — drawn as the figure — else the picture in it.
@@ -1884,12 +1926,12 @@ export class DiagramCanvas {
       ? {
           ...scopeOf(first.own),
           canBeFigure: elements,
-          // Per presentation: an element's placement only.
-          ...(context && elements
+          // Per presentation: an element's placement, a figure.
+          ...(context
             ? {
                 context,
                 ...(this.notationStyles.activePresentationContextLabel ? { contextLabel: this.notationStyles.activePresentationContextLabel } : {}),
-                forContext: scopeOf(firstNode?.contextAppearances?.[context]),
+                forContext: scopeOf(first.contextOwn),
               }
             : {}),
           ...(elementPicture ? { elementPicture } : {}),
@@ -1899,13 +1941,15 @@ export class DiagramCanvas {
     const label = described.every((d) => d.target.kind === 'element') ? this.labelChoices(viewIri, selected[0]!, first.target.iri) : undefined;
     const fields = fieldsFor(described.map((d) => d.target.kind));
     // What each is drawn with: its own value, else its default — the first one's is not the others'.
-    const shown = (d: (typeof described)[number], key: AppearanceKey) => d.own[key] ?? d.defaults[key];
+    const shown = (d: DrawnLook, key: AppearanceKey) => ownOf(d)[key] ?? defaultsOf(d)[key];
     const mixed = fields.filter((key) => described.some((d) => shown(d, key) !== shown(first, key)));
     return {
       targets: described.map((d) => d.target),
-      own: first.own,
-      defaults: first.defaults,
+      own: ownOf(first),
+      defaults: defaultsOf(first),
       fields,
+      scope: inScope,
+      ...(context && this.notationStyles.activePresentationContextLabel ? { contextLabel: this.notationStyles.activePresentationContextLabel } : {}),
       ...(mixed.length > 0 ? { mixed } : {}),
       ...(figure ? { figure } : {}),
       ...(image ? { image: image satisfies ImageChoices } : {}),
@@ -1949,7 +1993,7 @@ export class DiagramCanvas {
    * The figures the selection may be drawn as (the Figure tab): only when every
    * one is an element whose notation has a glyph to draw — a badge, or the figure.
    */
-  private figureChoices(selected: DjsShape[], own: Appearance, defaults: Appearance): FigureChoices | undefined {
+  private figureChoices(selected: DjsShape[], own: Appearance, defaults: Appearance, everyLook?: Appearance): FigureChoices | undefined {
     if (selected.length === 0 || selected.some((element) => element.businessObject?.kind !== 'element')) return undefined;
     const hrefs = selected.map((element) => iconHref(this.notationStyles.styleFor(element.businessObject?.typeIri)?.iconSymbol, assetUrl));
     const [iconHrefOfFirst] = hrefs;
@@ -1964,11 +2008,17 @@ export class DiagramCanvas {
     const defaultShape = style?.customShape ?? style?.shapeType;
     const dashed = style?.borderStyle === 'DashedLine';
     const NAMES: Record<string, string> = { ShapeWithBadge: 'Shape with icon', IconCentric: 'Icon', ShapeOnly: 'Shape only' };
+    // For one presentation (`everyLook`, its look for every one): absent keys fall back to that look, so a figure
+    // it says is overridden with the notation's mode and default shape, said out.
+    const defaultShapeIri = style?.customShape?.iri ?? (style?.shapeType ? NAMESPACES['arch-vis'] + style.shapeType : undefined);
+    const overriding = !!everyLook && (everyLook.renderingMode !== undefined || everyLook.shapeType !== undefined);
     const generic = (mode: 'ShapeWithBadge' | 'IconCentric' | 'ShapeOnly', notation: boolean): FigureOption => ({
       label: NAMES[mode]!,
       mode,
       ...(notation ? { notation: true } : {}),
-      changes: { renderingMode: notation ? null : mode, shapeType: null },
+      changes: overriding
+        ? { renderingMode: mode, shapeType: everyLook?.shapeType !== undefined ? (defaultShapeIri ?? null) : null }
+        : { renderingMode: notation ? null : mode, shapeType: null },
       preview: mode === 'IconCentric' ? { icon: true } : outline(defaultShape, mode === 'ShapeWithBadge', dashed),
     });
     const options: FigureOption[] = [generic(notationMode, true)];
@@ -2009,10 +2059,7 @@ export class DiagramCanvas {
   }
 
   /** One thing drawn, for the Appearance tab: its node or link, its own look, what it is drawn with otherwise. */
-  private appearanceOfDrawn(
-    viewIri: string,
-    element: DjsShape,
-  ): { target: AppearanceTarget; own: Appearance; defaults: Appearance } | undefined {
+  private appearanceOfDrawn(viewIri: string, element: DjsShape): DrawnLook | undefined {
     const businessObject = element.businessObject;
     const viewManager = this.viewManager;
     if (!businessObject || !viewManager) return undefined;
@@ -2020,13 +2067,20 @@ export class DiagramCanvas {
       const key = this.nodeKeyOf(element);
       const node = key ? viewManager.getNode(viewIri, key) : undefined;
       if (!node) return undefined;
+      const contextOwn = this.contextLookOf(node);
       if (node.figure) {
-        return { target: { iri: node.nodeIri, kind: node.figure.kind }, own: appearanceOfFigure(node.figure), defaults: figureDefaults(node.figure.kind) };
+        return {
+          target: { iri: node.nodeIri, kind: node.figure.kind },
+          own: appearanceOfFigure(node.figure),
+          defaults: figureDefaults(node.figure.kind),
+          ...(contextOwn ? { contextOwn } : {}),
+        };
       }
       return {
         target: { iri: node.nodeIri, kind: 'element' },
         own: node.appearance ?? {},
         defaults: elementDefaults(this.notationStyles.styleFor(businessObject.typeIri)),
+        ...(contextOwn ? { contextOwn } : {}),
       };
     }
     if (businessObject.kind === 'relationship' || businessObject.kind === 'connector') {
@@ -2035,9 +2089,11 @@ export class DiagramCanvas {
       const link = links.find((l) => l.linkIri === key) ?? links.find((l) => l.relationshipIri === businessObject.iri);
       if (!link) return undefined;
       const connector = businessObject.kind === 'connector';
+      const contextOwn = this.contextLookOf(link);
       return {
         target: { iri: link.linkIri, kind: connector ? 'connector' : 'relationship' },
         own: link.appearance ?? {},
+        ...(contextOwn ? { contextOwn } : {}),
         defaults: lineDefaults(
           connector
             ? { lineColor: CONNECTOR_STYLE.lineColor, lineStyle: 'DashedLine', sourceDecor: 'NoDecoration', targetDecor: 'NoDecoration' }
@@ -2249,7 +2305,7 @@ export class DiagramCanvas {
           services.eventBus.fire('element.changed', { element: existing });
         }
       }
-      this.restyle(existing, link.appearance);
+      this.restyle(existing, this.lookFor(link));
       return;
     }
     const businessObject: RdfBusinessObject = {
@@ -2257,7 +2313,7 @@ export class DiagramCanvas {
       linkIri: link.linkIri,
       typeIri: '',
       kind: 'connector',
-      ...(link.appearance ? { appearance: link.appearance } : {}),
+      ...(this.lookFor(link) ? { appearance: this.lookFor(link)! } : {}),
       ...(link.text ? { label: link.text, named: true } : {}),
     };
     const connection = services.elementFactory.createConnection({ id: link.linkIri, businessObject, source, target, waypoints: [] });
@@ -4449,9 +4505,11 @@ export class DiagramCanvas {
 
   /**
    * A click with the format painter on: the first picks the clicked thing's own
-   * look; each after gives it to the clicked one, as one undoable step — what
-   * its kind has of it, a value the picked look leaves unset taken back to the
-   * target's default, its figure left as it is.
+   * look — for the presentation chosen, its look for every one with that
+   * presentation's laid over it; each after gives it to the clicked one, as one
+   * undoable step — what its kind has of it, a value the picked look leaves
+   * unset taken back to the target's default, its figure left as it is — for
+   * the presentation chosen (its style for it), or for every one with none.
    */
   private paint(element: DjsShape): void {
     const viewIri = this.viewIri;
@@ -4460,14 +4518,17 @@ export class DiagramCanvas {
     const drawn = this.appearanceOfDrawn(viewIri, element);
     if (!drawn) return;
     if (!this.painter.look) {
-      this.painter.look = { own: drawn.own };
+      // What it looks like for the presentation chosen: its look for every one, that presentation's laid over it.
+      this.painter.look = { own: { ...drawn.own, ...(drawn.contextOwn ?? {}) } };
       this.container.classList.add('la-format-painting');
       this.eventBus.emit('format-painter-changed', { state: 'paint' });
       return;
     }
     const look = this.painter.look.own;
     const changes = Object.fromEntries(APPEARANCE_FIELDS[drawn.target.kind].map((key) => [key, look[key] ?? null]));
-    this.recordChange(() => viewManager.setAppearance?.(viewIri, drawn.target.iri, changes));
+    // Given for the presentation chosen — its style for it — or, with none, for every one.
+    const context = this.notationStyles.activePresentationContext;
+    this.recordChange(() => viewManager.setAppearance?.(viewIri, drawn.target.iri, changes, context));
   }
 
   /** Write a shape's current bounds back to the model. */

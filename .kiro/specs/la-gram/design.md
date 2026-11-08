@@ -1846,6 +1846,26 @@ one `recordChange`. *Pictures by presentation* (`_renderContextPictures`) sends
 `usedImages` adds the model's elements' pictures. The cascade (`ownedQuads`)
 takes an element's pictures and every style of a node or a link.
 
+Every look per presentation (Req 3.21): `readNode` and `readLink` read
+`contextAppearances` for figures and lines too; the canvas draws a figure with
+`figureFor(node)` and a line with `lookFor(link)`, in the sync and in the
+per-context refresh. `selectedAppearance(scope?)` works out the scope
+(`'context'` | `'every'`; default: the context when the first one has a look of
+its own for it, or none for every presentation) and returns `own` and
+`defaults` for it — for one presentation the first one's `contextOwn`, and its
+look for every presentation over its defaults — with `scope` and `contextLabel`;
+`appearanceOfDrawn` gives each thing's `contextOwn`. `figureChoices(…,
+everyLook)` says the notation's figure out for one presentation when the look
+for every one says another. The panel's `_renderLookScope` heads the
+Appearance, Figure and Image tabs; its checkbox sends `look-scope-change`, and
+`mount-ui` keeps the scope (`lookScope`, forgotten on another selection or
+presentation) and reads `selectedAppearance(lookScope)` again.
+`_appearanceChange` sends the context when the tabs show one presentation's
+look. The format painter picks `own` with `contextOwn` laid over it and writes
+with the context chosen. The model tree's `pictureProvider` (`pictureOf` for
+the presentation chosen) gives an element row its picture; `mount-ui` asks it to
+update on a presentation switch and a picture written.
+
 **Exchange import.** A node's or a connection's `<style>` (`parseExchangeStyle`)
 is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),
 `lineWidth`, and the font's name, size, style and colour.

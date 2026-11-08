@@ -45,12 +45,23 @@ design: `design.md` (§1–§6). Rules: `README.md`.
 
 ## Status
 
-Done 2026-11-08: phases A–E. Everything is uncommitted in both repos. Also changed while doing it: the information
+Done 2026-11-08: phases A–F — the whole task, follow-ups included. Everything is uncommitted in both repos. Also changed while doing it: the information
 tab's generic properties no longer list `arch:prefVisNotation`/`arch:altVisNotation` links (shown as Pictures by
 presentation), as they no longer list `skosxl:altLabel`.
 
-## Follow-ups (not in this task)
+## Phase F — every look per presentation (R7; design §7) — added 2026-11-08
 
-- The Appearance and Figure tabs per context; the format painter copying a context's look.
-- Per-context looks for figures (groups, notes, shapes) and lines.
-- The palette and the model tree showing an element's picture.
+- [x] F1 model: figures' and links' context looks read; links' copied + tests
+- [x] F2 canvas: figures and lines drawn with their look for the presentation chosen; refreshed on a switch
+- [x] F3 `selectedAppearance(scope)`: own/defaults/mixed per scope; `hasContextLook`, `hasEveryLook`, `scope`
+- [x] F4 panel: shared scope bar and state for Appearance, Figure, Image; `look-scope-change`
+- [x] F5 Appearance tab per scope; Figure tab per scope (notation's figure over another)
+- [x] F6 Image tab for figures per scope
+- [x] F7 format painter per presentation
+- [x] F8 model tree: an element's picture as its icon
+- [x] F9 tests (unit, workbench, browser); docs (README, `.kiro` requirements, design, change log); build
+
+## Not in this task
+
+- Converters: the exchange format has no presentation contexts.
+- The palette lists types, not elements: nothing per element to show there.

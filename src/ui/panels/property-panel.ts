@@ -1262,7 +1262,8 @@ export class PropertyPanel extends LitElement {
       align-self: flex-start;
     }
 
-    .image-scope-bar {
+    /* The scope bar of the Appearance, Figure and Image tabs: for the presentation chosen, or every one. */
+    .look-scope-bar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -1272,12 +1273,12 @@ export class PropertyPanel extends LitElement {
       font-size: 12px;
     }
 
-    .image-scope {
+    .look-scope {
       margin: 0;
       color: #3c4043;
     }
 
-    .image-every {
+    .look-every {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -1549,7 +1550,6 @@ export class PropertyPanel extends LitElement {
       const before = `${previous?.targets.map((t) => t.iri).join(' ')}|${previous?.context ?? ''}`;
       if (before !== `${this.appearance?.targets.map((t) => t.iri).join(' ')}|${this.appearance?.context ?? ''}`) {
         this._labelEveryContext = undefined;
-        this._imageEveryContext = undefined;
       }
     }
     if (
@@ -2307,6 +2307,7 @@ export class PropertyPanel extends LitElement {
     const rows = APPEARANCE_ROWS.filter((row) => row.some((key) => key && cells[key] !== nothing));
     const notationOnly = this.notationOnly && selection.targets.some((t) => t.kind === 'element' || t.kind === 'relationship');
     return html`
+      ${this._renderLookScope()}
       ${notationOnly
         ? html`<div class="appearance-notice" role="status">
             <span
@@ -2365,6 +2366,7 @@ export class PropertyPanel extends LitElement {
       </svg>`;
     };
     return html`
+      ${this._renderLookScope()}
       ${choices.selected < 0
         ? html`<p class="figure-own-picture muted">
             Drawn as its own picture (the Image tab). A figure picked here puts the notation's glyph back.
@@ -2381,11 +2383,16 @@ export class PropertyPanel extends LitElement {
             aria-checked=${index === choices.selected ? 'true' : 'false'}
             title=${option.label}
             @click=${() =>
-              // The figure for every presentation — and the one chosen, its own figure and icon taken away.
-              this._appearanceChange(
-                option.changes,
-                this.appearance?.context ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol'] } } : {},
-              )}
+              this.appearance?.scope === 'context'
+                ? // For the presentation chosen: its own figure.
+                  this._appearanceChange(option.changes)
+                : // For every presentation — and the one chosen, its own figure and icon taken away.
+                  this._appearanceChange(
+                    option.changes,
+                    this.appearance?.context
+                      ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol'] } }
+                      : {},
+                  )}
           >
             ${preview(option)}
             <span>${option.label}${option.notation ? html`<span class="muted-note"> (notation)</span>` : nothing}</span>
@@ -2583,8 +2590,46 @@ export class PropertyPanel extends LitElement {
   /** What was typed as a picture's address and is not one: said under the field, nothing written. */
   @state() private _imageError = '';
 
-  /** Whether the Image tab edits the look for every presentation (else the one chosen); `undefined` until toggled. */
-  @state() private _imageEveryContext: boolean | undefined;
+  /**
+   * The scope the Appearance, Figure and Image tabs share — they write the same
+   * style (core-vis 0.7: one for every presentation, one for each): with a
+   * presentation chosen, which one a change is for, and *The same in every
+   * presentation* to switch — a `look-scope-change`, for the host to read the
+   * selection's look again in the other scope.
+   */
+  private _renderLookScope() {
+    const selection = this.appearance;
+    if (!selection) return nothing;
+    const chosen = selection.context !== undefined;
+    const every = !chosen || selection.scope !== 'context';
+    const name = selection.contextLabel ?? 'the presentation chosen';
+    return html`<div class="look-scope-bar">
+      <p class="look-scope">
+        ${!chosen
+          ? html`For <strong>every presentation</strong>. Choose a presentation above the canvas to set a look for it alone.`
+          : every
+            ? html`For <strong>every presentation</strong>.`
+            : html`For <strong>${name}</strong> — the presentation chosen now.`}
+      </p>
+      ${chosen
+        ? html`<label class="look-every">
+            <input
+              type="checkbox"
+              .checked=${live(every)}
+              @change=${(e: Event) =>
+                this.dispatchEvent(
+                  new CustomEvent<{ everyContext: boolean }>('look-scope-change', {
+                    detail: { everyContext: (e.target as HTMLInputElement).checked },
+                    bubbles: true,
+                    composed: true,
+                  }),
+                )}
+            />
+            The same in every presentation
+          </label>`
+        : nothing}
+    </div>`;
+  }
 
   /**
    * A picture file chosen with "Choose file…": kept in the model as a
@@ -2631,8 +2676,8 @@ export class PropertyPanel extends LitElement {
   private _renderImage(choices: ImageChoices, count: number) {
     // For the presentation chosen, or for every one — with none chosen, or for figures, for every one only.
     const chosen = choices.context !== undefined;
-    const hasPicture = (scope: ImageScope | undefined) => !!scope?.image || !!scope?.elementAsFigure;
-    const everyContext = !chosen || (this._imageEveryContext ?? (!hasPicture(choices.forContext) && hasPicture(choices)));
+    // The scope the Appearance, Figure and Image tabs share (the scope bar above them).
+    const everyContext = !chosen || this.appearance?.scope !== 'context';
     const scope: ImageScope = everyContext ? choices : (choices.forContext ?? { position: 'TopLeft' });
     const change = (changes: AppearanceChanges) =>
       this._appearanceChange(
@@ -2665,12 +2710,11 @@ export class PropertyPanel extends LitElement {
     // Its element's own picture (Pictures by presentation) as the figure: drawn as its icon, no picture of its own.
     const elementAsFigure = () =>
       change({ renderingMode: 'IconCentric', iconSymbol: null, image: null, imagePosition: null, shapeType: null });
-    const contextName = choices.contextLabel ?? 'the presentation chosen';
     const setAddress = (input: HTMLInputElement) => {
       const typed = input.value.trim();
       if (!typed) {
         this._imageError = '';
-        if (current) this._appearanceChange(remove);
+        if (current) change(remove);
         return;
       }
       const uri = imageUri(typed);
@@ -2683,29 +2727,7 @@ export class PropertyPanel extends LitElement {
     };
     const shown = current ?? (scope.elementAsFigure ? choices.elementPicture : undefined);
     return html`
-      ${choices.canBeFigure
-        ? html`<div class="image-scope-bar">
-            <p class="image-scope">
-              ${!chosen
-                ? html`For <strong>every presentation</strong>. Choose a presentation above the canvas to set a picture for it alone.`
-                : everyContext
-                  ? html`For <strong>every presentation</strong>.`
-                  : html`For <strong>${contextName}</strong> — the presentation chosen now.`}
-            </p>
-            ${chosen
-              ? html`<label class="image-every">
-                  <input
-                    type="checkbox"
-                    .checked=${live(everyContext)}
-                    @change=${(e: Event) => {
-                      this._imageEveryContext = (e.target as HTMLInputElement).checked;
-                    }}
-                  />
-                  The same in every presentation
-                </label>`
-              : nothing}
-          </div>`
-        : nothing}
+      ${this._renderLookScope()}
       <div class="image-tab">
         <div class="image-preview" data-empty=${shown ? nothing : 'true'}>
           ${shown ? html`<img src=${shown} alt="The picture drawn" />` : html`<span>No image</span>`}
@@ -2818,10 +2840,15 @@ export class PropertyPanel extends LitElement {
     this.dispatchEvent(new CustomEvent<{ on: boolean }>('notation-only', { detail: { on }, bubbles: true, composed: true }));
   }
 
-  /** A value changed in the Appearance tab: `appearance-change`, for the host to write undoably. */
-  private _appearanceChange(changes: AppearanceChanges, scope: Omit<AppearanceChangeDetail, 'changes'> = {}): void {
+  /**
+   * A value changed in the Appearance, Figure or Image tab: `appearance-change`,
+   * for the host to write undoably — for the presentation chosen when the tabs
+   * show its look (the scope bar), unless `scope` says otherwise.
+   */
+  private _appearanceChange(changes: AppearanceChanges, scope?: Omit<AppearanceChangeDetail, 'changes'>): void {
+    const inScope = scope ?? (this.appearance?.scope === 'context' && this.appearance.context ? { context: this.appearance.context } : {});
     this.dispatchEvent(
-      new CustomEvent<AppearanceChangeDetail>('appearance-change', { detail: { changes, ...scope }, bubbles: true, composed: true }),
+      new CustomEvent<AppearanceChangeDetail>('appearance-change', { detail: { changes, ...inScope }, bubbles: true, composed: true }),
     );
   }
 

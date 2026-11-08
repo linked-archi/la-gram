@@ -2352,6 +2352,36 @@ describe('the Appearance tab', () => {
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
 
+  it('a colour for executives alone, from the Appearance tab with that presentation chosen', async () => {
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Coloured for executives',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 840, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    const body = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-body`);
+    const notationFill = await body.getAttribute('fill');
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}ExecutiveContext`);
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="appearance"]').click();
+    expect(await panel.locator('.look-scope').textContent()).toContain('Executive / C-Level');
+    await panel.locator('.appearance-field[data-field="fillColor"] input').evaluate((input: HTMLInputElement) => {
+      input.value = '#ffd6e0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await until(async () => (await body.getAttribute('fill')) === '#ffd6e0', 'pink for executives');
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}DeveloperContext`);
+    await until(async () => (await body.getAttribute('fill')) === notationFill, 'the notation’s colour for developers');
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.setPresentationContext(undefined));
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
   it('an element’s own picture for executives, drawn as its figure when they are the presentation chosen', async () => {
     const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
     const iri = await page.evaluate(() => {

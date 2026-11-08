@@ -921,7 +921,7 @@ describe('the workbench', () => {
     // Executives chosen: what is set is for them alone — a style of its own for that context.
     app.setPresentationContext(EXECUTIVE);
     await openImageTab();
-    expect(root.querySelector('.image-scope')!.textContent).toContain('Executive / C-Level');
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
     await type(FOR_EXECUTIVES);
     expect(views.getNode(view, node)?.appearance).toBeUndefined();
     expect(views.getNode(view, node)?.contextAppearances).toEqual({ [EXECUTIVE]: { image: FOR_EXECUTIVES } });
@@ -932,11 +932,11 @@ describe('the workbench', () => {
     await panel.updateComplete;
     expect(root.querySelector('.image-preview')!.textContent).toContain('No image');
     // The same in every presentation: written once, for everyone — executives keep theirs over it.
-    const every = root.querySelector<HTMLInputElement>('.image-every input')!;
+    const every = root.querySelector<HTMLInputElement>('.look-every input')!;
     every.checked = true;
     every.dispatchEvent(new Event('change'));
     await panel.updateComplete;
-    expect(root.querySelector('.image-scope')!.textContent).toContain('every presentation');
+    expect(root.querySelector('.look-scope')!.textContent).toContain('every presentation');
     await type(FOR_EVERYONE);
     expect(views.getNode(view, node)?.appearance).toEqual({ image: FOR_EVERYONE });
     expect(inside()).toBe(FOR_EVERYONE);
@@ -1011,6 +1011,144 @@ describe('the workbench', () => {
     ui.diagramCanvas.selectIris([]);
     ui.selectConcept(undefined);
     els.deleteElement(a);
+  });
+
+  it('sets every look for one presentation or for all: the Appearance, Figure and Image tabs, notes and lines, the format painter, the tree', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const model = app.session.modelIri!;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const EXECUTIVE = `${PC}ExecutiveContext`;
+    const DEVELOPER = `${PC}DeveloperContext`;
+    const [a, b] = ['Looked', 'Painted'].map((label) => els.createElement(`${AM4}ApplicationComponent`, model, { label }).value);
+    const nodeA = views.addElementToView(view, a!, { x: 100, y: 1800, width: 160, height: 80 });
+    const nodeB = views.addElementToView(view, b!, { x: 400, y: 1800, width: 160, height: 80 });
+    const note = views.addFigure!(view, { kind: 'note', text: 'Ask', bounds: { x: 700, y: 1800, width: 185, height: 80 } });
+    const serving = app.components.relationshipManager.createQualifiedRelationship!({ typeIri: `${AM4}Serving`, sourceIri: a!, targetIri: b! }).iri;
+    views.addRelationshipToView(view, serving);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const fill = (iri: string) => document.querySelector(`[data-element-iri="${iri}"] .la-shape-body`)?.getAttribute('fill');
+    const mode = (iri: string) => document.querySelector(`[data-element-iri="${iri}"]`)?.getAttribute('data-rendering-mode');
+    const notationFill = fill(a!);
+    const select = async (iri: string, tab: string) => {
+      ui.diagramCanvas.selectIris([iri]);
+      await panel.updateComplete;
+      root.querySelector<HTMLButtonElement>(`.vtab[data-tab="${tab}"]`)!.click();
+      await panel.updateComplete;
+    };
+    const colour = async (field: string, value: string) => {
+      const input = root.querySelector<HTMLInputElement>(`.appearance-field[data-field="${field}"] input`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+    const every = async (on: boolean) => {
+      const box = root.querySelector<HTMLInputElement>('.look-every input')!;
+      box.checked = on;
+      box.dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+
+    // Executives chosen, nothing set: the Appearance tab sets their look alone.
+    app.setPresentationContext(EXECUTIVE);
+    await select(a!, 'appearance');
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    await colour('fillColor', '#ffd6e0');
+    expect(views.getNode(view, nodeA)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#ffd6e0' } });
+    expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
+    expect(fill(a!)).toBe('#ffd6e0');
+    app.setPresentationContext(DEVELOPER);
+    expect(fill(a!)).toBe(notationFill);
+
+    // For every presentation — shown in the Figure tab too, the scope shared — a figure: drawn so for developers;
+    // executives' fill stays theirs.
+    app.setPresentationContext(EXECUTIVE);
+    await select(a!, 'appearance');
+    await every(true);
+    expect(root.querySelector('.look-scope')!.textContent).toContain('every presentation');
+    // Its defaults, for every presentation: the notation's; for executives, they would be its look for every one.
+    expect(panel.appearance?.own).toEqual({});
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.look-scope')!.textContent).toContain('every presentation');
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeOnly"]')!.click();
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ renderingMode: 'ShapeOnly' });
+    expect(views.getNode(view, nodeA)?.contextAppearances?.[EXECUTIVE]).toEqual({ fillColor: '#ffd6e0' });
+    // For executives alone: the notation's figure, over the one for every presentation — said out.
+    await panel.updateComplete;
+    await every(false);
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    expect(views.getNode(view, nodeA)?.contextAppearances?.[EXECUTIVE]).toEqual({ fillColor: '#ffd6e0', renderingMode: 'ShapeWithBadge' });
+    expect(mode(a!)).toBe('ShapeWithBadge');
+    app.setPresentationContext(DEVELOPER);
+    expect(mode(a!)).toBe('ShapeOnly');
+    // Reset all, for executives: their own Appearance values taken away — their fill the one for every presentation;
+    // their figure, the Figure tab's, stays.
+    app.setPresentationContext(EXECUTIVE);
+    await select(a!, 'appearance');
+    expect(panel.appearance?.scope).toBe('context');
+    expect(panel.appearance?.own).toEqual({ fillColor: '#ffd6e0', renderingMode: 'ShapeWithBadge' });
+    expect(panel.appearance?.defaults.renderingMode).toBe('ShapeOnly');
+    root.querySelector<HTMLButtonElement>('.reset-appearance')!.click();
+    expect(views.getNode(view, nodeA)?.contextAppearances).toEqual({ [EXECUTIVE]: { renderingMode: 'ShapeWithBadge' } });
+    expect(fill(a!)).toBe(notationFill);
+    await ui.runCommand({ command: 'undo' });
+    expect(fill(a!)).toBe('#ffd6e0');
+
+    // A note and a line, for executives.
+    await select(note, 'appearance');
+    expect(root.querySelector('.look-scope')!.textContent).toContain('Executive / C-Level');
+    await colour('fillColor', '#b5c9ff');
+    expect(views.getNode(view, note)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#b5c9ff' } });
+    expect(fill(note)).toBe('#b5c9ff');
+    await select(serving, 'appearance');
+    await colour('lineColor', '#7a0019');
+    const link = views.getLinks(view).find((l) => l.relationshipIri === serving)!;
+    expect(link.contextAppearances).toEqual({ [EXECUTIVE]: { lineColor: '#7a0019' } });
+    const stroke = () => document.querySelector(`.djs-connection[data-element-id="${serving}"] .la-connection`)?.getAttribute('stroke');
+    expect(stroke()).toBe('#7a0019');
+    app.setPresentationContext(DEVELOPER);
+    expect(fill(note)).not.toBe('#b5c9ff');
+    expect(stroke()).not.toBe('#7a0019');
+
+    // The format painter, for executives: what the first looks like for them, given to the next for them.
+    app.setPresentationContext(EXECUTIVE);
+    ui.diagramCanvas.selectIris([]);
+    const djs = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const click = (iri: string) => djs.get('eventBus').fire('element.click', { element: djs.get('elementRegistry').get(iri) });
+    ui.canvasToolbar.shadowRoot!.querySelector<HTMLButtonElement>('button[data-action="format-painter"]')!.click();
+    click(a!);
+    click(b!);
+    expect(views.getNode(view, nodeB)?.contextAppearances?.[EXECUTIVE]).toMatchObject({ fillColor: '#ffd6e0' });
+    expect(views.getNode(view, nodeB)?.appearance).toBeUndefined();
+    djs.get('eventBus').fire('keyboard.keydown', { keyEvent: new KeyboardEvent('keydown', { key: 'Escape' }) });
+
+    // The tree: an element's own picture as its row's icon.
+    const PICTURE = 'https://example.org/pictures/looked.png';
+    const ARCH = NAMESPACES.arch;
+    const pictureNode = DataFactory.namedNode(`${a}-picture`);
+    app.components.store.addQuads([
+      DataFactory.quad(DataFactory.namedNode(a!), DataFactory.namedNode(ARCH + 'prefVisNotation'), pictureNode),
+      DataFactory.quad(pictureNode, DataFactory.namedNode('http://schema.org/contentUrl'), DataFactory.literal(PICTURE, DataFactory.namedNode(NAMESPACES.xsd + 'anyURI'))),
+    ] as never);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.modelExplorer.requestUpdate();
+    await ui.modelExplorer.updateComplete;
+    ui.modelExplorer.refresh();
+    ui.modelExplorer.revealIri(a!);
+    await ui.modelExplorer.updateComplete;
+    const pictures = [...ui.modelExplorer.shadowRoot!.querySelectorAll<HTMLImageElement>('img.icon-picture')].map((img) => img.getAttribute('src'));
+    expect(pictures).toContain(PICTURE);
+
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    views.removeElementFromView(view, note);
+    for (const iri of [a!, b!]) els.deleteElement(iri);
   });
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {
