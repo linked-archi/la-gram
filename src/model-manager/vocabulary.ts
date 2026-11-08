@@ -77,6 +77,7 @@ const ARCH = NAMESPACES.arch;
 const VIS = NAMESPACES['arch-vis'];
 const SKOS = NAMESPACES.skos;
 const SKOSXL = 'http://www.w3.org/2008/05/skos-xl#';
+const SCHEMA = 'http://schema.org/';
 
 /** IRIs, as strings, for comparisons. */
 export const IRI = {
@@ -132,6 +133,11 @@ export const IRI = {
   skosxlAltLabel: SKOSXL + 'altLabel',
   skosxlLiteralForm: SKOSXL + 'literalForm',
   altLabel: SKOS + 'altLabel',
+  /** An element's pictures (core 0.5.0): for every audience, and its others — one per audience an ImageObject. */
+  prefVisNotation: ARCH + 'prefVisNotation',
+  altVisNotation: ARCH + 'altVisNotation',
+  ImageObject: SCHEMA + 'ImageObject',
+  contentUrl: SCHEMA + 'contentUrl',
   shapeType: VIS + 'shapeType',
   fillColor: VIS + 'fillColor',
   lineColor: VIS + 'lineColor',

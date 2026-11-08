@@ -937,6 +937,41 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(store.getQuads(nn(`${second}-label-expression`), null, null)).toEqual([]);
   });
 
+  it('a look for one presentation context: a style of its own for it, beside the one for every context — copied, emptied, gone with it', () => {
+    const EXECUTIVE = 'https://example.org/contexts#Executive';
+    views.setAppearance(view, first, { fillColor: '#b5c9ff' });
+    views.setAppearance(view, first, { renderingMode: 'IconCentric', image: 'https://example.org/logo.png' }, EXECUTIVE);
+    const node = views.getNode(view, first)!;
+    expect(node.appearance).toEqual({ fillColor: '#b5c9ff' });
+    expect(node.contextAppearances).toEqual({ [EXECUTIVE]: { renderingMode: 'IconCentric', image: 'https://example.org/logo.png' } });
+    // As core-vis 0.7 writes it: a second arch-vis:style, typed, for its context, named after the node.
+    const styles = objects(store, first, VIS_NS + 'style');
+    expect(styles).toHaveLength(2);
+    const forExecutives = styles.find((s) => s !== `${first}-style`)!;
+    expect(forExecutives).toMatch(new RegExp(`^${first}-style-[0-9a-f]{8}$`));
+    expect(objects(store, forExecutives, NAMESPACES.arch + 'inPresentationContext')).toEqual([EXECUTIVE]);
+    expect(objects(store, forExecutives, RDF_TYPE)).toEqual([VIS_NS + 'Style']);
+    // The one for every context is written as before — a converter's copied into it, the context's left alone.
+    views.setAppearance(view, first, { lineWidth: 2 });
+    expect(views.getNode(view, first)?.appearance).toEqual({ fillColor: '#b5c9ff', lineWidth: 2 });
+    expect(views.getNode(view, first)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric', image: 'https://example.org/logo.png' });
+    // Copied with its view.
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.bounds.y === 0)?.contextAppearances).toEqual({
+      [EXECUTIVE]: { renderingMode: 'IconCentric', image: 'https://example.org/logo.png' },
+    });
+    // Emptied, it goes — its context with it.
+    views.setAppearance(view, first, { renderingMode: null, image: null }, EXECUTIVE);
+    expect(views.getNode(view, first)?.contextAppearances).toBeUndefined();
+    expect(store.getQuads(nn(forExecutives), null, null)).toEqual([]);
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}-style`]);
+    // Gone with its placement.
+    views.setAppearance(view, second, { image: 'https://example.org/logo.png' }, EXECUTIVE);
+    const secondStyle = objects(store, second, VIS_NS + 'style')[0]!;
+    views.removeElementFromView(view, second);
+    expect(store.getQuads(nn(secondStyle), null, null)).toEqual([]);
+  });
+
   it('a figure’s, every value of it, copied with its view', () => {
     const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
     views.setAppearance(view, note, { textAlignment: 'center', textPosition: 'middle', borderStyle: 'DashedLine', fontColor: '#7a0019' });

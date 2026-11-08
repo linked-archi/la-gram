@@ -44,7 +44,11 @@ a name: arch-vis:labelExpression gives an arch-vis:LabelExpression, its arch-vis
 {…} placeholders for the concept's name, its type and its properties — on a diagram element's own style,
 on a concept's notation, or on a presentation context for everything shown in it — and, with core's
 arch:inPresentationContext (core 0.5.0), for one presentation context only, so that each audience may
-read the same element its own way. arch-vis:lineStyle, sourceDecor and targetDecor
+read the same element its own way. So may it look its own way: arch-vis:style is no longer functional —
+a diagram element has at most one style for every context and one for each context, the latter drawn
+over the former in its context — and a diagram element drawn arch-vis:IconCentric shows its model
+element's picture for the context (core's arch:prefVisNotation, arch:altVisNotation) where its own style
+names no icon. arch-vis:lineStyle, sourceDecor and targetDecor
 name what they may be said of with arch:domainIncludes — a relationship, a relationship type's
 notation, a style, and so one line's own — where an rdfs:domain of arch:QualifiedRelationship made
 every notation saying them a relationship. arch-vis:alternativeStyle gives a notation other figures for
@@ -343,9 +347,12 @@ arch-vis:Style
 .
 
 arch-vis:style
-    a            owl:ObjectProperty,
-                 owl:FunctionalProperty ;
+    a            owl:ObjectProperty ;
     rdfs:label   "style"@en ;
+    rdfs:comment '''How a diagram element looks. It has at most one style for every presentation context — one
+without core's arch:inPresentationContext — and at most one for each context. Drawn for a context, it
+takes its style for every context, overlaid value by value by its style for that context; drawn for none,
+its style for every context alone. A diagram element with one style looks the same to everyone.'''@en ;
     rdfs:domain  arch-vis:DiagElement ;
     rdfs:range   arch-vis:Style ;
 .
@@ -497,7 +504,9 @@ arch-vis:iconSymbol
 The glyph is drawn over the shape as it is: its lines are opaque and the parts that show the element's
 fill are transparent, so one glyph serves every fill colour and notation set. On a diagram element's own
 style (arch-vis:style) it is that element's own icon, in place of its notation's glyph: a picture drawn
-as the figure itself with arch-vis:IconCentric, or as its badge with arch-vis:ShapeWithBadge.'''@en ;
+as the figure itself with arch-vis:IconCentric, or as its badge with arch-vis:ShapeWithBadge. A diagram
+element drawn arch-vis:IconCentric with no icon of its own shows its model element's picture for the
+presentation context shown, when it has one (see arch-vis:IconCentric).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -986,7 +995,13 @@ Visual layout:
     Element Label     ← label below, not inside shape
 
 Requires: iconSymbol MUST be present. If absent, fall back to ShapeOnly with warning.
-Used by: AWS Architecture Icons, Azure service icons, GCP icons, Kubernetes.'''@en ;
+Used by: AWS Architecture Icons, Azure service icons, GCP icons, Kubernetes.
+
+The icon of a diagram element drawn so, in this order: the arch-vis:iconSymbol of its own style (for the
+presentation context shown, else for every context); its model element's picture for that context —
+its core arch:altVisNotation with that arch:inPresentationContext, else its arch:prefVisNotation; its
+notation's arch-vis:iconSymbol. A model element's picture is drawn only so: in arch-vis:ShapeWithBadge the
+badge stays the notation's glyph, which says the element's type.'''@en ;
 .
 
 arch-vis:ShapeOnly

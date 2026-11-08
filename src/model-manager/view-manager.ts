@@ -70,6 +70,7 @@ import { mintIri } from '../rdf-engine/iri.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
 import { shortHash } from './short-hash.js';
+import { picturesOf } from './element-pictures.js';
 import {
   APPEARANCE_KEYS,
   APPEARANCE_PREDICATES,
@@ -286,6 +287,7 @@ export class OxigraphViewManager implements ViewManager {
       copies.set(node.nodeIri, copied);
       // Looking as it did: a figure's appearance is copied with it; its label saying what it said.
       if (node.appearance) this.setAppearance(copy.value, copied, node.appearance);
+      for (const [context, look] of Object.entries(node.contextAppearances ?? {})) this.setAppearance(copy.value, copied, look, context);
       for (const label of node.labelExpressions ?? []) this.setLabelExpression(copy.value, copied, label.context, label.expression);
     }
     for (const node of nodes) {
@@ -415,10 +417,9 @@ export class OxigraphViewManager implements ViewManager {
     for (const nodeIri of nodeIris) {
       const node = nn(nodeIri);
       quads.push(...this.subjectQuads(node));
-      // Its own style goes with it — a figure's shape type, a placement's colours — and one a converter wrote for it alone.
-      quads.push(...this.read(nn(this.styleIriOf(nodeIri)), null, null));
-      // And what its label says.
-      quads.push(...this.ownLabelExpressions(node).flatMap((expression) => this.read(expression)));
+      // Its own styles go with it — a figure's shape type, a placement's colours, for every presentation context and
+      // for each — with what its label says, and one a converter wrote for it alone.
+      quads.push(...this.ownStylesQuads(node));
       quads.push(...this.blankStyleQuads(node));
       // What was drawn inside it is no longer inside anything.
       quads.push(...this.read(null, T.inNode, node));
@@ -682,11 +683,13 @@ export class OxigraphViewManager implements ViewManager {
       : undefined;
     // A placement's own look; a figure's is in its figure.
     const appearance = figure ? undefined : this.appearanceOf(node);
+    const contextAppearances = figure ? undefined : this.contextAppearancesOf(node);
     const labelExpressions = figure ? [] : this.labelExpressionsOf(node);
     return {
       nodeIri: node.value,
       elementIri,
       ...(labelExpressions.length > 0 ? { labelExpressions } : {}),
+      ...(contextAppearances ? { contextAppearances } : {}),
       ...(parentElementIri ? { parentElementIri, parentNodeIri: parentNode!.value } : {}),
       ...(figure ? { figure } : {}),
       ...(appearance ? { appearance } : {}),
@@ -761,8 +764,8 @@ export class OxigraphViewManager implements ViewManager {
       ...this.pointListQuads(link),
       ...this.labelNodeQuads(link),
       ...this.blankStyleQuads(link),
-      // Its own style, its look in this view.
-      ...this.read(nn(this.styleIriOf(link.value)), null, null),
+      // Its own styles — for every presentation context and for each — its look in this view.
+      ...this.ownStylesQuads(link),
     ];
     for (const relationshipIri of this.objects(link, T.archRelationship)) {
       // Only drop inView when this is the relationship's last link in the view.
@@ -822,8 +825,8 @@ export class OxigraphViewManager implements ViewManager {
    */
   private figureOf(node: Term): FigureInfo | undefined {
     const types = this.objects(node, T.rdfType);
-    const style = this.read(node as NamedNode, T.visStyle)[0]?.object;
-    // How it looks, from its style.
+    const style = this.styleOf(node);
+    // How it looks, from its style for every presentation context.
     const colours: Appearance = style ? this.appearanceOfStyle(style) : {};
     if (types.includes(IRI.ContainerNode) && this.objects(node, T.archElement).length === 0) {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
@@ -842,7 +845,7 @@ export class OxigraphViewManager implements ViewManager {
     this.setAppearance(viewIri, nodeIri, colours);
   }
 
-  setAppearance(viewIri: string, iri: string, changes: AppearanceChanges): void {
+  setAppearance(viewIri: string, iri: string, changes: AppearanceChanges, context?: string): void {
     const subject = nn(iri);
     // A node or a link of this view, named by its own IRI.
     if (!this.objects(subject, T.visView).includes(viewIri)) return;
@@ -850,10 +853,12 @@ export class OxigraphViewManager implements ViewManager {
     const keys = APPEARANCE_KEYS.filter((key) => changes[key] !== undefined);
     if (keys.length === 0) return;
     // A line's text put somewhere else along it: no longer where it was moved by hand.
-    if (keys.includes('labelAnchor') && (this.appearanceOf(subject)?.labelAnchor ?? null) !== (changes.labelAnchor ?? null)) {
+    const current = context ? this.contextAppearancesOf(subject)?.[context] : this.appearanceOf(subject);
+    if (keys.includes('labelAnchor') && (current?.labelAnchor ?? null) !== (changes.labelAnchor ?? null)) {
       this.remove(this.labelNodeQuads(subject));
     }
-    const style = this.ownStyle(subject);
+    // Its style for that presentation context (core-vis 0.7), else its own for every context.
+    const style = context ? this.contextStyle(subject, context) : this.ownStyle(subject);
     for (const key of keys) {
       const predicate = nn(APPEARANCE_PREDICATES[key]);
       const value = changes[key];
@@ -872,10 +877,45 @@ export class OxigraphViewManager implements ViewManager {
               : DataFactory.literal(object.string);
       this.store.addQuads([triple(style, predicate, term)]);
     }
-    // Nothing left to say: no style at all, as before anything was set.
-    if (this.read(style).every((q) => q.predicate.value === IRI.rdfType)) {
+    // Nothing left to say — but what it is, and the context it is for: no such style at all.
+    if (this.read(style).every((q) => q.predicate.value === IRI.rdfType || q.predicate.value === IRI.inPresentationContext)) {
       this.remove([...this.read(style), ...this.read(subject, T.visStyle, style)]);
     }
+  }
+
+  /**
+   * A node's or a link's style for `context` (core-vis 0.7: `arch:inPresentationContext`
+   * on the style) — or, `context` absent, its style for every context, the one
+   * without. `undefined` when it has none.
+   */
+  private styleOf(subject: Term, context?: string): Term | undefined {
+    return this.read(subject as NamedNode, T.visStyle)
+      .map((q) => q.object)
+      .find((style) => this.objects(style, T.inPresentationContext)[0] === context);
+  }
+
+  /** Its style for `context`, to write on: made when it has none, named after it and the context. */
+  private contextStyle(subject: NamedNode, context: string): NamedNode {
+    const found = this.styleOf(subject, context);
+    if (found && found.termType === 'NamedNode') return found as NamedNode;
+    const style = nn(`${this.styleIriOf(subject.value)}-${shortHash(context)}`);
+    this.store.addQuads([
+      triple(subject, T.visStyle, style),
+      triple(style, T.rdfType, T.Style),
+      triple(style, T.inPresentationContext, nn(context)),
+    ]);
+    return style;
+  }
+
+  /** How a node or a link looks in each presentation context it has a style for; `undefined` with none. */
+  private contextAppearancesOf(subject: Term): Record<string, Appearance> | undefined {
+    const looks: Record<string, Appearance> = {};
+    for (const q of this.read(subject as NamedNode, T.visStyle)) {
+      const context = this.objects(q.object, T.inPresentationContext)[0];
+      const look = context ? appearanceOrNone(this.appearanceOfStyle(q.object)) : undefined;
+      if (context && look) looks[context] = look;
+    }
+    return Object.keys(looks).length > 0 ? looks : undefined;
   }
 
   usedImages(): string[] {
@@ -886,6 +926,13 @@ export class OxigraphViewManager implements ViewManager {
     const images = [...this.read(null, nn(APPEARANCE_PREDICATES.image)), ...own]
       .map((q) => appearanceValue('image', q.object))
       .filter((uri): uri is string => uri !== undefined);
+    // And the model's elements' own pictures (core 0.5.0) — not a notation's, about a type.
+    for (const predicate of [T.prefVisNotation, T.altVisNotation]) {
+      for (const q of this.read(null, predicate)) {
+        if (q.graph.termType !== 'DefaultGraph' || this.read(q.subject as NamedNode, T.inModel).length === 0) continue;
+        images.push(...picturesOf(this.store, q.subject.value).map((p) => p.url));
+      }
+    }
     return [...new Set(images)].sort();
   }
 
@@ -894,7 +941,7 @@ export class OxigraphViewManager implements ViewManager {
     if (!this.objects(subject, T.visView).includes(viewIri) || !this.readNode(subject) || this.figureOf(subject)) return;
     const text = expression?.replace(/\r\n?/g, '\n') ?? '';
     // The one it has for that context goes — a blank node another tool wrote too, when nothing else points at it.
-    const style = this.read(subject, T.visStyle)[0]?.object;
+    const style = this.styleOf(subject);
     if (style) {
       for (const q of this.read(style as NamedNode, T.labelExpression)) {
         const scope = this.objects(q.object, T.inPresentationContext)[0];
@@ -914,10 +961,24 @@ export class OxigraphViewManager implements ViewManager {
       ]);
     }
     // Nothing left to say: no style at all.
-    const left = this.read(subject, T.visStyle)[0]?.object;
+    const left = this.styleOf(subject);
     if (left && this.read(left as NamedNode).every((q) => q.predicate.value === IRI.rdfType)) {
       this.remove([...this.read(left as NamedNode), ...this.read(subject, T.visStyle, left as NamedNode)]);
     }
+  }
+
+  /**
+   * The quads of a node's or a link's own styles — named after it, for every
+   * presentation context and for each — with the label expressions they give.
+   */
+  private ownStylesQuads(subject: Term): Quad[] {
+    const quads: Quad[] = [];
+    for (const q of this.read(subject as NamedNode, T.visStyle)) {
+      if (q.object.termType !== 'NamedNode' || !q.object.value.startsWith(this.styleIriOf(subject.value))) continue;
+      quads.push(...this.read(q.object as NamedNode));
+      for (const label of this.read(q.object as NamedNode, T.labelExpression)) quads.push(...this.read(label.object as NamedNode));
+    }
+    return quads;
   }
 
   /** A placement's own label expression, named after it — and the context it is for, when it is for one — so it goes with it. */
@@ -927,7 +988,7 @@ export class OxigraphViewManager implements ViewManager {
 
   /** The label expressions a node's own style points at. */
   private ownLabelExpressions(node: Term): Term[] {
-    const style = this.read(node as NamedNode, T.visStyle)[0]?.object;
+    const style = this.styleOf(node);
     return style ? this.read(style as NamedNode, T.labelExpression).map((q) => q.object) : [];
   }
 
@@ -946,7 +1007,7 @@ export class OxigraphViewManager implements ViewManager {
 
   /** How a node or a link looks, from its own style; `undefined` when it sets nothing. */
   private appearanceOf(subject: Term): Appearance | undefined {
-    const style = this.read(subject as NamedNode, T.visStyle)[0]?.object;
+    const style = this.styleOf(subject);
     return style ? appearanceOrNone(this.appearanceOfStyle(style)) : undefined;
   }
 
@@ -974,7 +1035,8 @@ export class OxigraphViewManager implements ViewManager {
    */
   private ownStyle(subject: NamedNode): NamedNode {
     const own = nn(this.styleIriOf(subject.value));
-    const current = this.read(subject, T.visStyle);
+    // Its styles for every presentation context — not one for a context, which stays as it is.
+    const current = this.read(subject, T.visStyle).filter((q) => this.objects(q.object, T.inPresentationContext).length === 0);
     if (current.length === 1 && current[0]!.object.value === own.value) return own;
     const quads: Quad[] = [triple(subject, T.visStyle, own), triple(own, T.rdfType, T.Style)];
     for (const q of current) {

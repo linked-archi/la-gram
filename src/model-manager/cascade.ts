@@ -91,9 +91,9 @@ export function relationshipClassOf(store: RdfStore, relationshipIri: string): s
  */
 /**
  * What goes with a diagram element or a concept that nothing else uses: a
- * node's or a link's own style (`arch-vis:style`) and the label expressions it
- * gives (core-vis 0.7), and a concept's SKOS-XL names (core 0.5.0) — each only
- * when no other subject points at it.
+ * node's or a link's own styles (`arch-vis:style`, each context's too) and the label expressions they
+ * gives (core-vis 0.7), and a concept's SKOS-XL names and pictures (core 0.5.0)
+ * — each only when no other subject points at it.
  */
 function ownedQuads(store: RdfStore, subject: Term): Quad[] {
   const quads: Quad[] = [];
@@ -107,6 +107,13 @@ function ownedQuads(store: RdfStore, subject: Term): Quad[] {
   }
   for (const name of store.getQuads(subject as NamedNode, T.skosxlAltLabel)) {
     if (name.object.termType !== 'Literal' && alone(T.skosxlAltLabel, name.object)) quads.push(...store.getQuads(name.object as NamedNode, null, null));
+  }
+  // Its pictures (core 0.5.0): an ImageObject nothing else points at — not a published image's own IRI.
+  for (const predicate of [T.prefVisNotation, T.altVisNotation]) {
+    for (const picture of store.getQuads(subject as NamedNode, predicate)) {
+      if (picture.object.termType === 'Literal' || store.getQuads(null, null, picture.object as NamedNode).length > 1) continue;
+      quads.push(...store.getQuads(picture.object as NamedNode, null, null));
+    }
   }
   return quads;
 }

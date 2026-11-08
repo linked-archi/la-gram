@@ -466,8 +466,8 @@ describe('the layout and the property panel', () => {
       'Analysis',
       'Appears in views',
     ]);
-    // Its name for each audience (the metamodel's presentation contexts) last: "Names by presentation", by its first word.
-    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition', 'Names']);
+    // Its name and its picture for each audience (the metamodel's presentation contexts) last — by their first words.
+    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition', 'Names', 'Pictures']);
     // Named, not by IRI: the model by its name, the ID by its short identifier; a click shows the IRIs.
     const modelRow = panel.locator('.pane li.property-row', { has: page.locator('.field-name', { hasText: 'Model' }) });
     expect(await modelRow.locator('.named').innerText()).not.toMatch(/^https?:/);
@@ -2348,6 +2348,48 @@ describe('the Appearance tab', () => {
     expect((await lines.allTextContents())[0]).toBe('Ledger');
     expect(await panel.locator('.label-shown').textContent()).toBe('Ledger\n«Application Component»');
     await session.screenshot('appearance-label');
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('an element’s own picture for executives, drawn as its figure when they are the presentation chosen', async () => {
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Card gateway',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 700, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32"><rect width="48" height="32" rx="6" fill="#e37400"/></svg>';
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="info"]').click();
+    await panel
+      .locator(`.context-picture[data-context="${PC}ExecutiveContext"] .context-picture-file`)
+      .setInputFiles({ name: 'card.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+    await until(
+      async () =>
+        (await page.evaluate((element) => {
+          const store = (window as any).__LA_GRAM_APP__.components.store;
+          return store.getQuads({ termType: 'NamedNode', value: element }, { termType: 'NamedNode', value: 'https://meta.linked.archi/core#altVisNotation' }).length;
+        }, iri)) === 1,
+      'the picture for executives kept in the model',
+    );
+    // Executives chosen: the Image tab draws it as the figure, for them.
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}ExecutiveContext`);
+    await panel.locator('.vtab[data-tab="image"]').click();
+    await panel.locator('.element-picture-as-figure').click();
+    const shape = page.locator(`.djs-shape[data-element-id="${iri}"] [data-rendering-mode]`);
+    await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'IconCentric', 'drawn as its picture');
+    expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-icon`).getAttribute('href')).toMatch(/^data:image\/svg\+xml;base64,/);
+    await session.screenshot('appearance-picture-per-presentation');
+    // Developers: its box.
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}DeveloperContext`);
+    await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'ShapeWithBadge', 'its box for developers');
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.setPresentationContext(undefined));
     await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
     expect(session.diagnostics.pageErrors).toEqual([]);
   });

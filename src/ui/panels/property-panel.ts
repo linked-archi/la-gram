@@ -39,12 +39,13 @@ import {
   type ImagePosition,
   imageUri,
 } from '../../model-manager/appearance.js';
-import type { AppearanceSelection, FigureChoices, ImageChoices, LabelChoices } from '../appearance-selection.js';
+import type { AppearanceSelection, FigureChoices, ImageChoices, ImageScope, LabelChoices } from '../appearance-selection.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
 import type { ElementGroup } from '../../metamodel-manager/interfaces.js';
 import { localName } from '../../model-manager/vocabulary.js';
 import { contextNamesOf } from '../../model-manager/context-names.js';
+import { picturesOf } from '../../model-manager/element-pictures.js';
 import { fieldName, type NameOf } from '../../model-manager/field-names.js';
 import { isQualifiedPredicate } from '../../model-manager/cascade.js';
 import './named-picker.js';
@@ -188,6 +189,20 @@ export interface PropertyHeading {
  */
 export interface AppearanceChangeDetail {
   changes: AppearanceChanges;
+  /** The presentation context they are for — the style for it (core-vis 0.7) — else the style for every one. */
+  context?: string;
+  /** And these keys taken away from the style for this context, so the one for every context shows there. */
+  clearContext?: { context: string; keys: AppearanceKey[] };
+}
+
+/** The Image tab's keys: what a picture, where it is and how it is drawn are in a style. */
+const IMAGE_SCOPE_KEYS: AppearanceKey[] = ['image', 'imagePosition', 'iconSymbol', 'renderingMode', 'shapeType'];
+
+/** An element's picture for one presentation context, or — `context` null — for every one (`context-picture-change`); `null` takes it away. */
+export interface ContextPictureChangeDetail {
+  elementIri: string;
+  context: string | null;
+  url: string | null;
 }
 
 /** A name typed for one presentation context (`context-name-change`); `null` takes it away. */
@@ -340,8 +355,15 @@ const DEFAULT_FIELD_PLACEHOLDER: Record<string, string> = {
  * Not listed: the views a concept is in are in the toolbar and under
  * "Appears in views", so an `arch:inView` row per view repeats them.
  */
-// A SKOS-XL name's link: the names for each presentation are shown as such (Names by presentation).
-const HIDDEN_FIELDS = new Set([NAMESPACES.arch + 'inView', NAMESPACES.rdf + 'reifies', 'http://www.w3.org/2008/05/skos-xl#altLabel']);
+// A SKOS-XL name's link and a picture's: the names and pictures for each presentation are shown as such
+// (Names by presentation, Pictures by presentation).
+const HIDDEN_FIELDS = new Set([
+  NAMESPACES.arch + 'inView',
+  NAMESPACES.rdf + 'reifies',
+  'http://www.w3.org/2008/05/skos-xl#altLabel',
+  NAMESPACES.arch + 'prefVisNotation',
+  NAMESPACES.arch + 'altVisNotation',
+]);
 
 /** SHACL property constraint extracted from a shapes graph. */
 export interface ShaclPropertyShape {
@@ -1085,8 +1107,34 @@ export class PropertyPanel extends LitElement {
       align-items: center;
     }
 
-    .context-name[data-active='true'] .context-label {
+    .context-name[data-active='true'] .context-label,
+    .context-picture[data-active='true'] .context-label {
       font-weight: 600;
+    }
+
+    .context-picture {
+      display: grid;
+      grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .context-picture-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .context-picture-controls .property-value {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .context-picture-thumb {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
     }
 
     .context-label .muted {
@@ -1212,6 +1260,42 @@ export class PropertyPanel extends LitElement {
 
     .remove-image {
       align-self: flex-start;
+    }
+
+    .image-scope-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 16px;
+      padding: 10px 12px 0;
+      max-width: 736px;
+      font-size: 12px;
+    }
+
+    .image-scope {
+      margin: 0;
+      color: #3c4043;
+    }
+
+    .image-every {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .image-element-picture {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .image-element-picture img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
     }
 
     .image-draw-as .controls {
@@ -1458,10 +1542,15 @@ export class PropertyPanel extends LitElement {
 
   override willUpdate(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has('selectedIri')) this._shownIris = new Set();
-    // Another selection: the Label tab edits what is in force for it, not the last one's choice.
+    // Another selection, or another presentation: the Label and Image tabs edit what is in force for it, not the last
+    // one's choice.
     if (changedProperties.has('appearance')) {
-      const before = (changedProperties.get('appearance') as AppearanceSelection | undefined)?.targets.map((t) => t.iri).join(' ');
-      if (before !== this.appearance?.targets.map((t) => t.iri).join(' ')) this._labelEveryContext = undefined;
+      const previous = changedProperties.get('appearance') as AppearanceSelection | undefined;
+      const before = `${previous?.targets.map((t) => t.iri).join(' ')}|${previous?.context ?? ''}`;
+      if (before !== `${this.appearance?.targets.map((t) => t.iri).join(' ')}|${this.appearance?.context ?? ''}`) {
+        this._labelEveryContext = undefined;
+        this._imageEveryContext = undefined;
+      }
     }
     if (
       changedProperties.has('selectedIri') ||
@@ -2291,7 +2380,12 @@ export class PropertyPanel extends LitElement {
             data-shape=${option.shapeIri ? option.shapeIri.split(/[#/]/).pop()! : nothing}
             aria-checked=${index === choices.selected ? 'true' : 'false'}
             title=${option.label}
-            @click=${() => this._appearanceChange(option.changes)}
+            @click=${() =>
+              // The figure for every presentation — and the one chosen, its own figure and icon taken away.
+              this._appearanceChange(
+                option.changes,
+                this.appearance?.context ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol'] } } : {},
+              )}
           >
             ${preview(option)}
             <span>${option.label}${option.notation ? html`<span class="muted-note"> (notation)</span>` : nothing}</span>
@@ -2429,8 +2523,68 @@ export class PropertyPanel extends LitElement {
     </li>`;
   }
 
+  /**
+   * *Pictures by presentation*: an element's own picture for every presentation
+   * (`arch:prefVisNotation`) and one for each (`arch:altVisNotation`, core
+   * 0.5.0), each an address typed or a picture file kept in the model —
+   * empty, none. Drawn where a placement of it is drawn as its icon. A change
+   * is `context-picture-change`, for the host to write.
+   */
+  private _renderContextPictures() {
+    const contexts = this.presentationContexts ?? [];
+    if (this.heading?.kind !== 'Element' || contexts.length === 0 || !this.rdfStore || !this.selectedIri) return nothing;
+    const iri = this.selectedIri;
+    const pictures = picturesOf(this.rdfStore, iri);
+    const send = (context: string | null, url: string | null) =>
+      this.dispatchEvent(
+        new CustomEvent<ContextPictureChangeDetail>('context-picture-change', { detail: { elementIri: iri, context, url }, bubbles: true, composed: true }),
+      );
+    const row = (context: string | null, label: string) => {
+      const current = pictures.find((p) => (p.context ?? null) === context)?.url;
+      const key = context ?? 'every';
+      return html`<li class="context-picture" data-context=${key} data-active=${context && context === this.activeContextIri ? 'true' : nothing}>
+        <span class="context-label">${label}${context && context === this.activeContextIri ? html` <span class="muted">(chosen)</span>` : nothing}</span>
+        <span class="context-picture-controls">
+          ${current ? html`<img class="context-picture-thumb" src=${current} alt="" />` : nothing}
+          <input
+            class="property-value"
+            type="url"
+            aria-label=${`Picture for ${label}`}
+            placeholder=${context ? 'Its picture for every presentation' : 'https://… or data:image/…'}
+            .value=${live(current ?? '')}
+            @change=${(e: Event) => {
+              const typed = (e.target as HTMLInputElement).value.trim();
+              if (typed && !imageUri(typed)) {
+                this._imageError = 'An https:// address, or a data:image/… URI.';
+                return;
+              }
+              this._imageError = '';
+              send(context, typed || null);
+            }}
+          />
+          <button type="button" class="choose-picture" title="Keep a picture file in the model, up to ${KEPT_PICTURE_LIMIT / 1024} KB"
+            @click=${(e: Event) => (e.target as HTMLElement).parentElement?.querySelector<HTMLInputElement>('.context-picture-file')?.click()}>
+            Choose file…
+          </button>
+          <input class="context-picture-file" type="file" accept="image/*" hidden
+            @change=${(e: Event) => this._keepPictureFile(e.target as HTMLInputElement, current, (uri) => send(context, uri))} />
+        </span>
+      </li>`;
+    };
+    return html`<li class="property-row wide context-pictures">
+      <div class="property-label"><span class="field-name" title="Its own picture for each audience">Pictures by presentation</span></div>
+      <ul class="context-name-list">
+        ${row(null, 'Every presentation')} ${contexts.map((context) => row(context.iri, context.label))}
+      </ul>
+      ${this._imageError ? html`<div class="image-error" role="alert">${this._imageError}</div>` : nothing}
+    </li>`;
+  }
+
   /** What was typed as a picture's address and is not one: said under the field, nothing written. */
   @state() private _imageError = '';
+
+  /** Whether the Image tab edits the look for every presentation (else the one chosen); `undefined` until toggled. */
+  @state() private _imageEveryContext: boolean | undefined;
 
   /**
    * A picture file chosen with "Choose file…": kept in the model as a
@@ -2475,22 +2629,43 @@ export class PropertyPanel extends LitElement {
    * `data:image/…` URI is refused where it is typed.
    */
   private _renderImage(choices: ImageChoices, count: number) {
-    const current = choices.image;
-    const asFigure = !!choices.asFigure;
+    // For the presentation chosen, or for every one — with none chosen, or for figures, for every one only.
+    const chosen = choices.context !== undefined;
+    const hasPicture = (scope: ImageScope | undefined) => !!scope?.image || !!scope?.elementAsFigure;
+    const everyContext = !chosen || (this._imageEveryContext ?? (!hasPicture(choices.forContext) && hasPicture(choices)));
+    const scope: ImageScope = everyContext ? choices : (choices.forContext ?? { position: 'TopLeft' });
+    const change = (changes: AppearanceChanges) =>
+      this._appearanceChange(
+        changes,
+        !chosen
+          ? {}
+          : everyContext
+            ? // So that it shows in the presentation chosen too.
+              { clearContext: { context: choices.context!, keys: IMAGE_SCOPE_KEYS } }
+            : { context: choices.context! },
+      );
+    const current = scope.image;
+    const asFigure = !!scope.asFigure;
     // A picture given: in the figure, or as it.
-    const give = (uri: string) => this._appearanceChange(asFigure ? { iconSymbol: uri } : { image: uri });
-    const remove: AppearanceChanges = asFigure
-      ? { iconSymbol: null, renderingMode: null }
-      : { image: null, imagePosition: null };
+    const give = (uri: string) => change(asFigure ? { iconSymbol: uri } : { image: uri });
+    const remove: AppearanceChanges = scope.elementAsFigure
+      ? { renderingMode: null }
+      : asFigure
+        ? { iconSymbol: null, renderingMode: null }
+        : { image: null, imagePosition: null };
     const drawAs = (figure: boolean) => {
       if (figure === asFigure) return;
       if (!current) return;
-      this._appearanceChange(
+      change(
         figure
           ? { iconSymbol: current, renderingMode: 'IconCentric', shapeType: null, image: null, imagePosition: null }
           : { image: current, iconSymbol: null, renderingMode: null },
       );
     };
+    // Its element's own picture (Pictures by presentation) as the figure: drawn as its icon, no picture of its own.
+    const elementAsFigure = () =>
+      change({ renderingMode: 'IconCentric', iconSymbol: null, image: null, imagePosition: null, shapeType: null });
+    const contextName = choices.contextLabel ?? 'the presentation chosen';
     const setAddress = (input: HTMLInputElement) => {
       const typed = input.value.trim();
       if (!typed) {
@@ -2506,10 +2681,34 @@ export class PropertyPanel extends LitElement {
       this._imageError = '';
       if (uri !== current) give(uri);
     };
+    const shown = current ?? (scope.elementAsFigure ? choices.elementPicture : undefined);
     return html`
+      ${choices.canBeFigure
+        ? html`<div class="image-scope-bar">
+            <p class="image-scope">
+              ${!chosen
+                ? html`For <strong>every presentation</strong>. Choose a presentation above the canvas to set a picture for it alone.`
+                : everyContext
+                  ? html`For <strong>every presentation</strong>.`
+                  : html`For <strong>${contextName}</strong> — the presentation chosen now.`}
+            </p>
+            ${chosen
+              ? html`<label class="image-every">
+                  <input
+                    type="checkbox"
+                    .checked=${live(everyContext)}
+                    @change=${(e: Event) => {
+                      this._imageEveryContext = (e.target as HTMLInputElement).checked;
+                    }}
+                  />
+                  The same in every presentation
+                </label>`
+              : nothing}
+          </div>`
+        : nothing}
       <div class="image-tab">
-        <div class="image-preview" data-empty=${current ? nothing : 'true'}>
-          ${current ? html`<img src=${current} alt="The picture drawn" />` : html`<span>No image</span>`}
+        <div class="image-preview" data-empty=${shown ? nothing : 'true'}>
+          ${shown ? html`<img src=${shown} alt="The picture drawn" />` : html`<span>No image</span>`}
         </div>
         <div class="image-fields">
           <label class="appearance-field" data-field="image">
@@ -2544,6 +2743,16 @@ export class PropertyPanel extends LitElement {
             />
           </div>
           ${this._imageError ? html`<div class="image-error" role="alert">${this._imageError}</div>` : nothing}
+          ${choices.canBeFigure && choices.elementPicture
+            ? html`<div class="image-element-picture">
+                <img src=${choices.elementPicture} alt="" />
+                ${scope.elementAsFigure
+                  ? html`<span>Drawn as its element's own picture.</span>`
+                  : html`<button type="button" class="element-picture-as-figure" @click=${elementAsFigure}>
+                      Draw it as its own picture
+                    </button>`}
+              </div>`
+            : nothing}
           ${choices.canBeFigure
             ? html`<div class="appearance-field image-draw-as" data-field="drawAs" role="radiogroup" aria-label="Draw the picture">
                 <span class="field-label">Draw it</span>
@@ -2565,14 +2774,14 @@ export class PropertyPanel extends LitElement {
               <select
                 aria-label="Picture position"
                 ?disabled=${!current || asFigure}
-                @change=${(e: Event) => this._appearanceChange({ imagePosition: (e.target as HTMLSelectElement).value as ImagePosition })}
+                @change=${(e: Event) => change({ imagePosition: (e.target as HTMLSelectElement).value as ImagePosition })}
               >
-                ${IMAGE_POSITIONS.map(([value, name]) => html`<option value=${value} ?selected=${choices.position === value}>${name}</option>`)}
+                ${IMAGE_POSITIONS.map(([value, name]) => html`<option value=${value} ?selected=${scope.position === value}>${name}</option>`)}
               </select>
             </span>
           </label>
-          ${current
-            ? html`<button class="remove-image" @click=${() => this._appearanceChange(remove)}>Remove image</button>`
+          ${current || scope.elementAsFigure
+            ? html`<button class="remove-image" @click=${() => change(remove)}>Remove image</button>`
             : nothing}
         </div>
         ${choices.used.length === 0
@@ -2610,9 +2819,9 @@ export class PropertyPanel extends LitElement {
   }
 
   /** A value changed in the Appearance tab: `appearance-change`, for the host to write undoably. */
-  private _appearanceChange(changes: AppearanceChanges): void {
+  private _appearanceChange(changes: AppearanceChanges, scope: Omit<AppearanceChangeDetail, 'changes'> = {}): void {
     this.dispatchEvent(
-      new CustomEvent<AppearanceChangeDetail>('appearance-change', { detail: { changes }, bubbles: true, composed: true }),
+      new CustomEvent<AppearanceChangeDetail>('appearance-change', { detail: { changes, ...scope }, bubbles: true, composed: true }),
     );
   }
 
@@ -2792,7 +3001,7 @@ export class PropertyPanel extends LitElement {
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
-                ${this._renderContextNames()}
+                ${this._renderContextNames()} ${this._renderContextPictures()}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0

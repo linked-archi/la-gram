@@ -62,15 +62,33 @@ export interface LabelChoices {
 /** What may have a picture drawn in it: an element's placement and the figures — not a line. */
 export const IMAGE_KINDS: readonly AppearanceKind[] = ['element', 'shape', 'note', 'group'];
 
-/** The Image tab: the first one's picture and where it is drawn, and the pictures the model already uses. */
-export interface ImageChoices {
+/** What one of a placement's styles says of its picture: the picture, where it is drawn, and how. */
+export interface ImageScope {
   image?: string;
   position: ImagePosition;
   /** Drawn as the figure — its own icon (`arch-vis:iconSymbol`, `IconCentric`) — not inside it. */
   asFigure?: boolean;
+  /** Drawn as its icon with no icon of its own: its element's picture is the figure (core-vis 0.7). */
+  elementAsFigure?: boolean;
+}
+
+/**
+ * The Image tab: the first one's picture and where it is drawn — in its style
+ * for every presentation (the fields of {@link ImageScope} here), and, with a
+ * presentation chosen and elements selected, in its style for that one
+ * (`forContext`) — its element's picture for that presentation, and the
+ * pictures the model already uses.
+ */
+export interface ImageChoices extends ImageScope {
   /** Whether it may be: elements only — a figure has no icon to stand in for. */
   canBeFigure: boolean;
-  /** Every picture any style of the model draws, to pick from. */
+  /** The presentation context chosen, its name, and the first one's style for it: elements only. */
+  context?: string;
+  contextLabel?: string;
+  forContext?: ImageScope;
+  /** Its element's picture for the presentation chosen, else for every one (core 0.5.0). */
+  elementPicture?: string;
+  /** Every picture any style of the model draws, and the elements' own, to pick from. */
   used: string[];
 }
 
@@ -123,6 +141,8 @@ export interface AppearanceSelection {
   image?: ImageChoices;
   /** The Label tab's, for elements. */
   label?: LabelChoices;
+  /** The presentation context chosen, when there is one: what a change for one context is for. */
+  context?: string;
   /** What the first one sets on its own style. */
   own: Appearance;
   /** What the first one is drawn with where it sets nothing: its notation's, or la-gram's. */

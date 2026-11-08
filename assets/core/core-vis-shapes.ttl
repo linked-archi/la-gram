@@ -54,7 +54,9 @@ xsd:anyURI, imagePosition an IconPlacement, labelAnchor a LabelAnchor — and, a
 may now say them, lineStyle, sourceDecor and targetDecor members of theirs. A VisualNotation's
 arch-vis:alternativeStyle is a Style. A LabelExpression has one expression, a string, and is for at
 most one presentation context (core's arch:inPresentationContext); whatever arch-vis:labelExpression is
-said of — a Style, a VisualNotation, a presentation context — it points to LabelExpressions.
+said of — a Style, a VisualNotation, a presentation context — it points to LabelExpressions. A diagram
+element may have several styles — at most one for every presentation context and one for each — where
+arch-vis:style was at most one; a Style is for at most one presentation context.
 
 0.2.0 — LinkShape accepts a Link as well as a Node at either end of
 a Link, following core-vis 0.6: the edge of a relationship whose source or target is a
@@ -62,6 +64,9 @@ relationship ends on that relationship's edge.'''@en ;
     sh:declare [
         sh:prefix    "arch-vis" ;
         sh:namespace "https://meta.linked.archi/core-vis#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "arch" ;
+        sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ;
     ] ;
     dcterms:source                <https://meta.linked.archi/core-vis#> ;
     prov:wasDerivedFrom           <https://meta.linked.archi/core-vis#> ;
@@ -202,9 +207,23 @@ edges may be labelled — the domain is DiagElement since core-vis 0.3.'''@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:style ;
-        sh:maxCount 1 ;
         sh:class    arch-vis:Style ;
-        sh:message  "arch-vis:style points to at most one arch-vis:Style."@en ;
+        sh:message  "arch-vis:style points to arch-vis:Styles."@en ;
+    ] ;
+    # At most one style for every presentation context, and one for each context (core-vis 0.7).
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-vis-shapes#> ;
+        sh:message  "{$this} has {?count} styles for {?scope}: at most one for every presentation context, and one for each."@en ;
+        sh:select   """
+            SELECT $this ?scope (COUNT(DISTINCT ?style) AS ?count)
+            WHERE {
+                $this arch-vis:style ?style .
+                OPTIONAL { ?style arch:inPresentationContext ?context }
+                BIND(COALESCE(STR(?context), "every presentation context") AS ?scope)
+            }
+            GROUP BY $this ?scope
+            HAVING (COUNT(DISTINCT ?style) > 1)
+        """ ;
     ] ;
 .
 
@@ -374,6 +393,12 @@ it.'''@en ;
     a              sh:NodeShape ;
     sh:targetClass arch-vis:Style ;
     rdfs:label     "Style shape"@en ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A Style is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
     sh:property [
         sh:path     arch-vis:fillColor ;
         sh:maxCount 1 ;

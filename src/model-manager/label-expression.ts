@@ -32,6 +32,8 @@ export interface LabelSource {
   nameOf(iri: string): string | undefined;
   /** Its name for the presentation context shown alone (a SKOS-XL name) — `undefined` when it has none, or none is shown. */
   nameForContext?(iri: string): string | undefined;
+  /** Its picture for the presentation context shown — else its picture for every audience (core 0.5.0). Not for expressions: for drawing. */
+  pictureFor?(iri: string): string | undefined;
   /** The name of a concept's type. */
   typeOf(iri: string): string | undefined;
   /** The prefixes a prefixed name may use: the vocabularies' in use and the model's own. */

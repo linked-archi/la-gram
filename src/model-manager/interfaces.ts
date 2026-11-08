@@ -55,6 +55,8 @@ export interface LabelExpressionInfo {
 }
 
 export interface NodeInfo {
+  /** How it looks in each presentation context it has a style for (core-vis 0.7), over {@link appearance}. */
+  contextAppearances?: Record<string, Appearance>;
   /** What its label says, as its own style gives it: one expression a presentation context, one for every context. */
   labelExpressions?: LabelExpressionInfo[];
   nodeIri: string;
@@ -291,7 +293,7 @@ export interface ViewManager {
    * style it shares, or one another tool wrote as a blank node, is copied to
    * its own first, so the change is to it alone.
    */
-  setAppearance?(viewIri: string, iri: string, changes: AppearanceChanges): void;
+  setAppearance?(viewIri: string, iri: string, changes: AppearanceChanges, context?: string): void;
   /**
    * What a placement's label says (core-vis 0.7's `arch-vis:labelExpression`):
    * its expression for one presentation context (core's

@@ -11,6 +11,7 @@
 
 @prefix arch:    <https://meta.linked.archi/core#> .
 @prefix skosxl:  <http://www.w3.org/2008/05/skos-xl#> .
+@prefix schema:  <http://schema.org/> .
 @prefix :        <https://meta.linked.archi/core-shapes#> .
 
 #################################################################
@@ -61,7 +62,10 @@ ElementConformanceShape). The ArchiMate viewpoint shapes now import this file an
 arch:inPresentationContext on SKOS-XL labels): a name has one language-tagged literal form and is for at
 most one context; a name for one context is a skosxl:altLabel, not a skosxl:prefLabel; an element has at
 most one name per context and language; and, a warning, a name's literal form is also the element's
-skos:altLabel, so that tools reading plain SKOS see it.'''@en ;
+skos:altLabel, so that tools reading plain SKOS see it. Pictures likewise (arch:prefVisNotation,
+arch:altVisNotation): a picture has at most one schema:contentUrl and one context, one for a context has
+its schema:contentUrl, a canonical picture is for no single context, and an element has at most one
+picture per context.'''@en ;
     sh:declare [
         sh:prefix    "arch" ;
         sh:namespace "https://meta.linked.archi/core#"^^xsd:anyURI ;
@@ -77,6 +81,9 @@ skos:altLabel, so that tools reading plain SKOS see it.'''@en ;
     ] , [
         sh:prefix    "skosxl" ;
         sh:namespace "http://www.w3.org/2008/05/skos-xl#"^^xsd:anyURI ;
+    ] , [
+        sh:prefix    "schema" ;
+        sh:namespace "http://schema.org/"^^xsd:anyURI ;
     ] ;
 .
 
@@ -767,6 +774,77 @@ element's skos:prefLabel — its canonical name, one per language — so it cann
                 ?name skosxl:literalForm ?form .
                 FILTER NOT EXISTS { $this skos:altLabel ?form }
             }
+        """ ;
+    ] ;
+.
+
+
+#################################################################
+# PICTURES PER PRESENTATION CONTEXT (core 0.5.0)
+#
+# An element's canonical picture is its arch:prefVisNotation; one for an
+# audience is an arch:altVisNotation whose value is a schema:ImageObject with
+# its schema:contentUrl and arch:inPresentationContext — as a name for an
+# audience is a SKOS-XL label. See DD-34.
+#################################################################
+
+:PictureShape
+    a                  sh:NodeShape ;
+    sh:targetClass     schema:ImageObject ;
+    sh:targetObjectsOf arch:altVisNotation ;
+    rdfs:label         "Picture shape"@en ;
+    sh:property [
+        sh:path     schema:contentUrl ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message  "A picture has at most one schema:contentUrl, an xsd:anyURI: an http(s) URL or a data: URI of an image."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message  "A picture is for at most one presentation context (arch:inPresentationContext); with none, for every one."@en ;
+    ] ;
+.
+
+:CanonicalPictureShape
+    a                  sh:NodeShape ;
+    sh:targetObjectsOf arch:prefVisNotation ;
+    rdfs:label         "Canonical picture shape"@en ;
+    sh:property [
+        sh:path     arch:inPresentationContext ;
+        sh:maxCount 0 ;
+        sh:message  "An element's arch:prefVisNotation is its picture for every audience; one for an audience is an arch:altVisNotation."@en ;
+    ] ;
+.
+
+:PictureForAudienceShape
+    a                   sh:NodeShape ;
+    sh:targetSubjectsOf arch:altVisNotation ;
+    rdfs:label          "Pictures per presentation context shape"@en ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this}'s picture {?picture} is for presentation context {?context} but has no schema:contentUrl."@en ;
+        sh:select   """
+            SELECT $this ?picture ?context
+            WHERE {
+                $this arch:altVisNotation ?picture .
+                ?picture arch:inPresentationContext ?context .
+                FILTER NOT EXISTS { ?picture schema:contentUrl ?url }
+            }
+        """ ;
+    ] ;
+    sh:sparql [
+        sh:prefixes <https://meta.linked.archi/core-shapes#> ;
+        sh:message  "{$this} has {?count} pictures for presentation context {?context}: it may have one."@en ;
+        sh:select   """
+            SELECT $this ?context (COUNT(DISTINCT ?picture) AS ?count)
+            WHERE {
+                $this arch:altVisNotation ?picture .
+                ?picture arch:inPresentationContext ?context .
+            }
+            GROUP BY $this ?context
+            HAVING (COUNT(DISTINCT ?picture) > 1)
         """ ;
     ] ;
 .

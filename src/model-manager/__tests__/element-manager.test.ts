@@ -6,6 +6,7 @@ import { OxigraphElementManager } from '../element-manager.js';
 import { OxigraphRelationshipManager } from '../relationship-manager.js';
 import { OxigraphViewManager } from '../view-manager.js';
 import { contextNameChange } from '../context-names.js';
+import { pictureChange } from '../element-pictures.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const { namedNode, literal, quad } = DataFactory;
@@ -112,10 +113,17 @@ describe('OxigraphElementManager', () => {
         const { add } = contextNameChange(store, iri, DEVELOPER, 'dev name');
         store.addQuads(add);
       }
+      // Its pictures, and its placement's look for one context.
+      store.addQuads(pictureChange(store, a.value, undefined, 'https://example.org/a.svg').add);
+      store.addQuads(pictureChange(store, a.value, DEVELOPER, 'https://example.org/a-dev.svg').add);
+      views.setAppearance(view, placed, { renderingMode: 'IconCentric' }, DEVELOPER);
       const subjects = () => new Set(store.getQuads(null, null, null).map((q) => q.subject.value));
-      const owned = [...subjects()].filter((s) => s.startsWith(`${placed}-`) || s.startsWith(`${line}-`) || s.startsWith(`${a.value}-name`) || s.startsWith(`${rel}-name`));
-      // The placement's style and its label expression, the line's style, the element's and the relationship's names.
-      expect(owned).toHaveLength(5);
+      const owned = [...subjects()].filter(
+        (s) => s.startsWith(`${placed}-`) || s.startsWith(`${line}-`) || s.startsWith(`${a.value}-name`) || s.startsWith(`${a.value}-picture`) || s.startsWith(`${rel}-name`),
+      );
+      // The placement's styles (for every context and for developers) and its label expression, the line's style,
+      // the element's and the relationship's names, the element's two pictures.
+      expect(owned).toHaveLength(8);
       manager.deleteElement(a.value);
       const left = subjects();
       expect(owned.filter((s) => left.has(s))).toEqual([]);

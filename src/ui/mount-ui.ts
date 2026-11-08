@@ -37,6 +37,9 @@ import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
 import { contextNameChange, contextNameOf } from '../model-manager/context-names.js';
+import { pictureChange, pictureOf } from '../model-manager/element-pictures.js';
+import type { AppearanceChanges } from '../model-manager/appearance.js';
+import { contextChoices } from './presentation-contexts.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
 import { notationOnly, rememberNotationOnly } from './notation-only.js';
 import { figureBarOpen, rememberFigureBarOpen } from './figure-bar.js';
@@ -109,6 +112,7 @@ import type {
   PropertyHeading,
   AppearanceChangeDetail,
   ContextNameChangeDetail,
+  ContextPictureChangeDetail,
   LabelExpressionChangeDetail,
 } from './panels/property-panel.js';
 import type {
@@ -551,6 +555,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // A resource's name for the presentation context chosen (a SKOS-XL name), else its own.
     nameOf: (iri) => contextNameOf(store, iri, app.activePresentationContext()) ?? (hasLabel(store, iri) ? labelOf(store, iri) : undefined),
     nameForContext: (iri) => contextNameOf(store, iri, app.activePresentationContext()),
+    pictureFor: (iri) => pictureOf(store, iri, app.activePresentationContext()),
     typeOf: (iri) => {
       const typeIri = describe(iri)?.typeIri;
       return typeIri ? labelOf(store, typeIri) : undefined;
@@ -1396,13 +1401,23 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   // The look of what is selected on the canvas, from the Appearance tab: one undoable step for every one of them.
   const onAppearanceChange = (event: Event): void => {
-    const changes = (event as CustomEvent<AppearanceChangeDetail>).detail?.changes;
+    const detail = (event as CustomEvent<AppearanceChangeDetail>).detail;
+    const changes = detail?.changes;
     const viewIri = session.activeViewIri;
     const targets = propertyPanel.appearance?.targets ?? [];
     if (!changes || !viewIri || targets.length === 0 || !viewManager.setAppearance) return;
+    // For one presentation context — its style for it (core-vis 0.7) — or for every one; and, written for every one,
+    // what the context's own says of the same taken away, so that it shows there too.
+    const cleared = detail.clearContext
+      ? (Object.fromEntries(detail.clearContext.keys.map((key) => [key, null])) as AppearanceChanges)
+      : undefined;
     diagramCanvas.recordChange(() => {
-      for (const target of targets) viewManager.setAppearance!(viewIri, target.iri, changes);
+      for (const target of targets) {
+        viewManager.setAppearance!(viewIri, target.iri, changes, detail.context);
+        if (cleared && detail.clearContext && target.kind === 'element') viewManager.setAppearance!(viewIri, target.iri, cleared, detail.clearContext.context);
+      }
     });
+    diagramCanvas.refreshLabels();
     propertyPanel.appearance = diagramCanvas.selectedAppearance();
   };
   propertyPanel.addEventListener('appearance-change', onAppearanceChange);
@@ -1445,6 +1460,20 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel.reload();
   };
   propertyPanel.addEventListener('context-name-change', onContextNameChange);
+
+  // Pictures by presentation: an element's own picture for every audience, or for one (core 0.5.0), undoably.
+  const onContextPictureChange = (event: Event): void => {
+    const detail = (event as CustomEvent<ContextPictureChangeDetail>).detail;
+    if (!detail) return;
+    changeProperties(detail.elementIri, () => {
+      const { remove, add } = pictureChange(store, detail.elementIri, detail.context ?? undefined, detail.url);
+      if (remove.length > 0) store.removeQuads(remove);
+      if (add.length > 0) store.addQuads(add);
+    });
+    diagramCanvas.refreshLabels();
+    propertyPanel.reload();
+  };
+  propertyPanel.addEventListener('context-picture-change', onContextPictureChange);
 
   // ── Palette generation ───────────────────────────────────────────────
   let currentMetamodelIri: string | undefined;
@@ -1971,15 +2000,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
 
   // ── Toolbar state ────────────────────────────────────────────────────
   const presentationContexts = (): LabelledIri[] => {
-    const out: LabelledIri[] = [];
+    const out: Array<{ iri: string; label: string; schemeLabel: string }> = [];
     for (const m of app.loadedMetamodels()) {
       const scheme = m.presentationContextSchemeIri;
       if (!scheme) continue;
       for (const q of store.getQuads(null, namedNode(NAMESPACES.skos + 'inScheme') as unknown as NamedNode, namedNode(scheme) as unknown as NamedNode)) {
-        out.push({ iri: q.subject.value, label: labelOf(store, q.subject.value) });
+        if (out.some((c) => c.iri === q.subject.value)) continue;
+        out.push({ iri: q.subject.value, label: labelOf(store, q.subject.value), schemeLabel: labelOf(store, scheme) });
       }
     }
-    return out;
+    // Two languages' audiences may share a name — ArchiMate 3.2's and 4.0's do: each then says whose it is.
+    return contextChoices(out);
   };
 
   // ── Back and forward between views: the history ─────────────────────
@@ -2765,6 +2796,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel.removeEventListener('appearance-change', onAppearanceChange);
     propertyPanel.removeEventListener('label-expression-change', onLabelExpressionChange);
     propertyPanel.removeEventListener('context-name-change', onContextNameChange);
+    propertyPanel.removeEventListener('context-picture-change', onContextPictureChange);
     canvasToolbar.removeEventListener('notation-only', onNotationOnly);
     canvasToolbar.removeEventListener('format-painter', onFormatPainter);
     eventBus.off('format-painter-changed', onFormatPainterChanged);

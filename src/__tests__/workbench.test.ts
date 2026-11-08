@@ -837,6 +837,17 @@ describe('the workbench', () => {
     expect(drawnLines()).toEqual(['Payment gateway']);
     app.setPresentationContext(`${PC}DeveloperContext`);
     expect(drawnLines()).toEqual(['pgw-svc']);
+    // A shape drawn before its placement was in the store knows only its element — until the next sync —
+    // and a name written meanwhile (no sync follows a change made in the panel) is drawn on it all the same.
+    const djs = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const drawnShape = djs.get('elementRegistry').get(a);
+    delete drawnShape.businessObject.nodeIri;
+    delete drawnShape.businessObject.labelText;
+    djs.get('eventBus').fire('element.changed', { element: drawnShape });
+    expect(drawnLines()).toEqual(['Payment gateway']);
+    ui.diagramCanvas.refreshLabels();
+    expect(drawnLines()).toEqual(['pgw-svc']);
+    expect(drawnShape.businessObject.nodeIri).toBe(node);
     await panel.updateComplete;
     expect(root.querySelector('.context-name[data-active="true"]')!.getAttribute('data-context')).toBe(`${PC}DeveloperContext`);
     // A label expression shows it as {name}, the canonical one as {skos:prefLabel}.
@@ -869,6 +880,132 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'undo' });
     await Promise.resolve();
     expect(drawnLines().join(' ')).toBe('pgw-svc (Payment gateway)');
+
+    app.setPresentationContext(undefined);
+    ui.diagramCanvas.selectIris([]);
+    ui.selectConcept(undefined);
+    els.deleteElement(a);
+  });
+
+  it('sets a picture for each presentation from the Image tab, and an element’s own pictures by presentation', async () => {
+    const els = app.components.elementManager;
+    const views = app.components.viewManager;
+    const view = app.session.activeViewIri!;
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const EXECUTIVE = `${PC}ExecutiveContext`;
+    const DEVELOPER = `${PC}DeveloperContext`;
+    const FOR_EXECUTIVES = 'https://example.org/pictures/for-executives.png';
+    const FOR_EVERYONE = 'https://example.org/pictures/for-everyone.png';
+    const CARD = 'https://example.org/pictures/card-payments.png';
+    for (const url of [FOR_EXECUTIVES, FOR_EVERYONE]) rememberImageSize(url, { width: 20, height: 20 });
+    const a = els.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label: 'Gateway' }).value;
+    const node = views.addElementToView(view, a, { x: 100, y: 1600, width: 160, height: 80 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const panel = ui.propertyPanel;
+    const root = panel.shadowRoot!;
+    const drawn = () => document.querySelector(`[data-element-iri="${a}"]`)!;
+    const inside = () => drawn().querySelector('.la-shape-image')?.getAttribute('href') ?? null;
+    const openImageTab = async () => {
+      ui.diagramCanvas.selectIris([a]);
+      await panel.updateComplete;
+      root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+      await panel.updateComplete;
+    };
+    const type = async (url: string) => {
+      const address = root.querySelector<HTMLInputElement>('.image-address')!;
+      address.value = url;
+      address.dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+    };
+
+    // Executives chosen: what is set is for them alone — a style of its own for that context.
+    app.setPresentationContext(EXECUTIVE);
+    await openImageTab();
+    expect(root.querySelector('.image-scope')!.textContent).toContain('Executive / C-Level');
+    await type(FOR_EXECUTIVES);
+    expect(views.getNode(view, node)?.appearance).toBeUndefined();
+    expect(views.getNode(view, node)?.contextAppearances).toEqual({ [EXECUTIVE]: { image: FOR_EXECUTIVES } });
+    expect(inside()).toBe(FOR_EXECUTIVES);
+    // Developers see none.
+    app.setPresentationContext(DEVELOPER);
+    expect(inside()).toBeNull();
+    await panel.updateComplete;
+    expect(root.querySelector('.image-preview')!.textContent).toContain('No image');
+    // The same in every presentation: written once, for everyone — executives keep theirs over it.
+    const every = root.querySelector<HTMLInputElement>('.image-every input')!;
+    every.checked = true;
+    every.dispatchEvent(new Event('change'));
+    await panel.updateComplete;
+    expect(root.querySelector('.image-scope')!.textContent).toContain('every presentation');
+    await type(FOR_EVERYONE);
+    expect(views.getNode(view, node)?.appearance).toEqual({ image: FOR_EVERYONE });
+    expect(inside()).toBe(FOR_EVERYONE);
+    app.setPresentationContext(EXECUTIVE);
+    expect(inside()).toBe(FOR_EXECUTIVES);
+
+    // An element's own picture for executives (Pictures by presentation), drawn as its figure there.
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="info"]')!.click();
+    await panel.updateComplete;
+    expect([...root.querySelectorAll('.context-picture')].map((r) => r.getAttribute('data-context'))).toContain('every');
+    const pictureField = root.querySelector<HTMLInputElement>(`.context-picture[data-context="${EXECUTIVE}"] input.property-value`)!;
+    pictureField.value = CARD;
+    pictureField.dispatchEvent(new Event('change'));
+    const ARCH = NAMESPACES.arch;
+    const alt = app.components.store.getQuads(DataFactory.namedNode(a) as never, DataFactory.namedNode(ARCH + 'altVisNotation') as never);
+    expect(alt).toHaveLength(1);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    expect(panel.appearance?.image?.elementPicture).toBe(CARD);
+    root.querySelector<HTMLButtonElement>('.element-picture-as-figure')!.click();
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric' });
+    const icon = drawn().querySelector('.la-shape-icon')!;
+    expect([drawn().getAttribute('data-rendering-mode'), icon.getAttribute('href'), icon.getAttribute('data-element-picture')]).toEqual([
+      'IconCentric',
+      CARD,
+      'true',
+    ]);
+    // Developers: the box, the picture for everyone inside it, the type's glyph as its badge.
+    app.setPresentationContext(DEVELOPER);
+    expect(drawn().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(inside()).toBe(FOR_EVERYONE);
+
+    // What la-gram writes, core's and core-vis's shapes accept.
+    const fromCore = () =>
+      ui.validationPanel.results.filter(
+        (r) => /meta\.linked\.archi\/core(-vis)?-shapes#/.test(r.sourceShape?.value ?? '') && JSON.stringify(r).includes(a),
+      );
+    app.runValidation();
+    expect(fromCore()).toEqual([]);
+    // A second style for executives, written by hand, they report: at most one a context.
+    const store = app.components.store;
+    const extra = DataFactory.namedNode(`${node}-another-style`);
+    const added = [
+      DataFactory.quad(DataFactory.namedNode(node), DataFactory.namedNode(NAMESPACES['arch-vis'] + 'style'), extra),
+      DataFactory.quad(extra, DataFactory.namedNode(NAMESPACES.rdf + 'type'), DataFactory.namedNode(NAMESPACES['arch-vis'] + 'Style')),
+      DataFactory.quad(extra, DataFactory.namedNode(ARCH + 'inPresentationContext'), DataFactory.namedNode(EXECUTIVE)),
+    ];
+    store.addQuads(added as never);
+    app.runValidation();
+    expect(
+      ui.validationPanel.results.filter((r) => r.sourceShape?.value === 'https://meta.linked.archi/core-vis-shapes#DiagElementShape' && JSON.stringify(r).includes(node)),
+    ).toHaveLength(1);
+    store.removeQuads(added as never);
+
+    // The Figure tab, for executives: the figure picked is drawn — their own figure taken away.
+    app.setPresentationContext(EXECUTIVE);
+    ui.diagramCanvas.selectIris([a]);
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    // Their style said nothing else — the picture as the figure took the place of the one inside — so it goes.
+    expect(views.getNode(view, node)?.contextAppearances).toBeUndefined();
+    expect(drawn().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(inside()).toBe(FOR_EVERYONE);
+    await ui.runCommand({ command: 'undo' });
+    expect(drawn().getAttribute('data-rendering-mode')).toBe('IconCentric');
 
     app.setPresentationContext(undefined);
     ui.diagramCanvas.selectIris([]);

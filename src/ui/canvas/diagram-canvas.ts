@@ -174,6 +174,7 @@ import {
   type FigureChoices,
   type FigureOption,
   type ImageChoices,
+  type ImageScope,
   type LabelChoices,
 } from '../appearance-selection.js';
 import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
@@ -1207,7 +1208,9 @@ export class DiagramCanvas {
     const links = this.viewManager.getLinks(viewIri);
     this.appearanceToDraw = new Map();
     for (const drawn of [...nodes, ...links]) {
-      if (drawn.appearance) this.appearanceToDraw.set('nodeIri' in drawn ? drawn.nodeIri : drawn.linkIri, drawn.appearance);
+      // A placement's look for the presentation chosen: its style for every context, its style for that one over it.
+      const look = 'nodeIri' in drawn ? this.lookFor(drawn) : drawn.appearance;
+      if (look) this.appearanceToDraw.set('nodeIri' in drawn ? drawn.nodeIri : drawn.linkIri, look);
     }
     const wantedShapes = new Set(nodes.map((n) => n.nodeIri));
     const wantedLinks = new Set(links.map((l) => l.linkIri));
@@ -1257,7 +1260,7 @@ export class DiagramCanvas {
           });
         }
         // Its look changed — in the panel, by a collaborator, or undone.
-        this.restyle(existing, node.appearance);
+        this.restyle(existing, this.lookFor(node));
       } else {
         this.addElement(
           node.elementIri,
@@ -1355,6 +1358,18 @@ export class DiagramCanvas {
     this.refreshLabelTexts();
   }
 
+  /**
+   * How a placement looks in the presentation context chosen: its style for
+   * every context, laid over value by value by its style for that context
+   * (core-vis 0.7) — `undefined` when it sets nothing.
+   */
+  private lookFor(node: Pick<NodeInfo, 'appearance' | 'contextAppearances'>): Appearance | undefined {
+    const context = this.notationStyles.activePresentationContext;
+    const forContext = context ? node.contextAppearances?.[context] : undefined;
+    if (!forContext) return node.appearance;
+    return { ...(node.appearance ?? {}), ...forContext };
+  }
+
   /** Where label expressions read what they show: the model, its prefixes, names. Set by the workbench. */
   private labelSourceOf: LabelSource | undefined;
 
@@ -1398,8 +1413,12 @@ export class DiagramCanvas {
     for (const shape of services.elementRegistry.getAll().filter((e) => e.businessObject?.kind === 'element' && !e.waypoints)) {
       const businessObject = shape.businessObject!;
       const key = this.nodeKeyOf(shape);
-      const node = key ? nodes.get(key) : undefined;
+      // A shape drawn before its placement was in the store knows only its element: its first placement, then.
+      const node = key ? (nodes.get(key) ?? this.viewManager.getNode(viewIri, key)) : undefined;
       if (!node) continue;
+      businessObject.nodeIri ??= node.nodeIri;
+      // Its look for the presentation chosen (core-vis 0.7: a style per context).
+      this.restyle(shape, this.lookFor(node));
       const said = this.labelExpressionOf(node, businessObject.typeIri);
       const source = this.labelSourceOf;
       const text = !source
@@ -1407,9 +1426,13 @@ export class DiagramCanvas {
         : said
           ? labelFromExpression(said.expression, node.elementIri, source)
           : source.nameForContext?.(node.elementIri);
-      if (businessObject.labelText === text) continue;
+      // Its element's picture for that presentation (core 0.5.0), its icon where it is drawn as its icon.
+      const picture = source?.pictureFor?.(node.elementIri);
+      if (businessObject.labelText === text && businessObject.elementPicture === picture) continue;
       if (text === undefined) delete businessObject.labelText;
       else businessObject.labelText = text;
+      if (picture === undefined) delete businessObject.elementPicture;
+      else businessObject.elementPicture = picture;
       services.eventBus.fire('element.changed', { element: shape });
     }
     // A relationship's name on its line: its name for the context chosen.
@@ -1844,14 +1867,32 @@ export class DiagramCanvas {
       .filter((d): d is { target: AppearanceTarget; own: Appearance; defaults: Appearance } => d !== undefined);
     const first = described[0];
     if (!first) return undefined;
-    const figure = this.figureChoices(selected, first.own, first.defaults);
+    // Elements: drawn with their look for the presentation chosen (a style for it over the one for every presentation).
+    const context = this.notationStyles.activePresentationContext;
+    const firstNode = first.target.kind === 'element' ? this.viewManager.getNode(viewIri, first.target.iri) : undefined;
+    const figure = this.figureChoices(selected, (firstNode && this.lookFor(firstNode)) ?? first.own, first.defaults);
     // A picture for elements and figures — every one selected — not for a line.
+    const elements = described.every((d) => d.target.kind === 'element');
+    // What a style says of the picture: its own icon — drawn as the figure — else the picture in it.
+    const scopeOf = (own: Appearance | undefined): ImageScope => ({
+      ...(own?.iconSymbol ? { image: own.iconSymbol, asFigure: true } : own?.image ? { image: own.image } : {}),
+      position: own?.imagePosition ?? 'TopLeft',
+      ...(own?.renderingMode === 'IconCentric' && !own.iconSymbol ? { elementAsFigure: true } : {}),
+    });
+    const elementPicture = elements && firstNode ? this.labelSourceOf?.pictureFor?.(firstNode.elementIri) : undefined;
     const image = described.every((d) => IMAGE_KINDS.includes(d.target.kind))
       ? {
-          // Its own icon — the picture drawn as the figure — else the picture in it.
-          ...(first.own.iconSymbol ? { image: first.own.iconSymbol, asFigure: true } : first.own.image ? { image: first.own.image } : {}),
-          position: first.own.imagePosition ?? 'TopLeft',
-          canBeFigure: described.every((d) => d.target.kind === 'element'),
+          ...scopeOf(first.own),
+          canBeFigure: elements,
+          // Per presentation: an element's placement only.
+          ...(context && elements
+            ? {
+                context,
+                ...(this.notationStyles.activePresentationContextLabel ? { contextLabel: this.notationStyles.activePresentationContextLabel } : {}),
+                forContext: scopeOf(firstNode?.contextAppearances?.[context]),
+              }
+            : {}),
+          ...(elementPicture ? { elementPicture } : {}),
           used: this.viewManager.usedImages?.() ?? [],
         }
       : undefined;
@@ -1869,6 +1910,7 @@ export class DiagramCanvas {
       ...(figure ? { figure } : {}),
       ...(image ? { image: image satisfies ImageChoices } : {}),
       ...(label ? { label } : {}),
+      ...(context ? { context } : {}),
     };
   }
 

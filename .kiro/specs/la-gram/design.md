@@ -1809,6 +1809,43 @@ labels. Switching context (`presentation-context-changed`) regenerates the
 palette, which carries the context to the canvas, and refreshes the panel's
 Label tab and names.
 
+**Looks and pictures per presentation.** A placement may have one style for
+every presentation context and one for each (core-vis 0.7; meta's DD-35):
+`ViewManager.setAppearance(view, iri, changes, context?)` writes the style for
+`context` — `{node}-style-{shortHash(context)}`, typed `arch-vis:Style`, with
+`arch:inPresentationContext`, made on demand and removed when it says nothing
+else — or, without, `{node}-style` as before (`ownStyle` copies a converter's or
+a shared style, ignoring context styles). `styleOf(subject, context?)` is the
+one read of a style: the figure, the look, the label expressions all read the
+style for every context; `contextAppearancesOf` reads the others into
+`NodeInfo.contextAppearances`; `ownStylesQuads` removes them all with the node;
+`duplicateView` copies them. The canvas draws a placement with
+`lookFor(node)` — its style for every context, the context's laid over it —
+in `syncFromStore` and in `refreshLabelTexts`, which runs on every presentation
+switch. An element's own pictures (core 0.5.0) are read and written by
+`model-manager/element-pictures.ts` (`picturesOf`, `pictureOf(store, iri,
+context)` — the one for the context, else `arch:prefVisNotation` —
+`pictureChange`, ImageObjects `{element}-picture[-{hash}]` with an
+`xsd:anyURI` `schema:contentUrl`; an address `imageUri` refuses changes
+nothing); the refresh puts the one for the presentation chosen on the business
+object (`elementPicture`, from `labelSource.pictureFor`), and the renderer's
+`iconOf` draws it as the icon where the placement is drawn as its icon and its
+own look names none — for drawing, for `drawnMode` (the in-place editor) and
+for the docking outline's stamp — not recoloured, marked `data-element-picture`.
+The Image tab's `ImageChoices` carries the style for every presentation's
+picture (`ImageScope`: picture, position, `asFigure`, `elementAsFigure`) and,
+with a presentation chosen and elements selected, `context`, `contextLabel`,
+`forContext` and the element's picture; `_renderImage` edits one scope
+(`_imageEveryContext`, reset with the selection or the presentation, as the
+Label tab's `_labelEveryContext`), its changes an `appearance-change` with
+`context`, or — for every presentation with one chosen — `clearContext`
+(`IMAGE_SCOPE_KEYS` taken away from the chosen presentation's style); the
+Figure tab sends `clearContext` for the figure keys. `mount-ui` writes both in
+one `recordChange`. *Pictures by presentation* (`_renderContextPictures`) sends
+`context-picture-change`, applied with `pictureChange` in `changeProperties`;
+`usedImages` adds the model's elements' pictures. The cascade (`ownedQuads`)
+takes an element's pictures and every style of a node or a link.
+
 **Exchange import.** A node's or a connection's `<style>` (`parseExchangeStyle`)
 is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),
 `lineWidth`, and the font's name, size, style and colour.
