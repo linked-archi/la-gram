@@ -236,9 +236,13 @@ are no longer wanted.
    protected branches and tags.
 2. **Let anyone download the apps:** *Settings › General › Visibility, project features, permissions*:
    the package registry for everyone with access.
-3. **Add the deploy variables:** *Settings › CI/CD › Variables › Add variable*, each with *Protect
-   variable* ticked, *Expand variable reference* cleared, and *Environments* `production` — only the
-   job that deploys the web app (`web-deploy`, environment `production`) then gets them:
+3. **Create the environment `production`,** so the variable form can offer it: *Operate ›
+   Environments › Create an environment*, the name `production` (its URL
+   `https://app.linked.archi/la-gram/`), *Save*. (The first deploy would create it too, but the
+   variables come first.)
+4. **Add the deploy variables:** *Settings › CI/CD › Variables › Add variable*, each with *Protect
+   variable* ticked, *Expand variable reference* cleared, and the environment scope `production` — only
+   the job that deploys the web app (`web-deploy`, environment `production`) then gets them:
 
    | Key | Type | Visibility | Value |
    |---|---|---|---|
@@ -253,7 +257,7 @@ are no longer wanted.
    three are no secrets. The key and the user are the ones meta.linked.archi's deploy uses (its
    project's *Settings › CI/CD › Variables*); a key of la-gram's own, added to the deploy user's
    `~/.ssh/authorized_keys`, works as well.
-4. **On the server:** create `/var/www/linked-archi-app/la-gram` for the deploy user, and add the
+5. **On the server:** create `/var/www/linked-archi-app/la-gram` for the deploy user, and add the
    locations in [`deploy/nginx-la-gram.conf`](deploy/nginx-la-gram.conf) to the app.linked.archi
    server block, as the file says.
 
