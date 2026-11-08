@@ -1,5 +1,5 @@
 /**
- * What the Help menu shows in a dialog: About la-gram and the keyboard
+ * What la-gram's menu shows in a dialog: About la-gram and the keyboard
  * shortcuts, as {@link DetailBlock}s.
  */
 

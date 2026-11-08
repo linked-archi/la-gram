@@ -1425,37 +1425,48 @@ describe('the workbench', () => {
     els.deleteElement(placed);
   });
 
-  it('shows its icon and name, which open About, and a Help menu: shortcuts, guides, About', async () => {
+  it("shows its icon and name, which open la-gram's menu: About, the shortcuts, the guides, its pages", async () => {
     await ui.appToolbar.updateComplete;
     const bar = ui.appToolbar.shadowRoot!;
     const brand = bar.querySelector<HTMLButtonElement>('button.brand')!;
-    expect([brand.querySelector('img')?.getAttribute('src'), brand.textContent?.trim(), brand.title]).toEqual([
+    expect([brand.querySelector('img')?.getAttribute('src'), brand.textContent?.replace(/\s+/g, ''), brand.getAttribute('aria-haspopup')]).toEqual([
       'favicon.svg',
-      'la-gram',
-      'About la-gram',
+      'la-gram▾',
+      'menu',
     ]);
+    // No Help menu of its own: it is all under the name.
+    expect(bar.querySelector('[data-menu="help"]')).toBeNull();
 
-    // About, in parts, where the dialogs show parts.
     const details = vi.fn(async () => undefined);
     script.dialogs.details = details;
-    try {
+    const open = async () => {
       brand.click();
+      await ui.appToolbar.updateComplete;
+      expect(brand.getAttribute('aria-expanded')).toBe('true');
+    };
+    try {
+      // The menu: About first, the shortcuts, then the guides and la-gram's pages opening apart.
+      await open();
+      const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
+      expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
+        'about', 'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues',
+      ]);
+      const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
+      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);
+
+      // About, in parts, where the dialogs show parts.
+      bar.querySelector<HTMLButtonElement>('.dropdown [data-command="about"]')!.click();
       await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(1));
       const [title, blocks, options] = details.mock.calls[0] as unknown as [string, DetailBlock[], DetailsOptions];
       expect(title).toBe('About la-gram');
       expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Architecture Modeller' });
       expect(blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []))).toContainEqual(['Metamodels', 'ArchiMate 4.0 Metamodel']);
       expect(options.copy?.text).toMatch(/^la-gram \(development build\) · .* · metamodels: ArchiMate 4\.0 Metamodel/);
-
-      // Help: the shortcuts first, the guides and la-gram's pages opening apart, About last.
-      bar.querySelector<HTMLButtonElement>('[data-menu="help"]')!.click();
       await ui.appToolbar.updateComplete;
-      const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
-      expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
-        'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues', 'about',
-      ]);
-      const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
-      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);
+      expect(bar.querySelector('.dropdown')).toBeNull();
+
+      // The shortcuts.
+      await open();
       bar.querySelector<HTMLButtonElement>('.dropdown [data-command="shortcuts"]')!.click();
       await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(2));
       expect(details.mock.calls[1]![0]).toBe('Keyboard shortcuts');

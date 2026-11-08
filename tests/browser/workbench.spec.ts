@@ -194,13 +194,14 @@ describe('views: one model, many views', () => {
   });
 });
 
-describe('the name, the icon, Help and About', () => {
-  it('shows the icon by the name, and the title by the model; About from either, the shortcuts from Help', async () => {
+describe("the name, the icon and la-gram's menu", () => {
+  it("shows the icon by the name, and the title by the model; About and the shortcuts from the name's menu", async () => {
     const { page, session } = await openPage();
     const bar = page.locator('app-toolbar');
     // The icon loads, beside the name, on one line.
     const brand = bar.locator('button.brand');
-    await expect(brand.innerText()).resolves.toBe('la-gram');
+    await expect(brand.innerText().then((t) => t.replace(/\s+/g, ''))).resolves.toBe('la-gram▾');
+    expect(await bar.locator('button[data-menu="help"]').count()).toBe(0);
     const icon = await brand.locator('img').evaluate((img: HTMLImageElement) => [img.complete, img.naturalWidth > 0, img.getBoundingClientRect().height]);
     expect(icon).toEqual([true, true, 20]);
     expect((await brand.boundingBox())!.height).toBeLessThan(32);
@@ -210,8 +211,9 @@ describe('the name, the icon, Help and About', () => {
       expect((await page.request.get(href)).status()).toBe(200);
     }
 
-    // About, from the name: what it is, its version, its licence, what it is built with.
+    // About, from the name's menu: what it is, its version, its licence, what it is built with.
     await brand.click();
+    await bar.locator('.dropdown [data-command="about"]').click();
     const dialog = page.locator('.la-dialog.la-dialog-details');
     await dialog.waitFor({ state: 'visible' });
     expect(await dialog.locator('.la-details-title').innerText()).toBe('la-gram');
@@ -225,8 +227,8 @@ describe('the name, the icon, Help and About', () => {
     await dialog.locator('.la-button.primary').click();
     await dialog.waitFor({ state: 'hidden' });
 
-    // Help: the shortcuts, the guides opening in another tab, About.
-    await bar.locator('button[data-menu="help"]').click();
+    // The same menu: the guides opening in another tab, the shortcuts.
+    await brand.click();
     const links = bar.locator('.dropdown a[data-link]');
     expect(await links.count()).toBeGreaterThan(5);
     expect(await links.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
@@ -237,7 +239,7 @@ describe('the name, the icon, Help and About', () => {
     await session.screenshot('help-shortcuts');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
-    findings.push('icon by the name, title by the model, About (version, licence, built with), Help with the shortcuts and the guides: ok');
+    findings.push("icon by the name, title by the model, the name's menu: About (version, licence, built with), the shortcuts, the guides: ok");
   }, 90_000);
 });
 

@@ -529,8 +529,8 @@ time a view is drawn, is what Task 22 took out. The name is the model's; where
 it is drawn, once moved, is the view's: see key decisions 15 and 16.
 
 **Help and About** (Req 15.4–15.7; `src/help-links.ts`, `src/ui/help.ts`,
-the toolbar's `_helpMenu`, `installMenu` in `electron-main.ts`). The pages the
-Help menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
+the toolbar's `_appMenu` under the name, `installMenu` in `electron-main.ts`).
+The pages the menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
 desktop app's menu bar read the same. About and the keyboard shortcuts are
 `DetailBlock`s — a header, headings, text, links, two columns — that
 `Dialogs.details` shows; it is optional, and `mount-ui` shows a `Dialogs`

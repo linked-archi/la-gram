@@ -1,10 +1,10 @@
 /**
- * Where la-gram's help is: the Help menu's links, in the toolbar and in the
+ * Where la-gram's help is: the links of la-gram's menu, in the toolbar, and of the
  * desktop app's own menu bar. No DOM here — the desktop app's main process
  * reads it too.
  */
 
-/** A page the Help menu opens, in the browser (the system's, from the desktop app). */
+/** A page la-gram's menu opens, in the browser (the system's, from the desktop app). */
 export interface HelpLink {
   id: string;
   label: string;
