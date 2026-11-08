@@ -1452,7 +1452,7 @@ describe('the workbench', () => {
       await ui.appToolbar.updateComplete;
       const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
       expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
-        'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'readme', 'source', 'issues', 'about',
+        'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues', 'about',
       ]);
       const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
       expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);

@@ -262,7 +262,8 @@ function installMenu(): void {
   const help: MenuItemConstructorOptions[] = [
     ...HELP_LINKS.filter((l) => l.group === 'guides').map((l) => ({ label: l.label, click: open(l.href) })),
     { type: 'separator' },
-    ...HELP_LINKS.filter((l) => l.group === 'la-gram').map((l) => ({ label: l.label, click: open(l.href) })),
+    // Not "Download the desktop app": this is it.
+    ...HELP_LINKS.filter((l) => l.group === 'la-gram' && l.id !== 'download').map((l) => ({ label: l.label, click: open(l.href) })),
     ...(mac ? [] : ([{ type: 'separator' }, { role: 'about', label: 'About la-gram' }] as MenuItemConstructorOptions[])),
   ];
   Menu.setApplicationMenu(

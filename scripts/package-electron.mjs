@@ -52,6 +52,13 @@ const paths = await packager({
   // Windows (rendered by `npm run icons`); Linux takes the window's icon.
   icon: path.join(root, 'src/icons/app-icon'),
   appBundleId: 'archi.linked.la-gram',
+  // Windows: the executable's properties — its publisher, name and description.
+  // (Without a publisher, the packager would ask package.json for an author.)
+  win32metadata: {
+    CompanyName: 'Linked.Archi',
+    ProductName: 'la-gram',
+    FileDescription: 'la-gram — Semantic Architecture Modeller',
+  },
   appCategoryType: 'public.app-category.developer-tools',
 });
 for (const p of paths) console.log(`Packaged: ${path.relative(root, p)}`);

@@ -86,8 +86,8 @@ describe('the release pipeline', () => {
     expect(workflow).toContain('- if: $CI_COMMIT_TAG\n      when: never');
     expect(workflow).toContain('- if: $CI_PIPELINE_SOURCE == "merge_request_event"');
     expect(workflow).toContain('- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH');
-    // What publishes extends .release, which runs only with a tag; the image's builds, one per platform.
-    expect(pipeline).toMatch(/^\.release:\n(?: {2}.*\n)*? {2}rules:\n {4}- if: \$CI_COMMIT_TAG\n/m);
+    // What publishes extends .release, which runs only with its own tag (not la-gram's); the image's builds, one per platform.
+    expect(pipeline).toMatch(/^\.release:\n(?: {2}.*\n)*? {2}rules:\n {4}- if: \$CI_COMMIT_TAG =~ \/\^la-gram-git-v\/\n/m);
     for (const job of ['npm', '\\.image-build', 'container-image']) expect(pipeline).toMatch(new RegExp(`^${job}:\\n {2}extends: \\.release$`, 'm'));
     for (const arch of ['amd64', 'arm64']) expect(pipeline).toMatch(new RegExp(`^image-${arch}:\\n {2}extends: \\.image-build$`, 'm'));
     expect(pipeline).toMatch(/^container-image:\n(?: {2}.*\n)*? {2}needs: \[image-amd64, image-arm64\]$/m);

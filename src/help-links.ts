@@ -33,6 +33,7 @@ export const HELP_LINKS: readonly HelpLink[] = [
     group: 'guides',
   },
   { id: 'catalogue', label: 'Metamodel catalogue', href: 'https://meta.linked.archi/', group: 'guides' },
+  { id: 'download', label: 'Download the desktop app', href: `${REPOSITORY}/-/releases`, group: 'la-gram' },
   { id: 'readme', label: 'la-gram: what it does (README)', href: `${REPOSITORY}/-/blob/main/README.md`, group: 'la-gram' },
   { id: 'source', label: 'Source code', href: REPOSITORY, group: 'la-gram' },
   // GitLab's tracker: anyone may read it; reporting takes a GitLab account.
