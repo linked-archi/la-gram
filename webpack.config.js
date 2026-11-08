@@ -3,6 +3,8 @@ import { fileURLToPath } from 'url';
 import webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
+import { createHash } from 'crypto';
+import { readdirSync, readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,10 +43,60 @@ const sharedExperiments = { asyncWebAssembly: true };
  *
  *   LA_GRAM_GIT=off npm run build      no Git storage (Req 18.1)
  */
-const buildFlags = () =>
+const buildFlags = ({ desktop = false } = {}) =>
   new webpack.DefinePlugin({
     __LA_GRAM_GIT__: JSON.stringify(process.env.LA_GRAM_GIT !== 'off'),
+    __LA_GRAM_ASSETS_VERSION__: JSON.stringify(assetsVersion()),
+    __LA_GRAM_BUILD__: JSON.stringify(buildInfo(desktop)),
   });
+
+/**
+ * The main open-source components la-gram is built with — each as its own
+ * package says: name, version, licence — and la-gram's version, for About.
+ * Electron in the desktop build only.
+ */
+function buildInfo(desktop) {
+  const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
+  const names = [
+    'diagram-js',
+    'oxigraph',
+    'n3',
+    'rdf-validate-shacl',
+    'lit',
+    '@codemirror/view',
+    'cytoscape',
+    'yjs',
+    '@hocuspocus/provider',
+    ...(desktop ? ['electron'] : []),
+  ];
+  const components = names.map((name) => {
+    const own = JSON.parse(readFileSync(path.resolve(__dirname, 'node_modules', name, 'package.json'), 'utf8'));
+    return { name, version: own.version, license: typeof own.license === 'string' ? own.license : 'see its package' };
+  });
+  return { version: pkg.version, components };
+}
+
+/**
+ * A digest of every bundled asset — names and contents — that `assetUrl` puts
+ * on each asset's address (`?v=…`). The static servers send no cache headers,
+ * so a browser may draw a glyph or a picture from its cache after the file
+ * changed; a build with other assets gives them other addresses, and the same
+ * assets keep theirs.
+ */
+function assetsVersion() {
+  const root = path.resolve(__dirname, 'assets');
+  const hash = createHash('sha256');
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+      if (entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else hash.update(path.relative(root, full)).update('\0').update(readFileSync(full)).update('\0');
+    }
+  };
+  walk(root);
+  return hash.digest('hex').slice(0, 12);
+}
 
 /**
  * The deployment's configuration (`src/config.ts`, Req 19.1): with
@@ -95,6 +147,10 @@ const bundledAssetsPlugin = () =>
         from: path.resolve(__dirname, 'node_modules/diagram-js/assets/diagram-js.css'),
         to: 'diagram-js.css',
       },
+      // The favicon: the SVG, and the ICO rendered from it (`npm run icons`)
+      // for browsers that take no SVG favicon. Linked from index.html.
+      { from: path.resolve(__dirname, 'src/icons/favicon.svg'), to: 'favicon.svg' },
+      { from: path.resolve(__dirname, 'src/icons/favicon.ico'), to: 'favicon.ico' },
     ],
   });
 
@@ -130,7 +186,7 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'RDF Architecture Modeler',
+        title: 'la-gram — Semantic Architecture Modeller',
       }),
       bundledAssetsPlugin(),
       buildFlags(),
@@ -156,6 +212,13 @@ export default (_env, argv) => {
     resolve: { ...sharedResolve },
     module: { rules: [...sharedModuleRules] },
     experiments: { ...sharedExperiments },
+    plugins: [
+      // la-gram's version, for the About panel.
+      buildFlags({ desktop: true }),
+      // The window's icon (Windows, Linux) and the Dock's while unpackaged on
+      // macOS; the packaged apps take app-icon.icns / .ico (scripts/package-electron.mjs).
+      new CopyWebpackPlugin({ patterns: [{ from: path.resolve(__dirname, 'src/icons/app-icon.png'), to: 'app-icon.png' }] }),
+    ],
     devtool,
   };
 
@@ -204,14 +267,64 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'RDF Architecture Modeler',
+        title: 'la-gram — Semantic Architecture Modeller',
       }),
       bundledAssetsPlugin(),
-      buildFlags(),
+      buildFlags({ desktop: true }),
       ...deploymentConfig(),
     ],
     devtool,
   };
 
-  return [webConfig, electronMainConfig, electronPreloadConfig, electronRendererConfig];
+  /**
+   * la-gram-git (Phase 3 of the Git collaboration plan): the command-line tool,
+   * an ES module for Node, into `packages/la-gram-git/` — the npm package and
+   * the container image are made from that folder. Every package it imports
+   * stays an import (`externals`), so each installs with its own licence as a
+   * dependency of the package; `import.meta.url` is left for Node to answer
+   * (`importMeta: false`), so the bundled metamodels (`assets/`) and the CI
+   * templates (`ci/`), copied beside `dist/`, are found from where it runs.
+   */
+  const laGramGitRoot = path.resolve(__dirname, 'packages/la-gram-git');
+  const laGramGitConfig = {
+    name: 'la-gram-git',
+    target: 'node20',
+    entry: './src/cli/bin.ts',
+    experiments: { outputModule: true },
+    output: {
+      filename: 'la-gram-git.js',
+      path: path.join(laGramGitRoot, 'dist'),
+      module: true,
+      chunkFormat: 'module',
+      library: { type: 'module' },
+      clean: true,
+    },
+    externalsType: 'module',
+    externals: [
+      ({ request }, callback) =>
+        request && !request.startsWith('.') && !path.isAbsolute(request) ? callback(null, request) : callback(),
+    ],
+    resolve: { ...sharedResolve },
+    module: {
+      rules: [{ test: /\.ts$/, use: 'ts-loader', exclude: /node_modules/ }],
+      // Left for Node: `new URL(…, import.meta.url)` finds files beside the bundle; no worker runs in Node.
+      parser: { javascript: { importMeta: false, url: false, worker: false } },
+    },
+    plugins: [
+      new webpack.BannerPlugin({ banner: '#!/usr/bin/env node', raw: true, entryOnly: true }),
+      buildFlags(),
+      new CopyWebpackPlugin({
+        patterns: [
+          { from: path.resolve(__dirname, 'assets'), to: path.join(laGramGitRoot, 'assets'), globOptions: { ignore: ['**/.*'] } },
+          { from: path.resolve(__dirname, 'ci'), to: path.join(laGramGitRoot, 'ci') },
+          // A file: a destination without an extension is taken for a folder (LICENSE/LICENSE).
+          { from: path.resolve(__dirname, 'LICENSE'), to: path.join(laGramGitRoot, 'LICENSE'), toType: 'file' },
+        ],
+      }),
+    ],
+    optimization: { minimize: false },
+    devtool: 'source-map',
+  };
+
+  return [webConfig, electronMainConfig, electronPreloadConfig, electronRendererConfig, laGramGitConfig];
 };

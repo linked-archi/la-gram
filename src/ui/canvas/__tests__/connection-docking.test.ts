@@ -581,7 +581,7 @@ describe('a stored route', () => {
     expect(draw([{ x: 100, y: 50 }, { x: 250, y: -40 }, { x: 400, y: 50 }])).toEqual([{ x: 100, y: 50 }, { x: 250, y: -40 }, { x: 400, y: 50 }]);
   });
 
-  it('of bends only — as Archi has it — runs from the shapes’ outlines through them', () => {
+  it('of bends only runs from the shapes’ outlines through them', () => {
     // From each centre towards its bend, out through the box's side.
     expect(draw([{ x: 200, y: -60 }, { x: 300, y: -60 }])).toEqual([{ x: 100, y: 13 }, { x: 200, y: -60 }, { x: 300, y: -60 }, { x: 400, y: 13 }]);
   });

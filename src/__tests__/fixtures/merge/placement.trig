@@ -1,0 +1,46 @@
+# Both place CRM on the diagram, each with a node of its own, and theirs draws a
+# new flow from CRM to Portal at its node. The canvas shows one node per element
+# and diagram, so the merged model keeps one: m:node-crm-a, whose IRI sorts
+# first (ours). Theirs' node is offered, with the link theirs drew at it — and
+# the flow's arch:inView, written with that link, goes with it.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-added> {
+    m:crm arch:inView m:view .
+    m:node-crm-a a vis:ArchNode ;
+        vis:view m:view ;
+        vis:archElement m:crm ;
+        vis:bounds-x "600"^^xsd:double ; vis:bounds-y "0"^^xsd:double ;
+        vis:bounds-w "120"^^xsd:double ; vis:bounds-h "55"^^xsd:double .
+}
+<urn:theirs-added> {
+    m:crm arch:inView m:view ;
+        am4:flowsTo m:portal ;
+        arch:hasQualifiedRelationship m:flow .
+    m:node-crm-b a vis:ArchNode ;
+        vis:view m:view ;
+        vis:archElement m:crm ;
+        vis:bounds-x "600"^^xsd:double ; vis:bounds-y "200"^^xsd:double ;
+        vis:bounds-w "120"^^xsd:double ; vis:bounds-h "55"^^xsd:double .
+    m:flow a am4:Flow ;
+        arch:source m:crm ;
+        arch:target m:portal ;
+        rdf:reifies <<( m:crm am4:flowsTo m:portal )>> ;
+        arch:inModel m:model ;
+        arch:inView m:view .
+    m:link-flow a vis:Link ;
+        vis:view m:view ;
+        vis:archRelationship m:flow ;
+        vis:source m:node-crm-b ;
+        vis:target m:node-portal .
+}

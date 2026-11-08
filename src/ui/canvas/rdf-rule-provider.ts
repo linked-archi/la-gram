@@ -34,6 +34,11 @@ export interface RdfConnectionAttrs {
   /** IRI of the winning relationship *type* (the palette concept, `am4:Serving`). */
   typeIri: string;
   /**
+   * The line stands for no relationship: an end is a figure — a note pointing
+   * at what it is about, say. `typeIri` is then empty, `candidates` too.
+   */
+  connector?: boolean;
+  /**
    * The type's `arch:unqualifiedForm`, when it publishes one — the predicate a
    * direct triple has to use (`am4:serves` for `am4:Serving`).
    */
@@ -184,7 +189,12 @@ interface RuleTarget {
 interface ConnectContext {
   source?: RuleTarget;
   target?: RuleTarget;
+  /** The line whose end is moved, for `connection.reconnect`. */
+  connection?: RuleTarget;
 }
+
+/** The rules' answer for a line standing for no relationship. */
+const CONNECTOR_ATTRS: RdfConnectionAttrs = { typeIri: '', connector: true, candidates: [] };
 
 /**
  * Context diagram-js passes to the `shape.create` rule.
@@ -272,6 +282,9 @@ export class RdfRules extends RuleProvider {
    * unknown, which is the state during a drag before the target is hovered.
    */
   private checkConnect(context: ConnectContext): RdfConnectionAttrs | false | undefined {
+    // A figure — a group, a shape, a note — is drawing: no relationship has it
+    // as an end, but a line may join it to an element or another figure.
+    if (isFigure(context.source) || isFigure(context.target)) return this.checkConnector(context);
     const sourceType = context.source?.businessObject?.typeIri;
     const targetType = context.target?.businessObject?.typeIri;
     if (!sourceType || !targetType) return undefined;
@@ -290,7 +303,25 @@ export class RdfRules extends RuleProvider {
    * dropped, while the model still had it on its element.
    */
   private checkReconnect(context: ConnectContext): RdfConnectionAttrs | false {
+    // A line drawn from a figure keeps a figure at an end; a relationship's keeps none.
+    const connector = context.connection?.businessObject?.kind === 'connector';
+    const figureEnd = isFigure(context.source) || isFigure(context.target);
+    if (connector !== figureEnd) return false;
     return this.checkConnect(context) || false;
+  }
+
+  /**
+   * A line from or to a figure stands for no relationship: allowed between two
+   * different shapes — an element's or a figure's — unless a relationship type
+   * was picked to draw. Undecided while the other end is unknown.
+   */
+  private checkConnector(context: ConnectContext): RdfConnectionAttrs | false | undefined {
+    if (this.rdfRules.getPreferredType()) return false;
+    const { source, target } = context;
+    if (!source || !target) return undefined;
+    const isShape = (end: RuleTarget) => !end.waypoints && Boolean(end.parent) && (isFigure(end) || isElementShape(end));
+    if (source === target || !isShape(source) || !isShape(target)) return false;
+    return CONNECTOR_ATTRS;
   }
 
   /**
@@ -307,7 +338,8 @@ export class RdfRules extends RuleProvider {
   private checkConnectStart(context: ConnectContext): boolean {
     const source = context.source;
     if (!source || source.waypoints) return false;
-    return Boolean(source.businessObject?.typeIri);
+    // A figure starts a line to what it is about.
+    return Boolean(source.businessObject?.typeIri) || isFigure(source);
   }
 
   /**
@@ -339,15 +371,22 @@ function isElementShape(target: RuleTarget | undefined): boolean {
   return Boolean(target && !target.waypoints && target.businessObject?.typeIri && target.parent);
 }
 
+/** A figure: a group, a shape or a note, standing for no model element. */
+function isFigure(target: RuleTarget | undefined): boolean {
+  return target?.businessObject?.kind === 'figure';
+}
+
 /**
- * Whether shapes may be dropped into `target`: the diagram, or an element big
- * enough to hold them — not a relationship, not a junction, and not one of the
- * shapes moved or anything inside them.
+ * Whether shapes may be dropped into `target`: the diagram, or an element or a
+ * figure big enough to hold them — not a relationship, not a junction, not a
+ * note, and not one of the shapes moved or anything inside them.
  */
 function canContain(target: RuleTarget | undefined, moved: readonly RuleTarget[] = []): boolean {
   if (!target) return true;
   if (target.waypoints) return false;
-  if (!isElementShape(target)) return true;
+  const figure = isFigure(target);
+  if (!figure && !isElementShape(target)) return true;
+  if (figure && target.businessObject?.figure?.kind === 'note') return false;
   if (!labelFitsInside(target.width ?? 0, target.height ?? 0)) return false;
   for (let at: RuleTarget | undefined = target; at; at = at.parent) {
     if (moved.includes(at)) return false;

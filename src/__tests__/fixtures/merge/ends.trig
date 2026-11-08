@@ -1,0 +1,41 @@
+# A relationship retargeted differently on each side: one conflict over its
+# whole connection — its end, the triple it reifies, the direct triple — and the
+# merged model keeps base's connection, all of it. Never a relationship whose
+# end, reified triple and direct triple disagree.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:base-added> {
+    m:erp a am4:ApplicationComponent ;
+        skos:prefLabel "ERP"@en ;
+        arch:inModel m:model .
+}
+<urn:ours-added> {
+    m:serving arch:target m:crm ;
+        rdf:reifies <<( m:billing am4:serves m:crm )>> .
+    m:billing am4:serves m:crm .
+}
+<urn:ours-removed> {
+    m:serving arch:target m:portal ;
+        rdf:reifies <<( m:billing am4:serves m:portal )>> .
+    m:billing am4:serves m:portal .
+}
+<urn:theirs-added> {
+    m:serving arch:target m:erp ;
+        rdf:reifies <<( m:billing am4:serves m:erp )>> .
+    m:billing am4:serves m:erp .
+}
+<urn:theirs-removed> {
+    m:serving arch:target m:portal ;
+        rdf:reifies <<( m:billing am4:serves m:portal )>> .
+    m:billing am4:serves m:portal .
+}

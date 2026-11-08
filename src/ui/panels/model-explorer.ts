@@ -342,7 +342,7 @@ function statedOf(contents: ModelContents): Stated {
   };
 }
 
-/** Order within a folder: by name, as Archi's tree has it; by `key` between namesakes. */
+/** Order within a folder: by name; by `key` between namesakes. */
 function byName<T extends { label: string }>(key: (item: T) => string): (a: T, b: T) => number {
   return (a, b) => a.label.localeCompare(b.label) || key(a).localeCompare(key(b));
 }
@@ -658,6 +658,13 @@ export class ModelExplorer extends LitElement {
       font-size: 11px;
       color: #5f6368;
     }
+
+    .icon-picture {
+      width: 14px;
+      height: 14px;
+      object-fit: contain;
+      vertical-align: middle;
+    }
     .label {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -731,6 +738,15 @@ export class ModelExplorer extends LitElement {
   /** IRIs drawn in the open view, for the placed marker and the menus. */
   @property({ attribute: false })
   placedProvider?: () => ReadonlySet<string>;
+
+  /**
+   * An element's own picture for the presentation chosen, else for every one
+   * (core 0.5.0: `arch:altVisNotation`, `arch:prefVisNotation`): its row's icon,
+   * in place of the type's mark. The host sets it again — or asks for an update
+   * — when the presentation changes.
+   */
+  @property({ attribute: false })
+  pictureProvider?: (iri: string) => string | undefined;
 
   /** The view on the canvas. */
   @property({ attribute: false })
@@ -1101,6 +1117,13 @@ export class ModelExplorer extends LitElement {
     this._menu = null;
   };
 
+  /** A row's icon: an element's own picture when it has one, else its kind's mark. */
+  private _renderIcon(node: TreeNode) {
+    const picture = node.kind === 'element' && node.iri ? this.pictureProvider?.(node.iri) : undefined;
+    if (picture) return html`<span class="icon"><img class="icon-picture" src=${picture} alt="" /></span>`;
+    return html`<span class="icon">${this._icon(node)}</span>`;
+  }
+
   private _icon(node: TreeNode): string {
     switch (node.kind) {
       case 'model':
@@ -1147,7 +1170,7 @@ export class ModelExplorer extends LitElement {
             }}
             >${hasChildren ? (collapsed ? '▶' : '▼') : ''}</span
           >
-          <span class="icon">${this._icon(node)}</span>
+          ${this._renderIcon(node)}
           <span class="label">${node.label}</span>
           ${node.placed ? html`<span class="placed" title="In the open view"></span>` : nothing}
           ${node.detail ? html`<span class="detail">${node.detail}</span>` : nothing}

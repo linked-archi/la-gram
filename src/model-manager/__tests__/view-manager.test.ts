@@ -540,3 +540,552 @@ describe('a link ending on a link (core-vis 0.6)', () => {
     expect(views.getLinks(v)).toEqual([]);
   });
 });
+
+describe('figures: groups, shapes and notes, standing for no model element', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const PREF_LABEL = NAMESPACES.skos + 'prefLabel';
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let elements: OxigraphElementManager;
+  let view: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    elements = new OxigraphElementManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+  });
+
+  it('are drawn as core-vis nodes: a group and a shape as ContainerNodes, a note as a LabelNode; their text is their prefLabel', () => {
+    const group = views.addFigure(view, { kind: 'group', text: 'Back office', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const ellipse = views.addFigure(view, { kind: 'shape', shapeType: VIS_NS + 'Ellipse', bounds: { x: 500, y: 0, width: 120, height: 80 } });
+    const note = views.addFigure(view, { kind: 'note', text: 'Ask the CFO', bounds: { x: 700, y: 0, width: 185, height: 80 } });
+
+    expect(objects(store, group, RDF_TYPE)).toEqual([VIS_NS + 'ContainerNode']);
+    expect(objects(store, group, PREF_LABEL)).toEqual(['Back office']);
+    expect(objects(store, ellipse, RDF_TYPE)).toEqual([VIS_NS + 'ContainerNode']);
+    const [style] = objects(store, ellipse, VIS_NS + 'style');
+    expect(objects(store, style!, VIS_NS + 'shapeType')).toEqual([VIS_NS + 'Ellipse']);
+    expect(objects(store, note, RDF_TYPE)).toEqual([VIS_NS + 'LabelNode']);
+    // None stands for an element, or is presented in the view as one.
+    for (const figure of [group, ellipse, note]) expect(objects(store, figure, VIS_NS + 'archElement')).toEqual([]);
+    expect(views.placedIn(view).size).toBe(0);
+
+    expect(new Map(views.getNodes(view).map((n) => [n.elementIri, n.figure]))).toEqual(
+      new Map<string, unknown>([
+        [group, { kind: 'group', text: 'Back office' }],
+        [ellipse, { kind: 'shape', shapeType: VIS_NS + 'Ellipse' }],
+        [note, { kind: 'note', text: 'Ask the CFO' }],
+      ]),
+    );
+  });
+
+  it('are keyed by their node where an element is: moved, nested, holding elements, renamed, removed with their style', () => {
+    const group = views.addFigure(view, { kind: 'group', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const box = views.addFigure(view, { kind: 'shape', shapeType: VIS_NS + 'Rectangle', bounds: { x: 20, y: 40, width: 120, height: 80 }, parentIri: group });
+    const element = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'App' }).value;
+    views.addElementToView(view, element, { x: 30, y: 150, width: 120, height: 55 });
+    views.setNodeParent(view, element, group);
+    views.updateNodeBounds(view, box, { x: 25, y: 45, width: 130, height: 90 });
+    views.setFigureText(view, box, 'Inbox');
+
+    const nodes = new Map(views.getNodes(view).map((n) => [n.elementIri, n]));
+    expect(nodes.get(box)).toMatchObject({ parentElementIri: group, bounds: { x: 25, y: 45, width: 130, height: 90 }, figure: { text: 'Inbox' } });
+    expect(nodes.get(element)?.parentElementIri).toBe(group);
+    expect(views.getNode(view, box)?.nodeIri).toBe(box);
+
+    const before = store.getQuads(null, null, null).length;
+    views.removeElementFromView(view, box);
+    expect(store.getQuads(nn(box), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${box}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(null, null, null).length).toBeLessThan(before);
+    expect(views.getNodes(view).map((n) => n.elementIri).sort()).toEqual([element, group].sort());
+  });
+
+  it('a note is a free-standing LabelNode — a relationship’s name kept in a view is not one', () => {
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    store.addQuads([DataFactory.quad(nn('https://example.org/link'), nn(VIS_NS + 'label'), nn(note)) as never]);
+    expect(views.getNodes(view)).toEqual([]);
+  });
+
+  it('are copied with their view, each a figure of the copy, what was inside one inside its copy', () => {
+    const group = views.addFigure(view, { kind: 'group', text: 'G', bounds: { x: 0, y: 0, width: 400, height: 300 } });
+    const element = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'App' }).value;
+    views.addElementToView(view, element, { x: 30, y: 150, width: 120, height: 55 });
+    views.setNodeParent(view, element, group);
+
+    const copy = views.duplicateView(view).value;
+    const nodes = views.getNodes(copy);
+    const copiedGroup = nodes.find((n) => n.figure)!;
+    expect(copiedGroup.elementIri).not.toBe(group);
+    expect(copiedGroup.figure).toEqual({ kind: 'group', text: 'G' });
+    expect(nodes.find((n) => n.elementIri === element)?.parentElementIri).toBe(copiedGroup.elementIri);
+  });
+});
+
+describe('an element placed more than once in a view', () => {
+  const ARCH_NS = NAMESPACES.arch;
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let elements: OxigraphElementManager;
+  let rels: OxigraphRelationshipManager;
+  let view: string;
+  let api: string;
+  let web: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    elements = new OxigraphElementManager(store);
+    rels = new OxigraphRelationshipManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    api = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'API' }).value;
+    web = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'Web' }).value;
+  });
+
+  it('is placed again only when asked; each placement is keyed by its node', () => {
+    const first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    expect(views.addElementToView(view, api, { x: 9, y: 9, width: 1, height: 1 })).toBe(first);
+    const second = views.addElementToView(view, api, { x: 400, y: 0, width: 120, height: 55 }, { another: true });
+    expect(second).not.toBe(first);
+    expect(views.getNodes(view).map((n) => n.elementIri)).toEqual([api, api]);
+
+    views.updateNodeBounds(view, second, { x: 410, y: 20, width: 130, height: 60 });
+    expect(views.getNode(view, second)?.bounds).toEqual({ x: 410, y: 20, width: 130, height: 60 });
+    expect(views.getNode(view, first)?.bounds).toEqual({ x: 0, y: 0, width: 120, height: 55 });
+  });
+
+  it('a placement is nested on its own, and removed on its own: the element leaves the view with its last', () => {
+    const first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    const second = views.addElementToView(view, api, { x: 400, y: 0, width: 120, height: 55 }, { another: true });
+    const container = views.addElementToView(view, web, { x: 380, y: -20, width: 300, height: 200 });
+    views.setNodeParent(view, second, container);
+    expect(views.getNode(view, second)).toMatchObject({ parentElementIri: web, parentNodeIri: container });
+    expect(views.getNode(view, first)?.parentNodeIri).toBeUndefined();
+
+    views.removeElementFromView(view, second);
+    expect(views.getNodes(view).filter((n) => n.elementIri === api).map((n) => n.nodeIri)).toEqual([first]);
+    expect(objects(store, api, ARCH_NS + 'inView')).toEqual([view]);
+    views.removeElementFromView(view, first);
+    expect(objects(store, api, ARCH_NS + 'inView')).toEqual([]);
+  });
+
+  it('a relationship is drawn between the placements named, else the first ones; a copy keeps them', () => {
+    views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    const second = views.addElementToView(view, api, { x: 400, y: 0, width: 120, height: 55 }, { another: true });
+    const webNode = views.addElementToView(view, web, { x: 200, y: 200, width: 120, height: 55 });
+    const serving = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: api, targetIri: web }).iri;
+    views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode });
+    expect(views.getLinks(view).map((l) => [l.sourceNodeIri, l.targetNodeIri])).toEqual([[second, webNode]]);
+
+    const copy = views.duplicateView(view).value;
+    const nodes = views.getNodes(copy);
+    expect(nodes.filter((n) => n.elementIri === api)).toHaveLength(2);
+    const [link] = views.getLinks(copy);
+    const copiedSource = nodes.find((n) => n.nodeIri === link!.sourceNodeIri)!;
+    expect(copiedSource.bounds).toEqual({ x: 400, y: 0, width: 120, height: 55 });
+  });
+});
+
+describe('a relationship drawn more than once in a view', () => {
+  const ARCH_NS = NAMESPACES.arch;
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let view: string;
+  let serving: string;
+  let first: string;
+  let second: string;
+  let webNode: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const rels = new OxigraphRelationshipManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    const api = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'API' }).value;
+    const web = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'Web' }).value;
+    first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    second = views.addElementToView(view, api, { x: 0, y: 300, width: 120, height: 55 }, { another: true });
+    webNode = views.addElementToView(view, web, { x: 400, y: 150, width: 120, height: 55 });
+    serving = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: api, targetIri: web }).iri;
+  });
+
+  it('is drawn again only when asked, each line a link of its own: routed, named and removed on its own', () => {
+    const one = views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: first, targetNodeIri: webNode })!;
+    expect(views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode })).toBe(one);
+    const two = views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: second, targetNodeIri: webNode }, { another: true })!;
+    expect(two).not.toBe(one);
+    expect(views.getLinks(view).map((l) => [l.linkIri, l.sourceNodeIri]).sort()).toEqual([[one, first], [two, second]].sort());
+
+    views.updateLinkWaypoints(view, two, [{ x: 60, y: 327 }, { x: 460, y: 177 }]);
+    views.setLinkLabel(view, two, { x: 200, y: 240, width: 40, height: 14 });
+    const byLink = new Map(views.getLinks(view).map((l) => [l.linkIri, l]));
+    expect(byLink.get(two)?.waypoints).toHaveLength(2);
+    expect(byLink.get(one)?.waypoints).toEqual([]);
+    expect(byLink.get(two)?.label).toBeDefined();
+    expect(byLink.get(one)?.label).toBeUndefined();
+
+    views.removeRelationshipFromView(view, two);
+    expect(views.getLinks(view).map((l) => l.linkIri)).toEqual([one]);
+    expect(objects(store, serving, ARCH_NS + 'inView')).toEqual([view]);
+    views.removeRelationshipFromView(view, one);
+    expect(objects(store, serving, ARCH_NS + 'inView')).toEqual([]);
+  });
+
+  it('a copy of the view draws it as often, between the copies of its placements', () => {
+    views.addRelationshipToView(view, serving, undefined, { sourceNodeIri: first, targetNodeIri: webNode });
+    views.addRelationshipToView(view, serving, [{ x: 60, y: 327 }, { x: 460, y: 177 }], { sourceNodeIri: second, targetNodeIri: webNode }, { another: true });
+    const copy = views.duplicateView(view).value;
+    const nodes = new Map(views.getNodes(copy).map((n) => [n.nodeIri, n]));
+    const links = views.getLinks(copy);
+    expect(links).toHaveLength(2);
+    expect(links.map((l) => nodes.get(l.sourceNodeIri)?.bounds.y).sort((a, b) => a! - b!)).toEqual([0, 300]);
+    expect(links.find((l) => nodes.get(l.sourceNodeIri)?.bounds.y === 300)?.waypoints).toHaveLength(2);
+  });
+});
+
+describe('a figure’s colours', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  it('are kept on its own style, taken back to the default with null, and copied with its view', () => {
+    const store = new OxigraphRdfStore();
+    const views = new OxigraphViewManager(store);
+    const view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setFigureColours(view, note, { fillColor: '#ffd6e0', fontColor: '#7a0019' });
+    expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n', fillColor: '#ffd6e0', fontColor: '#7a0019' });
+    expect(objects(store, `${note}-style`, VIS_NS + 'fillColor')).toEqual(['#ffd6e0']);
+
+    views.setFigureColours(view, note, { fontColor: null, lineColor: '#333333' });
+    expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n', fillColor: '#ffd6e0', lineColor: '#333333' });
+
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy)[0]?.figure).toMatchObject({ fillColor: '#ffd6e0', lineColor: '#333333' });
+    views.removeElementFromView(view, note);
+    expect(store.getQuads(nn(`${note}-style`), null, null)).toEqual([]);
+  });
+});
+
+describe('how a placement or a line looks: its own style (the Appearance tab)', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const XSD = NAMESPACES.xsd;
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let view: string;
+  let api: string;
+  let first: string;
+  let second: string;
+  let serving: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const rels = new OxigraphRelationshipManager(store);
+    view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    api = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'API' }).value;
+    const web = elements.createElement('https://example.org/lang#Component', 'https://example.org/model', { label: 'Web' }).value;
+    first = views.addElementToView(view, api, { x: 0, y: 0, width: 120, height: 55 });
+    second = views.addElementToView(view, api, { x: 0, y: 300, width: 120, height: 55 }, { another: true });
+    views.addElementToView(view, web, { x: 400, y: 150, width: 120, height: 55 });
+    serving = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: api, targetIri: web }).iri;
+  });
+
+  it('a placement’s, on a style of its own: the other placement of its element keeps its notation’s', () => {
+    views.setAppearance(view, first, { fillColor: '#ffd6e0', lineWidth: 2, textAlignment: 'left', fontStyle: 'bold', fontName: 'Georgia', fontSize: 9 });
+    expect(views.getNode(view, first)?.appearance).toEqual({
+      fillColor: '#ffd6e0',
+      lineWidth: 2,
+      textAlignment: 'left',
+      fontStyle: 'bold',
+      fontName: 'Georgia',
+      fontSize: 9,
+    });
+    expect(views.getNode(view, second)?.appearance).toBeUndefined();
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}-style`]);
+    // As core-vis 0.7 writes them: a member of the enumeration, a typed integer.
+    expect(objects(store, `${first}-style`, VIS_NS + 'textAlignment')).toEqual([VIS_NS + 'AlignLeft']);
+    expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'lineWidth'))[0]?.object).toMatchObject({ value: '2', datatype: { value: XSD + 'integer' } });
+  });
+
+  it('a placement’s figure — the Figure tab’s — as core-vis’s rendering mode', () => {
+    views.setAppearance(view, first, { renderingMode: 'IconCentric' });
+    expect(objects(store, `${first}-style`, VIS_NS + 'renderingMode')).toEqual([VIS_NS + 'IconCentric']);
+    expect(views.getNode(view, first)?.appearance).toEqual({ renderingMode: 'IconCentric' });
+  });
+
+  it('a value taken back with null; all of them, and the style goes too', () => {
+    views.setAppearance(view, first, { fillColor: '#ffd6e0', lineColor: '#7a0019' });
+    views.setAppearance(view, first, { fillColor: null });
+    expect(views.getNode(view, first)?.appearance).toEqual({ lineColor: '#7a0019' });
+    views.setAppearance(view, first, { lineColor: null });
+    expect(views.getNode(view, first)?.appearance).toBeUndefined();
+    expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([]);
+  });
+
+  it('a converter’s blank-node style is read as the placement’s look — its alpha as meant — and copied before a change', () => {
+    const blank = DataFactory.blankNode();
+    store.addQuads([
+      DataFactory.quad(nn(first) as never, namedNode(VIS_NS + 'style'), blank),
+      DataFactory.quad(blank, namedNode(VIS_NS + 'fillColor'), DataFactory.literal('rgba(181,201,255,100)')),
+      DataFactory.quad(blank, namedNode(VIS_NS + 'fontName'), DataFactory.literal('Segoe UI')),
+    ] as never);
+    expect(views.getNode(view, first)?.appearance).toEqual({ fillColor: '#b5c9ff', fontName: 'Segoe UI' });
+    views.setAppearance(view, first, { textPosition: 'top' });
+    expect(views.getNode(view, first)?.appearance).toEqual({ fillColor: '#b5c9ff', fontName: 'Segoe UI', textPosition: 'top' });
+    expect(store.getQuads(blank as never, null, null)).toEqual([]);
+  });
+
+  it('a line’s, on its link; taken from the view, its style goes with it', () => {
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: first })!;
+    views.setAppearance(view, link, { lineColor: '#1a73e8', lineWidth: 3 });
+    expect(views.getLinks(view)[0]?.appearance).toEqual({ lineColor: '#1a73e8', lineWidth: 3 });
+    views.removeRelationshipFromView(view, link);
+    expect(store.getQuads(nn(`${link}-style`), null, null)).toEqual([]);
+  });
+
+  it('is copied with its view, placement by placement and line by line; nothing outside the view is written', () => {
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: second })!;
+    views.setAppearance(view, second, { fillColor: '#ffd6e0' });
+    views.setAppearance(view, link, { lineWidth: 2 });
+    views.setAppearance(view, api, { fillColor: '#000000' });
+    views.setAppearance('https://example.org/other-view', second, { fillColor: '#000000' });
+    const copy = views.duplicateView(view).value;
+    const nodes = views.getNodes(copy);
+    expect(nodes.map((n) => [n.bounds.y, n.appearance?.fillColor]).sort()).toEqual([
+      [0, undefined],
+      [150, undefined],
+      [300, '#ffd6e0'],
+    ]);
+    expect(views.getLinks(copy)[0]?.appearance).toEqual({ lineWidth: 2 });
+    expect(views.getNode(view, second)?.appearance).toEqual({ fillColor: '#ffd6e0' });
+  });
+
+  it('a picture, as an xsd:anyURI, and where; the pictures the model uses, once each', () => {
+    views.setAppearance(view, first, { image: 'https://example.org/logo.png', imagePosition: 'BottomRight' });
+    views.setAppearance(view, second, { image: 'https://example.org/logo.png' });
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setAppearance(view, note, { image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
+    expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'image'))[0]?.object).toMatchObject({
+      value: 'https://example.org/logo.png',
+      datatype: { value: XSD + 'anyURI' },
+    });
+    expect(objects(store, `${first}-style`, VIS_NS + 'imagePosition')).toEqual([VIS_NS + 'BottomRight']);
+    expect(views.getNode(view, first)?.appearance).toEqual({ image: 'https://example.org/logo.png', imagePosition: 'BottomRight' });
+    expect(views.getNode(view, note)?.figure).toMatchObject({ image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
+    expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png']);
+    // A placement's own icon is one of the model's pictures; a notation's glyph — on a style no diagram element hangs — is not.
+    views.setAppearance(view, second, { iconSymbol: 'https://example.org/own.png', renderingMode: 'IconCentric' });
+    const notationStyle = DataFactory.blankNode();
+    store.addQuads([
+      DataFactory.quad(notationStyle, nn(VIS_NS + 'iconSymbol') as never, DataFactory.literal('https://meta.linked.archi/archimate4/icons/glyphs/actor.svg', nn(XSD + 'anyURI') as never)),
+    ] as never);
+    expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png', 'https://example.org/own.png']);
+    expect(store.getQuads(nn(`${second}-style`), nn(VIS_NS + 'iconSymbol'))[0]?.object).toMatchObject({ datatype: { value: XSD + 'anyURI' } });
+    views.setAppearance(view, second, { iconSymbol: null, renderingMode: null });
+    // A picture's address that is none is not written — and takes nothing away.
+    views.setAppearance(view, second, { image: 'javascript:alert(1)' as never });
+    expect(views.getNode(view, second)?.appearance).toEqual({ image: 'https://example.org/logo.png' });
+  });
+
+  it('where a line’s text sits; set elsewhere, a name moved by hand is no longer where it was put', () => {
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: first })!;
+    const moved = { x: 140, y: 20, width: 40, height: 16 };
+    views.setLinkLabel(view, link, moved);
+    views.setAppearance(view, link, { lineWidth: 2 });
+    expect(views.getLinks(view)[0]?.label).toEqual(moved);
+    views.setAppearance(view, link, { labelAnchor: 'target' });
+    expect(objects(store, `${link}-style`, VIS_NS + 'labelAnchor')).toEqual([VIS_NS + 'AnchorTarget']);
+    expect(views.getLinks(view)[0]).toMatchObject({ appearance: { lineWidth: 2, labelAnchor: 'target' } });
+    expect(views.getLinks(view)[0]?.label).toBeUndefined();
+    // The same anchor again — a format painter's — leaves a name moved since where it is.
+    views.setLinkLabel(view, link, moved);
+    views.setAppearance(view, link, { labelAnchor: 'target', lineWidth: null });
+    expect(views.getLinks(view)[0]?.label).toEqual(moved);
+  });
+
+  it('what a placement’s label says: one expression a presentation context, one for every context — replaced, taken away, copied, gone with it', () => {
+    const DEVELOPER = 'https://example.org/contexts#Developer';
+    views.setLabelExpression(view, first, undefined, '{name}');
+    views.setLabelExpression(view, first, DEVELOPER, '{name}\n«{type}»');
+    expect(views.getNode(view, first)?.labelExpressions).toEqual([
+      { context: DEVELOPER, expression: '{name}\n«{type}»' },
+      { expression: '{name}' },
+    ]);
+    // As core-vis 0.7 writes it: on the placement's own style, named after it.
+    const scoped = objects(store, `${first}-style`, VIS_NS + 'labelExpression').find((iri) => iri !== `${first}-label-expression`)!;
+    expect(scoped).toMatch(new RegExp(`^${first}-label-expression-[0-9a-f]{8}$`));
+    expect(objects(store, scoped, RDF_TYPE)).toEqual([VIS_NS + 'LabelExpression']);
+    expect(objects(store, scoped, NAMESPACES.arch + 'inPresentationContext')).toEqual([DEVELOPER]);
+    // Replaced for its set; the other placement of the element says nothing of its own.
+    views.setLabelExpression(view, first, DEVELOPER, '{name} ({dcterms:creator})');
+    expect(views.getNode(view, first)?.labelExpressions?.[0]).toEqual({ context: DEVELOPER, expression: '{name} ({dcterms:creator})' });
+    expect(views.getNode(view, second)?.labelExpressions).toBeUndefined();
+    // Copied with its view.
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.bounds.y === 0)?.labelExpressions).toHaveLength(2);
+    // Taken away, both: no style left.
+    views.setLabelExpression(view, first, DEVELOPER, null);
+    views.setLabelExpression(view, first, undefined, '');
+    expect(views.getNode(view, first)?.labelExpressions).toBeUndefined();
+    expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(scoped), null, null)).toEqual([]);
+    // Gone with the placement.
+    views.setLabelExpression(view, second, undefined, '{name}');
+    views.removeElementFromView(view, second);
+    expect(store.getQuads(nn(`${second}-label-expression`), null, null)).toEqual([]);
+  });
+
+  it('a look for one presentation context: a style of its own for it, beside the one for every context — copied, emptied, gone with it', () => {
+    const EXECUTIVE = 'https://example.org/contexts#Executive';
+    views.setAppearance(view, first, { fillColor: '#b5c9ff' });
+    views.setAppearance(view, first, { renderingMode: 'IconCentric', image: 'https://example.org/logo.png' }, EXECUTIVE);
+    const node = views.getNode(view, first)!;
+    expect(node.appearance).toEqual({ fillColor: '#b5c9ff' });
+    expect(node.contextAppearances).toEqual({ [EXECUTIVE]: { renderingMode: 'IconCentric', image: 'https://example.org/logo.png' } });
+    // As core-vis 0.7 writes it: a second arch-vis:style, typed, for its context, named after the node.
+    const styles = objects(store, first, VIS_NS + 'style');
+    expect(styles).toHaveLength(2);
+    const forExecutives = styles.find((s) => s !== `${first}-style`)!;
+    expect(forExecutives).toMatch(new RegExp(`^${first}-style-[0-9a-f]{8}$`));
+    expect(objects(store, forExecutives, NAMESPACES.arch + 'inPresentationContext')).toEqual([EXECUTIVE]);
+    expect(objects(store, forExecutives, RDF_TYPE)).toEqual([VIS_NS + 'Style']);
+    // The one for every context is written as before — a converter's copied into it, the context's left alone.
+    views.setAppearance(view, first, { lineWidth: 2 });
+    expect(views.getNode(view, first)?.appearance).toEqual({ fillColor: '#b5c9ff', lineWidth: 2 });
+    expect(views.getNode(view, first)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric', image: 'https://example.org/logo.png' });
+    // Copied with its view.
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.bounds.y === 0)?.contextAppearances).toEqual({
+      [EXECUTIVE]: { renderingMode: 'IconCentric', image: 'https://example.org/logo.png' },
+    });
+    // Emptied, it goes — its context with it.
+    views.setAppearance(view, first, { renderingMode: null, image: null }, EXECUTIVE);
+    expect(views.getNode(view, first)?.contextAppearances).toBeUndefined();
+    expect(store.getQuads(nn(forExecutives), null, null)).toEqual([]);
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}-style`]);
+    // Gone with its placement.
+    views.setAppearance(view, second, { image: 'https://example.org/logo.png' }, EXECUTIVE);
+    const secondStyle = objects(store, second, VIS_NS + 'style')[0]!;
+    views.removeElementFromView(view, second);
+    expect(store.getQuads(nn(secondStyle), null, null)).toEqual([]);
+  });
+
+  it('a note’s and a line’s look for one presentation context too: read, copied with the view', () => {
+    const EXECUTIVE = 'https://example.org/contexts#Executive';
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setAppearance(view, note, { fillColor: '#ffd6e0' }, EXECUTIVE);
+    const link = views.addRelationshipToView(view, serving, [], { sourceNodeIri: first })!;
+    views.setAppearance(view, link, { lineColor: '#7a0019', lineWidth: 3 }, EXECUTIVE);
+    expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n' });
+    expect(views.getNode(view, note)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#ffd6e0' } });
+    expect(views.getLinks(view)[0]?.contextAppearances).toEqual({ [EXECUTIVE]: { lineColor: '#7a0019', lineWidth: 3 } });
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.figure)?.contextAppearances).toEqual({ [EXECUTIVE]: { fillColor: '#ffd6e0' } });
+    expect(views.getLinks(copy)[0]?.contextAppearances).toEqual({ [EXECUTIVE]: { lineColor: '#7a0019', lineWidth: 3 } });
+  });
+
+  it('a figure’s, every value of it, copied with its view', () => {
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    views.setAppearance(view, note, { textAlignment: 'center', textPosition: 'middle', borderStyle: 'DashedLine', fontColor: '#7a0019' });
+    expect(views.getNode(view, note)?.figure).toEqual({
+      kind: 'note',
+      text: 'n',
+      textAlignment: 'center',
+      textPosition: 'middle',
+      borderStyle: 'DashedLine',
+      fontColor: '#7a0019',
+    });
+    const copy = views.duplicateView(view).value;
+    expect(views.getNodes(copy).find((n) => n.figure)?.figure).toMatchObject({ textAlignment: 'center', borderStyle: 'DashedLine' });
+  });
+});
+
+describe('a line from a note: a link standing for no relationship', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const setup = () => {
+    const store = new OxigraphRdfStore();
+    const views = new OxigraphViewManager(store);
+    const elements = new OxigraphElementManager(store);
+    const view = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'V' }).value;
+    const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
+    const app = elements.createElement('https://example.org/am4#ApplicationComponent', 'https://example.org/model', { label: 'App' }).value;
+    const db = elements.createElement('https://example.org/am4#ApplicationComponent', 'https://example.org/model', { label: 'DB' }).value;
+    const appNode = views.addElementToView(view, app, { x: 300, y: 0, width: 120, height: 55 });
+    views.addElementToView(view, db, { x: 300, y: 300, width: 120, height: 55 });
+    return { store, views, view, note, app, appNode, db };
+  };
+
+  it('is an arch-vis:Link with no archRelationship, its own key; no concept enters the view', () => {
+    const { store, views, view, note, app, appNode } = setup();
+    const link = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode }, [{ x: 200, y: 30 }])!;
+    expect(objects(store, link, RDF_TYPE)).toEqual([VIS_NS + 'Link']);
+    expect(objects(store, link, VIS_NS + 'archRelationship')).toEqual([]);
+    expect(views.getLinks(view)).toEqual([
+      {
+        linkIri: link,
+        relationshipIri: link,
+        connector: true,
+        sourceNodeIri: note,
+        targetNodeIri: appNode,
+        sourceElementIri: note,
+        targetElementIri: app,
+        waypoints: [{ x: 200, y: 30 }],
+      },
+    ]);
+    expect(views.placedIn(view).has(link)).toBe(false);
+    expect(store.getQuads(nn(link), nn(NAMESPACES.arch + 'inView'), null)).toEqual([]);
+    // Keyed by its link, as a relationship's line is.
+    views.updateLinkWaypoints(view, link, [{ x: 250, y: 30 }]);
+    expect(views.getLinks(view)[0]?.waypoints).toEqual([{ x: 250, y: 30 }]);
+  });
+
+  it('joins two different nodes of the view — an element names its first placement — or nothing', () => {
+    const { views, view, note, app, appNode } = setup();
+    expect(views.addConnector(view, { sourceNodeIri: note, targetNodeIri: note })).toBeUndefined();
+    expect(views.addConnector(view, { sourceNodeIri: note, targetNodeIri: 'https://example.org/model/nowhere' })).toBeUndefined();
+    const other = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'W' }).value;
+    expect(views.addConnector(other, { sourceNodeIri: note, targetNodeIri: app })).toBeUndefined();
+    const link = views.addConnector(view, { sourceNodeIri: app, targetNodeIri: note })!;
+    expect(views.getLinks(view)[0]).toMatchObject({ linkIri: link, sourceNodeIri: appNode, targetNodeIri: note });
+  });
+
+  it('is re-pointed, removed on its own, and goes with an end', () => {
+    const { store, views, view, note, appNode, db } = setup();
+    const link = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode })!;
+    views.reconnectConnector(view, link, { sourceNodeIri: note, targetNodeIri: db });
+    expect(views.getLinks(view)[0]?.targetElementIri).toBe(db);
+    views.removeRelationshipFromView(view, link);
+    expect(views.getLinks(view)).toEqual([]);
+    expect(store.getQuads(nn(link), null, null)).toEqual([]);
+
+    const again = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode }, [{ x: 200, y: 30 }])!;
+    views.removeElementFromView(view, note);
+    expect(views.getLinks(view)).toEqual([]);
+    expect(store.getQuads(nn(again), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${again}-p0`), null, null)).toEqual([]);
+  });
+
+  it('is copied with its view, between the copies of its ends', () => {
+    const { views, view, note, app, appNode } = setup();
+    views.addConnector(view, { sourceNodeIri: appNode, targetNodeIri: note });
+    const copy = views.duplicateView(view).value;
+    const copiedNote = views.getNodes(copy).find((n) => n.figure)!.nodeIri;
+    expect(views.getLinks(copy)).toEqual([expect.objectContaining({ connector: true, sourceElementIri: app, targetNodeIri: copiedNote })]);
+  });
+
+  it('says what its skos:prefLabel says — read again once written — and is copied saying it, where it was moved to', () => {
+    const { store, views, view, note, appNode } = setup();
+    const link = views.addConnector(view, { sourceNodeIri: note, targetNodeIri: appNode })!;
+    expect(views.getLinks(view)[0]?.text).toBeUndefined();
+    store.addQuads([DataFactory.quad(nn(link), nn(NAMESPACES.skos + 'prefLabel'), DataFactory.literal('asks', 'en'))]);
+    views.setLinkLabel(view, link, { x: 140, y: 20, width: 40, height: 16 });
+    expect(views.getLinks(view)[0]).toMatchObject({ text: 'asks', label: { x: 140, y: 20, width: 40, height: 16 } });
+    const copy = views.duplicateView(view).value;
+    expect(views.getLinks(copy)[0]).toMatchObject({ connector: true, text: 'asks', label: { x: 140, y: 20, width: 40, height: 16 } });
+    // Its text goes with it.
+    views.removeRelationshipFromView(view, link);
+    expect(store.getQuads(nn(link), null, null)).toEqual([]);
+  });
+});

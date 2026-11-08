@@ -1,0 +1,30 @@
+# la-gram-git on GitHub Actions: checks the la-gram models a pull request
+# changes, and comments with their changes by element.
+#   https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/tree/main/ci
+# Copy to .github/workflows/la-gram-git.yml (`npx @linked-archi/la-gram-git init github` does).
+name: la-gram models
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # for the comment; a pull request from a fork gets none, and goes without
+
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the branch the change goes into, to compare with
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the models
+        run: npx --yes @linked-archi/la-gram-git@0 check --base "origin/${{ github.base_ref }}"
+      - name: Comment with their changes by element
+        if: always()
+        run: npx --yes @linked-archi/la-gram-git@0 diff "origin/${{ github.base_ref }}" --comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

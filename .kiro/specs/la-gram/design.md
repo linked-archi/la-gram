@@ -20,7 +20,7 @@ specification is `docs/linked-archi-tool-spec.md`.
 graph TB
     subgraph Browser["Browser / Electron renderer (TypeScript, Lit, webpack)"]
         subgraph UI["UI layer — src/ui"]
-            Toolbar["app-toolbar<br/>file · metamodels · views · panel toggles · presence"]
+            Toolbar["app-toolbar<br/>name · file · metamodels · help · views · panel toggles · presence"]
             Tree["model-explorer<br/>model tree (left)"]
             Canvas["DiagramCanvas<br/>diagram-js + RDF modules"]
             Alt["catalog-view · matrix-view"]
@@ -221,7 +221,13 @@ uploaded  →  bundled (assets/, mirrors meta.linked.archi)  →  remote (Accept
 (`bundled-first`, the browser default; `remote-first` and `offline` reorder or
 drop the remote source). Every fetch revalidates (`cache: 'no-cache'`): neither
 the static server nor meta.linked.archi sends `Cache-Control`, and a browser
-would otherwise keep a heuristically fresh copy for hours. `assets/` is
+would otherwise keep a heuristically fresh copy for hours. Glyphs and
+pictures are loaded by the browser as images, which no fetch option reaches:
+`assetUrl` puts the build's digest of `assets/` on every bundled asset's address
+(`?v=…`, `__LA_GRAM_ASSETS_VERSION__`, worked out in `webpack.config.js` from
+the files' names and contents), so a build with other assets gives them other
+addresses and the same ones keep theirs; the servers, and the desktop app's
+`app://` handler, read the path alone. `assets/` is
 refreshed from a linked-archi-meta checkout with `npm run sync-assets`, which
 uses that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
@@ -522,6 +528,78 @@ graph for a concept the model does not name: that read, for every line each
 time a view is drawn, is what Task 22 took out. The name is the model's; where
 it is drawn, once moved, is the view's: see key decisions 15 and 16.
 
+**Help and About** (Req 15.4–15.7; `src/help-links.ts`, `src/ui/help.ts`,
+the toolbar's `_helpMenu`, `installMenu` in `electron-main.ts`). The pages the
+Help menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
+desktop app's menu bar read the same. About and the keyboard shortcuts are
+`DetailBlock`s — a header, headings, text, links, two columns — that
+`Dialogs.details` shows; it is optional, and `mount-ui` shows a `Dialogs`
+without it the same blocks as text (`detailLines`), so the scripted dialogs of
+the tests need nothing new. The version and the open-source components come
+from the build (`__LA_GRAM_BUILD__`: `package.json`'s version, and each
+component's own `package.json` — name, version, licence — Electron in the
+desktop builds); under Vitest there is none, and About says "Development
+build". Where it runs is read off the user agent (`runtimeOf`). The shortcuts
+are written once as `Mod+Shift+Z` and shown for the platform (`keyCombo`: `⇧⌘Z`
+on a Mac, `Ctrl+Shift+Z` elsewhere), each one checked against the code that
+binds it — diagram-js's `KeyboardBindings`, the lasso's and the selection's
+Shift, F2 in `rdf-label-editing`, Alt+arrows in `mount-ui`, the SPARQL
+editor's keymap. The title is the open model's (`modelTitle`, set with the
+toolbar's name and unsaved mark); the page's own title is put back when the UI
+is taken down. The toolbar's menus, buttons and toggles do not shrink; the
+model's name does, down to 64 px, and media queries narrow the selectors, then
+hide their names, then the toggles' words, so the bar holds from 1100 px.
+
+**Releases** (Req 15.8; `.gitlab-ci.yml`, `deploy/nginx-la-gram.conf`). A tag
+`la-gram-v<version>` starts the tests, then `web` (the web build; it also runs
+on every merge request, and hands the version on as a dotenv variable, since
+the Release's fields take variables, not shell) and `desktop`, a matrix of five
+targets packaged on the amd64 Linux runner: @electron/packager downloads each
+target's Electron and builds a macOS app off macOS, leaving out the asar
+integrity digest that only `codesign` could re-seal — so Electron's ad-hoc
+signature holds and Apple silicon launches it — and edits the Windows
+executable's resources with `resedit`, without Wine (its publisher from
+`win32metadata`, else package.json's `author`). The macOS app's bundle then has
+no valid seal — Electron's binary keeps its ad-hoc signature, the renamed
+bundle has none over it — which Gatekeeper reports for a downloaded copy as
+"damaged", with no Open Anyway; rcodesign (pinned, checksum checked) signs it
+ad hoc on the runner, as `codesign --sign -` would. The macOS and Windows apps
+are zipped (`zip -y` keeps the app bundle's symbolic links), the Linux ones
+tarred (modes kept), and uploaded to the generic package registry with the job
+token; then `web-deploy` copies the web build over SSH (meta.linked.archi's
+variables, and `LA_GRAM_DEPLOY_PATH`), and `la-gram-release` makes the Release
+with the `glab` image and the `release` keyword. The web app needs nothing to
+run under `/la-gram/`: webpack's `publicPath` is `auto`, and the bundled
+assets resolve against `document.baseURI`. nginx serves the folder with `^~`
+(the host's regular-expression locations, as for RDF, do not take la-gram's
+`.ttl` files), the page and the assets revalidated and the content-named
+scripts and WebAssembly kept a year, and the desktop app's Content-Security-
+Policy with `https:` and `wss:` connections.
+
+**Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
+`svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file
+as a DOM — the viewport's layers cloned, interaction chrome taken out, every
+`<defs>` of the canvas (the lines' end markers are in their own,
+`defs.la-notation-markers`), a white background, cropped to what is drawn and
+the lines' names — and writes it with `XMLSerializer`: an HTML serialisation
+(`innerHTML`) writes a non-breaking space as `&nbsp;`, which XML does not know.
+Its pictures are still the addresses drawn on the canvas: the bundled glyphs at
+the app's own addresses (`assetUrl`, with `?v=`; `app://` in the desktop app),
+pictures at theirs. A PNG is drawn by loading the SVG into an `<img>` and that
+onto a canvas, and an SVG drawn as an image loads nothing from outside itself:
+every glyph was a broken image. So `inlineImages` reads each picture's address
+once (`readImageAsDataUrl`: `fetch`, the type from the response or, when it says
+none, the address's extension; a page served in its place is not a picture) and
+writes it into both `href` and `xlink:href` as a `data:` URI. What cannot be read
+— a site sending no `Access-Control-Allow-Origin`, which the canvas can still
+show but the app cannot read — stays linked in an SVG (a viewer opening the file
+online loads it) and is taken out of a PNG (`dropMissing`), and the toast names
+it. `exportPng` takes a scale (2 from the menus): the SVG's own `width` and
+`height` set to the PNG's, its `viewBox` kept, so the vector is rasterised at
+that size rather than drawn small and stretched; it is lowered to fit a canvas
+a browser can draw. Both menus run the same `exportView`; the right-click menu's
+entries are in an *export* section of their own.
+
 **Moving a relationship's name** (`rdf-link-label.ts`). A press on a drawn name
 starts diagram-js's `dragging` (`rdf.linkLabel.*`), the selection kept. The press
 reaches the line as `element.mousedown` whatever node it landed on — the name's
@@ -723,8 +801,8 @@ triple of `dcterms:isPartOf`, `schema:itemListElement`, `schema:item` or
 rename elsewhere does not read them.
 
 **By kind** (Req 10.10; key decision 14). `folderLayout` (`model-manager/folders.ts`, pure over
-the contents) puts the folders in the tree's three groups, as Archi keeps them
-— a kind of concept in folders of its own — without knowing any tool's folder
+the contents) puts the folders in the tree's three groups — a kind of concept
+in folders of its own — without knowing any tool's folder
 names. A converter's folder for the model itself (`modelFolderOf`: the one top
 folder, holding folders and none of the model's concepts, named as the model is
 — its name, or its IRI's last segment, the model id the converters name it by;
@@ -809,7 +887,9 @@ that its view is open); a shape renamed is redrawn alone (`element.changed` —
 `elements.changed` re-stacks every sibling, 30 000 in a view of 10 000), and
 after a move or a nesting only what changed is put back in its place among its
 siblings (diagram-js's `updateContainments` replaced; a parent where the sibling
-before is not in place is re-stacked whole). The view
+before is not in place is re-stacked whole), placed in their parent's order — a
+line laid out again after its container moved below it would otherwise go after
+the container's old place, to the front. The view
 manager keeps each view's nodes and links until a write touches geometry, a
 node's or link's type or a route (`ObservableRdfStore.onEveryWrite`, told inside
 a batch too), so the canvas and the tree read a view once between such writes;
@@ -1185,10 +1265,77 @@ turn a click on statements into a selection.
 Shapes: every `shapes` graph of the loaded metamodels + core + core-vis shapes
 (+ legacy `urn:la-gram:shapes`), cached as one array so the validator keeps its
 compiled engine. Data: the model + all `rdfs:subClassOf` axioms + the types of
-referenced resources. `sh:sparql` is stripped (server-side, Req 8). Debounced
-300 ms. Results go to the Validation tab; the tab carries the number of
-Violations (Warnings and Infos are listed, not counted), and violating concepts
-are marked on the canvas.
+referenced resources — only their types, so what a shape finds of such a
+resource itself is left out of the report (a catalogue's viewpoint, a view's
+viewpoint, would be found to include no concept: `ValidationEngine.outsideOnly`),
+unless the model says something of it. `sh:sparql` is taken out of what the SHACL library is
+given, and run with Oxigraph instead (below). Debounced 300 ms. Results go to
+the Validation tab; the tab carries the number of Violations (Warnings and
+Infos are listed, not counted), and violating concepts are marked on the canvas.
+
+**SPARQL-based constraints** (Req 6.4; Git collaboration plan, Phase 3,
+`rdf-engine/sparql-constraints.ts`). The shapes' `sh:sparql` constraints —
+ArchiMate's self-loops and cycles, its principles, core's viewpoint rules,
+core-vis's nesting: 36 in ArchiMate 4.0 with core, 35 more in 3.2 — which
+rdf-validate-shacl cannot run, and which therefore ran nowhere. The validation
+engine keeps a copy of its data in Oxigraph, made only when the shapes have
+such constraints and Oxigraph is loaded (the worker loads its WebAssembly
+before handling a message; where it cannot, the rest of validation goes on),
+with the metamodels' statements the queries name in a graph of their own
+(`EngineSetup.sparqlContext`, queried with the default graph as the union).
+One query per constraint: the shape's targets joined into its outer `WHERE`,
+binding `$this` (a sub-query; `VALUES` inside it when only some nodes are
+validated), `$PATH` a property shape's path; `{$this}`/`{?var}` in a message
+take the node's name where it has one. After an edit, the nodes within one hop
+of what changed, both ways, are validated again — the shapes' reach does not
+bound a query's; more than the engine's limit, all of them. Results report
+`sh:SPARQLConstraintComponent`. Memory: about 0.7 KB a triple in the copy
+(78 MB at 100 000). Time — whole model, Node: the 46 fast rules 0.16 s at
+25 000 triples, 1.0 s at 100 000; for 20 nodes after an edit, 8–14 ms
+(measured with the rules of 2026-11-05). Three of meta's rule kinds were slow
+in Oxigraph, using `FILTER NOT EXISTS` over a property path:
+`OrphanedElementShape` grew with the square of the model (2.2 s at 25 000
+triples, 31 s at 100 000), the viewpoint conformance rules took 1–3 s on
+Archisurance. Meta writes them with `MINUS` since 2026-11-06: the same results
+(compared on Archisurance, the benchmark model and meta's viewpoint example),
+17 ms at 25 000 triples and about 12 ms on Archisurance. A `MINUS` group is
+evaluated over the whole data, not only the nodes validated, so after an edit
+these three cost what the whole model does (17–23 ms at 25 000 triples). The
+same day meta took out the rules that restated its relationship tables, which
+rejected relationships the tables permit — flow and triggering between active
+structure elements among them; which types a relationship may connect is the
+tables check's alone (`relationship-validity.ts`). Archisurance, both ArchiMate
+languages loaded: validated in 1.7 s (9.4 s before), 13 violations, none from
+the rules. Each language's `OrphanedElementShape` targets its own elements and
+junctions (it targeted `arch:Element`, and with both languages loaded found
+each orphan twice). The viewpoint conformance rules — a view declares one
+viewpoint, its type, elements and relationships' ends fit it, a viewpoint says
+what it admits — are core's (`core-shapes`): they name no ArchiMate term, and
+each ArchiMate version had a copy, so with both loaded each finding came twice.
+Core's shapes are loaded for every model, so a view of any notation without a
+viewpoint is a Warning.
+
+**The shape a finding points to** (Req 6.5, `rdf-engine/finding-shape.ts`).
+A finding names its source shape, as SHACL reports it; most of a metamodel's
+rules are written inline, though — a property shape inside a node shape, a
+member of an `sh:or` list — and a blank node has no IRI to show. For such a
+finding the validator also gives the named shape it is written in
+(`ValidationResult.withinShape`: up through `sh:property`, `sh:node`, `sh:not`,
+`sh:qualifiedValueShape` and the lists of `sh:or`, `sh:and`, `sh:xone`, to the
+first named node; cached per shapes graph), carried through the worker
+(`PlainResult.withinShape`). `shapeIriOf` picks the IRI to show: the source
+shape's, else that one. The Validation tab shows it by its local name, the IRI
+on hover, as a link when it is a web address — meta's pages have an anchor per
+shape, so the IRI itself opens the shape's documentation; a click on the link
+opens it and does not also select the concept. `la-gram-git check` writes the
+IRI after each finding, and keys a finding to the base version by it.
+
+**References to what is not there** (Req 6.12,
+`model-manager/missing-references.ts`): a relationship's end, a view node's
+element, a link's relationship or end shapes, a shape's view, a route's cells,
+`arch:inView`, `arch:inModel`, a folder entry, naming something no triple is
+about. Found by the same engine, for the nodes validated; reported without a
+shape (no vocabulary is made up), so the tab shows no shape line.
 
 **Scope** (Req 6.10). The Validation tab lists the open view's findings (the
 default) or the whole model's, remembered per browser
@@ -1317,9 +1464,15 @@ other clients as one update; `ModelSession.resync` re-points them at the model
 and at the same view under its new IRI.
 
 The Y.Doc holds one `Y.Map<true>` keyed by canonical N-Triples: an RDF graph is a
-set of triples, and a map-as-set is its CRDT. Single-valued predicates (bounds,
-points, list cells, endpoints, `skos:prefLabel` per language) are normalised
-deterministically after remote changes, so concurrent moves converge. Awareness
+set of triples, and a map-as-set is its CRDT. Single-valued predicates are
+normalised deterministically after remote changes, so concurrent moves converge:
+the built-in ones (bounds, points, list cells, endpoints, `skos:prefLabel` per
+language, the model's `dcterms:modified` the later stamp) and the loaded
+metamodels' — `owl:FunctionalProperty` for every subject, `sh:maxCount 1` and
+`sh:uniqueLang` for the classes a shape targets —
+defined once in `rdf-engine/single-valued.ts` for the room and the Git merge
+alike (*Merging versions*). `App.singleValued()` reads them from every graph but
+the model's, cached until the metamodels change. Awareness
 carries name, colour, open view and selection; what others select is marked and
 locked (a rule at priority 3000 denies move/resize/delete/re-route).
 
@@ -1386,17 +1539,518 @@ bounds stay in diagram coordinates, so a renderer that ignores nesting still
 draws everything in place. On the canvas the container is the shape's
 diagram-js parent: moving it moves what is inside, `RdfAutoResize` (diagram-js
 `AutoResize`, margins for the name) grows it to fit, and its name moves to the
-top of its content box once it holds something. Any element can hold others
+top of its content box once it holds something. That band is two lines with the
+badge padding (`containerNameBand`, 34 px), and `RdfAutoResize`'s top trigger
+and margin are its height: what is dropped or moved into it makes the container
+grow above it, so it never covers the name (the trigger was 30 px, and the
+second line went under). The store-led drawing draws containers before what is
+inside them, so a container is drawn empty, its name in the middle; it is
+redrawn once the view is drawn (`redrawContainers`) — and when a collaborator
+empties it, so the name goes back to the middle. Before, the name went to the
+top on the canvas's own move and back to the middle whenever the view was
+opened again, under what was inside. Any element can hold others
 (`RdfRules`: not a relationship, not a junction, not itself or what it holds).
 `syncFromStore` draws containers first and re-parents a shape whose container
 changed in the store (`reparentDirect`, as diagram-js's own commands do); a
 removed container leaves what it held drawn.
+
+**What is drawn above what** (Req 4.19; `canvas/rdf-ordering.ts`). Every line
+is the root's and comes after the shapes, so it is drawn above every element,
+nested ones (inside their container's group) included, and its name with it.
+diagram-js on its own put a created or moved shape last among its parent's
+children, above the lines drawn before it, and gave a line drawn from a nested
+element that element's container as its parent. `RdfOrdering`, diagram-js's
+`OrderingProvider`, gives a line the root on create and move, and a shape the
+place after its parent's other shapes, before the first line (`shapeIndex`) —
+still above the shapes it is moved over. A connection being created has no
+waypoints yet: it is told by its `source` reference. The store-led drawing,
+which adds without commands, places a shape (`addShape`'s index) and a
+re-parented one (`reparentDirect`) the same way.
 
 What a nesting means is a relationship of its own. The notation says which
 relationships nesting may draw and which end goes inside (`arch-vis:nestedEnd`
 on the relationship's `VisualNotation`); after a drop, `nestingOffers`
 (`canvas/nesting.ts`) lists those the metamodel permits between the two and the
 model does not already have, and the menu creates the one picked — or none.
+
+The view shows those by the nesting, not by a line. A relationship in a diagram
+that is the view's (`arch:inView`) and has no link is one the nesting shows: the
+one picked in the menu is given `arch:inView` with it (`nestAs`), and on a nesting
+`showByNesting` removes every line between the two, of any type and either way,
+and gives each relationship the nesting may draw between them
+(`relationshipsShownByNesting`) `arch:inView` though no line drew it — removing a
+link removes `arch:inView` with the last one, so it is given back after. A
+relationship the model has between the two that the view does not show stays out. A
+move out of a container (`showAsLines`) draws as lines the relationships between
+the two that are the view's and have no line, and those the nesting stood for
+though nothing recorded it (`relationshipsShownByNesting`: a model opened
+nested, converted from Archi, records no more) — never the model's others
+between them. Both run inside the move or create command, so undo puts
+lines and membership back; but at its end: a move of several lays out their
+lines after moving the shapes (diagram-js's `MoveHelper`), and a line removed
+halfway was laid out with no ends. The changes are noted at `shape.move` /
+`shape.create` and done at the end of `elements.move` / `elements.create`, or of
+the shape's own command when it is not inside one; redo replays what was done.
+
+**Drawing a relationship the model already has** (Req 4.20;
+`canvas/reuse-relationship.ts`). `RdfModeling.connect` — every line drawn goes
+through it: a connect drag, the palette's relationship tool, *Connect these
+two…* — asks `RdfReuseCheck` before it creates: when the model already relates
+the two by the type, in that direction, and the view does not draw it (no
+derivation the model does not state), the canvas opens a menu at the target —
+*Use the existing ‹type›* or *Use “‹name›”*, one per such relationship, and *New
+‹type›* — and nothing is drawn now. Using one draws it (`drawExistingRelationship`,
+undoable); *New* connects again with `RDF_REUSE_ANSWERED_HINT`, which creates as
+before; Esc leaves nothing.
+
+### An element placed more than once
+
+Req 3.14. A view may place an element more than once; each placement is a node
+(`arch-vis:ArchNode`). The view manager keys a node by its IRI wherever it keys
+by an element's (`nodeIrisFor`): `updateNodeBounds`, `setNodeParent`,
+`removeElementFromView` and `getNode` take either, a node naming that one
+placement — removing one drops the element's `arch:inView` only with its last.
+`addElementToView(…, { another: true })` places again; `addRelationshipToView`
+takes the placements (`ends`) a link joins, its ends' first otherwise;
+`NodeInfo.parentNodeIri` says which placement a node is inside; a copied view
+copies node by node.
+
+On the canvas a placement's shape carries its node (`RdfBusinessObject.nodeIri`).
+The first placement of an element keeps the element's IRI as its id — a view
+placing each element once is drawn as before, ids and DOM included — and each
+further one takes its node's. An index kept from diagram-js's `shape.added` /
+`shape.removed` finds an element's placements and a node's shape
+(`shapesOf`, `shapeOf`, `shapeOfNode`), so no lookup scans a view. The view is
+synced node by node; layout, nesting and deletion write the placement's node
+(`writeLayout`, `containerIri`, `shape.delete`); a line created or drawn carries
+the placements of its ends to the link (`RdfRelationshipRequest.sourceNodeIri`,
+`draw(…, ends)`); a store-led line is drawn between the placements its link
+names. Dragging an element from the tree places it again (the element writer's
+`place` always adds a placement, the behaviour giving a further one its node as
+id); its relationships are drawn with its first placement only. Selecting or
+revealing it selects every placement; a rename and a type change on one
+placement show on all (the relabel and retype commands carry the others, undo
+included); deleting it from the model takes every placement. Lines between a
+nested placement and its container are those between those two shapes.
+
+A relationship may be drawn more than once too, each line a link
+(`arch-vis:Link`): a link's IRI keys it wherever a relationship's does
+(`linkIrisFor`: `updateLinkWaypoints`, `setLinkLabel`,
+`removeRelationshipFromView`), `addRelationshipToView(…, { another: true })`
+draws again, a copied view copies link by link. A line carries its link
+(`RdfBusinessObject.linkIri`): its relationship's IRI keys its first line, a
+further one its link's; an index of each relationship's lines and each line by
+its link (`linesOf`, `lineOfLink`, `lineBetween`) is kept from `connection.added`
+/ `.removed`, at a priority above every other listener — diagram-js stops an
+event at the first listener that returns a value, and one of la-gram's did
+(`Set.delete`), so later listeners missed every removed line. The view is synced
+link by link; a route, a moved name and a deletion write that line's link; a
+line drawn gets its link from the writer (`RdfRelationshipRequest.linkIri`), one
+drawn of an existing relationship from `draw`, which reuses a link joining the
+same placements and otherwise draws another. The reuse question (Req 4.20) asks
+unless the relationship is drawn between the two placements already; using it
+draws it again there. A rename or a type change on one line shows on every line.
+Taken out of a container, a relationship with a line elsewhere in the view gets
+no second one.
+
+### Figures
+
+Req 3.13. Drawing with no model element behind it: a group, a sticky note, a
+core-vis shape. In the view they are core-vis nodes (`OxigraphViewManager.addFigure`):
+a group an `arch-vis:ContainerNode`; a shape a `ContainerNode` whose own
+`arch-vis:style` (`<node>-style`, removed with it) gives an `arch-vis:shapeType`;
+a note an `arch-vis:LabelNode` that no element's `arch-vis:label` points at — a
+relationship's moved name, which is one, is not read as a note. Their text is
+`skos:prefLabel`, language-tagged: core-vis names no text property for a node
+that stands for no element, and the canonical label is what every tool reads.
+
+A figure has no element, so its node is its key: `NodeInfo.elementIri` is the
+node's IRI and `NodeInfo.figure` says what it is, and the view manager resolves
+"the node of this IRI" to the node itself (`nodeIrisFor`), so moving, resizing,
+nesting (`setNodeParent` — a figure's `parentElementIri` is the figure's node),
+removal and duplication go the ways an element's go, undo included. A figure's
+text write clears the view cache (told by the node's type). The canvas draws a
+figure from `syncFromStore` (`syncFigure`) with `kind: 'figure'`; the renderer
+draws a group with its name in a tab, a shape by its shape type, a note folded
+at its top right (`drawFigure`). `startCreateFigure` starts the toolbar's drag;
+the node is written in the `shape.create` command, the shape taking the node's
+IRI before it is drawn. Rules: no relationship ends on a figure; a group or a
+shape holds as an element does, a note nothing. The context pad offers Delete;
+renaming writes `skos:prefLabel` as for an element (core-vis documents it as a figure's text). Selected, the heading is
+*Group*, *Note* or *Shape* — no type, analysis or guide — and the property
+panel's information tab shows the `skos:prefLabel` entry labelled *Text*
+(`_renderFigureText`); its colours, font and lines are the Appearance tab's
+(below), kept on the figure's own style with its shape type. `syncFigure`
+redraws a figure whose look changed. Unset, a figure is drawn in its kind's
+colours (`FIGURE_DEFAULT_COLOURS`, `figureColours`). The toolbar's second
+row (`canvas-toolbar`, `figure-bar.ts`) is opened by *Shapes*, remembered per
+browser. The Exchange importer draws a `Container` as a group and a `Label` as
+a note, with their `<label>`, and what was nested inside one inside it.
+
+A line from a figure — a note's, to what it is about — is a *connector*: an
+`arch-vis:Link` with no `arch-vis:archRelationship` (core-vis permits one: the
+property has no minimum), its ends nodes of the view, placements or figures,
+and no `arch:inView` for anything. As a figure's node is its key, a connector's
+link is its own: `LinkInfo.connector` says what it is and its `relationshipIri`
+is the link's IRI, so `linkIrisFor` resolves the link to itself and routing
+(`updateLinkWaypoints`), removal and the removal of a node's links go the ways
+a relationship's line's go; `addConnector` writes one (an element's IRI names
+its first placement) and `reconnectConnector` re-points it; `duplicateView`
+copies it between the copies of its ends. On the canvas its business object is
+`kind: 'connector'` (`syncConnector`), drawn thin, dashed and grey with no
+decorations (`drawConnector`). What it says is the link's `skos:prefLabel`
+(`LinkInfo.text`; the view's cache is read again when a link's is written):
+the business object's `label`, drawn by `drawConnectionLabel` at the middle or
+at its `labelOffset` — `drawnConnectionLabel` lays it out always, not only with
+*Relationship names* on, in its own font — and written on the canvas as a
+relationship's name is (`isNameableLine` takes a connector; the relabel command
+and `labelWriter` write any IRI's), moved as one is (`rdf-link-label`, the
+view's `arch-vis:LabelNode`); `duplicateView` copies both. The rules answer a connect with a figure at an
+end with `{ connector: true }` (`checkConnector`: two different shapes, no
+relationship type picked in the palette), and `connection.start` allows a
+figure; `RdfModeling.connect` creates the line with no relationship hint, and
+the canvas writes its link in `connection.create`'s `preExecute`, the line
+taking the link's IRI — one undo step. A reconnect keeps a figure at an end
+(`checkReconnect`) and re-points the link. The pad offers a figure Connect and
+a connector Delete. The Exchange importer draws a `connection` with no
+`relationshipRef` between the nodes it joins as one.
+
+A line taken off the canvas by the store (`removeConnectionDirect`) is also
+taken off its ends: diagram-js's canvas unsets a removed connection's parent
+but not its `source`/`target`, so its ends kept it in `incoming`/`outgoing`,
+and deleting one of them later deleted the parentless line again and threw.
+
+### Appearance
+
+Req 3.15. How one thing drawn in a view looks — an element's placement, a
+relationship's line, a figure, a line from a note — set on that one diagram
+object, kept on that node's or link's own core-vis
+style (`arch-vis:style`). `model-manager/appearance.ts` is the one place the
+values are named, written and read:
+
+| `Appearance` key | core-vis | written as |
+| --- | --- | --- |
+| `fillColor`, `lineColor`, `fontColor`, `iconColor` | `arch-vis:fillColor` …, `iconColor` (0.7) | `#rrggbb`, or `#rrggbbaa` when not opaque — the alpha is the opacity |
+| `gradient` | `arch-vis:gradient` (0.7) | `arch-vis:GradientTop`, `GradientLeft`, `GradientRight`, `GradientBottom` |
+| `lineWidth` | `arch-vis:lineWidth` (0.7) | an `xsd:integer`; normal, medium, heavy are 1, 2, 3 |
+| `borderStyle` | `arch-vis:borderStyle` | `arch-vis:SolidLine`, `DashedLine`, `DottedLine` |
+| `fontName`, `fontSize` | `arch-vis:fontName`, `fontSize` | a string; an `xsd:integer` |
+| `fontStyle` | `arch-vis:fontStyle` (0.7) | `bold`, `italic`, `underline`, separated by spaces, in that order |
+| `textAlignment` | `arch-vis:textAlignment` (0.7) | `arch-vis:AlignLeft`, `AlignCenter`, `AlignRight` |
+| `textPosition` | `arch-vis:textPosition` (0.7) | `arch-vis:PositionTop`, `PositionMiddle`, `PositionBottom` |
+| `labelAnchor` | `arch-vis:labelAnchor` (0.7) | `arch-vis:AnchorSource`, `AnchorMiddle`, `AnchorTarget`: where along a line its text sits |
+| `image` | `arch-vis:image` (0.7) | an `xsd:anyURI` literal: an http(s) URL or a `data:image/…` URI (`imageUri`), nothing else written or read |
+| `imagePosition` | `arch-vis:imagePosition` (0.7) | an `arch-vis:IconPlacement`: `TopLeft` … `BottomRight`, `Fill` |
+
+A colour is read as meant (`cssColour`): core-vis says a CSS colour string, its
+alpha CSS's (0–1, said in so many words since 0.7), but the ArchiMate converter
+wrote the exchange format's alpha as it is before then, a percentage
+(`rgba(181,201,255,100)`), or out of 255, which CSS reads as opaque whatever it
+is; an alpha above 1 is read as a percentage up to 100, out of 255 beyond.
+la-gram writes `#rrggbbaa`, which no reader takes two ways, and so does the
+converter now.
+
+**Store.** `ViewManager.setAppearance(viewIri, iri, changes)` takes a node's or
+a link's IRI — of the view, else nothing is written — and sets each value
+given, `null` taking one back. The style it writes on is the node's or link's
+own, `<iri>-style` (`ownStyle`, generalised from the figures' `ownFigureStyle`):
+made when there is none; a style another tool wrote — a converter's blank node,
+or one others share — copied into it first, so the change is to this one alone
+and keeps what the old one said (a shape type, a font). A style left with
+nothing to say is removed, with the node's `arch-vis:style` to it.
+`NodeInfo.appearance` (an element's placement), `FigureInfo` (a figure's, with
+its kind) and `LinkInfo.appearance` carry what the style says
+(`appearanceOf`); the own style goes with its node (`placementQuads`) or link
+(`linkQuads`), and `duplicateView` copies each placement's and line's look.
+`setFigureColours` remains, for figures, as `setAppearance`.
+
+**Canvas.** `syncFromStore` reads each node's and link's look into
+`appearanceToDraw`, so a placement or a line is drawn with it the first time
+(`addElement`, `addRelationship`, `syncConnector` put it on the business
+object), and `restyle` redraws one whose look changed — set in the panel, by a
+collaborator, undone. `selectedAppearance()` describes the canvas selection
+for the panel (`ui/appearance-selection.ts`): each one's node or link and what
+it is, the first one's own look, what it is drawn with where it sets nothing
+(`elementDefaults` from its notation's style — the text in the notation's text
+colour, else its line colour — `lineDefaults`, `figureDefaults`), and the
+fields every one selected has (`APPEARANCE_FIELDS`): a relationship's line no
+fill, line style or alignment — its line style says what kind of relationship
+it is — only an element an icon colour, a group no alignment (its name sits in
+its tab), a line from a note its colour, width, line style and ends (`lineStyle`,
+`sourceDecor`, `targetDecor` — core-vis's terms for a relationship's line, on the
+line's own style: `drawConnector` dashes it by `strokeDashArray`, dashed `4 3`
+and with no ends where it says nothing, and puts its ends on as
+`applyDecoration` puts a relationship's).
+
+**Renderer.** The business object's `appearance` is drawn over the notation's
+style (`withOwnStyle`): fill, line colour, outline style, `lineWidth` as the
+stroke width, a gradient (`applyGradient`: a `linearGradient` from the fill at
+the side named to white, the body filled with it), the glyph's colour
+(`colourGlyph`: an SVG filter flooding the badge's or icon's opaque lines with
+it, as core-vis glyphs are drawn — opaque lines, transparent where the fill
+shows — the image itself unchanged), each defined in the shape's own `<defs>`,
+named by what it draws, so a shape draws alike on the canvas and exported, the font (`fontOf`, `fontAttributes`: the name quoted before
+la-gram's own family, which stands in where it is not installed; bold, italic,
+underline), and the text's place — `labelLayout`'s `align` (the lines start or
+end at the edge of the band they were wrapped to, `anchor` `start` or `end`)
+and `position` (top or bottom, unless a `Center` or `BottomCenter` badge says
+where). The text keeps the notation's colour when only the line colour is
+set. A relationship's line takes its colour, width and its name's
+font and size (`connectionLabelLayout`'s `fontSize`); a figure its outline, font
+and text place (a note from its top left unless set; `appendFigureText`); a
+line from a note its colour, width and its text's font. `RenderOptions.notationOnly` — the
+toolbar's *Notation only* switch (`notation-only.ts`, remembered per browser,
+`setNotationOnly` redraws everything) — leaves out the look of what has a
+notation; figures and lines from notes keep theirs.
+
+**Panel.** The property panel's `appearance` (an `AppearanceSelection`) is set
+by `mount-ui` for a selection made on the canvas — not for a concept picked in
+the tree, which is the model's — and adds the *Appearance* tab, last; a figure
+or a line from a note has its information tab and this one. `_renderAppearance`
+lays the fields out in rows of two (`APPEARANCE_ROWS`, a missing field's
+place left empty, a row with neither left out): fill colour and gradient, fill
+opacity, line colour and width, line opacity and style, icon colour, text
+alignment and position (segmented buttons), font (a name, offered from a list or
+typed; a size; bold, italic, underline) and font colour. While the canvas draws
+the notation alone, a notice over the fields says so for an element or a
+relationship, its button sending `notation-only` (`{ on: false }`), as the
+toolbar's switch does (`propertyPanel.notationOnly` follows the switch). Each shows the first one's own value, else
+the default; one of its own has a reset, and *Reset all* takes every one back.
+A change is an `appearance-change` event; `mount-ui` writes it to every one
+selected inside one `recordChange`, so it is one undo step, and re-reads the
+selection's look — as it does after any model change (undo, redo, a
+collaborator).
+
+**Label expressions (the Label tab).** `model-manager/label-expression.ts`
+parses an expression (`parseLabelExpression`: lines of text and placeholders —
+`name`, `type`, a path of steps, each a prefixed name or `<iri>`, `^` for one
+followed backwards — and what could not be read) and evaluates it for a concept
+(`evaluateLabelExpression`, `labelFromExpression`) over a `LabelSource` the
+workbench gives the canvas (`diagramCanvas.labelSource`: the store's values and
+subjects; `nameOf`, a resource's name for the presentation context chosen — its
+SKOS-XL name there, else `labelOf`; `nameForContext`, that name alone; the
+type's name; and `collectPrefixes`, kept until the model or the metamodels
+change). Expressions are scoped to a presentation context (core 0.5.0's
+`arch:inPresentationContext`), not to a notation set, which several contexts may
+share (DD-34 in meta's design decisions). Where one is said: a placement's own
+style (`ViewManager.setLabelExpression(view, node, context, text)`, read into
+`NodeInfo.labelExpressions` — `{ context?, expression }` — named
+`{node}-label-expression`, or `…-label-expression-{hash of the context}` for
+one context, so the merge can match it; removed with the node, copied by
+`duplicateView`); a type's notation (`buildVisualNotations` puts every
+expression of the notation and its default style on the style,
+`VisualStyle.labelExpressions`, so the notation lookup — superclasses included
+— carries them); and the presentation context (`PaletteGenerator` reads the
+chosen one's into `PaletteDefinition.presentationContextLabelExpression`, with
+`presentationContextIri` and `presentationContextLabel`).
+`NotationStyleRegistry` keeps the context chosen (`activePresentationContext`)
+and answers `labelExpressionFor(type)` — the notation's for the context, else
+for every context (`labelExpressionIn`), else the context's;
+`DiagramCanvas.labelExpressionOf` puts the placement's own for the context and
+for every context first. `refreshLabelTexts` sets each element placement's
+`labelText` — the expression's text, else its name for the context
+(`nameForContext`) — drawn in place of `label`, which stays the name renaming
+edits, and each relationship line's `labelText` to its name for the context
+(`drawnConnectionLabel` draws it); after a sync, a palette change (another
+context) and every command (a rename on the canvas is followed by no sync).
+`wrapLabel` wraps each of a label's lines on its own. The panel's
+`_renderLabelTab` edits the context's expression or — *The same in every
+presentation*, the only one with no context chosen — the one for every
+context, and sends `label-expression-change` (`LabelExpressionChangeDetail`:
+`expression`, `everyContext`, `all`); `mount-ui` writes it for every element
+selected in one `recordChange`, the one for the context chosen taken away when
+one for every context is written.
+
+**Names by presentation.** `model-manager/context-names.ts` reads an element's
+SKOS-XL names (`contextNamesOf`: each `skosxl:altLabel` with an
+`arch:inPresentationContext`, its `skosxl:literalForm` and language;
+`contextNameOf(store, iri, context, language)` — in that language, else none,
+else any) and works out a change (`contextNameChange`: the label for that
+context and language and its link go, with its plain `skos:altLabel` unless
+another of its names has the same text; a new one is `{element}-name-{hash}` —
+`-{language}` beyond English — typed `skosxl:Label`, its literal form, its
+context, linked by `skosxl:altLabel`, its text also a `skos:altLabel`). The
+property panel lists the loaded metamodels' presentation contexts
+(`presentationContexts`, set with the toolbar's; the chosen one,
+`activeContextIri`, marked) as *Names by presentation* in the information tab
+of an element or a relationship (`_renderContextNames`), each a field;
+`skosxl:altLabel` is a hidden field there (`HIDDEN_FIELDS`). A change is
+`context-name-change` (`ContextNameChangeDetail`); `mount-ui` applies
+`contextNameChange` in `changeProperties` — one undoable step — and redraws the
+labels. Switching context (`presentation-context-changed`) regenerates the
+palette, which carries the context to the canvas, and refreshes the panel's
+Label tab and names.
+
+**Looks and pictures per presentation.** A placement may have one style for
+every presentation context and one for each (core-vis 0.7; meta's DD-35):
+`ViewManager.setAppearance(view, iri, changes, context?)` writes the style for
+`context` — `{node}-style-{shortHash(context)}`, typed `arch-vis:Style`, with
+`arch:inPresentationContext`, made on demand and removed when it says nothing
+else — or, without, `{node}-style` as before (`ownStyle` copies a converter's or
+a shared style, ignoring context styles). `styleOf(subject, context?)` is the
+one read of a style: the figure, the look, the label expressions all read the
+style for every context; `contextAppearancesOf` reads the others into
+`NodeInfo.contextAppearances`; `ownStylesQuads` removes them all with the node;
+`duplicateView` copies them. The canvas draws a placement with
+`lookFor(node)` — its style for every context, the context's laid over it —
+in `syncFromStore` and in `refreshLabelTexts`, which runs on every presentation
+switch. An element's own pictures (core 0.5.0) are read and written by
+`model-manager/element-pictures.ts` (`picturesOf`, `pictureOf(store, iri,
+context)` — the one for the context, else `arch:prefVisNotation` —
+`pictureChange`, ImageObjects `{element}-picture[-{hash}]` with an
+`xsd:anyURI` `schema:contentUrl`; an address `imageUri` refuses changes
+nothing); the refresh puts the one for the presentation chosen on the business
+object (`elementPicture`, from `labelSource.pictureFor`), and the renderer's
+`iconOf` draws it as the icon where the placement is drawn as its icon and its
+own look names none — for drawing, for `drawnMode` (the in-place editor) and
+for the docking outline's stamp — not recoloured, marked `data-element-picture`.
+The Image tab's `ImageChoices` carries the style for every presentation's
+picture (`ImageScope`: picture, position, `asFigure`, `elementAsFigure`) and,
+with a presentation chosen and elements selected, `context`, `contextLabel`,
+`forContext` and the element's picture; `_renderImage` edits one scope
+(`_imageEveryContext`, reset with the selection or the presentation, as the
+Label tab's `_labelEveryContext`), its changes an `appearance-change` with
+`context`, or — for every presentation with one chosen — `clearContext`
+(`IMAGE_SCOPE_KEYS` taken away from the chosen presentation's style); the
+Figure tab sends `clearContext` for the figure keys. `mount-ui` writes both in
+one `recordChange`. *Pictures by presentation* (`_renderContextPictures`) sends
+`context-picture-change`, applied with `pictureChange` in `changeProperties`;
+`usedImages` adds the model's elements' pictures. The cascade (`ownedQuads`)
+takes an element's pictures and every style of a node or a link.
+
+Every look per presentation (Req 3.21): `readNode` and `readLink` read
+`contextAppearances` for figures and lines too; the canvas draws a figure with
+`figureFor(node)` and a line with `lookFor(link)`, in the sync and in the
+per-context refresh. `selectedAppearance(scope?)` works out the scope
+(`'context'` | `'every'`; default: the context when the first one has a look of
+its own for it, or none for every presentation) and returns `own` and
+`defaults` for it — for one presentation the first one's `contextOwn`, and its
+look for every presentation over its defaults — with `scope` and `contextLabel`;
+`appearanceOfDrawn` gives each thing's `contextOwn`. `figureChoices(…,
+everyLook)` says the notation's figure out for one presentation when the look
+for every one says another. The panel's `_renderLookScope` heads the
+Appearance, Figure and Image tabs; its checkbox sends `look-scope-change`, and
+`mount-ui` keeps the scope (`lookScope`, forgotten on another selection or
+presentation) and reads `selectedAppearance(lookScope)` again.
+`_appearanceChange` sends the context when the tabs show one presentation's
+look. The format painter picks `own` with `contextOwn` laid over it and writes
+with the context chosen. The model tree's `pictureProvider` (`pictureOf` for
+the presentation chosen) gives an element row its picture; `mount-ui` asks it to
+update on a presentation switch and a picture written.
+
+**Exchange import.** A node's or a connection's `<style>` (`parseExchangeStyle`)
+is its look: `fillColor` and `lineColor` (the `a` attribute a percentage),
+`lineWidth`, and the font's name, size, style and colour.
+
+**A notation's look.** `extractElementStyle` reads a style's core-vis 0.7 terms
+(`NotationLook`: `lineWidth`, `fontName`, `fontSize`, `fontStyle`,
+`textAlignment`, `textPosition`, `gradient`, `iconColor`) onto `VisualStyle`,
+and `extractRelationshipStyle` a relationship's line width, font and
+`fontColor` — a relationship notation saying only those is one. The renderer
+draws `{ ...lookOf(notation), ...own }` (`lookOf` picks the appearance keys any
+style has), so the notation's look is drawn where the placement sets nothing,
+*Notation only* included; a relationship's name is laid out in its notation's
+size under the line's own (`drawnConnectionLabel`'s `notationFontSize`, passed
+by the canvas and `rdf-link-label`). The Appearance tab's defaults
+(`elementDefaults`, `lineDefaults`) show the notation's values.
+
+**Format painter.** The canvas toolbar's 🖌 (`data-action="format-painter"`)
+calls `toggleFormatPainter`; the canvas holds `painter` — on, and once picked
+the look it copies — and says so with `format-painter-changed` (`off`, `pick`,
+`paint`: the button's state, the canvas's cursor classes `la-format-painter`,
+`la-format-painting`). With it on, an `element.click` listener ahead of
+selection (priority 2000) takes the click: the first picks the clicked thing's
+own look (`appearanceOfDrawn`), each after writes it to the clicked one with
+`setAppearance` inside one `recordChange` — every field of
+`APPEARANCE_FIELDS[kind]`, `null` where the picked look has none, so the target
+takes its default there; `renderingMode` and `shapeType`, the *Figure* tab's, and
+`image` and `imagePosition`, the *Image* tab's, are in no kind's fields and stay
+as they are. Esc (`keyboard.keydown`), the button again, or another view
+(`showView`) puts it down.
+
+**Where a line's text sits.** `labelAnchor` is a field of a relationship's line
+and a line from a note (`APPEARANCE_FIELDS`), shown as three buttons in its own
+row; its default is the notation's (`extractRelationshipStyle` reads
+`arch-vis:labelAnchor` off the relationship type's notation or its default
+style), else the middle (`lineDefaults`). `connectionLabelLayout`'s `anchor`
+puts the text, when it has not been moved by hand, centred on the route clear of
+the end it names (`anchoredAt`: as far along the route as the box reaches along
+the end's segment — half its width level, half its height upright — and 8
+units, no further than the middle; `pointAlong`); `drawnConnectionLabel` takes
+the line's own anchor over the notation's (its second argument, the notation's
+look for the name: `fontSize`, `labelAnchor`), the own one left out with
+*Notation only* for a relationship. A text moved by hand is an offset from the
+route's middle whatever the anchor, so it stays put when the anchor or *Notation
+only* changes; `setAppearance` given another anchor drops the link's
+`arch-vis:LabelNode`, so a name moved by hand goes to the place chosen — the
+same anchor again (the format painter's) leaves it. *Move name back to its
+place* (right-click) drops it too.
+
+**Pictures (the Image tab).** For an element's placement or a figure — every
+one selected (`IMAGE_KINDS`) — `selectedAppearance` adds `image`
+(`ImageChoices`: the first one's picture and position, and
+`ViewManager.usedImages()`, every `arch-vis:image` of the model once each). The
+panel's `_renderImage` shows a preview, *Choose file…* (a hidden
+`<input type="file" accept="image/*">`; `_keepPictureFile` reads an image of at
+most `KEPT_PICTURE_LIMIT`, 200 KB, with `FileReader.readAsDataURL` and writes the
+`data:` URI as the picture — anything else is refused, the tab saying why), the
+address (an `https://`… or
+`data:image/…`; `imageUri` refuses any other where it is typed, the field saying
+so, and `setAppearance` ignores a value that is not one of its key's rather than
+take the old one away), the position (`IMAGE_POSITIONS`, disabled with no
+picture), *Remove image* (both keys `null`) and the model's pictures to pick —
+with none, a note that they will be listed there —
+each an `appearance-change`, so one undoable step for every one selected.
+`RdfRenderer.drawImage` draws it in each kind's area — the node inset by 3
+units, a group's below its tab, an element drawn as its icon the whole node —
+over the fill (after the gradient), under the glyph and the text: at
+`imageBox`, its own size made smaller to fit, placed by the position's row and
+column, `preserveAspectRatio` aligned to match; at `Fill`, the whole area,
+`none`. Its own size comes from loading it once (`new Image()`, a module-level
+cache by address, `rememberImageSize` for tests); until then it is not drawn,
+and the elements waiting for it are redrawn (`element.changed`) when it loads;
+one that fails is never drawn. *Draw it as the figure* (elements only,
+`ImageChoices.canBeFigure`) writes the picture as the placement's own
+`iconSymbol` with `renderingMode` `IconCentric` — `image` and `imagePosition`
+taken away — and *inside* the reverse; `selectedAppearance` reads an own
+`iconSymbol` as the picture, drawn as the figure (`asFigure`), and every way of
+giving a picture then writes `iconSymbol`. The renderer takes the own icon over
+the notation's (`withOwnStyle`; `drawnMode` and the docking outline's stamp
+too), draws it as `drawIconCentric` or `drawBadge` would the glyph, marked
+`data-own-icon`, and leaves the icon colour to the notation's glyph. `lookOf`
+skips `iconSymbol`, a notation's glyph being no look to take over;
+`usedImages` lists an own icon — a style a diagram element hangs — and not a
+notation's. The Figure tab marks none of its figures (`selected` -1, a note
+above them) and each one's changes take the own icon away. A placement's picture is its own look, so
+*Notation only* leaves it out; a figure's is always drawn.
+
+**In-place renaming.** `RdfRenderer.drawnLook(element)` is the look a name is
+drawn with now — a figure's own, from a note's or a group's top left — and
+`drawnMode(element)` the figure it is drawn as. The label-editing provider
+(through the injector, so a diagram without la-gram's renderer keeps the plain
+box) sets the text box by them: the font family, size and weight in its style,
+italic, underline and colour on its content once open (the box's own style
+leaves them out); `textAlign` the alignment; centred down the box in the
+middle, from its top, or — at the bottom — its padding leaving the lines as they
+wrap now at the bottom; a group's box its tab, an element drawn as its icon the
+band under it. A relationship's box is laid out in its name's size.
+
+**Figure.** Req 3.16. A placement's own `arch-vis:renderingMode` and
+`arch-vis:shapeType` (`Appearance` keys the Appearance tab leaves out) choose
+what it is drawn as. A notation's other figures, `arch-vis:alternativeStyle`,
+are read onto its default style (`VisualStyle.alternatives`, a custom shape's
+`skos:prefLabel` its `label`); `NotationStyleRegistry.shapeFor(type, shapeIri)`
+resolves a placement's shape among the type's default and alternatives (or a
+core shape), and the renderer draws and docks it (`withShape`, `ownShape`, the
+outline's cache stamp including it). `figureChoices` lists the options — the
+notation's own, its alternatives, the generic modes — each with what picking it
+writes and a preview outline (`shapePath`, `shapeGeometry`'s details). The mode: `effectiveMode` takes it over the notation's, still `ShapeOnly`
+without a drawable glyph, and the docking outline's cache stamp includes it.
+`selectedAppearance` adds `figure` (`FigureChoices`) when every one selected is
+an element whose notation has a glyph: the three modes, the notation's, the
+first one's own, the glyph and its colours for the previews. The panel's
+*Figure* tab (`_renderFigureChoices`) shows a preview each (lit's `svg` tag for
+what is inside an `<svg>`); picking the notation's sends `renderingMode: null`.
 
 ### Version history
 
@@ -1413,11 +2067,32 @@ Git save does not push them. Each records its time (strictly after the model's
 previous one), message, author (the collaboration name, when in a room) and
 the one before it. The History tab (*Save checkpoint*, its tooltip saying it is
 not a Git commit) lists them with +/− triple counts against the one before,
-shows a checkpoint's triples added and removed — against the one before or
-against the model now — with prefixed names, and restores one: the default graph is replaced as one `rdf.store.edit`
+shows what a checkpoint changed — against the one before or against the model
+now — by element (*Comparing versions by element*) or as triples added and
+removed, with prefixed names, and restores one: the default graph is replaced as one `rdf.store.edit`
 step, so undo takes it back while the view is open; in a room, collaborators
 receive it like any other change. Blank-node labels are not stable across
 sessions, so a triple about a blank node may show as removed and added again.
+
+**The bound file's Git commits** (Task 21, Req 18.23). The Git module gives the
+tab a `HistoryGitSource` through `MountedUi.setGitHistory` — one per bound file
+and commit (`git/git-history.ts`) — and the tab lists the file's commits on the
+branch (`fileCommits`, 100 a page, *Older commits…* for more) beside the
+checkpoints, newest first by date, a Git commit marked as one, with its author
+and short id linked to the host. Git is read when the tab opens and on *Read
+again*, never polled, and again after a save (`model-saved`) or a merge rebinds
+the model (the source's key — host, repository, branch, path, commit —
+changes). A first read asks for nothing: a host that refuses without a token
+says so in the tab, and *Read again* asks for one, as Open does (`Access`). A
+selected commit's comparison reads its file and its first parent's — kept, the
+last 8 read — and shows the same diff as a checkpoint's; *Open this version*
+asks, then replaces the model with that file through the merge's
+`MergeSupport.replace` (one undoable step), takes a merge's conflicts away, and
+leaves the binding: the next save names the version it last saw, so it commits
+the old version as a change, or meets the conflict choice. For a model bound to
+another branch than the default, the first entry is that branch against the
+default: the file where they parted (`mergeBase` of the two heads) against the
+branch's head, or against the model now — what merging it would bring.
 
 ### Git storage (optional module)
 
@@ -1440,7 +2115,12 @@ src/git/                    imported only when the module is on — a chunk of i
   providers/gitlab.ts       REST v4: gitlab.com, or https://HOST/api/v4 (self-managed)
   credentials.ts            tokens per host: the session; the keychain (desktop) or, if asked, localStorage (web)
   bindings.ts               model IRI → the file it is bound to (localStorage)
-  git-save.ts               Save to Git: dialog, token, version, commit, conflict
+  git-save.ts               Save to Git: dialog, token, version, commit, conflict; offers a merge request after a new branch
+  git-merge.ts              Merge with the newer version; Update from main; a merged model's commit
+  git-review.ts             Open merge request: the bound branch into the default, described by element
+  git-history.ts            the bound file's commits for the History tab; Open this version
+  merge-support.ts          what merging needs of la-gram: rules, the model replaced, the Conflicts tab
+  conflicts-panel.ts        the Conflicts tab (<git-conflicts>)
   git-open.ts               Open from Git: address, files to choose, read, open, bind
   errors.ts                 failures in words, from the status — never the request or the host's text
 src/platform/secret-file.ts the desktop's secrets file (main process)
@@ -1458,7 +2138,18 @@ interface GitHostProvider {
   }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
   listFiles(ref: string): Promise<{ paths: string[]; truncated: boolean }>;
   listBranches(): Promise<string[]>;
+  mergeBase(a: string, b: string): Promise<string>;
+  commitMerge?(change: {                                       // GitHub only: two parents
+    branch: string; head: string; mergeOf: string; path: string; text: string; message: string;
+  }): Promise<{ version: string; commit: string; branch: string; webUrl: string }>;
+  fileCommits(ref: string, path: string, page?: number): Promise<{   // newest first, 100 a page
+    commits: Array<{ commit: string; parents: string[]; author: string; date: string; message: string; webUrl: string }>;
+    more: boolean;
+  }>;
+  findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined>;   // an open one
+  openMergeRequest(change: { source: string; target: string; title: string; description: string }): Promise<MergeRequest>;
 }
+// MergeRequest: { number, title, webUrl, source, target } — GitHub's pull number, GitLab's iid
 ```
 
 | | GitHub | GitLab |
@@ -1469,6 +2160,11 @@ interface GitHostProvider {
 | Default branch, head | `GET /repos/{o}/{r}`, `…/branches/{b}` | `GET /projects/{id}`, `…/repository/branches/{b}` |
 | Files | `GET /repos/{o}/{r}/git/trees/{commit}?recursive=1` — one answer, `truncated` past GitHub's limit | `GET /projects/{id}/repository/tree?recursive=true&ref=`, paged |
 | Branches | `GET /repos/{o}/{r}/branches`, paged | `GET /projects/{id}/repository/branches`, paged |
+| Merge base | `GET /repos/{o}/{r}/compare/{a}...{b}` → `merge_base_commit` | `GET /projects/{id}/repository/merge_base?refs[]=a&refs[]=b` |
+| Merge commit | the head commit's tree; `POST …/git/blobs`, `…/git/trees`, `…/git/commits` (both parents); `PATCH …/git/refs/heads/{b}` without force — 422 when the branch moved on | none: a commit through the REST API has one parent |
+| A file's commits | `GET /repos/{o}/{r}/commits?sha={ref}&path=`, 100 a page | `GET /projects/{id}/repository/commits?ref_name={ref}&path=`, 100 a page |
+| Open request | `GET /repos/{o}/{r}/pulls?state=open&head={owner}:{b}&base={t}` | `GET /projects/{id}/merge_requests?state=opened&source_branch=&target_branch=` |
+| Open one | `POST /repos/{o}/{r}/pulls` — `title`, `head`, `base`, `body`; the token needs *Pull requests: read and write* | `POST /projects/{id}/merge_requests` — `source_branch`, `target_branch`, `title`, `description` |
 
 GitLab's project `{id}` is the URL-encoded path (`group%2Fsub%2Frepo`). Both
 take the token as `Authorization: Bearer`. A paged listing is read 100 at a
@@ -1507,13 +2203,30 @@ address does not say (GitHub Enterprise, self-managed GitLab), the branch
 asked when the host has none. A path the model is not bound to is read first:
 a file there is replaced only on confirmation, naming its version. Bound: the
 message only, and the commit names the binding's version. When the host
-refuses (the file moved on), the choice is a new branch — from the commit the
+refuses (the file moved on), the choice is — for the bound file, first — *Merge
+with the newer version* (*Merging versions*); a new branch — from the commit the
 model was opened or last saved at, replacing the version it saw, so it cannot
 conflict — overwrite (naming the newer version, on confirmation), or open the
-newer version instead (asking first: what changed here is lost). A commit binds the model {host, provider, API base,
+newer version instead (asking first: what changed here is lost). Before anything
+is asked, a model with conflicts not chosen, or with blank nodes (once a
+session), is saved only on confirmation. A commit binds the model {host, provider, API base,
 repository, branch, path, version, commit} in `localStorage`
 (`la-gram:git-bindings`), emits `model-saved` (the dirty marker clears) and
 reports the commit with its URL.
+
+**Review.** *Open merge request…* (bound models, `git-review.ts`, Req 18.22):
+the token; the default branch, or the branch given; an open request from the
+bound branch into it is named and none opened; changes not saved to Git are
+asked about (the request shows what is committed); a branch whose head is the
+merge base has nothing to merge. The dialog — titled *Open pull request* on
+GitHub, *Open merge request* on GitLab, the hosts' own words — offers a title
+(the branch's last commit of the file) and a description: the file at the merge
+base against the branch's head, by element, as Markdown (`markdownOfDiff`, at
+most 100 concepts), editable (a form's `textarea` field). A save that made a new
+branch offers it at once, into the branch it started from — the default branch
+for *Update from main* on GitLab, whose new branch replaces the old one's
+request. Refused for want of permission, it says which permission; refused as
+one opened meanwhile, it names that one.
 
 **Open.** *Open from Git…* asks for an address (and, when it does not say, the
 host kind and a branch); `?git=<link>` opens one at startup, once. A link to a
@@ -1538,8 +2251,286 @@ nowhere it must not be); *git-open.test* (a file link, a repository's files by
 folder, another branch, a folder, a private repository, a refused token, the
 newer version on a conflict); *modules.test*; *module-boundary.test*;
 *git-module.test* (the module in the mounted UI, the network stubbed: save,
-then open what was saved); *workbench.spec* (Chrome: the menu, the token typed
-unseen, the Open dialog; `?git=off` — no entries, the chunk never fetched).
+then open what was saved; the History tab's Git commits); *workbench.spec*
+(Chrome: the menu, the token typed unseen, the Open dialog; `?git=off` — no
+entries, the chunk never fetched). Review: *git-review.test* (as GitHub and as
+GitLab, a repository in memory: opened, titled and described; one open
+already; unsaved changes; nothing to merge; no permission; offered after a new
+branch, not after a save to the same one); *git-history.test* (commits a page at
+a time, a file at a commit read once, the branch range, a token asked only on
+demand, *Open this version*); *history-panel.test* (Git commits and checkpoints
+together, a commit's changes either way, the branch entry, a failure and *Read
+again*, older commits); *providers.test* (both hosts' history and request
+endpoints, recorded); *git-merge.spec* (Chrome: a save to a new branch, the pull
+request it offers, described by element; the History tab's branch entry).
+
+### Merging versions
+
+Phase 1 of the Git collaboration plan (`.agents/tasks/git-collaboration/tasks.md`).
+`model-manager/model-merge.ts`
+merges two versions of a model made from a common one — the file at the commit
+the model was opened at, the branch's head, the model — three-way, over canonical
+N-Triples (`snapshotOf`), and returns the conflicts as data. It lives outside
+`src/git/` so that the room (Phase 4) and a command-line tool (Phase 3) can use it.
+
+```
+mergeSnapshots(base, ours, theirs, { singleValued?, counts? }) → { merged, conflicts }
+applyChoice(merged, conflict, 'ours' | 'theirs') → merged       // one conflict resolved
+snapshotOfText(text, fileName) → snapshot                         // a file read as opening it reads it
+shaclCountCheck(validator, shapes, context) → CountCheck          // count limits, by the in-app validator
+```
+
+A file is read into one model, every graph flattened, as *Open* reads it, so a
+TriG file's DD-15 graphs are not lost: the merged model is saved like any other,
+and the save partitions it again.
+
+Each changed triple merges in the first unit that applies:
+
+| Unit | What |
+|---|---|
+| A deleted concept | Triples in base, none on one side. A conflict when the other side *added* a triple about it or pointing to it — changed it, related something to it, placed it, filed it; removals agree with a deletion. Kept while open: the deletion is undone, with what went with it (its relationships, nodes, links, routes — by `arch:source`/`target`, `arch-vis:archElement`, `archRelationship`, `view`, `source`, `target`, and the parts a link owns) where those can come back whole |
+| A route | A link's `arch-vis:points` and every cell and point reached from it |
+| Bounds | A subject's four `arch-vis:bounds-*` |
+| A connection | A relationship's types, `arch:source`, `arch:target`, `rdf:reifies`, the triple it reifies, the qualified predicate from its source |
+| Types | A concept's `rdf:type`s |
+| A single value | `rdf-engine/single-valued.ts`: one value, or one per language; the model's `dcterms:modified` takes the later stamp, no conflict |
+| A triple | Kept when either side added it, dropped when either removed it |
+
+A unit changed on one side takes that side's version; changed alike on both,
+that; changed differently, it is a conflict and the merged model holds base's
+version — neither side's change wins unseen, the model stays as valid as base,
+and the result is the same whichever side is "ours". Routes and bounds merge as
+units because their triples only mean something together (two reroutes of one
+line merged triple by triple make a route neither drew); a connection and types
+for the same reason (a retarget changes four triples, a retype several).
+
+Then on the merged model: **two placements** — both sides placed the same
+element (or drew the same relationship) in a view, each with a node of its own;
+an element may be placed in a view more than once (Req 3.14), so the merged
+model keeps both, each with what its side drew at it (its links, their routes,
+the `arch:inView` written with them) — `held` the two together — and the
+conflict offers to keep only one (*Keep only mine*, *Keep only theirs*): two
+people placing the same element at once most likely meant it once — and **count limits** the combination breaks (each side added a value to a
+`sh:maxCount 2` property; each removed a different one of the values a
+`sh:minCount` requires), checked on the nodes both sides changed and reported
+only where neither side alone breaks them.
+
+A conflict — kind `deleted`, `placement`, `value` (connections and types
+included), `bounds`, `route` or `count` — names its subjects, the property and
+language where it has them, the side that deleted, the validator's message, the
+lines of the merged model that stand for it (`held`) and, per side, the lines
+that replace them. For a deleted concept the deleting side's lines take with it
+everything the other side hung on it — its new relationships to it, nodes for it
+and their links — so nothing is left pointing at nothing.
+
+Blank nodes do not match between versions (their labels are not kept), so both
+sides' copies end up in the merged model; la-gram makes none, and a Git save asks
+first for an imported model that has them.
+
+**In the editor** (`src/git/git-merge.ts`, Req 18.18–18.21). The three versions
+are read alike — the model through its own serialization, `snapshotOfText` —
+so a difference of form is never a change.
+
+- *Merge with the newer version*, the first choice when a save of the bound file
+  is refused: base the file at `binding.commit`, theirs at the branch's head.
+  Without conflicts the merged model replaces the model (`MergeSupport.replace`:
+  the difference, as one `rdf.store.edit` step) and is committed naming the
+  head's version, merged again from that one when the branch moved on meanwhile
+  (three tries); everything already there commits nothing and binds to the head.
+  With conflicts it is not committed: the model is bound to the head and the
+  Conflicts tab opens, so the save after choosing commits on top of it.
+- *Update from main…* (bound models): another branch, the default offered first.
+  The model's own branch first, when it moved on; then base the file at the two
+  heads' merge base, theirs at the other head. The binding keeps the other head
+  (`GitBinding.update`) until a commit records it: `commitMerge` on GitHub — the
+  branch's head and the other's as parents, so the merge base moves and the
+  pull request merges cleanly — and on GitLab, whose REST API has no merge
+  commit, a new branch started from the other head (named on asking), the model
+  bound to it, its merge request to open in place of the old one's. Without
+  conflicts the save follows at once (the message asked, `Merge main into …`).
+- The Conflicts tab (`<git-conflicts>`, added with `MountedUi.addBottomTab` — the
+  module's own tab after la-gram's, with a badge — and gone after a commit or
+  another model's opening): a row per conflict, named by `MountedUi.describeConcept`
+  and `propertyName`; each side's version in words (a value, `source → target`,
+  `at x, y · w × h`, the route's bends, the count's values); *Keep mine* /
+  *Take theirs*, *Keep it* / *Delete it* for a deletion. A choice swaps the
+  lines that stand for the conflict for the chosen side's, as one undoable step;
+  it can be changed.
+
+**Measured** (*model-merge-bench.test*): 350 000 triples, a few hundred renames,
+moves and deletions on each side — reading one version from Turtle 0.5–0.6 s,
+merging about 0.5 s; under the plan's 1 s for splitting a model into files. The
+suite runs it on 100 000 (`MERGE_BENCH_TRIPLES` for more): the large one, beside
+the other tests, pushed *questions-bench.test* past its limits.
+
+**Tests.** *model-merge.test* — a fixture per kind (`src/__tests__/fixtures/merge/`,
+each side's additions and removals on one base model): changes that combine;
+a name per language; a retype; a retarget kept whole; a concept deleted against
+a rename, a new relationship, a placement, a folder entry, and deletions that
+agree; bounds; a route; two placements; count limits; TriG read whole; blank
+nodes. *model-merge.property.test* (fast-check, on models la-gram's managers
+build and edit): the result does not depend on which side is ours; a version
+merged with itself or an unchanged base comes back; edits on disjoint halves
+never conflict and are all kept (`MERGE_RUNS` for a longer search).
+*single-valued.test*, *rdf-yjs-binding.test*, *create-app.test* for the rules.
+*git-merge.test* (a repository in memory, its commits with their parents, as
+GitHub and as GitLab): the merge committed to the same branch; again when the
+branch moves on; conflicts listed, then committed after choosing; asked before
+saving with conflicts or blank nodes; *Update from main* as a merge commit and
+as a new branch, with conflicts, after catching up, up to date. *providers.test*:
+the merge base and GitHub's merge commit, recorded. *conflicts-panel.test*,
+*git-module.test* (the tab in the mounted UI). *git-merge.spec* (Chrome, two
+browser contexts, a fake GitHub): the second save merged on the same branch,
+then a conflict chosen in the tab and saved.
+
+### la-gram-git
+
+Req 20; Git collaboration plan, Phase 3. The command-line tool, from la-gram's
+source: `src/cli/` (`main.ts` the commands, `check.ts`, `diff.ts` with the
+comment, `merge.ts` the driver, `init.ts`, `models.ts` what they share,
+`git.ts`), built by webpack's `la-gram-git` configuration into
+`packages/la-gram-git/dist/la-gram-git.js` — an ES module for Node 20, its
+packages left as imports (n3, oxigraph, rdf-validate-shacl: the package's
+dependencies, each with its licence), `import.meta.url` left to Node so that
+`assets/` and `ci/`, copied beside `dist/` with `LICENSE`, are found from where
+it runs. `bin.ts` silences la-gram's logging on the standard output (`diff`
+writes Markdown there; `LA_GRAM_GIT_DEBUG` keeps it) and exits once its output
+is written — the engine's timers would keep Node running.
+
+Each model file is opened in an App of its own (`createApp`, offline, inline
+validation): its declared metamodels from the bundled copies, as File › Open
+does, so the findings are the editor's — whatever other files were opened
+before. "As la-gram writes it" is the file's triples loaded and serialized as
+Save does, with its declared metamodels' prefixes, and nothing more: what
+opening adds (a default view, a layout for unplaced elements, migrations) is
+not formatting, so `check` does not require it and `fix` does not add it. With
+`--base`, the file at the merge base of the branch and `HEAD` is validated too;
+a Violation fails when its key — node, path, constraint, message, and the
+shape when it is named (an inline shape is a blank node whose label changes
+from one reading to the next) — is not among the base's. `diff` reads the files
+with `git show` at the merge base and the head; `--comment` finds the request
+from GitHub Actions' or GitLab CI's environment and updates the comment that
+carries la-gram-git's marker, or adds one. The merge driver merges with
+`mergeSnapshots`, the rules of the metamodels "ours" declares, and writes the
+result as `fix` would.
+
+The CI templates are `ci/github/la-gram-git.yml` and
+`ci/gitlab/la-gram-git.gitlab-ci.yml`: the check against the branch the request
+goes into, then the diff as a comment (`if: always()`; GitLab's in
+`after_script`). Measured: a check of a small model takes about 1 s, most of it
+starting the engine.
+
+`--shapes` reads a folder's `.ttl` files and refuses, before any model is
+checked, one that does not parse or names no graph (`owl:Ontology` or
+`skos:ConceptScheme`, what la-gram's loader asks of a document): otherwise each
+model failed "could not be opened", naming no file. A later loading error is
+given with the file's name too.
+
+The merge driver merges a file la-gram's way only when both sides are la-gram
+models: `.gitattributes` routes files by extension, so ontologies and shapes
+files come to it too, and those — and a side that does not parse — go to Git's
+own text merge (`git merge-file`, labelled ours/base/theirs), as without the
+driver.
+
+**Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
+tag `la-gram-git-v<version>`, and for merge requests and the default branch
+(`workflow:rules`; other tags `never`; other branch pushes match no rule, so no
+duplicate branch pipeline beside a merge request's). Jobs are `interruptible`,
+so a newer push cancels an older pipeline, except what publishes: the `.release`
+jobs run only with `$CI_COMMIT_TAG`, `interruptible: false`, without the cache.
+Stages:
+`test` — typecheck and the unit suite, the three benchmark files left out
+(`--exclude '**/{*-bench,bench-*}.test.ts'`: they time the runner); `package` —
+on a tag, its version against `packages/la-gram-git/package.json`; `build:cli`,
+`npm pack`, the packed file installed globally and run: `--version`, and
+`check` on `packages/la-gram-git/smoke/` (a model as la-gram writes it); then,
+from that packed file (an artifact), on a tag, `npm` and the image. `npm` publishes with
+`--access public`, a pre-release under `next`; it asks for the OIDC tokens npm's
+trusted publishing takes (`NPM_ID_TOKEN`, audience `npm:registry.npmjs.org`;
+`SIGSTORE_ID_TOKEN` for provenance), and writes `NPM_TOKEN` to `.npmrc` as a
+reference npm resolves, only when the variable is set — the first publish,
+before the package exists to configure trusted publishing on. The image is
+built on each platform natively — `image-amd64` on the default runner,
+`image-arm64` on gitlab.com's `saas-linux-small-arm64` (Free tier; its
+Docker-in-Docker service started with `--mtu=1400`, the setting GitLab's
+documentation of its hosted Linux runners gives for Arm64) — and pushed as
+`<version>-<arch>`; `container-image` (not `image`: at the top of the file that
+is GitLab's keyword) then makes each published tag an index of both, with
+`docker buildx imagetools create`. Each build is of
+`packages/la-gram-git/Dockerfile` with Docker-in-Docker: `node:22`'s slim
+image, Git and CA certificates, `safe.directory` `*` (a mounted repository
+belongs to the host's user), the packed file installed globally, no entrypoint
+(a CI job runs its script in the image's shell); the context is the packed file
+alone (`.dockerignore`). It runs `--version` and `check` on the smoke model fed
+on the standard input (the Docker service does not see the job's files) on
+its own platform, before it is pushed; the published tags are the version, its
+major version and `latest`. The webpack copy of
+`LICENSE` is a file (`toType: 'file'`; without it, `LICENSE/LICENSE`).
+Measured by hand: the package job and the test job run clean in `node:22` on a
+copy of the repository's files; the image is 526 MB, and checks and diffs a
+mounted repository as root and as the host's user; both platforms' images built
+(amd64 under emulation), tried, pushed to a local registry and combined with
+`imagetools create`, each tag listing `linux/amd64` and `linux/arm64`.
+
+Docs: `packages/la-gram-git/README.md` (npm's page: every command, exit codes,
+environment; the image — tags and digests, `linux/amd64`, no entrypoint, a mounted
+repository with `--user`, paths and `--shapes` inside the container, the variables
+a `docker run` in CI must pass, copying it into one's own registry, not for the
+merge driver), `ci/README.md` (the templates, shipped in the package; the image as a GitLab
+job's `image:` and a GitHub Actions job's `container:`),
+`packages/la-gram-git/docs/gitaly.md` (the driver on a self-managed GitLab's
+Gitaly: install on every node, absolute paths, the `gitlab.rb` / `gitaly.toml` /
+Helm keys, `.gitattributes`, a test that conflicts as text and merges with the
+driver), and README's *Releasing la-gram-git*.
+
+**Tests.** *cli.test* (real Git repositories in a temporary folder, model files
+la-gram writes: a good change passes; a file not as la-gram writes it, a
+missing reference, a violation the change adds fail — one already at the base
+does not; `fix`; `diff`; the comment's target and its update; the merge driver
+clean and with a conflict; a file that is not a model merged as text; `init`);
+*package.test* (the package declares the packages the tool's source imports,
+at la-gram's versions; what it ships; the pipeline's tag rule against the
+package's version; the packed file's name in the pipeline, the Dockerfile and
+`.dockerignore`; the smoke model passes); the built tool run by hand against a
+repository with real `git merge`s through the driver.
+
+### Comparing versions by element
+
+`model-manager/model-diff.ts` (Phase 2 of the Git collaboration plan). Two
+snapshots compared as a reviewer reads a change: which concepts were added,
+removed or changed, and how — not 400 lines of Turtle. Every line added or
+removed is put under the concept it is about: a concept's own lines under it; a
+relationship's unqualified triple (the one its `rdf:reifies` names) and the
+qualified predicate leading to it from its source under the relationship; a
+diagram's shapes — nodes, links, their route cells, points and label nodes,
+found by `arch-vis:view` and the owning predicates the merge uses — under their
+view; `X arch:inView V` under the view, shown only where no shape placed or
+removed says it already. Each line is read in the version that has it, so a
+deletion is attributed by the version it was deleted from.
+
+A property that takes one value — or one per language — by the same rules as
+the merge and the room (`SingleValued`, the metamodels' included) shows as old →
+new; a changed type too; any other property as values added and removed. A
+relationship's `rdf:reifies` is not shown (its ends say it), nor a concept's
+types and `arch:inModel` when it is added or removed whole. A view's shapes
+are placed, removed, or changed: moved, resized (from the bounds before and
+after), rerouted, reconnected, restyled. Names are read from the versions
+compared (`about`: name and types of every concept and value named), so a
+concept removed is still named. The order: model, elements, relationships,
+views, folders, the rest; by name within each.
+
+`model-diff-text.ts` words it — `Name (en): “Billing” → “Invoicing”`, `placed
+ERP`, `rerouted and reconnected Serving`, a relationship as `Billing → ERP` —
+for the History tab's `<model-diff-view>` and as Markdown for a merge request's
+description; CI's comment (Phase 3) is to use the same. 200 ms on 350 000 triples
+(*model-merge-bench.test*).
+
+**Tests.** *model-diff.test* (a fixture with each kind of change,
+`src/__tests__/fixtures/diff/`: a rename in one language, an element added and
+placed, one deleted, a retarget, moves and resizes, a value added, a folder
+entry; a retype; a metamodel's single-valued property; the Markdown);
+*model-merge.property.test* (on random edits: every line under one concept, no
+shape or cell a concept of its own, the same concepts compared either way).
 
 
 ### Configuration
@@ -1773,9 +2764,9 @@ dialog; the modules' section).
     a position, which nothing it shows uses.
     The converters also give each folder entry a `schema:position`, but that is
     the order the source file lists them in — for an Archi model, the order the
-    concepts were made in, not what Archi's tree shows, which is by name
-    (ArchiSurance's views came out "Phase D" before "Phase A"). So la-gram sorts
-    by name, subfolders first, as Archi does, and ignores the position. The
+    concepts were made in, not an order anybody arranged (ArchiSurance's views
+    came out "Phase D" before "Phase A"). So la-gram sorts by name, subfolders
+    first, and ignores the position. The
     Folders | Types switch is shown for a model without folders too, *Folders*
     greyed out: a switch that appeared only with folders left a user looking
     for it on a model whose export had none, with nothing to say why.

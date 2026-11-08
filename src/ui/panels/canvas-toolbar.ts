@@ -1,7 +1,18 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 import { CANVAS_TOOLS, type CanvasTool } from '../canvas/canvas-tools.js';
+import { FIGURE_CHOICES, type FigureChoice } from '../figure-bar.js';
+
+/**
+ * Emitted when a figure's button is pressed or clicked: the start of a gesture
+ * that draws it on the canvas, as the palette's entries start an element's.
+ */
+export interface ToolbarFigureDetail {
+  kind: FigureChoice['kind'];
+  shapeType?: string;
+  sourceEvent: MouseEvent;
+}
 
 /**
  * Emitted when the user picks a tool.
@@ -34,6 +45,11 @@ export interface ToolbarToolDetail {
  *
  * After the tools, one switch: *Relationship names*, which shows relationships'
  * names on their lines (off by default; the host remembers it). Pressed is on.
+ *
+ * Then *Shapes*, which opens a second row: figures drawn with no model element
+ * behind them — a group, a sticky note, the core-vis shapes. A figure is pressed
+ * and dragged onto the canvas, or clicked and then placed, as a palette entry
+ * is. Closed by default; the host remembers it.
  */
 @customElement('canvas-toolbar')
 export class CanvasToolbar extends LitElement {
@@ -97,6 +113,25 @@ export class CanvasToolbar extends LitElement {
       padding: 0 8px;
       font-size: 12px;
     }
+
+    .figures {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      padding: 0 6px 4px;
+    }
+
+    .figures button {
+      width: 30px;
+      cursor: grab;
+    }
+
+    .figures svg {
+      width: 20px;
+      height: 16px;
+      overflow: visible;
+    }
   `;
 
   /**
@@ -113,6 +148,48 @@ export class CanvasToolbar extends LitElement {
   /** Whether relationships' names are shown on their lines (the switch's state). */
   @property({ type: Boolean, attribute: false })
   relationshipNames = false;
+
+  /** The format painter: off, picking a look, or giving the picked one (the button's state). */
+  @property({ attribute: false })
+  formatPainter: 'off' | 'pick' | 'paint' = 'off';
+
+  /** Whether the canvas draws the notation alone, without the look set in the view (the switch's state). */
+  @property({ type: Boolean, attribute: false })
+  notationOnly = false;
+
+  /** Whether the row of figures is open. */
+  @property({ type: Boolean, attribute: false })
+  figuresOpen = false;
+
+  /** The *Shapes* switch flipped: `figures-open` with `{ open }`. */
+  private _onFiguresClick(): void {
+    this.dispatchEvent(
+      new CustomEvent<{ open: boolean }>('figures-open', { detail: { open: !this.figuresOpen }, bubbles: true, composed: true }),
+    );
+  }
+
+  /** A figure pressed or clicked — the primary button only, as the palette's entries. */
+  private _onFigure(choice: FigureChoice, event: MouseEvent): void {
+    if (event.button !== 0) return;
+    this.dispatchEvent(
+      new CustomEvent<ToolbarFigureDetail>('figure-drag-start', {
+        detail: { kind: choice.kind, ...(choice.shapeType ? { shapeType: choice.shapeType } : {}), sourceEvent: event },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /** The "Notation only" switch flipped: `notation-only` with `{ on }`. */
+  private _onNotationOnlyClick(): void {
+    this.dispatchEvent(
+      new CustomEvent<{ on: boolean }>('notation-only', {
+        detail: { on: !this.notationOnly },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
   /** The "Relationship names" switch flipped: `relationship-names` with `{ shown }`. */
   private _onNamesClick(): void {
@@ -152,6 +229,21 @@ export class CanvasToolbar extends LitElement {
             </button>
           `,
         )}
+        <button
+          type="button"
+          data-action="format-painter"
+          title=${this.formatPainter === 'off'
+            ? 'Format painter — click what to copy the look of, then what to give it to; Esc to stop'
+            : this.formatPainter === 'pick'
+              ? 'Format painter: click what to copy the look of (Esc or here to stop)'
+              : 'Format painter: click what to give the look to (Esc or here to stop)'}
+          aria-label="Format painter"
+          aria-pressed=${this.formatPainter === 'off' ? 'false' : 'true'}
+          data-state=${this.formatPainter}
+          @click=${() => this.dispatchEvent(new CustomEvent('format-painter', { bubbles: true, composed: true }))}
+        >
+          \u{1F58C}
+        </button>
         <span class="separator" aria-hidden="true"></span>
         <button
           type="button"
@@ -163,9 +255,79 @@ export class CanvasToolbar extends LitElement {
         >
           Relationship names
         </button>
+        <button
+          type="button"
+          class="switch"
+          data-switch="notation-only"
+          title="Draw every element and relationship as its notation does, leaving out the colours, fonts and lines set on it in the view"
+          aria-pressed=${this.notationOnly ? 'true' : 'false'}
+          @click=${() => this._onNotationOnlyClick()}
+        >
+          Notation only
+        </button>
+        <button
+          type="button"
+          class="switch"
+          data-switch="figures"
+          title="Groups, notes and shapes: drawing with no model element behind it"
+          aria-expanded=${this.figuresOpen ? 'true' : 'false'}
+          @click=${() => this._onFiguresClick()}
+        >
+          Shapes ${this.figuresOpen ? '▾' : '▸'}
+        </button>
       </div>
+      ${this.figuresOpen
+        ? html`<div class="figures" role="toolbar" aria-label="Shapes and notes">
+            ${FIGURE_CHOICES.map(
+              (choice) => html`
+                <button
+                  type="button"
+                  title=${`${choice.label} — drag onto the diagram, or click and place it`}
+                  aria-label=${choice.label}
+                  data-figure=${choice.shapeType ? choice.shapeType.split('#').pop()! : choice.kind}
+                  @mousedown=${(event: MouseEvent) => this._onFigure(choice, event)}
+                  @click=${(event: MouseEvent) => this._onFigure(choice, event)}
+                >
+                  ${figureGlyph(choice)}
+                </button>
+              `,
+            )}
+          </div>`
+        : nothing}
     `;
   }
+}
+
+/** A small drawing of a figure, for its button. */
+function figureGlyph(choice: FigureChoice) {
+  const stroke = 'currentColor';
+  const body = (() => {
+    if (choice.kind === 'group') {
+      return svg`<rect x="1" y="1" width="9" height="4" fill="none" stroke=${stroke} /><rect x="1" y="5" width="18" height="10" fill="none" stroke=${stroke} />`;
+    }
+    if (choice.kind === 'note') {
+      return svg`<path d="M1,1 H14 L19,6 V15 H1 Z" fill="#fff7b3" stroke=${stroke} /><path d="M14,1 V6 H19" fill="none" stroke=${stroke} />`;
+    }
+    switch (choice.shapeType?.split('#').pop()) {
+      case 'RoundedRectangle':
+        return svg`<rect x="1" y="2" width="18" height="12" rx="4" fill="none" stroke=${stroke} />`;
+      case 'Ellipse':
+        return svg`<ellipse cx="10" cy="8" rx="9" ry="6" fill="none" stroke=${stroke} />`;
+      case 'Circle':
+        return svg`<circle cx="10" cy="8" r="7" fill="none" stroke=${stroke} />`;
+      case 'Diamond':
+        return svg`<path d="M10,1 L19,8 L10,15 L1,8 Z" fill="none" stroke=${stroke} />`;
+      case 'Hexagon':
+        return svg`<path d="M5,1 H15 L19,8 L15,15 H5 L1,8 Z" fill="none" stroke=${stroke} />`;
+      case 'Octagon':
+        return svg`<path d="M6,1 H14 L19,5 V11 L14,15 H6 L1,11 V5 Z" fill="none" stroke=${stroke} />`;
+      case 'Parallelogram':
+        return svg`<path d="M5,1 H19 L15,15 H1 Z" fill="none" stroke=${stroke} />`;
+      default:
+        return svg`<rect x="1" y="2" width="18" height="12" fill="none" stroke=${stroke} />`;
+    }
+  })();
+  return html`<svg viewBox="0 0 20 16" aria-hidden="true">${body}</svg>`;
 }
 
 declare global {

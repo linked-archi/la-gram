@@ -1,0 +1,20 @@
+# A node's bounds merge as a whole. Ours moves Billing's node, theirs widens it:
+# merged triple by triple that would be a box neither made, so it is a conflict
+# and the merged model keeps base's bounds. Portal's node, moved by theirs only,
+# merges.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-added>     { m:node-billing vis:bounds-x "40"^^xsd:double . }
+<urn:ours-removed>   { m:node-billing vis:bounds-x "0"^^xsd:double . }
+<urn:theirs-added>   { m:node-billing vis:bounds-w "160"^^xsd:double . m:node-portal vis:bounds-y "80"^^xsd:double . }
+<urn:theirs-removed> { m:node-billing vis:bounds-w "120"^^xsd:double . m:node-portal vis:bounds-y "0"^^xsd:double . }

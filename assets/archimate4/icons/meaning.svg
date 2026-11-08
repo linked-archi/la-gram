@@ -1,6 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="130" height="60">
 
-    <path d='M 28.6 9.6 Q 46.8 -7.199999999999999 74.1 9.6 Q 113.1 -2.4 119.60000000000001 22.2 Q 145.60000000000002 43.8 100.10000000000001 52.2 Q 67.60000000000001 69.0 35.1 47.400000000000006 Q -5.2 52.2 7.8 30.6 Q -10.4 9.6 28.6 9.6'
-          stroke-width='1.0' fill='#CBCBFF' stroke='rgb(51, 51, 51)' look='allInOne'/>
+    <polygon stroke-width='1.0' fill='#CBCBFF' stroke='rgb(51, 51, 51)' look='allInOne'
+             points='5.0,0.0 125.0,0.0 130.0,5.0 130.0,55.0 125.0,60.0 5.0,60.0 0.0,55.0 0.0,5.0'/>
+    <g transform='translate(109.0,4.0)'>
+        <svg xmlns="http://www.w3.org/2000/svg" height="16.0" version="1.1" viewBox="0 0 160 160" width="16.0">
+            <path d="M45,118C22,118 12,100 24,86C14,70 30,52 50,58C58,38 92,36 102,54C120,44 144,58 136,78C152,86 146,118 120,118Z" fill="none" stroke="#333333" stroke-miterlimit="10" stroke-width="10"/>
+        </svg>
+    </g>
 
 </svg>

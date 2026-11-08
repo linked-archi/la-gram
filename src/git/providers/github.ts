@@ -2,7 +2,8 @@
  * GitHub's REST API (v3): github.com through `https://api.github.com`, GitHub
  * Enterprise Server through `https://HOST/api/v3`. A token is a fine-grained
  * personal access token with *Contents: read and write* on the repository
- * (read, to open only), sent as `Authorization: Bearer`.
+ * (read, to open only) — and *Pull requests: read and write* to open pull
+ * requests — sent as `Authorization: Bearer`.
  *
  * | | |
  * |---|---|
@@ -13,6 +14,11 @@
  * | commit | `PUT /repos/{repo}/contents/{path}` — `message`, base64 `content`, `branch`, `sha` = the version replaced; 409 when the file moved on |
  * | files | `GET /repos/{repo}/git/trees/{ref}?recursive=1` — the whole tree in one answer, `truncated` past GitHub's limit |
  * | branches | `GET /repos/{repo}/branches`, paged |
+ * | merge base | `GET /repos/{repo}/compare/{a}...{b}` → `merge_base_commit.sha` |
+ * | merge commit | the Git database API: the head commit's tree, `POST …/git/blobs`, `POST …/git/trees` (on that tree), `POST …/git/commits` with both parents, then `PATCH …/git/refs/heads/{branch}` without force — 422 when the branch moved on |
+ * | a file's commits | `GET /repos/{repo}/commits?sha={ref}&path={path}`, a page of 100 at a time |
+ * | the open pull request | `GET /repos/{repo}/pulls?state=open&head={owner}:{branch}&base={target}` |
+ * | open a pull request | `POST /repos/{repo}/pulls` — `title`, `head`, `base`, `body`; the token needs *Pull requests: read and write* |
  */
 import { GitError } from '../errors.js';
 import {
@@ -22,9 +28,30 @@ import {
   toBase64,
   type CommitResult,
   type FileChange,
+  type MergeCommitChange,
   type FileList,
   type GitFile,
+  type CommitPage,
+  type MergeRequest,
+  type MergeRequestChange,
+  COMMITS_PER_PAGE,
 } from './provider.js';
+
+interface CommitEntry {
+  sha: string;
+  html_url: string;
+  parents?: Array<{ sha: string }>;
+  commit: { message: string; author?: { name?: string; date?: string }; committer?: { date?: string } };
+  author?: { login?: string } | null;
+}
+
+interface PullRequest {
+  number: number;
+  title: string;
+  html_url: string;
+  head: { ref: string };
+  base: { ref: string };
+}
 
 interface ContentsFile {
   type: string;
@@ -107,4 +134,73 @@ export class GitHubProvider extends RestProvider {
     const { items } = await this.paged<{ name: string }>(`/repos/${this.repo}/branches`, `the repository ${this.link.repository}`);
     return items.map((b) => b.name);
   }
+
+  async mergeBase(a: string, b: string): Promise<string> {
+    const compared = await this.request<{ merge_base_commit: { sha: string } }>(
+      'GET',
+      `/repos/${this.repo}/compare/${encodeURIComponent(a)}...${encodeURIComponent(b)}`,
+      `the commits ${a.slice(0, 8)} and ${b.slice(0, 8)}`,
+    );
+    return compared!.merge_base_commit.sha;
+  }
+
+  async commitMerge(change: MergeCommitChange): Promise<CommitResult> {
+    const git = `/repos/${this.repo}/git`;
+    const head = await this.request<{ tree: { sha: string } }>('GET', `${git}/commits/${encodeURIComponent(change.head)}`, `the commit ${change.head.slice(0, 8)}`);
+    const blob = await this.request<{ sha: string }>('POST', `${git}/blobs`, change.path, {
+      body: { content: toBase64(change.text), encoding: 'base64' },
+    });
+    const tree = await this.request<{ sha: string }>('POST', `${git}/trees`, change.path, {
+      body: { base_tree: head!.tree.sha, tree: [{ path: change.path, mode: '100644', type: 'blob', sha: blob!.sha }] },
+    });
+    const commit = await this.request<{ sha: string; html_url: string }>('POST', `${git}/commits`, change.path, {
+      body: { message: change.message, tree: tree!.sha, parents: [change.head, change.mergeOf] },
+    });
+    // Without force: refused (422, not a fast-forward) when the branch moved on meanwhile.
+    await this.request('PATCH', `${git}/refs/heads/${encodePath(change.branch)}`, change.path, { body: { sha: commit!.sha, force: false } });
+    return { version: blob!.sha, commit: commit!.sha, branch: change.branch, webUrl: commit!.html_url };
+  }
+
+  async fileCommits(ref: string, path: string, page = 1): Promise<CommitPage> {
+    const entries =
+      (await this.request<CommitEntry[]>(
+        'GET',
+        `/repos/${this.repo}/commits?sha=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}&per_page=${COMMITS_PER_PAGE}&page=${page}`,
+        `the history of ${path}`,
+      )) ?? [];
+    return {
+      commits: entries.map((e) => ({
+        commit: e.sha,
+        parents: (e.parents ?? []).map((p) => p.sha),
+        author: e.commit.author?.name || e.author?.login || '',
+        date: e.commit.author?.date ?? e.commit.committer?.date ?? '',
+        message: e.commit.message,
+        webUrl: e.html_url,
+      })),
+      more: entries.length === COMMITS_PER_PAGE,
+    };
+  }
+
+  async findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined> {
+    const owner = this.link.repository.split('/')[0] ?? '';
+    const open =
+      (await this.request<PullRequest[]>(
+        'GET',
+        `/repos/${this.repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${source}`)}&base=${encodeURIComponent(target)}`,
+        `the pull requests from ${source}`,
+      )) ?? [];
+    const found = open.find((p) => p.head.ref === source && p.base.ref === target);
+    return found ? pullRequest(found) : undefined;
+  }
+
+  async openMergeRequest(change: MergeRequestChange): Promise<MergeRequest> {
+    const opened = await this.request<PullRequest>('POST', `/repos/${this.repo}/pulls`, `a pull request from ${change.source} into ${change.target}`, {
+      body: { title: change.title, head: change.source, base: change.target, body: change.description },
+    });
+    return pullRequest(opened!);
+  }
+}
+
+function pullRequest(p: PullRequest): MergeRequest {
+  return { number: p.number, title: p.title, webUrl: p.html_url, source: p.head.ref, target: p.base.ref };
 }

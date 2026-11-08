@@ -18,6 +18,8 @@ export type ModelEventType =
   | 'validation-updated'
   /** The canvas switched to another view (`{ viewIri }`). */
   | 'view-opened'
+  /** The format painter started, picked a look, or stopped (`{ state: 'pick' | 'paint' | 'off' }`). */
+  | 'format-painter-changed'
   /** A view was created, renamed, re-pointed or deleted (`{ viewIri? }`). */
   | 'views-changed'
   /**

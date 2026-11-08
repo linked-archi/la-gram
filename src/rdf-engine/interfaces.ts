@@ -110,6 +110,12 @@ export interface ValidationResult {
    * of a ValidationResult knows it.
    */
   sourceConstraintComponent?: NamedNode;
+  /**
+   * When the source shape is written inline in another (a blank node — a
+   * property shape, a member of an `sh:or` list), the named shape it is
+   * written in: what a finding can point to.
+   */
+  withinShape?: NamedNode;
 }
 
 /** Full SHACL validation report. */

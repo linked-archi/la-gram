@@ -1,0 +1,102 @@
+@prefix arch: <https://meta.linked.archi/core#> .
+@prefix am: <https://meta.linked.archi/archimate3/onto#> .
+@prefix amvp: <https://meta.linked.archi/archimate3/viewpoints#> .
+@prefix arch-vis: <https://meta.linked.archi/core-vis#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix schema: <https://schema.org/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://example.org/la/model/figures/graph/model> {
+  <https://example.org/la/model/figures> a arch:Model;
+    arch:modelConformsToMetamodel <https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2>;
+    skos:prefLabel "Figures"@en;
+    skos:notation "figures" .
+}
+
+<https://example.org/la/model/figures/graph/provenance> {
+  <https://example.org/la/provenance/run/8d82375b> a prov:Activity;
+    prov:wasAssociatedWith <https://example.org/la/provenance/agent/ac1d4115>;
+    prov:used <https://example.org/la/provenance/source/figures-xml> .
+  
+  <https://example.org/la/provenance/agent/ac1d4115> a prov:SoftwareAgent, schema:SoftwareApplication;
+    schema:name "archimate2linkedarchi" .
+  
+  <https://example.org/la/provenance/source/figures-xml> a prov:Entity;
+    schema:name "figures.xml" .
+  
+  <https://example.org/la/model/figures> prov:wasGeneratedBy <https://example.org/la/provenance/run/8d82375b>;
+    prov:wasDerivedFrom <https://example.org/la/provenance/source/figures-xml> .
+  
+  <https://example.org/la/model/figures/graph/semantic> a prov:Bundle;
+    prov:wasGeneratedBy <https://example.org/la/provenance/run/8d82375b>;
+    prov:wasDerivedFrom <https://example.org/la/provenance/source/figures-xml> .
+  
+  <https://example.org/la/model/figures/graph/views> a prov:Bundle;
+    prov:wasGeneratedBy <https://example.org/la/provenance/run/8d82375b>;
+    prov:wasDerivedFrom <https://example.org/la/provenance/source/figures-xml> .
+  
+  <https://example.org/la/model/figures/graph/model> a prov:Bundle;
+    prov:wasGeneratedBy <https://example.org/la/provenance/run/8d82375b> .
+}
+
+<https://example.org/la/model/figures/graph/semantic> {
+  <https://example.org/la/model/figures/element/id-web> a arch:Element, arch:ModelConcept,
+      am:ApplicationComponent;
+    arch:inModel <https://example.org/la/model/figures>;
+    skos:notation "id-web";
+    skos:prefLabel "Web Shop"@en;
+    dcterms:isPartOf <https://example.org/la/model/figures>;
+    arch:inView <https://example.org/la/model/figures/view/id-v1> .
+  
+  <https://example.org/la/model/figures/view/id-v1> a arch:View, arch:ModelConcept,
+      arch:Diagram;
+    arch:inModel <https://example.org/la/model/figures>;
+    skos:notation "id-v1";
+    skos:prefLabel "Front end"@en;
+    dcterms:isPartOf <https://example.org/la/model/figures> .
+}
+
+<https://example.org/la/model/figures/graph/views> {
+  <https://example.org/la/model/figures/view/id-v1/node/n-group> a arch-vis:ContainerNode;
+    skos:notation "n-group";
+    arch-vis:view <https://example.org/la/model/figures/view/id-v1>;
+    skos:prefLabel "Customer facing"@en;
+    arch-vis:bounds-x 1.0E1;
+    arch-vis:bounds-y 1.0E1;
+    arch-vis:bounds-w 4.0E2;
+    arch-vis:bounds-h 3.0E2 .
+  
+  <https://example.org/la/model/figures/view/id-v1/node/n-web> a arch-vis:ArchNode;
+    skos:notation "n-web";
+    arch-vis:view <https://example.org/la/model/figures/view/id-v1>;
+    arch-vis:archElement <https://example.org/la/model/figures/element/id-web>;
+    arch-vis:bounds-x 4.0E1;
+    arch-vis:bounds-y 6.0E1;
+    arch-vis:bounds-w 1.2E2;
+    arch-vis:bounds-h 5.5E1;
+    arch-vis:inNode <https://example.org/la/model/figures/view/id-v1/node/n-group> .
+  
+  <https://example.org/la/model/figures/view/id-v1/node/n-note> a arch-vis:LabelNode;
+    skos:notation "n-note";
+    arch-vis:view <https://example.org/la/model/figures/view/id-v1>;
+    skos:prefLabel "Remember the SLA"@en;
+    arch-vis:bounds-x 5.0E2;
+    arch-vis:bounds-y 1.0E1;
+    arch-vis:bounds-w 1.85E2;
+    arch-vis:bounds-h 8.0E1;
+    arch-vis:style _:10593c407eac1436eb9594573e70d0d3a0 .
+  
+  _:10593c407eac1436eb9594573e70d0d3a0 a arch-vis:Style;
+    arch-vis:fillColor "rgba(255,214,224,255)" .
+  
+  <https://example.org/la/model/figures/view/id-v1/connection/c-line> a arch-vis:Link;
+    skos:notation "c-line";
+    arch-vis:view <https://example.org/la/model/figures/view/id-v1>;
+    arch-vis:source <https://example.org/la/model/figures/view/id-v1/node/n-note>;
+    arch-vis:target <https://example.org/la/model/figures/view/id-v1/node/n-web> .
+}

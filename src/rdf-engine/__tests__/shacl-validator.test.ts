@@ -7,6 +7,7 @@ import {
   RdfShaclValidator,
   buildReadableMessage,
   deepestDetailMessage,
+  enclosingShape,
 } from '../shacl-validator.js';
 import { N3TtlParser } from '../ttl-parser.js';
 
@@ -442,6 +443,40 @@ describe('RdfShaclValidator — owl:imports', () => {
 // Message synthesis
 // ---------------------------------------------------------------------------
 
+describe('the named shape an inline shape is written in', () => {
+  const validator = new RdfShaclValidator();
+
+  it('is found up through a property shape and the list of an sh:or', () => {
+    const shapes = parseTtl(`
+      @prefix sh: <${SH}> .
+      @prefix ex: <${EX}> .
+      ex:PersonShape a sh:NodeShape ;
+        sh:targetClass ex:Person ;
+        sh:property [ sh:path ex:name ; sh:minCount 1 ] ;
+        sh:property [ sh:path ex:age ; sh:or ( [ sh:datatype <${XSD}integer> ] [ sh:datatype <${XSD}decimal> ] ) ] .
+    `);
+    const data = parseTtl(`
+      @prefix ex: <${EX}> .
+      ex:p a ex:Person ; ex:age "old" .
+    `);
+    const report = validator.validate(data, shapes);
+    expect(report.results).toHaveLength(2);
+    for (const r of report.results) expect(r.withinShape?.value).toBe(`${EX}PersonShape`);
+  });
+
+  it('is not given for a named shape, nor for one written in nothing named', () => {
+    const store = new N3Store();
+    const inline = DataFactory.blankNode('alone');
+    store.addQuad(inline, namedNode(`${SH}path`), namedNode(`${EX}name`));
+    expect(enclosingShape(store, inline)).toBeUndefined();
+    const shapes = buildShapesGraph({ targetClass: `${EX}Person`, path: `${EX}name`, minCount: 1 });
+    const report = validator.validate([quad(namedNode(`${EX}p`), namedNode(`${RDF}type`), namedNode(`${EX}Person`))], shapes);
+    expect(report.results).toHaveLength(1);
+    expect(report.results[0].sourceShape.value).toBe(`${EX}TestPropertyShape`);
+    expect(report.results[0].withinShape).toBeUndefined();
+  });
+});
+
 describe('buildReadableMessage', () => {
   /** Data graph giving the focus node a label, so messages read naturally. */
   function labelledData(): N3Store {
@@ -730,6 +765,8 @@ describe('real archimate4-element-shapes.ttl', () => {
     );
     // The shape authors supplied sh:message, so that is what surfaces.
     expect(report.results[0].message).toContain('skos:prefLabel');
+    // The property shape is written inline; the finding points to the shape it is written in.
+    expect(report.results[0].withinShape?.value).toBe('https://meta.linked.archi/archimate4/element-shapes#ArchiMateElementShape');
   });
 
   it('rejects an untagged (non-langString) label', () => {

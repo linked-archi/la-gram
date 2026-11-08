@@ -26,7 +26,11 @@
 as executable constraints. Adapted from 3.2 principle shapes for ArchiMate 4.0
 domain-based structure.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
-    dcterms:modified              "2026-10-11"^^xsd:date ;
+    skos:historyNote              '''2026-11-06: OrphanedElementShape written with MINUS rather than
+FILTER NOT EXISTS — the same results, without testing every element against every other one; and
+targeted at ArchiMate 4.0's elements and junctions rather than arch:Element, so that it judges no other
+notation's elements and, with ArchiMate 3.2 loaded too, does not report an element twice.'''@en ;
+    dcterms:modified              "2026-11-06"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/archimate4/principle-shapes/4.0#> ;
@@ -682,7 +686,22 @@ domain-based structure.'''@en ;
 
 :OrphanedElementShape
     a              sh:NodeShape ;
-    sh:targetClass arch:Element ;
+    # ArchiMate 4.0's elements only — the roots am4elsh:ArchiMateElementShape targets, and
+    # the junctions — not arch:Element: in a graph holding other notations' models, or
+    # ArchiMate 3.2's beside 4.0's, this rule would judge their elements too, and an
+    # element would be reported once for each ArchiMate version loaded.
+    sh:targetClass am4:BusinessDomainElement ,
+                   am4:ApplicationDomainElement ,
+                   am4:TechnologyDomainElement ,
+                   am4:ImplementationAndMigrationDomainElement ,
+                   am4:CommonDomainElement ,
+                   am4:StrategyElement ,
+                   am4:MotivationElement ,
+                   am4:BehaviorElement ,
+                   am4:StructureElement ,
+                   am4:CompositeElement ,
+                   am4:AndJunction ,
+                   am4:OrJunction ;
     sh:severity    sh:Info ;
     skos:prefLabel "Orphaned Element"@en ;
     skos:definition
@@ -696,11 +715,10 @@ domain-based structure.'''@en ;
             SELECT $this
             WHERE {
                 $this a/rdfs:subClassOf* arch:Element .
-                FILTER NOT EXISTS {
-                    { $this ?p ?other . ?other a/rdfs:subClassOf* arch:Element . }
-                    UNION
-                    { ?other ?p $this . ?other a/rdfs:subClassOf* arch:Element . }
-                }
+                # MINUS, not FILTER NOT EXISTS: the same results, without testing every
+                # element against every other one — which grows with the square of the model.
+                MINUS { $this ?p ?other . ?other a ?otherType . ?otherType rdfs:subClassOf* arch:Element . }
+                MINUS { ?other ?p $this . ?other a ?otherType . ?otherType rdfs:subClassOf* arch:Element . }
             }
         """ ;
     ] ;

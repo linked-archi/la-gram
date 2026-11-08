@@ -9,6 +9,8 @@ import { OxigraphViewManager } from '../../model-manager/view-manager.js';
 import { modelQuads } from '../../model-manager/model-queries.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { RdfYjsBinding, keysToQuads, TRIPLES_MAP } from '../rdf-yjs-binding.js';
+import { SingleValued, type QuadSource } from '../../rdf-engine/single-valued.js';
+import { Parser, Store } from 'n3';
 
 const nn = (v: string) => DataFactory.namedNode(v) as unknown as NamedNode;
 const MODEL = 'urn:la-gram:model/test';
@@ -28,11 +30,14 @@ function linkedDocs(): [Y.Doc, Y.Doc] {
 }
 
 /** A client: store + managers + binding. */
-function client(doc: Y.Doc) {
+function client(doc: Y.Doc, singleValued?: SingleValued) {
   const base = new OxigraphRdfStore();
   const store = new ObservableRdfStore(base);
   const remoteEvents: number[] = [];
-  const binding = new RdfYjsBinding(store, doc, { onRemoteChange: (c) => remoteEvents.push(c.added.length + c.removed.length) });
+  const binding = new RdfYjsBinding(store, doc, {
+    onRemoteChange: (c) => remoteEvents.push(c.added.length + c.removed.length),
+    ...(singleValued ? { singleValued: () => singleValued } : {}),
+  });
   return {
     base,
     store,
@@ -164,5 +169,67 @@ describe('RdfYjsBinding', () => {
     expect(boundsX(b)).toHaveLength(1);
     expect(a.keys()).toEqual(b.keys());
     expect(da.getMap(TRIPLES_MAP).size).toBe(a.keys().length);
+  });
+
+  describe('with the metamodels’ single values', () => {
+    const EX = 'https://example.org/vocab#';
+    const rules = SingleValued.from(
+      new Store(
+        new Parser().parse(`
+          @prefix ex: <${EX}> . @prefix sh: <http://www.w3.org/ns/shacl#> . @prefix owl: <http://www.w3.org/2002/07/owl#> .
+          ex:colour a owl:FunctionalProperty .
+          ex:ElementShape a sh:NodeShape ; sh:targetClass ex:Element ; sh:property [ sh:path ex:owner ; sh:maxCount 1 ] .`),
+      ) as unknown as QuadSource,
+    );
+
+    /** Both clients set `values` on `subject` while offline, then reconnect. */
+    function concurrently(subject: string, typeIri: string, predicate: string, values: [string, string]) {
+      const [da, db] = [new Y.Doc(), new Y.Doc()];
+      const a = client(da, rules);
+      const b = client(db, rules);
+      cleanups.push(() => {
+        a.binding.stop();
+        b.binding.stop();
+        a.base.dispose();
+        b.base.dispose();
+      });
+      const { quad, namedNode, literal } = DataFactory;
+      a.binding.start();
+      a.store.addQuads([quad(namedNode(subject), namedNode(NAMESPACES.rdf + 'type'), namedNode(typeIri)) as never]);
+      Y.applyUpdate(db, Y.encodeStateAsUpdate(da));
+      b.binding.start();
+      a.store.addQuads([quad(namedNode(subject), namedNode(predicate), literal(values[0])) as never]);
+      b.store.addQuads([quad(namedNode(subject), namedNode(predicate), literal(values[1])) as never]);
+      for (let i = 0; i < 2; i++) {
+        Y.applyUpdate(db, Y.encodeStateAsUpdate(da, Y.encodeStateVector(db)));
+        Y.applyUpdate(da, Y.encodeStateAsUpdate(db, Y.encodeStateVector(da)));
+      }
+      const values_ = (c: typeof a) => c.store.getQuads(nn(subject), nn(predicate)).map((q) => q.object.value).sort();
+      return { a: values_(a), b: values_(b) };
+    }
+
+    it('settle the model’s dcterms:modified to the later stamp', () => {
+      const { a, b } = concurrently('urn:m', 'https://meta.linked.archi/core#Model', 'http://purl.org/dc/terms/modified', [
+        '2026-11-05T10:15:00.000Z',
+        '2026-11-05T14:30:00.000Z',
+      ]);
+      expect(a).toEqual(['2026-11-05T14:30:00.000Z']);
+      expect(b).toEqual(a);
+    });
+
+    it('settle a functional property to one value on both clients', () => {
+      const { a, b } = concurrently('urn:x', `${EX}Team`, `${EX}colour`, ['red', 'blue']);
+      expect(a).toHaveLength(1);
+      expect(b).toEqual(a);
+    });
+
+    it('settle a property capped for a class on its instances, and leave it alone on another class', () => {
+      const element = concurrently('urn:e', `${EX}Element`, `${EX}owner`, ['ann', 'bob']);
+      expect(element.a).toHaveLength(1);
+      expect(element.b).toEqual(element.a);
+      const team = concurrently('urn:t', `${EX}Team`, `${EX}owner`, ['ann', 'bob']);
+      expect(team.a).toEqual(['ann', 'bob']);
+      expect(team.b).toEqual(['ann', 'bob']);
+    });
   });
 });

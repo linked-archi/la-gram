@@ -53,7 +53,16 @@ describe('readTypeGuide on the ArchiMate 4.0 metamodel', () => {
   it('gives a relationship its unqualified form, and a viewpoint what it shows and for whom', () => {
     const serving = readTypeGuide(store, AM4 + 'Serving')!;
     expect(serving.definition).toMatch(/^A serving relationship represents/);
-    expect(serving.facts).toEqual([{ label: 'Unqualified form', values: [{ iri: AM4 + 'serves', label: 'Serves' }] }]);
+    // Its typical ends are its predicate's — arch:domainIncludes goes on properties only — read through its unqualified form.
+    const ends = [
+      { iri: AM4 + 'ActiveStructureElement', label: 'Active Structure Element' },
+      { iri: AM4 + 'BehaviorElement', label: 'Behavior Element' },
+    ];
+    expect(serving.facts).toEqual([
+      { label: 'Typically from', values: ends },
+      { label: 'Typically to', values: ends },
+      { label: 'Unqualified form', values: [{ iri: AM4 + 'serves', label: 'Serves' }] },
+    ]);
 
     const organization = readTypeGuide(store, VP + 'OrganizationViewpoint')!;
     expect(organization.label).toBe('Organization Viewpoint');

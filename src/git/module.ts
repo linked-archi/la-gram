@@ -3,8 +3,10 @@
  *
  * Imported only when it is on (`src/modules.ts`), into a chunk of its own; a
  * build with `LA_GRAM_GIT=off` leaves the chunk out. Started, it adds its
- * entries to the File menu and its section to File › Settings…; stopped, it
- * takes both away and forgets the session's tokens.
+ * entries to the File menu, its section to File › Settings…, the bound file's
+ * commits to the History tab (`git-history.ts`) — and, when a merge leaves
+ * conflicts, its Conflicts tab (`merge-support.ts`); stopped, it takes them
+ * away and forgets the session's tokens.
  */
 import type { App } from '../app.js';
 import type { MountedUi } from '../ui/mount-ui.js';
@@ -15,6 +17,11 @@ import { DesktopTokenStore, WebTokenStore, type TokenStore } from './credentials
 import { GitError, setDesktop } from './errors.js';
 import type { GitConfig } from '../config.js';
 import { saveToGit, type GitSaveContext } from './git-save.js';
+import { updateFromBranch } from './git-merge.js';
+import { openMergeRequest } from './git-review.js';
+import { gitHistorySource, historyKey } from './git-history.js';
+import type { HistoryGitSource } from '../ui/panels/history-panel.js';
+import { startMerging } from './merge-support.js';
 import { openFromGit, reopenFromGit, type GitOpenContext } from './git-open.js';
 import { hostNotAllowed, type RepositoryLink } from './link.js';
 import { HostKinds } from './host-kinds.js';
@@ -89,7 +96,12 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     },
   };
 
+  const merging = startMerging(app, ui);
   const context: GitSaveContext = {
+    merge: merging.support,
+    isDirty: () => app.isDirty(),
+    words: { typeName: (iri) => ui.typeName(iri), propertyName: (p) => ui.propertyName(p) },
+    review: (target) => openMergeRequest(context, target),
     reopen: (link, branch, path) => reopenFromGit(openContext, link, branch, path),
     modelIri: () => app.session.modelIri,
     modelLabel: () => app.session.modelLabel() || 'model',
@@ -121,14 +133,39 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
           ? { id: 'save', section: 'save' as const, label: 'Save to Git', hint: `${binding.repository} · ${binding.branch}` }
           : { id: 'save', section: 'save' as const, label: 'Save to Git…', hint: 'GitHub, GitLab' },
         ...(binding ? [{ id: 'save-as', section: 'save' as const, label: 'Save to Git as…', hint: 'another branch or file' }] : []),
+        ...(binding ? [{ id: 'update', section: 'save' as const, label: 'Update from main…', hint: `merge another branch into ${binding.branch}` }] : []),
+        ...(binding
+          ? [{ id: 'review', section: 'save' as const, label: 'Open merge request…', hint: `${binding.provider === 'github' ? 'a pull request ' : ''}from ${binding.branch}` }]
+          : []),
       ];
     },
     async (id) => {
       if (id === 'open') await openFromGit(openContext);
       else if (id === 'save') await saveToGit(context);
       else if (id === 'save-as') await saveToGit(context, true);
+      else if (id === 'update') await updateFromBranch(context);
+      else if (id === 'review') await openMergeRequest(context);
     },
   );
+
+  // The History tab: the bound file's commits, one source per file and commit bound.
+  let history: { key: string; source: HistoryGitSource } | undefined;
+  const removeHistory = ui.setGitHistory((modelIri) => {
+    const binding = bindings.get(modelIri);
+    if (!binding) return undefined;
+    const key = historyKey(binding);
+    if (history?.key !== key) {
+      history = {
+        key,
+        source: gitHistorySource(openContext, binding, {
+          replace: (snapshot) => merging.support.replace(snapshot),
+          clearConflicts: () => merging.support.clear(),
+          room: () => app.collaborationRoom,
+        }),
+      };
+    }
+    return history.source;
+  });
 
   if (options.open) await openFromGit(openContext, options.open);
 
@@ -138,6 +175,8 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     stop() {
       removeMenu();
       removeSettings();
+      removeHistory();
+      merging.stop();
       tokens.clearSession();
     },
   };

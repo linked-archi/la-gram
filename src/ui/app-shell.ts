@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
 
 /**
- * Main application shell providing the layout for the RDF Architecture Modeler.
+ * Main application shell providing the layout for la-gram.
  * Uses CSS Grid with named slots for each panel area:
  *
  * ```
@@ -41,8 +41,8 @@ import { EventBus, ModelEventType, ModelEvent } from './event-bus.js';
 /** A resizable, hideable panel beside the canvas. */
 export type SidePanel = 'explorer' | 'palette' | 'rdf';
 
-/** A tab of the bottom panel. */
-export type BottomTab = 'properties' | 'validation' | 'sparql' | 'graph' | 'history';
+/** A tab of the bottom panel: la-gram's own, or one a module added (by its id). */
+export type BottomTab = 'properties' | 'validation' | 'sparql' | 'graph' | 'history' | (string & {});
 
 /** The bottom panel's tabs, in order. */
 export const BOTTOM_TABS: ReadonlyArray<{ id: BottomTab; label: string }> = [
@@ -393,6 +393,9 @@ export class AppShell extends LitElement {
   /** A small count on a tab (the violations on Validation); none when absent. */
   @property({ attribute: false }) tabBadges: Partial<Record<BottomTab, string>> = {};
 
+  /** Tabs modules added, after la-gram's own (`MountedUi.addBottomTab`); each fills the slot named by its id. */
+  @property({ attribute: false }) moduleTabs: ReadonlyArray<{ id: string; label: string }> = [];
+
   private _drag: { panel: Resizable; start: number; startSize: number } | null = null;
 
   /** Open a tab of the bottom panel, unfolding it; the choice is remembered. */
@@ -637,7 +640,7 @@ export class AppShell extends LitElement {
         <div class="panel-bottom" ?inert=${rdfMaximized}>
           ${folded || maximized ? nothing : resizeHandle('bottom', this._resize)}
           <div class="tabs" role="tablist">
-            ${BOTTOM_TABS.map(
+            ${[...BOTTOM_TABS, ...(this.moduleTabs ?? [])].map(
               (t) => html`<button
                 class="tab"
                 role="tab"
@@ -671,7 +674,7 @@ export class AppShell extends LitElement {
             </button>
           </div>
           <div class="tab-body" ?hidden=${folded}>
-            ${BOTTOM_TABS.map(
+            ${[...BOTTOM_TABS, ...(this.moduleTabs ?? [])].map(
               (t) => html`<div class="tab-pane" role="tabpanel" data-tab=${t.id} ?hidden=${t.id !== tab}>
                 <slot name=${t.id}></slot>
               </div>`,

@@ -28,6 +28,7 @@ import { N3TtlParser } from './rdf-engine/ttl-parser.js';
 import { N3TtlSerializer } from './rdf-engine/ttl-serializer.js';
 import { RdfShaclValidator } from './rdf-engine/shacl-validator.js';
 import { NAMESPACES } from './rdf-engine/namespaces.js';
+import { SingleValued } from './rdf-engine/single-valued.js';
 
 // Metamodel Manager
 import type {
@@ -65,6 +66,7 @@ import { splitTableShapes, type TableShapes } from './model-manager/relationship
 import { createValidationService, type ValidationService } from './rdf-engine/validation-service.js';
 import type { EngineSetup } from './rdf-engine/validation-engine.js';
 import { encodeQuads } from './rdf-engine/term-codec.js';
+import { predicatesNamedBy, sparqlConstraintsOf } from './rdf-engine/sparql-constraints.js';
 import { isValidPrefix } from './model-manager/model-namespace.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from './rdf-engine/iri.js';
 
@@ -179,6 +181,7 @@ export class App {
   private coreGraphs: Partial<Record<BundledAssetRole, string[]>>;
   private readonly catalogueSource: AssetSource | undefined;
   private shapesCache: Quad[] | null = null;
+  private singleValuedCache: SingleValued | null = null;
   /** The shapes split for validation: what SHACL checks, what the relationship tables check. */
   private relationshipCheckCache: { shapes: Quad[]; split: TableShapes; tables: TablePermissions; closure: TypeClosure } | null = null;
   private validationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -245,12 +248,20 @@ export class App {
       if (q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode') unqualifiedForms.push([q.subject.value, q.object.value]);
     }
     const tables = readPermittedPermissions(store);
+    // What the SPARQL-based constraints read of the metamodels, besides types and the hierarchy.
+    const read = new Set(sparqlConstraintsOf(shapes).constraints.flatMap(predicatesNamedBy));
+    read.delete(NAMESPACES.rdf + 'type');
+    read.delete(NAMESPACES.rdfs + 'subClassOf');
+    const sparqlContext = [...read].flatMap((p) =>
+      store.getQuads(null, namedNode(p) as unknown as NamedNode, null).filter((q) => q.graph.termType !== 'DefaultGraph'),
+    );
     return {
       shapes: encodeQuads(shapes),
       hierarchy: encodeQuads(store.getQuads(null, namedNode(NAMESPACES.rdfs + 'subClassOf') as unknown as NamedNode, null)),
       outsideTypes: encodeQuads(store.getQuads(null, rdfType, null).filter((q) => q.graph.termType !== 'DefaultGraph')),
       unqualifiedForms,
       tables: tables.size > 0 ? tables.toPlain() : null,
+      sparqlContext: encodeQuads(sparqlContext),
     };
   }
 
@@ -556,6 +567,21 @@ export class App {
   }
 
   /**
+   * Which properties take one value, or one per language — for the room and
+   * the Git merge: the built-in rules and the loaded metamodels'
+   * (`rdf-engine/single-valued.ts`), read from every graph but the model's.
+   * Cached until the metamodels change.
+   */
+  singleValued(): SingleValued {
+    if (this.singleValuedCache) return this.singleValuedCache;
+    const store = this.components.store;
+    this.singleValuedCache = SingleValued.from({
+      getQuads: (s, p, o) => store.getQuads(s, p, o).filter((q) => q.graph.termType !== 'DefaultGraph'),
+    });
+    return this.singleValuedCache;
+  }
+
+  /**
    * The data to validate: the model, plus the `rdfs:subClassOf` axioms — a
    * shape targeting `am4:ActiveStructureElement` reaches an
    * `am4:ApplicationComponent` only through them, and SHACL reads class
@@ -729,6 +755,7 @@ export class App {
 
   private afterMetamodelsChanged(): void {
     this.shapesCache = null;
+    this.singleValuedCache = null;
     this.validationSetupDirty = true;
     this.session.setMetamodels(this.metamodels.map((m) => m.metamodelIri));
     this.components.eventBus.emit('metamodels-changed', {

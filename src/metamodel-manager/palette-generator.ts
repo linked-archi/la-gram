@@ -85,6 +85,9 @@ import {
   buildDecorationSymbols,
   buildVisualNotations,
   effectiveRenderingMode,
+  labelExpressionIn,
+  labelExpressionsOf,
+  presentationContextLabel,
   resolveNotationSetForContext,
   type Decoration,
   type NotationSet,
@@ -213,6 +216,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       grouping: taxonomyAxes.length > 0 ? 'taxonomy' : 'owl',
       notationSetIri: notationSet?.iri,
       notationSetLabel: notationSet?.label,
+      ...this.presentationContextOf(graph, options?.presentationContextIri),
       notationIndex,
       decorationSymbols: resolvedDecorationSymbols(graph),
     };
@@ -301,6 +305,20 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
    * what makes the default deterministic with several metamodels loaded: the
    * graph alone yields whichever `arch:notationSet` the store iterates first.
    */
+  /** The presentation context chosen — its name, and what it says every label says (its own label expression). */
+  private presentationContextOf(
+    graph: Store,
+    contextIri: string | undefined,
+  ): Pick<PaletteDefinition, 'presentationContextIri' | 'presentationContextLabel' | 'presentationContextLabelExpression'> {
+    if (!contextIri) return {};
+    const expression = labelExpressionIn(labelExpressionsOf(graph, DataFactory.namedNode(contextIri)), contextIri);
+    return {
+      presentationContextIri: contextIri,
+      presentationContextLabel: presentationContextLabel(graph, contextIri),
+      ...(expression !== undefined ? { presentationContextLabelExpression: expression } : {}),
+    };
+  }
+
   private resolveNotationSet(graph: Store, options?: PaletteOptions): NotationSet | null {
     if (options?.notationSetIri) return buildVisualNotations(graph, options.notationSetIri);
     if (options?.presentationContextIri) {

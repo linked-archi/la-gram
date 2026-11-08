@@ -8,17 +8,24 @@
  *   → the version the commit replaces: the binding's — or, for a file the model
  *     was never bound to, whatever is there (asking before replacing it)
  *   → commit; the host refuses a version it has moved past (a conflict), and the
- *     user chooses: a new branch from where the model was, overwrite, or open
- *     the newer version instead
+ *     user chooses: merge with the newer version (`git-merge.ts`) — offered first
+ *     for a bound file — a new branch from where the model was, overwrite, or
+ *     open the newer version instead
  *   → bind the model to the commit, mark it saved, say where it went
  * ```
+ *
+ * Before anything is asked: a model with conflicts not yet chosen, or with
+ * blank nodes (whose triples a later merge cannot match — asked once a
+ * session), is saved only when the user says so. A bound model another branch
+ * was merged into (*Update from main*) is committed recording it as merged
+ * (`commitUpdate`).
  *
  * The file's extension decides the format (`.ttl`, `.trig`, `.jsonld`, `.nq`,
  * `.nt`, `.rdf`, as Save offers them); serialization is deterministic, so the
  * commit's diff is the change (Req 9.12).
  */
 import type { Dialogs, FormValues } from '../ui/dialogs.js';
-import { MODEL_FORMATS, type ModelFormat } from '../import-export/model-io.js';
+import { MODEL_FORMATS, formatOfPath, type ModelFormat } from '../import-export/model-io.js';
 import type { GitBinding, GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';
@@ -26,6 +33,8 @@ import { hostNotAllowed, type GitProviderKind, type RepositoryLink } from './lin
 import type { GitConfig } from '../config.js';
 import { learnKind, readLink, type HostKinds } from './host-kinds.js';
 import type { CommitResult, FileChange, GitHostProvider } from './providers/provider.js';
+import { commitUpdate, mergeWithNewer, type MergeSupport } from './git-merge.js';
+import type { DiffWords } from '../model-manager/model-diff-text.js';
 
 /** What the Save flow needs from la-gram, injected so it is tested without the UI. */
 export interface GitSaveContext {
@@ -55,10 +64,21 @@ export interface GitSaveContext {
    * (Open from Git); absent, the choice is not offered.
    */
   reopen?(link: RepositoryLink, branch: string, path: string): Promise<boolean>;
+  /** Merging with another version (`git-merge.ts`); absent, la-gram does not merge. */
+  merge?: MergeSupport;
+  /** Whether the model has changes not saved (*Open merge request* asks first). */
+  isDirty?(): boolean;
+  /** Names of types and properties, for a merge request's changes by element. */
+  words?: DiffWords;
+  /**
+   * Open a merge request from the bound branch into `target` (`git-review.ts`) —
+   * offered after a save to a new branch; absent, it is not offered.
+   */
+  review?(target?: string): Promise<unknown>;
 }
 
 /** Where a save goes. */
-interface Target {
+export interface Target {
   link: RepositoryLink;
   /** Empty: the repository's default branch. */
   branch: string;
@@ -114,13 +134,7 @@ export function commitMessage(
 }
 
 /** The model formats by the extension that names them. */
-const BY_EXTENSION = new Map(MODEL_FORMATS.map((f) => [f.extension, f.id]));
-
-/** The format a path's extension names, or `undefined`. */
-export function formatOfPath(path: string): ModelFormat | undefined {
-  const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase();
-  return extension ? BY_EXTENSION.get(extension) : undefined;
-}
+export { formatOfPath };
 
 /** The problem with a path in a repository, or `null`. */
 export function pathProblem(path: string): string | null {
@@ -141,8 +155,43 @@ export function branchProblem(name: string): string | null {
 }
 
 /** A file-safe slug of a model's name. */
-function slug(label: string): string {
+export function slug(label: string): string {
   return label.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'model';
+}
+
+/** The models the blank-node warning was given for, per context: once a session each. */
+const warnedOfBlankNodes = new WeakMap<GitSaveContext, Set<string>>();
+
+/**
+ * What to ask before saving: conflicts not chosen yet, blank nodes. `false`
+ * when the user says not to save.
+ */
+async function readyToSave(ctx: GitSaveContext, modelIri: string): Promise<boolean> {
+  const open = ctx.merge?.unresolved() ?? 0;
+  if (open > 0) {
+    const go = await ctx.dialogs.confirm(
+      'Conflicts not chosen',
+      `${open === 1 ? 'One conflict' : `${open} conflicts`} with the newer version ${open === 1 ? 'is' : 'are'} not chosen in the Conflicts tab: ` +
+        'where two changes met, the model holds the version before either. Save to Git anyway?',
+      { confirmLabel: 'Save anyway' },
+    );
+    if (!go) return false;
+  }
+  const blanks = ctx.merge?.blankNodes() ?? 0;
+  const warned = warnedOfBlankNodes.get(ctx) ?? new Set<string>();
+  if (blanks > 0 && !warned.has(modelIri)) {
+    const go = await ctx.dialogs.confirm(
+      'Blank nodes',
+      `This model has ${blanks === 1 ? 'a triple' : `${blanks} triples`} with a blank node — imported, as la-gram makes none. ` +
+        'A blank node has no name that lasts from one file to the next, so when two versions of this file are merged, ' +
+        'the triples about one cannot be matched and both copies are kept. Save to Git anyway?',
+      { confirmLabel: 'Save anyway' },
+    );
+    if (!go) return false;
+    warned.add(modelIri);
+    warnedOfBlankNodes.set(ctx, warned);
+  }
+  return true;
 }
 
 /**
@@ -156,6 +205,7 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     ctx.report('There is no model to save.', 'warning');
     return undefined;
   }
+  if (!(await readyToSave(ctx, modelIri))) return undefined;
   const binding = ctx.bindings.get(modelIri);
   const hosts = ctx.config?.hosts;
   if (binding && !ask && hosts && !hosts.some((h) => h.host === binding.host)) {
@@ -209,12 +259,15 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     };
     let result: CommitResult | undefined;
     try {
-      result = await provider.commitFile(change);
+      // Another branch merged in, not yet recorded: committed as its merge.
+      result = sameFile && binding.update ? await commitUpdate(ctx, provider, target, binding) : await provider.commitFile(change);
+      if (!result) return undefined;
     } catch (err: unknown) {
       if (!(err instanceof GitError) || err.kind !== 'conflict') throw err;
-      result = await resolveConflict(ctx, provider, target, change, startFrom);
+      result = await resolveConflict(ctx, provider, target, change, startFrom, sameFile ? binding : undefined);
       if (!result) return undefined;
     }
+    ctx.merge?.clear();
 
     ctx.bindings.set(modelIri, {
       host: target.link.host,
@@ -229,6 +282,19 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     });
     ctx.saved(target.path.split('/').pop() ?? target.path);
     ctx.report(`Committed ${result.commit.slice(0, 8)} to ${target.link.repository} · ${result.branch} · ${target.path} — ${result.webUrl}`);
+    if (result.branch !== branch && ctx.review) {
+      // A new branch is made to be merged: offer the merge request. One started
+      // from another branch's head (*Update from main* on GitLab) goes to the
+      // default branch, as the one it replaces did.
+      const updated = sameFile && binding.update !== undefined;
+      const kind = target.link.provider === 'github' ? 'pull request' : 'merge request';
+      const go = await ctx.dialogs.confirm(
+        `Open ${kind}`,
+        `Committed to the new branch ${result.branch}. Open a ${kind} to merge it into ${updated ? 'the default branch' : branch}?`,
+        { confirmLabel: `Open ${kind}` },
+      );
+      if (go) await ctx.review(updated ? undefined : branch);
+    }
     return result;
   } catch (err: unknown) {
     if (err instanceof GitError && err.kind === 'auth') {
@@ -242,28 +308,34 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
   }
 }
 
+/** The repository a binding names — a listed host's API address being the deployment's, now. */
+export function bindingLink(ctx: Pick<GitSaveContext, 'config'>, binding: GitBinding): RepositoryLink {
+  const listed = ctx.config?.hosts?.find((h) => h.host === binding.host);
+  return {
+    host: binding.host,
+    provider: listed?.kind ?? binding.provider,
+    providerKnown: true,
+    apiBase: listed?.api ?? binding.apiBase,
+    repository: binding.repository,
+    webUrl: binding.webUrl,
+  };
+}
+
 /** A bound save: only the message is asked. */
 async function boundTarget(ctx: GitSaveContext, binding: GitBinding): Promise<Target | undefined> {
   const format = formatOfPath(binding.path) ?? 'turtle';
-  const suggested = commitMessage(gitDefaults(ctx.config, ctx.personal?.()).message, {
-    action: 'Update',
-    model: ctx.modelLabel(),
-    path: binding.path,
-    branch: binding.branch,
-  });
+  const suggested = binding.update
+    ? `Merge ${binding.update.branch} into ${binding.branch}`
+    : commitMessage(gitDefaults(ctx.config, ctx.personal?.()).message, {
+        action: 'Update',
+        model: ctx.modelLabel(),
+        path: binding.path,
+        branch: binding.branch,
+      });
   const message = await ctx.dialogs.prompt('Save to Git', `Commit message — ${binding.repository} · ${binding.branch} · ${binding.path}`, suggested);
   if (message === null) return undefined;
-  // A listed host's API address is the deployment's, now.
-  const listed = ctx.config?.hosts?.find((h) => h.host === binding.host);
   return {
-    link: {
-      host: binding.host,
-      provider: listed?.kind ?? binding.provider,
-      providerKnown: true,
-      apiBase: listed?.api ?? binding.apiBase,
-      repository: binding.repository,
-      webUrl: binding.webUrl,
-    },
+    link: bindingLink(ctx, binding),
     branch: binding.branch,
     path: binding.path,
     format,
@@ -384,7 +456,7 @@ export async function tokenFor(
         ? 'The repository is private, or not there. A fine-grained personal access token with Contents: read on it opens it (read and write saves too).'
         : 'The project is private, or not there. An access token with read_repository opens it (api saves too).'
       : link.provider === 'github'
-        ? 'A fine-grained personal access token with Contents: read and write on this repository.'
+        ? 'A fine-grained personal access token with Contents: read and write on this repository — and Pull requests: read and write, to open pull requests.'
         : 'A personal, project or group access token with the api scope.';
   const values = await ctx.dialogs.form(
     `Access token for ${link.host}`,
@@ -406,16 +478,29 @@ export async function tokenFor(
   return token;
 }
 
-/** The file moved on: a new branch from where the model was, or overwrite. */
+/**
+ * The file moved on: merge with the newer version (a bound file), a new branch
+ * from where the model was, overwrite, or open the newer version.
+ */
 async function resolveConflict(
   ctx: GitSaveContext,
   provider: GitHostProvider,
   target: Target,
   change: FileChange,
   startFrom: string | undefined,
+  bound: GitBinding | undefined,
 ): Promise<CommitResult | undefined> {
   const where = change.newBranch ?? change.branch;
   const choice = await ctx.dialogs.choose(`${target.path} changed in the repository`, [
+    ...(ctx.merge && bound
+      ? [
+          {
+            value: 'merge',
+            label: 'Merge with the newer version',
+            detail: `Combine your changes with ${where}’s and commit the result there. Anything changed on both sides is listed in the Conflicts tab to choose between first.`,
+          },
+        ]
+      : []),
     {
       value: 'branch',
       label: 'Save to a new branch',
@@ -438,6 +523,7 @@ async function resolveConflict(
         ]
       : []),
   ]);
+  if (choice === 'merge' && bound) return mergeWithNewer(ctx, provider, { ...target, message: change.message }, bound);
   if (choice === 'open') {
     await ctx.reopen?.(target.link, where, target.path);
     return undefined;

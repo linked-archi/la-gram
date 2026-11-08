@@ -2,7 +2,7 @@
  * App toolbar — the bar across the top.
  *
  * ```
- * la-gram │ Order Platform ● │ File ▾  Metamodels ▾ │ View: [Main ▾] [+] Viewpoint: [— ▾] │ Presentation: [Architect ▾] │ ◉ room · 2
+ * [◭] la-gram │ Order Platform ● │ File ▾  Metamodels ▾  Help ▾ │ View: [Main ▾] [+] Viewpoint: [— ▾] │ Presentation: [Architect ▾] │ ◉ room · 2
  * ```
  *
  * Purely presentational: every pick is a `toolbar-command` event
@@ -19,6 +19,7 @@ import {
   type CatalogueEntry,
 } from '../../metamodel-manager/catalogue.js';
 import { MODEL_FORMATS } from '../../import-export/model-io.js';
+import { HELP_LINKS, type HelpLink } from '../../help-links.js';
 
 /** Commands the toolbar can issue. */
 export type ToolbarCommand =
@@ -55,7 +56,11 @@ export type ToolbarCommand =
   /** File › Settings…: the modules' switches and each part's settings. */
   | 'settings'
   /** The Settings dialog, by its older name. */
-  | 'modules';
+  | 'modules'
+  /** Help › About la-gram, or a click on the name. */
+  | 'about'
+  /** Help › Keyboard shortcuts. */
+  | 'shortcuts';
 
 /** Detail of `toolbar-command`. */
 export interface ToolbarCommandDetail {
@@ -104,9 +109,28 @@ export class AppToolbar extends LitElement {
       z-index: 20;
     }
     .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 0;
+      background: none;
+      padding: 3px 6px 3px 2px;
+      border-radius: 4px;
+      cursor: pointer;
+      font: inherit;
       font-weight: 700;
       color: #1a73e8;
       letter-spacing: 0.02em;
+      white-space: nowrap;
+      flex: none;
+    }
+    .brand:hover {
+      background: #f1f3f4;
+    }
+    .brand img {
+      width: 20px;
+      height: 20px;
+      display: block;
     }
     .sep {
       width: 1px;
@@ -115,6 +139,8 @@ export class AppToolbar extends LitElement {
       margin: 0 4px;
     }
     .model-name {
+      flex: 0 1 auto;
+      min-width: 64px;
       border: 0;
       background: none;
       font: inherit;
@@ -136,6 +162,15 @@ export class AppToolbar extends LitElement {
     }
     .menu-wrap {
       position: relative;
+      flex: none;
+    }
+    /* Menus, buttons and toggles keep their size and stay on one line; when the
+       bar is short of room, the model's name and the selectors give way. */
+    button.menu-button,
+    button.icon,
+    button.toggle {
+      white-space: nowrap;
+      flex: none;
     }
     button.menu-button,
     button.icon {
@@ -183,8 +218,24 @@ export class AppToolbar extends LitElement {
       cursor: pointer;
       gap: 12px;
     }
-    .dropdown button:hover {
+    .dropdown button:hover,
+    .dropdown a:hover {
       background: #eef3fd;
+    }
+    /* A page the Help menu opens: as an entry, marked as leaving the app. */
+    .dropdown a {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 14px;
+      color: inherit;
+      text-decoration: none;
+    }
+    .dropdown a .hint {
+      flex: none;
+    }
+    .dropdown a {
+      white-space: nowrap;
     }
     .dropdown button:disabled {
       color: #9aa0a6;
@@ -213,6 +264,34 @@ export class AppToolbar extends LitElement {
       align-items: center;
       gap: 4px;
       color: #5f6368;
+      white-space: nowrap;
+      flex: none;
+    }
+    /* A narrower window, narrower selectors; then the selectors without their
+       names, then the panel toggles without their words (each says it on
+       hover) — so the bar holds everything down to 1100 px. */
+    @media (max-width: 1680px) {
+      label.field select {
+        max-width: 150px;
+      }
+    }
+    @media (max-width: 1500px) {
+      .field-name {
+        display: none;
+      }
+    }
+    @media (max-width: 1340px) {
+      .toggle-name {
+        display: none;
+      }
+      label.field select {
+        max-width: 120px;
+      }
+    }
+    @media (max-width: 1150px) {
+      label.field select {
+        max-width: 96px;
+      }
     }
     select {
       font: inherit;
@@ -314,7 +393,7 @@ export class AppToolbar extends LitElement {
   /** Whether File › Settings… is offered: there is a module to switch, or a part with settings. */
   @property({ type: Boolean }) settingsMenu = false;
 
-  @state() private _open: 'file' | 'metamodels' | 'new-view' | null = null;
+  @state() private _open: 'file' | 'metamodels' | 'new-view' | 'help' | null = null;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -358,7 +437,7 @@ export class AppToolbar extends LitElement {
     );
   }
 
-  private _toggle(menu: 'file' | 'metamodels' | 'new-view'): void {
+  private _toggle(menu: 'file' | 'metamodels' | 'new-view' | 'help'): void {
     this._open = this._open === menu ? null : menu;
   }
 
@@ -484,6 +563,24 @@ export class AppToolbar extends LitElement {
     </div>`;
   }
 
+  /** Help: the keyboard shortcuts, the guides and la-gram's own pages, About. */
+  private _helpMenu() {
+    const link = (l: HelpLink) =>
+      html`<a href=${l.href} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
+        >${l.label}<span class="hint">↗</span></a
+      >`;
+    return html`<div class="dropdown" role="menu">
+      <button data-command="shortcuts" role="menuitem" @click=${() => this._cmd('shortcuts')}>Keyboard shortcuts</button>
+      <hr />
+      <div class="group">Guides</div>
+      ${HELP_LINKS.filter((l) => l.group === 'guides').map(link)}
+      <hr />
+      ${HELP_LINKS.filter((l) => l.group === 'la-gram').map(link)}
+      <hr />
+      <button data-command="about" role="menuitem" @click=${() => this._cmd('about')}>About la-gram</button>
+    </div>`;
+  }
+
   private _collab() {
     const c = this.collab;
     const title =
@@ -503,7 +600,9 @@ export class AppToolbar extends LitElement {
 
   override render() {
     return html`
-      <span class="brand">la-gram</span>
+      <button class="brand" data-command="about" title="About la-gram" @click=${() => this._cmd('about')}>
+        <img src="favicon.svg" alt="" />la-gram
+      </button>
       <span class="sep"></span>
       <button class="model-name" title="Model settings: name, namespace" @click=${() => this._cmd('model-settings')}>
         ${this.modelLabel}${this.dirty ? html`<span class="dirty" title="Unsaved changes">●</span>` : nothing}
@@ -523,6 +622,12 @@ export class AppToolbar extends LitElement {
           Metamodels ▾
         </button>
         ${this._open === 'metamodels' ? this._metamodelMenu() : nothing}
+      </div>
+      <div class="menu-wrap">
+        <button class="menu-button ${this._open === 'help' ? 'open' : ''}" data-menu="help" @click=${() => this._toggle('help')}>
+          Help ▾
+        </button>
+        ${this._open === 'help' ? this._helpMenu() : nothing}
       </div>
       <button class="icon" title="Undo (Ctrl+Z)" @click=${() => this._cmd('undo')}>↶</button>
       <button class="icon" title="Redo (Ctrl+Y)" @click=${() => this._cmd('redo')}>↷</button>
@@ -547,8 +652,8 @@ export class AppToolbar extends LitElement {
       >
         →
       </button>
-      <label class="field"
-        >View
+      <label class="field" title="View"
+        ><span class="field-name">View</span>
         <select
           aria-label="Open view"
           @change=${(e: Event) => this._cmd('open-view', (e.target as HTMLSelectElement).value)}
@@ -564,8 +669,8 @@ export class AppToolbar extends LitElement {
         <button class="icon" title="New view" data-menu="new-view" @click=${() => this._toggle('new-view')}>＋</button>
         ${this._open === 'new-view' ? this._newViewMenu() : nothing}
       </div>
-      <label class="field"
-        >Viewpoint
+      <label class="field" title="Viewpoint of the open view"
+        ><span class="field-name">Viewpoint</span>
         <select
           aria-label="Viewpoint of the open view"
           @change=${(e: Event) => this._cmd('set-viewpoint', (e.target as HTMLSelectElement).value)}
@@ -577,8 +682,8 @@ export class AppToolbar extends LitElement {
         </select>
       </label>
       ${this.presentationContexts.length > 0
-        ? html`<label class="field"
-            >Presentation
+        ? html`<label class="field" title="Presentation: the audience the diagram is drawn for"
+            ><span class="field-name">Presentation</span>
             <select
               aria-label="Presentation context"
               @change=${(e: Event) => this._cmd('set-context', (e.target as HTMLSelectElement).value)}
@@ -598,7 +703,7 @@ export class AppToolbar extends LitElement {
         title=${this.explorerOpen ? 'Hide the model tree' : 'Show the model tree on the left'}
         @click=${() => this._cmd('toggle-explorer')}
       >
-        ☰ Model
+        ☰<span class="toggle-name"> Model</span>
       </button>
       <button
         class="toggle"
@@ -607,7 +712,7 @@ export class AppToolbar extends LitElement {
         title=${this.paletteOpen ? 'Hide the palette' : 'Show the palette on the right'}
         @click=${() => this._cmd('toggle-palette')}
       >
-        ▦ Palette
+        ▦<span class="toggle-name"> Palette</span>
       </button>
       <button
         class="toggle"
@@ -616,7 +721,7 @@ export class AppToolbar extends LitElement {
         title=${this.rdfOpen ? 'Hide the RDF panel' : 'Show the model as RDF (Turtle) on the right'}
         @click=${() => this._cmd('toggle-rdf')}
       >
-        { } RDF
+        { }<span class="toggle-name"> RDF</span>
       </button>
       ${this._collab()}
     `;

@@ -24,13 +24,40 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-11-04"^^xsd:date ;
+    dcterms:modified     "2026-11-07"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.6"@en ;
+    owl:versionInfo "0.7"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.6: A Link may end on another Link. A relationship can have a relationship as
+    skos:historyNote '''0.7: A diagram element's own style says more than its colours and its font:
+arch-vis:lineWidth, the width of its outline or its line; arch-vis:fontStyle, whether its text is
+bold, italic or underlined; where its text sits — arch-vis:textAlignment across it
+(arch-vis:AlignLeft, AlignCenter, AlignRight), arch-vis:textPosition down it
+(arch-vis:PositionTop, PositionMiddle, PositionBottom); arch-vis:gradient, the side its fill shades
+from (arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom); arch-vis:iconColor,
+its glyph's colour; arch-vis:image, a picture drawn in it, at arch-vis:imagePosition — an
+arch-vis:IconPlacement, which gains MiddleLeft, MiddleRight, BottomLeft, BottomRight and Fill; and,
+for a line, arch-vis:labelAnchor, where along it its text sits (arch-vis:AnchorSource, AnchorMiddle,
+AnchorTarget). Each absent leaves the choice to the notation or the renderer. A label may say more than
+a name: arch-vis:labelExpression gives an arch-vis:LabelExpression, its arch-vis:expression text with
+{…} placeholders for the concept's name, its type and its properties — on a diagram element's own style,
+on a concept's notation, or on a presentation context for everything shown in it — and, with core's
+arch:inPresentationContext (core 0.5.0), for one presentation context only, so that each audience may
+read the same element its own way. So may it look its own way: arch-vis:style is no longer functional —
+a diagram element has at most one style for every context and one for each context, the latter drawn
+over the former in its context — and a diagram element drawn arch-vis:IconCentric shows its model
+element's picture for the context (core's arch:prefVisNotation, arch:altVisNotation) where its own style
+names no icon. arch-vis:lineStyle, sourceDecor and targetDecor
+name what they may be said of with arch:domainIncludes — a relationship, a relationship type's
+notation, a style, and so one line's own — where an rdfs:domain of arch:QualifiedRelationship made
+every notation saying them a relationship. arch-vis:alternativeStyle gives a notation other figures for
+its concept — ArchiMate's banded, tabbed, wavy and 3D boxes, its cloud and folder, now that each element
+is drawn by default as a box with its glyph. A colour's alpha is CSS's, 0 to 1: the comments
+had given an example with the exchange format's percentage, rgba(255,255,181,100), which CSS reads
+as opaque whatever it is.
+
+0.6: A Link may end on another Link. A relationship can have a relationship as
 its arch:source or arch:target, and its edge on a diagram then ends on the edge drawn for that
 relationship — as a connection may end on a connection in the ArchiMate exchange format. The
 range of arch-vis:source and arch-vis:target is widened from arch-vis:Node to
@@ -85,21 +112,33 @@ arch-vis:ContainerNode
     a               owl:Class ;
     rdfs:subClassOf arch-vis:Node ;
     rdfs:label      "Container"@en ;
-    rdfs:comment    ""@en ;
+    rdfs:comment    '''A shape on a diagram that stands for no model element: a group around what is
+drawn inside it (arch-vis:inNode), a pool, a lane — or a plain shape, a rectangle, an ellipse, a
+diamond, whose own arch-vis:style gives its arch-vis:shapeType. It carries no arch-vis:archElement.
+Its text, when it has one (a group's name), is its skos:prefLabel, language-tagged; its colours
+are its style's (arch-vis:fillColor, arch-vis:lineColor, arch-vis:fontColor). The ArchiMate
+exchange format's Container node is one.'''@en ;
 .
 
 arch-vis:LabelNode
     a               owl:Class ;
     rdfs:subClassOf arch-vis:Node ;
     rdfs:label      "LabelNode"@en ;
-    rdfs:comment    ""@en ;
+    rdfs:comment    '''Text on a diagram. Pointed at by another diagram element's arch-vis:label, it
+places that element's text apart from it — a relationship's name moved off the middle of its line —
+and the text is the name of what that element draws, unless the LabelNode gives its own as
+skos:prefLabel. Pointed at by none, it is free-standing text: a note, its text its skos:prefLabel,
+language-tagged, its colours its arch-vis:style's. The ArchiMate exchange format's Label node is
+one. Either way it stands for no model element and carries no arch-vis:archElement.'''@en ;
 .
 
 arch-vis:ArchNode
     a               owl:Class ;
     rdfs:subClassOf arch-vis:Node ;
     rdfs:label      "ArchNode"@en ;
-    rdfs:comment    ""@en ;
+    rdfs:comment    '''The appearance of a model element on a diagram: its arch-vis:archElement names
+the element. An element may be drawn by more than one ArchNode in one view — placed again to keep
+lines short — each a node of its own, moved, nested and removed on its own.'''@en ;
 .
 
 arch-vis:Link
@@ -108,7 +147,12 @@ arch-vis:Link
     rdfs:label      "Link"@en ;
     rdfs:comment    '''An edge on a diagram: it joins a source to a target, may route through a
 PointList, and may carry a LabelNode. Each end is a Node, or another Link where the relationship
-the edge draws has a relationship as its source or target.'''@en ;
+the edge draws has a relationship as its source or target. A relationship may be drawn by more
+than one Link in one view, each joining the nodes it is drawn between.
+
+A Link with no arch-vis:archRelationship stands for no relationship: a line drawn on the diagram
+only — from a note to what it is about, as the ArchiMate exchange format's Line connection — its
+ends Nodes. It puts nothing in the view's arch:inView.'''@en ;
 .
 
 arch-vis:Point
@@ -244,7 +288,8 @@ arch-vis:archRelationship
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "archRelationship"@en ;
-    rdfs:comment "Links a diagram Link to the qualified relationship resource it represents."@en ;
+    rdfs:comment '''Links a diagram Link to the qualified relationship resource it represents.
+Absent, the Link stands for no relationship: a line drawn on the diagram only.'''@en ;
     rdfs:domain  arch-vis:Link ;
     rdfs:range   arch:QualifiedRelationship ;
 .
@@ -302,9 +347,12 @@ arch-vis:Style
 .
 
 arch-vis:style
-    a            owl:ObjectProperty,
-                 owl:FunctionalProperty ;
+    a            owl:ObjectProperty ;
     rdfs:label   "style"@en ;
+    rdfs:comment '''How a diagram element looks. It has at most one style for every presentation context — one
+without core's arch:inPresentationContext — and at most one for each context. Drawn for a context, it
+takes its style for every context, overlaid value by value by its style for that context; drawn for none,
+its style for every context alone. A diagram element with one style looks the same to everyone.'''@en ;
     rdfs:domain  arch-vis:DiagElement ;
     rdfs:range   arch-vis:Style ;
 .
@@ -313,7 +361,10 @@ arch-vis:fillColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "fillColor"@en ;
-    rdfs:comment "CSS rgba() string, e.g. rgba(255,255,181,100)"@en ;
+    rdfs:comment '''A CSS colour string — #rrggbb, #rrggbbaa, rgb() or rgba(), e.g. #fff7b3, or
+rgba(255,247,179,0.5) half transparent. Its alpha is CSS's, from 0 (transparent) to 1 (opaque); opaque
+when it has none. Converters before core-vis 0.7 wrote the ArchiMate exchange format's alpha as it is,
+a percentage (rgba(255,247,179,100)); a reader may take an alpha above 1 as one.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
 .
@@ -322,7 +373,7 @@ arch-vis:lineColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "lineColor"@en ;
-    rdfs:comment "CSS rgba() string"@en ;
+    rdfs:comment "A CSS colour string, its alpha CSS's (0–1), as arch-vis:fillColor's."@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
 .
@@ -347,10 +398,88 @@ arch-vis:fontColor
     a            owl:DatatypeProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "fontColor"@en ;
-    rdfs:comment '''Colour of the element's label, as a CSS colour string. When it is absent a renderer
-draws the label in the line colour (arch-vis:lineColor).'''@en ;
+    rdfs:comment '''Colour of the element's label, as a CSS colour string (its alpha CSS's, as
+arch-vis:fillColor's). When it is absent a renderer draws the label in the line colour
+(arch-vis:lineColor).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:string ;
+.
+
+arch-vis:gradient
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "gradient"@en ;
+    rdfs:comment '''The fill shades from its colour (arch-vis:fillColor) at the side named
+(arch-vis:GradientTop, GradientLeft, GradientRight, GradientBottom) to white at the opposite side.
+Absent, the fill is all one colour.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:Gradient ;
+.
+
+arch-vis:iconColor
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "iconColor"@en ;
+    rdfs:comment '''Colour of the glyph drawn for an element (arch-vis:iconSymbol) — its badge, or its icon —
+as a CSS colour string: the glyph's opaque lines are drawn in it. Absent, the glyph is drawn as
+published.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:fontStyle
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "fontStyle"@en ;
+    rdfs:comment '''How the text is set: one or more of the keywords bold, italic and underline,
+separated by spaces ("bold", "bold italic"), as the ArchiMate exchange format's font style lists
+them. Plain when absent.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:string ;
+.
+
+arch-vis:lineWidth
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "lineWidth"@en ;
+    rdfs:comment '''Width of the lines drawn — a node's outline, a link's line — in the diagram's
+units, as its bounds are. 1 when absent; 1, 2 and 3 are a normal, medium and heavy line, the values
+the exchange format's style lineWidth carries.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:integer ;
+.
+
+arch-vis:textAlignment
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "textAlignment"@en ;
+    rdfs:comment '''Where a node's text sits across it: from its left, centred, or to its right.
+Absent, the renderer's choice — centred, for an element.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:TextAlignment ;
+.
+
+arch-vis:textPosition
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "textPosition"@en ;
+    rdfs:comment '''Where a node's text sits down it: from its top, in its middle, or at its bottom.
+Absent, the renderer's choice.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:TextPosition ;
+.
+
+arch-vis:labelAnchor
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "labelAnchor"@en ;
+    rdfs:comment '''Where along a line its text sits — a relationship's name, or what a line standing for no
+relationship says: near its source end, at its middle, or near its target end. Of a relationship type's
+lines, said on its notation or its notation's default style; of one line, on that Link's own style
+(arch-vis:style). Absent, at the middle. Where the Link has an arch-vis:label — its text moved by hand
+— the text is drawn there.'''@en ;
+    arch:domainIncludes arch-vis:VisualNotation, arch-vis:Style ;
+    rdfs:range   arch-vis:LabelAnchor ;
 .
 
 
@@ -373,7 +502,11 @@ arch-vis:iconSymbol
     rdfs:label   "iconSymbol"@en ;
     rdfs:comment '''URI of the small glyph/icon displayed within the element shape (typically top-right corner).
 The glyph is drawn over the shape as it is: its lines are opaque and the parts that show the element's
-fill are transparent, so one glyph serves every fill colour and notation set.'''@en ;
+fill are transparent, so one glyph serves every fill colour and notation set. On a diagram element's own
+style (arch-vis:style) it is that element's own icon, in place of its notation's glyph: a picture drawn
+as the figure itself with arch-vis:IconCentric, or as its badge with arch-vis:ShapeWithBadge. A diagram
+element drawn arch-vis:IconCentric with no icon of its own shows its model element's picture for the
+presentation context shown, when it has one (see arch-vis:IconCentric).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -383,6 +516,29 @@ arch-vis:iconPlacement
                  owl:FunctionalProperty ;
     rdfs:label   "iconPlacement"@en ;
     rdfs:comment "Where the icon symbol is placed within the element shape."@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   arch-vis:IconPlacement ;
+.
+
+arch-vis:image
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "image"@en ;
+    rdfs:comment '''URI of a picture drawn inside a node, at arch-vis:imagePosition: over its fill, under its
+text and its glyph. An http(s) URL, or a data: URI of an image for a small picture kept in the
+model. The picture is drawn at its own size, made smaller to fit the node; at arch-vis:Fill, scaled
+to the node's bounds. The node's glyph is drawn as its rendering mode says. A picture standing for the
+figure itself is the node's own arch-vis:iconSymbol, drawn arch-vis:IconCentric.'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:anyURI ;
+.
+
+arch-vis:imagePosition
+    a            owl:ObjectProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "imagePosition"@en ;
+    rdfs:comment '''Where a node's picture (arch-vis:image) is drawn in it: a corner, the middle of a side, its
+centre, or arch-vis:Fill, the whole node. Absent, its top left.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   arch-vis:IconPlacement ;
 .
@@ -573,7 +729,8 @@ name in its tab. The label takes as many lines as the box is tall enough for.'''
 arch-vis:IconPlacement
     a            owl:Class ;
     rdfs:label   "IconPlacement"@en ;
-    rdfs:comment "Enumeration of positions where an icon can be placed within a shape."@en ;
+    rdfs:comment '''Enumeration of positions within a shape: where its icon is placed (arch-vis:iconPlacement),
+or its picture (arch-vis:imagePosition).'''@en ;
 .
 
 arch-vis:TopRight
@@ -604,6 +761,153 @@ arch-vis:BottomCenter
     a            arch-vis:IconPlacement ;
     rdfs:label   "Bottom Center"@en ;
     rdfs:comment "Icon placed at the bottom center of the shape."@en ;
+.
+
+arch-vis:MiddleLeft
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Middle Left"@en ;
+    rdfs:comment "Placed at the middle of the shape's left side."@en ;
+.
+
+arch-vis:MiddleRight
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Middle Right"@en ;
+    rdfs:comment "Placed at the middle of the shape's right side."@en ;
+.
+
+arch-vis:BottomLeft
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Bottom Left"@en ;
+    rdfs:comment "Placed in the bottom-left corner of the shape."@en ;
+.
+
+arch-vis:BottomRight
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Bottom Right"@en ;
+    rdfs:comment "Placed in the bottom-right corner of the shape."@en ;
+.
+
+arch-vis:Fill
+    a            arch-vis:IconPlacement ;
+    rdfs:label   "Fill"@en ;
+    rdfs:comment "Scaled to the shape's bounds, filling it: a node's picture (arch-vis:imagePosition)."@en ;
+.
+
+
+#################################################################
+# Gradient Individuals
+#################################################################
+
+arch-vis:Gradient
+    a            owl:Class ;
+    rdfs:label   "Gradient"@en ;
+    rdfs:comment "Enumeration of the sides a fill shades from (arch-vis:gradient)."@en ;
+.
+
+arch-vis:GradientTop
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Top"@en ;
+    rdfs:comment "The fill colour at the top, white at the bottom."@en ;
+.
+
+arch-vis:GradientLeft
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Left"@en ;
+    rdfs:comment "The fill colour at the left, white at the right."@en ;
+.
+
+arch-vis:GradientRight
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Right"@en ;
+    rdfs:comment "The fill colour at the right, white at the left."@en ;
+.
+
+arch-vis:GradientBottom
+    a            arch-vis:Gradient ;
+    rdfs:label   "Gradient Bottom"@en ;
+    rdfs:comment "The fill colour at the bottom, white at the top."@en ;
+.
+
+
+#################################################################
+# TextAlignment and TextPosition Individuals
+#################################################################
+
+arch-vis:TextAlignment
+    a            owl:Class ;
+    rdfs:label   "TextAlignment"@en ;
+    rdfs:comment "Enumeration of where a node's text sits across it (arch-vis:textAlignment)."@en ;
+.
+
+arch-vis:AlignLeft
+    a            arch-vis:TextAlignment ;
+    rdfs:label   "Align Left"@en ;
+    rdfs:comment "Each line of the text starts at the node's left."@en ;
+.
+
+arch-vis:AlignCenter
+    a            arch-vis:TextAlignment ;
+    rdfs:label   "Align Center"@en ;
+    rdfs:comment "Each line of the text is centred across the node."@en ;
+.
+
+arch-vis:AlignRight
+    a            arch-vis:TextAlignment ;
+    rdfs:label   "Align Right"@en ;
+    rdfs:comment "Each line of the text ends at the node's right."@en ;
+.
+
+arch-vis:TextPosition
+    a            owl:Class ;
+    rdfs:label   "TextPosition"@en ;
+    rdfs:comment "Enumeration of where a node's text sits down it (arch-vis:textPosition)."@en ;
+.
+
+arch-vis:PositionTop
+    a            arch-vis:TextPosition ;
+    rdfs:label   "Position Top"@en ;
+    rdfs:comment "The text starts at the node's top."@en ;
+.
+
+arch-vis:PositionMiddle
+    a            arch-vis:TextPosition ;
+    rdfs:label   "Position Middle"@en ;
+    rdfs:comment "The text is centred down the node."@en ;
+.
+
+arch-vis:PositionBottom
+    a            arch-vis:TextPosition ;
+    rdfs:label   "Position Bottom"@en ;
+    rdfs:comment "The text ends at the node's bottom."@en ;
+.
+
+
+#################################################################
+# LabelAnchor Individuals
+#################################################################
+
+arch-vis:LabelAnchor
+    a            owl:Class ;
+    rdfs:label   "LabelAnchor"@en ;
+    rdfs:comment "Enumeration of where along a line its text sits (arch-vis:labelAnchor)."@en ;
+.
+
+arch-vis:AnchorSource
+    a            arch-vis:LabelAnchor ;
+    rdfs:label   "Anchor Source"@en ;
+    rdfs:comment "The text sits on the line near its source end."@en ;
+.
+
+arch-vis:AnchorMiddle
+    a            arch-vis:LabelAnchor ;
+    rdfs:label   "Anchor Middle"@en ;
+    rdfs:comment "The text sits at the middle of the line."@en ;
+.
+
+arch-vis:AnchorTarget
+    a            arch-vis:LabelAnchor ;
+    rdfs:label   "Anchor Target"@en ;
+    rdfs:comment "The text sits on the line near its target end."@en ;
 .
 
 
@@ -691,7 +995,13 @@ Visual layout:
     Element Label     ← label below, not inside shape
 
 Requires: iconSymbol MUST be present. If absent, fall back to ShapeOnly with warning.
-Used by: AWS Architecture Icons, Azure service icons, GCP icons, Kubernetes.'''@en ;
+Used by: AWS Architecture Icons, Azure service icons, GCP icons, Kubernetes.
+
+The icon of a diagram element drawn so, in this order: the arch-vis:iconSymbol of its own style (for the
+presentation context shown, else for every context); its model element's picture for that context —
+its core arch:altVisNotation with that arch:inPresentationContext, else its arch:prefVisNotation; its
+notation's arch-vis:iconSymbol. A model element's picture is drawn only so: in arch-vis:ShapeWithBadge the
+badge stays the notation's glyph, which says the element's type.'''@en ;
 .
 
 arch-vis:ShapeOnly
@@ -866,6 +1176,53 @@ arch-vis:inNotationSet
     rdfs:range   arch-vis:NotationSet ;
 .
 
+arch-vis:LabelExpression
+    a            owl:Class ;
+    rdfs:label   "LabelExpression"@en ;
+    rdfs:comment '''What a concept's label says on a diagram, as text with placeholders (arch-vis:expression) —
+in one presentation context when it names one (core's arch:inPresentationContext), else in every one.
+
+The text is drawn as it is, but for what stands between braces:
+- {name}: the concept's name for the presentation context shown — its name for that audience (a
+  skosxl:altLabel with that arch:inPresentationContext), else its skos:prefLabel;
+- {type}: the name of its type;
+- {prefix:local} or {<iri>}: the values of that property of the concept — a literal as it is (in the
+  language shown, or with none), a resource by its name for the context shown — several joined by ", ";
+  prefixes are those the vocabularies in use declare; {skos:prefLabel} is the canonical name;
+- a path: properties joined by /, each followed from the concept on, ^ before one to follow it backwards
+  ({am:assignedTo/skos:prefLabel}, {^arch:target});
+- {{ and }}: a brace.
+Its lines are the label's lines; a line whose placeholders all come to nothing is left out, so a line
+can be there only when the concept has what it shows.'''@en ;
+.
+
+arch-vis:labelExpression
+    a            owl:ObjectProperty ;
+    rdfs:label   "labelExpression"@en ;
+    rdfs:comment '''What a concept's label says on a diagram (an arch-vis:LabelExpression), in place of its
+name alone: on a diagram element's own style (arch-vis:style), that element's; on a concept's
+VisualNotation, every element of that concept's drawn with the notation; on a presentation context (a
+concept of a metamodel's arch:presentationContextScheme), every element shown in that context that
+nothing else says for. The first that applies wins, in this order:
+1. the diagram element's own, for the context shown (arch:inPresentationContext);
+2. the diagram element's own, for every context;
+3. its concept's notation's, for the context shown;
+4. its concept's notation's, for every context;
+5. the context's;
+with none, the label is the concept's name for the context shown.'''@en ;
+    arch:domainIncludes arch-vis:Style, arch-vis:VisualNotation, skos:Concept ;
+    rdfs:range   arch-vis:LabelExpression ;
+.
+
+arch-vis:expression
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "expression"@en ;
+    rdfs:comment "A label expression's text, its placeholders between braces (see arch-vis:LabelExpression)."@en ;
+    rdfs:domain  arch-vis:LabelExpression ;
+    rdfs:range   xsd:string ;
+.
+
 arch-vis:nestedEnd
     a            owl:ObjectProperty ;
     rdfs:label   "nestedEnd"@en ;
@@ -906,12 +1263,27 @@ for rendering this concept. Contains shape type, colors, icon, and dimensions.''
     rdfs:range   arch-vis:Style ;
 .
 
+arch-vis:alternativeStyle
+    a            owl:ObjectProperty ;
+    rdfs:label   "alternativeStyle"@en ;
+    rdfs:comment '''Another figure the concept may be drawn as, besides its default Style
+(arch-vis:defaultStyle) — a business object, for example, as a box with its glyph or as a banded
+box. It says only what differs from the default: its shape type and rendering mode, an outline's
+style; colours and the glyph are the default's. A diagram element drawn as it says so on its own style
+(arch-vis:style) with the alternative's arch-vis:shapeType and arch-vis:renderingMode.'''@en ;
+    rdfs:domain  arch-vis:VisualNotation ;
+    rdfs:range   arch-vis:Style ;
+.
+
 arch-vis:lineStyle
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "lineStyle"@en ;
-    rdfs:comment "The line rendering style for a relationship connector (solid, dashed, dotted)."@en ;
-    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:comment '''The line rendering style (solid, dashed, dotted): of a relationship type's lines, said on its
+notation or its notation's default style; or of one line, said on that Link's own style
+(arch-vis:style) — a line standing for no relationship, a note's to what it is about, whose look is
+its own.'''@en ;
+    arch:domainIncludes arch:QualifiedRelationship, arch-vis:VisualNotation, arch-vis:Style ;
     rdfs:range   arch-vis:LineStyle ;
 .
 
@@ -919,8 +1291,10 @@ arch-vis:sourceDecor
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "sourceDecor"@en ;
-    rdfs:comment "The decoration at the source end of a relationship connector."@en ;
-    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:comment '''The decoration at a line's source end: of a relationship type's lines, said on its notation
+or its notation's default style; or of one line, said on that Link's own style, as for
+arch-vis:lineStyle.'''@en ;
+    arch:domainIncludes arch:QualifiedRelationship, arch-vis:VisualNotation, arch-vis:Style ;
     rdfs:range   arch-vis:Decoration ;
 .
 
@@ -928,7 +1302,9 @@ arch-vis:targetDecor
     a            owl:ObjectProperty,
                  owl:FunctionalProperty ;
     rdfs:label   "targetDecor"@en ;
-    rdfs:comment "The decoration at the target end of a relationship connector."@en ;
-    rdfs:domain  arch:QualifiedRelationship ;
+    rdfs:comment '''The decoration at a line's target end: of a relationship type's lines, said on its notation
+or its notation's default style; or of one line, said on that Link's own style, as for
+arch-vis:lineStyle.'''@en ;
+    arch:domainIncludes arch:QualifiedRelationship, arch-vis:VisualNotation, arch-vis:Style ;
     rdfs:range   arch-vis:Decoration ;
 .

@@ -4,8 +4,8 @@
  * The form dialog's fields: a section's heading (no value), a fixed field
  * (shown, not changed), a secret (never pre-filled), a select.
  */
-import { describe, it, expect, afterEach } from 'vitest';
-import { domDialogs } from '../dialogs.js';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { detailLines, domDialogs, type DetailBlock } from '../dialogs.js';
 
 afterEach(() => document.querySelector('.la-dialog-backdrop')?.remove());
 
@@ -153,5 +153,63 @@ describe('the choice dialog', () => {
     expect(shown()).toHaveLength(names.length);
     ok();
     expect(await answer).toBe('Views');
+  });
+});
+
+describe('the details dialog (About, the keyboard shortcuts)', () => {
+  const blocks: DetailBlock[] = [
+    { kind: 'header', image: 'favicon.svg', title: 'la-gram', subtitle: 'Semantic Architecture Modeller', note: 'Version 0.1.0' },
+    { kind: 'heading', text: 'Licence' },
+    { kind: 'text', text: 'Apache License 2.0.' },
+    { kind: 'links', links: [{ label: 'Source code', href: 'https://example.org/la-gram' }] },
+    { kind: 'rows', keys: true, rows: [['Ctrl+Y / Ctrl+Shift+Z', 'Redo']] },
+  ];
+
+  it('shows each part: the header, headings, text, links opened apart, keys as keys', async () => {
+    const closed = domDialogs.details!('About la-gram', blocks);
+    expect(dialog().classList.contains('la-dialog-details')).toBe(true);
+    expect(dialog().querySelector('.la-details-header img')?.getAttribute('src')).toBe('favicon.svg');
+    expect(dialog().querySelector('.la-details-title')?.textContent).toBe('la-gram');
+    expect(dialog().querySelector('.la-details-note')?.textContent).toBe('Version 0.1.0');
+    expect(dialog().querySelector('.la-details-heading')?.textContent).toBe('Licence');
+    const link = dialog().querySelector<HTMLAnchorElement>('.la-details-links a')!;
+    expect([link.textContent, link.getAttribute('href'), link.target, link.rel]).toEqual([
+      'Source code',
+      'https://example.org/la-gram',
+      '_blank',
+      'noopener noreferrer',
+    ]);
+    const keys = [...dialog().querySelectorAll('.la-details-rows.keys kbd')].map((k) => k.textContent);
+    expect(keys).toEqual(['Ctrl+Y', 'Ctrl+Shift+Z']);
+    expect(dialog().querySelector('.la-details-rows td:first-child')?.textContent).toBe('Ctrl+Y or Ctrl+Shift+Z');
+    ok();
+    await closed;
+    expect(document.querySelector('.la-dialog')).toBeNull();
+  });
+
+  it('copies its text with the copy button, and stays open', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const closed = domDialogs.details!('About la-gram', blocks, { copy: { label: 'Copy version info', text: 'la-gram 0.1.0' } });
+    const copy = [...dialog().querySelectorAll<HTMLButtonElement>('.la-button')].find((b) => b.textContent === 'Copy version info')!;
+    copy.click();
+    expect(writeText).toHaveBeenCalledWith('la-gram 0.1.0');
+    expect(document.querySelector('.la-dialog')).not.toBeNull();
+    ok();
+    await closed;
+    document.querySelector('.la-toasts')?.remove();
+  });
+
+  it('reads as lines of text where a dialog shows no parts', () => {
+    expect(detailLines(blocks)).toEqual([
+      'la-gram',
+      'Semantic Architecture Modeller',
+      'Version 0.1.0',
+      '',
+      'Licence',
+      'Apache License 2.0.',
+      'Source code: https://example.org/la-gram',
+      'Ctrl+Y / Ctrl+Shift+Z  Redo',
+    ]);
   });
 });

@@ -3,8 +3,8 @@
  * Views, Elements, Relationships (Req 10.10) — and changed (Req 10.13–10.15): a
  * folder made, renamed or deleted, concepts or a folder moved into another.
  *
- * **Layout.** Each kind has its own folders, as Archi and the converters keep
- * them. A top folder named as a group — *Elements*, *Relationships*, *Views*:
+ * **Layout.** Each kind has its own folders, as the converters keep them. A
+ * top folder named as a group — *Elements*, *Relationships*, *Views*:
  * what la-gram writes, and the converters inside their folder for the model —
  * stands for that group; what it holds directly is in no folder of the group.
  * Any other folder is shown under the groups of what it holds, at any depth —

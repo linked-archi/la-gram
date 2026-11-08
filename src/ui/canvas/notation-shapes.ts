@@ -36,6 +36,16 @@ import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Fallbacks for style properties the notation data may leave out. */
+/**
+ * How tall a container's name band is: once something is drawn inside it, its
+ * name goes to the top of its content box, on at most two lines with the badge
+ * padding (`containerLayout` in the renderer). What is inside is kept below it
+ * (`RdfAutoResize`).
+ */
+export function containerNameBand(fontSize = 11, badgePadding = 4): number {
+  return 2 * Math.round(fontSize * 1.2) + 2 * badgePadding;
+}
+
 export const NOTATION_DEFAULTS = {
   /** `arch-vis:shapeType` absent → a plain rectangle, ArchiMate's base shape. */
   shapeType: 'Rectangle' as ShapeType,
@@ -640,8 +650,10 @@ export function badgeBox(
 /** A laid-out label: lines plus the baseline of the first one. */
 export interface LabelLayout {
   lines: string[];
-  /** Horizontal anchor (always the shape's centre line). */
+  /** Horizontal anchor: the shape's centre line — or, aligned, where the lines start or end. */
   x: number;
+  /** How the lines hang from {@link x}: `middle` unless the label is aligned left (`start`) or right (`end`). */
+  anchor?: 'start' | 'middle' | 'end';
   /** Baseline y of the first line. */
   y: number;
   lineHeight: number;
@@ -651,16 +663,34 @@ export interface LabelLayout {
  * Split a label into lines that plausibly fit `availableWidth`.
  *
  * Uses a fixed 0.55em-per-character estimate rather than measuring, so the
- * result is deterministic. Words longer than a line are hard-broken.
+ * result is deterministic. Words longer than a line are hard-broken. Given a
+ * `font` of its own — a placement's own font name or style, a CSS `font` — the
+ * lines are measured in it where the browser can measure (jsdom cannot, and
+ * keeps the estimate): an estimate made for la-gram's font would wrap a wide
+ * or bold one too late and a narrow one too early.
  */
 export function wrapLabel(
   label: string,
   availableWidth: number,
   fontSize: number = NOTATION_DEFAULTS.fontSize,
   maxLines: number = NOTATION_DEFAULTS.maxLabelLines,
+  font?: string,
 ): string[] {
+  // A label of several lines — what a label expression says — each wrapped on its own.
+  if (label.includes('\n')) {
+    const lines: string[] = [];
+    for (const paragraph of label.split('\n')) {
+      if (lines.length >= maxLines) break;
+      lines.push(...wrapLabel(paragraph, availableWidth, fontSize, maxLines - lines.length, font));
+    }
+    return lines;
+  }
   const text = label.trim();
   if (text === '') return [];
+  if (font) {
+    if (textMeasure === undefined) textMeasure = canvasTextMeasure();
+    if (textMeasure) return wrapMeasured(text, availableWidth, maxLines, (line) => textMeasure!(line, font));
+  }
 
   const perChar = fontSize * 0.55;
   const budget = Math.max(3, Math.floor(availableWidth / perChar));
@@ -693,6 +723,67 @@ export function wrapLabel(
 
   if (current !== '') lines.push(current);
   return lines.slice(0, maxLines);
+}
+
+/** {@link wrapLabel} by measured widths: greedy, a word wider than a line broken where it no longer fits. */
+function wrapMeasured(text: string, width: number, maxLines: number, measure: (line: string) => number): string[] {
+  const lines: string[] = [];
+  let current = '';
+  const fits = (line: string) => measure(line) <= width;
+  for (const word of text.split(/\s+/)) {
+    const candidate = current === '' ? word : `${current} ${word}`;
+    if (fits(candidate)) {
+      current = candidate;
+      continue;
+    }
+    if (current !== '') {
+      lines.push(current);
+      if (lines.length >= maxLines) return lines;
+      current = '';
+    }
+    // A word wider than a line, broken where it stops fitting — at least a character a line.
+    let remaining = word;
+    while (!fits(remaining) && remaining.length > 1) {
+      let cut = 1;
+      while (cut < remaining.length && fits(remaining.slice(0, cut + 1))) cut += 1;
+      lines.push(remaining.slice(0, cut));
+      if (lines.length >= maxLines) return lines;
+      remaining = remaining.slice(cut);
+    }
+    current = remaining;
+  }
+  if (current !== '') lines.push(current);
+  return lines.slice(0, maxLines);
+}
+
+/** How wide a line of text is drawn, measured; `undefined` where nothing can measure it. */
+type TextMeasure = (text: string, font: string) => number;
+let textMeasure: TextMeasure | null | undefined;
+
+/**
+ * How wide a line of text is drawn at `fontSize` in the canvas's font: measured
+ * with the browser's canvas text metrics where there are any, else the wrapping
+ * estimate (0.55em a character) — jsdom has no canvas, and the tests lay out
+ * as before. Used where a box is fitted to text a wrapping estimate already
+ * chose: a relationship's name on its line.
+ */
+export function textWidth(text: string, fontSize: number = NOTATION_DEFAULTS.fontSize): number {
+  if (textMeasure === undefined) textMeasure = canvasTextMeasure();
+  return textMeasure ? textMeasure(text, `${fontSize}px ${NOTATION_DEFAULTS.fontFamily}`) : text.length * fontSize * 0.55;
+}
+
+function canvasTextMeasure(): TextMeasure | null {
+  try {
+    if (typeof document === 'undefined' || /jsdom/i.test(globalThis.navigator?.userAgent ?? '')) return null;
+    const context = document.createElement('canvas').getContext('2d');
+    if (!context) return null;
+    return (text, font) => {
+      context.font = font;
+      return context.measureText(text).width;
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -732,6 +823,12 @@ export function labelLayout(
     outside?: boolean;
     /** At most this many lines; {@link NOTATION_DEFAULTS.maxLabelLines} when absent. */
     maxLines?: number;
+    /** Across the shape (`arch-vis:textAlignment`): centred when absent. Inside it only. */
+    align?: 'left' | 'center' | 'right';
+    /** Down the shape (`arch-vis:textPosition`): in the middle when absent, unless a badge says otherwise. Inside it only. */
+    position?: 'top' | 'middle' | 'bottom';
+    /** The label's own font (a CSS `font`), when not la-gram's: the lines are measured in it ({@link wrapLabel}). */
+    font?: string;
   } = {},
 ): LabelLayout {
   const w = size(width, NOTATION_DEFAULTS.width);
@@ -740,15 +837,25 @@ export function labelLayout(
   const lineHeight = round(fontSize * 1.2);
   const pad = NOTATION_DEFAULTS.badgePadding;
 
+  // Aligned left or right, the lines run from the side clear of the badge's corner to the badge.
+  const aligned = !options.outside && !options.below && (options.align === 'left' || options.align === 'right');
+  const badgeLeft = options.badgePlacement === 'TopLeft';
+  const badgeRight = options.badgePlacement === 'TopRight';
+  const band = {
+    left: badgeLeft ? 2 * pad + NOTATION_DEFAULTS.badgeSize : pad,
+    right: badgeRight ? w - 2 * pad - NOTATION_DEFAULTS.badgeSize : w - pad,
+  };
   // With a badge in a corner, give up its width so the two do not overlap.
-  const available = options.outside
+  const available = aligned
+    ? Math.max(band.right - band.left, w * 0.5)
+    : options.outside
     ? Math.max(w, NOTATION_DEFAULTS.width)
     : options.below
     ? w
     : options.badgePlacement
       ? Math.max(w - NOTATION_DEFAULTS.badgeSize - 2 * pad, w * 0.5)
       : Math.max(w - 2 * pad, w * 0.5);
-  const lines = wrapLabel(label, available, fontSize, options.maxLines);
+  const lines = wrapLabel(label, available, fontSize, options.maxLines, options.font);
   const block = lines.length * lineHeight;
 
   if (options.outside) {
@@ -764,6 +871,10 @@ export function labelLayout(
     centreY = h - pad - block / 2;
   } else if (options.badgePlacement === 'BottomCenter') {
     centreY = pad + block / 2;
+  } else if (options.position === 'top') {
+    centreY = pad + block / 2;
+  } else if (options.position === 'bottom') {
+    centreY = h - pad - block / 2;
   } else {
     centreY = h / 2;
   }
@@ -771,6 +882,9 @@ export function labelLayout(
   // Baseline of the first line: shift the block up by half its height, then
   // down by the ascent of one line.
   const y = round(centreY - block / 2 + fontSize * 0.85);
+  // Aligned, the lines start — or end — at the edge of the band they were wrapped to.
+  if (aligned && options.align === 'left') return { lines, x: round(band.left), y, lineHeight, anchor: 'start' };
+  if (aligned && options.align === 'right') return { lines, x: round(band.right), y, lineHeight, anchor: 'end' };
   return { lines, x: round(w / 2), y, lineHeight };
 }
 

@@ -14,7 +14,10 @@ import { join } from 'node:path';
 import { createApp } from '../app.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelQuads, readModelContents } from '../model-manager/model-queries.js';
+import { relationshipClassOf } from '../model-manager/cascade.js';
 import { buildModelTree, type TreeNode } from '../ui/panels/model-explorer.js';
+import { hexColour } from '../ui/figure-bar.js';
+import { nn as namedNode } from '../model-manager/vocabulary.js';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'converters', name), 'utf8');
 
@@ -121,6 +124,13 @@ describe('a model from the ArchiMate converter', () => {
     expect(contents.elements).toHaveLength(11);
     expect(contents.relationships).toHaveLength(10);
     expect(contents.unclassified).toEqual([]);
+    // Typed arch:QualifiedRelationship and arch:ModelConcept before their class: listed, and handled, by
+    // the class — not all under "Model Concept".
+    const am = 'https://meta.linked.archi/archimate3/onto#';
+    expect(contents.relationships.filter((r) => !r.typeIri.startsWith(am))).toEqual([]);
+    const serving = contents.relationships.find((r) => r.iri.endsWith('/relationship/id-rel-1'))!;
+    expect([serving.typeIri, serving.typeLabel]).toEqual([am + 'Serving', 'Serving']);
+    expect(relationshipClassOf(app.components.store, serving.iri)).toBe(am + 'Serving');
     expect(app.components.viewManager.getViews()).toHaveLength(1);
 
     // The conversion's provenance stays out of the model: no membership was added to it.
@@ -134,4 +144,67 @@ describe('a model from the ArchiMate converter', () => {
     );
     expect(provenance.filter((iri) => members.has(iri))).toEqual([]);
   }, 60_000);
+});
+
+describe("the ArchiMate converter's groups, notes and the lines from them", () => {
+  // archimate2linkedarchi's output for an exchange view with a group around an
+  // element, a coloured note and a line from the note to the element.
+  const VIEW = 'https://example.org/la/model/figures/view/id-v1';
+  const NOTE = `${VIEW}/node/n-note`;
+
+  it('open as figures, their text their prefLabel, the note in its colour; the line from it a line only', async () => {
+    const app = await createApp();
+    await app.openModel(fixture('archimate-figures.trig'), 'figures.trig');
+    const views = app.components.viewManager;
+    const figures = views.getNodes(VIEW).filter((n) => n.figure);
+    expect(new Map(figures.map((n) => [n.nodeIri.split('/').pop(), n.figure]))).toEqual(
+      new Map([
+        ['n-group', { kind: 'group', text: 'Customer facing' }],
+        // The converter's rgba(255,214,224,255) — its alpha out of 255 — read as meant: opaque.
+        ['n-note', { kind: 'note', text: 'Remember the SLA', fillColor: '#ffd6e0' }],
+      ]),
+    );
+    // The element is drawn inside the group.
+    const web = views.getNodes(VIEW).find((n) => !n.figure)!;
+    expect(web.parentNodeIri).toBe(`${VIEW}/node/n-group`);
+    // The note's line: no relationship.
+    expect(views.getLinks(VIEW)).toEqual([
+      expect.objectContaining({ connector: true, sourceNodeIri: NOTE, targetNodeIri: web.nodeIri }),
+    ]);
+  }, 60_000);
+
+  it('a converted note recoloured gets a style of its own; deleted, its converter style goes with it', async () => {
+    const app = await createApp();
+    await app.openModel(fixture('archimate-figures.trig'), 'figures.trig');
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const styleOf = () => store.getQuads(namedNode(NOTE), namedNode(NAMESPACES['arch-vis'] + 'style'), null).map((q) => q.object);
+    const [converted] = styleOf();
+    expect(converted?.termType).toBe('BlankNode');
+
+    views.setFigureColours!(VIEW, NOTE, { lineColor: '#7a0019' });
+    // Its own style, with the colour the converter gave it and the one given now; the blank one gone.
+    expect(styleOf().map((s) => s.value)).toEqual([`${NOTE}-style`]);
+    expect(views.getNode(VIEW, NOTE)?.figure).toMatchObject({ fillColor: '#ffd6e0', lineColor: '#7a0019' });
+    expect(store.getQuads(converted as never, null, null)).toEqual([]);
+
+    views.removeElementFromView(VIEW, NOTE);
+    expect(store.getQuads(namedNode(`${NOTE}-style`), null, null)).toEqual([]);
+    expect(views.getLinks(VIEW)).toEqual([]);
+  }, 60_000);
+});
+
+describe('a colour, as a colour picker shows it', () => {
+  it('is #rrggbb from #rgb, #rrggbb(aa), rgb() and rgba(); nothing from anything else', () => {
+    expect(['#abc', '#AABBCC', '#aabbcc80', 'rgb(255, 214, 224)', 'rgba(255,247,179,255)', 'red', '', undefined].map(hexColour)).toEqual([
+      '#aabbcc',
+      '#aabbcc',
+      '#aabbcc',
+      '#ffd6e0',
+      '#fff7b3',
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
 });

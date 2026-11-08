@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>la-gram</title>
+  <!-- The Linked.Archi mark — an "A" drawn as a graph, in its teal, red and
+       yellow — simplified to stay legible at 16 px: bolder lines, and only the
+       filled nodes. favicon.ico and the small sizes of the app's icon are
+       rendered from this file: npm run icons. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.6">
+    <path d="M16 5.5 L3.5 27 H9" stroke="#00baa3"/>
+    <path d="M13 27 L20.2 14.4 L27.5 27" stroke="#d55342"/>
+    <path d="M18 27 H24" stroke="#efc945"/>
+  </g>
+  <circle cx="16" cy="5.5" r="4" fill="#00baa3"/>
+  <circle cx="20.2" cy="14.4" r="3.6" fill="#d55342"/>
+  <circle cx="27.5" cy="27" r="3.6" fill="#efc945"/>
+</svg>

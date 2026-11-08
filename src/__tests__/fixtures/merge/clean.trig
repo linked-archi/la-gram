@@ -1,0 +1,42 @@
+# Changes that do not touch each other merge without a conflict:
+# - ours describes CRM and places it on the diagram; theirs adds an HR component;
+# - both give Billing the same alternative name (one addition);
+# - both take Portal out of the folder (one removal);
+# - ours drops Billing's French name; theirs moves Portal's node.
+
+@prefix m:      <https://example.org/m/> .
+@prefix ex:     <https://example.org/vocab#> .
+@prefix arch:   <https://meta.linked.archi/core#> .
+@prefix vis:    <https://meta.linked.archi/core-vis#> .
+@prefix am4:    <https://meta.linked.archi/archimate4/onto#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+
+<urn:ours-added> {
+    m:crm skos:definition "Customer records"@en ;
+        arch:inView m:view .
+    m:node-crm a vis:ArchNode ;
+        vis:view m:view ;
+        vis:archElement m:crm ;
+        vis:bounds-x "600"^^xsd:double ; vis:bounds-y "0"^^xsd:double ;
+        vis:bounds-w "120"^^xsd:double ; vis:bounds-h "55"^^xsd:double .
+    m:billing skos:altLabel "Invoicing"@en .
+}
+<urn:ours-removed> {
+    m:folder schema:itemListElement m:portal .
+    m:billing skos:prefLabel "Facturation"@fr .
+}
+<urn:theirs-added> {
+    m:hr a am4:ApplicationComponent ;
+        skos:prefLabel "HR"@en ;
+        arch:inModel m:model .
+    m:billing skos:altLabel "Invoicing"@en .
+    m:node-portal vis:bounds-x "320"^^xsd:double .
+}
+<urn:theirs-removed> {
+    m:folder schema:itemListElement m:portal .
+    m:node-portal vis:bounds-x "300"^^xsd:double .
+}

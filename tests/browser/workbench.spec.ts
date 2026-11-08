@@ -194,6 +194,53 @@ describe('views: one model, many views', () => {
   });
 });
 
+describe('the name, the icon, Help and About', () => {
+  it('shows the icon by the name, and the title by the model; About from either, the shortcuts from Help', async () => {
+    const { page, session } = await openPage();
+    const bar = page.locator('app-toolbar');
+    // The icon loads, beside the name, on one line.
+    const brand = bar.locator('button.brand');
+    await expect(brand.innerText()).resolves.toBe('la-gram');
+    const icon = await brand.locator('img').evaluate((img: HTMLImageElement) => [img.complete, img.naturalWidth > 0, img.getBoundingClientRect().height]);
+    expect(icon).toEqual([true, true, 20]);
+    expect((await brand.boundingBox())!.height).toBeLessThan(32);
+    expect(await page.title()).toBe('Untitled model — la-gram');
+    // The favicons the page names are served.
+    for (const href of await page.locator('link[rel="icon"]').evaluateAll((links) => links.map((l) => (l as HTMLLinkElement).href))) {
+      expect((await page.request.get(href)).status()).toBe(200);
+    }
+
+    // About, from the name: what it is, its version, its licence, what it is built with.
+    await brand.click();
+    const dialog = page.locator('.la-dialog.la-dialog-details');
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-details-title').innerText()).toBe('la-gram');
+    expect(await dialog.locator('.la-details-note').innerText()).toMatch(/^Version \d+\.\d+\.\d+$/);
+    expect(await dialog.locator('.la-details-header img').evaluate((img: HTMLImageElement) => img.naturalWidth > 0)).toBe(true);
+    const text = await dialog.innerText();
+    expect(text).toContain('Apache License 2.0');
+    expect(text).toMatch(/diagram-js \d/);
+    expect(text).toContain('ArchiMate 4.0 Metamodel');
+    await session.screenshot('help-about');
+    await dialog.locator('.la-button.primary').click();
+    await dialog.waitFor({ state: 'hidden' });
+
+    // Help: the shortcuts, the guides opening in another tab, About.
+    await bar.locator('button[data-menu="help"]').click();
+    const links = bar.locator('.dropdown a[data-link]');
+    expect(await links.count()).toBeGreaterThan(5);
+    expect(await links.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
+    await bar.locator('.dropdown [data-command="shortcuts"]').click();
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Keyboard shortcuts');
+    expect(await dialog.locator('kbd').count()).toBeGreaterThan(10);
+    await session.screenshot('help-shortcuts');
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    findings.push('icon by the name, title by the model, About (version, licence, built with), Help with the shortcuts and the guides: ok');
+  }, 90_000);
+});
+
 describe('the RDF panel', () => {
   let page: Page;
   let session: BrowserSession;
@@ -367,7 +414,8 @@ describe('the layout and the property panel', () => {
       ).value as string;
     });
     await page.evaluate(() => (window as any).__LA_GRAM_APP__.scheduleValidation());
-    await until(async () => /1 more in the model/.test(await page.locator('validation-panel .summary').innerText()), 'the finding elsewhere');
+    // Its missing name, and — a SPARQL-based principle, run in the worker with Oxigraph, as Info — that it relates to nothing.
+    await until(async () => /2 more in the model/.test(await page.locator('validation-panel .summary').innerText()), 'the findings elsewhere');
     expect(await badge.count()).toBe(0);
     const scope = page.locator('validation-panel select.scope');
     await scope.selectOption('model');
@@ -465,7 +513,8 @@ describe('the layout and the property panel', () => {
       'Analysis',
       'Appears in views',
     ]);
-    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition']);
+    // Its name and its picture for each audience (the metamodel's presentation contexts) last — by their first words.
+    expect(await labels()).toEqual(['ID', 'Type', 'Model', 'Name', 'Definition', 'Names', 'Pictures']);
     // Named, not by IRI: the model by its name, the ID by its short identifier; a click shows the IRIs.
     const modelRow = panel.locator('.pane li.property-row', { has: page.locator('.field-name', { hasText: 'Model' }) });
     expect(await modelRow.locator('.named').innerText()).not.toMatch(/^https?:/);
@@ -1059,6 +1108,13 @@ describe('moving a relationship’s name', () => {
     await namesSwitch.click();
     const name = page.locator(`.djs-connection[data-element-id="${ids.r}"] .la-connection-label rect`);
     await name.waitFor({ state: 'attached' });
+    // The name's box fits the name as drawn — measured, not estimated: 2 px each side.
+    const fit = await page.evaluate((r) => {
+      const group = document.querySelector(`.djs-connection[data-element-id="${r}"] .la-connection-label`)!;
+      const text = (group.querySelector('text') as SVGTextElement).getBBox().width;
+      return { box: Number(group.querySelector('rect')!.getAttribute('width')), text };
+    }, ids.r);
+    expect(Math.abs(fit.box - (fit.text + 4))).toBeLessThan(1.5);
     const facts = async () =>
       page.evaluate(({ r, v }) => {
         const ui = (window as any).__LA_GRAM_UI__;
@@ -1126,7 +1182,7 @@ describe('moving a relationship’s name', () => {
     await page.mouse.click(c.x, c.y, { button: 'right' });
     const menu = page.locator('.djs-popup.la-context-menu');
     await menu.waitFor({ state: 'visible' });
-    await menu.locator('.entry', { hasText: 'Move name back to the middle' }).click();
+    await menu.locator('.entry', { hasText: 'Move name back to its place' }).click();
     await until(async () => (await facts()).kept === undefined, 'the name back at the middle');
 
     await namesSwitch.click();
@@ -1324,8 +1380,52 @@ describe('changing an element’s type', () => {
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
       'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
-      'Copy IRI', 'Delete view…',
+      'Copy IRI', 'Export view as SVG', 'Export view as PNG', 'Delete view…',
     ]);
+    // Export from it: the pictures — the notation's glyphs — in the file, and a PNG drawn with them, at twice the size.
+    const exported: Record<string, Buffer> = {};
+    for (const id of ['export-svg', 'export-png']) {
+      if (!(await menu.isVisible())) {
+        await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
+        await menu.waitFor({ state: 'visible' });
+      }
+      const [download] = await Promise.all([page.waitForEvent('download'), menu.locator(`.entry[data-id="${id}"]`).click()]);
+      expect(download.suggestedFilename()).toMatch(id === 'export-svg' ? /\.svg$/ : /\.png$/);
+      exported[id] = await readFile((await download.path())!);
+    }
+    const svgFile = exported['export-svg']!.toString('utf8');
+    const pictures = [...svgFile.matchAll(/<image\b[^>]*\bhref="([^"]*)"/g)].map((m) => m[1]!);
+    expect(pictures.length).toBeGreaterThanOrEqual(2);
+    expect(pictures.filter((href) => !href.startsWith('data:image/'))).toEqual([]);
+    const png = exported['export-png']!;
+    const [svgWidth, svgHeight] = [/<svg\b[^>]*\bwidth="(\d+)"/, /<svg\b[^>]*\bheight="(\d+)"/].map((re) => Number(svgFile.match(re)![1]));
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([svgWidth! * 2, svgHeight! * 2]);
+    // The PNG has the glyphs drawn: the actor's badge, top right of "Clerk", is not all fill colour.
+    const inked = await page.evaluate(async ({ data, box }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      [canvas.width, canvas.height] = [image.width, image.height];
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(box.x, box.y, box.width, box.height).data;
+      let dark = 0;
+      for (let i = 0; i < pixels.length; i += 4) if (pixels[i]! + pixels[i + 1]! + pixels[i + 2]! < 200) dark++;
+      return dark;
+    }, {
+      data: png.toString('base64'),
+      // Clerk is at x 500 of the drawing; the drawing's left edge is the SVG's viewBox x.
+      box: await (async () => {
+        const viewBox = svgFile.match(/viewBox="(-?[\d.]+) (-?[\d.]+)/)!;
+        const [vx, vy] = [Number(viewBox[1]), Number(viewBox[2])];
+        return { x: (500 + 120 - 26 - vx) * 2, y: (100 + 2 - vy) * 2, width: 24 * 2, height: 24 * 2 };
+      })(),
+    });
+    expect(inked).toBeGreaterThan(20);
+    if (await menu.isVisible()) await page.keyboard.press('Escape');
+    await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
+    await menu.waitFor({ state: 'visible' });
     await menu.locator('.entry', { hasText: 'Select all' }).click();
     // An entry that changes neither the model nor the zoom closes the menu too.
     await menu.waitFor({ state: 'hidden' });
@@ -1352,7 +1452,7 @@ describe('changing an element’s type', () => {
     expect(await shown()).toEqual([modelIri, 'Model']);
     await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80);
     await until(async () => (await shown())[0] === ids.v, 'the view shown again');
-    findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view: ok');
+    findings.push('right-click menu on a relationship (over its handles) and on the empty canvas, for the view; export as SVG and PNG from it, glyphs in the files: ok');
   }, 90_000);
 
   it('goes back to the previous view as it was left — zoom and scroll — from the toolbar or with Alt+←', async () => {
@@ -1429,7 +1529,7 @@ describe('model questions', () => {
     const titles = await menu.locator('.group-title').allInnerTexts();
     expect(titles.map((t) => t.toLowerCase())).toEqual(expect.arrayContaining(['orientation', 'analysis', 'quality', 'views']));
     const all = await menu.locator('button.question').count();
-    expect(all).toBe(36);
+    expect(all).toBe(38);
     const concern = menu.locator('select.concern');
     const firstConcern = await concern.locator('option').nth(1).getAttribute('value');
     await concern.selectOption(firstConcern!);
@@ -1450,6 +1550,11 @@ describe('model questions', () => {
     await until(async () => (await validation.locator('.result-item', { hasText: 'Which elements take part in no relationship?' }).count()) > 0, 'the orphan finding');
     const finding = validation.locator('.result-item', { hasText: 'Which elements take part in no relationship?' }).first();
     expect(await finding.innerText()).toMatch(/Check: orphans/);
+    // The check, as a shape is, a link to its IRI — opened apart, the finding's concept not shown for it.
+    const link = finding.locator('a.shape');
+    expect(await link.getAttribute('href')).toMatch(/^https:\/\/meta\.linked\.archi\/.+#orphans$/);
+    expect(await link.getAttribute('target')).toBe('_blank');
+    expect(await validation.locator('.result-item a.shape[href^="https://meta.linked.archi/"]').count()).toBeGreaterThan(1);
     await session.screenshot('questions-model-checks');
     expect(actor).toBeTruthy();
     findings.push('questions: asked about an element from its right-click menu, picked from the Questions menu with a concern filter, model checks listed in Validation: ok');
@@ -1897,5 +2002,553 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     );
     expect(fetched).toEqual([]);
     findings.push('git: ?git=off → no entries, no chunk fetched: ok');
+  });
+});
+
+describe('figures from the toolbar: groups, notes, shapes', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** The open view's figures, through the app's API. */
+  const figures = async () =>
+    page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      return app.components.viewManager
+        .getNodes(app.session.activeViewIri)
+        .filter((n: any) => n.figure)
+        .map((n: any) => ({ iri: n.elementIri, kind: n.figure.kind, text: n.figure.text, parent: n.parentElementIri }));
+    }) as Promise<Array<{ iri: string; kind: string; text?: string; parent?: string }>>;
+
+  /** Press a figure's button in the toolbar's second row and drag it onto the canvas. */
+  const dropFigure = async (figure: string, dx: number, dy: number) => {
+    const button = await page.locator(`canvas-toolbar .figures button[data-figure="${figure}"]`).boundingBox();
+    const host = await page.locator('.la-diagram-host').boundingBox();
+    await page.mouse.move(button!.x + button!.width / 2, button!.y + button!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(host!.x + dx - 40, host!.y + dy, { steps: 8 });
+    await page.mouse.move(host!.x + dx, host!.y + dy, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+  };
+
+  it('the Shapes switch opens a row of figures, remembered; a note is dragged on, drawn and kept in the view', async () => {
+    expect(await page.locator('canvas-toolbar .figures').count()).toBe(0);
+    await page.locator('canvas-toolbar button[data-switch="figures"]').click();
+    const buttons = await page.locator('canvas-toolbar .figures button').evaluateAll((all) => all.map((b) => b.getAttribute('data-figure')));
+    expect(buttons).toEqual(['group', 'note', 'Rectangle', 'RoundedRectangle', 'Ellipse', 'Circle', 'Diamond', 'Hexagon', 'Octagon', 'Parallelogram']);
+    expect(await page.evaluate(() => localStorage.getItem('la-gram:canvas-figures'))).toBe('true');
+
+    await dropFigure('note', 600, 120);
+    const [note] = await figures();
+    expect(note).toMatchObject({ kind: 'note' });
+    expect(await page.locator(`.djs-shape[data-element-id="${note!.iri}"] [data-figure="note"]`).count()).toBe(1);
+  });
+
+  it('a note is renamed on the canvas: its text is written and drawn; selected, the panels show it without errors', async () => {
+    const [note] = await figures();
+    const shape = page.locator(`.djs-shape[data-element-id="${note!.iri}"]`);
+    await shape.dblclick();
+    const editor = page.locator('.djs-direct-editing-content');
+    await editor.waitFor({ state: 'visible' });
+    await page.keyboard.type('Ask the CFO');
+    await page.locator('.la-diagram-host').click({ position: { x: 20, y: 400 } });
+    await until(async () => (await figures())[0]?.text === 'Ask the CFO', 'the note’s text written');
+    expect(await shape.locator('[data-figure="note"]').textContent()).toBe('Ask the CFO');
+
+    await shape.click();
+    await page.waitForTimeout(200);
+    // Selected, the panel shows its text, and its look in an Appearance tab — no definition, no type.
+    const panel = page.locator('property-panel');
+    await expect(panel.locator('.panel-header').textContent()).resolves.toContain('Note');
+    expect(await panel.getByText('Definition').count()).toBe(0);
+    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Note information', 'Appearance', 'Image']);
+    await panel.locator('.vtab[data-tab="appearance"]').click();
+    expect(await panel.locator('.appearance-field').count()).toBe(11);
+    await panel.locator('.appearance-field[data-field="fillColor"] input').evaluate((input: HTMLInputElement) => {
+      input.value = '#ffd6e0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await until(
+      async () => (await shape.locator('.la-shape-body').getAttribute('fill')) === '#ffd6e0',
+      'the note drawn in its new colour',
+    );
+    await session.screenshot('workbench-appearance');
+    expect((await figures())[0]).toMatchObject({ kind: 'note' });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('a group holds an element dropped into it, and an ellipse is drawn as one', async () => {
+    await dropFigure('group', 300, 300);
+    const group = (await figures()).find((f) => f.kind === 'group')!;
+    await dropActor(page, 300, 320);
+    const m = await model(page);
+    const actor = m.actors[m.actors.length - 1]!;
+    const parent = await page.evaluate(
+      (iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getNode(app.session.activeViewIri, iri)?.parentElementIri;
+      },
+      actor,
+    );
+    expect(parent).toBe(group.iri);
+
+    await dropFigure('Ellipse', 800, 400);
+    const ellipse = (await figures()).find((f) => f.kind === 'shape')!;
+    expect(await page.locator(`.djs-shape[data-element-id="${ellipse.iri}"] [data-figure="shape"] ellipse`).count()).toBe(1);
+    expect(session.diagnostics.pageErrors).toEqual([]);
+    expect(session.diagnostics.unexpectedConsoleErrors).toEqual([]);
+  });
+
+  it('a line drawn from the note to an element with the pad stands for no relationship; selected, the panel says what it joins', async () => {
+    const note = (await figures()).find((f) => f.kind === 'note')!;
+    const m = await model(page);
+    const actor = m.actors[m.actors.length - 1]!;
+    const relationshipsOf = () =>
+      page.evaluate((iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.relationshipManager.getRelationshipsOf(iri).length as number;
+      }, actor);
+    const before = await relationshipsOf();
+
+    const noteShape = page.locator(`.djs-shape[data-element-id="${note.iri}"]`);
+    await noteShape.click({ position: { x: 20, y: 60 } });
+    const connect = page.locator('.djs-context-pad .context-pad-connect');
+    await connect.waitFor({ state: 'visible' });
+    // Clicked, the pad's connect follows the pointer to the click on the target.
+    await connect.click();
+    const to = await page.locator(`.djs-shape[data-element-id="${actor}"]`).boundingBox();
+    await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 12 });
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+
+    const connectors = () =>
+      page.evaluate(() => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager
+          .getLinks(app.session.activeViewIri)
+          .filter((l: any) => l.connector)
+          .map((l: any) => ({ iri: l.linkIri, from: l.sourceElementIri, to: l.targetElementIri }));
+      }) as Promise<Array<{ iri: string; from: string; to: string }>>;
+    await until(async () => (await connectors()).length === 1, 'the note’s line written in the view');
+    const [line] = await connectors();
+    expect(line).toMatchObject({ from: note.iri, to: actor });
+    expect(await relationshipsOf()).toBe(before);
+    expect(await page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connector`).count()).toBe(1);
+
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_UI__.diagramCanvas.reveal(iri);
+    }, line!.iri);
+    await page.waitForTimeout(200);
+    const panel = page.locator('property-panel');
+    await until(async () => ((await panel.locator('.panel-header').textContent()) ?? '').includes('Line'), 'the panel showing the line');
+    // Its look the Appearance tab's — open, as the note's was: the tab is kept from one selection to the next.
+    expect((await panel.locator('.vtab .vtab-name').allInnerTexts()).map((t) => t.trim())).toEqual(['Line information', 'Appearance']);
+    expect(await panel.locator('.appearance-field').evaluateAll((fields) => fields.map((f) => f.getAttribute('data-field')))).toEqual([
+      'lineColor',
+      'lineWidth',
+      'lineOpacity',
+      'lineStyle',
+      'sourceDecor',
+      'targetDecor',
+      'labelAnchor',
+      'font',
+      'fontColor',
+    ]);
+    // Dotted, a filled arrow at its end: drawn so.
+    const drawnLine = page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connector`);
+    expect(await drawnLine.getAttribute('data-line-style')).toBe('DashedLine');
+    const pick = (field: string, value: string) =>
+      panel.locator(`.appearance-field[data-field="${field}"] select`).evaluate((select: HTMLSelectElement, v) => {
+        select.value = v;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
+    await pick('lineStyle', 'DottedLine');
+    await until(async () => (await drawnLine.getAttribute('data-line-style')) === 'DottedLine', 'the line dotted');
+    await pick('targetDecor', 'ClosedArrowhead');
+    await until(async () => ((await drawnLine.getAttribute('marker-end')) ?? '').includes('ClosedArrowhead'), 'an arrowhead at its end');
+    expect(await drawnLine.getAttribute('marker-start')).toBeNull();
+    await panel.locator('.vtab[data-tab="info"]').click();
+    expect(await panel.locator('.line-note').textContent()).toContain('Ask the CFO');
+
+    // What it says, typed on it: its skos:prefLabel, drawn at its middle, shown as its Text.
+    const mid = await page.evaluate((iri) => {
+      const d = (window as any).__LA_GRAM_UI__.diagramCanvas.getDiagram();
+      const drawn = d.get('elementRegistry').get(iri);
+      const canvas = d.get('canvas');
+      const vb = canvas.viewbox();
+      const svg = canvas._svg.getBoundingClientRect();
+      const [p, q] = [drawn.waypoints[0], drawn.waypoints[drawn.waypoints.length - 1]];
+      return { x: svg.x + ((p.x + q.x) / 2 - vb.x) * vb.scale, y: svg.y + ((p.y + q.y) / 2 - vb.y) * vb.scale };
+    }, line!.iri);
+    const editor = page.locator('.djs-direct-editing-content');
+    await page.mouse.dblclick(mid.x, mid.y);
+    await editor.waitFor({ state: 'visible' });
+    expect(await editor.innerText()).toBe('');
+    await page.keyboard.type('asks first');
+    await page.keyboard.press('Enter');
+    await editor.waitFor({ state: 'hidden' });
+    const said = () =>
+      page.evaluate((iri) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return app.components.viewManager.getLinks(app.session.activeViewIri).find((l: any) => l.linkIri === iri)?.text;
+      }, line!.iri);
+    await until(async () => (await said()) === 'asks first', 'the line’s text in the view');
+    const drawnText = page.locator(`.djs-connection[data-element-id="${line!.iri}"] .la-connection-label tspan`);
+    await until(async () => (await drawnText.allTextContents()).join(' ') === 'asks first', 'the text on the line');
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_UI__.diagramCanvas.reveal(iri);
+    }, line!.iri);
+    const textField = panel.locator('.property-list .property-row .property-value');
+    await until(async () => (await textField.count()) === 1 && (await textField.inputValue()) === 'asks first', 'the line’s Text field');
+    expect(await panel.locator('.property-list').textContent()).toContain('Text');
+    await session.screenshot('workbench-figures');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+    expect(session.diagnostics.unexpectedConsoleErrors).toEqual([]);
+  });
+});
+
+describe('an element placed twice in one view', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** Drag a model tree row onto the canvas at an offset. */
+  const dragFromTree = async (iri: string, dx: number, dy: number) => {
+    const row = await page.locator(`model-explorer .row[data-iri="${iri}"]`).boundingBox();
+    const host = await page.locator('.la-diagram-host').boundingBox();
+    await page.mouse.move(row!.x + 40, row!.y + row!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(row!.x + 60, row!.y + row!.height / 2, { steps: 4 });
+    await page.mouse.move(host!.x + dx, host!.y + dy, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+  };
+
+  it('dragged from the tree again, it is placed again; selected in the tree, both placements are', async () => {
+    await dropActor(page, 200, 150);
+    const [actor] = (await model(page)).actors;
+    await dragFromTree(actor!, 500, 350);
+    await until(async () => ((await model(page)).nodesIn['Default View'] ?? []).length === 2, 'the second placement');
+    expect((await model(page)).nodesIn['Default View']).toEqual([actor, actor]);
+    expect(await page.locator('.djs-shape[data-element-id]').evaluateAll((all) => all.length)).toBe(2);
+
+    await page.locator(`model-explorer .row[data-iri="${actor}"]`).click();
+    await until(async () => (await page.locator('.djs-shape.selected').count()) === 2, 'both placements selected');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+});
+
+describe('the Appearance tab', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** Set a field of the Appearance tab as a person does: the value typed or picked, then committed. */
+  const setField = (selector: string, value: string) =>
+    page.locator('property-panel').locator(selector).evaluate((input: HTMLInputElement | HTMLSelectElement, v) => {
+      input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+
+  it('an element’s line colour and width, and a relationship line’s, are drawn as set', async () => {
+    await dropActor(page, 200, 200);
+    await dropActor(page, 500, 200);
+    await until(async () => (await model(page)).actors.length === 2, 'two actors');
+    const [a, b] = (await model(page)).actors;
+    const rel = await page.evaluate(
+      ([source, target]) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const iri = app.components.relationshipManager.createQualifiedRelationship({
+          typeIri: 'https://meta.linked.archi/archimate4/onto#Association',
+          sourceIri: source,
+          targetIri: target,
+          modelIri: app.session.modelIri,
+        }).iri;
+        app.components.viewManager.addRelationshipToView(app.session.activeViewIri, iri);
+        app.components.eventBus.emit('model-changed', { origin: 'test' });
+        return iri as string;
+      },
+      [a!, b!],
+    );
+    const panel = page.locator('property-panel');
+    const body = page.locator(`.djs-shape[data-element-id="${a}"] .la-shape-body`);
+
+    // Selected on the canvas — through its selection, as a click selects.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await panel.locator('.vtab[data-tab="appearance"]').click();
+    await setField('.appearance-field[data-field="lineColor"] input', '#d93025');
+    await until(async () => (await body.getAttribute('stroke')) === '#d93025', 'the element’s outline in its new colour');
+    await setField('.appearance-field[data-field="lineWidth"] select', '3');
+    await until(async () => (await body.getAttribute('stroke-width')) === '3', 'the element’s outline in its new width');
+    expect(await body.getAttribute('stroke')).toBe('#d93025');
+
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), rel);
+    const line = page.locator(`.djs-connection[data-element-id="${rel}"] .la-connection`);
+    await until(async () => (await panel.locator('.appearance-field[data-field="lineColor"]').count()) === 1, 'the line’s Appearance');
+    await setField('.appearance-field[data-field="lineColor"] input', '#1a73e8');
+    await until(async () => (await line.getAttribute('stroke')) === '#1a73e8', 'the line in its new colour');
+    await setField('.appearance-field[data-field="lineWidth"] select', '2');
+    await until(async () => (await line.getAttribute('stroke-width')) === '2', 'the line in its new width');
+    expect(await line.getAttribute('stroke')).toBe('#1a73e8');
+    await session.screenshot('appearance-lines');
+
+    // A gradient: the fill shades from its colour at the left.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await until(async () => (await panel.locator('.appearance-field[data-field="gradient"]').count()) === 1, 'the element’s Appearance');
+    await setField('.appearance-field[data-field="gradient"] select', 'left');
+    await until(async () => ((await body.getAttribute('fill')) ?? '').startsWith('url(#la-gradient-left-'), 'the element filled with a gradient');
+
+    // "Notation only" on: the look set here is not drawn, and the tab says so; its button draws it again.
+    await page.locator('canvas-toolbar button[data-switch="notation-only"]').click();
+    await until(async () => (await body.getAttribute('stroke')) !== '#d93025', 'the element drawn as its notation has it');
+    const notice = panel.locator('.appearance-notice');
+    await notice.waitFor({ state: 'visible' });
+    expect(await notice.textContent()).toContain('Notation only');
+    await session.screenshot('appearance-notation-only');
+    await notice.locator('button.show-own').click();
+    await until(async () => (await body.getAttribute('stroke')) === '#d93025', 'the element drawn with its own look again');
+    expect(await notice.count()).toBe(0);
+    expect(await page.locator('canvas-toolbar button[data-switch="notation-only"]').getAttribute('aria-pressed')).toBe('false');
+    await session.screenshot('appearance-element');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('the Figure tab draws an element as its icon; renamed in place, the box is under the icon', async () => {
+    const [a] = (await model(page)).actors;
+    const panel = page.locator('property-panel');
+    const shape = page.locator(`.djs-shape[data-element-id="${a}"]`);
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await panel.locator('.vtab[data-tab="figure"]').click();
+    await panel.locator('.figure-choice[data-mode="IconCentric"]').click();
+    await until(async () => (await shape.locator('[data-rendering-mode]').getAttribute('data-rendering-mode')) === 'IconCentric', 'drawn as its icon');
+    await session.screenshot('appearance-figure');
+    // Renamed in place: the box is the band under the icon, not the whole shape.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), a);
+    await page.keyboard.press('F2');
+    const editor = page.locator('.djs-direct-editing-parent');
+    await editor.waitFor({ state: 'visible' });
+    // The element's bounds: the icon figure's hit area (the shape's own box takes in its selection outline).
+    const [box, drawn] = [await editor.boundingBox(), await shape.locator('.la-icon-container').boundingBox()];
+    expect(box!.height).toBeLessThan(drawn!.height / 2);
+    expect(box!.y + box!.height).toBeCloseTo(drawn!.y + drawn!.height, -1);
+    await page.keyboard.press('Escape');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('objects, a product, a work package and the 3D-box elements are boxes with their glyph', async () => {
+    const placed = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const types = ['BusinessObject', 'DataObject', 'Product', 'WorkPackage', 'Device', 'Equipment', 'Facility', 'Plateau', 'Grouping', 'Deliverable', 'Meaning', 'Value', 'ValueStream'];
+      return types.map((type, i) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, app.session.modelIri, { label: type }).value as string;
+        app.components.viewManager.addElementToView(app.session.activeViewIri, iri, {
+          x: 200 + 160 * (i % 4),
+          y: 420 + 80 * Math.floor(i / 4),
+          width: 120,
+          height: 55,
+        });
+        return iri;
+      });
+    });
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.components.eventBus.emit('model-changed', { origin: 'test' }));
+    for (const iri of placed) {
+      const shape = page.locator(`.djs-shape[data-element-id="${iri}"] [data-rendering-mode]`);
+      await until(async () => (await shape.count()) === 1, 'the object drawn');
+      expect(await shape.getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+      expect(await shape.locator('.la-shape-badge').count()).toBe(1);
+    }
+    // A grouping: dashed, its name from its top left.
+    const grouping = page.locator(`.djs-shape[data-element-id="${placed[8]}"]`);
+    expect(await grouping.locator('.la-shape-body').getAttribute('stroke-dasharray')).toBeTruthy();
+    expect(await grouping.locator('.la-shape-label').getAttribute('text-anchor')).toBe('start');
+    await session.screenshot('objects');
+    // A data object's Figure tab: its notation's own figure, its banded box, its icon, its shape alone.
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([iri]), placed[1]);
+    const panel = page.locator('property-panel');
+    await panel.locator('.vtab[data-tab="figure"]').click();
+    expect((await panel.locator('.figure-choice').allInnerTexts()).map((t) => t.trim())).toEqual([
+      'Shape with icon (notation)',
+      'Banded Rectangle',
+      'Icon',
+      'Shape only',
+    ]);
+    await session.screenshot('figure-alternatives');
+  });
+
+  it('renamed in place, text set at the bottom stays at the bottom as lines are typed', async () => {
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#BusinessActor', app.session.modelIri, {
+        label: 'Bottom',
+      }).value as string;
+      const node = app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 900, y: 420, width: 160, height: 120 });
+      app.components.viewManager.setAppearance(app.session.activeViewIri, node, { textPosition: 'bottom' });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await page.keyboard.press('F2');
+    const parent = page.locator('.djs-direct-editing-parent');
+    const content = page.locator('.djs-direct-editing-content');
+    await parent.waitFor({ state: 'visible' });
+    const gap = async () => {
+      const [box, text] = [await parent.boundingBox(), await content.boundingBox()];
+      return box!.y + box!.height - (text!.y + text!.height);
+    };
+    const paddingTop = () => content.evaluate((el: HTMLElement) => parseFloat(el.style.paddingTop));
+    const before = await paddingTop();
+    await page.keyboard.type(' with a name long enough to wrap onto several lines of its own');
+    // More lines: the padding above them shrinks, and their last stays at the bottom.
+    expect(await paddingTop()).toBeLessThan(before);
+    expect(Math.abs(await gap())).toBeLessThan(3);
+    await page.keyboard.press('Escape');
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('the Label tab: what a label says, line by line, in the presentation in use', async () => {
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Ledger',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 560, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="label"]').click();
+    await panel.locator('.label-expression').fill('{name}\n«{type}»');
+    await panel.locator('.label-expression').evaluate((area: HTMLTextAreaElement) => area.dispatchEvent(new Event('change')));
+    const lines = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-label tspan`);
+    // Its name on a line of its own; the type under it, wrapped as the box allows.
+    await until(async () => (await lines.allTextContents()).join(' ') === 'Ledger «Application Component»', 'the label, line by line');
+    expect((await lines.allTextContents())[0]).toBe('Ledger');
+    expect(await panel.locator('.label-shown').textContent()).toBe('Ledger\n«Application Component»');
+    await session.screenshot('appearance-label');
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('a colour for executives alone, from the Appearance tab with that presentation chosen', async () => {
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Coloured for executives',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 840, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    const body = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-body`);
+    const notationFill = await body.getAttribute('fill');
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}ExecutiveContext`);
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="appearance"]').click();
+    expect(await panel.locator('.look-scope').textContent()).toContain('Executive / C-Level');
+    await panel.locator('.appearance-field[data-field="fillColor"] input').evaluate((input: HTMLInputElement) => {
+      input.value = '#ffd6e0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await until(async () => (await body.getAttribute('fill')) === '#ffd6e0', 'pink for executives');
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}DeveloperContext`);
+    await until(async () => (await body.getAttribute('fill')) === notationFill, 'the notation’s colour for developers');
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.setPresentationContext(undefined));
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('an element’s own picture for executives, drawn as its figure when they are the presentation chosen', async () => {
+    const PC = 'https://meta.linked.archi/archimate4/presentation-contexts#';
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Card gateway',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 700, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32"><rect width="48" height="32" rx="6" fill="#e37400"/></svg>';
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="info"]').click();
+    await panel
+      .locator(`.context-picture[data-context="${PC}ExecutiveContext"] .context-picture-file`)
+      .setInputFiles({ name: 'card.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+    await until(
+      async () =>
+        (await page.evaluate((element) => {
+          const store = (window as any).__LA_GRAM_APP__.components.store;
+          return store.getQuads({ termType: 'NamedNode', value: element }, { termType: 'NamedNode', value: 'https://meta.linked.archi/core#altVisNotation' }).length;
+        }, iri)) === 1,
+      'the picture for executives kept in the model',
+    );
+    // Executives chosen: the Image tab draws it as the figure, for them.
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}ExecutiveContext`);
+    await panel.locator('.vtab[data-tab="image"]').click();
+    await panel.locator('.element-picture-as-figure').click();
+    const shape = page.locator(`.djs-shape[data-element-id="${iri}"] [data-rendering-mode]`);
+    await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'IconCentric', 'drawn as its picture');
+    expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-icon`).getAttribute('href')).toMatch(/^data:image\/svg\+xml;base64,/);
+    await session.screenshot('appearance-picture-per-presentation');
+    // Developers: its box.
+    await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}DeveloperContext`);
+    await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'ShapeWithBadge', 'its box for developers');
+    await page.evaluate(() => (window as any).__LA_GRAM_APP__.setPresentationContext(undefined));
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
+  });
+
+  it('a picture file chosen in the Image tab is kept in the model, drawn at its own size once loaded, where it is put', async () => {
+    const iri = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const element = app.components.elementManager.createElement('https://meta.linked.archi/archimate4/onto#ApplicationComponent', app.session.modelIri, {
+        label: 'Pictured',
+      }).value as string;
+      app.components.viewManager.addElementToView(app.session.activeViewIri, element, { x: 1100, y: 420, width: 160, height: 80 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return element;
+    });
+    // A 24 × 16 picture file, chosen: kept in the model as a data: URI.
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="24" height="16" fill="#1a73e8"/></svg>';
+    const panel = page.locator('property-panel');
+    await page.evaluate((element) => (window as any).__LA_GRAM_UI__.diagramCanvas.selectIris([element]), iri);
+    await panel.locator('.vtab[data-tab="image"]').click();
+    await panel.locator('.image-file').setInputFiles({ name: 'blue.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+    const kept = () =>
+      page.evaluate((element) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const node = app.components.viewManager.getNodes(app.session.activeViewIri).find((n: any) => n.elementIri === element);
+        return node?.appearance?.image as string | undefined;
+      }, iri);
+    await until(async () => (await kept()) === `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`, 'the file kept in the model');
+    const drawn = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-image`);
+    // Loaded, then drawn: its own size, in the top left inside the outline.
+    await until(async () => (await drawn.count()) === 1, 'the picture drawn once loaded');
+    expect(await drawn.evaluate((el) => ['x', 'y', 'width', 'height'].map((a) => el.getAttribute(a)))).toEqual(['3', '3', '24', '16']);
+    await panel.locator('.image-tab select').selectOption('BottomRight');
+    await until(async () => (await drawn.getAttribute('data-image-position')) === 'BottomRight', 'moved to the bottom right');
+    expect(await drawn.evaluate((el) => [el.getAttribute('x'), el.getAttribute('y')])).toEqual(['133', '61']);
+    expect(await panel.locator('.image-preview img').count()).toBe(1);
+    await session.screenshot('appearance-image');
+    // The keyboard back to the canvas for what comes next.
+    await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
+    expect(session.diagnostics.pageErrors).toEqual([]);
   });
 });

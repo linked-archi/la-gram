@@ -121,5 +121,5 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((err) => {
-  console.error('Failed to start RDF Architecture Modeler:', err);
+  console.error('Failed to start la-gram:', err);
 });

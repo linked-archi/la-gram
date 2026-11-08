@@ -24,6 +24,18 @@ export interface GitBinding {
   version: string;
   /** The commit it was opened or last saved at — a new branch starts there. */
   commit: string;
+  /**
+   * Another branch merged into the model (*Update from main*), not yet
+   * committed: the next save records it as merged — a merge commit on GitHub, a
+   * new branch from it on GitLab.
+   */
+  update?: {
+    branch: string;
+    /** Its head when merged. */
+    commit: string;
+    /** The file's version there; absent when the file was not on it. */
+    version?: string;
+  };
 }
 
 const KEY = 'la-gram:git-bindings';

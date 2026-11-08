@@ -90,6 +90,7 @@ import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
 import { relationshipKey } from './relationship-resolution.js';
+import type { RdfReuseCheck } from './reuse-relationship.js';
 import type { ObservableRdfStore, RdfDiff } from '../../rdf-engine/observable-store.js';
 
 /**
@@ -128,6 +129,9 @@ export const RDF_MODEL_DELETE_COMMAND = 'rdf.model.delete';
  */
 export const RDF_EXISTING_RELATIONSHIP_HINT = 'rdfExistingRelationship';
 
+/** Hint: the modeller was asked whether to use a relationship the model already has, and answered a new one. */
+export const RDF_REUSE_ANSWERED_HINT = 'rdfReuseAnswered';
+
 /** The relationship a connection stands for, everything needed to (un)write it. */
 export interface RdfRelationship {
   sourceIri: string;
@@ -144,6 +148,11 @@ export interface RdfRelationship {
 export interface RdfRelationshipRequest extends RdfRelationship {
   /** diagram-js id of the connection, so the canvas can key its registry. */
   connectionId: string;
+  /** The placements the connection was drawn between, when its ends are placed elements. */
+  sourceNodeIri?: string;
+  targetNodeIri?: string;
+  /** Set by the writer: the view's link it drew the relationship with. */
+  linkIri?: string;
   /**
    * IRI a previous `execute` minted, reused on redo so the relationship keeps
    * its identity across any number of undo/redo cycles.
@@ -179,7 +188,7 @@ export interface RdfRelationshipWriter {
    * Draw an *existing* relationship in the open view (an `arch-vis:Link`),
    * without creating anything in the model.
    */
-  draw?(relationshipIri: string): void;
+  draw?(relationshipIri: string, ends?: { sourceNodeIri?: string; targetNodeIri?: string }): string | undefined;
 }
 
 /** Minimal view of the diagram-js elements this module touches. */
@@ -230,6 +239,8 @@ export interface RdfElementRequest {
 /** What the writer managed to create. */
 export interface RdfElementResult {
   iri: string;
+  /** The node it was placed with in the open view. */
+  nodeIri?: string;
   /**
    * The triples that now describe the element, for a later redo.
    *
@@ -262,7 +273,7 @@ export interface RdfElementWriter {
    * Place an element that already exists in the model into the open view.
    * The model is not touched; only a node (and `arch:inView`) is written.
    */
-  place?(iri: string, bounds: RdfElementBounds): void;
+  place?(iri: string, bounds: RdfElementBounds): string | undefined;
 }
 
 /** Context of the `rdf.element.create` command. */
@@ -271,6 +282,8 @@ interface ElementCommandContext {
   request: RdfElementRequest;
   /** Filled in by `execute`, read by `revert` and by a later redo. */
   iri?: string;
+  /** The node it was placed with, kept for a redo. */
+  nodeIri?: string;
   snapshot?: unknown[];
   /** diagram-js id the shape had before `execute` adopted the IRI. */
   previousShapeId?: string;
@@ -307,11 +320,15 @@ export class CreateElementHandler {
 
     context.iri = result.iri;
     context.snapshot = result.snapshot;
+    context.nodeIri = result.nodeIri ?? context.nodeIri;
     if (context.previousShapeId === undefined) context.previousShapeId = shape.id;
     if (context.previousIri === undefined) context.previousIri = shape.businessObject?.iri ?? '';
 
     shape.id = result.iri;
-    if (shape.businessObject) shape.businessObject.iri = result.iri;
+    if (shape.businessObject) {
+      shape.businessObject.iri = result.iri;
+      if (context.nodeIri) shape.businessObject.nodeIri = context.nodeIri;
+    }
   }
 
   revert(context: ElementCommandContext): void {
@@ -339,9 +356,14 @@ export class CreateElementHandler {
  * is a shape for an element that exists — so neither writes twice.
  */
 export class RdfElementBehavior {
-  static $inject = ['eventBus', 'commandStack', 'rdfElementWriter'];
+  static $inject = ['eventBus', 'commandStack', 'rdfElementWriter', 'elementRegistry'];
 
-  constructor(eventBus: DjsEventBus, commandStack: DjsCommandStack, elementWriter: RdfElementWriter) {
+  constructor(
+    eventBus: DjsEventBus,
+    commandStack: DjsCommandStack,
+    elementWriter: RdfElementWriter,
+    elementRegistry: { get(id: string): unknown },
+  ) {
     eventBus.on<{ context?: ShapeCreateContext }>(
       'commandStack.shape.create.preExecute',
       (event) => {
@@ -357,7 +379,13 @@ export class RdfElementBehavior {
           const iri = businessObject.iri;
           const bounds = plannedBounds(shape, context?.position);
           commandStack.execute(RDF_CHANGE_COMMAND, {
-            apply: () => elementWriter.place?.(iri, bounds),
+            apply: () => {
+              const node = elementWriter.place?.(iri, bounds);
+              if (!node) return;
+              businessObject.nodeIri = node;
+              // Placed again: its element's IRI keys the first placement, its node this one.
+              if (shape.id === iri && elementRegistry.get(iri)) shape.id = node;
+            },
           } satisfies RdfChangeContext);
           return;
         }
@@ -386,7 +414,7 @@ export class RdfElementBehavior {
  * this command writes agree with the shape the next command draws. Getting it
  * wrong would leave RDF claiming a position half a shape away from the canvas.
  */
-function plannedBounds(
+export function plannedBounds(
   shape: DjsShapeLike,
   positionOrBounds: Partial<RdfElementBounds> | undefined,
 ): RdfElementBounds {
@@ -482,6 +510,8 @@ export class CreateRelationshipHandler {
       context.previousIri = connection.businessObject.iri;
       connection.businessObject.iri = relationshipIri;
     }
+    // Which line of it in the view: the link the writer drew.
+    if (relationship.linkIri && connection.businessObject) connection.businessObject.linkIri = relationship.linkIri;
   }
 
   revert(context: RelationshipCommandContext): void {
@@ -543,14 +573,14 @@ export class RetypeRelationshipHandler {
     if (this.writer.retype && fromRelationshipIri) {
       this.writer.retype(fromRelationshipIri, from, to);
       context.toRelationshipIri = fromRelationshipIri;
-      connection.businessObject = businessObjectFor(to, fromRelationshipIri);
+      connection.businessObject = businessObjectFor(to, fromRelationshipIri, connection.businessObject?.linkIri);
       return [connection];
     }
 
     this.writer.remove(from, fromRelationshipIri);
     context.toRelationshipIri = this.writer.create(to);
 
-    connection.businessObject = businessObjectFor(to, context.toRelationshipIri);
+    connection.businessObject = businessObjectFor(to, context.toRelationshipIri, connection.businessObject?.linkIri);
     return [connection];
   }
 
@@ -559,7 +589,7 @@ export class RetypeRelationshipHandler {
 
     if (this.writer.retype && toRelationshipIri && toRelationshipIri === context.fromRelationshipIri) {
       this.writer.retype(toRelationshipIri, to, from);
-      connection.businessObject = businessObjectFor(from, toRelationshipIri);
+      connection.businessObject = businessObjectFor(from, toRelationshipIri, connection.businessObject?.linkIri);
       return [connection];
     }
 
@@ -569,15 +599,16 @@ export class RetypeRelationshipHandler {
     // resource rather than a stale IRI.
     context.fromRelationshipIri = this.writer.create(from);
 
-    connection.businessObject = businessObjectFor(from, context.fromRelationshipIri);
+    connection.businessObject = businessObjectFor(from, context.fromRelationshipIri, connection.businessObject?.linkIri);
     return [connection];
   }
 }
 
-/** The business object a connection carries for `relationship`. */
+/** The business object a connection carries for `relationship` — the line's link kept. */
 function businessObjectFor(
   relationship: RdfRelationship,
   relationshipIri: string | undefined,
+  linkIri?: string,
 ): RdfBusinessObject {
   return {
     iri:
@@ -585,6 +616,7 @@ function businessObjectFor(
       relationshipKey(relationship.sourceIri, relationship.targetIri, relationship.typeIri),
     typeIri: relationship.typeIri,
     kind: 'relationship',
+    ...(linkIri ? { linkIri } : {}),
   };
 }
 
@@ -597,12 +629,13 @@ function businessObjectFor(
  * spelling it out reads better than inheriting it.
  */
 export class RdfRelationshipBehavior {
-  static $inject = ['eventBus', 'commandStack', 'rdfRelationshipWriter'];
+  static $inject = ['eventBus', 'commandStack', 'rdfRelationshipWriter', 'elementRegistry'];
 
   constructor(
     eventBus: DjsEventBus,
     commandStack: DjsCommandStack,
     relationshipWriter: RdfRelationshipWriter,
+    elementRegistry: { get(id: string): unknown } | null = null,
   ) {
     eventBus.on<{ context?: ConnectionCreateContext }>(
       'commandStack.connection.create.preExecute',
@@ -610,11 +643,22 @@ export class RdfRelationshipBehavior {
         const context = event.context;
         const connection = context?.connection;
 
+        // Between which placements: an element placed more than once is drawn from the one picked.
+        const sourceNodeIri = context?.source?.businessObject?.nodeIri;
+        const targetNodeIri = context?.target?.businessObject?.nodeIri;
+        const ends = { ...(sourceNodeIri ? { sourceNodeIri } : {}), ...(targetNodeIri ? { targetNodeIri } : {}) };
+
         // A relationship that already exists in the model, drawn into this view.
         const existing = context?.hints?.[RDF_EXISTING_RELATIONSHIP_HINT];
         if (existing && connection) {
           commandStack.execute(RDF_CHANGE_COMMAND, {
-            apply: () => relationshipWriter.draw?.(existing),
+            apply: () => {
+              const link = relationshipWriter.draw?.(existing, ends);
+              if (!link || !connection.businessObject) return;
+              connection.businessObject.linkIri = link;
+              // Drawn again: its relationship's IRI keys its first line, its link this one.
+              if (connection.id === existing && elementRegistry?.get(existing)) connection.id = link;
+            },
           } satisfies RdfChangeContext);
           return;
         }
@@ -624,7 +668,7 @@ export class RdfRelationshipBehavior {
 
         // The connection object already exists (Modeling.createConnection built
         // it before executing), so the handler can complete its business object.
-        const request: RdfRelationshipRequest = { ...relationship, connectionId: connection.id };
+        const request: RdfRelationshipRequest = { ...relationship, connectionId: connection.id, ...ends };
         commandStack.execute(CREATE_RELATIONSHIP_COMMAND, { connection, relationship: request });
       },
     );
@@ -641,6 +685,8 @@ export class RdfRelationshipBehavior {
  */
 interface ConnectionCreateContext {
   connection?: DjsElement;
+  source?: DjsElement;
+  target?: DjsElement;
   hints?: { rdfRelationship?: RdfRelationship; rdfExistingRelationship?: string };
 }
 
@@ -692,18 +738,21 @@ const ModelingBase = Modeling as unknown as {
  * diagram-js's `Modeling`, with a `connect` that knows about the metamodel.
  */
 export class RdfModeling extends ModelingBase {
-  static $inject = ['eventBus', 'elementFactory', 'commandStack', 'rdfRuleProvider'];
+  static $inject = ['eventBus', 'elementFactory', 'commandStack', 'rdfRuleProvider', 'rdfReuseCheck'];
 
   private rdfRuleProvider: RdfRuleProvider;
+  private rdfReuseCheck: RdfReuseCheck | null;
 
   constructor(
     eventBus: unknown,
     elementFactory: unknown,
     commandStack: unknown,
     rdfRuleProvider: RdfRuleProvider,
+    rdfReuseCheck: RdfReuseCheck | null = null,
   ) {
     super(eventBus, elementFactory, commandStack);
     this.rdfRuleProvider = rdfRuleProvider;
+    this.rdfReuseCheck = rdfReuseCheck;
   }
 
   /**
@@ -736,6 +785,10 @@ export class RdfModeling extends ModelingBase {
    * The resulting connection carries a `businessObject` with the type on it, and
    * the hint that makes {@link RdfRelationshipBehavior} write the triple in the
    * same command group.
+   *
+   * When the model already relates the two by the type, in that direction, and
+   * this view does not draw it, the modeller is asked first ({@link RdfReuseCheck}):
+   * nothing is drawn now, and the answer draws the existing one or connects again.
    */
   connect(
     source: DjsElement,
@@ -750,6 +803,13 @@ export class RdfModeling extends ModelingBase {
       attrs ??
       this.consultRules(source.businessObject?.typeIri, target.businessObject?.typeIri);
     if (!resolved) return undefined;
+
+    // A line from or to a figure stands for no relationship: the view's link is
+    // written as the line is created (the canvas's `connection.create` hook).
+    if (resolved.connector) {
+      const connector: RdfBusinessObject = { iri: '', typeIri: '', kind: 'connector' };
+      return this.createConnection(source, target, { businessObject: connector }, source.parent, { ...hints });
+    }
 
     const typeIri = resolved.typeIri ?? resolved.businessObject?.typeIri;
 
@@ -770,6 +830,20 @@ export class RdfModeling extends ModelingBase {
     if (businessObject) connectionAttrs['businessObject'] = businessObject;
 
     const connectHints: Record<string, unknown> = { ...hints };
+    if (
+      typeIri &&
+      sourceIri &&
+      targetIri &&
+      !connectHints[RDF_REUSE_ANSWERED_HINT] &&
+      this.rdfReuseCheck?.({
+        source,
+        target,
+        typeIri,
+        createNew: () => this.connect(source, target, resolved, { ...hints, [RDF_REUSE_ANSWERED_HINT]: true }),
+      })
+    ) {
+      return undefined;
+    }
     if (typeIri && sourceIri && targetIri) {
       const relationship: RdfRelationship = {
         sourceIri,
@@ -824,6 +898,7 @@ export function rdfModelingModule(
   rdfRelationshipWriter: RdfRelationshipWriter,
   rdfElementWriter: RdfElementWriter = inertElementWriter,
   rdfChangeStore: ObservableRdfStore | null = null,
+  rdfReuseCheck: RdfReuseCheck | null = null,
 ): Record<string, unknown> {
   return {
     __depends__: [ModelingModule],
@@ -837,6 +912,7 @@ export function rdfModelingModule(
     rdfElementBehavior: ['type', RdfElementBehavior],
     rdfElementWriter: ['value', rdfElementWriter],
     rdfChangeStore: ['value', rdfChangeStore],
+    rdfReuseCheck: ['value', rdfReuseCheck],
   };
 }
 

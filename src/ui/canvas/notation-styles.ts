@@ -28,11 +28,17 @@ import type {
 import type { NotationIndexEntry } from '../../metamodel-manager/notation-resolver.js';
 import {
   effectiveRenderingMode,
+  labelExpressionIn,
   type Decoration,
   type RenderingMode,
   type RelationshipVisualStyle,
   type VisualStyle,
 } from '../../metamodel-manager/notation.js';
+import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { SHAPE_TYPES } from './notation-shapes.js';
+
+/** Where core-vis's own shapes are named: `arch-vis:Rectangle`. */
+const CORE_SHAPE_NS = NAMESPACES['arch-vis'];
 
 /** Empty palette, used before a metamodel is loaded. */
 export function emptyPaletteDefinition(): PaletteDefinition {
@@ -54,9 +60,17 @@ export class NotationStyleRegistry {
   /** Re-index from a freshly generated palette. */
   /** How many times the styles were replaced: what was drawn from older ones is stale. */
   version = 0;
+  /** The presentation context chosen — the audience — and its name; none when none is. */
+  activePresentationContext: string | undefined;
+  activePresentationContextLabel: string | undefined;
+  /** What that context says every label says, where nothing else does. */
+  private contextLabelExpression: string | undefined;
 
   update(paletteDefinition: PaletteDefinition): void {
     this.version++;
+    this.activePresentationContext = paletteDefinition.presentationContextIri;
+    this.activePresentationContextLabel = paletteDefinition.presentationContextLabel;
+    this.contextLabelExpression = paletteDefinition.presentationContextLabelExpression;
     this.elements = new Map();
     this.relationships = new Map();
     this.index = new Map(Object.entries(paletteDefinition.notationIndex ?? {}));
@@ -98,6 +112,25 @@ export class NotationStyleRegistry {
   }
 
   /**
+   * The shape a placement of `typeIri` is drawn as when its own style names
+   * `shapeIri`: its notation's default shape, one of its alternatives
+   * (`arch-vis:alternativeStyle`), or a core shape. `undefined` for a shape the
+   * type's notation does not offer, which is then drawn as its default.
+   */
+  shapeFor(typeIri: string | undefined, shapeIri: string): Pick<VisualStyle, 'shapeType' | 'customShape'> | undefined {
+    const style = this.styleFor(typeIri);
+    for (const candidate of [style, ...(style?.alternatives ?? [])]) {
+      if (!candidate) continue;
+      if (candidate.customShape?.iri === shapeIri) return { shapeType: candidate.shapeType, customShape: candidate.customShape };
+      if (!candidate.customShape && candidate.shapeType && shapeIri === CORE_SHAPE_NS + candidate.shapeType) {
+        return { shapeType: candidate.shapeType };
+      }
+    }
+    const local = shapeIri.startsWith(CORE_SHAPE_NS) ? shapeIri.slice(CORE_SHAPE_NS.length) : undefined;
+    return local && (SHAPE_TYPES as readonly string[]).includes(local) ? { shapeType: local as VisualStyle['shapeType'] } : undefined;
+  }
+
+  /**
    * Rendering mode for an element type, after the notation guide's fallbacks.
    *
    * Delegates to {@link effectiveRenderingMode} rather than re-deriving the
@@ -112,6 +145,16 @@ export class NotationStyleRegistry {
     }
     const entry = this.indexEntry(typeIri);
     return entry?.renderingMode ?? effectiveRenderingMode(entry?.style);
+  }
+
+  /**
+   * What the label of an element of `typeIri` says without one of its own: its
+   * type's notation's for the context chosen, else its notation's for every
+   * context (inherited as its style is), else the context's — `undefined` for
+   * its name alone.
+   */
+  labelExpressionFor(typeIri: string | undefined): string | undefined {
+    return labelExpressionIn(this.styleFor(typeIri)?.labelExpressions, this.activePresentationContext) ?? this.contextLabelExpression;
   }
 
   /** Display label for an element type, when the palette knows it. */

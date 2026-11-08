@@ -1,7 +1,14 @@
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="130" height="60"
-     preserveAspectRatio="none">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="130" height="60">
+
     <rect width='130.0px' stroke-width='1.0' fill='#FFFFB5' stroke='rgb(51, 51, 51)' look='allInOne'
           height='60.0px'/>
-    <line y1='10.4' x1='0.0' y2='10.4' x2='130.0' stroke-width='1.0' stroke='rgb(51, 51, 51)' look='border'/>
+    <g transform='translate(109.0,4.0)'>
+        <svg xmlns="http://www.w3.org/2000/svg" height="16.0" version="1.1" viewBox="0 0 160 160" width="16.0">
+            <rect x="5" y="30" width="150" height="100" fill="#FFFFB5" look="allInOne" stroke="#333333"
+                  stroke-miterlimit="10" stroke-width="10"/>
+            <line fill="none" look="border" stroke="#333333" stroke-miterlimit="10" stroke-width="10" x1="5" x2="155"
+                  y1="62" y2="62"/>
+        </svg>
+    </g>
 
 </svg>

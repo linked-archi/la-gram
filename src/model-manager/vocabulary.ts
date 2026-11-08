@@ -75,6 +75,9 @@ export function dateTimeLiteral(date: Date = new Date()): Literal {
 
 const ARCH = NAMESPACES.arch;
 const VIS = NAMESPACES['arch-vis'];
+const SKOS = NAMESPACES.skos;
+const SKOSXL = 'http://www.w3.org/2008/05/skos-xl#';
+const SCHEMA = 'http://schema.org/';
 
 /** IRIs, as strings, for comparisons. */
 export const IRI = {
@@ -115,6 +118,42 @@ export const IRI = {
   Link: VIS + 'Link',
   Point: VIS + 'Point',
   LabelNode: VIS + 'LabelNode',
+  /** A node standing for no model element: a group, or a figure of a core-vis shape type. */
+  ContainerNode: VIS + 'ContainerNode',
+  visStyle: VIS + 'style',
+  Style: VIS + 'Style',
+  /** What a label says (core-vis 0.7): an `arch-vis:LabelExpression`, its text, the notation set it is for. */
+  labelExpression: VIS + 'labelExpression',
+  LabelExpression: VIS + 'LabelExpression',
+  expression: VIS + 'expression',
+  /** The presentation context a name or a label expression is for (core 0.5.0). */
+  inPresentationContext: ARCH + 'inPresentationContext',
+  /** A name as a resource (SKOS-XL), its text, an element's alternative names. */
+  skosxlLabel: SKOSXL + 'Label',
+  skosxlAltLabel: SKOSXL + 'altLabel',
+  skosxlLiteralForm: SKOSXL + 'literalForm',
+  altLabel: SKOS + 'altLabel',
+  /** An element's pictures (core 0.5.0): for every audience, and its others — one per audience an ImageObject. */
+  prefVisNotation: ARCH + 'prefVisNotation',
+  altVisNotation: ARCH + 'altVisNotation',
+  ImageObject: SCHEMA + 'ImageObject',
+  contentUrl: SCHEMA + 'contentUrl',
+  shapeType: VIS + 'shapeType',
+  fillColor: VIS + 'fillColor',
+  lineColor: VIS + 'lineColor',
+  fontColor: VIS + 'fontColor',
+  fontName: VIS + 'fontName',
+  fontSize: VIS + 'fontSize',
+  /** `bold`, `italic`, `underline`, separated by spaces (core-vis 0.7). */
+  fontStyle: VIS + 'fontStyle',
+  /** Width of a node's outline or a link's line (core-vis 0.7). */
+  lineWidth: VIS + 'lineWidth',
+  /** A node's outline: an `arch-vis:LineStyle`. */
+  borderStyle: VIS + 'borderStyle',
+  /** Where a node's text sits across it: an `arch-vis:TextAlignment` (core-vis 0.7). */
+  textAlignment: VIS + 'textAlignment',
+  /** Where a node's text sits down it: an `arch-vis:TextPosition` (core-vis 0.7). */
+  textPosition: VIS + 'textPosition',
   visView: VIS + 'view',
   /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
   visLabel: VIS + 'label',
@@ -194,4 +233,21 @@ export function dedupe(quads: Quad[]): Quad[] {
     out.push(q);
   }
   return out;
+}
+
+/** The core's generic types, which a qualified relationship carries beside its class (the converters emit both). */
+const GENERIC_RELATIONSHIP_TYPES = new Set<string>([IRI.QualifiedRelationship, IRI.ModelConcept]);
+
+/**
+ * A relationship's class among its types: never a generic core type — a
+ * converter types a relationship `arch:QualifiedRelationship` and
+ * `arch:ModelConcept` besides its class, in any order — and, given the class
+ * hierarchy, the most specific of the rest. Only generic types: the qualified
+ * relationship class.
+ */
+export function relationshipClassAmong(types: readonly string[], closure?: (typeIri: string) => readonly string[]): string | undefined {
+  const own = types.filter((t) => !GENERIC_RELATIONSHIP_TYPES.has(t));
+  if (own.length === 0) return types.includes(IRI.QualifiedRelationship) ? IRI.QualifiedRelationship : types[0];
+  if (!closure || own.length === 1) return own[0];
+  return [...own].sort((a, b) => closure(b).length - closure(a).length)[0];
 }

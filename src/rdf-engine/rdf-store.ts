@@ -59,7 +59,7 @@ function toOxTerm(term: Term): oxigraph.Term {
 }
 
 /** Convert an @rdfjs/types Quad to an Oxigraph Quad. */
-function toOxQuad(q: Quad): oxigraph.Quad {
+export function toOxQuad(q: Quad): oxigraph.Quad {
   return oxigraph.quad(
     toOxTerm(q.subject) as oxigraph.Quad_Subject,
     toOxTerm(q.predicate) as oxigraph.Quad_Predicate,

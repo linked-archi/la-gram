@@ -8,7 +8,7 @@
  * it specializes (`rdfs:subClassOf`, transitively), whether it is abstract,
  * where it is defined (`rdfs:seeAlso`, `dcterms:source`) — and, per kind of
  * type, the facts that help a modeller: a relationship's typical ends
- * (`arch:domainIncludes`, `arch:rangeIncludes`) and unqualified form; a
+ * (`arch:domainIncludes`, `arch:rangeIncludes`, its predicate's) and unqualified form; a
  * viewpoint's concepts, stakeholders and purposes.
  *
  * From the **taxonomy**: where the type is classified — for each SKOS concept
@@ -213,9 +213,15 @@ export function readTypeGuide(store: Pick<RdfStore, 'getQuads'>, typeIri: string
     (iri) => /^https?:/.test(iri) && quads(iri, P.type).length === 0,
   );
 
+  // A relationship's typical ends are its predicate's (arch:domainIncludes and arch:rangeIncludes go on
+  // properties only): read through its unqualified form, as well as off the type.
+  const viaPredicate = new Set([ARCH + 'domainIncludes', ARCH + 'rangeIncludes']);
+  const predicates = objects(typeIri, ARCH + 'unqualifiedForm');
   const facts: GuideFact[] = FACTS.map(([predicate, label]) => ({
     label,
-    values: objects(typeIri, predicate).map((iri) => ref(iri, false)).sort((a, b) => a.label.localeCompare(b.label)),
+    values: [...new Set([typeIri, ...(viaPredicate.has(predicate) ? predicates : [])].flatMap((subject) => objects(subject, predicate)))]
+      .map((iri) => ref(iri, false))
+      .sort((a, b) => a.label.localeCompare(b.label)),
   })).filter((f) => f.values.length > 0);
 
   const definition = prose(text(typeIri, P.definition) ?? text(typeIri, P.comment));

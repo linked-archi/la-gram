@@ -14,7 +14,7 @@
   dcterms:language <http://id.loc.gov/vocabulary/iso639-1/en>;
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:issued "2024-06-01"^^xsd:date;
-  dcterms:modified "2026-10-27"^^xsd:date;
+  dcterms:modified "2026-11-08"^^xsd:date;
   dcterms:publisher <https://linked.archi>;
   foaf:homepage <https://meta.linked.archi/>;
   dcat:themeTaxonomy <https://meta.linked.archi/catalog#themes>;
@@ -92,24 +92,25 @@
     <https://meta.linked.archi/examples/cloudplatform/model/>, <https://meta.linked.archi/examples/cloudplatform/onto>,
     <https://meta.linked.archi/examples/cloudplatform/reference-data>, <https://meta.linked.archi/examples/cloudplatform/shapes>,
     <https://meta.linked.archi/examples/cloudplatform/tax>, <https://meta.linked.archi/examples/cloudplatform/viewpoints>,
-    <https://meta.linked.archi/examples/diagram/>, <https://meta.linked.archi/examples/leanix-docs-example/>,
-    <https://meta.linked.archi/examples/meridian/>, <https://meta.linked.archi/examples/nordfreight/>,
-    <https://meta.linked.archi/examples/payflow/>, <https://meta.linked.archi/examples/uml/>,
-    <https://meta.linked.archi/financial-architecture/metamodel>, <https://meta.linked.archi/financial-architecture/onto>,
-    <https://meta.linked.archi/financial-architecture/reference-data>, <https://meta.linked.archi/financial-architecture/shapes>,
-    <https://meta.linked.archi/financial-architecture/tax>, <https://meta.linked.archi/iso12207>,
-    <https://meta.linked.archi/iso15288>, <https://meta.linked.archi/iso25010>, <https://meta.linked.archi/iso25011>,
-    <https://meta.linked.archi/iso25012>, <https://meta.linked.archi/iso42010>, <https://meta.linked.archi/iso42020>,
-    <https://meta.linked.archi/leanix/crossmappings>, <https://meta.linked.archi/leanix/deliverable-templates>,
-    <https://meta.linked.archi/leanix/metamodel>, <https://meta.linked.archi/leanix/notation>,
-    <https://meta.linked.archi/leanix/onto>, <https://meta.linked.archi/leanix/shapes>,
-    <https://meta.linked.archi/leanix/tax>, <https://meta.linked.archi/leanix/v3/metamodel>,
-    <https://meta.linked.archi/leanix/v3/onto>, <https://meta.linked.archi/leanix/viewpoints>,
-    <https://meta.linked.archi/ml-systems/metamodel>, <https://meta.linked.archi/ml-systems/onto>,
-    <https://meta.linked.archi/ml-systems/quality-attributes>, <https://meta.linked.archi/ml-systems/shapes>,
-    <https://meta.linked.archi/ml-systems/tax>, <https://meta.linked.archi/platform-design>,
-    <https://meta.linked.archi/quality-attributes>, <https://meta.linked.archi/ref-arch>,
-    <https://meta.linked.archi/simple-example>, <https://meta.linked.archi/tactics>, <https://meta.linked.archi/tech-radar/metamodel>,
+    <https://meta.linked.archi/examples/diagram/>, <https://meta.linked.archi/examples/labels/>,
+    <https://meta.linked.archi/examples/leanix-docs-example/>, <https://meta.linked.archi/examples/meridian/>,
+    <https://meta.linked.archi/examples/nordfreight/>, <https://meta.linked.archi/examples/payflow/>,
+    <https://meta.linked.archi/examples/uml/>, <https://meta.linked.archi/financial-architecture/metamodel>,
+    <https://meta.linked.archi/financial-architecture/onto>, <https://meta.linked.archi/financial-architecture/reference-data>,
+    <https://meta.linked.archi/financial-architecture/shapes>, <https://meta.linked.archi/financial-architecture/tax>,
+    <https://meta.linked.archi/iso12207>, <https://meta.linked.archi/iso15288>, <https://meta.linked.archi/iso25010>,
+    <https://meta.linked.archi/iso25011>, <https://meta.linked.archi/iso25012>, <https://meta.linked.archi/iso42010>,
+    <https://meta.linked.archi/iso42020>, <https://meta.linked.archi/leanix/crossmappings>,
+    <https://meta.linked.archi/leanix/deliverable-templates>, <https://meta.linked.archi/leanix/metamodel>,
+    <https://meta.linked.archi/leanix/notation>, <https://meta.linked.archi/leanix/onto>,
+    <https://meta.linked.archi/leanix/shapes>, <https://meta.linked.archi/leanix/tax>,
+    <https://meta.linked.archi/leanix/v3/metamodel>, <https://meta.linked.archi/leanix/v3/onto>,
+    <https://meta.linked.archi/leanix/viewpoints>, <https://meta.linked.archi/ml-systems/metamodel>,
+    <https://meta.linked.archi/ml-systems/onto>, <https://meta.linked.archi/ml-systems/quality-attributes>,
+    <https://meta.linked.archi/ml-systems/shapes>, <https://meta.linked.archi/ml-systems/tax>,
+    <https://meta.linked.archi/platform-design>, <https://meta.linked.archi/quality-attributes>,
+    <https://meta.linked.archi/ref-arch>, <https://meta.linked.archi/simple-example>,
+    <https://meta.linked.archi/tactics>, <https://meta.linked.archi/tech-radar/metamodel>,
     <https://meta.linked.archi/tech-radar/onto>, <https://meta.linked.archi/tech-radar/shapes>,
     <https://meta.linked.archi/tech-radar/tax>, <https://meta.linked.archi/time-framework/crossmappings>,
     <https://meta.linked.archi/time-framework/derivation>, <https://meta.linked.archi/time-framework/metamodel>,
@@ -865,17 +866,19 @@ Generated from Appendix B (inline style)."""@en;
 
 <https://meta.linked.archi/archimate3/element-shapes> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 3.2 Element & Metamodel Shapes"@en;
-  dcterms:description """SHACL shapes for validating ArchiMate element instances and
-metamodel patterns. Covers structural integrity, assignment/access/serving direction,
-cross-layer constraints, specialization rules, junction homogeneity, motivation
-realization direction, strategy realization targets, and deep specialization warnings.
-Based on ArchiMate 3.2 spec Figures 5, 34, 45, 46, 51, 52, 70, 82, 99, 104-106.
-For relationship pair validation, see archimate3.2-relationship-shapes.ttl."""@en;
+  dcterms:description """SHACL shapes for validating ArchiMate 3.2 element instances and
+the metamodel patterns the relationship tables cannot express: element names, self-loops
+and cycles of composition and aggregation, a part in one whole only, the direction of
+serving between layers (a warning), a gap associated with plateaus, attribute values,
+junctions joining relationships of one type, and deep specialization chains. Which
+element types a relationship may connect is checked by archimate3.2-relationship-shapes.ttl,
+generated from the specification's relationship tables (Appendix B), and is not repeated
+here."""@en;
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/element-shapes#";
   vann:preferredNamespacePrefix "amelsh";
   owl:versionInfo "3.2";
-  dcterms:modified "2026-10-10"^^xsd:date;
+  dcterms:modified "2026-11-06"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -932,7 +935,7 @@ rendering from structured metadata."""@en;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/notation#";
   vann:preferredNamespacePrefix "archimate3not";
   owl:versionInfo "3.2";
-  dcterms:modified "2026-10-11"^^xsd:date;
+  dcterms:modified "2026-11-07"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1097,7 +1100,7 @@ Or load manually alongside other shapes:
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/principle-shapes#";
   vann:preferredNamespacePrefix "ampsh";
   owl:versionInfo "0.1.0";
-  dcterms:modified "2025-12-01"^^xsd:date;
+  dcterms:modified "2026-11-06"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1326,39 +1329,34 @@ and relationship types by category. Adds ValueStream to the Strategy layer (intr
 
 <https://meta.linked.archi/archimate3/viewpoint-shapes> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 3.2 Viewpoint Conformance Shapes"@en;
-  dcterms:description """SHACL shapes for validating that architecture Views conform to
-their declared Viewpoints. These shapes enforce:
+  dcterms:description """Viewpoint conformance for ArchiMate 3.2 models. The rules are in the core
+shapes, which this document imports, and it adds none of its own:
 
-1. Element conformance — elements presented in a View, linked by
-   arch:inView, must be instances of types listed in the viewpoint's
-   arch:includesConcept. The same applies to the endpoints of any
-   QualifiedRelationship presented in the View.
-2. View type conformance — a View's rdf:type must match one of the
-   viewpoint's arch:viewType values (Diagram, Catalog, Matrix).
-3. Viewpoint declaration — every View must declare which viewpoint it
-   conforms to via arch:viewConformsToViewpoint.
+1. Viewpoint declaration — every View declares exactly one viewpoint, as an
+   arch:Viewpoint individual rather than a literal.
+2. View type conformance — a View's rdf:type must match one of the viewpoint's
+   arch:viewType values (Diagram, Catalog, Matrix).
+3. Element conformance — elements presented in a View, linked by arch:inView,
+   must be instances of types the viewpoint's arch:includesConcept allows.
+4. Relationship endpoint conformance — the endpoints of a relationship drawn on
+   a View should themselves be in the viewpoint's palette.
+5. Viewpoint completeness — a viewpoint should declare what it admits, the
+   concerns it frames and which kinds of view realise it.
 
-These shapes are data-driven: they read the viewpoint definitions from
-the loaded graph (arch:includesConcept, arch:viewType) rather than
-hardcoding per-viewpoint rules. This means they work for any viewpoint
-— ArchiMate example viewpoints, custom viewpoints, or viewpoints from
-other frameworks — as long as the viewpoint data is loaded.
+They read the viewpoint definitions from the loaded graph rather than naming any
+viewpoint, and use no ArchiMate term, so core states them once for every language:
+ArchiMate example viewpoints, custom viewpoints and other frameworks' alike. A rule
+that only ArchiMate 3.2 viewpoints need would go here.
 
-Shapes use sh:severity sh:Warning by default. Organizations may promote
-specific shapes to sh:Violation based on governance policies. Where a
-shape states its constraints as sh:property, the severity is declared on
-the property shapes as well as the node shape, because SHACL does not
-propagate sh:severity from a node shape to the property shapes nested
-under it.
-
-Usage: load
-  core-shapes.ttl + archimate3.2-viewpoint-shapes.ttl +
-  archimate3.2-viewpoints.ttl + your-model-data.ttl"""@en;
-  dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
+Usage: load the core shapes with the 3.2 viewpoint catalogue and the model.
+core-onto.ttl and the 3.2 ontology go in the shapes graph and the data: the shapes
+target arch:View and arch:Viewpoint, and their SPARQL walks rdfs:subClassOf* in
+the data."""@en;
+  dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/viewpoint-shapes#";
   vann:preferredNamespacePrefix "amvpsh";
   owl:versionInfo "3.2";
-  dcterms:modified "2026-09-25"^^xsd:date;
+  dcterms:modified "2026-11-06"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1368,8 +1366,20 @@ Usage: load
   dcat:keyword "ArchiMate 3.2"@en;
   dcat:landingPage <https://meta.linked.archi/archimate3/viewpoint-shapes/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate3/viewpoint-shapes/archimate3.2-viewpoint-shapes.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/archimate3/viewpoint-shapes/archimate3.2-viewpoint-shapes.ttl>;
+      dcat:accessURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate3/viewpoint-shapes/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -1470,13 +1480,16 @@ Generated from Appendix B (inline style)."""@en;
 <https://meta.linked.archi/archimate4/element-shapes> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Element & Metamodel Shapes"@en;
   dcterms:description """SHACL shapes for validating ArchiMate 4.0 element instances and
-metamodel patterns. Adapted from 3.2 shapes for the domain-based structure of 4.0.
-Draft — needs validation against the ArchiMate 4.0 relationship validity matrix."""@en;
+the metamodel patterns the relationship tables cannot express: element names, self-loops
+and cycles of composition and aggregation, a part in one whole only, attribute values,
+junctions joining relationships of one type, and deep specialization chains. Which element
+types a relationship may connect is checked by archimate4-relationship-shapes.ttl, generated
+from the specification's relationship tables (Appendix B), and is not repeated here."""@en;
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/element-shapes#";
   vann:preferredNamespacePrefix "am4elsh";
   owl:versionInfo "4.0";
-  dcterms:modified "2026-10-10"^^xsd:date;
+  dcterms:modified "2026-11-06"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1532,7 +1545,7 @@ rendering from structured metadata."""@en;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/notation#";
   vann:preferredNamespacePrefix "archimate4not";
   owl:versionInfo "4.0";
-  dcterms:modified "2026-10-11"^^xsd:date;
+  dcterms:modified "2026-11-07"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1619,7 +1632,7 @@ domain-based structure."""@en;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/principle-shapes#";
   vann:preferredNamespacePrefix "am4psh";
   owl:versionInfo "4.0";
-  dcterms:modified "2026-10-11"^^xsd:date;
+  dcterms:modified "2026-11-06"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1804,8 +1817,8 @@ unqualified direct triples. Pure SHACL core."""@en;
 
 <https://meta.linked.archi/archimate4/viewpoint-shapes> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Viewpoint Conformance Shapes"@en;
-  dcterms:description """SHACL shapes for validating that architecture Views conform to
-their declared Viewpoints. These shapes enforce:
+  dcterms:description """Viewpoint conformance for ArchiMate 4.0 models. The rules are in the core
+shapes, which this document imports, and it adds none of its own:
 
 1. Viewpoint declaration — every View declares exactly one viewpoint, as an
    arch:Viewpoint individual rather than a literal.
@@ -1815,27 +1828,23 @@ their declared Viewpoints. These shapes enforce:
    must be instances of types the viewpoint's arch:includesConcept allows.
 4. Relationship endpoint conformance — the endpoints of a relationship drawn on
    a View should themselves be in the viewpoint's palette.
-5. Viewpoint completeness — a viewpoint should declare what it admits and which
-   kinds of view realise it.
+5. Viewpoint completeness — a viewpoint should declare what it admits, the
+   concerns it frames and which kinds of view realise it.
 
-Data-driven: viewpoint definitions are read from the loaded graph
-(arch:includesConcept, arch:viewType) rather than hardcoded per viewpoint, so
-these work for the published 4.0 catalogue and for custom viewpoints alike.
+They read the viewpoint definitions from the loaded graph rather than naming any
+viewpoint, and use no ArchiMate term, so core states them once for every language:
+the published 4.0 catalogue, custom viewpoints and other frameworks' alike. A rule
+that only ArchiMate 4.0 viewpoints need would go here.
 
-Shapes 1-3 are sh:Warning, 4-5 sh:Info. Organizations may promote any of them.
-Where a shape states its constraints as sh:property, the severity is declared on
-the property shapes as well as the node shape, because SHACL does not propagate
-sh:severity from a node shape to the property shapes nested under it.
-
-Usage: core-onto.ttl must be among the SHAPES documents as well as
-the data: the shapes target arch:View and arch:Viewpoint, and RDF4J resolves the
-rdfs:subClassOf closure for sh:targetClass and sh:class from the shapes graph.
-Without it nothing fires on an arch:Diagram instance."""@en;
-  dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
+Usage: load the core shapes with the 4.0 viewpoint catalogue and the model.
+core-onto.ttl and the 4.0 ontology go in the shapes graph and the data: the shapes
+target arch:View and arch:Viewpoint, and their SPARQL walks rdfs:subClassOf* in
+the data."""@en;
+  dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/viewpoint-shapes#";
   vann:preferredNamespacePrefix "am4vpsh";
   owl:versionInfo "4.0";
-  dcterms:modified "2026-10-11"^^xsd:date;
+  dcterms:modified "2026-11-06"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1845,8 +1854,20 @@ Without it nothing fires on an arch:Diagram instance."""@en;
   dcat:keyword "ArchiMate 4.0"@en;
   dcat:landingPage <https://meta.linked.archi/archimate4/viewpoint-shapes/>;
   dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/archimate4/viewpoint-shapes/archimate4-viewpoint-shapes.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/archimate4/viewpoint-shapes/archimate4-viewpoint-shapes.ttl>;
+      dcat:accessURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/archimate4/viewpoint-shapes/ontology.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -3458,8 +3479,8 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/core#";
   vann:preferredNamespacePrefix "arch";
-  owl:versionInfo "0.4.0";
-  dcterms:modified "2026-09-07"^^xsd:date;
+  owl:versionInfo "0.5.0";
+  dcterms:modified "2026-11-08"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -3538,12 +3559,17 @@ C4, Backstage) import this file and add type-specific constraints.
 Label requirements are deliberately not here. arch:Element means \"a node in a model\", and
 several notations have nodes that are legitimately unnamed — BPMN gateways and events,
 ArchiMate junctions — so each metamodel states its own naming rule in its own shapes. See the
-labelling contract in this file and DD-24."""@en;
+labelling contract in this file and DD-24.
+
+Viewpoint conformance is here too: a View declares one viewpoint, its type and contents
+match what that viewpoint admits, and a viewpoint says what it admits. The rules read
+the viewpoint definitions from the loaded graph (arch:includesConcept, arch:viewType),
+so they work for any viewpoint — a language's catalogue, a framework's, or your own."""@en;
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-shapes#";
   vann:preferredNamespacePrefix "archsh";
-  owl:versionInfo "0.2.0";
-  dcterms:modified "2026-09-07"^^xsd:date;
+  owl:versionInfo "0.4.0";
+  dcterms:modified "2026-11-08"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -3607,8 +3633,8 @@ at the type level (default notation for model concepts via NotationSet)."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-vis#";
   vann:preferredNamespacePrefix "arch-vis";
-  owl:versionInfo "0.5";
-  dcterms:modified "2026-10-11"^^xsd:date;
+  owl:versionInfo "0.7";
+  dcterms:modified "2026-11-07"^^xsd:date;
   dcterms:license <http://creativecommons.org/licenses/by-sa/3.0/>;
   dcterms:creator [ a foaf:Person;
       foaf:name "Kalin Maldzhanski"
@@ -3650,8 +3676,8 @@ must belong to exactly one view); the remainder is cardinality and datatype hygi
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-vis-shapes#";
   vann:preferredNamespacePrefix "archvissh";
-  owl:versionInfo "0.1.0";
-  dcterms:modified "2026-10-11"^^xsd:date;
+  owl:versionInfo "0.3.0";
+  dcterms:modified "2026-11-07"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -4656,6 +4682,18 @@ arch-vis:Node."""@en;
   dcat:distribution [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/examples/diagram/diagram-example.ttl>;
       dcat:downloadURL <https://meta.linked.archi/examples/diagram/diagram-example.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/examples/labels/> a dcat:Dataset;
+  dcterms:title "Example presentation contexts"@en;
+  dcterms:conformsTo arch:Model;
+  vann:preferredNamespaceUri "https://meta.linked.archi/examples/labels/";
+  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
+  dcat:landingPage <https://meta.linked.archi/examples/labels/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/examples/labels/labels-per-presentation.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/examples/labels/labels-per-presentation.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 

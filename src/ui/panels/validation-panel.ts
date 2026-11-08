@@ -28,6 +28,7 @@ import type {
   ShaclValidator,
 } from '../../rdf-engine/interfaces.js';
 import type { Quad, NamedNode } from '@rdfjs/types';
+import { isIri as isIriValue, isLink, shapeIriOf } from '../../rdf-engine/finding-shape.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -141,9 +142,7 @@ export function buildSummary(conforms: boolean, results: ValidationResult[], sub
 }
 
 /** Whether a term's value is an IRI (`scheme:…`), not a blank node's id (`e7c5f6…`, `_:b0`). */
-export function isIri(value: string): boolean {
-  return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value) && !value.startsWith('_:');
-}
+export const isIri = isIriValue;
 
 /** The findings whose focus node is one of `iris`: a view's. */
 export function resultsWithin(results: ValidationResult[], iris: ReadonlySet<string>): ValidationResult[] {
@@ -157,6 +156,19 @@ export function extractViolatedIris(results: ValidationResult[]): string[] {
     if (r.focusNode?.value) set.add(r.focusNode.value);
   }
   return [...set];
+}
+
+/**
+ * A shape, or a check, by name: a link to its IRI — the metamodel's page for it
+ * — when the IRI is a web address; the IRI itself shown on hover. Opening it does
+ * not also show the finding's concept.
+ */
+function shapeLink(iri: string): unknown {
+  if (!isLink(iri)) return html`<span title=${iri}>${iriLabel(iri)}</span>`;
+  const keep = (e: Event) => e.stopPropagation();
+  return html`<a class="shape" href=${iri} target="_blank" rel="noopener noreferrer" title=${iri} @click=${keep} @keydown=${keep}
+    >${iriLabel(iri)}</a
+  >`;
 }
 
 // ── Lit Component ───────────────────────────────────────────────────────
@@ -304,6 +316,16 @@ export class ValidationPanel extends LitElement {
     .result-details .field {
       color: #3c4043;
       font-weight: 500;
+    }
+
+    .result-details a.shape {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    .result-details a.shape:hover,
+    .result-details a.shape:focus-visible {
+      text-decoration: underline;
     }
 
     .panel-header .checks-btn {
@@ -520,7 +542,8 @@ export class ValidationPanel extends LitElement {
     const named = (term: { termType?: string; value: string } | undefined) =>
       term && term.termType !== 'BlankNode' && isIri(term.value) ? term.value : undefined;
     const path = named(result.resultPath);
-    const shape = named(result.sourceShape);
+    // A shape written inline points to the named shape it is written in.
+    const shape = shapeIriOf(result);
     const check = this._checkResults.has(result);
     return html`
       <div
@@ -545,7 +568,7 @@ export class ValidationPanel extends LitElement {
             ? html`Property: <span class="field" title=${path}>${this.fieldNameFor?.(path) ?? iriLabel(path)}</span>`
             : nothing}
           ${path && shape ? html` · ` : nothing}
-          ${shape ? html`${check ? 'Check' : 'Shape'}: <span title=${shape}>${iriLabel(shape)}</span>` : nothing}
+          ${shape ? html`${check ? 'Check' : 'Shape'}: ${shapeLink(shape)}` : nothing}
         </div>
       </div>
     `;

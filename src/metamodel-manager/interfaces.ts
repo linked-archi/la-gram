@@ -300,6 +300,11 @@ export interface PaletteDefinition {
   notationSetIri?: string;
   /** Label of that notation set. */
   notationSetLabel?: string;
+  /** The presentation context the palette was made for — the audience — and its name; none when none is chosen. */
+  presentationContextIri?: string;
+  presentationContextLabel?: string;
+  /** What that context says every label says, where nothing else does (its `arch-vis:labelExpression`). */
+  presentationContextLabelExpression?: string;
   /**
    * The resolved notation of every class the generator could resolve, keyed by
    * class IRI, plus each relationship class's `arch:unqualifiedForm` predicate.

@@ -27,6 +27,8 @@ interface ShownType {
 /** Context of {@link RETYPE_ELEMENT_COMMAND}. */
 export interface RetypeElementContext extends RdfChangeContext {
   element: { businessObject?: RdfBusinessObject };
+  /** The element's other placements in the view: shown retyped with it. */
+  others?: Array<{ businessObject?: RdfBusinessObject }>;
   typeIri: string;
   iconUrl?: string;
   /** The new name, when the old one was the old type's default. */
@@ -47,21 +49,26 @@ export class RetypeElementHandler extends RdfChangeHandler {
     const shown = retype.element.businessObject!;
     retype.previous ??= { typeIri: shown.typeIri, iconUrl: shown.iconUrl, label: shown.label };
     super.execute(retype);
-    shown.typeIri = retype.typeIri;
-    shown.iconUrl = retype.iconUrl;
-    if (retype.label) shown.label = retype.label;
-    return [retype.element];
+    for (const placement of [retype.element, ...(retype.others ?? [])]) {
+      const bo = placement.businessObject;
+      if (!bo) continue;
+      bo.typeIri = retype.typeIri;
+      bo.iconUrl = retype.iconUrl;
+      if (retype.label) bo.label = retype.label;
+    }
+    return [retype.element, ...(retype.others ?? [])];
   }
 
   override revert(context: RdfChangeContext): unknown[] {
     const retype = context as RetypeElementContext;
     super.revert(retype);
-    const shown = retype.element.businessObject;
-    if (shown && retype.previous) {
+    for (const placement of [retype.element, ...(retype.others ?? [])]) {
+      const shown = placement.businessObject;
+      if (!shown || !retype.previous) continue;
       shown.typeIri = retype.previous.typeIri;
       shown.iconUrl = retype.previous.iconUrl;
       shown.label = retype.previous.label;
     }
-    return [retype.element];
+    return [retype.element, ...(retype.others ?? [])];
   }
 }
