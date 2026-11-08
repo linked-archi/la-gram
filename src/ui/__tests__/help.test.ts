@@ -65,7 +65,7 @@ describe('About la-gram', () => {
       kind: 'header',
       image: 'favicon.svg',
       title: 'la-gram',
-      subtitle: 'Semantic Architecture Modeller',
+      subtitle: 'Semantic Modeller for Enterprise and IT Architecture',
       note: 'Version 0.1.0',
     });
     const rows = blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []));

@@ -186,7 +186,7 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'la-gram — Semantic Architecture Modeller',
+        title: 'la-gram — Semantic Modeller for Enterprise and IT Architecture',
       }),
       bundledAssetsPlugin(),
       buildFlags(),
@@ -267,7 +267,7 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'la-gram — Semantic Architecture Modeller',
+        title: 'la-gram — Semantic Modeller for Enterprise and IT Architecture',
       }),
       bundledAssetsPlugin(),
       buildFlags({ desktop: true }),

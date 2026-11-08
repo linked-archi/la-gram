@@ -1,6 +1,6 @@
 # la-gram
 
-A semantic architecture modeller for [Linked.Archi](https://meta.linked.archi/) metamodels.
+A semantic modeller for enterprise and IT architecture, built on [Linked.Archi](https://meta.linked.archi/) metamodels.
 
 The model lives in an RDF store; the diagram, the model tree, files and the
 collaboration document are views of it. It works with any metamodel that

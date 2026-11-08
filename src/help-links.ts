@@ -44,4 +44,4 @@ export const HELP_LINKS: readonly HelpLink[] = [
 export const LICENCE = { name: 'Apache License 2.0', href: 'https://www.apache.org/licenses/LICENSE-2.0' };
 
 /** What la-gram calls itself, under its name. */
-export const TAGLINE = 'Semantic Architecture Modeller';
+export const TAGLINE = 'Semantic Modeller for Enterprise and IT Architecture';

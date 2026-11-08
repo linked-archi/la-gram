@@ -351,7 +351,7 @@ la-gram-release:
     tag_name: $CI_COMMIT_TAG
     name: la-gram $VERSION
     description: |
-      la-gram, the semantic architecture modeller.
+      la-gram, the semantic modeller for enterprise and IT architecture.
 
       **In the browser** (the latest release): https://app.linked.archi/la-gram/
 

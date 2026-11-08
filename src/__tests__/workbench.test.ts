@@ -1459,7 +1459,7 @@ describe('the workbench', () => {
       await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(1));
       const [title, blocks, options] = details.mock.calls[0] as unknown as [string, DetailBlock[], DetailsOptions];
       expect(title).toBe('About la-gram');
-      expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Architecture Modeller' });
+      expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Modeller for Enterprise and IT Architecture' });
       expect(blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []))).toContainEqual(['Metamodels', 'ArchiMate 4.0 Metamodel']);
       expect(options.copy?.text).toMatch(/^la-gram \(development build\) · .* · metamodels: ArchiMate 4\.0 Metamodel/);
       await ui.appToolbar.updateComplete;
@@ -1482,7 +1482,7 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'about' });
     const [title, lines] = info.mock.calls[0] as [string, string[]];
     expect(title).toBe('About la-gram');
-    expect(lines.slice(0, 3)).toEqual(['la-gram', 'Semantic Architecture Modeller', 'Development build']);
+    expect(lines.slice(0, 3)).toEqual(['la-gram', 'Semantic Modeller for Enterprise and IT Architecture', 'Development build']);
   });
 
   it('hides and shows the model tree from the toolbar', async () => {
