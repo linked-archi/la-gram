@@ -2550,14 +2550,24 @@ describe('the Appearance tab', () => {
         }, iri)) === 1,
       'the picture for executives kept in the model',
     );
-    // Executives chosen: the Image tab draws it as the figure, for them.
+    // Executives chosen: drawn inside its box at once, the type's glyph its badge (core-vis 0.8).
     await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}ExecutiveContext`);
+    const drawnPicture = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-image`);
+    await until(async () => /^data:image\/svg\+xml;base64,/.test((await drawnPicture.getAttribute('href').catch(() => null)) ?? ''), 'drawn inside its box');
+    expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-badge`).getAttribute('href')).toMatch(/glyphs\//);
+    // The Image tab draws it as the figure, for them…
     await panel.locator('.vtab[data-tab="image"]').click();
-    await panel.locator('.element-picture-as-figure').click();
+    expect(await panel.locator('.image-preview').getAttribute('data-element-picture')).toBe('true');
+    await panel.locator('.image-draw-as input[value="figure"]').check();
     const shape = page.locator(`.djs-shape[data-element-id="${iri}"] [data-rendering-mode]`);
     await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'IconCentric', 'drawn as its picture');
     expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-icon`).getAttribute('href')).toMatch(/^data:image\/svg\+xml;base64,/);
     await session.screenshot('appearance-picture-per-presentation');
+    // … or as its badge, its box kept.
+    await panel.locator('.image-draw-as input[value="badge"]').check();
+    await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'ShapeWithBadge', 'its box again');
+    expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-badge`).getAttribute('href')).toMatch(/^data:image\/svg\+xml;base64,/);
+    await session.screenshot('appearance-picture-as-badge');
     // Developers: its box.
     await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}DeveloperContext`);
     await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'ShapeWithBadge', 'its box for developers');

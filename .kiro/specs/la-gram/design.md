@@ -1902,15 +1902,27 @@ context)` — the one for the context, else `arch:prefVisNotation` —
 `xsd:anyURI` `schema:contentUrl`; an address `imageUri` refuses changes
 nothing); the refresh puts the one for the presentation chosen on the business
 object (`elementPicture`, from `labelSource.pictureFor`), and the renderer's
-`iconOf` draws it as the icon where the placement is drawn as its icon and its
-own look names none — for drawing, for `drawnMode` (the in-place editor) and
-for the docking outline's stamp — not recoloured, marked `data-element-picture`.
+`iconOf` draws it as the icon where the placement is drawn as its icon, or
+where its look says `useElementPicture` (core-vis 0.8: its badge in box mode),
+and its own look names no `iconSymbol` — for drawing, for `drawnMode` (the
+in-place editor) and for the docking outline's stamp — not recoloured, marked
+`data-element-picture`. Drawn as a box, `pictureInside` draws it as an
+`arch-vis:image` of the placement's would be, at its `imagePosition`, where the
+look has no `image`, no `iconSymbol` and no `useElementPicture`; the badge is
+then the glyph. `useElementPicture` is an `xsd:boolean`, the one Appearance
+value of its kind (`appearanceObject` → `{ boolean }`), never taken from a
+notation (`lookOf` skips it, as it does `iconSymbol`).
 The Image tab's `ImageChoices` carries the style for every presentation's
-picture (`ImageScope`: picture, position, `asFigure`, `elementAsFigure`) and,
+picture (`ImageScope`: picture, position, `asFigure`, `asBadge` — its own
+`iconSymbol`, told apart by the mode it is drawn in, its own else what is under
+it — `elementAsFigure`, `elementAsBadge`) and, *Draw it* being about the
+placement's own picture, else about its element's; and,
 with a presentation chosen and elements selected, `context`, `contextLabel`,
 `forContext` and the element's picture; `_renderImage` edits one scope
 (`_imageEveryContext`, reset with the selection or the presentation, as the
-Label tab's `_labelEveryContext`), its changes an `appearance-change` with
+Label tab's `_labelEveryContext`; a change keeps `mount-ui`'s `lookScope` in the
+scope it was made in, so emptying the presentation's own look does not move the
+tabs to every presentation), its changes an `appearance-change` with
 `context`, or — for every presentation with one chosen — `clearContext`
 (`IMAGE_SCOPE_KEYS` taken away from the chosen presentation's style); the
 Figure tab sends `clearContext` for the figure keys. `mount-ui` writes both in

@@ -24,13 +24,24 @@ Provides vocabulary for diagram interchange (nodes, links, bounds) and visual st
 (colors, fonts, shapes, icons). Used both at the instance level (diagram elements) and
 at the type level (default notation for model concepts via NotationSet).'''@en ;
     dcterms:issued       "2019-03-17"^^xsd:date ;
-    dcterms:modified     "2026-11-07"^^xsd:date ;
+    dcterms:modified     "2026-11-09"^^xsd:date ;
     dcterms:publisher    <https://linked.archi> ;
     dcterms:publisher    "Linked.Archi"@en ;
     dcterms:title        "Core Linked.Archi Ontology for Diagrams and Visual Notation"@en ;
-    owl:versionInfo "0.7"@en ;
+    owl:versionInfo "0.8"@en ;
     rdfs:seeAlso    <https://meta.linked.archi/core-vis-shapes#> ;
-    skos:historyNote '''0.7: A diagram element's own style says more than its colours and its font:
+    skos:historyNote '''0.8: A model element's picture for the presentation context shown (core's
+arch:prefVisNotation, arch:altVisNotation) is drawn where its diagram element is drawn as a box too —
+arch-vis:ShapeWithBadge or arch-vis:ShapeOnly — inside it, at the diagram element's
+arch-vis:imagePosition, unless its own style gives it a picture of its own (arch-vis:image) or an icon
+of its own (arch-vis:iconSymbol); the badge stays the notation's glyph. Where 0.7 drew it only as the
+icon of a diagram element drawn arch-vis:IconCentric, choosing an audience showed nothing of it on a
+box. And a style may say arch-vis:useElementPicture: the diagram element's icon is its model element's
+picture for the context shown — its badge, drawn arch-vis:ShapeWithBadge, or its figure, drawn
+IconCentric — in place of the notation's glyph, following the picture as it changes and as the context
+does.
+
+0.7: A diagram element's own style says more than its colours and its font:
 arch-vis:lineWidth, the width of its outline or its line; arch-vis:fontStyle, whether its text is
 bold, italic or underlined; where its text sits — arch-vis:textAlignment across it
 (arch-vis:AlignLeft, AlignCenter, AlignRight), arch-vis:textPosition down it
@@ -506,9 +517,32 @@ fill are transparent, so one glyph serves every fill colour and notation set. On
 style (arch-vis:style) it is that element's own icon, in place of its notation's glyph: a picture drawn
 as the figure itself with arch-vis:IconCentric, or as its badge with arch-vis:ShapeWithBadge. A diagram
 element drawn arch-vis:IconCentric with no icon of its own shows its model element's picture for the
-presentation context shown, when it has one (see arch-vis:IconCentric).'''@en ;
+presentation context shown, when it has one (see arch-vis:IconCentric); one whose style says
+arch-vis:useElementPicture shows it as its badge too.'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
+.
+
+arch-vis:useElementPicture
+    a            owl:DatatypeProperty,
+                 owl:FunctionalProperty ;
+    rdfs:label   "useElementPicture"@en ;
+    rdfs:comment '''On a diagram element's own style (arch-vis:style), true: its icon is its model element's
+picture for the presentation context shown — core's arch:altVisNotation with that
+arch:inPresentationContext, else its arch:prefVisNotation — in place of its notation's glyph: its badge,
+drawn arch-vis:ShapeWithBadge, or its figure, drawn arch-vis:IconCentric. The picture is followed, not
+copied: a new picture, or another context chosen, is drawn as it is. An arch-vis:iconSymbol of its own
+comes first; with no picture for the element, the notation's glyph. Where it is absent, a diagram element
+drawn IconCentric with no icon of its own shows the picture as its figure all the same, and one drawn as
+a box shows it inside (see arch-vis:IconCentric).'''@en ;
+    rdfs:domain  arch-vis:Style ;
+    rdfs:range   xsd:boolean ;
+    skos:example '''A diagram element whose badge, for executives, is its element's picture for them:
+
+  ex:node-1-style-exec a arch-vis:Style ;
+      arch:inPresentationContext ctx:Executive ;
+      arch-vis:renderingMode arch-vis:ShapeWithBadge ;
+      arch-vis:useElementPicture true .'''@en ;
 .
 
 arch-vis:iconPlacement
@@ -528,7 +562,9 @@ arch-vis:image
 text and its glyph. An http(s) URL, or a data: URI of an image for a small picture kept in the
 model. The picture is drawn at its own size, made smaller to fit the node; at arch-vis:Fill, scaled
 to the node's bounds. The node's glyph is drawn as its rendering mode says. A picture standing for the
-figure itself is the node's own arch-vis:iconSymbol, drawn arch-vis:IconCentric.'''@en ;
+figure itself is the node's own arch-vis:iconSymbol, drawn arch-vis:IconCentric. A node drawn as a box
+with no image of its own, and no icon of its own, shows its model element's picture for the presentation
+context shown here — at its arch-vis:imagePosition — when it has one (see arch-vis:IconCentric).'''@en ;
     rdfs:domain  arch-vis:Style ;
     rdfs:range   xsd:anyURI ;
 .
@@ -1000,8 +1036,13 @@ Used by: AWS Architecture Icons, Azure service icons, GCP icons, Kubernetes.
 The icon of a diagram element drawn so, in this order: the arch-vis:iconSymbol of its own style (for the
 presentation context shown, else for every context); its model element's picture for that context —
 its core arch:altVisNotation with that arch:inPresentationContext, else its arch:prefVisNotation; its
-notation's arch-vis:iconSymbol. A model element's picture is drawn only so: in arch-vis:ShapeWithBadge the
-badge stays the notation's glyph, which says the element's type.'''@en ;
+notation's arch-vis:iconSymbol.
+
+A model element's picture where its diagram element is drawn as a box (arch-vis:ShapeWithBadge,
+arch-vis:ShapeOnly): inside it, as an arch-vis:image of its own would be — at its arch-vis:imagePosition
+— unless its style gives it an image or an icon of its own; the badge stays the notation's glyph, which
+says the element's type. A style saying arch-vis:useElementPicture makes the picture its badge instead,
+in place of the glyph.'''@en ;
 .
 
 arch-vis:ShapeOnly

@@ -24,6 +24,7 @@
  * | `image` | `arch-vis:image` (0.7) | a picture drawn in a node: an http(s) URL or a `data:image/…` URI, an `xsd:anyURI` |
  * | `imagePosition` | `arch-vis:imagePosition` (0.7) | where: an `arch-vis:IconPlacement` — `TopLeft` … `BottomRight`, or `Fill` |
  * | `iconSymbol` | `arch-vis:iconSymbol` | a placement's own picture in place of its notation's glyph — with `IconCentric`, drawn as the figure; an `xsd:anyURI` as `image` |
+ * | `useElementPicture` | `arch-vis:useElementPicture` (0.8) | `true`: its icon is its element's picture for the presentation shown — its badge in box-with-badge, its figure in icon mode; an `xsd:boolean` |
  *
  * ## A colour's alpha
  *
@@ -128,6 +129,8 @@ export interface Appearance {
   imagePosition?: ImagePosition;
   /** A placement's own picture in place of its notation's glyph: with `renderingMode` `IconCentric`, the figure itself. */
   iconSymbol?: string;
+  /** Its icon is its element's picture for the presentation shown — its badge, or its figure — followed, not copied (core-vis 0.8). */
+  useElementPicture?: boolean;
 }
 
 export type AppearanceKey = keyof Appearance;
@@ -158,6 +161,7 @@ export const APPEARANCE_KEYS: readonly AppearanceKey[] = [
   'image',
   'imagePosition',
   'iconSymbol',
+  'useElementPicture',
 ];
 
 const ENUMERATIONS = {
@@ -196,13 +200,15 @@ export const APPEARANCE_PREDICATES: Record<AppearanceKey, string> = {
   image: VIS + 'image',
   imagePosition: VIS + 'imagePosition',
   iconSymbol: VIS + 'iconSymbol',
+  useElementPicture: VIS + 'useElementPicture',
 };
 
-/** How a value is written: an enumeration's member (an IRI), an integer, or a string. */
+/** How a value is written: an enumeration's member (an IRI), an integer, a boolean, or a string. */
 export function appearanceObject(
   key: AppearanceKey,
   value: NonNullable<Appearance[AppearanceKey]>,
-): { iri: string } | { integer: number } | { string: string } | { uri: string } | undefined {
+): { iri: string } | { integer: number } | { string: string } | { uri: string } | { boolean: boolean } | undefined {
+  if (key === 'useElementPicture') return typeof value === 'boolean' ? { boolean: value } : undefined;
   if (isEnumeration(key)) {
     const iri = (ENUMERATIONS[key] as Record<string, string>)[String(value)];
     return iri ? { iri } : undefined;
@@ -241,6 +247,10 @@ export function appearanceValue<K extends AppearanceKey>(key: K, term: { termTyp
   }
   if (key === 'fontStyle') return fontStyleOf(value) as Appearance[K] | undefined;
   if (key === 'image' || key === 'iconSymbol') return (term.termType === 'Literal' ? imageUri(value) : undefined) as Appearance[K] | undefined;
+  if (key === 'useElementPicture') {
+    const flag = value === 'true' || value === '1' ? true : value === 'false' || value === '0' ? false : undefined;
+    return (term.termType === 'Literal' ? flag : undefined) as Appearance[K] | undefined;
+  }
   if (key === 'fillColor' || key === 'lineColor' || key === 'fontColor' || key === 'iconColor') {
     return (value ? cssColour(value) : undefined) as Appearance[K] | undefined;
   }
@@ -365,8 +375,8 @@ export function lookOf(style: object | undefined): Appearance {
   if (!style) return look as Appearance;
   for (const key of APPEARANCE_KEYS) {
     // A notation's shape type is the shape's local name, not a placement's IRI; its icon is its glyph,
-    // not a placement's own picture: neither a look to take over.
-    if (key === 'shapeType' || key === 'iconSymbol') continue;
+    // not a placement's own picture: neither a look to take over — nor whether a placement shows its element's picture.
+    if (key === 'shapeType' || key === 'iconSymbol' || key === 'useElementPicture') continue;
     const value = (style as Record<string, unknown>)[key];
     if (value !== undefined && value !== null) look[key] = value;
   }

@@ -879,7 +879,9 @@ export class OxigraphViewManager implements ViewManager {
             ? DataFactory.literal(String(object.integer), nn(NAMESPACES.xsd + 'integer'))
             : 'uri' in object
               ? DataFactory.literal(object.uri, nn(NAMESPACES.xsd + 'anyURI'))
-              : DataFactory.literal(object.string);
+              : 'boolean' in object
+                ? DataFactory.literal(String(object.boolean), nn(NAMESPACES.xsd + 'boolean'))
+                : DataFactory.literal(object.string);
       this.store.addQuads([triple(style, predicate, term)]);
     }
     // Nothing left to say — but what it is, and the context it is for: no such style at all.

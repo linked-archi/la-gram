@@ -641,7 +641,7 @@ export class RdfRenderer extends BaseRenderer {
         parentGfx.appendChild(group);
         return group;
       }
-      this.drawImage(group, element, look, insetBox(width, height));
+      this.drawImage(group, element, this.pictureInside(businessObject, look, own), insetBox(width, height));
       const layout = containerLayout(shapeLayout(style?.customShape ?? style?.shapeType, width, height), element);
       // Present exactly when a badge is drawn — ShapeOnly reserves no room.
       const badgePlacement =
@@ -916,10 +916,13 @@ export class RdfRenderer extends BaseRenderer {
 
   /**
    * The icon a shape is drawn with: its own (`arch-vis:iconSymbol`, already on
-   * `style`) — else, where it is drawn as its icon, its element's picture for
-   * the presentation shown (core-vis 0.7's `arch-vis:IconCentric`) — else its
-   * notation's glyph. In box-with-badge mode the badge stays the glyph: it
-   * says the element's type.
+   * `style`) — its badge in box-with-badge mode, its figure in icon mode —
+   * else its element's picture for the presentation shown where its style asks
+   * for it (core-vis 0.8's `arch-vis:useElementPicture`: its badge, or its
+   * figure) or it is drawn as its icon (core-vis 0.7's `arch-vis:IconCentric`)
+   * — else its notation's glyph. In box-with-badge mode the element's picture is drawn
+   * inside the box instead (`pictureInside`) and the badge stays the glyph,
+   * which says the element's type.
    */
   private iconOf(
     businessObject: RdfBusinessObject | undefined,
@@ -928,10 +931,30 @@ export class RdfRenderer extends BaseRenderer {
   ): { href: string | null; elementPicture: boolean } {
     const picture = businessObject?.elementPicture;
     if (!own?.iconSymbol && picture) {
+      // Asked for (core-vis 0.8: its badge, or its figure), or drawn as its icon.
+      if (own?.useElementPicture) return { href: picture, elementPicture: true };
       const declared = own?.renderingMode ?? this.notationStyles.renderingModeFor(businessObject?.typeIri);
       if (declared === 'IconCentric') return { href: picture, elementPicture: true };
     }
     return { href: iconHref(style?.iconSymbol, assetUrl), elementPicture: false };
+  }
+
+  /**
+   * The picture drawn inside a box (box with badge, shape only): its own
+   * (`arch-vis:image`) — else, when it has no picture of its own as its badge
+   * either (`arch-vis:iconSymbol`), its element's picture for the presentation
+   * shown (core 0.5.0), at its own image position. The badge stays its type's
+   * glyph.
+   */
+  private pictureInside(
+    businessObject: RdfBusinessObject | undefined,
+    look: Appearance,
+    own: Appearance | undefined,
+  ): Pick<Appearance, 'image' | 'imagePosition'> {
+    const picture = businessObject?.elementPicture;
+    // Not inside when it is its badge already (arch-vis:useElementPicture).
+    if (look.image || own?.iconSymbol || own?.useElementPicture || !picture) return look;
+    return { image: picture, ...(look.imagePosition ? { imagePosition: look.imagePosition } : {}) };
   }
 
   /** The filled, stroked `shapeType` body, and its inner lines over it. */

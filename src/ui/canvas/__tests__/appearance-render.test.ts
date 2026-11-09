@@ -159,7 +159,7 @@ describe('a placement drawn as another figure (the Figure tab)', () => {
     );
   }
 
-  it('its element’s picture for the presentation shown, where it is drawn as its icon — not as its badge; its own icon first', () => {
+  it('its element’s picture for the presentation shown: as its icon in icon mode, inside the box in box mode — the badge its type’s; its own picture first', () => {
     const PICTURE = 'https://example.org/pictures/card-payments.png';
     const drawWithPicture = (appearance?: Appearance) => {
       const type: ElementTypeInfo = { iri: TYPE_IRI, label: 'Actor', isAbstract: false, style: BADGED, renderingMode: effectiveRenderingMode(BADGED) };
@@ -173,9 +173,39 @@ describe('a placement drawn as another figure (the Figure tab)', () => {
     const icon = drawWithPicture({ renderingMode: 'IconCentric', iconColor: '#7a0019' }).querySelector(`.${RENDER_CLASSES.icon}`)!;
     expect([icon.getAttribute('href'), icon.getAttribute('data-element-picture'), icon.getAttribute('filter')]).toEqual([PICTURE, 'true', null]);
     harness!.destroy();
-    // In box-with-badge mode the badge stays the notation's glyph: it says the element's type.
-    const badge = drawWithPicture().querySelector(`.${RENDER_CLASSES.badge}`)!;
-    expect(badge.getAttribute('href')).toContain('actor.svg');
+    // In box-with-badge mode it is drawn inside the box, at the top left; the badge stays the notation's glyph,
+    // which says the element's type.
+    const boxed = drawWithPicture();
+    expect(boxed.querySelector(`.${RENDER_CLASSES.badge}`)!.getAttribute('href')).toContain('actor.svg');
+    const inside = boxed.querySelector(`.${RENDER_CLASSES.image}`);
+    // Drawn once its size is known (loaded); its position, until then, is what the picture is drawn at.
+    if (inside) expect([inside.getAttribute('href'), inside.getAttribute('data-image-position')]).toEqual([PICTURE, 'TopLeft']);
+    harness!.destroy();
+    // At the placement's own image position; and not at all where the placement has a picture of its own inside,
+    // or as its badge.
+    const placed = drawWithPicture({ image: 'https://example.org/own-inside.png', imagePosition: 'BottomRight' }).querySelectorAll(`.${RENDER_CLASSES.image}`);
+    expect([...placed].map((i) => i.getAttribute('href'))).not.toContain(PICTURE);
+    harness!.destroy();
+    // Asked for as its badge (core-vis 0.8): the picture in place of the glyph, its box kept, not inside as well.
+    const asBadge = drawWithPicture({ useElementPicture: true });
+    expect([asBadge.getAttribute('data-rendering-mode'), asBadge.querySelector(`.${RENDER_CLASSES.badge}`)!.getAttribute('href')]).toEqual([
+      'ShapeWithBadge',
+      PICTURE,
+    ]);
+    expect(asBadge.querySelector(`.${RENDER_CLASSES.image}`)).toBeNull();
+    harness!.destroy();
+    // And as its figure where it is drawn as its icon.
+    const asFigure = drawWithPicture({ useElementPicture: true, renderingMode: 'IconCentric' }).querySelector(`.${RENDER_CLASSES.icon}`)!;
+    expect(asFigure.getAttribute('href')).toBe(PICTURE);
+    harness!.destroy();
+    // A picture of its own comes first.
+    expect(drawWithPicture({ useElementPicture: true, iconSymbol: 'https://example.org/own.png' }).querySelector(`.${RENDER_CLASSES.badge}`)!.getAttribute('href')).toBe(
+      'https://example.org/own.png',
+    );
+    harness!.destroy();
+    const ownBadge = drawWithPicture({ iconSymbol: 'https://example.org/own-badge.png' });
+    expect(ownBadge.querySelector(`.${RENDER_CLASSES.badge}`)!.getAttribute('href')).toBe('https://example.org/own-badge.png');
+    expect([...ownBadge.querySelectorAll(`.${RENDER_CLASSES.image}`)].map((i) => i.getAttribute('href'))).not.toContain(PICTURE);
     harness!.destroy();
     // The placement's own icon comes first.
     const own = drawWithPicture({ renderingMode: 'IconCentric', iconSymbol: 'https://example.org/own.png' }).querySelector(`.${RENDER_CLASSES.icon}`)!;

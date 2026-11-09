@@ -1473,6 +1473,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         if (cleared && detail.clearContext && target.kind === 'element') viewManager.setAppearance!(viewIri, target.iri, cleared, detail.clearContext.context);
       }
     });
+    // The scope a change is made in stays the tabs' until the selection or the presentation changes: a change that
+    // empties the presentation's own look (Remove image, a picture given up for its element's) does not switch them
+    // to every presentation.
+    if (diagramCanvas.presentationContextInUse) lookScope = detail.context ? 'context' : 'every';
     diagramCanvas.refreshLabels();
     propertyPanel.appearance = selectedLook();
   };

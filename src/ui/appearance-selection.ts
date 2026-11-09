@@ -68,8 +68,12 @@ export interface ImageScope {
   position: ImagePosition;
   /** Drawn as the figure — its own icon (`arch-vis:iconSymbol`, `IconCentric`) — not inside it. */
   asFigure?: boolean;
+  /** Drawn as its badge, in place of its type's glyph — its own icon (`arch-vis:iconSymbol`) in box-with-badge. */
+  asBadge?: boolean;
   /** Drawn as its icon with no icon of its own: its element's picture is the figure (core-vis 0.7). */
   elementAsFigure?: boolean;
+  /** Drawn as a box, its element's picture its badge (core-vis 0.8: `arch-vis:useElementPicture`), no icon of its own. */
+  elementAsBadge?: boolean;
 }
 
 /**

@@ -14,7 +14,7 @@
   dcterms:language <http://id.loc.gov/vocabulary/iso639-1/en>;
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:issued "2024-06-01"^^xsd:date;
-  dcterms:modified "2026-11-08"^^xsd:date;
+  dcterms:modified "2026-11-09"^^xsd:date;
   dcterms:publisher <https://linked.archi>;
   foaf:homepage <https://meta.linked.archi/>;
   dcat:themeTaxonomy <https://meta.linked.archi/catalog#themes>;
@@ -3633,8 +3633,8 @@ at the type level (default notation for model concepts via NotationSet)."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-vis#";
   vann:preferredNamespacePrefix "arch-vis";
-  owl:versionInfo "0.7";
-  dcterms:modified "2026-11-07"^^xsd:date;
+  owl:versionInfo "0.8";
+  dcterms:modified "2026-11-09"^^xsd:date;
   dcterms:license <http://creativecommons.org/licenses/by-sa/3.0/>;
   dcterms:creator [ a foaf:Person;
       foaf:name "Kalin Maldzhanski"
@@ -3676,8 +3676,8 @@ must belong to exactly one view); the remainder is cardinality and datatype hygi
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-vis-shapes#";
   vann:preferredNamespacePrefix "archvissh";
-  owl:versionInfo "0.3.0";
-  dcterms:modified "2026-11-07"^^xsd:date;
+  owl:versionInfo "0.4.0";
+  dcterms:modified "2026-11-09"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;

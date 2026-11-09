@@ -662,9 +662,20 @@ describe('the workbench', () => {
     expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
     await ui.runCommand({ command: 'undo' });
     expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'IconCentric' });
-    // And back inside, at the top left.
+    // In the badge: its own icon in box-with-badge, its figure kept, in place of its type's glyph — no position.
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
     await panel.updateComplete;
+    drawAs('badge');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'ShapeWithBadge' });
+    expect(drawnA().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(drawnA().querySelector('.la-shape-badge')?.getAttribute('href')).toBe(LOGO);
+    expect(drawnA().querySelector('.la-shape-icon')).toBeNull();
+    await panel.updateComplete;
+    expect(root.querySelector<HTMLInputElement>('.image-draw-as input[value="badge"]')!.checked).toBe(true);
+    expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+    // And back inside, at the top left.
     drawAs('inside');
     expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO });
     expect(drawnA().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
@@ -958,7 +969,17 @@ describe('the workbench', () => {
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
     await panel.updateComplete;
     expect(panel.appearance?.image?.elementPicture).toBe(CARD);
-    root.querySelector<HTMLButtonElement>('.element-picture-as-figure')!.click();
+    const pick = async (value: string) => {
+      await panel.updateComplete;
+      const radio = root.querySelector<HTMLInputElement>(`.image-draw-as input[value="${value}"]`)!;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    };
+    // Its own picture for executives given up for its element's: then Draw it is about the element's picture.
+    root.querySelector<HTMLButtonElement>('.use-element-picture')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.image-preview')!.getAttribute('data-element-picture')).toBe('true');
+    await pick('figure');
     expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric' });
     const icon = drawn().querySelector('.la-shape-icon')!;
     expect([drawn().getAttribute('data-rendering-mode'), icon.getAttribute('href'), icon.getAttribute('data-element-picture')]).toEqual([
@@ -966,6 +987,34 @@ describe('the workbench', () => {
       CARD,
       'true',
     ]);
+    // As its badge instead (core-vis 0.8): its box kept, its element's picture in place of the type's glyph.
+    await pick('badge');
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'ShapeWithBadge', useElementPicture: true });
+    const badge = () => drawn().querySelector('.la-shape-badge')!;
+    expect([drawn().getAttribute('data-rendering-mode'), badge().getAttribute('href')]).toEqual(['ShapeWithBadge', CARD]);
+    expect(inside()).toBe(FOR_EVERYONE);
+    // Written as core-vis 0.8 says (an xsd:boolean), which its shapes (0.4.0) accept.
+    const useFlag = app.components.store
+      .getQuads(null as never, DataFactory.namedNode(NAMESPACES['arch-vis'] + 'useElementPicture') as never)
+      .map((q: { object: { value: string; datatype?: { value: string } } }) => [q.object.value, q.object.datatype?.value]);
+    expect(useFlag).toEqual([['true', NAMESPACES.xsd + 'boolean']]);
+    app.runValidation();
+    expect(
+      ui.validationPanel.results.filter((r) => /core-vis-shapes#/.test(r.sourceShape?.value ?? '') && JSON.stringify(r).includes(node)),
+    ).toEqual([]);
+    // Followed, not copied: a new picture for executives is what the badge shows.
+    const CARD_2 = 'https://example.org/pictures/card-payments-2.png';
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="info"]')!.click();
+    await panel.updateComplete;
+    const newPicture = root.querySelector<HTMLInputElement>(`.context-picture[data-context="${EXECUTIVE}"] input.property-value`)!;
+    newPicture.value = CARD_2;
+    newPicture.dispatchEvent(new Event('change'));
+    expect(badge().getAttribute('href')).toBe(CARD_2);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    // And as the figure again, for what follows.
+    await pick('figure');
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric' });
     // Developers: the box, the picture for everyone inside it, the type's glyph as its badge.
     app.setPresentationContext(DEVELOPER);
     expect(drawn().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
