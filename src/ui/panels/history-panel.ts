@@ -136,10 +136,21 @@ type Entry = { kind: 'checkpoint'; time: number; commit: Commit } | { kind: 'git
 @customElement('history-panel')
 export class HistoryPanel extends LitElement {
   static override styles = css`
+    /* The tab gives the panel its height (app-shell): the message, the status
+       and the Git status stay at the top; the checkpoints and the one selected
+       each scroll in what is left. */
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
       font-family: sans-serif;
       font-size: 13px;
+    }
+    .commit-row,
+    .status,
+    .git-status {
+      flex: none;
     }
     .commit-row {
       display: flex;
@@ -173,6 +184,7 @@ export class HistoryPanel extends LitElement {
     }
     .body {
       display: flex;
+      flex: 1 1 auto;
       min-height: 0;
     }
     ul.commits {
@@ -182,6 +194,7 @@ export class HistoryPanel extends LitElement {
       width: 300px;
       flex: none;
       border-right: 1px solid #ddd;
+      overflow-y: auto;
     }
     ul.commits li {
       padding: 6px 12px;
@@ -234,6 +247,7 @@ export class HistoryPanel extends LitElement {
       flex: 1;
       min-width: 0;
       padding: 8px 12px;
+      overflow: auto;
     }
     .detail-header {
       display: flex;

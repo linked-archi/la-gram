@@ -1695,6 +1695,55 @@ describe('version history', () => {
     expect(stored[0].triples).toBeGreaterThan(0);
     findings.push(`history: a commit of ${stored[0].triples} triples kept in IndexedDB`);
   }, 60_000);
+
+  it('scrolls a long history: the checkpoints and the one selected each scroll, the message field stays', async () => {
+    const { page, session } = await openPage();
+    await page.locator('app-shell .tab[data-tab="history"]').click();
+    // Its own (empty) history read first, so it does not replace what is set below.
+    await until(async () => /No checkpoints yet/.test(await page.locator('history-panel .status').innerText()), 'the history read');
+    await page.waitForTimeout(300);
+    // Forty checkpoints, each adding a triple, in a bottom panel of its usual height.
+    await page.evaluate(() => {
+      const ui = (window as any).__LA_GRAM_UI__;
+      const modelIri = (window as any).__LA_GRAM_APP__.session.modelIri as string;
+      const triples: string[] = [];
+      ui.historyPanel.commits = Array.from({ length: 40 }, (_, i) => {
+        triples.push(`<urn:x:e${i}> <http://www.w3.org/2000/01/rdf-schema#label> "Element ${i}" .`);
+        return {
+          id: `${String(1000 + i)}-test`,
+          modelIri,
+          timestamp: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(),
+          message: `Checkpoint ${i + 1}`,
+          ...(i > 0 ? { parent: `${String(1000 + i - 1)}-test` } : {}),
+          triples: [...triples],
+        };
+      }).reverse();
+    });
+    const list = page.locator('history-panel ul.commits');
+    await until(async () => (await page.locator('history-panel li[data-commit]').count()) === 40, 'forty checkpoints listed');
+    const box = (selector: string) => page.locator(selector).first().boundingBox();
+    const input = await box('history-panel input.commit-message');
+
+    // The list is taller than its room, and scrolls to its oldest checkpoint, which then shows.
+    const sizes = await list.evaluate((ul) => ({ scroll: ul.scrollHeight, client: ul.clientHeight }));
+    expect(sizes.scroll).toBeGreaterThan(sizes.client);
+    await list.evaluate((ul) => (ul.scrollTop = ul.scrollHeight));
+    const oldest = page.locator('history-panel li[data-commit]').last();
+    expect(await oldest.locator('.message').innerText()).toBe('Checkpoint 1');
+    const [listBox, oldestBox] = [await list.boundingBox(), await oldest.boundingBox()];
+    expect(oldestBox!.y + oldestBox!.height).toBeLessThanOrEqual(listBox!.y + listBox!.height + 1);
+    // The panel itself did not scroll: the message field is where it was.
+    expect((await box('history-panel input.commit-message'))!.y).toBe(input!.y);
+
+    // The one selected — the oldest, with its forty-odd added triples — scrolls on its own.
+    await oldest.click();
+    const detail = page.locator('history-panel .detail');
+    await detail.waitFor({ state: 'visible' });
+    const overflowY = await detail.evaluate((d) => getComputedStyle(d).overflowY);
+    expect(overflowY).toBe('auto');
+    await session.screenshot('workbench-history-scrolled');
+    findings.push(`history: 40 checkpoints scroll (${sizes.scroll}px in ${sizes.client}px), the message field stays: ok`);
+  }, 60_000);
 });
 
 describe('collaboration: two pages, one room', () => {
