@@ -1799,6 +1799,73 @@ describe('the workbench', () => {
     }
   });
 
+  it('makes elements and views in a folder of the model tree, or from a type’s row — an element in no view, undoably (Req 10.16)', async () => {
+    const act = (detail: Record<string, unknown>) => ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail }));
+    const folders = () => contents().folders ?? [];
+    const folder = (label: string) => folders().find((f) => f.label === label);
+    const element = (label: string) => contents().elements.find((e) => e.label === label);
+    const views = app.components.viewManager;
+    const placedAnywhere = (iri: string) => views.getViews().some((v) => views.getNodes(v.iri).some((n) => n.elementIri === iri));
+    script.answers.push('Customers');
+    act({ action: 'new-folder', iri: '', kind: 'folder', folderKind: 'element' });
+    await vi.waitFor(() => expect(folder('Customers')).toBeDefined());
+    script.answers.push('Overviews');
+    act({ action: 'new-folder', iri: '', kind: 'folder', folderKind: 'view' });
+    await vi.waitFor(() => expect(folder('Overviews')).toBeDefined());
+
+    // In a folder of elements: its type chosen from the loaded ones, its name — the type's offered — in the folder, in no view.
+    const choose = script.dialogs.choose as ReturnType<typeof vi.fn>;
+    choose.mockClear();
+    script.answers.push(`${AM4}BusinessActor`, 'Retail customer');
+    act({ action: 'new-element', iri: folder('Customers')!.iri, kind: 'folder', folderKind: 'element' });
+    await vi.waitFor(() => expect(element('Retail customer')).toBeDefined());
+    const offered = choose.mock.calls[0]![1] as Array<{ value: string; group?: string }>;
+    expect(offered.map((o) => o.value)).toContain(`${AM4}BusinessActor`);
+    expect(offered.every((o) => o.group)).toBe(true);
+    const retail = element('Retail customer')!;
+    expect(retail.typeIri).toBe(`${AM4}BusinessActor`);
+    expect(folder('Customers')!.members).toContain(retail.iri);
+    expect(placedAnywhere(retail.iri)).toBe(false);
+    expect(ui.propertyPanel.selectedIri).toBe(retail.iri);
+    // One undoable step: made and filed together.
+    await ui.runCommand({ command: 'undo' });
+    expect(element('Retail customer')).toBeUndefined();
+    expect(folder('Customers')!.members).not.toContain(retail.iri);
+    await ui.runCommand({ command: 'redo' });
+    expect(folder('Customers')!.members).toContain(retail.iri);
+
+    // From a type's row: one more of its type, no type to choose, in no folder.
+    choose.mockClear();
+    script.answers.push('Wholesale customer');
+    act({ action: 'new-element', iri: '', kind: 'folder', typeIri: `${AM4}BusinessActor` });
+    await vi.waitFor(() => expect(element('Wholesale customer')).toBeDefined());
+    expect(choose).not.toHaveBeenCalled();
+    expect(element('Wholesale customer')!.typeIri).toBe(`${AM4}BusinessActor`);
+    expect(folders().some((f) => f.members.includes(element('Wholesale customer')!.iri))).toBe(false);
+
+    // In a folder of views: named, its viewpoint asked, filed there and opened.
+    script.answers.push('Customer overview', '');
+    act({ action: 'new-diagram', iri: folder('Overviews')!.iri, kind: 'folder', folderKind: 'view' });
+    await vi.waitFor(() => expect(views.getViews().find((v) => v.label === 'Customer overview')).toBeDefined());
+    const overview = views.getViews().find((v) => v.label === 'Customer overview')!;
+    expect(folder('Overviews')!.members).toContain(overview.iri);
+    expect(app.session.activeViewIri).toBe(overview.iri);
+    // From the Views group: in no folder.
+    script.answers.push('Loose catalog', '');
+    act({ action: 'new-catalog', iri: '', kind: 'folder', folderKind: 'view' });
+    await vi.waitFor(() => expect(views.getViews().find((v) => v.label === 'Loose catalog')).toBeDefined());
+    expect(folders().some((f) => f.members.includes(views.getViews().find((v) => v.label === 'Loose catalog')!.iri))).toBe(false);
+
+    // Tidy up for the tests after: the elements and the views made here, and the folders.
+    for (const label of ['Retail customer', 'Wholesale customer']) app.components.elementManager.deleteElement(element(label)!.iri);
+    for (const label of ['Customer overview', 'Loose catalog']) app.session.deleteView(views.getViews().find((v) => v.label === label)!.iri);
+    for (const label of ['Customers', 'Overviews', 'Elements', 'Views']) {
+      const f = folder(label);
+      if (f) act({ action: 'delete-folder', iri: f.iri, kind: 'folder' });
+    }
+    await vi.waitFor(() => expect(folders().filter((f) => ['Customers', 'Overviews'].includes(f.label))).toEqual([]));
+  });
+
   it('creates, names and opens a new view from the toolbar', async () => {
     script.answers.push('Application landscape');
     await ui.runCommand({ command: 'new-view', value: 'Diagram' });

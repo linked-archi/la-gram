@@ -75,8 +75,9 @@ go, it is greyed out (*Back (no earlier view)*).
 
 ## New view {#new-view}
 
-＋ beside the *View* selector opens the new-view menu, and the model's menu in the model tree has the same
-three:
+＋ beside the *View* selector opens the new-view menu; the model's menu in the model tree has the same
+three, and so do the *Views* group's and a folder of views', which put the view in that folder
+([New views and elements](model-tree.md#new-views-and-elements)):
 
 | Entry | Makes |
 |---|---|

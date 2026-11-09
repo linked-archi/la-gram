@@ -1910,6 +1910,81 @@ describe('two selected elements, and catalog and matrix views', () => {
   });
 });
 
+describe('the model tree makes elements and views in a folder (Req 10.16)', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** Right-click a row of the model tree, then pick `action` in its menu. */
+  async function treeMenu(row: ReturnType<Page['locator']>, action: string): Promise<void> {
+    await row.click({ button: 'right' });
+    await page.locator(`model-explorer .menu button[data-action="${action}"]`).click();
+  }
+
+  /** The folders an IRI is filed in (`dcterms:isPartOf`). */
+  const filedIn = (iri: string) =>
+    page.evaluate((member) => {
+      const store = (window as any).__LA_GRAM_APP__.components.store;
+      return store
+        .getQuads({ termType: 'NamedNode', value: member }, { termType: 'NamedNode', value: 'http://purl.org/dc/terms/isPartOf' })
+        .map((q: any) => q.object.value) as string[];
+    }, iri);
+
+  it('New element… on a folder of elements: a type, a name — the element in the folder, in no view', async () => {
+    await treeMenu(page.locator('model-explorer .row[data-id="folder:elements"]'), 'new-folder');
+    await answerPrompt(page, 'People');
+    const folder = page.locator('model-explorer .row[data-kind="folder"][data-id^="folder-iri:element:"]', { hasText: 'People' });
+    await folder.waitFor({ state: 'visible' });
+    const folderIri = (await folder.getAttribute('data-iri'))!;
+
+    await treeMenu(folder, 'new-element');
+    await page.locator(`.la-dialog .la-choice[data-value="${BUSINESS_ACTOR}"]`).click();
+    await page.locator('.la-dialog .la-button.primary').click();
+    await page.locator('.la-dialog .la-choice-list').waitFor({ state: 'detached' });
+    // The name offered is the type's.
+    await expect(page.locator('.la-dialog input.la-input').inputValue()).resolves.toBe('Business Actor');
+    await answerPrompt(page, 'Customer');
+
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const m = await model(page);
+    const customer = m.actors[0];
+    expect(m.nodesIn['Default View']).toEqual([]);
+    expect(await filedIn(customer)).toEqual([folderIri]);
+    // The tree opens the folder and selects the element, to be dragged onto a diagram.
+    const row = page.locator(`model-explorer .row[data-iri="${customer}"]`);
+    await row.waitFor({ state: 'visible' });
+    expect(await row.getAttribute('class')).toContain('selected');
+    // Its row is in the folder's: the row of the list item around its own.
+    const parent = await row.evaluate((r) => r.closest('li')?.parentElement?.closest('li')?.querySelector(':scope > .row')?.getAttribute('data-iri'));
+    expect(parent).toBe(folderIri);
+    await session.screenshot('workbench-tree-new-element');
+    findings.push('tree: New element… on a folder → type, name → in the folder, in no view: ok');
+  });
+
+  it('New catalog view on a folder of views: named, filed there and opened', async () => {
+    await treeMenu(page.locator('model-explorer .row[data-id="folder:views"]'), 'new-folder');
+    await answerPrompt(page, 'Overviews');
+    const folder = page.locator('model-explorer .row[data-kind="folder"][data-id^="folder-iri:view:"]', { hasText: 'Overviews' });
+    await folder.waitFor({ state: 'visible' });
+    const folderIri = (await folder.getAttribute('data-iri'))!;
+
+    await treeMenu(folder, 'new-catalog');
+    await answerPrompt(page, 'All customers');
+    const chooser = page.locator('.la-dialog .la-choice-list');
+    if (await chooser.isVisible().catch(() => false)) await page.locator('.la-dialog .la-button.primary').click();
+
+    await page.locator('catalog-view').waitFor({ state: 'visible' });
+    const m = await model(page);
+    const catalog = m.views.find((v) => v.label === 'All customers')!;
+    expect(m.activeView).toBe(catalog.iri);
+    expect(await filedIn(catalog.iri)).toEqual([folderIri]);
+    findings.push('tree: New catalog view on a folder → named, filed, opened: ok');
+  });
+});
+
 describe('Git storage, a switchable module (Req 18.1)', () => {
   it('on: File offers Save to Git… and Settings…; the dialog asks for the token unseen', async () => {
     const { page, session } = await openPage();

@@ -880,6 +880,25 @@ several of a kind (elements, or relationships) and the model has folders
 (`canMoveToFolder`), and its menu is then *Move N elements to folder…* alone,
 handed to the host (`move-to-folder`), which moves the selected of that kind.
 
+**Made in the tree** (Req 10.16). `actionsFor` puts what can be made in a group first,
+before *New folder…* (`NEW_IN_GROUP`): on the Views group and a folder of views
+`new-diagram`, `new-catalog`, `new-matrix`; on the Elements group and a folder of
+elements `new-element`; on an element type's row (a `typeIri` row holding elements)
+`new-element` with the type (`ExplorerActionDetail.typeIri`). `mount-ui` handles them
+with the toolbar's own steps: `newView(kind, folderIri)` asks the name and the
+viewpoint and calls `ModelSession.createView` with `folderIri`, which writes the
+view's `dcterms:isPartOf` in the same batch as the view, then opens it; the toolbar's
+*New view* is `newView(kind)`. `newElement(folderIri, typeIri)` offers the palette's
+element types — `currentPalette.elementGroups`, abstract ones left out, each under its
+category — through `Dialogs.choose`, which filters a long list; asks the name, the
+type's label offered; and makes the element and files it inside one
+`changeProperties` (`createElement`, then `moveToFolder`'s `FolderChange`), so undo
+takes both back together (key decision 13's membership, from the member's end). The
+element is placed in no view: the tree reveals it — unfolding
+the folder — and `selectConcept` shows it in the property panel, from where it is
+dragged onto a diagram. A relationship needs both ends, so the Relationships group
+makes nothing.
+
 A view of thousands of shapes (Task 22): a sync indexes the connections drawn
 once, and `findConnection` looks a relationship up by id or among the few
 connections the user drew (diagram-js names those itself); a view already drawn

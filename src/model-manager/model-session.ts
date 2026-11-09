@@ -343,11 +343,16 @@ export class ModelSession {
     return viewIri;
   }
 
-  createView(kind: ViewKind, options: { label?: string; viewpointIri?: string; open?: boolean } = {}): string {
-    const viewIri = this.views.createView(kind, options.viewpointIri, {
-      label: options.label?.trim() || `New ${kind.toLowerCase()}`,
-      ...(this.currentModel ? { modelIri: this.currentModel } : {}),
-    }).value;
+  createView(kind: ViewKind, options: { label?: string; viewpointIri?: string; open?: boolean; folderIri?: string } = {}): string {
+    let viewIri = '';
+    // Made and filed in its folder (Req 10.16) as one change, which collaborators receive as one update.
+    this.batch(() => {
+      viewIri = this.views.createView(kind, options.viewpointIri, {
+        label: options.label?.trim() || `New ${kind.toLowerCase()}`,
+        ...(this.currentModel ? { modelIri: this.currentModel } : {}),
+      }).value;
+      if (options.folderIri) this.store.addQuads([triple(nn(viewIri), T.dctermsIsPartOf, nn(options.folderIri))]);
+    });
     this.events?.emit('views-changed', { viewIri });
     if (options.open !== false) this.openView(viewIri);
     return viewIri;

@@ -265,15 +265,44 @@ describe('actionsFor', () => {
   it('makes a folder in a group and in a folder of the model; moves a concept only when there are folders', () => {
     const actions = (n: TreeNode, folders = false) => actionsFor(n, { folders }).map((a) => a.action);
     expect(actions({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] })).not.toContain('new-folder');
-    expect(actions({ id: 'folder:elements', kind: 'folder', folderKind: 'element', label: 'Elements', children: [] })).toEqual(['new-folder']);
+    // What can be made there first (Req 10.16): elements in Elements, views in Views; nothing in Relationships.
+    expect(actions({ id: 'folder:elements', kind: 'folder', folderKind: 'element', label: 'Elements', children: [] })).toEqual(['new-element', 'new-folder']);
+    expect(actions({ id: 'folder:views', kind: 'folder', folderKind: 'view', label: 'Views', children: [] })).toEqual([
+      'new-diagram',
+      'new-catalog',
+      'new-matrix',
+      'new-folder',
+    ]);
+    expect(actions({ id: 'folder:relationships', kind: 'folder', folderKind: 'relationship', label: 'Relationships', children: [] })).toEqual(['new-folder']);
     expect(actions({ id: 'folder-iri:element:f', folderIri: 'f', folderKind: 'element', kind: 'folder', label: 'F', children: [] }, true)).toEqual([
+      'new-element',
       'new-folder',
       'rename-folder',
       'move-to-folder',
       'delete-folder',
     ]);
-    // A type's grouping is no folder of the model's.
-    expect(actions({ id: 'elements:urn:t', kind: 'folder', label: 'Actor', children: [] }, true)).toEqual([]);
+    expect(actions({ id: 'folder-iri:view:f', folderIri: 'f', folderKind: 'view', kind: 'folder', label: 'F', children: [] }, true).slice(0, 3)).toEqual([
+      'new-diagram',
+      'new-catalog',
+      'new-matrix',
+    ]);
+    // A type's grouping is no folder of the model's: an element type's makes one more of it; a relationship type's, nothing.
+    const actorRow: TreeNode = {
+      id: 'elements:urn:t',
+      kind: 'folder',
+      label: 'Actor',
+      typeIri: 'urn:t',
+      children: [{ id: 'a', iri: 'a', kind: 'element', label: 'A', children: [] }],
+    };
+    expect(actionsFor(actorRow, { folders: true })).toEqual([{ action: 'new-element', label: 'New Actor…' }]);
+    const servingRow: TreeNode = {
+      id: 'relationships:urn:s',
+      kind: 'folder',
+      label: 'Serving',
+      typeIri: 'urn:s',
+      children: [{ id: 'r', iri: 'r', kind: 'relationship', label: 'R', children: [] }],
+    };
+    expect(actions(servingRow, true)).toEqual([]);
     const element: TreeNode = { id: 'a', iri: 'a', kind: 'element', label: 'A', children: [] };
     expect(actions(element)).not.toContain('move-to-folder');
     expect(actions(element, true)).toContain('move-to-folder');
@@ -438,6 +467,11 @@ describe('<model-explorer>', () => {
       await el.updateComplete;
       el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="new-folder"]')!.click();
       expect(actions).toEqual([{ action: 'new-folder', iri: `${M}/folder/business`, kind: 'folder', folderKind: 'element' }]);
+      // And a new element in it.
+      folderRow(el, 'Business').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
+      await el.updateComplete;
+      el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="new-element"]')!.click();
+      expect(actions.at(-1)).toEqual({ action: 'new-element', iri: `${M}/folder/business`, kind: 'folder', folderKind: 'element' });
       // A concept's menu offers to move it, now that there are folders.
       folderRow(el, 'Applications').click();
       await el.updateComplete;

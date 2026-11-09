@@ -1,6 +1,6 @@
 ---
 title: Model tree and folders
-description: The model tree in la-gram, its groups, filter and menus, the model's own folders, and moving views, elements and relationships into them.
+description: The model tree in la-gram, its groups, filter and menus, the model's own folders, making views and elements in them, and moving views, elements and relationships into them.
 ---
 # Model tree and folders
 
@@ -80,8 +80,11 @@ Right-click a row for its menu.
 | On | Entries |
 |---|---|
 | the model | *Rename model…*, *Model settings…*, *New diagram view*, *New catalog view*, *New matrix view* |
-| a group (Views, Elements, Relationships) | *New folder…* |
-| a folder | *New folder…*, *Rename…*, *Move to folder…*, *Delete folder (keeps its contents)* |
+| the *Views* group | *New diagram view*, *New catalog view*, *New matrix view*, *New folder…* |
+| the *Elements* group | *New element…*, *New folder…* |
+| the *Relationships* group | *New folder…* |
+| a folder | of views: *New diagram view*, *New catalog view*, *New matrix view*; of elements: *New element…*; then *New folder…*, *Rename…*, *Move to folder…*, *Delete folder (keeps its contents)* |
+| an element type, under *Elements* | *New ‹type›…*: *New Business Actor…* on **Business Actor** |
 | a view | *Open*, *Rename…*, *Set viewpoint…*, *Duplicate*, *Move to folder…*, *Delete view (keeps its elements)* |
 | an element | *Select on canvas* (when the open view shows it) or *Add to current view*, *Rename…*, *Move to folder…*, *Delete from model…* |
 | a relationship | *Select on canvas* or *Add to current view*, *Confirm — state it in the model* (a potential derivation), *Show source*, *Show target*, *Rename…*, *Move to folder…*, *Delete from model…* |
@@ -109,6 +112,26 @@ Every folder change is one undoable step.
 1. Right-click *Elements*, and choose *New folder…*.
 2. Name it "Applications", and choose *OK*.
 3. Right-click "Applications", and choose *New folder…* again: "Payments platform", inside it.
+
+## New views and elements {#new-views-and-elements}
+
+Make a view or an element where it belongs: right-click its folder, or its group.
+
+| Entry | On | Asks | Makes |
+|---|---|---|---|
+| *New diagram view*, *New catalog view*, *New matrix view* | *Views*, or a folder of views | *Name* (**New diagram**, **New catalog**, **New matrix**), then the *Viewpoint* (**— none —**), as [New view](models-and-views.md#new-view) does | the view, in the folder, and opens it |
+| *New element…* | *Elements*, or a folder of elements | *New element*: the element types of the loaded metamodels, under the palette's groups, with *Filter…*; then *Name* (**the type's name**) | the element, in the folder, in no view |
+| *New ‹type›…* | an element type's row | *Name* (**the type's name**) | the element, of that type, in no folder |
+
+Made from a group, a view or an element is in no folder. A new element is selected in the tree, its
+folder unfolded, and shown in the Properties tab: drag its row onto a diagram to draw it there. Making it
+and filing it are one undoable step. The *Relationships* group makes nothing new: draw a relationship
+between its two elements on a diagram.
+
+1. Right-click "Applications" under *Elements*, and choose *New element…*.
+2. Type "app comp" in *Filter…*, choose **Application Component**, and *OK*.
+3. Name it "Fraud check", and choose *OK*: "Fraud check" is in "Applications", selected, with no dot.
+4. Drag it onto the diagram.
 
 ## Move to folder {#move-to-folder}
 
