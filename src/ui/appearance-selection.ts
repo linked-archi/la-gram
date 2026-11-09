@@ -116,7 +116,7 @@ export interface FigureOption {
    * either for the notation's own — and, drawn as its own picture now, no
    * picture as its icon.
    */
-  changes: { renderingMode: FigureMode | null; shapeType: string | null; iconSymbol?: null };
+  changes: { renderingMode: FigureMode | null; shapeType: string | null; iconSymbol?: null; useElementPicture?: null };
   /** Its preview: the glyph alone, or an outline 72 × 40 — its inner lines, its glyph as a badge or none. */
   preview: { icon: true } | { outline: string; details?: string; badge: boolean; dashed: boolean };
 }

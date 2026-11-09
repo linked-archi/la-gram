@@ -40,7 +40,7 @@ settings*; so do *File › Model settings…* and *Model settings…* on the mod
 | *Name* | the model's name | the model's name |
 | *Namespace* | the model's namespace | where new IRIs are minted |
 | *Prefix* | **`m`** | the prefix that stands for the namespace in Turtle (`m:element-…`): starts with a letter, then letters, digits, `-` and `_`; not one that already stands for another namespace, such as `am4` or `skos` |
-| *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one; off, only IRIs minted from now on use it |
+| *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one, those in the triple a relationship reifies (`rdf:reifies`) too; off, only IRIs minted from now on use it |
 
 *Apply* makes the change, as one step that undo takes back, and a message says how many IRIs moved. In a
 collaboration room, moving the namespace asks first: it renames the IRIs for everyone in the room.

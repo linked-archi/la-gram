@@ -2051,12 +2051,14 @@ export class DiagramCanvas {
       });
     }
     for (const mode of ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'] as const) if (mode !== notationMode) options.push(generic(mode, false));
-    // Drawn as its own picture (the Image tab): none of these — and any of them puts the notation's glyph back.
-    if (own.iconSymbol) {
-      for (const option of options) option.changes = { ...option.changes, iconSymbol: null };
+    // Drawn with a picture in place of the notation's glyph (the Image tab) — its own, or its element's as its badge
+    // (core-vis 0.8): none of these — and any of them puts the glyph back.
+    const pictured = !!own.iconSymbol || !!own.useElementPicture;
+    if (pictured) {
+      for (const option of options) option.changes = { ...option.changes, iconSymbol: null, useElementPicture: null };
     }
     // Drawn now as its own shape, its own mode — else as the notation draws it.
-    const selectedIndex = own.iconSymbol
+    const selectedIndex = pictured
       ? -1
       : own.shapeType
       ? options.findIndex((option) => option.shapeIri === own.shapeType)
@@ -2065,7 +2067,7 @@ export class DiagramCanvas {
         : 0;
     return {
       options,
-      selected: own.iconSymbol ? -1 : Math.max(0, selectedIndex),
+      selected: pictured ? -1 : Math.max(0, selectedIndex),
       iconHref: iconHrefOfFirst,
       fillColor: own.fillColor ?? defaults.fillColor ?? NOTATION_DEFAULTS.fillColor,
       lineColor: own.lineColor ?? defaults.lineColor ?? NOTATION_DEFAULTS.lineColor,

@@ -30,12 +30,14 @@ The first tab is named after what is selected: *Element information*, *Relations
 | *Name* | its name, `skos:prefLabel`, in English |
 | *Definition* | its definition, `skos:definition` (*Add a definition…* while empty) |
 | *Names by presentation* | a name for each presentation context, drawn in its place while that presentation is chosen; empty, its own name is drawn |
-| *Pictures by presentation* | a picture for every presentation, and one for each, by address or *Choose file…* (up to 200 KB) |
+| *Pictures by presentation* | a picture for every presentation, and one for each, by address or *Choose file…* (up to 200 KB); drawn on its placements while that presentation is chosen: inside a box, as the figure of one drawn as its icon, or in the badge ([An element's own picture](appearance.md#element-picture)) |
 
 *Names by presentation* and *Pictures by presentation* show when the loaded metamodels define
 presentation contexts. A name for an audience is written as a SKOS-XL `skosxl:altLabel`, its text also a
 `skos:altLabel`; the element's own name stays its `skos:prefLabel`, and `{name}` in a
-[label expression](appearance.md#label-expressions) shows the audience's name.
+[label expression](appearance.md#label-expressions) shows the audience's name. A picture for an audience
+is an `arch:altVisNotation` to a `schema:ImageObject` with its address and its presentation context; the
+picture for every presentation is the element's `arch:prefVisNotation`.
 
 1. Select "Web shop".
 2. In *Definition*, type "Where customers place their orders." and click outside the field.

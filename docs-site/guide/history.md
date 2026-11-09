@@ -16,7 +16,8 @@ in *What changed*, then *Save checkpoint* or ++enter++. Under it, the tab says w
 last one: *Since the last checkpoint: +1 −1 triples.*, or *No changes since the last checkpoint.*
 
 The list, newest first, gives each checkpoint's message, when it was saved and how many triples it added
-and removed.
+and removed. A long list scrolls, and so does what the one selected changed, beside it; *What changed*
+and the line under it stay at the top.
 
 1. Open the example, and the *History* tab.
 2. Type "Before the payments" in *What changed*, and press ++enter++. *Checkpoint saved*, and the list

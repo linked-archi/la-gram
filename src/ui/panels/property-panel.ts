@@ -2369,7 +2369,8 @@ export class PropertyPanel extends LitElement {
       ${this._renderLookScope()}
       ${choices.selected < 0
         ? html`<p class="figure-own-picture muted">
-            Drawn as its own picture (the Image tab). A figure picked here puts the notation's glyph back.
+            Drawn with its own picture or its element's in place of the notation's glyph (the Image tab). A figure
+            picked here puts the glyph back.
           </p>`
         : nothing}
       <div class="figure-choices" role="radiogroup" aria-label="Figure">
@@ -2390,7 +2391,7 @@ export class PropertyPanel extends LitElement {
                   this._appearanceChange(
                     option.changes,
                     this.appearance?.context
-                      ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol'] } }
+                      ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol', 'useElementPicture'] } }
                       : {},
                   )}
           >

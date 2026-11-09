@@ -149,8 +149,9 @@ notation's own is marked *(notation)*.
 | *Shape only* | its shape, without the icon |
 | the notation's alternatives | other figures the notation defines for the type, such as a banded box or a 3D box |
 
-Picking the notation's takes the placement's own figure away. An element drawn as its own picture (the
-Image tab) gets the notation's glyph back when a figure is picked here.
+Picking the notation's takes the placement's own figure away. An element drawn with a picture in place of
+the notation's glyph (the Image tab: its own picture as the figure or the badge, or its element's picture
+as the badge) has none of these marked, and gets the glyph back when one is picked here.
 
 1. Select "Customer", and open *Properties › Figure*.
 2. Pick *Icon*: "Customer" is drawn as the actor figure, its name under it.
@@ -223,21 +224,46 @@ Card payment"; the third, "{Web shop}" and "Online ordering".
 |---|---|---|
 | *Address* | an `https://` URL, or a `data:image/…` URI | **none** |
 | *Choose file…* | a picture file of up to **200 KB**, kept in the model as a `data:` URI; a larger one is refused, to be linked by its address instead | |
-| *Draw it* | **inside the figure**, or *as the figure, its name under it*: the picture in place of the whole figure | **inside the figure** |
-| *Position* | Top left, Top centre, Top right, Middle left, Centre, Middle right, Bottom left, Bottom centre, Bottom right, Fill | **Top left** |
+| *Draw it* | **inside the figure**; *as the figure, its name under it*: the picture in place of the whole figure; *in the badge, in place of its type's glyph*: the picture in the corner where the glyph is, the figure kept. For an element only | **inside the figure** |
+| *Position* | where it is drawn inside the figure: Top left, Top centre, Top right, Middle left, Centre, Middle right, Bottom left, Bottom centre, Bottom right, Fill | **Top left** |
+| *Use its element's own picture* | for an element with a picture of its own here and one of its element's: gives up its own, its element's then drawn where its own was ([below](#element-picture)) | |
 | *Pictures in this model* | every picture an element or a figure of the model already has, as thumbnails: click one to give it to what is selected | |
 | *Remove image* | takes the picture away | |
 
 At a corner, a side or the centre, the picture is drawn at its own size, made smaller to fit; *Fill*
 fills the box. Inside the figure, it is drawn over its fill and under its text and glyph. A picture given
 by its address is linked, not copied into the model, and fetched where the view is drawn; the desktop app
-draws `https:` and `data:` pictures only. An element that has its own picture
-(*Pictures by presentation*, in [Properties](properties.md#information-tab)) can be drawn as it with *Draw
-it as its own picture*.
+draws `https:` and `data:` pictures only.
 
 1. Select "Payments", and open *Properties › Image*.
 2. In *Address*, paste an `https://` address of a logo.
 3. In *Position*, choose **Centre**.
+
+### An element's own picture {#element-picture}
+
+An element may have a picture of its own, for every presentation and for each
+(*Pictures by presentation*, in [Properties](properties.md#information-tab)): model data, shown in every
+view. Each of its placements draws its picture for the presentation chosen, else its picture for every
+presentation, without anything set in the Image tab:
+
+| The element drawn as | Its picture |
+|---|---|
+| a box (*Shape with icon*, *Shape only*) | inside the box, at the placement's *Position* (**Top left**); the badge keeps its type's glyph |
+| its icon (*Icon*) | the icon itself, its name under it |
+
+When the placement has no picture of its own, the Image tab's preview shows the element's, marked *Its
+element's own picture*, and *Draw it* places it: **inside the figure**, *as the figure, its name under it*,
+or *in the badge, in place of its type's glyph*. A badge or a figure drawn from the element's picture
+follows it: give the element another picture, or choose another presentation, and the drawing shows that
+one. A picture of the placement's own comes first, inside the box or as its icon.
+
+1. Select "Web shop", and in *Properties › Element information*, under *Pictures by presentation*, give
+   **Executive / C-Level** an `https://` address of a picture.
+2. In the toolbar's *Presentation*, choose **Executive / C-Level**: the picture is drawn inside "Web
+   shop", at its top left, and the badge is still the application component's glyph.
+3. In *Properties › Image*, under *Draw it*, choose *in the badge, in place of its type's glyph*: the
+   picture takes the glyph's place in the corner.
+4. Choose **Developer / Engineering**: "Web shop" has its glyph again, and no picture.
 
 ## Per presentation {#per-presentation}
 

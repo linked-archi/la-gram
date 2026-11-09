@@ -1010,6 +1010,16 @@ describe('the workbench', () => {
     newPicture.value = CARD_2;
     newPicture.dispatchEvent(new Event('change'));
     expect(badge().getAttribute('href')).toBe(CARD_2);
+    // The Figure tab marks none of its figures while it is so; one picked there puts the type's glyph back.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.figure-own-picture')!.textContent).toContain("its element's");
+    expect(root.querySelector('.figure-choice[aria-checked="true"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toBeUndefined();
+    expect(badge().getAttribute('href')).toContain('glyphs/');
+    await ui.runCommand({ command: 'undo' });
+    expect(badge().getAttribute('href')).toBe(CARD_2);
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
     await panel.updateComplete;
     // And as the figure again, for what follows.

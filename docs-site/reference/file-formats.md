@@ -135,12 +135,16 @@ from the metamodel (here ArchiMate 4.0, `am4:`):
 | `arch-vis:archElement`, `arch-vis:archRelationship` | a node, a link | what it draws |
 | `arch-vis:bounds-x`, `-y`, `-w`, `-h` | a node | its place and size, as `xsd:double` |
 | `arch-vis:view` | a node, a link | the diagram it is in |
+| `arch:prefVisNotation`, `arch:altVisNotation` | an element | its own picture for every presentation; one for a presentation, a `schema:ImageObject` with its `schema:contentUrl` and `arch:inPresentationContext` |
+| `arch-vis:style` | a node, a link | its own look: one for every presentation, and one for each (`arch:inPresentationContext` on the style). Among its values, the pictures: `arch-vis:image` inside it, at `arch-vis:imagePosition`; `arch-vis:iconSymbol`, a picture in place of its glyph, as its figure (`arch-vis:IconCentric`) or its badge (`arch-vis:ShapeWithBadge`); `arch-vis:useElementPicture true`, its element's picture there instead |
 
 **Every relationship is written twice**: as the plain triple (`m:card-payment am4:serves m:web-shop`),
 which any RDF tool can query, and as a relationship resource with its type, its ends and its own
 properties. `rdf:reifies` links the two, and the element points to the resource
 (`am4:qualifiedServing`). Every IRI la-gram makes is a flat local name in the model's namespace, so the
-Turtle reads `m:element-…`, `m:view-…`, `m:node-…`.
+Turtle reads `m:element-…`, `m:view-…`, `m:node-…`. Opening a file keeps the two in step: a relationship
+without `rdf:reifies` is given the triple its type's predicate names, and one whose triple names other ends
+than its `arch:source` and `arch:target` is made to name its own, its predicate kept.
 
 The Serving from *Card payment* to *Web shop*, as la-gram writes it:
 
