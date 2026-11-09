@@ -95,14 +95,45 @@ docs/                     broader tool specification
 
 ## Workflow
 
-- When behaviour changes, update `.agents/specs/la-gram/requirements.md`,
-  `design.md` or `tasks.md` in the same change.
-- Specs are living documents, not gates.
+- Specs are living documents, not gates: a change and the documents that describe
+  it go in together.
 - Keep the bundled assets byte-identical to `linked-archi-meta`; refresh them by
-  copying, never by editing here.
+  copying (`npm run sync-assets -- --meta <checkout>`), never by editing here.
+- A piece of work another person or agent may have to continue gets a folder,
+  `.agents/tasks/<name>/`, written before the work: its README (goal, what was
+  decided), `requirements.md`, `design.md` and `tasks.md` (a checklist, ticked as
+  it goes, with a dated note where it stopped).
+
+### Finishing a change
+
+A change is finished when each of these says what la-gram does now:
+
+1. **Tests.** `npm run typecheck` and `npm test`; for anything drawn on the canvas
+   or clicked in a panel, the browser suite too (`npm run test:browser:build`). A
+   fixed bug gets a test that fails without the fix.
+2. **`README.md`**: the feature's bullet.
+3. **`.agents/specs/la-gram/requirements.md`**: its acceptance criteria, numbered
+   (Req n.m), as requirements: what la-gram does, never "as another tool does".
+4. **`.agents/specs/la-gram/design.md`**: how it works; a choice made for a reason
+   as a numbered key design decision.
+5. **`.agents/specs/la-gram/tasks.md`**: the `- [x]` lines under their task, with
+   `(Req n.m)` and the test files; an entry at the top of the change log — what it
+   does and why, the test files in italics; the known limitations; findings not
+   started as `- [ ]` "recorded (date), not started" under *Queued next*.
+6. **The documentation site, `docs-site/`**: the pages that describe the feature,
+   written as it works now — no comparison with what it did before — and as
+   *Writing the documentation* says (`docs-site/developing/documentation.md`): UI
+   labels exactly as la-gram shows them, each option with its values, its default
+   in bold and an example. A new page goes into `mkdocs.yml`'s `nav`.
+7. **Bundled assets**, when the change needs meta's: refreshed from a checkout of
+   `linked-archi-meta` (`docs-site/developing/assets.md`).
+8. **Build.** `npm run build`, then `npm run docs:build` — strict, a warning fails
+   it — after the app's build, which empties `dist/web/`, where the site is built.
 
 ## Key References
 
 - Requirements & behaviour: `#[[file:.agents/specs/la-gram/requirements.md]]`
 - Design: `#[[file:.agents/specs/la-gram/design.md]]`
+- Tasks and change log: `.agents/specs/la-gram/tasks.md` (read when finishing a change)
+- Writing the documentation: `docs-site/developing/documentation.md` (read when writing a page)
 - Broader tool spec (reference, not all applicable): `#[[file:docs/linked-archi-tool-spec.md]]`

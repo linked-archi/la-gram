@@ -385,6 +385,7 @@ and `DATA_DIR`.
 - `.agents/conventions.md` — principles and code conventions
 - `.agents/tasks/` — one folder per piece of work: its plan, requirements, design and report
 - `.kiro/` — links to `.agents/specs/` and `.agents/conventions.md`, where Kiro looks for them
+- `AGENTS.md`, `CLAUDE.md` — point coding agents to `.agents/conventions.md`, and its checklist for finishing a change
 - `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification; Appendix D says what la-gram implements of it
 
 The documentation builds in its own Python environment, `.venv-docs/` (Python 3.11 or later), with

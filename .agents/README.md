@@ -10,8 +10,9 @@ What the people and the agents working on la-gram write down besides the code.
 | `conventions.md` | principles and code conventions for working on la-gram |
 | `tasks/<name>/` | one folder per piece of work — its plan, requirements, design, checklist and report — to read, and to continue from. Ignored by Git unless added: add one that others should be able to pick up |
 
-Finishing a change: tests, the README, `specs/la-gram/` (requirements, design, and an entry in the change
-log in `tasks.md`), and the documentation site in `docs-site/`.
+Finishing a change — tests, the README, `specs/la-gram/` (requirements, design, and an entry in the change
+log in `tasks.md`), and the documentation site in `docs-site/` — is a checklist in `conventions.md`,
+which `AGENTS.md` and `CLAUDE.md`, at the repository's root, point coding agents to.
 
 **Kiro** reads `.kiro/specs/` and `.kiro/steering/`: there, `.kiro/specs` and
 `.kiro/steering/project-conventions.md` are links to `specs/` and `conventions.md` here, so a spec

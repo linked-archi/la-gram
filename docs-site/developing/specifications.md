@@ -27,6 +27,8 @@ these pages disagree, these pages follow the code; the notes below say where eac
 
 Kiro reads the specs and the conventions where it looks for them: `.kiro/specs` and
 `.kiro/steering/project-conventions.md` are links to `.agents/specs` and `.agents/conventions.md`.
+`AGENTS.md` and `CLAUDE.md`, at the repository's root, point other coding agents to `conventions.md`, whose
+*Finishing a change* lists what a change updates: tests, the README, the specs and these pages.
 
 The Gitaly guide, `packages/la-gram-git/docs/gitaly.md`, is on this site as it is:
 [Merge driver on Gitaly](../operating/gitaly.md).
