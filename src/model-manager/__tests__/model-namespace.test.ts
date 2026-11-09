@@ -23,6 +23,8 @@ import { derivedNamespace, isValidPrefix, planNamespaceChange, readModelNamespac
 const nn = (v: string) => DataFactory.namedNode(v) as unknown as NamedNode;
 const TYPE = 'https://example.org/lang#Component';
 const REL = NAMESPACES.arch + 'rel';
+/** The relationship's unqualified predicate, as a metamodel names it: the relationship reifies `source SERVES target`. */
+const SERVES = 'https://example.org/lang#serves';
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 
 describe('IRI minting', () => {
@@ -86,7 +88,7 @@ describe('the model namespace', () => {
   function populate(modelIri: string, viewIri: string) {
     const a = elements.createElement(TYPE, modelIri, { label: 'A' }).value;
     const b = elements.createElement(TYPE, modelIri, { label: 'B' }).value;
-    const rel = rels.createQualifiedRelationship({ typeIri: REL, sourceIri: a, targetIri: b, modelIri }).iri;
+    const rel = rels.createQualifiedRelationship({ typeIri: REL, predicateIri: SERVES, sourceIri: a, targetIri: b, modelIri }).iri;
     views.addElementToView(viewIri, a, { x: 0, y: 0, width: 100, height: 50 });
     views.addElementToView(viewIri, b, { x: 200, y: 0, width: 100, height: 50 });
     views.addRelationshipToView(viewIri, rel, [{ x: 100, y: 25 }, { x: 200, y: 25 }]);
@@ -94,6 +96,22 @@ describe('the model namespace', () => {
   }
 
   const subjects = () => [...new Set(modelQuads(store).map((q) => q.subject.value))];
+
+  /** Every IRI a term holds — inside an RDF 1.2 triple term too, which has no value of its own. */
+  const irisOf = (term: Quad['object']): string[] =>
+    term.termType === 'Quad'
+      ? [term.subject, term.predicate, term.object].flatMap((t) => irisOf(t as Quad['object']))
+      : term.termType === 'NamedNode'
+        ? [term.value]
+        : [];
+  const allIris = () => modelQuads(store).flatMap((q) => [q.subject, q.predicate, q.object].flatMap((t) => irisOf(t as Quad['object'])));
+  /** What a relationship rdf:reifies: its triple term's subject, predicate and object. */
+  const reified = (rel: string) =>
+    store.getQuads(nn(rel), nn(NAMESPACES.rdf + 'reifies'), null).map((q) => {
+      expect(q.object.termType).toBe('Quad');
+      const t = q.object as unknown as Quad;
+      return [t.subject.value, t.predicate.value, t.object.value];
+    });
 
   it('is recorded on the model, and everything of the model is minted in it', () => {
     const ns = 'https://acme.com/ea/shop/';
@@ -130,7 +148,8 @@ describe('the model namespace', () => {
   it('moves the whole model into a new namespace, and re-opens the same view there', () => {
     const { modelIri, viewIri } = session.newModel({ label: 'Shop' });
     const old = session.namespace()!.namespace;
-    populate(modelIri, viewIri);
+    const { a, b, rel } = populate(modelIri, viewIri);
+    expect(reified(rel)).toEqual([[a, SERVES, b]]);
     const before = modelQuads(store).length;
     emit.mockClear();
 
@@ -141,9 +160,11 @@ describe('the model namespace', () => {
     expect(session.namespace()).toEqual({ namespace: target, prefix: 'm', declared: true });
     expect(session.activeViewIri).toBe(mapping.get(viewIri));
     expect(session.activeViewIri).toBe(`${target}${viewIri.slice(old.length)}`);
-    // Same statements (plus dcterms:modified), none left in the old namespace.
+    // Same statements (plus dcterms:modified), none left in the old namespace — inside triple terms neither.
     expect(modelQuads(store).length).toBe(before + 1);
-    expect(modelQuads(store).some((q) => [q.subject, q.object].some((t) => t.value.startsWith(old)))).toBe(false);
+    expect(allIris().filter((iri) => iri.startsWith(old))).toEqual([]);
+    // What the relationship reifies names the moved elements: source, the same predicate, target.
+    expect(reified(mapping.get(rel)!)).toEqual([[mapping.get(a), SERVES, mapping.get(b)]]);
     expect(views.getNodes(session.activeViewIri!)).toHaveLength(2);
     expect(views.getLinks(session.activeViewIri!)[0].waypoints).toEqual([{ x: 100, y: 25 }, { x: 200, y: 25 }]);
     expect(emit).toHaveBeenCalledWith('model-loaded', expect.objectContaining({ renamed: true }));

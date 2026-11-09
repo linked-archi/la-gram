@@ -242,7 +242,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 6. The canvas shows one diagram view; changes project back to the model and the view
 7. Every resource has a stable IRI, an HTTP(S) URI in the model's namespace
 7a. *la-gram:* each model has a namespace, stated on the model as `vann:preferredNamespaceUri` with its prefix as `vann:preferredNamespacePrefix` (`m` by default). New models get `{base}{notation}/{uuid}/` with base `https://example.org/` unless configured (`?base=`), shown and editable when the model is created
-7b. *la-gram:* **Model settings** edits the name, namespace and prefix; changing the namespace moves the model's existing IRIs into it (default) or applies only to IRIs minted from then on; namespaces must be absolute IRIs and prefixes must not stand for another namespace; collaborators follow the move
+7b. *la-gram:* **Model settings** edits the name, namespace and prefix; changing the namespace moves the model's existing IRIs into it (default) — every one, those inside the triple term a relationship `rdf:reifies` too — or applies only to IRIs minted from then on; namespaces must be absolute IRIs and prefixes must not stand for another namespace; collaborators follow the move
 8. Files: Turtle, TriG, JSON-LD, RDF/XML, N-Quads, N-Triples
 9. Collaborative rooms persist continuously on the server (debounced) as N-Triples plus a Turtle snapshot, and are readable over HTTP (`/rooms/<room>.ttl`)
 10. Saving a version is an explicit action: the History tab saves a *checkpoint* of the model's working state with a message (and the author's collaboration name), kept on this machine per model. *la-gram:* it says "checkpoint", not "commit", which means a Git commit (Req 18)
