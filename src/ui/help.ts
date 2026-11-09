@@ -4,7 +4,7 @@
  */
 
 import type { DetailBlock } from './dialogs.js';
-import { docsHref, HELP_LINKS, helpHref, LICENCE, TAGLINE } from '../help-links.js';
+import { DESKTOP_DOWNLOADS, docsHref, DOWNLOAD_SUMS, DOWNLOADS, HELP_LINKS, helpHref, LICENCE, RELEASES, TAGLINE } from '../help-links.js';
 
 /** An open-source component la-gram is built with, as its package says. */
 export interface BuildComponent {
@@ -109,6 +109,57 @@ export function versionText(context: AboutContext): string {
     `metamodels: ${context.metamodels.join(', ') || 'none'}`,
     ...(context.assetsVersion ? [`bundled metamodels: ${context.assetsVersion}`] : []),
   ].join(' · ');
+}
+
+/** The system a user agent runs on, as the desktop apps are named — or none known (a phone, say). */
+export function systemOf(userAgent: string): 'darwin' | 'win32' | 'linux' | undefined {
+  if (/iPhone|iPad|Android/.test(userAgent)) return undefined;
+  if (/Mac OS X|Macintosh/.test(userAgent)) return 'darwin';
+  if (/Windows/.test(userAgent)) return 'win32';
+  if (/Linux|X11|CrOS/.test(userAgent)) return 'linux';
+  return undefined;
+}
+
+/**
+ * Download the desktop app: the latest release's, a link for each platform — the system it is asked from
+ * first — how to open one, the checksums, and every release. `appBase` is the web app's address, for the
+ * documentation ({@link docsHref}).
+ */
+export function downloadBlocks(options: { system?: 'darwin' | 'win32' | 'linux'; appBase?: string } = {}): DetailBlock[] {
+  const ours = DESKTOP_DOWNLOADS.filter((d) => options.system && d.id.startsWith(`${options.system}-`));
+  const others = DESKTOP_DOWNLOADS.filter((d) => !ours.includes(d));
+  const link = (d: (typeof DESKTOP_DOWNLOADS)[number]) => ({ label: d.label, href: DOWNLOADS + d.file });
+  return [
+    {
+      kind: 'text',
+      text:
+        'The latest release, as an app for your computer: the same la-gram, working offline, with nothing ' +
+        'else to install. Unzip it (on Linux, untar it) and open it.',
+    },
+    ...(ours.length > 0
+      ? ([
+          { kind: 'heading', text: 'For this computer' },
+          { kind: 'links', links: ours.map(link) },
+          { kind: 'heading', text: 'For the others' },
+        ] as DetailBlock[])
+      : []),
+    { kind: 'links', links: others.map(link) },
+    { kind: 'heading', text: 'The first time' },
+    {
+      kind: 'text',
+      text:
+        'The apps are not signed by a developer: the first time, macOS asks you to allow it (System ' +
+        'Settings › Privacy & Security › Open Anyway), and Windows to run it (More info › Run anyway).',
+    },
+    {
+      kind: 'links',
+      links: [
+        { label: 'Opening it, in the documentation', href: docsHref('getting-started/desktop/', options.appBase) },
+        { label: 'SHA-256 checksums', href: DOWNLOAD_SUMS },
+        { label: 'Every release, on GitLab', href: RELEASES },
+      ],
+    },
+  ];
 }
 
 /** Whether keys are shown as on a Mac (⌘, ⌥, ⇧). */

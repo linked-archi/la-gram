@@ -1536,6 +1536,15 @@ describe('the workbench', () => {
       expect(details.mock.calls[1]![0]).toBe('Keyboard shortcuts');
       await ui.appToolbar.updateComplete;
       expect(bar.querySelector('.dropdown')).toBeNull();
+
+      // Download the desktop app: the latest release's, a link for each platform, on app.linked.archi.
+      await open();
+      bar.querySelector<HTMLButtonElement>('.dropdown [data-command="download"]')!.click();
+      await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(3));
+      const [downloadTitle, downloadBlocks] = details.mock.calls[2] as unknown as [string, DetailBlock[]];
+      expect(downloadTitle).toBe('Download the desktop app');
+      const hrefs = downloadBlocks.flatMap((b) => (b.kind === 'links' ? b.links.map((l) => l.href) : []));
+      expect(hrefs.filter((h) => h.startsWith('https://app.linked.archi/la-gram/downloads/la-gram-'))).toHaveLength(5);
     } finally {
       delete script.dialogs.details;
     }

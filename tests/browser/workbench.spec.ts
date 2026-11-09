@@ -243,6 +243,18 @@ describe("the name, the icon and la-gram's menu", () => {
     await session.screenshot('help-shortcuts');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
+
+    // Download the desktop app: a link for each platform's, on app.linked.archi.
+    await brand.click();
+    await bar.locator('.dropdown [data-command="download"]').click();
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Download the desktop app');
+    const apps = dialog.locator('.la-details-links a[href^="https://app.linked.archi/la-gram/downloads/la-gram-"]');
+    expect(await apps.count()).toBe(5);
+    expect(await apps.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
+    await session.screenshot('help-download');
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
     findings.push("icon by the name, title by the model, the name's menu: About (version, licence, built with), the shortcuts, the guides: ok");
   }, 90_000);
 });

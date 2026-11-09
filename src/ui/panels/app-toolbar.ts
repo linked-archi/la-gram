@@ -63,7 +63,9 @@ export type ToolbarCommand =
   /** About la-gram, in la-gram's menu (under the name). */
   | 'about'
   /** Keyboard shortcuts, in la-gram's menu. */
-  | 'shortcuts';
+  | 'shortcuts'
+  /** Download the desktop app, in la-gram's menu: the latest release's, a link for each platform. */
+  | 'download';
 
 /** Detail of `toolbar-command`. */
 export interface ToolbarCommandDetail {
@@ -586,6 +588,7 @@ export class AppToolbar extends LitElement {
       <div class="group">Guides</div>
       ${HELP_LINKS.filter((l) => l.group === 'guides').map(link)}
       <hr />
+      <button data-command="download" role="menuitem" @click=${() => this._cmd('download')}>Download the desktop app…</button>
       ${HELP_LINKS.filter((l) => l.group === 'la-gram').map(link)}
     </div>`;
   }

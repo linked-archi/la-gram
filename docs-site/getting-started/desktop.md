@@ -7,22 +7,34 @@ description: How to download, open and use la-gram's desktop app on macOS, Windo
 The same app as the web one, as a desktop application (Electron). It carries everything it needs, the
 bundled metamodels included, so it works offline and needs nothing installed, not even Node.
 
-## Download
+## Download {#download}
 
-Each release's apps are on the project's
-[Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases), and la-gram's
-own menu links to it: *Download the desktop app*.
+The latest release's apps:
 
-| Platform | File | Inside it |
+| Platform | Download | Inside it |
 |---|---|---|
-| macOS, Apple silicon | `la-gram-<version>-darwin-arm64.zip` | `la-gram-darwin-arm64/la-gram.app` |
-| macOS, Intel | `la-gram-<version>-darwin-x64.zip` | `la-gram-darwin-x64/la-gram.app` |
-| Windows x64 | `la-gram-<version>-win32-x64.zip` | `la-gram-win32-x64/la-gram.exe` |
-| Linux x64 | `la-gram-<version>-linux-x64.tar.gz` | `la-gram-linux-x64/la-gram` |
-| Linux arm64 | `la-gram-<version>-linux-arm64.tar.gz` | `la-gram-linux-arm64/la-gram` |
+| macOS, Apple silicon | [la-gram-darwin-arm64.zip](https://app.linked.archi/la-gram/downloads/la-gram-darwin-arm64.zip) | `la-gram-darwin-arm64/la-gram.app` |
+| macOS, Intel | [la-gram-darwin-x64.zip](https://app.linked.archi/la-gram/downloads/la-gram-darwin-x64.zip) | `la-gram-darwin-x64/la-gram.app` |
+| Windows x64 | [la-gram-win32-x64.zip](https://app.linked.archi/la-gram/downloads/la-gram-win32-x64.zip) | `la-gram-win32-x64/la-gram.exe` |
+| Linux x64 | [la-gram-linux-x64.tar.gz](https://app.linked.archi/la-gram/downloads/la-gram-linux-x64.tar.gz) | `la-gram-linux-x64/la-gram` |
+| Linux arm64 | [la-gram-linux-arm64.tar.gz](https://app.linked.archi/la-gram/downloads/la-gram-linux-arm64.tar.gz) | `la-gram-linux-arm64/la-gram` |
 
 Unzip it (on Linux, `tar -xzf` it) and open the app. On macOS, `la-gram.app` can be moved to
-Applications first.
+Applications first. *About la-gram* says which version it is.
+
+The same links are in la-gram's menu: *Download the desktop app…* lists them, this computer's first
+([The la-gram menu](../guide/index.md#la-gram-menu)). Each release replaces these files, so the links
+always give the latest. [SHA256SUMS.txt](https://app.linked.archi/la-gram/downloads/SHA256SUMS.txt) has their SHA-256 sums; check a download
+with it, in the folder you downloaded to:
+
+```bash
+curl -fsSO https://app.linked.archi/la-gram/downloads/SHA256SUMS.txt
+sha256sum --check --ignore-missing SHA256SUMS.txt   # on macOS: shasum -a 256 --check --ignore-missing SHA256SUMS.txt
+```
+
+Every release's apps, named with their versions (`la-gram-0.2.0-darwin-arm64.zip`), pre-releases too,
+are on the project's
+[Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases).
 
 ## The first time you open it
 

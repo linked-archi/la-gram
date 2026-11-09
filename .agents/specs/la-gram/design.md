@@ -538,7 +538,12 @@ against the web app's address — `docs/` beside it, where the build puts the si
 deployment elsewhere opens its own copy, of its own version. The desktop app's files
 are no site: `mount-ui` gives the toolbar, About and the shortcuts no address there
 (`isElectronEnvironment`), and they open the published copy, `LA_GRAM_DOCS`, as the
-menu bar does from the list's `href`. About and the keyboard shortcuts are
+menu bar does from the list's `href`. *Download the desktop app…* is a dialog of
+blocks too (`downloadBlocks`): a link for each of `DESKTOP_DOWNLOADS` at
+app.linked.archi — absolute, unlike the documentation: the apps are the project's
+release, which a deployment elsewhere does not build — those of the system the user
+agent names first (`systemOf`; a Mac's arm64 and x64 both, as a browser does not
+say which), then how to open an unsigned app, the checksums and the Releases page. About and the keyboard shortcuts are
 `DetailBlock`s — a header, headings, text, links, two columns — that
 `Dialogs.details` shows; it is optional, and `mount-ui` shows a `Dialogs`
 without it the same blocks as text (`detailLines`), so the scripted dialogs of
@@ -575,7 +580,16 @@ are zipped (`zip -y` keeps the app bundle's symbolic links), the Linux ones
 tarred (modes kept), and uploaded to the generic package registry with the job
 token; then `web-deploy` copies the web build over SSH (meta.linked.archi's
 variables, and `LA_GRAM_DEPLOY_PATH`), and `la-gram-release` makes the Release
-with the `glab` image and the `release` keyword. The web app needs nothing to
+with the `glab` image and the `release` keyword. Before the copy, `web-deploy`
+fetches the five apps from the package registry (job token) into the build's
+`downloads/`, each named without its version (`la-gram-darwin-arm64.zip`), and
+writes their `SHA256SUMS.txt`: one `rsync --delete` then puts the app, its
+documentation and its desktop apps in place together, of one version, and the
+names stay, so la-gram's menu and documentation link the latest release's apps
+without knowing its version (`DESKTOP_DOWNLOADS` in `help-links.ts`; the
+pipeline's test checks the two name the same files). It waits for the desktop
+jobs: no web app goes out without its apps. A pre-release runs no `web-deploy`,
+so the downloads stay the last release's. The web app needs nothing to
 run under `/la-gram/`: webpack's `publicPath` is `auto`, and the bundled
 assets resolve against `document.baseURI`. The host's site for app.linked.archi
 — kept with the host's configuration, not here — serves the folder under

@@ -52,6 +52,10 @@ Its rules:
 - under `/la-gram/`, each request is a file, a folder (with its `index.html`) or a **404**:
   `try_files $uri $uri/ =404`. There is no fallback to `index.html`: the app has one page;
 - `.ttl` files are `text/turtle`, which nginx's own type list does not know;
+- the desktop apps, in `/la-gram/downloads/`, are files like any other: a `.zip` is `application/zip`,
+  `SHA256SUMS.txt` `text/plain`, and a `.tar.gz`, which nginx's type list does not name, the server's
+  default type (`application/octet-stream` as nginx ships), so it downloads. Each is revalidated on
+  every load, as everything not named by its content is, so a release's replace the last ones at once;
 - anything else on the host is a 404.
 
 As configuration, with placeholders: `<host>` for the server's name and `<web-root>` for the folder that

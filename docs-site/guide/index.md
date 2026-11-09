@@ -81,7 +81,7 @@ desktop app, in your web browser).
 |---|---|
 | la-gram | *About la-gram*, *Keyboard shortcuts* |
 | Guides | *la-gram documentation*, *Linked.Archi documentation*, *Quick start*, *Modelling guide*, *ArchiMate 4.0 primer*, *Names, labels and pictures per audience*, *Metamodel catalogue* |
-| la-gram's pages | *Download the desktop app* (the Releases page), *la-gram: what it does (README)*, *Source code*, *Report a problem or an idea* (the issue tracker; reporting needs a GitLab account) |
+| la-gram's pages | *Download the desktop app…* (a dialog), *la-gram: what it does (README)*, *Source code*, *Report a problem or an idea* (the issue tracker; reporting needs a GitLab account) |
 
 *la-gram documentation* opens these pages. The web app opens the copy served with it, in its own
 `docs/`, of the same version, wherever it is deployed: https://app.linked.archi/la-gram/docs/ for
@@ -89,8 +89,15 @@ https://app.linked.archi/la-gram/. The desktop app opens https://app.linked.arch
 The other guides are Linked.Archi's, on [meta.linked.archi](https://meta.linked.archi/docs/): how to model,
 and the languages.
 
+*Download the desktop app…* opens a dialog with a link to each platform's app of the latest release,
+those for this computer first (on a Mac, *For this computer*: *macOS (Apple silicon)*, *macOS (Intel)*),
+then *The first time* — how to open an app that is not signed — and links to *Opening it, in the
+documentation*, *SHA-256 checksums* and *Every release, on GitLab*
+([Desktop app](../getting-started/desktop.md#download)).
+
 1. Click la-gram ▾ at the top left.
 2. Choose *Quick start*: Linked.Archi's quick start opens in a new tab.
+3. Choose *Download the desktop app…*, then your platform's: the app downloads.
 
 ## About la-gram {#about-la-gram}
 

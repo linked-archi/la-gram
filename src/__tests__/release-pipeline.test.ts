@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DESKTOP_DOWNLOADS } from '../help-links.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
@@ -43,7 +44,8 @@ describe("la-gram's release pipeline", () => {
     // The web app replaced by a release only, not by a pre-release; the Release made either way.
     expect(job('web-deploy')).toContain('- if: $CI_COMMIT_TAG =~ /^la-gram-v\\d+\\.\\d+\\.\\d+$/');
     // The web app with its documentation: both artifacts, or rsync --delete would take one away.
-    const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs: \[web, docs\]/.exec(job('web-deploy'))![1]!);
+    const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs:\n {4}- job: web/.exec(job('web-deploy'))![1]!);
+    expect(job('web-deploy')).toMatch(/- job: web # the app, and VERSION\n {6}artifacts: true\n {4}- job: docs\n {6}artifacts: true\n {4}- job: desktop/);
     expect([final.test(`la-gram-v${version}`), final.test('la-gram-v0.2.0-rc.1')]).toEqual([true, false]);
     expect(job('la-gram-release')).toMatch(/- job: web-deploy # not on a pre-release\n {6}artifacts: false\n {6}optional: true/);
     // The desktop apps: on la-gram's tag; by hand otherwise, never failing a request.
@@ -85,6 +87,18 @@ describe("la-gram's release pipeline", () => {
     // VERSION reaches the Release's fields from the web job.
     expect(job('web')).toContain('dotenv: version.env');
     expect(release).toMatch(/- job: web # VERSION\n {6}artifacts: true/);
+  });
+
+  it("puts this release's desktop apps beside the web app, under the names la-gram's menu links to", () => {
+    const deploy = job('web-deploy');
+    const targets = /for TARGET in ([^;]+); do/.exec(deploy)![1]!.split(' ');
+    // Fetched from where the desktop jobs uploaded them, and saved with no version in the name.
+    expect(deploy).toContain('"$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/la-gram/$VERSION/la-gram-$VERSION-$TARGET" || exit 1');
+    expect(deploy).toContain('--output "dist/web/downloads/la-gram-$TARGET"');
+    expect(targets.map((t) => `la-gram-${t}`)).toEqual(DESKTOP_DOWNLOADS.map((d) => d.file));
+    expect(deploy).toContain('sha256sum la-gram-* > SHA256SUMS.txt');
+    // Into the folder copied, before the copy.
+    expect(deploy.indexOf('mkdir -p dist/web/downloads')).toBeLessThan(deploy.indexOf('rsync -az'));
   });
 
   it('copies the web app into the folder the README sets up on the server', () => {

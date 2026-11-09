@@ -344,13 +344,13 @@ desktop:
     paths: [release/]
     expire_in: 3 days
 
-# The web app, with its documentation in docs/, onto the server that serves
-# app.linked.archi — the host that serves meta.linked.archi — over SSH: the
-# build into LA_GRAM_DEPLOY_PATH, files no longer built taken away. The host's
-# nginx serves it under /la-gram/ (its site for app.linked.archi, kept with the
-# host's configuration). On a release tag, a failed docs job holds this job
-# back, and with it the Releases page (la-gram-release); the desktop apps are
-# already uploaded: retry docs, and both run.
+# The web app, with its documentation in docs/ and this release's desktop apps
+# in downloads/, onto the server that serves app.linked.archi — the host that
+# serves meta.linked.archi — over SSH: the build into LA_GRAM_DEPLOY_PATH, files
+# no longer built taken away. The host's nginx serves it under /la-gram/ (its
+# site for app.linked.archi, kept with the host's configuration). On a release
+# tag, a failed docs or desktop job holds this job back, and with it the
+# Releases page (la-gram-release): retry it, and both run.
 #
 # CI/CD variables (Settings → CI/CD → Variables), as meta.linked.archi's deploy has,
 # each protected, scoped to the environment production (only this job sees them),
@@ -367,14 +367,20 @@ web-deploy:
   # its desktop apps and Release only.
   rules:
     - if: $CI_COMMIT_TAG =~ /^la-gram-v\d+\.\d+\.\d+$/
-  needs: [web, docs]
+  needs:
+    - job: web # the app, and VERSION
+      artifacts: true
+    - job: docs
+      artifacts: true
+    - job: desktop # uploaded to the package registry, fetched from there
+      artifacts: false
   image: alpine:3.22
   resource_group: app-linked-archi
   environment:
     name: production
     url: https://app.linked.archi/la-gram/
   before_script:
-    - apk add --no-cache openssh-client rsync
+    - apk add --no-cache openssh-client rsync curl
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - cp "$DEPLOY_SSH_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
     - ssh-keyscan -t ed25519,ecdsa,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
@@ -382,6 +388,18 @@ web-deploy:
     - test -n "$LA_GRAM_DEPLOY_PATH"
     # Both or neither: rsync --delete would take away whichever one is missing.
     - test -f dist/web/index.html && test -f dist/web/docs/index.html
+    # The desktop apps beside the web app, in downloads/: this release's, as the
+    # Releases page links them, each under a name without the version, which the
+    # next release replaces — la-gram's menu and its documentation link to the
+    # latest by it (src/help-links.ts, DESKTOP_DOWNLOADS) — and their SHA-256 sums.
+    - mkdir -p dist/web/downloads
+    - |
+      for TARGET in darwin-arm64.zip darwin-x64.zip win32-x64.zip linux-x64.tar.gz linux-arm64.tar.gz; do
+        curl --fail --silent --show-error --location --retry 3 --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          --output "dist/web/downloads/la-gram-$TARGET" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/la-gram/$VERSION/la-gram-$VERSION-$TARGET" || exit 1
+      done
+    - (cd dist/web/downloads && sha256sum la-gram-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
     - echo "Deploying to $DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH"
     - rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
 

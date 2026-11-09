@@ -9,7 +9,7 @@ One pipeline, `.gitlab-ci.yml`, tests every merge request and releases two produ
 | Tag | Releases |
 |---|---|
 | `la-gram-git-v<version>`, the version in `packages/la-gram-git/package.json` | la-gram-git: the npm package and the container image |
-| `la-gram-v<version>`, the version in `package.json` | la-gram: the desktop apps, the web app with this documentation, and the Releases page |
+| `la-gram-v<version>`, the version in `package.json` | la-gram: the desktop apps, the web app with this documentation and the desktop apps beside it, and the Releases page |
 
 The excerpts below are copied from `.gitlab-ci.yml`; `# …` marks lines left out.
 
@@ -295,19 +295,37 @@ delete old versions' packages there (*Deploy › Package registry*) when they ar
 ## Web deploy {#web-deploy}
 
 **`web-deploy`** (stage `release`, on a `la-gram-v<x.y.z>` tag without a pre-release part) puts the web
-app, with this documentation in its `docs/` folder, in place of the one on app.linked.archi, over SSH.
+app, with this documentation in its `docs/` folder and the desktop apps in its `downloads/` folder, in
+place of the one on app.linked.archi, over SSH.
 
 - **It needs both artifacts**, `web`'s `dist/web/` and `docs`'s `dist/web/docs/`, which GitLab unpacks
   into one folder, and checks that both pages are there before it copies anything: `rsync --delete`
-  would take away whichever one was missing.
+  would take away whichever one was missing. `web`'s artifact also gives it `VERSION`.
+- **The desktop apps:** it waits for the five `desktop` jobs, then fetches their files from the package
+  registry with the job token, into `dist/web/downloads/`, each named without the version:
+
+    | In the registry | On app.linked.archi |
+    |---|---|
+    | `la-gram/<version>/la-gram-<version>-darwin-arm64.zip` | `/la-gram/downloads/la-gram-darwin-arm64.zip` |
+    | `la-gram/<version>/la-gram-<version>-darwin-x64.zip` | `/la-gram/downloads/la-gram-darwin-x64.zip` |
+    | `la-gram/<version>/la-gram-<version>-win32-x64.zip` | `/la-gram/downloads/la-gram-win32-x64.zip` |
+    | `la-gram/<version>/la-gram-<version>-linux-x64.tar.gz` | `/la-gram/downloads/la-gram-linux-x64.tar.gz` |
+    | `la-gram/<version>/la-gram-<version>-linux-arm64.tar.gz` | `/la-gram/downloads/la-gram-linux-arm64.tar.gz` |
+
+    and writes their sums, `SHA256SUMS.txt`. The next release replaces each file, so a link to one —
+    *Download the desktop app…* in la-gram's menu, [Desktop app](../getting-started/desktop.md#download)
+    — always gives the latest; the names are `DESKTOP_DOWNLOADS` in `src/help-links.ts`, and a test
+    checks the pipeline fetches the same. The server keeps about 0.7 GB of them, one release's.
+- **One copy, one version:** the app, its documentation and its desktop apps go in place together, in
+  one `rsync`. A pre-release runs no `web-deploy`, so app.linked.archi keeps the last release's apps.
 - **One at a time:** `resource_group: app-linked-archi` lets no two deploys overlap.
 - **Environment** `production`, with the app's address, so GitLab lists the deploy and only this job sees
   the deploy variables.
 - **The copy:** `rsync -az --delete`, folders mode 755 and files 644, into `LA_GRAM_DEPLOY_PATH` on the
   server. Files the new build no longer has are deleted.
 - **The server's host key** is taken on first use with `ssh-keyscan`, as the job starts.
-- **On a release tag, a failed `docs` job holds `web-deploy` back, and with it the Releases page
-  (`la-gram-release`).** The desktop apps are already uploaded by then. Retry `docs`, and both run.
+- **On a release tag, a failed `docs` or `desktop` job holds `web-deploy` back, and with it the
+  Releases page (`la-gram-release`).** Retry the failed job, and both run.
 
 The variables, each protected, scoped to the environment `production`, *Expand variable reference*
 cleared; the values here are placeholders:
@@ -324,14 +342,20 @@ web-deploy:
   extends: .la-gram-release
   rules:
     - if: $CI_COMMIT_TAG =~ /^la-gram-v\d+\.\d+\.\d+$/
-  needs: [web, docs]
+  needs:
+    - job: web # the app, and VERSION
+      artifacts: true
+    - job: docs
+      artifacts: true
+    - job: desktop # uploaded to the package registry, fetched from there
+      artifacts: false
   image: alpine:3.22
   resource_group: app-linked-archi
   environment:
     name: production
     url: https://app.linked.archi/la-gram/
   before_script:
-    - apk add --no-cache openssh-client rsync
+    - apk add --no-cache openssh-client rsync curl
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - cp "$DEPLOY_SSH_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
     - ssh-keyscan -t ed25519,ecdsa,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
@@ -339,6 +363,15 @@ web-deploy:
     - test -n "$LA_GRAM_DEPLOY_PATH"
     # Both or neither: rsync --delete would take away whichever one is missing.
     - test -f dist/web/index.html && test -f dist/web/docs/index.html
+    # …
+    - mkdir -p dist/web/downloads
+    - |
+      for TARGET in darwin-arm64.zip darwin-x64.zip win32-x64.zip linux-x64.tar.gz linux-arm64.tar.gz; do
+        curl --fail --silent --show-error --location --retry 3 --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          --output "dist/web/downloads/la-gram-$TARGET" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/la-gram/$VERSION/la-gram-$VERSION-$TARGET" || exit 1
+      done
+    - (cd dist/web/downloads && sha256sum la-gram-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
     - echo "Deploying to $DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH"
     - rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
 ```

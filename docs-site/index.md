@@ -22,7 +22,7 @@ an address or a file.
 | Product | What it is | Where to get it |
 |---|---|---|
 | The web app | la-gram in the browser: nothing to install, models opened from and saved to files or Git | [app.linked.archi/la-gram](https://app.linked.archi/la-gram/) |
-| The desktop app | the same app for macOS, Windows and Linux, working offline with everything bundled | the project's [Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases) |
+| The desktop app | the same app for macOS, Windows and Linux, working offline with everything bundled | [Download](getting-started/desktop.md#download), or *Download the desktop app…* in la-gram's menu; every release on the project's [Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases) |
 | la-gram-git | the command line for model files in Git: check, fix, diff and merge them, in CI too | once released, [`@linked-archi/la-gram-git` on npm](https://www.npmjs.com/package/@linked-archi/la-gram-git) and a [container image](operating/container-image.md#tags) |
 | The collaboration server | a small Node server for real-time rooms that share a model | `server/collab-server.mjs` in the [source](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram) |
 

@@ -72,7 +72,7 @@ import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type Seria
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
-import { aboutBlocks, BUILD, isMacPlatform, runtimeOf, shortcutBlocks, versionText, type AboutContext } from './help.js';
+import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from './help.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
@@ -2542,6 +2542,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         case 'shortcuts':
           await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), appBase));
           return;
+        case 'download': {
+          const system = systemOf(globalThis.navigator?.userAgent ?? '');
+          await showDetails('Download the desktop app', downloadBlocks({ ...(system ? { system } : {}), ...(appBase ? { appBase } : {}) }));
+          return;
+        }
         case 'open-view':
           if (value) session.openView(value);
           return;

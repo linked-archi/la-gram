@@ -38,7 +38,6 @@ export const HELP_LINKS: readonly HelpLink[] = [
     group: 'guides',
   },
   { id: 'catalogue', label: 'Metamodel catalogue', href: 'https://meta.linked.archi/', group: 'guides' },
-  { id: 'download', label: 'Download the desktop app', href: `${REPOSITORY}/-/releases`, group: 'la-gram' },
   { id: 'readme', label: 'la-gram: what it does (README)', href: `${REPOSITORY}/-/blob/main/README.md`, group: 'la-gram' },
   { id: 'source', label: 'Source code', href: REPOSITORY, group: 'la-gram' },
   // GitLab's tracker: anyone may read it; reporting takes a GitLab account.
@@ -58,6 +57,32 @@ export function docsHref(page: string, appBase?: string): string {
 export function helpHref(link: Pick<HelpLink, 'href' | 'docsPage'>, appBase?: string): string {
   return link.docsPage === undefined ? link.href : docsHref(link.docsPage, appBase);
 }
+
+/** Every release: its desktop apps, under their versions, pre-releases too. */
+export const RELEASES = `${REPOSITORY}/-/releases`;
+
+/** The latest release's desktop apps, as the release puts them beside the web app (`.gitlab-ci.yml`, web-deploy). */
+export const DOWNLOADS = 'https://app.linked.archi/la-gram/downloads/';
+
+/** A desktop app to download: its platform, and its file in {@link DOWNLOADS}. */
+export interface DesktopDownload {
+  /** `<platform>-<arch>`, as Electron names them. */
+  id: string;
+  label: string;
+  /** Its name with no version: the next release's replaces it, so a link to it stays. */
+  file: string;
+}
+
+export const DESKTOP_DOWNLOADS: readonly DesktopDownload[] = [
+  { id: 'darwin-arm64', label: 'macOS (Apple silicon)', file: 'la-gram-darwin-arm64.zip' },
+  { id: 'darwin-x64', label: 'macOS (Intel)', file: 'la-gram-darwin-x64.zip' },
+  { id: 'win32-x64', label: 'Windows (x64)', file: 'la-gram-win32-x64.zip' },
+  { id: 'linux-x64', label: 'Linux (x64)', file: 'la-gram-linux-x64.tar.gz' },
+  { id: 'linux-arm64', label: 'Linux (arm64)', file: 'la-gram-linux-arm64.tar.gz' },
+];
+
+/** The SHA-256 sums of {@link DESKTOP_DOWNLOADS}, as `sha256sum --check` reads them. */
+export const DOWNLOAD_SUMS = `${DOWNLOADS}SHA256SUMS.txt`;
 
 /** la-gram's licence, as published by Apache. */
 export const LICENCE = { name: 'Apache License 2.0', href: 'https://www.apache.org/licenses/LICENSE-2.0' };
