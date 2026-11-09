@@ -4,7 +4,7 @@
  */
 
 import type { DetailBlock } from './dialogs.js';
-import { HELP_LINKS, LICENCE, TAGLINE } from '../help-links.js';
+import { docsHref, HELP_LINKS, helpHref, LICENCE, TAGLINE } from '../help-links.js';
 
 /** An open-source component la-gram is built with, as its package says. */
 export interface BuildComponent {
@@ -53,6 +53,8 @@ export interface AboutContext {
   metamodels: string[];
   /** The bundled assets' snapshot (their digest), when the build says. */
   assetsVersion?: string;
+  /** The web app's address, its documentation beside it ({@link docsHref}); none in the desktop app. */
+  appBase?: string;
 }
 
 const versionLabel = (build: BuildInfo) => (build.version ? `Version ${build.version}` : 'Development build');
@@ -60,7 +62,8 @@ const versionLabel = (build: BuildInfo) => (build.version ? `Version ${build.ver
 /** About la-gram: what it is, its version and where it runs, help, its licence, and what it is built with. */
 export function aboutBlocks(context: AboutContext): DetailBlock[] {
   const { build } = context;
-  const links = (ids: string[]) => HELP_LINKS.filter((link) => ids.includes(link.id)).map(({ label, href }) => ({ label, href }));
+  const links = (ids: string[]) =>
+    HELP_LINKS.filter((link) => ids.includes(link.id)).map((link) => ({ label: link.label, href: helpHref(link, context.appBase) }));
   return [
     { kind: 'header', image: 'favicon.svg', title: 'la-gram', subtitle: TAGLINE, note: versionLabel(build) },
     {
@@ -80,7 +83,7 @@ export function aboutBlocks(context: AboutContext): DetailBlock[] {
         'own, loaded from an address or a file. Its palette, rules, notation and checks come from the metamodels ' +
         'themselves, and the model is kept as RDF.',
     },
-    { kind: 'links', links: links(['docs', 'catalogue', 'source', 'issues']) },
+    { kind: 'links', links: links(['la-gram-docs', 'docs', 'catalogue', 'source', 'issues']) },
     { kind: 'heading', text: 'Licence' },
     {
       kind: 'text',
@@ -128,8 +131,11 @@ export function keyCombo(combo: string, mac: boolean): string {
   return [...modifiers.map((m) => (m === 'Mod' ? 'Ctrl' : m)), key].join('+');
 }
 
-/** The keyboard and mouse shortcuts, by where they work. */
-export function shortcutBlocks(mac: boolean): DetailBlock[] {
+/**
+ * The keyboard and mouse shortcuts, by where they work, then the documentation's page of them — `appBase` the
+ * web app's address ({@link docsHref}).
+ */
+export function shortcutBlocks(mac: boolean, appBase?: string): DetailBlock[] {
   const keys = (...combos: string[]) => combos.map((c) => keyCombo(c, mac)).join(' / ');
   const section = (text: string, rows: Array<[string, string]>): DetailBlock[] => [
     { kind: 'heading', text },
@@ -157,5 +163,6 @@ export function shortcutBlocks(mac: boolean): DetailBlock[] {
       [keys('Esc'), 'Cancel'],
       [keys('↑', '↓'), "Move through a list, or the property panel's tabs"],
     ]),
+    { kind: 'links', links: [{ label: 'Keyboard and mouse, in the documentation', href: docsHref('reference/keyboard/', appBase) }] },
   ];
 }

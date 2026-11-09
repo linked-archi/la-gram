@@ -73,6 +73,7 @@ import { conceptStatements, viewMembers, viewStatements } from '../model-manager
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
 import { aboutBlocks, BUILD, isMacPlatform, runtimeOf, shortcutBlocks, versionText, type AboutContext } from './help.js';
+import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
@@ -437,6 +438,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // ── Top: app toolbar ─────────────────────────────────────────────────
   const appToolbar = document.createElement('app-toolbar');
   appToolbar.slot = 'toolbar';
+  // la-gram's documentation: the web app's own, served beside it; the desktop app has no site, so the published one.
+  const appBase = isElectronEnvironment() ? undefined : document.baseURI;
+  appToolbar.appBase = appBase ?? '';
   // The bundled catalogue, then the published one (App.loadCatalogue).
   appToolbar.catalogue = [];
   void app.loadCatalogue((entries) => {
@@ -2530,12 +2534,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
             runtime: runtimeOf(globalThis.navigator?.userAgent ?? ''),
             metamodels: app.loadedMetamodels().map((m) => m.info.name || labelOf(store, m.metamodelIri)),
             ...(ASSETS_VERSION ? { assetsVersion: ASSETS_VERSION } : {}),
+            ...(appBase ? { appBase } : {}),
           };
           await showDetails('About la-gram', aboutBlocks(context), { copy: { label: 'Copy version info', text: versionText(context) } });
           return;
         }
         case 'shortcuts':
-          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform()));
+          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), appBase));
           return;
         case 'open-view':
           if (value) session.openView(value);

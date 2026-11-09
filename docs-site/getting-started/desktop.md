@@ -64,7 +64,7 @@ first.
 | Edit | undo, cut, copy and paste in text fields |
 | View | reloading, zoom and full screen |
 | Window | minimizing and the window list |
-| Help | the Linked.Archi guides (*Linked.Archi documentation*, *Quick start*, *Modelling guide*, *ArchiMate 4.0 primer*, *Names, labels and pictures per audience*, *Metamodel catalogue*), then *la-gram: what it does (README)*, *Source code* and *Report a problem or an idea*; on Windows and Linux, *About la-gram* last |
+| Help | *la-gram documentation* (https://app.linked.archi/la-gram/docs/), the Linked.Archi guides (*Linked.Archi documentation*, *Quick start*, *Modelling guide*, *ArchiMate 4.0 primer*, *Names, labels and pictures per audience*, *Metamodel catalogue*), then *la-gram: what it does (README)*, *Source code* and *Report a problem or an idea*; on Windows and Linux, *About la-gram* last |
 
 la-gram's own menu, under its icon at the top left of the window, is there too, with
 *Download the desktop app* besides. Help leaves that one out: this is it.

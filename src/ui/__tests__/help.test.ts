@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { aboutBlocks, BUILD, isMacPlatform, keyCombo, runtimeOf, shortcutBlocks, versionText, type AboutContext } from '../help.js';
-import { HELP_LINKS } from '../../help-links.js';
+import { docsHref, HELP_LINKS, helpHref, LA_GRAM_DOCS } from '../../help-links.js';
 
 const ELECTRON =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) la-gram/0.1.0 Chrome/142.0.7444.59 Electron/44.9.0 Safari/537.36';
@@ -49,6 +49,15 @@ describe('the keyboard shortcuts', () => {
     const mac = shortcutBlocks(true).flatMap((b) => (b.kind === 'rows' ? b.rows : []));
     expect(mac).toContainEqual(['⌘Y / ⇧⌘Z', 'Redo']);
   });
+
+  it("end with the documentation's page of them: beside the web app, or the published one", () => {
+    const linkOf = (blocks: ReturnType<typeof shortcutBlocks>) => blocks.at(-1);
+    expect(linkOf(shortcutBlocks(false, 'https://app.linked.archi/la-gram/index.html?room=x'))).toEqual({
+      kind: 'links',
+      links: [{ label: 'Keyboard and mouse, in the documentation', href: 'https://app.linked.archi/la-gram/docs/reference/keyboard/' }],
+    });
+    expect(linkOf(shortcutBlocks(false))).toMatchObject({ links: [{ href: `${LA_GRAM_DOCS}reference/keyboard/` }] });
+  });
 });
 
 describe('About la-gram', () => {
@@ -77,6 +86,7 @@ describe('About la-gram', () => {
     ]);
     const links = blocks.flatMap((b) => (b.kind === 'links' ? b.links.map((l) => l.href) : []));
     expect(links).toContain('https://meta.linked.archi/docs/');
+    expect(links).toContain(LA_GRAM_DOCS);
     expect(links).toContain('https://www.apache.org/licenses/LICENSE-2.0');
     expect(links).toContain('https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/issues');
     expect(versionText(context)).toBe(
@@ -92,10 +102,25 @@ describe('About la-gram', () => {
     expect(blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []))).toContainEqual(['Metamodels', 'none loaded']);
   });
 
-  it("links to the guides on meta.linked.archi and to la-gram's own pages", () => {
+  it("links to la-gram's documentation, the guides on meta.linked.archi and to la-gram's own pages", () => {
     for (const link of HELP_LINKS) expect(link.href).toMatch(/^https:\/\//);
     expect(HELP_LINKS.filter((l) => l.group === 'guides').map((l) => l.id)).toEqual([
-      'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue',
+      'la-gram-docs', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue',
     ]);
+    // About too, beside the web app where it runs in one.
+    const about = aboutBlocks({ ...context, appBase: 'https://models.acme.example/tools/la-gram/' });
+    expect(about.flatMap((b) => (b.kind === 'links' ? b.links.map((l) => l.href) : []))[0]).toBe('https://models.acme.example/tools/la-gram/docs/');
+  });
+
+  it("la-gram's documentation is the copy beside the web app, wherever it is deployed; from the desktop app, the published one", () => {
+    const docs = HELP_LINKS.find((l) => l.id === 'la-gram-docs')!;
+    expect(docs.label).toBe('la-gram documentation');
+    expect(helpHref(docs, 'https://app.linked.archi/la-gram/index.html')).toBe('https://app.linked.archi/la-gram/docs/');
+    expect(helpHref(docs, 'http://localhost:8080/')).toBe('http://localhost:8080/docs/');
+    expect(helpHref(docs)).toBe('https://app.linked.archi/la-gram/docs/');
+    expect(docsHref('guide/model-tree/', 'https://models.acme.example/la-gram/')).toBe('https://models.acme.example/la-gram/docs/guide/model-tree/');
+    // Any other link is where it is, in either.
+    const quick = HELP_LINKS.find((l) => l.id === 'quick-start')!;
+    expect(helpHref(quick, 'https://app.linked.archi/la-gram/')).toBe(quick.href);
   });
 });

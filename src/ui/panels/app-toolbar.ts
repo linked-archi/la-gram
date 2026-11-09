@@ -22,7 +22,7 @@ import {
   type CatalogueEntry,
 } from '../../metamodel-manager/catalogue.js';
 import { MODEL_FORMATS } from '../../import-export/model-io.js';
-import { HELP_LINKS, type HelpLink } from '../../help-links.js';
+import { HELP_LINKS, helpHref, type HelpLink } from '../../help-links.js';
 
 /** Commands the toolbar can issue. */
 export type ToolbarCommand =
@@ -400,6 +400,8 @@ export class AppToolbar extends LitElement {
   @property({ attribute: false }) fileMenuItems: () => FileMenuItem[] = () => [];
   /** Whether File › Settings… is offered: there is a module to switch, or a part with settings. */
   @property({ type: Boolean }) settingsMenu = false;
+  /** The web app's address, which serves la-gram's documentation beside it; empty in the desktop app: the published one. */
+  @property({ type: String }) appBase = '';
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | 'app' | null = null;
 
@@ -574,7 +576,7 @@ export class AppToolbar extends LitElement {
   /** la-gram's menu, under its icon and name: About, the keyboard shortcuts, the guides, la-gram's own pages. */
   private _appMenu() {
     const link = (l: HelpLink) =>
-      html`<a href=${l.href} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
+      html`<a href=${helpHref(l, this.appBase || undefined)} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
         >${l.label}<span class="hint">↗</span></a
       >`;
     return html`<div class="dropdown" role="menu">

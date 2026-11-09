@@ -1508,10 +1508,15 @@ describe('the workbench', () => {
       await open();
       const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
       expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
-        'about', 'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues',
+        'about', 'shortcuts', 'la-gram-docs', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues',
       ]);
       const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
-      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);
+      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer')).toBe(true);
+      // la-gram's documentation: the copy served beside the web app; every other page, on its site.
+      const [docs, ...others] = links;
+      expect(docs!.dataset.link).toBe('la-gram-docs');
+      expect(docs!.href).toBe(new URL('docs/', document.baseURI).href);
+      expect(others.every((a) => a.href.startsWith('https://'))).toBe(true);
 
       // About, in parts, where the dialogs show parts.
       bar.querySelector<HTMLButtonElement>('.dropdown [data-command="about"]')!.click();

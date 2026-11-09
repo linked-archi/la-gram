@@ -80,12 +80,14 @@ desktop app, in your web browser).
 | Part | Entries |
 |---|---|
 | la-gram | *About la-gram*, *Keyboard shortcuts* |
-| Guides | *Linked.Archi documentation*, *Quick start*, *Modelling guide*, *ArchiMate 4.0 primer*, *Names, labels and pictures per audience*, *Metamodel catalogue* |
+| Guides | *la-gram documentation*, *Linked.Archi documentation*, *Quick start*, *Modelling guide*, *ArchiMate 4.0 primer*, *Names, labels and pictures per audience*, *Metamodel catalogue* |
 | la-gram's pages | *Download the desktop app* (the Releases page), *la-gram: what it does (README)*, *Source code*, *Report a problem or an idea* (the issue tracker; reporting needs a GitLab account) |
 
-The guides are Linked.Archi's, on [meta.linked.archi](https://meta.linked.archi/docs/): how to model, and
-the languages. These pages, la-gram's own documentation, are at https://app.linked.archi/la-gram/docs/;
-the menu has no entry for them.
+*la-gram documentation* opens these pages. The web app opens the copy served with it, in its own
+`docs/`, of the same version, wherever it is deployed: https://app.linked.archi/la-gram/docs/ for
+https://app.linked.archi/la-gram/. The desktop app opens https://app.linked.archi/la-gram/docs/.
+The other guides are Linked.Archi's, on [meta.linked.archi](https://meta.linked.archi/docs/): how to model,
+and the languages.
 
 1. Click la-gram ▾ at the top left.
 2. Choose *Quick start*: Linked.Archi's quick start opens in a new tab.
@@ -110,7 +112,8 @@ In the desktop app, the menu bar has an About panel of the system's too
 ## Keyboard shortcuts {#keyboard-shortcuts}
 
 *Keyboard shortcuts* lists the keys and mouse gestures by where they work, with ⌘, ⌥ and ⇧ on a Mac and
-Ctrl, Alt and Shift elsewhere. Every key is in [Keyboard and mouse](../reference/keyboard.md).
+Ctrl, Alt and Shift elsewhere. Every key is in [Keyboard and mouse](../reference/keyboard.md), which the
+dialog's last line, *Keyboard and mouse, in the documentation*, opens.
 
 === "Windows and Linux"
 

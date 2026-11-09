@@ -531,7 +531,14 @@ it is drawn, once moved, is the view's: see key decisions 15 and 16.
 **Help and About** (Req 15.4–15.7; `src/help-links.ts`, `src/ui/help.ts`,
 the toolbar's `_appMenu` under the name, `installMenu` in `electron-main.ts`).
 The pages the menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
-desktop app's menu bar read the same. About and the keyboard shortcuts are
+desktop app's menu bar read the same. A page of la-gram's own documentation (`docsPage`:
+*la-gram documentation*, and the shortcuts' page) is resolved by `helpHref`/`docsHref`
+against the web app's address — `docs/` beside it, where the build puts the site
+(`docs-site/`, `npm run docs:build`) and the release deploys it with the app — so a
+deployment elsewhere opens its own copy, of its own version. The desktop app's files
+are no site: `mount-ui` gives the toolbar, About and the shortcuts no address there
+(`isElectronEnvironment`), and they open the published copy, `LA_GRAM_DOCS`, as the
+menu bar does from the list's `href`. About and the keyboard shortcuts are
 `DetailBlock`s — a header, headings, text, links, two columns — that
 `Dialogs.details` shows; it is optional, and `mount-ui` shows a `Dialogs`
 without it the same blocks as text (`detailLines`), so the scripted dialogs of
