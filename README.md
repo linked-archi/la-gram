@@ -381,8 +381,10 @@ and `DATA_DIR`.
 ## Documentation
 
 - [la-gram's documentation](https://app.linked.archi/la-gram/docs/) — how to use, configure, run and build la-gram, published with the web app; its source is `docs-site/` (MkDocs, Material for MkDocs)
-- `.kiro/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
-- `.kiro/steering/project-conventions.md` — principles and code conventions
+- `.agents/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
+- `.agents/conventions.md` — principles and code conventions
+- `.agents/tasks/` — one folder per piece of work: its plan, requirements, design and report
+- `.kiro/` — links to `.agents/specs/` and `.agents/conventions.md`, where Kiro looks for them
 - `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification; Appendix D says what la-gram implements of it
 
 The documentation builds in its own Python environment, `.venv-docs/` (Python 3.11 or later), with

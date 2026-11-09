@@ -30,7 +30,7 @@ Valid derivations hold in any model, so a matrix may show them, as long as they'
   graph of their own. They're saved, beside the model, only when the modeller asks.
 
 Neither la-gram's requirements and design nor meta's design decisions say this today. It goes into
-`.kiro/specs/la-gram/requirements.md` as an acceptance criterion when the feature is built.
+`.agents/specs/la-gram/requirements.md` as an acceptance criterion when the feature is built.
 
 ## Hard constraints
 
@@ -40,11 +40,11 @@ Neither la-gram's requirements and design nor meta's design decisions say this t
 - Changing meta's rules or their generator is the user's decision. The approach below needs no change in
   meta.
 - Finish a change with tests, then docs (`README.md`, and the requirements, design and tasks in
-  `.kiro/specs/la-gram/`, including the change log), then `npm run build`, then tell the user to reload.
+  `.agents/specs/la-gram/`, including the change log), then `npm run build`, then tell the user to reload.
 
 ## What la-gram does today
 
-- **Not deriving:** la-gram doesn't derive (`.kiro/specs/la-gram/design.md`, around line 1710: "the rules
+- **Not deriving:** la-gram doesn't derive (`.agents/specs/la-gram/design.md`, around line 1710: "the rules
   need a server-side engine"). This feature reverses that note, which must be rewritten.
 - **Derivations from a file:** it shows those a file brings (Req 4.7, `src/model-manager/derivations.ts`):
   - listed under *Derived relationships* in the tree;

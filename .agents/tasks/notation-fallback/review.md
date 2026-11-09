@@ -164,7 +164,7 @@ Repository state:
 - Tests:
   - new files: `catalogue.test.ts`, `class-hierarchy.test.ts`, `notation-resolver.test.ts`, `notation-fallback-integration.test.ts` and the shared `basic-fixture.ts`;
   - new blocks in `metamodel-loader.test.ts`, `palette-generator.test.ts`, `notation-styles.test.ts` and `mount-ui.test.ts`.
-- `.kiro/specs/la-gram/requirements.md`, `design.md`, `tasks.md`: Req 1.2 and 2.15–2.16, the palette-generation paragraph and one task line
+- `.agents/specs/la-gram/requirements.md`, `design.md`, `tasks.md`: Req 1.2 and 2.15–2.16, the palette-generation paragraph and one task line
 
 Full diff: `git diff` in `tools/modellers/la-gram`, plus the untracked files that `git status --short` lists.
 

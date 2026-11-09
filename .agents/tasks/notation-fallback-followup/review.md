@@ -135,7 +135,7 @@ Repository state:
 - `src/ui/canvas/__tests__/notation-fallback-integration.test.ts`: the Association and Aggregation markers and the unlisted `Linking` class.
 - `src/ui/__tests__/mount-ui.test.ts`: the "notation look outside the canvas" block.
 - Comments only: `palette-generator.ts`, `notation-styles.ts` and `interfaces.ts`.
-- `.kiro/specs/la-gram/requirements.md` (Req 2.16), `design.md` and `tasks.md`: the new order.
+- `.agents/specs/la-gram/requirements.md` (Req 2.16), `design.md` and `tasks.md`: the new order.
 
 The pre-step snapshot was deleted, so this list comes from the report, checked against the current files. The full diff against HEAD also holds the previous loop's changes. It is `git diff` plus the untracked files in `git status --short`, run in `tools/modellers/la-gram`.
 

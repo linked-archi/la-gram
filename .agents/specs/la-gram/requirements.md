@@ -10,7 +10,7 @@ runtime; the diagram canvas is diagram-js; real-time collaboration is Yjs over
 Hocuspocus. It runs in the browser and as an Electron desktop app.
 
 These requirements are adapted from the `la-modeller-excalidraw` specification
-(`tools/modellers/excalidraw-linked-archi-yjs-demo/.kiro/specs/la-modeller-excalidraw/`),
+(`tools/modellers/excalidraw-linked-archi-yjs-demo/.agents/specs/la-modeller-excalidraw/`),
 which is the reference for behaviour; requirement numbers 1–11 match it so the
 two can be compared line by line. Where la-gram deliberately differs, the
 criterion says so. Requirements 12–19 are specific to la-gram. The broader,

@@ -39,7 +39,7 @@ design: `design.md` (§1–§6). Rules: `README.md`.
 ## Phase E — finish (R6.2)
 
 - [x] E1 sync meta assets (catalogue regenerated on the scratch copy if a header changed)
-- [x] E2 la-gram docs: README, `.kiro` requirements (Req 3.17, new criterion), design, change log
+- [x] E2 la-gram docs: README, `.agents/specs` requirements (Req 3.17, new criterion), design, change log
 - [x] E3 `npm test`, `npm run build`, `npm run test:browser`
 - [x] E4 report to the user: what changed, what is uncommitted, follow-ups
 
@@ -59,7 +59,7 @@ presentation), as they no longer list `skosxl:altLabel`.
 - [x] F6 Image tab for figures per scope
 - [x] F7 format painter per presentation
 - [x] F8 model tree: an element's picture as its icon
-- [x] F9 tests (unit, workbench, browser); docs (README, `.kiro` requirements, design, change log); build
+- [x] F9 tests (unit, workbench, browser); docs (README, `.agents/specs` requirements, design, change log); build
 
 ## Not in this task
 

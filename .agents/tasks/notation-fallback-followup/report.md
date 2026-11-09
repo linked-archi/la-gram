@@ -61,7 +61,7 @@ All under `tools/modellers/la-gram`, line counts against a snapshot taken before
   - palette entries win over the index, and a listed relationship stays a relationship;
   - a `graph-new-view` places the unlisted element at 80 × 80, not 120 × 55.
 - `src/metamodel-manager/palette-generator.ts` (+5 −3), `src/ui/canvas/notation-styles.ts` (+5 −4), `src/metamodel-manager/interfaces.ts` (one doc comment, +3 −2): comments that listed the old order.
-- `.kiro/specs/la-gram/requirements.md` (Req 2.16), `design.md` (palette-generation paragraph), `tasks.md` (the notation-fallback task line; `mount-ui.test` added): the new order and its rule. The black-relationships sentence is kept.
+- `.agents/specs/la-gram/requirements.md` (Req 2.16), `design.md` (palette-generation paragraph), `tasks.md` (the notation-fallback task line; `mount-ui.test` added): the new order and its rule. The black-relationships sentence is kept.
 
 `metamodel-loader.test.ts` needed no change. No file was added or removed. `notation-look.ts` was not needed, because the mount-ui harness can set a palette with an index.
 
