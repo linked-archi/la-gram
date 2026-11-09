@@ -42,7 +42,8 @@ describe("la-gram's release pipeline", () => {
     expect(job('web')).toMatch(/- if: \$CI_COMMIT_TAG =~ \/\^la-gram-git-v\/\n {6}when: never/);
     // The web app replaced by a release only, not by a pre-release; the Release made either way.
     expect(job('web-deploy')).toContain('- if: $CI_COMMIT_TAG =~ /^la-gram-v\\d+\\.\\d+\\.\\d+$/');
-    const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs: \[web\]/.exec(job('web-deploy'))![1]!);
+    // The web app with its documentation: both artifacts, or rsync --delete would take one away.
+    const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs: \[web, docs\]/.exec(job('web-deploy'))![1]!);
     expect([final.test(`la-gram-v${version}`), final.test('la-gram-v0.2.0-rc.1')]).toEqual([true, false]);
     expect(job('la-gram-release')).toMatch(/- job: web-deploy # not on a pre-release\n {6}artifacts: false\n {6}optional: true/);
     // The desktop apps: on la-gram's tag; by hand otherwise, never failing a request.

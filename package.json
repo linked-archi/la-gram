@@ -28,7 +28,11 @@
     "icons": "node scripts/make-icons.mjs",
     "package": "npm run build:electron && node scripts/package-electron.mjs",
     "bench": "node scripts/bench.mjs",
-    "bench:model": "node scripts/bench-model.mjs"
+    "bench:model": "node scripts/bench-model.mjs",
+    "docs:setup": "node scripts/docs/run.mjs setup",
+    "docs:build": "node scripts/docs/run.mjs build",
+    "docs:serve": "node scripts/docs/run.mjs serve",
+    "docs:screenshots": "node scripts/docs/screenshots.mjs"
   },
   "dependencies": {
     "@codemirror/language": "^6.10.0",

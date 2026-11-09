@@ -26,6 +26,9 @@ blob-report/
 # TypeScript incremental build info
 *.tsbuildinfo
 
+# Python bytecode: MkDocs imports scripts/docs' hooks
+__pycache__/
+
 # Logs
 *.log
 npm-debug.log*

@@ -1,7 +1,8 @@
 # la-gram's pipeline.
 #
-# A merge request, and the default branch: la-gram's tests, its web build, and
-# la-gram-git's package built, packed, installed and run. Nothing is published.
+# A merge request, and the default branch: la-gram's tests, its web build and
+# its documentation, and la-gram-git's package built, packed, installed and run.
+# Nothing is published.
 # The desktop apps can be built by hand there (the desktop jobs are manual), to
 # try them before a release.
 #
@@ -19,7 +20,8 @@
 #   tag la-gram-v0.1.0          → the desktop apps — macOS (Apple silicon, Intel),
 #                                 Windows x64, Linux x64 and arm64 — in the project's
 #                                 package registry and on its Releases page; the web
-#                                 app at https://app.linked.archi/la-gram/
+#                                 app at https://app.linked.archi/la-gram/, its
+#                                 documentation at https://app.linked.archi/la-gram/docs/
 #   tag la-gram-v0.2.0-rc.1     → the desktop apps and the Release; the web app stays
 #
 # Other tags, and pushes to other branches, start nothing. Before the first
@@ -97,6 +99,14 @@ package:
     - npm install --global "./packages/la-gram-git/linked-archi-la-gram-git-$PACKAGE_VERSION.tgz"
     - test "$(la-gram-git --version)" = "$PACKAGE_VERSION"
     - la-gram-git check packages/la-gram-git/smoke
+    # And the model the documentation opens in la-gram (docs-site/examples/):
+    # still one la-gram-git checks clean. Its one warning, that nothing realizes
+    # Gift wrapping, is there on purpose: the documentation's Validation
+    # screenshot shows it, and the model says so in its skos:editorialNote.
+    # This runs on a la-gram-git release tag too, so a release whose writer or
+    # findings change stops here until the example is brought up to date: run
+    # la-gram-git fix docs-site/examples, then npm run docs:screenshots.
+    - la-gram-git check docs-site/examples
   artifacts:
     paths:
       - packages/la-gram-git/linked-archi-la-gram-git-*.tgz
@@ -220,6 +230,44 @@ web:
       dotenv: version.env
     expire_in: 1 week
 
+# The documentation, as app.linked.archi/la-gram/docs/ serves it: docs-site/
+# built by MkDocs and Material for MkDocs, in Python's own image, with the
+# versions requirements-docs.txt pins, into dist/web/docs/ — inside the web
+# app, so that web-deploy puts the two in place together. Wherever the web app
+# is built, and strictly: a broken link or anchor, a page left out of the
+# navigation, or a script the server's Content-Security-Policy would block
+# fails here, on the merge request. It needs nothing the other jobs make, so
+# it starts at once.
+docs:
+  stage: build
+  image: python:3.14.10-slim-trixie
+  needs: []
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^la-gram-git-v/
+      when: never
+    - when: on_success
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip"
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    # Material's notice that MkDocs 2.0 will not run it, printed on every
+    # build: docs-site/developing/documentation.md says what it means here.
+    NO_MKDOCS_2_WARNING: "true"
+  cache:
+    key:
+      files: [requirements-docs.txt]
+    paths: [.pip/]
+  script:
+    - python -m venv /tmp/venv
+    # Exactly the list, and nothing it leaves out: --no-deps installs only what
+    # it names, and pip check fails the job if a package needs one it does not.
+    - /tmp/venv/bin/pip install --quiet --no-deps --requirement requirements-docs.txt
+    - /tmp/venv/bin/python -m pip check
+    - /tmp/venv/bin/mkdocs build --strict
+    - test -f dist/web/docs/index.html && test -f dist/web/docs/search/search_index.json
+  artifacts:
+    paths: [dist/web/docs/]
+    expire_in: 1 week
+
 # The desktop apps, each packaged on the Linux runner with its target's Electron:
 # @electron/packager builds macOS and Windows apps off those systems. Not signed
 # by a developer (the macOS app ad hoc): a downloaded copy asks to be allowed the
@@ -296,10 +344,13 @@ desktop:
     paths: [release/]
     expire_in: 3 days
 
-# The web app onto the server that serves app.linked.archi — the host that
-# serves meta.linked.archi — over SSH: the build into LA_GRAM_DEPLOY_PATH, files
-# no longer built taken away. The host's nginx serves it under /la-gram/ (its
-# site for app.linked.archi, kept with the host's configuration).
+# The web app, with its documentation in docs/, onto the server that serves
+# app.linked.archi — the host that serves meta.linked.archi — over SSH: the
+# build into LA_GRAM_DEPLOY_PATH, files no longer built taken away. The host's
+# nginx serves it under /la-gram/ (its site for app.linked.archi, kept with the
+# host's configuration). On a release tag, a failed docs job holds this job
+# back, and with it the Releases page (la-gram-release); the desktop apps are
+# already uploaded: retry docs, and both run.
 #
 # CI/CD variables (Settings → CI/CD → Variables), as meta.linked.archi's deploy has,
 # each protected, scoped to the environment production (only this job sees them),
@@ -316,7 +367,7 @@ web-deploy:
   # its desktop apps and Release only.
   rules:
     - if: $CI_COMMIT_TAG =~ /^la-gram-v\d+\.\d+\.\d+$/
-  needs: [web]
+  needs: [web, docs]
   image: alpine:3.22
   resource_group: app-linked-archi
   environment:
@@ -329,6 +380,8 @@ web-deploy:
     - ssh-keyscan -t ed25519,ecdsa,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
   script:
     - test -n "$LA_GRAM_DEPLOY_PATH"
+    # Both or neither: rsync --delete would take away whichever one is missing.
+    - test -f dist/web/index.html && test -f dist/web/docs/index.html
     - echo "Deploying to $DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH"
     - rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
 
@@ -377,4 +430,7 @@ la-gram-release:
           link_type: package
         - name: Web app
           url: https://app.linked.archi/la-gram/
+          link_type: other
+        - name: Documentation
+          url: https://app.linked.archi/la-gram/docs/
           link_type: other

@@ -1,0 +1,214 @@
+---
+title: Keyboard and mouse
+description: Every keyboard shortcut and mouse gesture in la-gram, on Windows, Linux and macOS.
+---
+# Keyboard and mouse
+
+Every key and gesture la-gram responds to, by where it works. On a Mac, ⌘ (Command) takes the place of
+Ctrl and ⌥ (Option) the place of Alt. The tabs below show both; the choice of tab is kept across the
+page.
+
+The toolbar's undo and redo buttons say *Undo (Ctrl+Z)* and *Redo (Ctrl+Y)* on every platform. On a Mac
+the keys are ++cmd+z++ and ++cmd+y++ (or ++shift+cmd+z++), as below; the canvas takes the Ctrl forms
+there too.
+
+The examples use the example model:
+[open it](https://app.linked.archi/la-gram/?model=docs/examples/shop.ttl) in a second tab.
+
+## On the canvas {#canvas}
+
+The canvas takes these keys when it has the focus: click an empty part of it first.
+
+=== "Windows and Linux"
+
+    | Keys | Does |
+    |---|---|
+    | ++ctrl+z++ | undo the last change on the canvas or in the property panel |
+    | ++ctrl+y++ or ++ctrl+shift+z++ | redo |
+    | ++delete++ or ++backspace++ | delete the selection from the view; the model keeps it |
+    | ++f2++ | rename the one selected element or relationship |
+    | ++ctrl+plus++ / ++ctrl+minus++ | zoom in / out one step |
+    | ++ctrl+0++ | zoom to 100 % |
+    | ++esc++ | put the format painter down; cancel a connection, lasso or move in progress |
+    | ++enter++ / ++esc++ while renaming | keep the new name / keep the old one |
+
+=== "macOS"
+
+    | Keys | Does |
+    |---|---|
+    | ++cmd+z++ (or ++ctrl+z++) | undo the last change on the canvas or in the property panel |
+    | ++cmd+y++ or ++shift+cmd+z++ (or the Ctrl forms) | redo |
+    | ++delete++ or ++backspace++ | delete the selection from the view; the model keeps it |
+    | ++f2++ | rename the one selected element or relationship |
+    | ++cmd+plus++ / ++cmd+minus++ (or the Ctrl forms) | zoom in / out one step |
+    | ++cmd+0++ (or ++ctrl+0++) | zoom to 100 % |
+    | ++esc++ | put the format painter down; cancel a connection, lasso or move in progress |
+    | ++enter++ / ++esc++ while renaming | keep the new name / keep the old one |
+
+- **Undo** covers what you change in this view: placing, moving, connecting, renaming, deleting from the
+  view, and property edits. Its history belongs to the open view and starts again when another view
+  opens. Changes that come from elsewhere (a collaborator, an import, a deletion from the model tree of a
+  concept not on the canvas) are not undone from here; see [Undo](../troubleshooting.md#undo).
+- **++f2++** acts on one selected element or relationship only, and not while the focus is in a text
+  field. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
+- **Delete** never deletes from the model: *Delete from model (all views)* on the context pad or the
+  right-click menu does, after asking.
+- **Copy and paste** do nothing on the canvas: see [Copy and paste](../troubleshooting.md#copy-and-paste).
+
+With the example model:
+
+1. Click *Gift wrapping* on the canvas, press ++f2++, type "Gift wrap" and press ++enter++.
+2. Press ++ctrl+z++ (++cmd+z++ on a Mac): the name is "Gift wrapping" again.
+3. Press ++ctrl+y++ (++cmd+y++): "Gift wrap" again. Press ++ctrl+z++ once more to leave it as it was.
+4. Press ++ctrl+minus++ twice, then ++ctrl+0++: back at 100 %.
+
+## Views {#views}
+
+=== "Windows and Linux"
+
+    | Keys | Does |
+    |---|---|
+    | ++alt+left++ / ++alt+right++ | open the view before / after, in the order you opened them |
+
+=== "macOS"
+
+    | Keys | Does |
+    |---|---|
+    | ++option+left++ / ++option+right++ | open the view before / after, in the order you opened them |
+
+They work anywhere but in a text field, where they move the cursor by a word, and not while a dialog is
+open. The toolbar's ← and → buttons do the same, and their tooltips name the view they go to.
+
+1. In the model tree, double-click *Who is who*: the catalog view opens.
+2. Press ++alt+left++ (++option+left++): *How the shop serves its customers* is open again.
+3. Press ++alt+right++ (++option+right++): *Who is who*.
+
+## SPARQL editor {#sparql-editor}
+
+=== "Windows and Linux"
+
+    | Keys | Does |
+    |---|---|
+    | ++ctrl+enter++ | run the query |
+
+=== "macOS"
+
+    | Keys | Does |
+    |---|---|
+    | ++cmd+enter++ or ++ctrl+enter++ | run the query |
+
+In the *Questions* menu, ++up++ and ++down++ move between the questions and ++esc++ closes it.
+
+1. Open the *SPARQL Query* tab and click in the editor.
+2. Press ++ctrl+enter++ (++cmd+enter++): the results are under the editor.
+
+## Model tree {#model-tree}
+
+=== "Windows and Linux"
+
+    | Keys | Does |
+    |---|---|
+    | ++ctrl++ + click | add a row to the selection, or take it out |
+    | ++shift++ + click | select every row from the last one clicked to this one |
+    | ++esc++ while dragging rows | cancel the drag |
+
+=== "macOS"
+
+    | Keys | Does |
+    |---|---|
+    | ++cmd++ + click | add a row to the selection, or take it out |
+    | ++shift++ + click | select every row from the last one clicked to this one |
+    | ++esc++ while dragging rows | cancel the drag |
+
+Several rows are selected to move them to a folder together, with *Move … to folder…* or by dragging.
+Views, elements, relationships and folders can be selected so; the model's own row and the group
+headings cannot.
+
+1. In the model tree, click *Payments*, then ++ctrl++-click (++cmd++-click) *Web shop*: both are selected.
+2. ++shift++-click *Customer*: every element row from *Web shop* to *Customer* is selected.
+
+## Panels {#panels}
+
+| Keys and gestures | Does |
+|---|---|
+| ++esc++ | restore the bottom panel or the RDF panel when it is maximized, unless a dialog or a menu is open |
+| double-click the empty part of the bottom tab strip | maximize the bottom panel over the workspace, or restore it |
+| click the open bottom tab | fold the panel down to its tabs, or unfold it |
+| drag a panel's edge | resize it; the size is remembered ([stored data](stored-data.md#panel-sizes)) |
+
+The ⤢ button at the right of the tab strip maximizes and restores too; its tooltip says *Restore the
+panel (Esc)* while the panel is maximized.
+
+1. Double-click the empty strip to the right of the *History* tab: the bottom panel covers the workspace.
+2. Press ++esc++: it is back at its size.
+
+## Dialogs and lists {#dialogs}
+
+| Keys | Where | Does |
+|---|---|---|
+| ++enter++ | any dialog | the dialog's main button (*Apply*, *Create*, *Save*…), unless the focus is in a text area, where it starts a new line. A dialog whose fields have a problem stays open and says which |
+| ++esc++ | any dialog | cancel: close it and change nothing. A click outside the dialog does the same |
+| ++up++ / ++down++ | *File › Settings…* | move to the tab above or below |
+| ++up++ / ++down++, ++enter++, ++esc++ | a picker's list, such as the property panel's *Type* | move through the list, take the highlighted entry, close the list |
+| ++up++ / ++down++ | the property panel's tabs | move to the tab above or below |
+| ++enter++ / ++esc++ | a catalog view's cell, while editing it | keep the value / drop it |
+
+1. Choose *File › Settings…*, and press ++down++ while a tab has the focus: the next tab opens.
+2. Press ++esc++: the dialog closes and nothing changes.
+
+## Typing in fields {#typing-in-fields}
+
+Keys typed in a panel's field (the property panel, the palette's search, the SPARQL editor, the tree's
+filter) **never reach the canvas**, combinations with Ctrl or ⌘ included. ++ctrl+z++ in the *Name* field
+undoes your typing there, and ++backspace++ deletes a character, not the selected element.
+
+1. Select *Web shop*, and in the property panel's *Name* field, type "s".
+2. Press ++backspace++: the "s" goes, and *Web shop* stays on the canvas.
+
+## Mouse {#mouse}
+
+=== "Windows and Linux"
+
+    | Gesture | Does |
+    |---|---|
+    | click | select an element or a relationship |
+    | ++shift++ + click | add to the selection, or take from it |
+    | ++shift++ + drag on the canvas | select with a lasso |
+    | drag on an empty part of the canvas | move around the diagram |
+    | double-click | rename what is under the pointer |
+    | right-click | the right-click menu of what is under the pointer, or of the canvas |
+    | scroll | scroll up and down |
+    | ++shift++ + scroll | scroll sideways |
+    | ++ctrl++ + scroll, or a trackpad's pinch | zoom in or out |
+
+=== "macOS"
+
+    | Gesture | Does |
+    |---|---|
+    | click | select an element or a relationship |
+    | ++shift++ + click | add to the selection, or take from it |
+    | ++shift++ + drag on the canvas | select with a lasso |
+    | drag on an empty part of the canvas | move around the diagram |
+    | double-click | rename what is under the pointer |
+    | right-click, or ++ctrl++ + click | the right-click menu of what is under the pointer, or of the canvas |
+    | scroll | scroll up and down |
+    | ++shift++ + scroll | scroll sideways |
+    | ++cmd++ + scroll (or ++ctrl++ + scroll), or a trackpad's pinch | zoom in or out |
+
+The canvas toolbar's tools do the same by a click: the lasso and the hand, and the connect tool.
+
+1. ++shift++-drag around *Customer* and *Place order*: both are selected.
+2. Drag on an empty part of the canvas: the diagram moves with the pointer.
+
+## The Keyboard shortcuts dialog {#shortcuts-dialog}
+
+*Keyboard shortcuts*, in la-gram's menu (the icon and name at the top left), lists the common keys and
+gestures, by where they work. On a Mac it writes them ⌘Z, ⇧⌘Z, ⌥←; elsewhere Ctrl+Z, Ctrl+Shift+Z,
+Alt+←.
+
+It leaves out a few that this page has: ++esc++ to restore a maximized panel, the double-click on the tab
+strip, ++enter++ and ++esc++ while renaming, ++esc++ to cancel a tree drag, and the keys of the catalog
+cells and the *Questions* menu.
+
+1. Open la-gram's menu, at the top left.
+2. Choose *Keyboard shortcuts*: the list opens in a dialog. Press ++esc++ to close it.

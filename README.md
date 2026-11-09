@@ -325,7 +325,7 @@ Step by step, from the default branch, after a merge request:
    Or in GitLab: *Code › Tags › New tag*, the name `la-gram-v0.2.0`, *Create from* `main`, a message,
    *Create tag*.
 
-3. **Follow it** in *Build › Pipelines*: the tests; then `web` and the five `desktop` jobs; then
+3. **Follow it** in *Build › Pipelines*: the tests; then `web`, `docs` and the five `desktop` jobs; then
    `web-deploy` and `la-gram-release`. When it is done, *Deploy › Releases* lists *la-gram 0.2.0* with
    the five downloads, and https://app.linked.archi/la-gram/, reloaded, says *Version 0.2.0* in
    *About la-gram* (the menu under the name at the top left).
@@ -380,9 +380,24 @@ and `DATA_DIR`.
 
 ## Documentation
 
+- [la-gram's documentation](https://app.linked.archi/la-gram/docs/) — how to use, configure, run and build la-gram, published with the web app; its source is `docs-site/` (MkDocs, Material for MkDocs)
 - `.kiro/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
 - `.kiro/steering/project-conventions.md` — principles and code conventions
 - `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification; Appendix D says what la-gram implements of it
+
+The documentation builds in its own Python environment, `.venv-docs/` (Python 3.11 or later), with
+exactly the versions `requirements-docs.txt` pins:
+
+```bash
+npm run docs:setup     # once: make .venv-docs/ and install requirements-docs.txt into it
+npm run docs:serve     # preview on http://127.0.0.1:8000/la-gram/docs/, rebuilt on every save
+npm run docs:build     # strict, as CI builds it, into dist/web/docs/: any warning fails it
+```
+
+After `npm run docs:build`, `npm run dev` serves the documentation on http://localhost:8080/docs/,
+beside the app: the app's build leaves `dist/web/docs/` in place. CI's `docs` job builds it for every
+merge request, and `web-deploy` publishes it with the web app. Screenshots, the build's hooks and the
+server's Content-Security-Policy: *Developing › Writing the documentation*, in the documentation.
 
 ## Licence
 
