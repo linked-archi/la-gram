@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { Page } from 'playwright';
+import type { Dialog, Page } from 'playwright';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -1167,6 +1167,112 @@ describe('appending from the context pad', () => {
       'graph, live force: at rest and framed, stops; drag pulls and releases; middle pinned; paused while hidden; reduced motion at once; Rings mid-run ends it; camera kept; click, double-click, pan: ok',
     );
   }, 180_000);
+
+  it('sets the forces with sliders (Req 17.13): keys on Link distance move the graph, framed at rest, the middle pinned; laid out at once only when let go; remembered across a reload; Reset forgets them; shown with Force only', async () => {
+    // Continues from the test before: five elements round "Dispatch", Force, at rest, depth 2.
+    const panel = page.locator('graph-panel');
+    const rest = (what: string) => until(async () => (await graphTab(page)).layout === 'settled', what);
+    const forces = panel.locator('details.forces');
+    const link = panel.getByLabel('Link distance');
+    const charge = panel.getByLabel('Charge strength');
+    const collide = panel.getByLabel('Collision radius');
+    const sliders = async () => [await link.inputValue(), await charge.inputValue(), await collide.inputValue()];
+    const shown = async () => Promise.all(['force-link', 'force-charge', 'force-collide'].map((id) => panel.locator(`output[for="${id}"]`).innerText()));
+    const storedForces = async () => page.evaluate(() => localStorage.getItem('la-gram:graph-forces'));
+    const middle = await page.evaluate(() => (window as any).__LA_GRAM_UI__.graphPanel.rootIri as string);
+    /** The mean distance, in model units, from the middle element to the others. */
+    const spread = (g: GraphTab) => {
+      const others = Object.keys(g.model).filter((iri) => iri !== middle);
+      return others.reduce((sum, iri) => sum + apartBy(g.model[iri]!, g.model[middle]!), 0) / others.length;
+    };
+    await rest('the graph at rest');
+    const before = await graphTab(page);
+    expect(before.stats).toBe('5 elements · 4 relationships');
+
+    // 1. Folded at first; opened, the defaults.
+    expect(await forces.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
+    await forces.locator('summary').click();
+    expect(await sliders()).toEqual(['180', '350', '1']);
+    expect(await shown()).toEqual(['180 px', '350', '1.0×']);
+
+    // 2. By keyboard: Tab to Link distance, its focus ring shown; End and ←: 390 px. The graph runs, and comes to
+    // rest with longer lines, the middle element where it was, framed; the three remembered.
+    await page.keyboard.press('Tab');
+    expect(await link.evaluate((el) => (el.getRootNode() as ShadowRoot).activeElement === el)).toBe(true);
+    expect(await link.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth, getComputedStyle(el).outlineColor])).toEqual([
+      'solid',
+      '2px',
+      'rgb(26, 115, 232)',
+    ]);
+    await page.keyboard.press('End');
+    expect((await graphTab(page)).layout).toBe('running');
+    await page.keyboard.press('ArrowLeft');
+    expect(await link.inputValue()).toBe('390');
+    expect((await shown())[0]).toBe('390 px');
+    expect(await link.getAttribute('aria-valuetext')).toBe('390 pixels');
+    await rest('the graph at rest with longer lines');
+    const longer = await graphTab(page);
+    expect(spread(longer)).toBeGreaterThan(spread(before) + 40);
+    expect(apartBy(longer.model[middle]!, before.model[middle]!)).toBeLessThan(0.5);
+    expect(framed(longer)).toBe(true);
+    expect(JSON.parse((await storedForces())!)).toEqual({ linkDistance: 390, chargeStrength: -350, collideScale: 1 });
+    await session.screenshot('workbench-graph-forces');
+
+    // 3. A click still selects; Collision radius at 2.0×: the graph runs again and comes to rest.
+    const other = Object.keys(longer.rendered).find((iri) => iri !== middle)!;
+    const box = (await panel.locator('.cy').boundingBox())!;
+    await page.mouse.click(box.x + longer.rendered[other]!.x, box.y + longer.rendered[other]!.y);
+    await until(async () => (await graphTab(page)).selected === other, 'the element selected');
+    await collide.fill('2');
+    expect((await shown())[2]).toBe('2.0×');
+    expect(await collide.getAttribute('aria-valuetext')).toBe('2.0 times');
+    await rest('the graph at rest at 2.0×');
+    expect(JSON.parse((await storedForces())!)).toMatchObject({ collideScale: 2 });
+
+    // 4. Under reduced motion, laid out at once: a slider moving changes nothing; let go, the graph is shown at rest.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const still = await graphTab(page);
+    await charge.evaluate((el) => {
+      (el as HTMLInputElement).value = '1000';
+      el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    });
+    expect((await shown())[1]).toBe('1000');
+    expect((await graphTab(page)).model).toEqual(still.model);
+    await charge.evaluate((el) => el.dispatchEvent(new Event('change', { bubbles: true })));
+    const pushed = await graphTab(page);
+    expect(pushed.layout).toBe('settled');
+    expect(pushed.model).not.toEqual(still.model);
+    expect(apartBy(pushed.model[middle]!, still.model[middle]!)).toBeLessThan(0.5);
+    await page.emulateMedia({ reducedMotion: null });
+
+    // 5. Rings and Tree have no forces; Force has them again.
+    const layout = panel.locator('select[aria-label="Layout"]');
+    await layout.selectOption('rings');
+    await until(async () => (await forces.count()) === 0, 'no forces with Rings');
+    await layout.selectOption('tree');
+    await until(async () => (await forces.count()) === 0, 'no forces with Tree');
+    await layout.selectOption('force');
+    await forces.waitFor({ state: 'attached' });
+    await rest('Force at rest again');
+
+    // 6. Remembered across a reload. la-gram asks before leaving a changed model: leave it.
+    const leave = (dialog: Dialog) => void dialog.accept();
+    page.on('dialog', leave);
+    await page.reload();
+    await waitForAppReady(page);
+    page.off('dialog', leave);
+    await page.evaluate(() => (window as any).__LA_GRAM_UI__.showBottomTab('graph'));
+    await forces.waitFor({ state: 'visible' });
+    expect(await sliders()).toEqual(['390', '1000', '2']);
+
+    // 7. Reset: the defaults, and nothing remembered.
+    await forces.locator('summary').click();
+    await panel.locator('details.forces button[data-force="reset"]').click();
+    await until(async () => (await sliders()).join() === '180,350,1', 'the defaults');
+    expect(await shown()).toEqual(['180 px', '350', '1.0×']);
+    expect(await storedForces()).toBeNull();
+    findings.push('graph forces: keys on Link distance move the graph, framed at rest, middle pinned; reduced motion on release only; remembered across a reload; Reset forgets; Force only: ok');
+  }, 120_000);
 });
 
 describe('nesting', () => {

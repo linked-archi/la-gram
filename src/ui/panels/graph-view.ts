@@ -12,6 +12,8 @@
  * and lays out Rings and Tree. The drawing is updated in place, so a refresh
  * that changes nothing drawn moves nothing; with Force the camera moves only at
  * rest, and only while the user has not taken it since the last graph asked for.
+ * The forces the panel's sliders set (Req 17.13) reach an animated layout as a
+ * slider moves, and a layout laid out at once when it is let go.
  */
 
 import cytoscape from 'cytoscape';
@@ -25,6 +27,7 @@ import {
   topologyChange,
   topologyOf,
   type ForceLimits,
+  type ForceParams,
   type ForceRunStats,
   type Topology,
 } from './graph-force.js';
@@ -94,6 +97,14 @@ export interface GraphView {
   show(nodes: GraphViewNode[], edges: GraphViewEdge[], rootId: string, layout: GraphLayout, options?: GraphShowOptions): void;
   /** Re-lay out the current graph. */
   relayout(layout: GraphLayout): void;
+  /**
+   * The Force layout's forces (Req 17.13). `final` for a slider's `change` (let
+   * go, or a key), *Reset* and the panel's first push; not for its `input` as
+   * it moves, which only an animated layout follows. A change to a graph Force
+   * lays out runs it again, framed at rest; otherwise the forces are kept for
+   * the next force layout.
+   */
+  setForceParams(params: ForceParams, final: boolean): void;
   /** Frame the graph now, and follow: the next rest is framed too. */
   fit(): void;
   /** The container changed size (a tab became visible, the panel was resized): framed only while following and at rest. */
@@ -425,6 +436,16 @@ export const createCytoscapeView: GraphViewFactory = (container, handlers) => {
         runStatic();
       }
     },
+    setForceParams(params, final) {
+      // Laid out at once (above animateMaxNodes, or under reduced motion): recomputed when the slider is let go.
+      if (!final && !force.animates()) return;
+      if (!force.setParams(params)) return;
+      // Rings, Tree, and Force drawing rings: kept for the next force layout.
+      if (!forceDrawn) return;
+      // A change the user asked for, like a change of layout: the rest is framed.
+      following = true;
+      force.run();
+    },
     fit() {
       following = true;
       frame();
@@ -455,14 +476,15 @@ export const createCytoscapeView: GraphViewFactory = (container, handlers) => {
 
 /**
  * Lay out a graph that is not drawn — query results made into a view — with
- * the layouts the Graph tab draws with, on nodes of the given size.
+ * the layouts the Graph tab draws with, on nodes of the given size; Force with
+ * the given forces, the defaults where none are given.
  *
  * @returns Each node's centre.
  */
 export function layoutPositions(
   nodes: ReadonlyArray<{ id: string }>,
   edges: ReadonlyArray<{ id: string; source: string; target: string }>,
-  options: { layout: GraphLayout; rootId?: string; width: number; height: number },
+  options: { layout: GraphLayout; rootId?: string; width: number; height: number; params?: Partial<ForceParams> },
 ): Map<string, { x: number; y: number }> {
   if (options.layout === 'force') return forcePositions(nodes, edges, options);
   const layout = options.layout;

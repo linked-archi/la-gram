@@ -17,7 +17,7 @@ metamodel or asset file…*).
 - **Model tree** — the whole model on the left in three groups, Views, Elements and Relationships: by type, or with the model's own folders in them, each kind in folders of its own. A model converted from Archi (or another tool that keeps folders) opens in its folders, each folded, subfolders then concepts by name, and what no folder holds by type after them; *Folders* | *Types* in the tree's header switches, remembered in this browser (on a model without folders, *Folders* is greyed out). Make folders from the right-click menu — *New folder…* on a group or in a folder, *Rename…*, *Delete folder* (what it holds is kept) — and file a view, element, relationship or folder with *Move to folder…*, which lists the group's folders with their paths, filters by any words you type and puts the ones you last used first, or by dragging rows onto a folder. Make views and elements where they belong, from the same menu: *New diagram view*, *New catalog view* and *New matrix view* on the Views group or a folder of views — named, a viewpoint chosen, filed there and opened — and *New element…* on the Elements group or a folder of elements — a type from the loaded metamodels', grouped as the palette groups them, then a name — filed there in one undoable step and placed in no view, selected in the tree to be dragged onto a diagram; an element type's row offers *New ‹type›…*. Ctrl/Cmd- or Shift-click selects several in the tree, and a selection on the canvas moves too (right-click one of them); all undoable, and saved with the model. To keep an Archi model's folders, export it from Archi with `--xmlexchange.exportFolders` before converting it — without that option Archi's Exchange file has none. Filter by name or type; the open view's concepts are marked.
 - **Relationships the metamodel permits** — connect, change type and the "+" menu offer only what the metamodel's relationship shapes allow (ArchiMate's relationship matrix); "+" appends a new element — asking which relationship when several fit — or brings in what the element is already related to in the model. A line drawn for a relationship the model already has between the two, but this view does not show, asks whether to use that one or make another.
 - **Published vocabulary** — `arch:inModel`, `arch:inView`, qualified relationships plus their unqualified triples, which they `rdf:reifies` (RDF 1.2), `arch-vis:ArchNode`/`Link` geometry; older models are migrated on open.
-- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type, drawn live with forces (d3-force) — or in rings or as a tree: the graph moves into place and comes to rest; drag an element and the elements linked to it follow, let go and it settles back among them. The query behind it — as a SELECT (a table) or a CONSTRUCT (the triples) — runs in the SPARQL tab or downloads as `.rq`; the graph becomes a new view, laid out as drawn, or a Turtle file.
+- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type, drawn live with forces (d3-force) — or in rings or as a tree: the graph moves into place and comes to rest; drag an element and the elements linked to it follow, let go and it settles back among them. Its link distance, charge strength and collision radius are set by sliders, followed live and remembered. The query behind it — as a SELECT (a table) or a CONSTRUCT (the triples) — runs in the SPARQL tab or downloads as `.rq`; the graph becomes a new view, laid out as drawn, or a Turtle file.
 - **SPARQL** — the SPARQL Query tab shows results as tables with prefixed names that select the concept; *Render as new view* makes a diagram of the elements and relationships a result mentions.
 - **Model questions** — the questions the core and the model's language publish (ArchiMate 4.0 and 3.2 so far: "Which services does nothing realise?", "What is affected if this element changes?"): the SPARQL tab's *Questions* menu lists them by stage, those fitting the open view's viewpoint first, filterable by concern; picking one runs its query, bound to the open model, view and viewpoint and the selected element, and says what a row means and what it does not prove. Right-click an element › *Ask about this element…* for the questions about it. A view of the answer follows the question's viewpoint.
 - **Notation as published** — elements are drawn from the notation data in the shapes the published pictures show (EDGY's arrows and tag pills, C4's person…) — a notation declares its own shapes, with their geometry, in its own files — with their badges and label colours, and relationship ends from the published marker symbols. A kind of element with a look of its own is a class of its own (C4's Database, drawn as a cylinder); another audience's look is another notation set.
@@ -365,13 +365,18 @@ npm run test:browser:build  # production build + Playwright suite (needs Chrome,
 
 How long a modeller waits on large models: the built web app opens each model
 in Chrome, then its largest view, renames an element in it, and opens the model
-again over itself; and the memory it holds is measured.
+again over itself; and the memory it holds is measured. Each run also measures
+the Graph tab at depths 1–5 on every model, and runs the graph model's sweep —
+trees of 100 to 3 000 elements, animated and under reduced motion, at full and
+4× CPU — which checks the force layout's limits and fails the run when they do
+not hold.
 
 ```bash
 npm run build:web
 npm run bench                                   # generated models of 10 000 to 500 000 triples
 npm run bench -- --sizes 100000 --view-size 5000   # views of 5 000 nodes
 npm run bench -- path/to/model.ttl              # models of your own
+npm run bench -- --graph                        # the Graph tab's sweep alone
 npm run bench:model -- --triples 250000 --out model.ttl   # a generated model, to open by hand
 ```
 
@@ -379,7 +384,7 @@ A generated model is the same each time for the same options: ArchiMate 4.0
 elements of 30 types, two permitted relationships each, laid-out views — and a
 few faults planted (an unnamed element in 997, an impermissible relationship in
 503), so that validation always finds the same. Models and results (JSON) are
-kept in `test-results/bench/`; a table is printed.
+kept in `test-results/bench/`; a table for each is printed.
 
 ## Collaboration server
 

@@ -17,6 +17,9 @@
  *   changed.
  * - `forcePositions`: the same forces and seeding, headless and deterministic,
  *   for views made from query results.
+ * - `ForceParams`: the three forces the Graph tab's sliders set (Req 17.13) —
+ *   link distance, charge strength, a factor on the collision radius — which
+ *   `toForceParams` brings into range; `DEFAULT_FORCE_PARAMS` are `FORCE`'s.
  *
  * d3 rewrites the objects it is given (a link's ends become node objects, and
  * nodes and links get an `index`), so it only ever gets this module's own,
@@ -25,7 +28,16 @@
  */
 
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from 'd3-force';
-import type { ForceLink, ForceX, ForceY, Simulation, SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
+import type {
+  ForceCollide,
+  ForceLink,
+  ForceManyBody,
+  ForceX,
+  ForceY,
+  Simulation,
+  SimulationLinkDatum,
+  SimulationNodeDatum,
+} from 'd3-force';
 
 export interface Point {
   x: number;
@@ -67,19 +79,22 @@ export const browserFrames: FrameScheduler = {
 
 /**
  * The layout's settings (key decision 17). The three node limits are measured
- * by `npm run bench -- --graph` under 4× CPU throttling (design §8 of
- * `.agents/tasks/graph-force/`); each stays within the sweep's 3 000 elements.
+ * by `npm run bench -- --graph` under 4× CPU throttling (key design decision 17,
+ * *How to measure them again*); each stays within the sweep's 3 000 elements.
  */
 export const FORCE: Readonly<{
-  /** Centre to centre along a line: 60 px of line between two boxes side by side, room for a type name. */
+  /**
+   * Centre to centre along a line: 60 px of line between two boxes side by side, room for a type name. The
+   * default; the user's value is `ForceParams.linkDistance`.
+   */
   linkDistance: number;
-  /** The push between elements… */
+  /** The push between elements (the default; the user's value is `ForceParams.chargeStrength`)… */
   chargeStrength: number;
   /** …up to this distance (`distanceMax`), which bounds its cost and its far reach. */
   chargeRange: number;
   /** The pull towards the anchor along the drawing's long side; × min(4, long ÷ short) along the short side. */
   gravity: number;
-  /** Added to half a box's diagonal for the collision radius. */
+  /** Added to half a box's diagonal for the collision radius, which the user's `ForceParams.collideScale` multiplies. */
   collidePadding: number;
   collideIterations: number;
   /** New children of one element are this far apart, over a half circle at most; a fan is turned in these steps. */
@@ -166,6 +181,55 @@ export function resolveLimits(limits?: Partial<ForceLimits>): ForceLimits {
   };
 }
 
+/** The forces the Graph tab's *Forces* sliders set (Req 17.13), in d3-force's terms. */
+export interface ForceParams {
+  /** Centre to centre along a line, in px: `forceLink.distance`. */
+  linkDistance: number;
+  /** d3's sign, negative pushes apart: `forceManyBody.strength`. */
+  chargeStrength: number;
+  /** Times the collision radius the caller gives (half the box's diagonal plus `collidePadding`). */
+  collideScale: number;
+}
+
+/**
+ * Each force's range and step. The charge is in d3's sign here and in storage;
+ * its slider shows the push, `-chargeStrength`, so that further right is
+ * stronger (key design decision 17). Each default is on its step.
+ */
+export const FORCE_CONTROLS: Readonly<Record<keyof ForceParams, Readonly<{ min: number; max: number; step: number }>>> = Object.freeze({
+  linkDistance: Object.freeze({ min: 40, max: 400, step: 10 }),
+  chargeStrength: Object.freeze({ min: -1500, max: 0, step: 50 }),
+  // A factor rather than pixels: the radius comes from the box's size, and `forcePositions` gets other sizes
+  // than the drawn 120 × 46, so 1.0× means the same for any box.
+  collideScale: Object.freeze({ min: 0.5, max: 2, step: 0.1 }),
+});
+
+/** `FORCE`'s link distance and charge, and the collision radius as given: the layout with no force changed. */
+export const DEFAULT_FORCE_PARAMS: Readonly<ForceParams> = Object.freeze({
+  linkDistance: FORCE.linkDistance,
+  chargeStrength: FORCE.chargeStrength,
+  collideScale: 1,
+});
+
+/**
+ * Forces from anything — storage, a slider, a caller — field by field: a
+ * finite number is clamped to its range, snapped to `min + k·step` and rounded
+ * to two decimals (so 0.1 steps give 1.3, not 1.3000000000000003), and never
+ * −0; anything else (missing, a string, NaN, ±Infinity) is that field's
+ * default. Not an object: every default. Always a new object.
+ */
+export function toForceParams(value: unknown): ForceParams {
+  const given = value !== null && typeof value === 'object' ? (value as Partial<Record<keyof ForceParams, unknown>>) : {};
+  const field = (key: keyof ForceParams): number => {
+    const v = given[key];
+    if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_FORCE_PARAMS[key];
+    const { min, max, step } = FORCE_CONTROLS[key];
+    const snapped = min + Math.round((Math.min(max, Math.max(min, v)) - min) / step) * step;
+    return Number(Math.min(max, snapped).toFixed(2)) + 0;
+  };
+  return { linkDistance: field('linkDistance'), chargeStrength: field('chargeStrength'), collideScale: field('collideScale') };
+}
+
 /** What a graph is, for telling a change from a refresh: node IRIs, `id source target` lines, the middle. */
 export interface Topology {
   nodes: ReadonlySet<string>;
@@ -245,8 +309,8 @@ class Grid {
 }
 
 /**
- * Where each node starts (design §3.3), deterministic. Drawn nodes (a finite
- * position in `at`) start where they are. The rest are placed breadth first from
+ * Where each node starts (key design decision 17), deterministic. Drawn nodes
+ * (a finite position in `at`) start where they are. The rest are placed breadth first from
  * the middle element (the first node when there is none), over the lines in both
  * directions in their order: a new node one `distance` (twice the collision
  * radius) from the node it was reached from, its siblings fanned outward over at
@@ -371,17 +435,24 @@ type ForceLinkDatum = SimulationLinkDatum<ForceNode>;
 interface ForceSimulation {
   simulation: Simulation<ForceNode, ForceLinkDatum>;
   link: ForceLink<ForceNode, ForceLinkDatum>;
+  charge: ForceManyBody<ForceNode>;
+  collide: ForceCollide<ForceNode>;
   x: ForceX<ForceNode>;
   y: ForceY<ForceNode>;
 }
 
-/** A simulation with la-gram's forces, stopped at once: la-gram's loop steps it, d3's timer never does. */
-function createSimulation(radius: number): ForceSimulation {
+/**
+ * A simulation with la-gram's forces, stopped at once: la-gram's loop steps it, d3's timer never does.
+ * `radius` is the collision radius to apply, the scale already in it; `params` give the link and the charge.
+ */
+function createSimulation(radius: number, params: Readonly<ForceParams>): ForceSimulation {
   const simulation = forceSimulation<ForceNode, ForceLinkDatum>().stop();
   // Links find their ends by IRI, not by d3's default, the node's index.
   const link = forceLink<ForceNode, ForceLinkDatum>([])
     .id((n) => n.id)
-    .distance(FORCE.linkDistance);
+    .distance(params.linkDistance);
+  const charge = forceManyBody<ForceNode>().strength(params.chargeStrength).distanceMax(FORCE.chargeRange);
+  const collide = forceCollide<ForceNode>(radius).iterations(FORCE.collideIterations);
   const x = forceX<ForceNode>(0).strength(FORCE.gravity);
   const y = forceY<ForceNode>(0).strength(FORCE.gravity);
   // No forceCenter: it shifts every node to keep their mean in place, so a drag would slide the whole graph.
@@ -390,11 +461,11 @@ function createSimulation(radius: number): ForceSimulation {
     .alphaMin(FORCE.alphaMin)
     .velocityDecay(FORCE.velocityDecay)
     .force('link', link)
-    .force('charge', forceManyBody<ForceNode>().strength(FORCE.chargeStrength).distanceMax(FORCE.chargeRange))
-    .force('collide', forceCollide<ForceNode>(radius).iterations(FORCE.collideIterations))
+    .force('charge', charge)
+    .force('collide', collide)
     .force('x', x)
     .force('y', y);
-  return { simulation, link, x, y };
+  return { simulation, link, charge, collide, x, y };
 }
 
 /**
@@ -425,18 +496,21 @@ function pull(force: ForceSimulation, anchor: Point, aspect: number): void {
 const decayOver = (steps: number) => 1 - Math.pow(FORCE.alphaMin, 1 / steps);
 
 /**
- * The force layout of an undrawn graph (design §3.10): headless, synchronous and
- * deterministic, round (0, 0) with the middle element pinned there, an even pull
- * (aspect 1), a collision radius from the given size. It steps until alpha falls
- * below `alphaMin` (300 steps, or 200 above `animateMaxNodes`), with no time
- * budget, so the result does not depend on the machine.
+ * The force layout of an undrawn graph (key design decision 17): headless,
+ * synchronous and deterministic, round (0, 0) with the middle element pinned
+ * there, an even pull (aspect 1), a collision radius from the given size times
+ * `collideScale`, and the given forces, through `toForceParams` (the defaults
+ * where none are given). It steps until alpha falls below `alphaMin` (300
+ * steps, or 200 above `animateMaxNodes`), with no time budget, so the result
+ * does not depend on the machine.
  */
 export function forcePositions(
   nodes: readonly ForceGraphNode[],
   edges: readonly ForceGraphEdge[],
-  options: { rootId?: string; width: number; height: number },
+  options: { rootId?: string; width: number; height: number; params?: Partial<ForceParams> },
 ): Map<string, Point> {
-  const radius = Math.hypot(options.width, options.height) / 2 + FORCE.collidePadding;
+  const params = toForceParams({ ...DEFAULT_FORCE_PARAMS, ...options.params });
+  const radius = (Math.hypot(options.width, options.height) / 2 + FORCE.collidePadding) * params.collideScale;
   const rootId = options.rootId ?? '';
   const centre = { x: 0, y: 0 };
   const starts = seedPositions(nodes, edges, rootId, new Map(), centre, 2 * radius);
@@ -444,7 +518,7 @@ export function forcePositions(
     const p = starts.get(n.id)!;
     return { id: n.id, x: p.x, y: p.y, vx: 0, vy: 0, ...(n.id === rootId ? { fx: p.x, fy: p.y } : {}) };
   });
-  const force = createSimulation(radius);
+  const force = createSimulation(radius, params);
   load(force, objects, edges);
   const root = objects.find((n) => n.id === rootId);
   pull(force, root ? { x: root.x, y: root.y } : centre, 1);
@@ -475,7 +549,7 @@ export interface ForceRunStats {
 
 export interface LiveForceOptions {
   frames: FrameScheduler;
-  /** Collision radius: half the drawn box's diagonal, plus 2. */
+  /** Collision radius: half the drawn box's diagonal, plus 2; applied times `ForceParams.collideScale`. */
   radius: number;
   reducedMotion(): boolean;
   /** Positions to draw: a frame of the animation, or the layout at rest. */
@@ -506,14 +580,18 @@ export interface LiveGraph {
 type DragMode = 'live' | 'held' | 'alone';
 
 /**
- * The live force layout (key decision 17): the loop of design §4.3. One
- * simulation, created on the first `setGraph()`; one pending frame at most,
- * requested only while a run is in progress, not paused and not destroyed.
+ * The live force layout (key decision 17): the loop described under
+ * *Relationship graph* in `.agents/specs/la-gram/design.md`. One simulation,
+ * created on the first `setGraph()`; one pending frame at most, requested only
+ * while a run is in progress, not paused and not destroyed.
  *
  * The clock is read at the start of each frame, slice or synchronous part and
  * after each step, nowhere else, and every budget is checked before a step with
  * the last step's time standing for the next one's: a step cannot be split, so
  * where one is longer than the bound, the frame or slice is that one step.
+ *
+ * The forces (`setParams`, Req 17.13) reach d3 at the next start, frame or
+ * rebuild, so any number of changes between two frames are one update.
  */
 export class LiveForce {
   private readonly limits: ForceLimits;
@@ -541,6 +619,10 @@ export class LiveForce {
   private readonly drags = new Map<string, DragMode>();
   /** Nodes fixed for this run only: kept nodes and held drags. The middle element is pinned for good, never here. */
   private readonly held = new Set<string>();
+  /** The forces in use: the defaults until setParams(). */
+  private settings: ForceParams = { ...DEFAULT_FORCE_PARAMS };
+  /** Whether d3 has yet to get `settings`: at the next start, frame or rebuild (apply()). */
+  private stale = false;
 
   constructor(private readonly options: LiveForceOptions) {
     this.limits = resolveLimits(options.limits);
@@ -548,14 +630,16 @@ export class LiveForce {
 
   /** The graph to lay out. Returns each node's start position. Schedules nothing; run() follows it. */
   setGraph(graph: LiveGraph): Map<string, Point> {
-    const force = (this.force ??= createSimulation(this.options.radius));
+    const force = (this.force ??= createSimulation(this.radius(), this.settings));
+    this.apply();
     const ids = new Set(graph.nodes.map((n) => n.id));
     if (graph.reheat === 0 && ids.size === this.byId.size && [...ids].every((id) => this.byId.has(id))) return this.positions();
 
     // A rebuild ends a run in progress without a report; the run() that follows reports, and decides again.
     this.cancelFrame();
     this.phase = 'idle';
-    const starts = seedPositions(graph.nodes, graph.edges, graph.rootId, graph.at, graph.centre, 2 * this.options.radius);
+    // One collision diameter from the parent, at the collision radius in use.
+    const starts = seedPositions(graph.nodes, graph.edges, graph.rootId, graph.at, graph.centre, 2 * this.radius());
     const rootId = ids.has(graph.rootId) ? graph.rootId : '';
     if (graph.restart) this.drags.clear();
     else for (const id of [...this.drags.keys()]) if (!ids.has(id)) this.drags.delete(id);
@@ -589,7 +673,7 @@ export class LiveForce {
     return new Map([...starts].map(([id, p]) => [id, { x: p.x, y: p.y }]));
   }
 
-  /** Start the new graph's layout run as design §3.2 decides, or resume one in progress; nothing at rest. */
+  /** Start the new graph's layout run as key design decision 17 decides, or resume one in progress; nothing at rest. */
   run(): void {
     if (this.destroyed) return;
     this.paused = false;
@@ -602,8 +686,58 @@ export class LiveForce {
       if (this.reported === 'running') this.done(this.alpha());
       return;
     }
-    if (this.liveDrags() > 0 || (!this.options.reducedMotion() && this.nodes.length <= this.limits.animateMaxNodes)) this.start('animate');
+    if (this.animates()) this.start('animate');
     else this.start('settle');
+  }
+
+  /** Whether a run started now is animated: a drag is live, or the graph is small and motion is not reduced. */
+  animates(): boolean {
+    return this.liveDrags() > 0 || (!this.options.reducedMotion() && this.nodes.length <= this.limits.animateMaxNodes);
+  }
+
+  /**
+   * The forces to lay out with (Req 17.13), merged into those in use and
+   * brought into range by `toForceParams`. Returns false, and does nothing,
+   * when nothing changes, or after destroy(). Otherwise d3 gets them at the
+   * next start, frame or rebuild, at most once a frame. With a graph: nothing
+   * is held still — a change of forces should move every element — alpha is
+   * raised to at least `reheatMin`, and a run laid out at once is cut off as a
+   * rebuild cuts it off, so that the run() that follows starts a fresh one,
+   * with a fresh budget. Drags and the middle element's pin are untouched.
+   * Schedules nothing; run() follows it.
+   */
+  setParams(next: Partial<ForceParams>): boolean {
+    if (this.destroyed) return false;
+    const params = toForceParams({ ...this.settings, ...next });
+    const now = this.settings;
+    if (params.linkDistance === now.linkDistance && params.chargeStrength === now.chargeStrength && params.collideScale === now.collideScale) {
+      return false;
+    }
+    this.settings = params;
+    this.stale = true;
+    if (this.nodes.length === 0) return true;
+    this.kept = new Set();
+    const simulation = this.force!.simulation;
+    simulation.alpha(Math.max(simulation.alpha(), FORCE.reheatMin));
+    if (this.phase === 'settle') {
+      this.cancelFrame();
+      this.release();
+      this.phase = 'idle';
+      // An element dragged meanwhile stays held where it is, as across a rebuild.
+      for (const [id, mode] of this.drags) {
+        const node = this.byId.get(id);
+        if (mode !== 'held' || id === this.rootId || !node) continue;
+        node.fx = node.x;
+        node.fy = node.y;
+        this.held.add(id);
+      }
+    }
+    return true;
+  }
+
+  /** The forces in use, a copy. */
+  params(): ForceParams {
+    return { ...this.settings };
   }
 
   dragStart(id: string): void {
@@ -717,6 +851,20 @@ export class LiveForce {
     return this.force?.simulation.alpha() ?? 0;
   }
 
+  /** The collision radius in use: the given one times `collideScale`. */
+  private radius(): number {
+    return this.options.radius * this.settings.collideScale;
+  }
+
+  /** Give d3 the forces set since it last got them, if any: once, however many setParams() came between. */
+  private apply(): void {
+    if (!this.stale || !this.force) return;
+    this.force.link.distance(this.settings.linkDistance);
+    this.force.charge.strength(this.settings.chargeStrength);
+    this.force.collide.radius(this.radius());
+    this.stale = false;
+  }
+
   private liveDrags(): number {
     let n = 0;
     for (const mode of this.drags.values()) if (mode === 'live') n++;
@@ -809,6 +957,7 @@ export class LiveForce {
   }
 
   private start(mode: 'animate' | 'settle'): void {
+    this.apply();
     const simulation = this.force!.simulation;
     this.current = { mode, nodes: this.nodes.length, steps: 0, syncMs: 0, computeMs: 0, longestStepMs: 0, alpha: simulation.alpha(), startedAt: NaN };
     if (mode === 'animate') {
@@ -864,6 +1013,8 @@ export class LiveForce {
   private step(): void {
     this.frame = undefined;
     if (this.paused || this.destroyed || this.phase === 'idle') return;
+    // Forces changed since the last frame reach d3 here: one update a frame, however many changes.
+    this.apply();
     const begun = this.read();
     if (this.phase === 'animate') {
       this.tick();

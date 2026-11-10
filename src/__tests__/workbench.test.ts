@@ -1234,6 +1234,7 @@ describe('the workbench', () => {
       highlight: () => undefined,
       positions: () => placed,
       pause: () => undefined,
+      setForceParams: () => undefined,
       layoutStats: () => undefined,
       destroy: () => undefined,
     });

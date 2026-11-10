@@ -5,16 +5,20 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_FORCE_PARAMS,
   FORCE,
+  FORCE_CONTROLS,
   LiveForce,
   forcePositions,
   resolveLimits,
   seedPositions,
+  toForceParams,
   topologyChange,
   topologyOf,
   type ForceGraphEdge,
   type ForceGraphNode,
   type ForceLimits,
+  type ForceParams,
   type FrameScheduler,
   type LayoutState,
   type LiveGraph,
@@ -119,6 +123,9 @@ const angle = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) /
 const finitePositions = (at: ReadonlyMap<string, Point>) => [...at.values()].every((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
 const largestMove = (before: ReadonlyMap<string, Point>, after: ReadonlyMap<string, Point>, ids: string[]) =>
   Math.max(...ids.map((id) => distance(before.get(id)!, after.get(id)!)));
+/** The mean length of the lines, between their ends' positions. */
+const meanLine = (at: ReadonlyMap<string, Point>, edges: readonly ForceGraphEdge[]) =>
+  edges.reduce((sum, e) => sum + distance(at.get(e.source)!, at.get(e.target)!), 0) / edges.length;
 
 describe('seedPositions', () => {
   it('keeps drawn nodes where they are', () => {
@@ -285,11 +292,67 @@ describe('resolveLimits', () => {
   });
 });
 
+describe('toForceParams', () => {
+  const defaults: ForceParams = { linkDistance: FORCE.linkDistance, chargeStrength: FORCE.chargeStrength, collideScale: 1 };
+
+  it('gives every default for anything but an object', () => {
+    for (const value of [undefined, null, 'x', 42, true, []]) expect(toForceParams(value), JSON.stringify(value)).toEqual(defaults);
+    expect(toForceParams({})).toEqual(defaults);
+  });
+
+  it('clamps each field to its range: link distance 40–400, charge −1 500–0, collision 0.5–2', () => {
+    expect(toForceParams({ linkDistance: 9999, chargeStrength: 50, collideScale: 0.01 })).toEqual({ linkDistance: 400, chargeStrength: 0, collideScale: 0.5 });
+    expect(toForceParams({ linkDistance: -5, chargeStrength: -99999, collideScale: 7 })).toEqual({ linkDistance: 40, chargeStrength: -1500, collideScale: 2 });
+  });
+
+  it('snaps each field to its step from the minimum, rounded to two decimals', () => {
+    expect(toForceParams({ linkDistance: 183, chargeStrength: -372, collideScale: 1.26 })).toEqual({ linkDistance: 180, chargeStrength: -350, collideScale: 1.3 });
+    // 0.5 + 8 × 0.1 is 1.3000000000000003 in floating point; every step of the collision radius has one decimal.
+    for (let k = 0; k <= 15; k++) expect(String(toForceParams({ collideScale: 0.5 + k * 0.1 }).collideScale)).toMatch(/^\d(\.\d)?$/);
+  });
+
+  it('takes a field that is not a finite number as its default, and keeps the others', () => {
+    for (const bad of [NaN, Infinity, -Infinity, '200', null, undefined, {}]) {
+      const label = String(bad);
+      expect(toForceParams({ linkDistance: bad, chargeStrength: -500, collideScale: 1.5 }), label).toEqual({ ...defaults, chargeStrength: -500, collideScale: 1.5 });
+      expect(toForceParams({ linkDistance: 220, chargeStrength: bad, collideScale: 1.5 }), label).toEqual({ ...defaults, linkDistance: 220, collideScale: 1.5 });
+      expect(toForceParams({ linkDistance: 220, chargeStrength: -500, collideScale: bad }), label).toEqual({ ...defaults, linkDistance: 220, chargeStrength: -500 });
+    }
+  });
+
+  it('never gives −0: a charge of −0 or −10 is 0', () => {
+    expect(Object.is(toForceParams({ chargeStrength: -0 }).chargeStrength, 0)).toBe(true);
+    expect(Object.is(toForceParams({ chargeStrength: -10 }).chargeStrength, 0)).toBe(true);
+  });
+
+  it('gives a new object, and changes none of its input', () => {
+    const input = { linkDistance: 183, chargeStrength: -372, collideScale: 1.26 };
+    const copy = { ...input };
+    expect(toForceParams(input)).not.toBe(input);
+    expect(toForceParams(DEFAULT_FORCE_PARAMS)).not.toBe(DEFAULT_FORCE_PARAMS);
+    expect(input).toEqual(copy);
+    expect(Object.isFrozen(DEFAULT_FORCE_PARAMS)).toBe(true);
+  });
+});
+
 describe('FORCE', () => {
   it('keeps every node limit within the bench sweep’s largest size, 3 000 (no measuring run’s 5 000 ships)', () => {
     for (const limit of [FORCE.animateMaxNodes, FORCE.liveDragMaxNodes, FORCE.forceMaxNodes]) expect(limit).toBeLessThanOrEqual(3000);
     expect(FORCE.animateMaxNodes).toBeLessThanOrEqual(FORCE.liveDragMaxNodes);
     expect(FORCE.liveDragMaxNodes).toBeLessThanOrEqual(FORCE.forceMaxNodes);
+  });
+
+  it('gives forces whose defaults are FORCE’s, each within its slider’s range and on its step', () => {
+    expect(DEFAULT_FORCE_PARAMS).toEqual({ linkDistance: FORCE.linkDistance, chargeStrength: FORCE.chargeStrength, collideScale: 1 });
+    for (const key of ['linkDistance', 'chargeStrength', 'collideScale'] as const) {
+      const { min, max, step } = FORCE_CONTROLS[key];
+      const value = DEFAULT_FORCE_PARAMS[key];
+      expect(value, key).toBeGreaterThanOrEqual(min);
+      expect(value, key).toBeLessThanOrEqual(max);
+      const k = (value - min) / step;
+      expect(Math.abs(k - Math.round(k)), key).toBeLessThan(1e-9);
+      expect(toForceParams({ [key]: value })[key], key).toBe(value);
+    }
   });
 });
 
@@ -848,6 +911,165 @@ describe('LiveForce, dragging', () => {
   });
 });
 
+describe('LiveForce, forces (Req 17.13)', () => {
+  it('changes nothing at the defaults: setParams(DEFAULT_FORCE_PARAMS) returns false, and the run writes what a run without it writes', () => {
+    const plain = live({ advance: 1 });
+    const given = live({ advance: 1 });
+    expect(given.force.setParams(DEFAULT_FORCE_PARAMS)).toBe(false);
+    for (const l of [plain, given]) {
+      l.force.setGraph(graph(tree(12), 'n0'));
+      l.force.run();
+      l.f.flush(20);
+    }
+    expect(given.force.setParams({ ...DEFAULT_FORCE_PARAMS })).toBe(false);
+    for (const l of [plain, given]) l.f.rest();
+    expect(given.writes.length).toBeGreaterThan(20);
+    expect(given.writes).toEqual(plain.writes);
+    expect(given.force.params()).toEqual(DEFAULT_FORCE_PARAMS);
+  });
+
+  it('at rest, a longer link distance runs again: longer lines at rest, the middle element where it was; the same again does nothing', () => {
+    const l = live({ advance: 1 });
+    const g = tree(12);
+    const start = l.force.setGraph(graph(g, 'n0'));
+    l.force.run();
+    l.f.rest();
+    const before = l.force.positions();
+    const reported = l.states.length;
+    expect(l.force.setParams({ linkDistance: 360 })).toBe(true);
+    expect(l.force.params()).toEqual({ ...DEFAULT_FORCE_PARAMS, linkDistance: 360 });
+    expect(l.f.queued).toBe(0);
+    l.force.run();
+    expect(l.states.slice(reported)).toEqual(['running']);
+    expect(l.f.rest()).toBeLessThan(1000);
+    expect(l.states.slice(reported)).toEqual(['running', 'settled']);
+    const after = l.force.positions();
+    expect(meanLine(after, g.edges)).toBeGreaterThan(meanLine(before, g.edges) + 60);
+    expect(after.get('n0')).toEqual(start.get('n0'));
+    expect(l.force.setParams({ linkDistance: 360 })).toBe(false);
+    l.force.run();
+    expect(l.f.queued).toBe(0);
+    expect(l.states.slice(reported)).toEqual(['running', 'settled']);
+  });
+
+  it('applies the forces at the next frame, once however many changes came before it: three changes are the last one', () => {
+    const [many, once, none] = [live({ advance: 1 }), live({ advance: 1 }), live({ advance: 1 })];
+    const g = tree(12);
+    for (const l of [many!, once!, none!]) {
+      l.force.setGraph(graph(g, 'n0'));
+      l.force.run();
+      l.f.flush(20);
+    }
+    for (const linkDistance of [300, 120, 360]) {
+      expect(many!.force.setParams({ linkDistance })).toBe(true);
+      many!.force.run();
+      expect(many!.f.queued).toBe(1);
+    }
+    once!.force.setParams({ linkDistance: 360 });
+    once!.force.run();
+    for (const l of [many!, once!, none!]) l.f.flush(1);
+    expect(many!.writes.at(-1)).toEqual(once!.writes.at(-1));
+    for (const l of [many!, once!, none!]) l.f.rest();
+    expect(many!.writes.at(-1)).toEqual(once!.writes.at(-1));
+    // Applied in the run, not only at the next start: its lines at rest are longer than with no change.
+    expect(meanLine(many!.force.positions(), g.edges)).toBeGreaterThan(meanLine(none!.force.positions(), g.edges) + 60);
+    expect(many!.states).toEqual(['running', 'settled']);
+  });
+
+  it('laid out at once, a change is laid out inside run() with nothing held: one write, settled, nothing queued, the drawn elements moved', () => {
+    const l = live({ advance: 0.1, reduced: true });
+    const first = graph(tree(11), 'n0');
+    l.force.setGraph(first);
+    l.force.run();
+    // One element more: the eleven drawn are held while it is laid out.
+    l.force.setGraph(next(first, tree(12), 'n0', l.force.positions()));
+    l.force.run();
+    const before = l.force.positions();
+    const writes = l.writes.length;
+    expect(l.force.animates()).toBe(false);
+    expect(l.force.setParams({ collideScale: 2 })).toBe(true);
+    l.force.run();
+    expect(l.writes).toHaveLength(writes + 1);
+    expect(l.states).toEqual(['settled', 'settled', 'settled']);
+    expect(l.f.queued).toBe(0);
+    const after = l.writes.at(-1)!;
+    const moved = [...before.keys()].filter((id) => distance(before.get(id)!, after.get(id)!) > 1);
+    expect(moved.length).toBeGreaterThanOrEqual(before.size - 2);
+    expect(after.get('n0')).toEqual(before.get('n0'));
+  });
+
+  it('while a layout laid out at once runs in slices, a change starts it afresh with a fresh budget: one frame queued at most, settled once, at the end', () => {
+    const l = live({ advance: 20, reduced: true, limits: { syncSettleMs: 0 } });
+    l.force.setGraph(graph(tree(10), 'n0'));
+    l.force.run();
+    l.f.flush(1);
+    expect(l.force.stats()!.steps).toBe(1);
+    expect(l.force.setParams({ linkDistance: 300 })).toBe(true);
+    expect(l.f.queued).toBe(0);
+    l.force.run();
+    expect(l.f.queued).toBe(1);
+    expect(l.force.stats()!.steps).toBe(0);
+    for (let frames = 0; l.f.queued > 0 && frames < 1000; frames++) {
+      l.f.flush(1);
+      expect(l.f.queued).toBeLessThanOrEqual(1);
+    }
+    expect(l.states).toEqual(['running', 'settled']);
+    expect(l.writes).toHaveLength(1);
+    // The whole budget, 75 steps of 20 ms, for the new run.
+    expect(l.force.stats()).toMatchObject({ steps: 75, computeMs: FORCE.settleBudgetMs });
+  });
+
+  it('keeps an element dragged while the slices run held across a change: it is where it was dropped at the one write', () => {
+    const l = live({ advance: 3, limits: { animateMaxNodes: 1, liveDragMaxNodes: 1, syncSettleMs: 0 } });
+    l.force.setGraph(graph(path('r', 'a', 'b', 'c'), 'r', { aspect: 2 }));
+    l.force.run();
+    l.f.flush(1);
+    l.force.dragStart('b');
+    l.force.dragMove('b', { x: 300, y: -100 });
+    expect(l.force.setParams({ chargeStrength: -800 })).toBe(true);
+    l.force.run();
+    l.f.flush(1);
+    expect(l.force.positions().get('b')).toEqual({ x: 300, y: -100 });
+    const drop = { x: 600, y: -250 };
+    l.force.dragMove('b', drop);
+    l.force.dragEnd('b', drop);
+    l.f.rest();
+    expect(l.writes).toHaveLength(1);
+    expect(l.writes[0]!.get('b')).toEqual(drop);
+  });
+
+  it('keeps forces set before any graph for the first one: a new element starts one collision diameter, at the scale, from its parent', () => {
+    const l = live();
+    expect(l.force.setParams({ collideScale: 2 })).toBe(true);
+    expect(l.f.queued).toBe(0);
+    const start = l.force.setGraph(graph(path('r', 'a'), 'r'));
+    expect(distance(start.get('r')!, start.get('a')!)).toBeCloseTo(2 * D, 9);
+    const plain = live().force.setGraph(graph(path('r', 'a'), 'r'));
+    expect(distance(plain.get('r')!, plain.get('a')!)).toBeCloseTo(D, 9);
+  });
+
+  it('animates() says how a run started now would run: animated for 5 elements, not under reduced motion, not above animateMaxNodes', () => {
+    const l = live();
+    l.force.setGraph(graph(tree(5), 'n0'));
+    expect(l.force.animates()).toBe(true);
+    l.reduced = true;
+    expect(l.force.animates()).toBe(false);
+    const big = live({ limits: { animateMaxNodes: 3 } });
+    big.force.setGraph(graph(tree(5), 'n0'));
+    expect(big.force.animates()).toBe(false);
+  });
+
+  it('brings the forces into range, and after destroy() takes none', () => {
+    const l = live();
+    expect(l.force.setParams({ linkDistance: 9999, collideScale: 1.26 })).toBe(true);
+    expect(l.force.params()).toEqual({ ...DEFAULT_FORCE_PARAMS, linkDistance: 400, collideScale: 1.3 });
+    l.force.setGraph(graph(tree(5), 'n0'));
+    l.force.destroy();
+    expect(l.force.setParams({ linkDistance: 300 })).toBe(false);
+    expect(l.force.params().linkDistance).toBe(400);
+  });
+});
+
 describe('forcePositions', () => {
   it('lays out headless round the middle element at (0, 0), the same each time, changing none of its input', () => {
     const g = tree(20, 3);
@@ -857,5 +1079,32 @@ describe('forcePositions', () => {
     expect(one.get('n0')).toEqual({ x: 0, y: 0 });
     expect(Object.fromEntries(two)).toEqual(Object.fromEntries(one));
     expect(g).toEqual(copy);
+  });
+
+  it('lays out with the given forces: the defaults as with none, a longer link distance longer lines and farther out, the same each time', () => {
+    const g = tree(20, 3);
+    const options = { rootId: 'n0', width: 120, height: 55 };
+    const none = forcePositions(g.nodes, g.edges, options);
+    expect(Object.fromEntries(forcePositions(g.nodes, g.edges, { ...options, params: DEFAULT_FORCE_PARAMS }))).toEqual(Object.fromEntries(none));
+    const far = forcePositions(g.nodes, g.edges, { ...options, params: { linkDistance: 360 } });
+    expect(Object.fromEntries(forcePositions(g.nodes, g.edges, { ...options, params: { linkDistance: 360 } }))).toEqual(Object.fromEntries(far));
+    expect(meanLine(far, g.edges)).toBeGreaterThan(meanLine(none, g.edges) + 100);
+    const fromMiddle = (at: ReadonlyMap<string, Point>) => [...at.values()].reduce((sum, p) => sum + Math.hypot(p.x, p.y), 0) / (at.size - 1);
+    expect(fromMiddle(far)).toBeGreaterThan(fromMiddle(none));
+    expect(far.get('n0')).toEqual({ x: 0, y: 0 });
+  });
+
+  it('brings the given forces into range, and scales the collision radius: at 2× the closest elements are farther apart', () => {
+    const g = tree(20, 3);
+    const options = { rootId: 'n0', width: 120, height: 55 };
+    const at = (params: Partial<ForceParams>) => Object.fromEntries(forcePositions(g.nodes, g.edges, { ...options, params }));
+    expect(at({ linkDistance: 9999, chargeStrength: 40 })).toEqual(at({ linkDistance: 400, chargeStrength: 0 }));
+    const closest = (params: Partial<ForceParams>) => {
+      const points = Object.values(at(params));
+      let best = Infinity;
+      for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) best = Math.min(best, distance(points[i]!, points[j]!));
+      return best;
+    };
+    expect(closest({ collideScale: 2 })).toBeGreaterThan(closest({}) + 20);
   });
 });

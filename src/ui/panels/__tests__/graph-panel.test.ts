@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import type { GraphQueryOptions, RelationshipGraph } from '../../../model-manager/relationship-graph.js';
 import '../graph-panel.js';
 import type { GraphPanel, GraphSource, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail } from '../graph-panel.js';
+import type { ForceParams } from '../graph-force.js';
 import type { GraphLayout, GraphLayoutStats, GraphShowOptions, GraphView, GraphViewHandlers } from '../graph-view.js';
 
 const M = 'https://example.org/m/';
@@ -12,10 +13,13 @@ const LIMITS = { animateMaxNodes: 300, liveDragMaxNodes: 600, forceMaxNodes: 600
 
 function fakeView() {
   const shown: Array<{ nodes: unknown[]; edges: unknown[]; root: string; layout: GraphLayout; options: GraphShowOptions | undefined }> = [];
+  /** Each setForceParams(), with how many drawings came before it. */
+  const forced: Array<{ params: ForceParams; final: boolean; shownBefore: number }> = [];
   let handlers: GraphViewHandlers | undefined;
   const view = {
     show: (nodes, edges, root, layout, options) => void shown.push({ nodes, edges, root, layout, options }),
     relayout: vi.fn(),
+    setForceParams: vi.fn((params: ForceParams, final: boolean) => void forced.push({ params, final, shownBefore: shown.length })),
     fit: vi.fn(),
     resize: vi.fn(),
     highlight: vi.fn(),
@@ -28,7 +32,7 @@ function fakeView() {
     layoutStats: vi.fn((): GraphLayoutStats => ({ layout: 'force', drawnBy: 'force', limits: LIMITS })),
     destroy: vi.fn(),
   } satisfies GraphView;
-  return { view, shown, factory: vi.fn((_c: HTMLElement, h: GraphViewHandlers) => ((handlers = h), view)), handlers: () => handlers! };
+  return { view, shown, forced, factory: vi.fn((_c: HTMLElement, h: GraphViewHandlers) => ((handlers = h), view)), handlers: () => handlers! };
 }
 
 function fakeSource() {
@@ -305,5 +309,139 @@ describe('<graph-panel> layouts (key decision 17)', () => {
     const plain = await mount();
     await plain.panel.updateComplete;
     expect(plain.root.querySelector('.stats')!.textContent!.trim()).toBe('2 elements · 1 relationships');
+  });
+});
+
+describe('<graph-panel> forces (Req 17.13)', () => {
+  const KEY = 'la-gram:graph-forces';
+  const DEFAULTS: ForceParams = { linkDistance: 180, chargeStrength: -350, collideScale: 1 };
+  const select = (root: ShadowRoot) => root.querySelector<HTMLSelectElement>('select[aria-label="Layout"]')!;
+  const slider = (root: ShadowRoot, key: keyof ForceParams) => root.querySelector<HTMLInputElement>(`details.forces input[data-force="${key}"]`)!;
+  /** The three sliders' values, as the slider holds them (the charge's is the push, positive). */
+  const values = (root: ShadowRoot) => (['linkDistance', 'chargeStrength', 'collideScale'] as const).map((key) => slider(root, key).value);
+  /** The three values shown beside the labels. */
+  const shown = (root: ShadowRoot) => ['force-link', 'force-charge', 'force-collide'].map((id) => root.querySelector(`output[for="${id}"]`)!.textContent!.trim());
+  const spoken = (root: ShadowRoot) => (['linkDistance', 'chargeStrength', 'collideScale'] as const).map((key) => slider(root, key).getAttribute('aria-valuetext'));
+  /** A slider moved to `value`: `input`, as while it is dragged, or `change`, as when it is let go or a key moves it. */
+  const slide = (input: HTMLInputElement, value: string, event: 'input' | 'change') => {
+    input.value = value;
+    input.dispatchEvent(new Event(event));
+  };
+
+  it('shows the forces, folded, with Force only: not with Rings or Tree, chosen or remembered, and again with Force', async () => {
+    const { panel, root } = await mount();
+    const forces = () => root.querySelector<HTMLDetailsElement>('details.forces');
+    expect(forces()!.open).toBe(false);
+    expect(forces()!.querySelector('summary')!.textContent!.trim()).toBe('Forces');
+    for (const layout of ['rings', 'tree', 'force'] as const) {
+      select(root).value = layout;
+      select(root).dispatchEvent(new Event('change'));
+      await panel.updateComplete;
+      expect(forces() !== null, layout).toBe(layout === 'force');
+    }
+    for (const layout of ['rings', 'tree']) {
+      document.body.innerHTML = '';
+      remembered.set('la-gram:graph-layout', layout);
+      const mounted = await mount();
+      expect(mounted.root.querySelector('details.forces'), layout).toBeNull();
+    }
+  });
+
+  it('starts at the defaults when nothing is remembered, each labelled and shown with its unit, and gives them to the view before its first drawing', async () => {
+    const { view, root } = await mount();
+    expect(view.forced[0]).toEqual({ params: DEFAULTS, final: true, shownBefore: 0 });
+    expect([...root.querySelectorAll('details.forces label')].map((l) => [l.textContent!.trim(), l.getAttribute('for')])).toEqual([
+      ['Link distance', 'force-link'],
+      ['Charge strength', 'force-charge'],
+      ['Collision radius', 'force-collide'],
+    ]);
+    const ranges = (['linkDistance', 'chargeStrength', 'collideScale'] as const).map((key) => {
+      const input = slider(root, key);
+      return [input.id, input.type, input.min, input.max, input.step];
+    });
+    expect(ranges).toEqual([
+      ['force-link', 'range', '40', '400', '10'],
+      ['force-charge', 'range', '0', '1500', '50'],
+      ['force-collide', 'range', '0.5', '2', '0.1'],
+    ]);
+    expect(values(root)).toEqual(['180', '350', '1']);
+    expect(shown(root)).toEqual(['180 px', '350', '1.0×']);
+    expect(spoken(root)).toEqual(['180 pixels', 'repulsion 350', '1.0 times']);
+    expect(remembered.has(KEY)).toBe(false);
+  });
+
+  it('brings remembered forces into range and takes an unreadable field or key as the default, rewriting nothing on reading', async () => {
+    const text = '{"linkDistance":9999,"chargeStrength":"x","collideScale":0.73}';
+    remembered.set(KEY, text);
+    const { panel, view, root } = await mount();
+    const clamped = { linkDistance: 400, chargeStrength: -350, collideScale: 0.7 };
+    expect(view.forced[0]).toEqual({ params: clamped, final: true, shownBefore: 0 });
+    expect(panel.forces).toEqual(clamped);
+    expect(values(root)).toEqual(['400', '350', '0.7']);
+    expect(shown(root)).toEqual(['400 px', '350', '0.7×']);
+    expect(remembered.get(KEY)).toBe(text);
+
+    document.body.innerHTML = '';
+    remembered.set(KEY, 'not json');
+    const unreadable = await mount();
+    expect(unreadable.view.forced[0]!.params).toEqual(DEFAULTS);
+    expect(values(unreadable.root)).toEqual(['180', '350', '1']);
+    expect(remembered.get(KEY)).toBe('not json');
+  });
+
+  it('gives a moving slider to the view with final: false, remembering nothing; let go, with final: true, remembering the three', async () => {
+    const { panel, view, root } = await mount();
+    const link = slider(root, 'linkDistance');
+    slide(link, '230', 'input');
+    expect(view.forced.at(-1)).toMatchObject({ params: { ...DEFAULTS, linkDistance: 230 }, final: false });
+    await panel.updateComplete;
+    expect(shown(root)[0]).toBe('230 px');
+    expect(link.getAttribute('aria-valuetext')).toBe('230 pixels');
+    expect(remembered.has(KEY)).toBe(false);
+    slide(link, '230', 'change');
+    expect(view.forced.at(-1)).toMatchObject({ params: { ...DEFAULTS, linkDistance: 230 }, final: true });
+    expect(remembered.get(KEY)).toBe('{"linkDistance":230,"chargeStrength":-350,"collideScale":1}');
+    expect(panel.forces).toEqual({ ...DEFAULTS, linkDistance: 230 });
+  });
+
+  it('gives the charge in d3’s sign: the slider at 1000 is a charge of −1000, shown as 1000', async () => {
+    const { panel, view, root } = await mount();
+    slide(slider(root, 'chargeStrength'), '1000', 'change');
+    expect(view.forced.at(-1)).toMatchObject({ params: { ...DEFAULTS, chargeStrength: -1000 }, final: true });
+    expect(JSON.parse(remembered.get(KEY)!)).toEqual({ ...DEFAULTS, chargeStrength: -1000 });
+    await panel.updateComplete;
+    expect(shown(root)[1]).toBe('1000');
+    expect(slider(root, 'chargeStrength').getAttribute('aria-valuetext')).toBe('repulsion 1000');
+    // The slider's 0 is no push: a charge of 0, not −0.
+    slide(slider(root, 'chargeStrength'), '0', 'change');
+    expect(Object.is(panel.forces.chargeStrength, 0)).toBe(true);
+    expect(JSON.parse(remembered.get(KEY)!).chargeStrength).toBe(0);
+  });
+
+  it('Reset gives the defaults to the view with final: true, shows them, and forgets the remembered forces', async () => {
+    remembered.set(KEY, '{"linkDistance":300,"chargeStrength":-800,"collideScale":1.5}');
+    const { panel, view, root } = await mount();
+    expect(values(root)).toEqual(['300', '800', '1.5']);
+    root.querySelector<HTMLButtonElement>('details.forces button[data-force="reset"]')!.click();
+    expect(view.forced.at(-1)).toMatchObject({ params: DEFAULTS, final: true });
+    expect(remembered.has(KEY)).toBe(false);
+    expect(panel.forces).toEqual(DEFAULTS);
+    await panel.updateComplete;
+    expect(values(root)).toEqual(['180', '350', '1']);
+    expect(shown(root)).toEqual(['180 px', '350', '1.0×']);
+  });
+
+  it('disables the forces where Force draws the graph in rings, which the stats line says', async () => {
+    const view = fakeView();
+    view.view.layoutStats.mockReturnValue({ layout: 'force', drawnBy: 'rings', limits: LIMITS });
+    const { panel, root } = await mount(true, view);
+    await panel.updateComplete;
+    expect(root.querySelector<HTMLFieldSetElement>('details.forces fieldset')!.disabled).toBe(true);
+    expect(root.querySelector('.stats')!.textContent).toMatch(/drawn in rings: Force lays out up to 600 elements/);
+
+    document.body.innerHTML = '';
+    const plain = await mount();
+    await plain.panel.updateComplete;
+    expect(plain.root.querySelector<HTMLFieldSetElement>('details.forces fieldset')!.disabled).toBe(false);
   });
 });

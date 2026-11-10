@@ -110,7 +110,7 @@ async function setPass(page, cdp, pass) {
 }
 
 /**
- * One Graph tab measurement, in the page (design §8 of `.agents/tasks/graph-force/`):
+ * One Graph tab measurement, in the page (key design decision 17):
  * a frame sampler that records each animation frame's time and nothing else, the
  * call (select an element, or set the depth: both draw before they return), a wait
  * for `data-layout="settled"` polled every frame, two frames more; then the graph,

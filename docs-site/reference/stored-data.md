@@ -86,6 +86,7 @@ Each is off until you switch it on.
 | `la-gram:rdf-scope` | the RDF panel's scope | **View** |
 | `la-gram:validation-scope` | the Validation tab's scope | **View** |
 | `la-gram:graph-depth`, `la-gram:graph-layout`, `la-gram:graph-query-form` | the Graph tab's depth, layout and query form | **2**, **Force**, **SELECT** |
+| `la-gram:graph-forces` | the Graph tab's [*Forces*](../guide/graph.md#forces), *Link distance*, *Charge strength* and *Collision radius*, as one JSON object: `{"linkDistance":180,"chargeStrength":-350,"collideScale":1}`, the charge as d3-force takes it, negative. Written when a slider is let go or a key moves it; a value out of range, or between two steps, is read as the nearest its slider offers, anything unreadable as the default. *Reset* removes the key | **180 px**, **350**, **1.0×** |
 | `la-gram:about-sections` | which sections of *About ‹type›* are open | **as la-gram opens them** |
 | `la-gram:matrix-axes:<viewIri>` | a matrix view's row and column types, per view | **the two most common types** |
 

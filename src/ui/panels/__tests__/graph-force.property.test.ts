@@ -2,8 +2,8 @@
  * Properties of the live force layout's loop (key decision 17), on random
  * graphs and random sequences of what the view does to it: new graphs (another,
  * the same, one node more or fewer, with the reheat and kept nodes the view
- * gives), runs, pauses, ends, drags and frames. Whatever the sequence, once the
- * drags end and the layout comes to rest:
+ * gives), runs, pauses, ends, drags, frames and changes of the forces (Req
+ * 17.13). Whatever the sequence, once the drags end and the layout comes to rest:
  *
  * - every position is finite, and the middle element is where it started or
  *   was last dropped;
@@ -14,7 +14,17 @@
 
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { LiveForce, topologyChange, topologyOf, type ForceGraphEdge, type ForceGraphNode, type LayoutState, type LiveGraph, type Point } from '../graph-force.js';
+import {
+  FORCE_CONTROLS,
+  LiveForce,
+  topologyChange,
+  topologyOf,
+  type ForceGraphEdge,
+  type ForceGraphNode,
+  type LayoutState,
+  type LiveGraph,
+  type Point,
+} from '../graph-force.js';
 
 const RADIUS = Math.hypot(120, 46) / 2 + 2;
 const MAX_NODES = 25;
@@ -33,7 +43,8 @@ type Command =
   | { kind: 'dragStart'; pick: number }
   | { kind: 'dragMove'; pick: number; x: number; y: number }
   | { kind: 'dragEnd'; pick: number; x: number; y: number }
-  | { kind: 'flush'; frames: number };
+  | { kind: 'flush'; frames: number }
+  | { kind: 'params'; linkDistance: number; chargeStrength: number; collideScale: number };
 
 /** A graph of `size` nodes and lines between them by index, self-loops included; the middle element by `pick`. */
 function makeGraph(size: number, pairs: Array<[number, number]>, pick: number, prefix = 'n'): Graph {
@@ -59,6 +70,13 @@ const commandArb: fc.Arbitrary<Command> = fc.oneof(
   fc.record({ kind: fc.constant('dragMove' as const), pick: fc.nat(100), x: coordinate, y: coordinate }),
   fc.record({ kind: fc.constant('dragEnd' as const), pick: fc.nat(100), x: coordinate, y: coordinate }),
   fc.record({ kind: fc.constant('flush' as const), frames: fc.integer({ min: 1, max: 60 }) }),
+  // Any value of each slider's range, on its step or not: setParams() brings it into range.
+  fc.record({
+    kind: fc.constant('params' as const),
+    linkDistance: fc.integer({ min: FORCE_CONTROLS.linkDistance.min, max: FORCE_CONTROLS.linkDistance.max }),
+    chargeStrength: fc.integer({ min: FORCE_CONTROLS.chargeStrength.min, max: FORCE_CONTROLS.chargeStrength.max }),
+    collideScale: fc.integer({ min: 5, max: 20 }).map((n) => n / 10),
+  }),
 );
 
 const scenarioArb = fc.record({
@@ -197,6 +215,11 @@ describe('the live force layout', () => {
             }
             case 'flush':
               flush(c.frames);
+              break;
+            case 'params':
+              // As the view does with a slider: the forces, then a run.
+              force.setParams({ linkDistance: c.linkDistance, chargeStrength: c.chargeStrength, collideScale: c.collideScale });
+              force.run();
               break;
           }
         }

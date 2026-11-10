@@ -1219,9 +1219,14 @@ and every budget is checked before a step with the last step's time. With at lea
 half of the new graph drawn before, the drawn elements are held during a
 computation, so nothing the user was looking at moves. Above `forceMaxNodes`, Force
 runs no simulation: the graph is laid out as Rings and the stats line says *drawn in
-rings: Force lays out up to k elements* (`layoutStats().drawnBy`). Seeding
+rings: Force lays out up to k elements* (`layoutStats().drawnBy`). *Forces*, under
+*Layout* with Force (a folded `<details>`, native range inputs, disabled where Force
+draws rings), set the link distance, the charge and a factor on the collision radius
+(`ForceParams`, key design decision 17): an animated run follows a slider as it
+moves, at most one update a frame; a run laid out at once follows its release. Seeding
 (`seedPositions`): drawn elements start where they are; a new one one collision
-diameter (twice half the box's diagonal plus 2: 133 px) from the element it was
+diameter (twice half the box's diagonal plus 2, times the collision factor: 133 px
+at 1.0×) from the element it was
 reached from breadth first, siblings fanned outward over at most a half circle, the
 fan turned in 30° steps until it clears every drawn element (cells one diameter
 wide make the check linear); a new middle element beside its first drawn neighbour,
@@ -1236,15 +1241,17 @@ is dropped, and the pull with it. d3 gets objects of `LiveForce`'s own, made ane
 each rebuild, so the panel's nodes and lines are never changed. The camera moves by
 itself only at rest: the run frames the graph before `data-layout` turns `settled`,
 while the view is *following* — a press, scroll or pinch in the drawing ends it; the
-first drawing, a change the user asked for, a switch of layout and *Fit* start it.
+first drawing, a change the user asked for, a switch of layout, a change of forces
+and *Fit* start it.
 The panel says whether a drawing was asked for (`show(…, { follow })`) by comparing
 what is asked — source, root, depth, filters — with what it drew, so a refresh after
 a model change and a return to the tab keep the camera. Hiding the tab or folding
 the panel pauses the loop, a switch to Rings or Tree ends the run, removal destroys
 it; at rest nothing is scheduled. `layoutStats()` gives the layout, what drew it,
 the run's steps, times and alpha, and the limits, for the bench. Headless,
-`layoutPositions(…, 'force')` is `forcePositions`: the same forces and seeding round
-(0, 0), deterministic, with no time budget and no force limit.
+`layoutPositions(…, 'force')` is `forcePositions`: the same forces (the defaults
+unless `params` are given) and seeding round (0, 0), deterministic, with no time
+budget and no force limit.
 
 ### SPARQL tab and views from results
 
@@ -2949,7 +2956,29 @@ dialog; the modules' section).
     collision radius half the drawn box's diagonal plus 2, new elements seeded twice
     that from their parent; d3's alpha (300 steps, 200 above `animateMaxNodes`);
     4 ms and three steps an animated frame; `syncSettleMs` 100, `sliceMs` 12,
-    `settleBudgetMs` 1 500. **The limits, measured** on 2026-11-10 (Apple M4 Pro,
+    `settleBudgetMs` 1 500. **Three of them are the user's** (Req 17.13), as
+    `ForceParams`: *Link distance* (40–400 px, step 10), *Charge strength* (0–1 500,
+    step 50) and *Collision radius* (0.5×–2×, step 0.1), their defaults the settings
+    above, so the layout at the defaults is the one these settings give. The charge's
+    slider shows the push, `-chargeStrength`, so that further right is stronger, as on
+    the other two; d3 and storage keep its sign (−350). The collision radius is a
+    factor on the radius above, not pixels added: the radius comes from the box's
+    size, and a headless layout gets other sizes than the drawn 120 × 46, so 1.0×
+    means the same for any box; new elements are seeded twice the scaled radius from
+    their parent. `toForceParams` clamps and snaps whatever it is given — a slider,
+    storage, a caller. `LiveForce.setParams` keeps them, and d3 gets them at the next
+    start, frame or rebuild, so any number of changes between two frames are one
+    update; with a graph it holds nothing still, raises alpha to at least
+    `reheatMin` (0.3), and cuts a run laid out at once off, so that the next one
+    starts afresh with a whole budget (an element held by a drag stays held). The
+    view applies a slider's `input` while the run animates, and otherwise only its
+    `change` (let go, or a key), which lays the graph out again at once; a change of
+    forces is one the user asked for, so the rest is framed. They are remembered as
+    one JSON object, `la-gram:graph-forces`, brought into range on read, never
+    rewritten then, and removed by *Reset*. **The remembered layout is not
+    migrated**: `la-gram:graph-layout` keeps a stored `rings` or `tree`; a stored
+    `force` is the live Force; only the default changed, from Rings to Force.
+    **The limits, measured** on 2026-11-10 (Apple M4 Pro,
     Chrome, CPU throttled 4× through CDP, standing for a typical laptop):
     `animateMaxNodes` **100**, `liveDragMaxNodes` **100**, `forceMaxNodes` **800**.
     How to measure them again: set the three to 5 000 in `FORCE`,

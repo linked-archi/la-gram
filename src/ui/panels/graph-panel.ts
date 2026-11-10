@@ -3,9 +3,10 @@
  * selected element, drawn as a graph.
  *
  * Controls on the left: the root (the selected element; double-click a node to
- * move it), the depth (1–5 hops), the layout, and filters on element and
- * relationship types — which prune the traversal, not only the drawing. On the
- * right, the graph (`graph-view.ts`, Cytoscape.js).
+ * move it), the depth (1–5 hops), the layout — with Force, its *Forces*: link
+ * distance, charge strength and collision radius, remembered (Req 17.13) — and
+ * filters on element and relationship types, which prune the traversal, not
+ * only the drawing. On the right, the graph (`graph-view.ts`, Cytoscape.js).
  *
  * The layouts: Force, the default, live (key decision 17): the graph moves into
  * place and comes to rest, and a dragged element pulls the elements linked to
@@ -35,6 +36,7 @@ import {
   type GraphQueryOptions,
   type RelationshipGraph,
 } from '../../model-manager/relationship-graph.js';
+import { DEFAULT_FORCE_PARAMS, FORCE_CONTROLS, toForceParams, type ForceParams } from './graph-force.js';
 import { createCytoscapeView, type GraphLayout, type GraphLayoutStats, type GraphView, type GraphViewFactory } from './graph-view.js';
 
 /** A type offered in a filter. */
@@ -96,6 +98,8 @@ export interface GraphNewViewDetail {
 const DEPTH_KEY = 'la-gram:graph-depth';
 const LAYOUT_KEY = 'la-gram:graph-layout';
 const FORM_KEY = 'la-gram:graph-query-form';
+/** The three forces as one JSON object in d3's terms, so that *Reset* forgets them in one call. */
+const FORCES_KEY = 'la-gram:graph-forces';
 const REFRESH_DELAY_MS = 300;
 
 function stored(key: string): string | undefined {
@@ -112,6 +116,25 @@ function remember(key: string, value: string): void {
   } catch {
     /* not remembered: fine */
   }
+}
+
+function forget(key: string): void {
+  try {
+    globalThis.localStorage?.removeItem(key);
+  } catch {
+    /* not forgotten: fine */
+  }
+}
+
+/** The remembered forces, brought into range; unreadable or absent, the defaults. Not rewritten on read. */
+function readForces(): ForceParams {
+  let value: unknown;
+  try {
+    value = JSON.parse(stored(FORCES_KEY) ?? 'null');
+  } catch {
+    value = undefined;
+  }
+  return toForceParams(value);
 }
 
 function slug(text: string): string {
@@ -259,6 +282,51 @@ export class GraphPanel extends LitElement {
       color: #1a73e8;
       cursor: pointer;
     }
+    /* The forces: folded by default, so the column stays short in a short panel. A flex summary has no marker of
+       its own, and a folded one needs to look foldable; the chevron is silent to screen readers (alt text ''). */
+    .forces summary::before {
+      content: '▸';
+      content: '▸' / '';
+      width: 10px;
+      color: #5f6368;
+    }
+    .forces[open] summary::before {
+      content: '▾';
+      content: '▾' / '';
+    }
+    .forces fieldset {
+      border: 0;
+      margin: 4px 0 0;
+      padding: 0;
+      min-width: 0;
+    }
+    .forces fieldset:disabled {
+      opacity: 0.6;
+    }
+    .force {
+      margin-bottom: 6px;
+    }
+    .force .head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .force output {
+      color: #5f6368;
+      font-variant-numeric: tabular-nums;
+    }
+    .force input[type='range'] {
+      display: block;
+      width: 100%;
+      margin: 2px 0 0;
+      accent-color: #1a73e8;
+    }
+    .force input[type='range']:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: 2px;
+    }
     ul.types {
       list-style: none;
       margin: 4px 0 0;
@@ -340,6 +408,8 @@ export class GraphPanel extends LitElement {
   // Force by default (key decision 17). A remembered choice is kept, with no migration: a stored `rings` or
   // `tree` stays, a stored `force` is Force, now live; anything else means Force.
   @state() private _layout: GraphLayout = (['force', 'rings', 'tree'] as const).find((l) => l === stored(LAYOUT_KEY)) ?? 'force';
+  /** Force's forces (Req 17.13): remembered ones, brought into range, or the defaults. */
+  @state() private _forces: ForceParams = readForces();
   @state() private _form: GraphQueryForm = stored(FORM_KEY) === 'construct' ? 'construct' : 'select';
   @state() private _hiddenElements = new Set<string>();
   @state() private _hiddenRelationships = new Set<string>();
@@ -420,6 +490,30 @@ export class GraphPanel extends LitElement {
     this._depth = Math.max(1, Math.min(MAX_GRAPH_DEPTH, depth));
     remember(DEPTH_KEY, String(this._depth));
     this.refresh();
+  }
+
+  /** Force's forces, a copy: the charge in d3's sign, negative. */
+  get forces(): ForceParams {
+    return { ...this._forces };
+  }
+
+  /**
+   * Set one force (Req 17.13), brought into range. `final` for a slider's
+   * `change` (let go, or a key): remembered, and a graph laid out at once is
+   * laid out again; otherwise (`input`, as it moves) only an animated layout
+   * follows, and nothing is remembered.
+   */
+  setForce(key: keyof ForceParams, value: number, final: boolean): void {
+    this._forces = toForceParams({ ...this._forces, [key]: value });
+    this._view?.setForceParams({ ...this._forces }, final);
+    if (final) remember(FORCES_KEY, JSON.stringify(this._forces));
+  }
+
+  /** *Reset*: the three forces back to their defaults, and forgotten. */
+  resetForces(): void {
+    this._forces = { ...DEFAULT_FORCE_PARAMS };
+    this._view?.setForceParams({ ...this._forces }, true);
+    forget(FORCES_KEY);
   }
 
   /** Show or hide a type; hidden types are not traversed. */
@@ -509,6 +603,8 @@ export class GraphPanel extends LitElement {
           select: (iri) => this._emit('graph-select', { iri }),
           root: (iri) => this._emit('graph-root', { iri }),
         });
+        // The remembered forces, before the first drawing: the first force layout uses them.
+        this._view.setForceParams({ ...this._forces }, true);
         if (typeof ResizeObserver !== 'undefined') {
           // Cytoscape notices window resizes only; refit when the area changes.
           this._sizeWatcher = new ResizeObserver(() => {
@@ -591,6 +687,86 @@ export class GraphPanel extends LitElement {
       centres: this.drawnPositions(),
       label: `${this.source.label(this.rootIri)} — ${hops}`,
     });
+  }
+
+  /** One force's slider: its label and value above it, the value spoken with its unit (`aria-valuetext`). */
+  private _renderForce(
+    id: string,
+    key: keyof ForceParams,
+    label: string,
+    title: string,
+    range: { min: number; max: number; step: number },
+    /** The slider's value: the force's, or the push (−charge) for the charge. */
+    value: number,
+    shown: string,
+    spoken: string,
+  ) {
+    // The charge's slider shows the push, so further right is stronger; d3's sign is negative.
+    const toForce = (slider: number) => (key === 'chargeStrength' ? -slider : slider);
+    const set = (final: boolean) => (e: Event) => this.setForce(key, toForce(Number((e.target as HTMLInputElement).value)), final);
+    return html`<div class="force">
+      <div class="head">
+        <label for=${id}>${label}</label>
+        <output for=${id} aria-hidden="true">${shown}</output>
+      </div>
+      <input
+        id=${id}
+        type="range"
+        data-force=${key}
+        min=${range.min}
+        max=${range.max}
+        step=${range.step}
+        .value=${String(value)}
+        aria-valuetext=${spoken}
+        title=${title}
+        @input=${set(false)}
+        @change=${set(true)}
+      />
+    </div>`;
+  }
+
+  /** With Force, its *Forces* (Req 17.13): folded at first; disabled where Force draws rings, which the stats line says. */
+  private _renderForces(disabled: boolean) {
+    const f = this._forces;
+    const charge = FORCE_CONTROLS.chargeStrength;
+    const push = 0 - f.chargeStrength;
+    const scale = f.collideScale.toFixed(1);
+    return html`<details class="forces">
+      <summary>Forces</summary>
+      <fieldset aria-label="Forces" ?disabled=${disabled}>
+        ${this._renderForce(
+          'force-link',
+          'linkDistance',
+          'Link distance',
+          "The length a relationship's line is pulled to",
+          FORCE_CONTROLS.linkDistance,
+          f.linkDistance,
+          `${f.linkDistance} px`,
+          `${f.linkDistance} pixels`,
+        )}
+        ${this._renderForce(
+          'force-charge',
+          'chargeStrength',
+          'Charge strength',
+          'How hard the elements push each other apart',
+          { min: 0 - charge.max, max: 0 - charge.min, step: charge.step },
+          push,
+          `${push}`,
+          `repulsion ${push}`,
+        )}
+        ${this._renderForce(
+          'force-collide',
+          'collideScale',
+          'Collision radius',
+          "The room kept round each element, as a multiple of its box's",
+          FORCE_CONTROLS.collideScale,
+          f.collideScale,
+          `${scale}×`,
+          `${scale} times`,
+        )}
+        <button class="tool" data-force="reset" title="Restore the default forces" @click=${() => this.resetForces()}>Reset</button>
+      </fieldset>
+    </details>`;
   }
 
   private _renderTypes(kind: 'element' | 'relationship', title: string, options: GraphTypeOption[], hidden: Set<string>) {
@@ -678,6 +854,7 @@ export class GraphPanel extends LitElement {
             </select>
             <button class="tool" title="Fit the graph to the panel" @click=${() => this._view?.fit()}>Fit</button>
           </div>
+          ${this._layout === 'force' ? this._renderForces(inRings !== '') : nothing}
           <div class="stats">
             ${graph ? html`${graph.nodes.length} elements · ${graph.edges.length} relationships${inRings}` : nothing}
           </div>
