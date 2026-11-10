@@ -7,6 +7,13 @@
  * relationship types — which prune the traversal, not only the drawing. On the
  * right, the graph (`graph-view.ts`, Cytoscape.js).
  *
+ * The layouts: Force, the default, live (key decision 17): the graph moves into
+ * place and comes to rest, and a dragged element pulls the elements linked to
+ * it; Rings and Tree, static. The camera is kept unless something new is asked
+ * for: the panel tells the drawing whether a graph is one the user asked for
+ * (another element in the middle, the depth, the filters) or a refresh (a model
+ * change, the tab shown again), by comparing what is asked with what it drew.
+ *
  * Below them, what to do with the graph: its SPARQL query — as a `SELECT` (a
  * table, one row per relationship) or a `CONSTRUCT` (the triples) — run in the
  * SPARQL Query tab or downloaded; the graph as a new view, laid out as drawn;
@@ -28,7 +35,7 @@ import {
   type GraphQueryOptions,
   type RelationshipGraph,
 } from '../../model-manager/relationship-graph.js';
-import { createCytoscapeView, type GraphLayout, type GraphView, type GraphViewFactory } from './graph-view.js';
+import { createCytoscapeView, type GraphLayout, type GraphLayoutStats, type GraphView, type GraphViewFactory } from './graph-view.js';
 
 /** A type offered in a filter. */
 export interface GraphTypeOption {
@@ -109,6 +116,27 @@ function remember(key: string, value: string): void {
 
 function slug(text: string): string {
   return text.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'graph';
+}
+
+/** What a drawing was asked for: the source, the middle element, the depth and the filters (their IRIs sorted, space-joined). */
+interface Asked {
+  source: GraphSource | undefined;
+  rootIri: string;
+  depth: number;
+  hiddenElements: string;
+  hiddenRelationships: string;
+}
+
+/** The same request: the source by identity, the rest by value. */
+function sameAsked(a: Asked | undefined, b: Asked): boolean {
+  return (
+    !!a &&
+    a.source === b.source &&
+    a.rootIri === b.rootIri &&
+    a.depth === b.depth &&
+    a.hiddenElements === b.hiddenElements &&
+    a.hiddenRelationships === b.hiddenRelationships
+  );
 }
 
 @customElement('graph-panel')
@@ -309,17 +337,23 @@ export class GraphPanel extends LitElement {
   @property({ attribute: false }) viewFactory: GraphViewFactory = createCytoscapeView;
 
   @state() private _depth = Math.min(MAX_GRAPH_DEPTH, Math.max(1, Number(stored(DEPTH_KEY)) || 2));
-  @state() private _layout: GraphLayout = (['rings', 'tree', 'force'] as const).find((l) => l === stored(LAYOUT_KEY)) ?? 'rings';
+  // Force by default (key decision 17). A remembered choice is kept, with no migration: a stored `rings` or
+  // `tree` stays, a stored `force` is Force, now live; anything else means Force.
+  @state() private _layout: GraphLayout = (['force', 'rings', 'tree'] as const).find((l) => l === stored(LAYOUT_KEY)) ?? 'force';
   @state() private _form: GraphQueryForm = stored(FORM_KEY) === 'construct' ? 'construct' : 'select';
   @state() private _hiddenElements = new Set<string>();
   @state() private _hiddenRelationships = new Set<string>();
   @state() private _graph: RelationshipGraph | undefined;
   @state() private _types: { elements: GraphTypeOption[]; relationships: GraphTypeOption[] } = { elements: [], relationships: [] };
   @state() private _error = '';
+  /** The drawing's `layoutStats()`, read after every drawing and relayout, for the stats line. */
+  @state() private _layoutStats: GraphLayoutStats | undefined;
 
   @query('.cy') private _container?: HTMLElement;
 
   private _view: GraphView | undefined;
+  /** What the drawn graph was asked for; undefined until the first drawing. */
+  private _drawnAsked: Asked | undefined;
   private _timer: ReturnType<typeof setTimeout> | null = null;
   /** Follows the drawing area's size (the panel dragged, maximized, restored). */
   private _sizeWatcher: ResizeObserver | undefined;
@@ -362,7 +396,7 @@ export class GraphPanel extends LitElement {
     const options = this.queryOptions();
     if (!options) {
       this._graph = undefined;
-      this._view?.show([], [], '', this._layout);
+      this._draw();
       return;
     }
     try {
@@ -406,13 +440,30 @@ export class GraphPanel extends LitElement {
     this.refresh();
   }
 
+  /** What the controls ask for now. */
+  private _asked(): Asked {
+    return {
+      source: this.source,
+      rootIri: this.rootIri,
+      depth: this._depth,
+      hiddenElements: [...this._hiddenElements].sort().join(' '),
+      hiddenRelationships: [...this._hiddenRelationships].sort().join(' '),
+    };
+  }
+
   private _draw(): void {
     const view = this._view;
     const graph = this._graph;
     const source = this.source;
     if (!view || !source) return;
+    // A graph asked for (another element, depth or filter, set while the tab was hidden too) is framed at rest;
+    // a refresh after a model change, or the tab shown again, asks the same and keeps the camera.
+    const asked = this._asked();
+    const follow = !sameAsked(this._drawnAsked, asked);
     if (!graph) {
-      view.show([], [], '', this._layout);
+      view.show([], [], '', this._layout, { follow });
+      this._drawnAsked = asked;
+      this._layoutStats = view.layoutStats();
       return;
     }
     view.show(
@@ -441,11 +492,16 @@ export class GraphPanel extends LitElement {
       }),
       this.rootIri,
       this._layout,
+      { follow },
     );
+    this._drawnAsked = asked;
+    this._layoutStats = view.layoutStats();
     view.highlight(this.selectedIri || undefined);
   }
 
   override updated(changed: Map<string, unknown>): void {
+    // Hidden or folded: the layout stops moving; shown again, the refresh resumes it.
+    if (changed.has('active') && !this.active) this._view?.pause();
     if (changed.has('active') && this.active) {
       // Created on first showing: the container has no size while its tab is hidden.
       if (!this._view && this._container) {
@@ -485,6 +541,16 @@ export class GraphPanel extends LitElement {
     this.dispatchEvent(new CustomEvent<T>(name, { detail, bubbles: true, composed: true }));
   }
 
+  /** Where each element is drawn, as ＋ New view takes it: in the graph's coordinates, or in the drawing's pixels. */
+  drawnPositions(space: 'model' | 'rendered' = 'model'): Map<string, { x: number; y: number }> {
+    return this._view?.positions(space) ?? new Map();
+  }
+
+  /** How the drawing was laid out (the bench reads it); undefined before the tab is first shown. */
+  layoutStats(): GraphLayoutStats | undefined {
+    return this._view?.layoutStats();
+  }
+
   /** The query form offered: `SELECT` (a table) or `CONSTRUCT` (triples). */
   get queryForm(): GraphQueryForm {
     return this._form;
@@ -522,7 +588,7 @@ export class GraphPanel extends LitElement {
     const hops = `${this._depth} hop${this._depth === 1 ? '' : 's'}`;
     this._emit<GraphNewViewDetail>('graph-new-view', {
       iris: [...graph.nodes.map((n) => n.iri), ...graph.edges.map((e) => e.iri)],
-      centres: this._view?.positions() ?? new Map(),
+      centres: this.drawnPositions(),
       label: `${this.source.label(this.rootIri)} — ${hops}`,
     });
   }
@@ -570,6 +636,9 @@ export class GraphPanel extends LitElement {
         : graph && graph.edges.length === 0
           ? 'No relationships within this depth and these filters.'
           : '';
+    // Force above its limit draws rings, and says so.
+    const stats = this._layoutStats;
+    const inRings = stats?.layout === 'force' && stats.drawnBy === 'rings' ? ` · drawn in rings: Force lays out up to ${stats.limits.forceMaxNodes} elements` : '';
     return html`
       <div class="layout">
         <aside class="controls">
@@ -600,16 +669,17 @@ export class GraphPanel extends LitElement {
                 this._layout = (e.target as HTMLSelectElement).value as GraphLayout;
                 remember(LAYOUT_KEY, this._layout);
                 this._view?.relayout(this._layout);
+                this._layoutStats = this._view?.layoutStats();
               }}
             >
+              <option value="force" ?selected=${this._layout === 'force'}>Force</option>
               <option value="rings" ?selected=${this._layout === 'rings'}>Rings</option>
               <option value="tree" ?selected=${this._layout === 'tree'}>Tree</option>
-              <option value="force" ?selected=${this._layout === 'force'}>Force</option>
             </select>
             <button class="tool" title="Fit the graph to the panel" @click=${() => this._view?.fit()}>Fit</button>
           </div>
           <div class="stats">
-            ${graph ? html`${graph.nodes.length} elements · ${graph.edges.length} relationships` : nothing}
+            ${graph ? html`${graph.nodes.length} elements · ${graph.edges.length} relationships${inRings}` : nothing}
           </div>
           ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
           <div class="row">

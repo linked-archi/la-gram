@@ -1233,6 +1233,8 @@ describe('the workbench', () => {
       resize: () => undefined,
       highlight: () => undefined,
       positions: () => placed,
+      pause: () => undefined,
+      layoutStats: () => undefined,
       destroy: () => undefined,
     });
     ui.selectConcept(clerk);

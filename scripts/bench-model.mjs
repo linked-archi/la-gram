@@ -269,6 +269,105 @@ export function generateModel(options = {}) {
   };
 }
 
+/** The Graph tab's sweep (`bench.mjs --graph`): one tree of each size in the graph model, smallest first. */
+export const GRAPH_SWEEP = [100, 200, 300, 400, 500, 600, 700, 800, 1000, 1200, 1500, 2000, 3000];
+const GRAPH_NS = 'https://example.org/bench/graph/';
+/** The levels below a tree's root: within five hops, so depth 5 draws all of it. */
+const GRAPH_LEVELS = 5;
+
+/** A sweep tree's root and its last element (a leaf), by IRI. */
+export function graphTree(size) {
+  return { root: `${GRAPH_NS}tree-${size}-element-0`, leaf: `${GRAPH_NS}tree-${size}-element-${size - 1}` };
+}
+
+/**
+ * The graph model the Graph tab's limits are measured on (key decision 17):
+ * the generated models reach a few hundred elements at depth 5, too few. With
+ * `generateModel()`'s model header, a tree for each size of the sweep: Application
+ * Components joined by Flow relationships, written as `generateModel()` writes
+ * them (qualified, `rdf:reifies`, `arch:source`, `arch:target`, and the direct
+ * triple). A tree is a root and levels of four children an element, or five
+ * where four cannot hold the size in five levels, filled in order; then 0.4 ×
+ * its size more relationships, each from a seeded random element to one of its
+ * own level or the next, no self-loop and no duplicate. About 12 300 elements,
+ * 17 000 relationships and 120 000 triples.
+ *
+ * @param {{ seed?: number }} options
+ */
+export function generateGraphModel(options = {}) {
+  const next = random(options.seed ?? 1);
+  const m = (local) => namedNode(GRAPH_NS + local);
+  const quads = [];
+  const add = (s, p, o) => quads.push(quad(s, p, o));
+  const label = (text) => literal(text, 'en');
+  const rdfType = namedNode(RDF + 'type');
+  const prefLabel = namedNode(SKOS + 'prefLabel');
+  const inModel = namedNode(ARCH + 'inModel');
+  const model = m('model');
+  const elementCount = GRAPH_SWEEP.reduce((a, n) => a + n, 0);
+
+  add(model, rdfType, namedNode(ARCH + 'Model'));
+  add(model, prefLabel, label(`Benchmark, graph sweep, ${elementCount} elements`));
+  add(model, namedNode(ARCH + 'modelConformsToMetamodel'), namedNode('https://meta.linked.archi/archimate4/metamodel#ArchiMate4'));
+  add(model, namedNode(DCTERMS + 'created'), literal('2026-01-01T00:00:00Z', namedNode(XSD + 'dateTime')));
+  add(model, namedNode(VANN + 'preferredNamespacePrefix'), literal('m'));
+  add(model, namedNode(VANN + 'preferredNamespaceUri'), literal(GRAPH_NS));
+
+  let relationships = 0;
+  const flow = namedNode(AM4 + PREDICATE.Flow);
+  const relate = (source, target) => {
+    const iri = m(`relationship-${relationships++}`);
+    add(source, flow, target);
+    add(iri, rdfType, namedNode(AM4 + 'Flow'));
+    add(iri, namedNode(RDF + 'reifies'), quad(source, flow, target));
+    add(iri, namedNode(ARCH + 'source'), source);
+    add(iri, namedNode(ARCH + 'target'), target);
+  };
+  const trees = [];
+  for (const size of GRAPH_SWEEP) {
+    // Four children an element hold 1 + 4 + … + 4^5 = 1 365 elements in five levels; five hold 3 906.
+    const fan = (4 ** (GRAPH_LEVELS + 1) - 1) / 3 >= size ? 4 : 5;
+    const elements = [];
+    const level = [];
+    for (let i = 0; i < size; i++) {
+      const iri = m(`tree-${size}-element-${i}`);
+      add(iri, rdfType, namedNode(AM4 + 'ApplicationComponent'));
+      add(iri, prefLabel, label(`Tree ${size}, ${i}`));
+      add(iri, inModel, model);
+      elements.push(iri);
+      level.push(i === 0 ? 0 : level[Math.floor((i - 1) / fan)] + 1);
+    }
+    const pairs = new Set();
+    const pair = (a, b) => (a < b ? `${a} ${b}` : `${b} ${a}`);
+    for (let i = 1; i < size; i++) {
+      const parent = Math.floor((i - 1) / fan);
+      pairs.add(pair(parent, i));
+      relate(elements[parent], elements[i]);
+    }
+    const byLevel = [];
+    level.forEach((l, i) => (byLevel[l] ??= []).push(i));
+    for (let added = 0, tries = 0; added < Math.round(0.4 * size) && tries < 1000 * size; tries++) {
+      const a = Math.floor(next() * size);
+      const near = [...byLevel[level[a]], ...(byLevel[level[a] + 1] ?? [])];
+      const b = near[Math.floor(next() * near.length)];
+      if (b === a || pairs.has(pair(a, b))) continue;
+      pairs.add(pair(a, b));
+      relate(elements[a], elements[b]);
+      added++;
+    }
+    trees.push({ size, fan, levels: Math.max(...level), ...graphTree(size) });
+  }
+
+  const writer = new Writer({ prefixes: { m: GRAPH_NS, am4: AM4, arch: ARCH, rdf: RDF, skos: SKOS, dcterms: DCTERMS, vann: VANN, xsd: XSD } });
+  for (const q of quads) writer.addQuad(q);
+  let text = '';
+  writer.end((err, result) => {
+    if (err) throw err;
+    text = result;
+  });
+  return { text, triples: quads.length, elements: elementCount, relationships, trees };
+}
+
 function main(argv) {
   const arg = (name, fallback) => {
     const i = argv.indexOf(`--${name}`);

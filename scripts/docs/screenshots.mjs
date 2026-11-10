@@ -273,7 +273,12 @@ const SHOTS = [
       await click(shot, page, 'graph-panel .depth button[data-depth="2"]');
       const layout = page.locator('graph-panel select[aria-label="Layout"]');
       await waitFor(shot, layout, 'graph-panel select[aria-label="Layout"]');
-      await layout.selectOption('rings');
+      // Force is live: at rest first, so that a choice that restarts it starts from the same place each time,
+      // then at rest again, framed.
+      const settled = 'graph-panel .cy[data-layout="settled"]';
+      await waitFor(shot, page.locator(settled), settled, 'attached');
+      await layout.selectOption('force');
+      await waitFor(shot, page.locator(settled), settled, 'attached');
       await waitFor(shot, page.locator('graph-panel .cy canvas'), 'graph-panel .cy canvas', 'attached');
       await waitForText(shot, page.locator('graph-panel .root'), 'graph-panel .root', (t) => t.some((x) => x.startsWith('Web shop')), 'starting "Web shop"');
       await waitForText(

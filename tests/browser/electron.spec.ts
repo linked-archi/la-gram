@@ -71,9 +71,11 @@ describe.skipIf(!existsSync(MAIN) || !binaryInstalled)('the desktop build', () =
     try {
       const page = await app.firstWindow();
       const violations: string[] = [];
+      const pageErrors: string[] = [];
       page.on('console', (message) => {
         if (message.type() === 'error' && /Content Security Policy/i.test(message.text())) violations.push(message.text());
       });
+      page.on('pageerror', (e) => pageErrors.push(e.message));
       await page.waitForFunction(() => (window as any).__LA_GRAM_APP__?.loadedMetamodel, undefined, { timeout: 30_000 });
 
       const renderer = await page.evaluate(async () => ({
@@ -122,6 +124,29 @@ describe.skipIf(!existsSync(MAIN) || !binaryInstalled)('the desktop build', () =
       });
       expect(validation).toEqual({ where: 'worker', reported: { shapes: true, rules: true } });
 
+      // The Graph tab's live force layout (d3-force) under the same policy: drawn, laid out, at rest.
+      await page.evaluate(() => {
+        const app = (window as any).__LA_GRAM_APP__;
+        const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+        const model = app.session.modelIri;
+        const clerk: string = app.components.elementManager.createElement(AM4 + 'BusinessActor', model, { label: 'Clerk' }).value;
+        const till: string = app.components.elementManager.createElement(AM4 + 'ApplicationComponent', model, { label: 'Till' }).value;
+        app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: till, targetIri: clerk, modelIri: model });
+        app.components.eventBus.emit('model-changed', { origin: 'test' });
+        const ui = (window as any).__LA_GRAM_UI__;
+        ui.selectConcept(clerk);
+        ui.showBottomTab('graph');
+      });
+      await page.waitForFunction(
+        () => {
+          const panel = document.querySelector('graph-panel') as any;
+          return panel?.graph?.nodes.length === 2 && !!panel.shadowRoot?.querySelector('.cy canvas') && !!panel.shadowRoot?.querySelector('.cy[data-layout="settled"]');
+        },
+        undefined,
+        { timeout: 30_000 },
+      );
+      expect(await page.evaluate(() => (document.querySelector('graph-panel') as any).layoutStats()?.drawnBy)).toBe('force');
+
       // The native dialogs, answered by the main process with a file in a temporary directory.
       await app.evaluate(({ dialog }, chosen) => {
         dialog.showSaveDialog = (async () => ({ canceled: false, filePath: chosen })) as typeof dialog.showSaveDialog;
@@ -140,6 +165,7 @@ describe.skipIf(!existsSync(MAIN) || !binaryInstalled)('the desktop build', () =
       expect(readFileSync(file, 'utf8')).toBe('@prefix ex: <https://example.org/> .\n');
       expect(roundTrip.read).toEqual({ content: '@prefix ex: <https://example.org/> .\n', name: 'model.ttl' });
       expect(violations).toEqual([]);
+      expect(pageErrors).toEqual([]);
     } finally {
       await app.evaluate(({ app: electronApp }) => electronApp.exit(0)).catch(() => undefined);
       app.process().kill();

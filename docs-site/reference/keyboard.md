@@ -200,6 +200,27 @@ The canvas toolbar's tools do the same by a click: the lasso and the hand, and t
 1. ++shift++-drag around *Customer* and *Place order*: both are selected.
 2. Drag on an empty part of the canvas: the diagram moves with the pointer.
 
+## Graph tab {#graph-tab}
+
+The same on every platform:
+
+| Gesture | Does |
+|---|---|
+| click an element or a line | select that element or relationship, on the canvas and in the Properties tab |
+| double-click an element | make it the element in the middle, and select it |
+| drag an element | move it; with *Layout* **Force**, the elements linked to it follow, and when you let go it settles back among them. The element in the middle stays where you drop it, and the graph follows it |
+| drag the background | move the graph |
+| scroll, or a trackpad's pinch | zoom in or out |
+
+Once you have clicked, dragged or scrolled in the drawing, the view stays where you put it until you
+choose another element, depth, filter or layout, or *Fit*. More on each gesture in
+[Relationship graph › Navigate](../guide/graph.md#navigate).
+
+1. Select *Web shop* and open the *Graph* tab.
+2. Drag *Card payment* away from *Web shop*: *Payments*, linked to it, follows. Let go: *Card payment*
+   settles back.
+3. Double-click *Card payment*: the graph is drawn round it, and framed when it comes to rest.
+
 ## The Keyboard shortcuts dialog {#shortcuts-dialog}
 
 *Keyboard shortcuts*, in la-gram's menu (the icon and name at the top left), lists the common keys and
@@ -207,8 +228,8 @@ gestures, by where they work. On a Mac it writes them ⌘Z, ⇧⌘Z, ⌥←; els
 Alt+←.
 
 It leaves out a few that this page has: ++esc++ to restore a maximized panel, the double-click on the tab
-strip, ++enter++ and ++esc++ while renaming, ++esc++ to cancel a tree drag, and the keys of the catalog
-cells and the *Questions* menu.
+strip, ++enter++ and ++esc++ while renaming, ++esc++ to cancel a tree drag, the keys of the catalog
+cells and the *Questions* menu, and the [Graph tab](#graph-tab)'s gestures.
 
 1. Open la-gram's menu, at the top left.
 2. Choose *Keyboard shortcuts*: the list opens in a dialog. Press ++esc++ to close it.

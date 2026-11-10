@@ -85,7 +85,7 @@ Each is off until you switch it on.
 | `la-gram:explorer-grouping` | the model tree by `folders` or by `types` | **`folders`** |
 | `la-gram:rdf-scope` | the RDF panel's scope | **View** |
 | `la-gram:validation-scope` | the Validation tab's scope | **View** |
-| `la-gram:graph-depth`, `la-gram:graph-layout`, `la-gram:graph-query-form` | the Graph tab's depth, layout and query form | **2**, **Rings**, **SELECT** |
+| `la-gram:graph-depth`, `la-gram:graph-layout`, `la-gram:graph-query-form` | the Graph tab's depth, layout and query form | **2**, **Force**, **SELECT** |
 | `la-gram:about-sections` | which sections of *About ‹type›* are open | **as la-gram opens them** |
 | `la-gram:matrix-axes:<viewIri>` | a matrix view's row and column types, per view | **the two most common types** |
 

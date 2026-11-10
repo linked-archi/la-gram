@@ -270,7 +270,7 @@ and licence its own package states, for *About la-gram*'s *Built with*. The desk
 From this build:
 
 ```text
-{version:"0.1.0",components:[{name:"diagram-js",version:"14.11.3",license:"MIT"},{name:"oxigraph",version:"0.5.11",license:"MIT OR Apache-2.0"},{name:"n3",version:"2.13.12",license:"MIT"},{name:"rdf-validate-shacl",version:"0.5.10",license:"MIT"},{name:"lit",version:"3.3.2",license:"BSD-3-Clause"},{name:"@codemirror/view",version:"6.39.17",license:"MIT"},{name:"cytoscape",version:"3.34.3",license:"MIT"},{name:"yjs",version:"13.6.33",license:"MIT"},{name:"@hocuspocus/provider",version:"4.7.0",license:"MIT"}]}
+{version:"0.1.0",components:[{name:"diagram-js",version:"14.11.3",license:"MIT"},{name:"oxigraph",version:"0.5.11",license:"MIT OR Apache-2.0"},{name:"n3",version:"2.13.12",license:"MIT"},{name:"rdf-validate-shacl",version:"0.5.10",license:"MIT"},{name:"lit",version:"3.3.2",license:"BSD-3-Clause"},{name:"@codemirror/view",version:"6.39.17",license:"MIT"},{name:"cytoscape",version:"3.34.3",license:"MIT"},{name:"d3-force",version:"3.0.1",license:"ISC"},{name:"yjs",version:"13.6.33",license:"MIT"},{name:"@hocuspocus/provider",version:"4.7.0",license:"MIT"}]}
 ```
 
 ### `--mode` {#mode}

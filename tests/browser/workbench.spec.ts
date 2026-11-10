@@ -70,6 +70,37 @@ async function dropActor(page: Page, dx: number, dy: number): Promise<void> {
   await page.waitForTimeout(450);
 }
 
+type XY = { x: number; y: number };
+
+/**
+ * The Graph tab's drawing, read through the panel in the page: where each element
+ * is (model units, and rendered pixels inside the `.cy` box), the layout's state
+ * (`data-layout`), the box's size, the stats line and the panel's selection.
+ */
+async function graphTab(page: Page) {
+  return page.evaluate(() => {
+    const panel = (window as any).__LA_GRAM_UI__.graphPanel;
+    const cy = panel.shadowRoot.querySelector('.cy') as HTMLElement;
+    return {
+      layout: cy.dataset.layout as string,
+      model: Object.fromEntries(panel.drawnPositions('model')) as Record<string, { x: number; y: number }>,
+      rendered: Object.fromEntries(panel.drawnPositions('rendered')) as Record<string, { x: number; y: number }>,
+      width: cy.clientWidth,
+      height: cy.clientHeight,
+      stats: (panel.shadowRoot.querySelector('.stats') as HTMLElement).innerText.trim(),
+      root: (panel.shadowRoot.querySelector('.root') as HTMLElement).innerText.trim(),
+      selected: panel.selectedIri as string,
+    };
+  });
+}
+type GraphTab = Awaited<ReturnType<typeof graphTab>>;
+
+const apartBy = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y);
+/** Every element's rendered centre inside the drawing: framed. */
+const framed = (g: GraphTab) => Object.values(g.rendered).every((p) => p.x >= 0 && p.y >= 0 && p.x <= g.width && p.y <= g.height);
+/** Rendered over model distance between two elements drawn at every depth. */
+const zoomOf = (g: GraphTab, a: string, b: string) => apartBy(g.rendered[a]!, g.rendered[b]!) / apartBy(g.model[a]!, g.model[b]!);
+
 /** Answer the open prompt dialog. */
 async function answerPrompt(page: Page, text: string): Promise<void> {
   const input = page.locator('.la-dialog input.la-input');
@@ -222,6 +253,7 @@ describe("the name, the icon and la-gram's menu", () => {
     const text = await dialog.innerText();
     expect(text).toContain('Apache License 2.0');
     expect(text).toMatch(/diagram-js \d/);
+    expect(text).toMatch(/d3-force 3\.0\.1/);
     expect(text).toContain('ArchiMate 4.0 Metamodel');
     await session.screenshot('help-about');
     await dialog.locator('.la-button.primary').click();
@@ -831,6 +863,8 @@ describe('appending from the context pad', () => {
     const stats = panel.locator('.stats');
     await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph');
     expect((await panel.locator('.root').innerText()).trim()).toMatch(/^Business Actor/);
+    // Force, live: the graph moves into place and comes to rest.
+    await panel.locator('.cy[data-layout="settled"]').waitFor({ state: 'attached' });
     await session.screenshot('workbench-graph');
 
     // Filtering out Serving prunes it: the actor alone.
@@ -839,6 +873,7 @@ describe('appending from the context pad', () => {
     await until(async () => (await stats.innerText()).includes('1 elements · 0 relationships'), 'the filtered graph');
     await serving.check();
     await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph again');
+    await panel.locator('.cy[data-layout="settled"]').waitFor({ state: 'attached' });
 
     // The exports: the query (a SELECT by default), and the drawn triples as Turtle.
     const [rq] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="sparql"]').click()]);
@@ -852,6 +887,7 @@ describe('appending from the context pad', () => {
     expect(turtle).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Serving;/);
 
     // The graph becomes a view, laid out as drawn: two elements and their link, side by side or stacked.
+    const drawnAt = (await graphTab(page)).model;
     await panel.locator('[data-export="view"]').click();
     await answerPrompt(page, 'Around the actor');
     await until(
@@ -866,6 +902,15 @@ describe('appending from the context pad', () => {
     const [first, second] = await Promise.all([page.locator(SHAPE).nth(0).boundingBox(), page.locator(SHAPE).nth(1).boundingBox()]);
     const apart = Math.abs(first!.x - second!.x) >= first!.width || Math.abs(first!.y - second!.y) >= first!.height;
     expect(apart).toBe(true);
+    // As drawn: the centres in the view differ by 1.3 times what they differ by in the drawing (placeNodes rounds).
+    const [p, q] = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      return app.components.viewManager
+        .getNodes(app.session.activeViewIri)
+        .map((n: any) => ({ iri: n.elementIri as string, x: n.bounds.x + n.bounds.width / 2, y: n.bounds.y + n.bounds.height / 2 }));
+    });
+    expect(Math.abs(q!.x - p!.x - 1.3 * (drawnAt[q!.iri]!.x - drawnAt[p!.iri]!.x))).toBeLessThanOrEqual(1);
+    expect(Math.abs(q!.y - p!.y - 1.3 * (drawnAt[q!.iri]!.y - drawnAt[p!.iri]!.y))).toBeLessThanOrEqual(1);
     await session.screenshot('workbench-graph-new-view');
 
     // Maximized, the panel covers the workspace and the drawing grows with it; Esc restores.
@@ -898,6 +943,230 @@ describe('appending from the context pad', () => {
     await panel.locator('[data-form="select"]').click();
     findings.push('graph: drawn, filter prunes, .rq and .ttl exported, made a view as drawn, SELECT table and CONSTRUCT triples in the SPARQL tab: ok');
   });
+
+  it("lays the Graph tab out live: it comes to rest, is framed and stops, a dragged element pulls its neighbour and is released, the middle stays, hiding the tab stops it, reduced motion shows it at rest, a switch of layout mid-run ends the run, the user's camera is kept, and click, double-click and pan work", async () => {
+    // Distances in model units unless said otherwise; "the zoom" is the rendered over the model distance
+    // between the middle actor and the component, drawn at every depth.
+    const panel = page.locator('graph-panel');
+    const cyBox = async () => (await panel.locator('.cy').boundingBox())!;
+    const rest = (what: string) => until(async () => (await graphTab(page)).layout === 'settled', what);
+    const statsRead = (text: string) => until(async () => (await graphTab(page)).stats === text, `the stats to read "${text}"`);
+    /** Where an element is drawn, in the page. */
+    const pointOf = async (g: GraphTab, iri: string) => {
+      const box = await cyBox();
+      return { x: box.x + g.rendered[iri]!.x, y: box.y + g.rendered[iri]!.y };
+    };
+    /** A model change through the app: a new Business Actor that `from` serves. */
+    const relate = (from: string, label: string) =>
+      page.evaluate(
+        ([from, label]) => {
+          const app = (window as any).__LA_GRAM_APP__;
+          const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+          const m = app.session.modelIri;
+          const iri: string = app.components.elementManager.createElement(AM4 + 'BusinessActor', m, { label }).value;
+          app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: from, targetIri: iri, modelIri: m });
+          app.components.eventBus.emit('model-changed', { origin: 'test' });
+          return iri;
+        },
+        [from, label] as const,
+      );
+    const fitButton = panel.locator('button[title="Fit the graph to the panel"]');
+
+    // 1. A Business Actor served by the component: round the first actor, a chain of three. The panel draws
+    // 300 ms after the model change; it comes to rest, framed.
+    const [middle] = (await model(page)).actors;
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.selectConcept(iri), middle!);
+    const component = await page.evaluate(() => {
+      const graph = (window as any).__LA_GRAM_UI__.graphPanel;
+      return (graph.graph.nodes as Array<{ iri: string }>).find((n) => n.iri !== graph.rootIri)!.iri;
+    });
+    const far = await relate(component, 'Courier');
+    await statsRead('3 elements · 2 relationships');
+    await rest('the chain at rest');
+    let g = await graphTab(page);
+    expect(framed(g)).toBe(true);
+
+    // 2. At rest nothing runs; a rename elsewhere moves nothing, and neither does the camera.
+    await page.waitForTimeout(600);
+    const later = await graphTab(page);
+    expect(later.model).toEqual(g.model);
+    expect(later.rendered).toEqual(g.rendered);
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_APP__.components.eventBus.emit('property-edited', {
+        elementIri: iri,
+        property: 'http://www.w3.org/2004/02/skos/core#prefLabel',
+        value: 'Dispatch',
+      });
+    }, component);
+    await until(
+      async () =>
+        page.evaluate((iri) => (window as any).__LA_GRAM_UI__.graphPanel.graph.nodes.some((n: any) => n.iri === iri && n.label === 'Dispatch'), component),
+      'the renamed component in the graph',
+    );
+    const renamed = await graphTab(page);
+    expect(renamed.model).toEqual(g.model);
+    expect(renamed.rendered).toEqual(g.rendered);
+
+    // 3. The far actor dragged 200 px straight away from the middle actor and held: live, its neighbour follows.
+    const from = await pointOf(g, far);
+    const centre = await pointOf(g, middle!);
+    const reach = apartBy(from, centre);
+    const to = { x: from.x + (200 * (from.x - centre.x)) / reach, y: from.y + (200 * (from.y - centre.y)) / reach };
+    const component0 = g.model[component]!;
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 20 });
+    expect((await graphTab(page)).layout).toBe('running');
+    const held = Date.now();
+    let towards = 0;
+    while (Date.now() - held < 500 && towards <= 10) {
+      const now = await graphTab(page);
+      const c = now.model[component]!;
+      const f = now.model[far]!;
+      towards = ((c.x - component0.x) * (f.x - component0.x) + (c.y - component0.y) * (f.y - component0.y)) / apartBy(f, component0);
+      if (towards <= 10) await page.waitForTimeout(40);
+    }
+    expect(towards).toBeGreaterThan(10);
+    const dropped = (await graphTab(page)).model[far]!;
+    await page.mouse.up();
+    await rest('the chain at rest after the drag');
+    const released = await graphTab(page);
+    expect(apartBy(released.model[far]!, dropped)).toBeGreaterThan(10);
+    expect(apartBy(released.model[middle!]!, g.model[middle!]!)).toBeLessThan(0.5);
+    expect(apartBy(released.rendered[middle!]!, g.rendered[middle!]!)).toBeLessThanOrEqual(1);
+    await fitButton.click();
+    expect(framed(await graphTab(page))).toBe(true);
+    await session.screenshot('workbench-graph-live');
+
+    // 4. The middle actor dragged 150 px left: it stays where it is dropped, and the graph follows its anchor.
+    g = await graphTab(page);
+    const anchor = await pointOf(g, middle!);
+    await page.mouse.move(anchor.x, anchor.y);
+    await page.mouse.down();
+    await page.mouse.move(anchor.x - 150, anchor.y, { steps: 15 });
+    const middleDrop = (await graphTab(page)).model[middle!]!;
+    await page.mouse.up();
+    await rest('the graph at rest round its new anchor');
+    const moved = await graphTab(page);
+    expect(apartBy(moved.model[middle!]!, middleDrop)).toBeLessThanOrEqual(1);
+    expect(apartBy(moved.model[component]!, g.model[component]!)).toBeGreaterThan(30);
+
+    // 5. Depth 1: the camera stays while the layout runs, and frames it at rest. Depth 2 and at once the
+    // Properties tab: the layout stops where it is, still unsettled, and goes on when the tab is back.
+    const zoom = zoomOf(moved, middle!, component);
+    await panel.locator('.depth button[data-depth="1"]').click();
+    const running = await graphTab(page);
+    expect(running.layout).toBe('running');
+    expect(Math.abs(zoomOf(running, middle!, component) / zoom - 1)).toBeLessThanOrEqual(0.001);
+    await rest('depth 1 at rest');
+    expect(framed(await graphTab(page))).toBe(true);
+    await panel.locator('.depth button[data-depth="2"]').click();
+    await page.locator('app-shell .tab[data-tab="properties"]').click();
+    const hidden = await graphTab(page);
+    await page.waitForTimeout(300);
+    const stillHidden = await graphTab(page);
+    expect(stillHidden.model).toEqual(hidden.model);
+    expect(stillHidden.layout).toBe('running');
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    await rest('depth 2 at rest, back on the Graph tab');
+
+    // 6. Reduced motion: laid out at once and shown at rest; a dragged element moves alone.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    for (const depth of [1, 2]) {
+      await panel.locator(`.depth button[data-depth="${depth}"]`).click();
+      expect((await graphTab(page)).layout).toBe('settled');
+      const frames = await page.evaluate(async () => {
+        const graph = (window as any).__LA_GRAM_UI__.graphPanel;
+        const seen: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => requestAnimationFrame(r));
+          seen.push(JSON.stringify(Object.fromEntries(graph.drawnPositions('model'))));
+        }
+        return seen;
+      });
+      expect(new Set(frames).size).toBe(1);
+    }
+    g = await graphTab(page);
+    const farAt = await pointOf(g, far);
+    await page.mouse.move(farAt.x, farAt.y);
+    await page.mouse.down();
+    await page.mouse.move(farAt.x + 80, farAt.y + 40, { steps: 8 });
+    await page.mouse.up();
+    const alone = await graphTab(page);
+    expect(alone.model[component]).toEqual(g.model[component]);
+    expect(apartBy(alone.model[far]!, g.model[far]!)).toBeGreaterThan(10);
+    expect(alone.layout).toBe('settled');
+    await page.emulateMedia({ reducedMotion: null });
+
+    // 7. Tree, then Force, and Rings while Force runs: the run ends at once, Rings remembered. Force again.
+    const layout = panel.locator('select[aria-label="Layout"]');
+    await layout.selectOption('tree');
+    expect((await graphTab(page)).layout).toBe('settled');
+    await layout.selectOption('force');
+    expect((await graphTab(page)).layout).toBe('running');
+    await layout.selectOption('rings');
+    expect((await graphTab(page)).layout).toBe('settled');
+    expect(await page.evaluate(() => localStorage.getItem('la-gram:graph-layout'))).toBe('rings');
+    await layout.selectOption('force');
+    expect((await graphTab(page)).layout).toBe('running');
+    await rest('Force at rest again');
+
+    // 8. Zoomed in by the user: a tab switch and a model change keep the camera.
+    g = await graphTab(page);
+    const over = await pointOf(g, middle!);
+    await page.mouse.move(over.x, over.y);
+    await page.mouse.wheel(0, -120);
+    await until(async () => Math.abs(zoomOf(await graphTab(page), middle!, component) / zoomOf(g, middle!, component) - 1) > 0.01, 'the zoom');
+    const zoomed = await graphTab(page);
+    const zoomIn = zoomOf(zoomed, middle!, component);
+    await page.locator('app-shell .tab[data-tab="properties"]').click();
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    await until(async () => (await graphTab(page)).width > 0, 'the drawing shown again');
+    await page.waitForTimeout(200);
+    const back = await graphTab(page);
+    expect(Math.abs(zoomOf(back, middle!, component) / zoomIn - 1)).toBeLessThanOrEqual(0.001);
+    expect(apartBy(back.rendered[middle!]!, zoomed.rendered[middle!]!)).toBeLessThanOrEqual(1);
+    await relate(component, 'Warehouse');
+    await statsRead('4 elements · 3 relationships');
+    await rest('the graph at rest with a fourth element');
+    const kept = await graphTab(page);
+    expect(Math.abs(zoomOf(kept, middle!, component) / zoomIn - 1)).toBeLessThanOrEqual(0.001);
+    expect(apartBy(kept.rendered[middle!]!, zoomed.rendered[middle!]!)).toBeLessThanOrEqual(1);
+
+    // 9. At rest: a click selects, a double-click recentres and is framed at rest, a drag of the background
+    // pans by its length, and the next rest, after a model change, does not re-fit.
+    await fitButton.click();
+    g = await graphTab(page);
+    const farPoint = await pointOf(g, far);
+    await page.mouse.click(farPoint.x, farPoint.y);
+    await until(async () => (await graphTab(page)).selected === far, 'the far actor selected');
+    const componentPoint = await pointOf(await graphTab(page), component);
+    await page.mouse.dblclick(componentPoint.x, componentPoint.y);
+    await until(async () => (await graphTab(page)).root.startsWith('Dispatch'), 'the component in the middle');
+    await rest('the graph recentred at rest');
+    g = await graphTab(page);
+    expect(framed(g)).toBe(true);
+    const box = await cyBox();
+    await page.mouse.move(box.x + 10, box.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 110, box.y + 10, { steps: 10 });
+    await page.mouse.up();
+    const panned = await graphTab(page);
+    for (const iri of Object.keys(g.rendered)) {
+      expect(Math.abs(panned.rendered[iri]!.x - g.rendered[iri]!.x - 100)).toBeLessThanOrEqual(1);
+      expect(Math.abs(panned.rendered[iri]!.y - g.rendered[iri]!.y)).toBeLessThanOrEqual(1);
+    }
+    expect(panned.model).toEqual(g.model);
+    await relate(component, 'Supplier');
+    await statsRead('5 elements · 4 relationships');
+    await rest('the graph at rest after the pan');
+    const last = await graphTab(page);
+    expect(Math.abs(zoomOf(last, middle!, component) / zoomOf(panned, middle!, component) - 1)).toBeLessThanOrEqual(0.001);
+    expect(apartBy(last.rendered[component]!, panned.rendered[component]!)).toBeLessThanOrEqual(1);
+    findings.push(
+      'graph, live force: at rest and framed, stops; drag pulls and releases; middle pinned; paused while hidden; reduced motion at once; Rings mid-run ends it; camera kept; click, double-click, pan: ok',
+    );
+  }, 180_000);
 });
 
 describe('nesting', () => {

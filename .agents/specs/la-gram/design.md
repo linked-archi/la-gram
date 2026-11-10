@@ -24,7 +24,7 @@ graph TB
             Tree["model-explorer<br/>model tree (left)"]
             Canvas["DiagramCanvas<br/>diagram-js + RDF modules"]
             Alt["catalog-view · matrix-view"]
-            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor · graph-panel (Cytoscape.js)"]
+            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor · graph-panel (Cytoscape.js, d3-force)"]
             Palette["palette-panel (right)"]
             Rdf["rdf-panel (hidden by default)<br/>live Turtle / TriG / JSON-LD …"]
         end
@@ -965,7 +965,8 @@ so the canvas keeps its size, viewbox and selection, and nothing has to be
 re-laid out on restore. Esc restores unless a dialog or a diagram-js popup is
 open; so does folding, and `mount-ui` restores it when a view is opened. The
 Graph tab watches its drawing area with a `ResizeObserver` (Cytoscape.js
-notices window resizes only) and refits when it changes. Sizes, the open tab and the folding are remembered per browser in
+notices window resizes only) and refits when it changes, at rest and unless the user has taken the camera
+(*Relationship graph*). Sizes, the open tab and the folding are remembered per browser in
 `localStorage`. The Validation tab carries the number of violations of its
 scope (the open view or the model), since it is often not the open one. A `ResizeObserver` on the canvas host tells
 diagram-js (`canvas.resized()`) whenever a panel changes the canvas's size.
@@ -1191,12 +1192,59 @@ smaller and closer than a diagram's.
 
 Drawing is Cytoscape.js (`graph-view.ts`, behind a factory so the panel is
 tested without a canvas): round rectangles in the notation's fill colour with the
-badge glyph, edges with the notation's line style and end decorations; rings
-(breadth-first, circular, around the root), tree or force-directed layout; a fit
-never zooms past 1.25×. The view is created the first time the tab is shown — a
-hidden container has no size — and the panel neither queries nor draws while the
-tab is hidden; while shown it refreshes 300 ms after a model change. The root
-follows the selection unless the selection came from the graph itself.
+badge glyph, edges with the notation's line style and end decorations; a fit
+never zooms past 1.25× and may zoom out to 0.05. The drawing is updated in place —
+elements gone removed, the rest given their new names and styles, new ones added —
+so a refresh that changes nothing drawn moves nothing, camera included. The view is
+created the first time the tab is shown — a hidden container has no size — and the
+panel neither queries nor draws while the tab is hidden; while shown it refreshes
+300 ms after a model change. The root follows the selection unless the selection
+came from the graph itself.
+
+The layouts (key design decision 17). **Rings** (breadth-first, circular, around the
+root) and **Tree** are Cytoscape.js's `breadthfirst`, framed after each layout.
+**Force**, the default, is d3-force's simulation, live, stepped by la-gram's own
+frame loop in `graph-force.ts` (`LiveForce`), which imports only d3-force; the view
+writes its positions into Cytoscape.js in one `cy.batch()` a frame. A run starts on
+the first drawing and on every change of the middle element, the depth or the
+filters, reheated by how much changed (`topologyChange`: the nodes and lines added
+or removed over the smaller graph's, 0.3 to 1; nothing when nothing drawn changed),
+and decides how it runs when it starts: **animated** up to `animateMaxNodes`
+elements without a reduced-motion preference — a step a frame, more while 4 ms
+holds, three at most — and otherwise **laid out at once**: the whole layout before
+the first paint when it fits in 100 ms (`syncSettleMs`), or a slice a frame
+(12 ms, `sliceMs`), written once at the end, within 1.5 s of computing
+(`settleBudgetMs`; alpha decays over 200 steps there). A step always runs whole,
+and every budget is checked before a step with the last step's time. With at least
+half of the new graph drawn before, the drawn elements are held during a
+computation, so nothing the user was looking at moves. Above `forceMaxNodes`, Force
+runs no simulation: the graph is laid out as Rings and the stats line says *drawn in
+rings: Force lays out up to k elements* (`layoutStats().drawnBy`). Seeding
+(`seedPositions`): drawn elements start where they are; a new one one collision
+diameter (twice half the box's diagonal plus 2: 133 px) from the element it was
+reached from breadth first, siblings fanned outward over at most a half circle, the
+fan turned in 30° steps until it clears every drawn element (cells one diameter
+wide make the check linear); a new middle element beside its first drawn neighbour,
+towards the view's centre, or at the centre. The middle element is pinned where it
+starts, the anchor of a weak pull (`forceX`/`forceY`, 0.02 along the drawing's long
+side, up to 4× along the short one) — no `forceCenter`, which would slide the graph
+against a drag. Dragging: **live** during an animated run and at rest up to
+`liveDragMaxNodes` (the node fixed at the pointer, `alphaTarget` 0.3; released on
+drop, it settles back), **held** while a computation's slices run (fixed at the
+drop until the one write), **alone** otherwise; the middle element stays where it
+is dropped, and the pull with it. d3 gets objects of `LiveForce`'s own, made anew at
+each rebuild, so the panel's nodes and lines are never changed. The camera moves by
+itself only at rest: the run frames the graph before `data-layout` turns `settled`,
+while the view is *following* — a press, scroll or pinch in the drawing ends it; the
+first drawing, a change the user asked for, a switch of layout and *Fit* start it.
+The panel says whether a drawing was asked for (`show(…, { follow })`) by comparing
+what is asked — source, root, depth, filters — with what it drew, so a refresh after
+a model change and a return to the tab keep the camera. Hiding the tab or folding
+the panel pauses the loop, a switch to Rings or Tree ends the run, removal destroys
+it; at rest nothing is scheduled. `layoutStats()` gives the layout, what drew it,
+the run's steps, times and alpha, and the limits, for the bench. Headless,
+`layoutPositions(…, 'force')` is `forcePositions`: the same forces and seeding round
+(0, 0), deterministic, with no time budget and no force limit.
 
 ### SPARQL tab and views from results
 
@@ -2783,7 +2831,8 @@ dialog; the modules' section).
     export; diagram-js with an auto-layout (elkjs) was the third option, heavier
     for a read-only view. Switching is contained: the drawing sits behind
     `GraphView` / `GraphViewFactory`, so the panel, query, filters and exports
-    would not change.
+    would not change. Since 2026-11 the force layout is d3-force's, live
+    (decision 17); Cytoscape.js still draws, hit-tests, pans, zooms and selects.
 11. **The graph is walked; the query is exported** (2026-09-27). The Graph tab
     offers the SPARQL query behind the graph because a query is the portable,
     rerunnable definition of "what this element is related to" — it runs on
@@ -2868,6 +2917,57 @@ dialog; the modules' section).
     label element, which would put a second element per line in every place
     that walks the canvas.
 
+17. **The Graph tab's force layout is d3-force, live, stepped by la-gram's own
+    loop** (2026-11-09). Force, the Graph tab's default layout, moves the graph into
+    place, comes to rest and stops, and a dragged element pulls the elements linked
+    to it. It is d3-force 3 (ISC): D3's own force module, typed (`@types/d3-force`),
+    16 KB minified with its three dependencies, no `eval` or `Function` in any of its
+    files, plain JavaScript that runs in the Electron renderer as in a browser.
+    Pinned exactly: `d3-force` 3.0.1 and `@types/d3-force` 3.0.10 in `package.json`;
+    the lockfile holds d3-dispatch, d3-quadtree and d3-timer 3.0.2 (no `overrides`,
+    as for every package). la-gram's loop (`graph-force.ts`) steps it; d3's timer
+    never does (the simulation is stopped when made, `restart()` never called), so
+    there is one frame handle to cancel on pause, on a switch to Rings or Tree and
+    on removal, and the loop can seed, anchor, slice and stop as Req 17.9–17.12
+    ask. Rejected: cytoscape-cola and cytoscape-d3-force pull neighbours only with
+    `infinite`, which never comes to rest, and are old and untyped; cytoscape-euler,
+    the built-in `cose` and fcose lay out and end, so a drag moves the node alone.
+    **A dropped element is released**: positions are the drawing's only, and pins
+    would be hidden state with no way to see or clear them. **The element in the
+    middle is pinned** where it is drawn, the anchor of a weak pull, stronger across
+    a wide panel; no `forceCenter`, which would slide the graph against a drag.
+    **The camera moves by itself only at rest**, and only while the user has not
+    pressed, scrolled or pinched since the last graph they asked for. **Above
+    `forceMaxNodes` Force draws rings**: there one step is longer than a 60 Hz frame
+    on the benchmark's 4×-throttled CPU, and force steps from the rings within the
+    1.5 s budget would stop half-formed (about 40 steps, alpha about 0.25, at 1 400
+    elements), while rings are a finished layout at any size; the stats line says
+    so. This band departs from the brief (a force layout at every size), and is
+    for the user to confirm. Settings: `linkDistance` 180 (at 150 a relationship's
+    type name was hidden between boxes side by side), `chargeStrength` −350 within
+    600, `gravity` 0.02 along the long side and up to 4× that along the short; the
+    collision radius half the drawn box's diagonal plus 2, new elements seeded twice
+    that from their parent; d3's alpha (300 steps, 200 above `animateMaxNodes`);
+    4 ms and three steps an animated frame; `syncSettleMs` 100, `sliceMs` 12,
+    `settleBudgetMs` 1 500. **The limits, measured** on 2026-11-10 (Apple M4 Pro,
+    Chrome, CPU throttled 4× through CDP, standing for a typical laptop):
+    `animateMaxNodes` **100**, `liveDragMaxNodes` **100**, `forceMaxNodes` **800**.
+    How to measure them again: set the three to 5 000 in `FORCE`,
+    `npm run build:web`, `npm run bench -- --graph` (the graph model
+    `test-results/bench/graph.ttl`, a tree of each size from 100 to 3 000 elements,
+    each drawn at depth 5, in four passes: animated and under reduced motion, at CPU
+    rate 1 and 4; it ends with the limits' error, its results written). From the 4×
+    rows, each limit is the largest size at and below which every size passes:
+    `forceMaxNodes`, the reduced-motion run's mean step at most 16 ms;
+    `animateMaxNodes` (at most that), the animated run's median frame at most
+    20 ms, its p95 at most two 60 Hz frames (33 ms) and its rest within 3 s of the
+    call's return; `liveDragMaxNodes` (between the two), the drag's p95 at most
+    50 ms, a drag not measured failing. `syncSettleMs` stays 100 unless a
+    reduced-motion run laid out whole inside its call has a longest task over
+    150 ms. Then set the values, build, and run `--graph` again: it must exit 0 —
+    it fails when a row is not laid out as the limits say, or a node limit is above
+    3 000 (as *graph-force.test* does).
+
 ---
 
 ## Technology stack
@@ -2875,7 +2975,7 @@ dialog; the modules' section).
 | Concern | Choice |
 |---|---|
 | Canvas | diagram-js 14 (MIT) + custom RDF renderer, rules, modeling, context pad, popup menus |
-| Relationship graph | Cytoscape.js 3 (MIT) |
+| Relationship graph | Cytoscape.js 3 (MIT); its live force layout d3-force 3 (ISC) |
 | Renaming on the canvas | diagram-js-direct-editing 3 (MIT) |
 | UI | Lit 3 web components, CodeMirror 6 (SPARQL) |
 | RDF store / SPARQL | Oxigraph 0.5 (WASM in the browser, native module in Node) — RDF 1.2 and SPARQL 1.2 |
@@ -2895,5 +2995,5 @@ dialog; the modules' section).
 | Unit tests | `npm test` |
 | Browser tests (builds first) | `npm run test:browser:build` |
 | Type-check | `npm run typecheck` |
-| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings, opening again over the open model, and the heap, in Chrome; `test-results/bench/` (Task 22) |
+| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings, opening again over the open model, and the heap, in Chrome; the Graph tab at depths 1–5 on every model, and the graph model's sweep (`test-results/bench/graph.ttl`), animated and under reduced motion, unthrottled and at 4× CPU, which measures and checks the force layout's limits (key design decision 17); `--graph` for the sweep alone; `test-results/bench/` (Task 22) |
 | Desktop | `npm run build:electron && npm run electron`; package the app with `npm run package` (`scripts/package-electron.mjs`: `@electron/packager`, `dist/electron` and `package.json` only, in an asar; `dist/packages/`) |

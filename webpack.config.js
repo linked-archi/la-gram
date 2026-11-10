@@ -65,6 +65,7 @@ function buildInfo(desktop) {
     'lit',
     '@codemirror/view',
     'cytoscape',
+    'd3-force',
     'yjs',
     '@hocuspocus/provider',
     ...(desktop ? ['electron'] : []),

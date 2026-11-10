@@ -129,40 +129,126 @@ On macOS, the system's Chrome is
 
 What a modeller waits for on a large model: the built web app opens each model in Chrome, then its
 largest view, renames an element in it, and opens the model again over itself, and the memory it holds
-is measured. Build first with `npm run build:web`. Each model gets a browser of its own, and a table is
-printed.
+is measured; then the Graph tab, round the model's most connected element, at each depth from 1 to 5.
+Last comes the Graph tab's sweep, on a graph model made for it ([below](#bench-graph)). Build first with
+`npm run build:web`. Each model gets a browser of its own, and tables are printed.
 
 | Option | Values | Default |
 |---|---|---|
 | `--sizes <n,n…>` | the sizes of generated models, in triples | **10 000, 50 000, 100 000, 250 000, 500 000**, when no model file is given |
 | `--view-size <n>` | the nodes of each generated model's largest view | **40** |
+| `--graph` | the Graph tab's sweep alone, without the other models | **off**: the sweep follows the models |
 | `--out <file>` | where the results go, as JSON | **`test-results/bench/results-<date and time>.json`** |
 | model files | your own models, instead of generated ones: `npm run bench -- path/to/model.ttl …` | — |
 
-Generated models are kept in `test-results/bench/`, as `model-<n>.ttl` (or `model-<n>-view<m>.ttl`), and
-reused when they are there. `--out` names a file, not a folder. All of `test-results/` is git-ignored.
+Generated models are kept in `test-results/bench/`, as `model-<n>.ttl` (or `model-<n>-view<m>.ttl`) and
+`graph.ttl`, and reused when they are there. `--out` names a file, not a folder. All of `test-results/` is
+git-ignored.
 
 A small generated model, its largest view ten nodes, the results to a scratch file:
 
 ```console
 $ npm run bench -- --sizes 1000 --view-size 10 --out /tmp/la-gram-docs-bench/sizes.json
 …
-model-1000-view10.ttl … opened in 1.11 s
-| Model | Triples | Open (s) | Longest freeze (s) | Findings (after opening, s) | Largest view: nodes, open (s) | Rename: UI blocked (ms) | Findings after rename (s) | Open again, over it (s) | Heap: UI + worker (MB) |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| model-1000-view10.ttl | 984 | 1.11 | 0.47 | 10 (1.26) | 11, 0.03 | 0 | 0.31 | 0.09 | 23 + 30 |
+model-1000-view10.ttl … opened in 1.03 s
+graph.ttl, the Graph tab's sweep …
+…
+| Model | Triples | Open (s) | Longest freeze (s) | Findings (after opening, s) | Largest view: nodes, open (s) | Rename: UI blocked (ms) | Findings after rename (s) | Open again, over it (s) | Graph, depth 5: elements, laid out, at rest (s), p95 frame (ms) | Heap: UI + worker (MB) |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| model-1000-view10.ttl | 984 | 1.03 | 0.45 | 10 (1.24) | 11, 0.04 | 0 | 0.33 | 0.10 | 30, animated, 1.38, 17 | 26 + 30 |
+…
 ```
 
 A model file of your own:
 
 ```console
 $ npm run bench -- /tmp/la-gram-docs-bench/model.ttl --out /tmp/la-gram-docs-bench/results.json
-model.ttl … opened in 3.34 s
 …
-| model.ttl | 958 | 3.34 | 1.34 | 11 (3.87) | 11, 0.10 | 0 | 0.33 | 0.23 | 49 + 31 |
+model.ttl … opened in 2.97 s
+…
+| model.ttl | 958 | 2.97 | 1.21 | 11 (3.46) | 11, 0.10 | 0 | 0.35 | 0.23 | 30, unchanged, 0.00, 17 | 53 + 31 |
+…
 ```
 
 Times depend on the machine: compare runs made on the same one.
+
+### The Graph tab {#bench-graph}
+
+Each Graph measurement makes the call a user's click makes — selecting an element, or a depth — and
+waits for the graph at rest, sampling the animation frames meanwhile. It is made in four **passes**:
+*animated*, and under *reduced motion*, each at the processor's own speed and slowed four times
+(*4× CPU*: Chrome's CPU throttling, through its DevTools protocol), which stands for a typical laptop.
+
+- **The depth walk**, on every model: round the element with the most relationships, depth 1 to 5. The
+  models' table has the column *Graph, depth 5: elements, laid out, at rest (s), p95 frame (ms)*, from
+  the animated pass: how many elements, how Force laid them out — *animated*, *at once*, *rings*, or
+  *unchanged* when the depth reached nothing more — when it came to rest, and the 95th percentile of
+  the frame intervals.
+- **The sweep**, on `test-results/bench/graph.ttl`: a tree of each size from 100 to 3 000 elements (12 300
+  Application Components and 17 207 Flow relationships, made by `generateGraphModel` in
+  `scripts/bench-model.mjs`), each drawn whole at depth 5 from its root, smallest first; in an animated
+  pass, its last element is dragged 200 px after. The sweep's table gives, for each size and pass: how it
+  was laid out, the time to rest from the call, the call's own time, the median and the 95th-percentile
+  frame interval, the longest task (and the longest after the call), the layout's steps, its mean step,
+  the alpha it reached, and the p95 frame while the element was dragged (*not measured* where the drag
+  was not live). An animated pass stops at the first size whose median frame passes 100 ms; the sizes
+  after it are *not measured*.
+
+**The limits.** The sweep measures the force layout's three limits, `animateMaxNodes`,
+`liveDragMaxNodes` and `forceMaxNodes` in `src/ui/panels/graph-force.ts`, and checks them. la-gram's are
+**100**, **100** and **800** ([Relationship graph › Layout](../guide/graph.md#layout)). To measure them
+again:
+
+1. Set the three to 5 000, then `npm run build:web` and `npm run bench -- --graph`.
+2. Read the *4× CPU* rows. Each limit is the largest size at and below which every size passes:
+   `forceMaxNodes`, the reduced-motion mean step at most 16 ms; `animateMaxNodes`, at most that, the
+   animated median frame at most 20 ms, its p95 at most two 60 Hz frames (33 ms), and the graph at rest
+   within 3 s of the call's return (*At rest* less *The call*); `liveDragMaxNodes`, between the two, the
+   drag's p95 at most 50 ms.
+3. Set the values, build again, and run `npm run bench -- --graph` again.
+
+Every run ends by checking each row of the sweep against the limits it ran with: animated up to
+`animateMaxNodes` in an animated pass, laid out at once otherwise, in rings above `forceMaxNodes`; and
+that none of the three is above 3 000, the sweep's largest size. When one does not hold, the run fails
+with exit code 1, after writing its results, as a measuring run with limits of 5 000 does.
+
+The sweep alone, with la-gram's limits:
+
+```console
+$ npm run bench -- --graph --out test-results/bench/graph-regression.json
+…
+graph.ttl, the Graph tab's sweep …
+  100 elements, animated: animated, at rest in 2.50 s, p95 frame 17 ms
+  200 elements, animated: at once, at rest in 1.00 s, p95 frame 817 ms
+…
+Graph sweep, graph.ttl (limits: animateMaxNodes 100, liveDragMaxNodes 100, forceMaxNodes 800)
+
+| Elements | Pass | Laid out | At rest (s) | The call (s) | Median frame (ms) | p95 frame (ms) | Longest task (ms) | after the call (ms) | Steps | Mean step (ms) | Alpha | Drag p95 (ms) |
+|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 100 | animated | animated | 2.50 | 0.61 | 17 | 17 | 615 | 194 | 300 | 0.3 | 0.001 | 17 |
+| 200 | animated | at once | 1.00 | 0.67 | 17 | 817 | 667 | 177 | 200 | 0.5 | 0.001 | not measured (not live) |
+…
+| 1000 | animated | rings | 0.78 | 0.78 | 933 | 933 | 174 | 174 | – | – | – | not measured (animation past 100 ms a frame) |
+| 1200 | animated | not measured | | | | | | | | | | |
+…
+| 800 | reduced motion, 4× CPU | at once | 5.42 | 2.27 | 17 | 17 | 2275 | 765 | 129 | 11.6 | 0.012 |  |
+| 1000 | reduced motion, 4× CPU | rings | 2.79 | 2.79 | 3300 | 3300 | 560 | 560 | – | – | – |  |
+…
+test-results/bench/graph-regression.json
+```
+
+The end of a measuring run, the three limits at 5 000:
+
+```console
+$ npm run bench -- --graph --out test-results/bench/graph-measuring-2.json
+…
+test-results/bench/graph-measuring-2.json
+
+The Graph tab's limits do not hold:
+- animateMaxNodes is 5000: above 3000, the sweep's largest size
+- liveDragMaxNodes is 5000: above 3000, the sweep's largest size
+- forceMaxNodes is 5000: above 3000, the sweep's largest size
+```
 
 ## `npm run bench:model` {#npm-run-bench-model}
 

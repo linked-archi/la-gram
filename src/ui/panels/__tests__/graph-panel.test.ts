@@ -3,23 +3,31 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import type { GraphQueryOptions, RelationshipGraph } from '../../../model-manager/relationship-graph.js';
 import '../graph-panel.js';
 import type { GraphPanel, GraphSource, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail } from '../graph-panel.js';
-import type { GraphView, GraphViewHandlers } from '../graph-view.js';
+import type { GraphLayout, GraphLayoutStats, GraphShowOptions, GraphView, GraphViewHandlers } from '../graph-view.js';
 
 const M = 'https://example.org/m/';
 const L = 'https://example.org/lang#';
 
+const LIMITS = { animateMaxNodes: 300, liveDragMaxNodes: 600, forceMaxNodes: 600, syncSettleMs: 100, sliceMs: 12, settleBudgetMs: 1500 };
+
 function fakeView() {
-  const shown: Array<{ nodes: unknown[]; edges: unknown[]; root: string }> = [];
+  const shown: Array<{ nodes: unknown[]; edges: unknown[]; root: string; layout: GraphLayout; options: GraphShowOptions | undefined }> = [];
   let handlers: GraphViewHandlers | undefined;
-  const view: GraphView = {
-    show: (nodes, edges, root) => void shown.push({ nodes, edges, root }),
+  const view = {
+    show: (nodes, edges, root, layout, options) => void shown.push({ nodes, edges, root, layout, options }),
     relayout: vi.fn(),
     fit: vi.fn(),
     resize: vi.fn(),
     highlight: vi.fn(),
-    positions: () => new Map([[M + 'a', { x: 0, y: 0 }], [M + 'b', { x: 150, y: 0 }]]),
+    positions: vi.fn((space?: 'model' | 'rendered') =>
+      space === 'rendered'
+        ? new Map([[M + 'a', { x: 400, y: 120 }], [M + 'b', { x: 520, y: 120 }]])
+        : new Map([[M + 'a', { x: 0, y: 0 }], [M + 'b', { x: 150, y: 0 }]]),
+    ),
+    pause: vi.fn(),
+    layoutStats: vi.fn((): GraphLayoutStats => ({ layout: 'force', drawnBy: 'force', limits: LIMITS })),
     destroy: vi.fn(),
-  };
+  } satisfies GraphView;
   return { view, shown, factory: vi.fn((_c: HTMLElement, h: GraphViewHandlers) => ((handlers = h), view)), handlers: () => handlers! };
 }
 
@@ -54,9 +62,8 @@ function fakeSource() {
   return { source, calls };
 }
 
-async function mount(active = true) {
+async function mount(active = true, view = fakeView()) {
   const panel = document.createElement('graph-panel') as GraphPanel;
-  const view = fakeView();
   const { source, calls } = fakeSource();
   panel.viewFactory = view.factory;
   panel.source = source;
@@ -181,5 +188,122 @@ describe('<graph-panel>', () => {
     await panel.updateComplete;
     await panel.updateComplete;
     expect(root.querySelector('.message')!.textContent).toMatch(/Select an element/);
+  });
+});
+
+describe('<graph-panel> layouts (key decision 17)', () => {
+  const select = (root: ShadowRoot) => root.querySelector<HTMLSelectElement>('select[aria-label="Layout"]')!;
+
+  it('lays out with Force when nothing is remembered, listed first; keeps a remembered choice; an unknown one means Force', async () => {
+    const { view, root } = await mount();
+    expect(view.shown.at(-1)!.layout).toBe('force');
+    expect([...select(root).options].map((o) => o.textContent!.trim())).toEqual(['Force', 'Rings', 'Tree']);
+    expect(select(root).value).toBe('force');
+    for (const [value, expected] of [
+      ['rings', 'rings'],
+      ['tree', 'tree'],
+      ['force', 'force'],
+      ['cose', 'force'],
+    ] as const) {
+      document.body.innerHTML = '';
+      remembered.set('la-gram:graph-layout', value);
+      const mounted = await mount();
+      expect(mounted.view.shown.at(-1)!.layout).toBe(expected);
+      expect(select(mounted.root).value).toBe(expected);
+      // Nothing is rewritten: only a choice in the select is.
+      expect(remembered.get('la-gram:graph-layout')).toBe(value);
+    }
+  });
+
+  it('remembers Rings when it is chosen, and lays the graph out again with it', async () => {
+    const { view, root } = await mount();
+    select(root).value = 'rings';
+    select(root).dispatchEvent(new Event('change'));
+    expect(remembered.get('la-gram:graph-layout')).toBe('rings');
+    expect(view.view.relayout).toHaveBeenCalledWith('rings');
+  });
+
+  it('pauses the drawing once when the tab is hidden; shown again, it draws with follow: false', async () => {
+    const { panel, view } = await mount();
+    const drawn = view.shown.length;
+    panel.active = false;
+    await panel.updateComplete;
+    expect(view.view.pause).toHaveBeenCalledTimes(1);
+    panel.active = true;
+    await panel.updateComplete;
+    expect(view.view.pause).toHaveBeenCalledTimes(1);
+    expect(view.shown.length).toBe(drawn + 1);
+    expect(view.shown.at(-1)!.options).toEqual({ follow: false });
+  });
+
+  it('draws a middle element set while the tab was hidden with follow: true when the tab is shown', async () => {
+    const { panel, view } = await mount();
+    panel.active = false;
+    await panel.updateComplete;
+    panel.rootIri = M + 'b';
+    await panel.updateComplete;
+    panel.active = true;
+    await panel.updateComplete;
+    expect(view.shown.at(-1)).toMatchObject({ root: M + 'b', options: { follow: true } });
+  });
+
+  it('destroys the drawing when the panel is removed', async () => {
+    const { panel, view } = await mount();
+    panel.remove();
+    expect(view.view.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws a depth change and an unticked type with follow: true, and a refresh after a model change with follow: false', async () => {
+    const { panel, view, root } = await mount();
+    expect(view.shown.at(-1)!.options).toEqual({ follow: true });
+    root.querySelector<HTMLButtonElement>('.depth button[data-depth="3"]')!.click();
+    expect(view.shown.at(-1)!.options).toEqual({ follow: true });
+    panel.toggleType('element', L + 'Component', false);
+    expect(view.shown.at(-1)!.options).toEqual({ follow: true });
+    vi.useFakeTimers();
+    try {
+      const drawn = view.shown.length;
+      panel.scheduleRefresh();
+      vi.advanceTimersByTime(299);
+      expect(view.shown.length).toBe(drawn);
+      vi.advanceTimersByTime(1);
+      expect(view.shown.length).toBe(drawn + 1);
+      expect(view.shown.at(-1)!.options).toEqual({ follow: false });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives the drawn positions in either space, and ＋ New view the model positions', async () => {
+    const { panel, view, root } = await mount();
+    expect(panel.drawnPositions('rendered').get(M + 'b')).toEqual({ x: 520, y: 120 });
+    expect(view.view.positions).toHaveBeenLastCalledWith('rendered');
+    const asked: GraphNewViewDetail[] = [];
+    panel.addEventListener('graph-new-view', (e) => asked.push((e as CustomEvent<GraphNewViewDetail>).detail));
+    root.querySelector<HTMLButtonElement>('[data-export="view"]')!.click();
+    expect(view.view.positions).toHaveBeenLastCalledWith('model');
+    expect(asked[0]!.centres.get(M + 'b')).toEqual({ x: 150, y: 0 });
+  });
+
+  it('gives the drawing’s layout stats, and none before the tab is first shown', async () => {
+    const { panel, view } = await mount(false);
+    expect(panel.layoutStats()).toBeUndefined();
+    panel.active = true;
+    await panel.updateComplete;
+    expect(panel.layoutStats()).toEqual({ layout: 'force', drawnBy: 'force', limits: LIMITS });
+    expect(view.view.layoutStats).toHaveBeenCalled();
+  });
+
+  it('says so on the stats line when Force drew the graph in rings', async () => {
+    const view = fakeView();
+    view.view.layoutStats.mockReturnValue({ layout: 'force', drawnBy: 'rings', limits: LIMITS });
+    const { panel, root } = await mount(true, view);
+    await panel.updateComplete;
+    expect(root.querySelector('.stats')!.textContent!.trim()).toBe('2 elements · 1 relationships · drawn in rings: Force lays out up to 600 elements');
+
+    document.body.innerHTML = '';
+    const plain = await mount();
+    await plain.panel.updateComplete;
+    expect(plain.root.querySelector('.stats')!.textContent!.trim()).toBe('2 elements · 1 relationships');
   });
 });
