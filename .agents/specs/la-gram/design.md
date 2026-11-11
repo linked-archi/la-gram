@@ -1576,8 +1576,10 @@ locked (a rule at priority 3000 denies move/resize/delete/re-route).
 
 `ModelIO.serialize` writes the default graph only, sorted (deterministic;
 `rdf:type` first under each subject), with prefixes from the loaded
-vocabularies' `vann:` declarations and the model's own (`m:` unless it declares
-another), partitioned per DD-15 for graph formats; `no-geometry` drops the views graph. Turtle and
+vocabularies' `vann:` declarations — after the standard ones, in order of the
+prefix, not of the store, which returns them in the order the metamodels were
+loaded, an order that differs from one machine to another — and the model's own
+(`m:` unless it declares another), partitioned per DD-15 for graph formats; `no-geometry` drops the views graph. Turtle and
 TriG go through n3's writer; JSON-LD, RDF/XML, N-Quads, N-Triples through
 Oxigraph. Every format but JSON-LD carries RDF 1.2 triple terms (`rdf:reifies
 <<( s p o )>>`; RDF/XML as `rdf:parseType="Triple"`); JSON-LD has none, so its

@@ -26,8 +26,9 @@ file is opened, and by you when it is saved ([Files, import and export](../guide
   *Save as TriG (graph per layer)*, write the others.
 - **The file name** is the model's name with every run of characters other than letters, digits, `.`,
   `_` and `-` turned into `-`: "Acme online shop" is saved as `Acme-online-shop.ttl`.
-- **Turtle as la-gram writes it** has the same order, prefixes and layout every time, so a text diff of
-  two saves shows only what changed. `la-gram-git check` holds model files in Git to that form, and
+- **Turtle as la-gram writes it** has the same order, prefixes and layout every time, on any machine,
+  so a text diff of two saves shows only what changed. The prefixes are the standard ones, then the
+  metamodels' in order of their names (`am4:`, `am4mm:`, `am4vp:`), then the model's own (`m:`). `la-gram-git check` holds model files in Git to that form, and
   `la-gram-git fix` rewrites them into it ([la-gram-git](la-gram-git.md#fix)).
 - **Comments** in a Turtle file are not kept: la-gram reads the triples and writes them anew.
 

@@ -174,10 +174,15 @@ export class ModelIO {
     for (const q of this.store.getQuads(null, nn(NAMESPACES.vann + 'preferredNamespaceUri'))) {
       if (q.graph.termType !== 'DefaultGraph') uriOf.set(q.subject.value, q.object.value);
     }
-    for (const [subject, prefix] of prefixOf) {
-      const uri = uriOf.get(subject);
-      if (uri && /^[A-Za-z][\w-]*$/.test(prefix) && !(prefix in prefixes)) prefixes[prefix] = uri;
-    }
+    // In order of the prefix (then its namespace, for one declared twice), not of the store: the store
+    // returns the declarations in the order the metamodels were loaded, which is the order their files
+    // happened to arrive in — so the same model was written with its prefixes in another order on
+    // another machine, and `la-gram-git check` failed there a file written here (Req 9.12).
+    const declared = [...prefixOf]
+      .map(([subject, prefix]) => [prefix, uriOf.get(subject)] as const)
+      .filter((pair): pair is readonly [string, string] => !!pair[1] && /^[A-Za-z][\w-]*$/.test(pair[0]))
+      .sort(([a, x], [b, y]) => (a < b ? -1 : a > b ? 1 : x < y ? -1 : x > y ? 1 : 0));
+    for (const [prefix, uri] of declared) if (!(prefix in prefixes)) prefixes[prefix] = uri;
     if (modelIri) {
       const own = readModelNamespace(this.store, modelIri);
       // One prefix per namespace: drop another name bound to the same IRI.

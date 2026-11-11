@@ -247,7 +247,7 @@ implementation-independent tool specification is `docs/linked-archi-tool-spec.md
 9. Collaborative rooms persist continuously on the server (debounced) as N-Triples plus a Turtle snapshot, and are readable over HTTP (`/rooms/<room>.ttl`)
 10. Saving a version is an explicit action: the History tab saves a *checkpoint* of the model's working state with a message (and the author's collaboration name), kept on this machine per model. *la-gram:* it says "checkpoint", not "commit", which means a Git commit (Req 18)
 11. Joining a room loads its persisted state
-12. The same model always serializes to the same text (deterministic ordering)
+12. The same model always serializes to the same text (deterministic ordering), on any machine and whatever order the metamodels were loaded in: its triples in a fixed order, and the prefixes the standard ones first, then the metamodels' in order of their names (`am4:`, `am4mm:`, `am4vp:`), then the model's own
 13. Delete from view vs. from model, as Req 3.7
 14. Version history: the checkpoints, newest first, with the triples each added and removed; a checkpoint's differences from the one before or from the model now — by element (each concept added, removed or changed: single values old → new, values added and removed, a view's shapes placed, removed, moved, resized, rerouted; design, *Comparing versions by element*) or as triples added and removed; restore a checkpoint — one undoable step. For a model bound to a file in Git, its commits too (Req 18.23)
 15. *la-gram:* models written with retired vocabulary (`arch:partOfModel`, `arch:exposedInView`, `arch:contains`, `arch:conformsToMetamodel`, `arch:viewpoint`, `arch:relSource`/`relTarget`/`relPredicate`, element-level bounds) are migrated on open

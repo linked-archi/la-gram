@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
-import { Parser as N3Parser } from 'n3';
+import { DataFactory, Parser as N3Parser } from 'n3';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
 import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
@@ -75,6 +75,49 @@ describe('ModelIO', () => {
     expect(ttl).toContain(`vann:preferredNamespaceUri "${ctx.namespace}"`);
     // Nothing of the model is left as a full IRI: the namespace is written once, in @prefix.
     expect(ttl.split(`<${ctx.namespace}`)).toHaveLength(2);
+  });
+
+  it('writes the vocabularies\' prefixes in the same order whatever order the metamodels were loaded in (Req 9.12)', () => {
+    // The store returns the prefix declarations in the order their graphs were added, and the
+    // metamodels arrive in whatever order their files do: here and on a CI runner, not the same.
+    const vann = 'http://purl.org/vocab/vann/';
+    const vocabularies = [
+      ['https://meta.linked.archi/archimate4/viewpoints', 'am4vp', 'https://meta.linked.archi/archimate4/viewpoints#'],
+      ['https://meta.linked.archi/archimate4/onto', 'am4', AM4],
+      ['https://meta.linked.archi/archimate4/metamodel', 'am4mm', 'https://meta.linked.archi/archimate4/metamodel#'],
+    ] as const;
+    const model = [
+      '@prefix arch: <https://meta.linked.archi/core#>.',
+      '@prefix m: <https://example.org/acme/shop/>.',
+      'm:model a arch:Model; arch:modelConformsToMetamodel <https://meta.linked.archi/archimate4/metamodel#ArchiMate4>.',
+      `m:web a <${AM4}ApplicationComponent>; arch:inModel m:model.`,
+      'm:view a arch:Diagram; arch:viewConformsToViewpoint <https://meta.linked.archi/archimate4/viewpoints#Layered>; arch:inModel m:model.',
+    ].join('\n');
+    const written = (order: readonly number[]) => {
+      const store = new OxigraphRdfStore();
+      try {
+        for (const i of order) {
+          const [graph, prefix, uri] = vocabularies[i]!;
+          const g = DataFactory.namedNode(graph);
+          store.addQuads([
+            DataFactory.quad(g, DataFactory.namedNode(`${vann}preferredNamespacePrefix`), DataFactory.literal(prefix), g),
+            DataFactory.quad(g, DataFactory.namedNode(`${vann}preferredNamespaceUri`), DataFactory.literal(uri), g),
+          ] as never);
+        }
+        const io = new ModelIO(store);
+        io.load(model, 'shop.ttl');
+        return io.serialize('https://example.org/acme/shop/model', { format: 'turtle' });
+      } finally {
+        store.dispose();
+      }
+    };
+    const first = written([0, 1, 2]);
+    expect(first.split('\n').filter((line) => line.startsWith('@prefix am4'))).toEqual([
+      `@prefix am4: <${AM4}>.`,
+      '@prefix am4mm: <https://meta.linked.archi/archimate4/metamodel#>.',
+      '@prefix am4vp: <https://meta.linked.archi/archimate4/viewpoints#>.',
+    ]);
+    for (const order of [[2, 1, 0], [1, 0, 2], [2, 0, 1]]) expect(written(order)).toBe(first);
   });
 
   it('uses the prefix the model declares', () => {
