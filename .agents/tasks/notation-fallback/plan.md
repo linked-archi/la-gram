@@ -144,10 +144,10 @@ after the run.
 - **D8. Relationship colour.** No renderer change. A relationship descriptor without `arch-vis:lineColor`
   renders `#000000` (the `NOTATION_DEFAULTS` fallback), and a relationship with no descriptor renders solid
   black. Tests pin both.
-- **D9. Specs.** `.kiro/steering/project-conventions.md` requires spec updates in the same change. Update
-  `.kiro/specs/la-gram/requirements.md` Req 2 items 15–16 (`:83-84`) with the six-step order and the loading of
-  `usesNotationSet` targets. Update `.kiro/specs/la-gram/design.md:171` (fallback sentence) and add one checked
-  line to `.kiro/specs/la-gram/tasks.md` near `:34`.
+- **D9. Specs.** `.agents/conventions.md` requires spec updates in the same change. Update
+  `.agents/specs/la-gram/requirements.md` Req 2 items 15–16 (`:83-84`) with the six-step order and the loading of
+  `usesNotationSet` targets. Update `.agents/specs/la-gram/design.md:171` (fallback sentence) and add one checked
+  line to `.agents/specs/la-gram/tasks.md` near `:34`.
 
 ### Interpretations to report (not blockers)
 
@@ -288,15 +288,15 @@ after the run.
       Verify: `npx vitest --run src/ui/canvas` passes; `npm run typecheck` exits 0.
 
 - [ ] 7. Update the living specs (D9).
-      `.kiro/specs/la-gram/requirements.md` Req 2: item 15 adds that the targets of the contexts'
+      `.agents/specs/la-gram/requirements.md` Req 2: item 15 adds that the targets of the contexts'
       `arch:usesNotationSet` are loaded with the metamodel; item 16 becomes the six-step order (active exact →
       active nearest superclass, breadth-first, ties by IRI, ending at `arch:Element`/`arch:QualifiedRelationship`
       → other loaded metamodels' default sets, exact, in load order → the class's `arch:prefVisNotation` →
       those sets' nearest superclass → built-in defaults; relationships black unless a descriptor states a colour).
-      `.kiro/specs/la-gram/design.md:171`: the same order in one sentence, naming `notation-resolver.ts` and
-      `class-hierarchy.ts`. `.kiro/specs/la-gram/tasks.md`: add a checked line under the notation items (`:31-34`)
+      `.agents/specs/la-gram/design.md:171`: the same order in one sentence, naming `notation-resolver.ts` and
+      `class-hierarchy.ts`. `.agents/specs/la-gram/tasks.md`: add a checked line under the notation items (`:31-34`)
       naming the new tests.
-      Files: `.kiro/specs/la-gram/requirements.md`, `.kiro/specs/la-gram/design.md`, `.kiro/specs/la-gram/tasks.md`
+      Files: `.agents/specs/la-gram/requirements.md`, `.agents/specs/la-gram/design.md`, `.agents/specs/la-gram/tasks.md`
       Verify: re-read the edited passages against D4 (order and wording identical); no code impact.
 
 - [ ] 8. Full verification and report.

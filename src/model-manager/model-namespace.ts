@@ -26,7 +26,7 @@ import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { DEFAULT_MODEL_BASE, MODEL_LOCAL_NAME, ensureNamespace, namespaceOfIri } from '../rdf-engine/iri.js';
 import { modelQuads } from './model-queries.js';
-import { T, nn, stringLiteral, triple } from './vocabulary.js';
+import { T, nn, stringLiteral, triple, tripleTerm } from './vocabulary.js';
 
 /** Prefix the model's namespace gets unless the model says otherwise. */
 export const DEFAULT_MODEL_PREFIX = 'm';
@@ -113,6 +113,10 @@ export interface NamespaceChangePlan {
  * IRIs a loaded vocabulary defines are left alone even when they happen to sit
  * under `from`: the model uses those terms, it does not own them. The model's
  * own VANN statements are not part of the plan; the caller writes new ones.
+ *
+ * An IRI inside an RDF 1.2 triple term — the `<<( source predicate target )>>`
+ * a relationship `rdf:reifies` — moves with the rest: the triple term is
+ * rewritten as its subject, predicate and object are.
  */
 export function planNamespaceChange(store: RdfStore, modelIri: string, from: string, to: string): NamespaceChangePlan {
   const source = ensureNamespace(from);
@@ -126,8 +130,8 @@ export function planNamespaceChange(store: RdfStore, modelIri: string, from: str
   const present = new Set<string>();
   const candidates: string[] = [];
   for (const q of quads) {
-    for (const term of [q.subject, q.predicate, q.object]) {
-      if (term.termType !== 'NamedNode' || present.has(term.value)) continue;
+    for (const term of namedNodesOf([q.subject, q.predicate, q.object])) {
+      if (present.has(term.value)) continue;
       present.add(term.value);
       if (term.value !== modelIri && term.value.startsWith(source) && term.value.length > source.length) {
         candidates.push(term.value);
@@ -152,7 +156,16 @@ export function planNamespaceChange(store: RdfStore, modelIri: string, from: str
   if (mapping.get(modelIri) === modelIri) mapping.delete(modelIri);
   if (mapping.size === 0) return { mapping, remove: [], add: [] };
 
-  const rename = (term: Term): Term => (term.termType === 'NamedNode' && mapping.has(term.value) ? nn(mapping.get(term.value)!) : term);
+  // The same term back when nothing in it moves, so an unchanged quad is left alone.
+  const rename = (term: Term): Term => {
+    if (term.termType === 'NamedNode') return mapping.has(term.value) ? nn(mapping.get(term.value)!) : term;
+    if (term.termType === 'Quad') {
+      const inner = term as unknown as Quad;
+      const [s, p, o] = [rename(inner.subject), rename(inner.predicate), rename(inner.object)];
+      return s === inner.subject && p === inner.predicate && o === inner.object ? term : tripleTerm(s, p, o);
+    }
+    return term;
+  };
   const remove: Quad[] = [];
   const add: Quad[] = [];
   for (const q of quads) {
@@ -164,6 +177,17 @@ export function planNamespaceChange(store: RdfStore, modelIri: string, from: str
     add.push(triple(s, p, o));
   }
   return { mapping, remove, add };
+}
+
+/** The IRIs among `terms`, and inside any triple term among them, however deep. */
+function* namedNodesOf(terms: Term[]): Generator<Term> {
+  for (const term of terms) {
+    if (term.termType === 'NamedNode') yield term;
+    else if (term.termType === 'Quad') {
+      const inner = term as unknown as Quad;
+      yield* namedNodesOf([inner.subject, inner.predicate, inner.object]);
+    }
+  }
 }
 
 /** Whether a vocabulary graph (anything but the model data) describes `iri`. */

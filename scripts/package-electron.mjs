@@ -57,7 +57,7 @@ const paths = await packager({
   win32metadata: {
     CompanyName: 'Linked.Archi',
     ProductName: 'la-gram',
-    FileDescription: 'la-gram — Semantic Architecture Modeller',
+    FileDescription: 'la-gram — Semantic Modeller for Enterprise and IT Architecture',
   },
   appCategoryType: 'public.app-category.developer-tools',
 });

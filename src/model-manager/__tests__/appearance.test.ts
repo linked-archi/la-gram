@@ -34,6 +34,17 @@ describe('a colour’s alpha, read as meant', () => {
   });
 });
 
+describe('whether a placement shows its element’s picture as its icon (core-vis 0.8)', () => {
+  it('is a boolean: written as one, read from true, false, 1 or 0 — nothing else', () => {
+    expect(appearanceObject('useElementPicture', true)).toEqual({ boolean: true });
+    expect(appearanceObject('useElementPicture', 'yes' as never)).toBeUndefined();
+    expect(appearanceValue('useElementPicture', { termType: 'Literal', value: 'true' })).toBe(true);
+    expect(appearanceValue('useElementPicture', { termType: 'Literal', value: '0' })).toBe(false);
+    expect(appearanceValue('useElementPicture', { termType: 'Literal', value: 'yes' })).toBeUndefined();
+    expect(appearanceValue('useElementPicture', { termType: 'NamedNode', value: 'true' })).toBeUndefined();
+  });
+});
+
 describe('an appearance’s values, as core-vis writes them', () => {
   it('enumerations as their members, sizes as positive integers, a font style as its known keywords in order', () => {
     expect(appearanceObject('textAlignment', 'left')).toEqual({ iri: VIS + 'AlignLeft' });

@@ -1,0 +1,178 @@
+# la-gram's documentation: docs-site/ built into dist/web/docs/, which the web
+# app's release puts at https://app.linked.archi/la-gram/docs/ (.gitlab-ci.yml,
+# docs and web-deploy). How to write and build it:
+# docs-site/developing/documentation.md.
+site_name: la-gram
+site_url: https://app.linked.archi/la-gram/docs/
+site_description: >-
+  How to use, configure, run and build la-gram, the semantic modeller for
+  enterprise and IT architecture, built on Linked.Archi metamodels.
+site_author: Linked.Archi
+copyright: >-
+  la-gram is licensed under the
+  <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>;
+  the metamodels it bundles under the licences they state.
+
+docs_dir: docs-site
+site_dir: dist/web/docs
+use_directory_urls: true
+# Diagram sources stay beside their SVGs, and out of the site.
+exclude_docs: |
+  *.d2
+
+# No repo_url: with it, Material's script asks gitlab.com for the project's
+# stars and forks from every reader's browser. The footer links to GitLab.
+
+theme:
+  name: material
+  language: en
+  # No Google Fonts: the server's policy takes fonts from the site only.
+  font: false
+  logo: assets/images/la-gram.svg
+  favicon: assets/images/la-gram.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  # Not navigation.instant, search.share or content.action.*: see
+  # docs-site/developing/documentation.md, "What the site leaves out".
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+# The server's Content-Security-Policy runs no inline script: csp_hook moves
+# Material's into files, and checks every built page. front_matter_hook asks
+# every page for a description.
+hooks:
+  - scripts/docs/csp_hook.py
+  - scripts/docs/front_matter_hook.py
+
+plugins:
+  # Material's own search plugin (material/search): no third-party plugins.
+  - search:
+      lang: en
+
+markdown_extensions:
+  - toc:
+      permalink: true
+      permalink_title: Link to this section
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  # Files of this repository shown as they are: the CI templates, the Gitaly guide.
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
+      restrict_base_path: true
+      url_download: false
+
+# Every link, anchor and page checked; npm run docs:build and CI add --strict.
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    absolute_links: warn
+    unrecognized_links: warn
+    anchors: warn
+
+# What the pages embed. Not scripts/docs: MkDocs keeps a hook it has loaded,
+# so after editing one, restart npm run docs:serve.
+watch:
+  - ci
+  - packages/la-gram-git/docs
+
+extra:
+  social:
+    - icon: fontawesome/brands/gitlab
+      link: https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram
+      name: la-gram on GitLab
+    - icon: fontawesome/solid/globe
+      link: https://meta.linked.archi/
+      name: Linked.Archi metamodels
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting started:
+    - getting-started/index.md
+    - In the browser: getting-started/web.md
+    - Desktop app: getting-started/desktop.md
+    - Your first model: getting-started/first-model.md
+  - User guide:
+    - guide/index.md
+    - Models and views: guide/models-and-views.md
+    - Metamodels: guide/metamodels.md
+    - Drawing on the canvas: guide/canvas.md
+    - Appearance, labels and pictures: guide/appearance.md
+    - Model tree and folders: guide/model-tree.md
+    - Palette and About ‹type›: guide/palette.md
+    - Properties: guide/properties.md
+    - Validation: guide/validation.md
+    - SPARQL and model questions: guide/sparql.md
+    - Relationship graph: guide/graph.md
+    - History and checkpoints: guide/history.md
+    - The RDF panel: guide/rdf-panel.md
+    - Catalog and matrix views: guide/catalog-and-matrix.md
+    - Files, import and export: guide/files.md
+    - Git storage: guide/git.md
+    - Collaboration: guide/collaboration.md
+    - Settings: guide/settings.md
+  - Reference:
+    - reference/index.md
+    - URL parameters: reference/url-parameters.md
+    - Deployment configuration file: reference/configuration.md
+    - Keyboard and mouse: reference/keyboard.md
+    - File formats and vocabulary: reference/file-formats.md
+    - Data kept on your machine: reference/stored-data.md
+    - Desktop app internals: reference/desktop.md
+    - la-gram-git command line: reference/la-gram-git.md
+  - Operating:
+    - operating/index.md
+    - Hosting the web app: operating/web-app.md
+    - Collaboration server: operating/collaboration-server.md
+    - la-gram-git in CI: operating/ci.md
+    - Container image: operating/container-image.md
+    - Merge driver on Gitaly: operating/gitaly.md
+  - Developing:
+    - developing/index.md
+    - Building: developing/building.md
+    - Testing and benchmarks: developing/testing.md
+    - Bundled metamodels and icons: developing/assets.md
+    - Releasing: developing/releasing.md
+    - Writing the documentation: developing/documentation.md
+    - Specifications: developing/specifications.md
+  - Troubleshooting and FAQ: troubleshooting.md

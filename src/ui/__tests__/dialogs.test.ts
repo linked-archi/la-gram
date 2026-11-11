@@ -158,7 +158,7 @@ describe('the choice dialog', () => {
 
 describe('the details dialog (About, the keyboard shortcuts)', () => {
   const blocks: DetailBlock[] = [
-    { kind: 'header', image: 'favicon.svg', title: 'la-gram', subtitle: 'Semantic Architecture Modeller', note: 'Version 0.1.0' },
+    { kind: 'header', image: 'favicon.svg', title: 'la-gram', subtitle: 'Semantic Modeller for Enterprise and IT Architecture', note: 'Version 0.1.0' },
     { kind: 'heading', text: 'Licence' },
     { kind: 'text', text: 'Apache License 2.0.' },
     { kind: 'links', links: [{ label: 'Source code', href: 'https://example.org/la-gram' }] },
@@ -203,7 +203,7 @@ describe('the details dialog (About, the keyboard shortcuts)', () => {
   it('reads as lines of text where a dialog shows no parts', () => {
     expect(detailLines(blocks)).toEqual([
       'la-gram',
-      'Semantic Architecture Modeller',
+      'Semantic Modeller for Enterprise and IT Architecture',
       'Version 0.1.0',
       '',
       'Licence',

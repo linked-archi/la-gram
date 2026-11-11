@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { Page } from 'playwright';
+import type { Dialog, Page } from 'playwright';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -69,6 +69,37 @@ async function dropActor(page: Page, dx: number, dy: number): Promise<void> {
   // — as it can now the drop is quick — would lose its click.
   await page.waitForTimeout(450);
 }
+
+type XY = { x: number; y: number };
+
+/**
+ * The Graph tab's drawing, read through the panel in the page: where each element
+ * is (model units, and rendered pixels inside the `.cy` box), the layout's state
+ * (`data-layout`), the box's size, the stats line and the panel's selection.
+ */
+async function graphTab(page: Page) {
+  return page.evaluate(() => {
+    const panel = (window as any).__LA_GRAM_UI__.graphPanel;
+    const cy = panel.shadowRoot.querySelector('.cy') as HTMLElement;
+    return {
+      layout: cy.dataset.layout as string,
+      model: Object.fromEntries(panel.drawnPositions('model')) as Record<string, { x: number; y: number }>,
+      rendered: Object.fromEntries(panel.drawnPositions('rendered')) as Record<string, { x: number; y: number }>,
+      width: cy.clientWidth,
+      height: cy.clientHeight,
+      stats: (panel.shadowRoot.querySelector('.stats') as HTMLElement).innerText.trim(),
+      root: (panel.shadowRoot.querySelector('.root') as HTMLElement).innerText.trim(),
+      selected: panel.selectedIri as string,
+    };
+  });
+}
+type GraphTab = Awaited<ReturnType<typeof graphTab>>;
+
+const apartBy = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y);
+/** Every element's rendered centre inside the drawing: framed. */
+const framed = (g: GraphTab) => Object.values(g.rendered).every((p) => p.x >= 0 && p.y >= 0 && p.x <= g.width && p.y <= g.height);
+/** Rendered over model distance between two elements drawn at every depth. */
+const zoomOf = (g: GraphTab, a: string, b: string) => apartBy(g.rendered[a]!, g.rendered[b]!) / apartBy(g.model[a]!, g.model[b]!);
 
 /** Answer the open prompt dialog. */
 async function answerPrompt(page: Page, text: string): Promise<void> {
@@ -194,13 +225,14 @@ describe('views: one model, many views', () => {
   });
 });
 
-describe('the name, the icon, Help and About', () => {
-  it('shows the icon by the name, and the title by the model; About from either, the shortcuts from Help', async () => {
+describe("the name, the icon and la-gram's menu", () => {
+  it("shows the icon by the name, and the title by the model; About and the shortcuts from the name's menu", async () => {
     const { page, session } = await openPage();
     const bar = page.locator('app-toolbar');
     // The icon loads, beside the name, on one line.
     const brand = bar.locator('button.brand');
-    await expect(brand.innerText()).resolves.toBe('la-gram');
+    await expect(brand.innerText().then((t) => t.replace(/\s+/g, ''))).resolves.toBe('la-gram▾');
+    expect(await bar.locator('button[data-menu="help"]').count()).toBe(0);
     const icon = await brand.locator('img').evaluate((img: HTMLImageElement) => [img.complete, img.naturalWidth > 0, img.getBoundingClientRect().height]);
     expect(icon).toEqual([true, true, 20]);
     expect((await brand.boundingBox())!.height).toBeLessThan(32);
@@ -210,8 +242,9 @@ describe('the name, the icon, Help and About', () => {
       expect((await page.request.get(href)).status()).toBe(200);
     }
 
-    // About, from the name: what it is, its version, its licence, what it is built with.
+    // About, from the name's menu: what it is, its version, its licence, what it is built with.
     await brand.click();
+    await bar.locator('.dropdown [data-command="about"]').click();
     const dialog = page.locator('.la-dialog.la-dialog-details');
     await dialog.waitFor({ state: 'visible' });
     expect(await dialog.locator('.la-details-title').innerText()).toBe('la-gram');
@@ -220,24 +253,41 @@ describe('the name, the icon, Help and About', () => {
     const text = await dialog.innerText();
     expect(text).toContain('Apache License 2.0');
     expect(text).toMatch(/diagram-js \d/);
+    expect(text).toMatch(/d3-force 3\.0\.1/);
     expect(text).toContain('ArchiMate 4.0 Metamodel');
     await session.screenshot('help-about');
     await dialog.locator('.la-button.primary').click();
     await dialog.waitFor({ state: 'hidden' });
 
-    // Help: the shortcuts, the guides opening in another tab, About.
-    await bar.locator('button[data-menu="help"]').click();
+    // The same menu: the guides opening in another tab, the shortcuts.
+    await brand.click();
     const links = bar.locator('.dropdown a[data-link]');
     expect(await links.count()).toBeGreaterThan(5);
     expect(await links.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
+    // la-gram's documentation first, the copy beside the app.
+    expect(await links.first().getAttribute('data-link')).toBe('la-gram-docs');
+    expect(await links.first().evaluate((a) => (a as HTMLAnchorElement).href)).toBe(`${server.baseUrl}/docs/`);
     await bar.locator('.dropdown [data-command="shortcuts"]').click();
     await dialog.waitFor({ state: 'visible' });
     expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Keyboard shortcuts');
     expect(await dialog.locator('kbd').count()).toBeGreaterThan(10);
+    expect(await dialog.locator('.la-details-links a').getAttribute('href')).toBe(`${server.baseUrl}/docs/reference/keyboard/`);
     await session.screenshot('help-shortcuts');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
-    findings.push('icon by the name, title by the model, About (version, licence, built with), Help with the shortcuts and the guides: ok');
+
+    // Download the desktop app: a link for each platform's, on app.linked.archi.
+    await brand.click();
+    await bar.locator('.dropdown [data-command="download"]').click();
+    await dialog.waitFor({ state: 'visible' });
+    expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Download the desktop app');
+    const apps = dialog.locator('.la-details-links a[href^="https://app.linked.archi/la-gram/downloads/la-gram-"]');
+    expect(await apps.count()).toBe(5);
+    expect(await apps.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
+    await session.screenshot('help-download');
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    findings.push("icon by the name, title by the model, the name's menu: About (version, licence, built with), the shortcuts, the guides: ok");
   }, 90_000);
 });
 
@@ -813,6 +863,8 @@ describe('appending from the context pad', () => {
     const stats = panel.locator('.stats');
     await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph');
     expect((await panel.locator('.root').innerText()).trim()).toMatch(/^Business Actor/);
+    // Force, live: the graph moves into place and comes to rest.
+    await panel.locator('.cy[data-layout="settled"]').waitFor({ state: 'attached' });
     await session.screenshot('workbench-graph');
 
     // Filtering out Serving prunes it: the actor alone.
@@ -821,6 +873,7 @@ describe('appending from the context pad', () => {
     await until(async () => (await stats.innerText()).includes('1 elements · 0 relationships'), 'the filtered graph');
     await serving.check();
     await until(async () => (await stats.innerText()).includes('2 elements · 1 relationships'), 'the graph again');
+    await panel.locator('.cy[data-layout="settled"]').waitFor({ state: 'attached' });
 
     // The exports: the query (a SELECT by default), and the drawn triples as Turtle.
     const [rq] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="sparql"]').click()]);
@@ -834,6 +887,7 @@ describe('appending from the context pad', () => {
     expect(turtle).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Serving;/);
 
     // The graph becomes a view, laid out as drawn: two elements and their link, side by side or stacked.
+    const drawnAt = (await graphTab(page)).model;
     await panel.locator('[data-export="view"]').click();
     await answerPrompt(page, 'Around the actor');
     await until(
@@ -848,6 +902,15 @@ describe('appending from the context pad', () => {
     const [first, second] = await Promise.all([page.locator(SHAPE).nth(0).boundingBox(), page.locator(SHAPE).nth(1).boundingBox()]);
     const apart = Math.abs(first!.x - second!.x) >= first!.width || Math.abs(first!.y - second!.y) >= first!.height;
     expect(apart).toBe(true);
+    // As drawn: the centres in the view differ by 1.3 times what they differ by in the drawing (placeNodes rounds).
+    const [p, q] = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      return app.components.viewManager
+        .getNodes(app.session.activeViewIri)
+        .map((n: any) => ({ iri: n.elementIri as string, x: n.bounds.x + n.bounds.width / 2, y: n.bounds.y + n.bounds.height / 2 }));
+    });
+    expect(Math.abs(q!.x - p!.x - 1.3 * (drawnAt[q!.iri]!.x - drawnAt[p!.iri]!.x))).toBeLessThanOrEqual(1);
+    expect(Math.abs(q!.y - p!.y - 1.3 * (drawnAt[q!.iri]!.y - drawnAt[p!.iri]!.y))).toBeLessThanOrEqual(1);
     await session.screenshot('workbench-graph-new-view');
 
     // Maximized, the panel covers the workspace and the drawing grows with it; Esc restores.
@@ -880,6 +943,336 @@ describe('appending from the context pad', () => {
     await panel.locator('[data-form="select"]').click();
     findings.push('graph: drawn, filter prunes, .rq and .ttl exported, made a view as drawn, SELECT table and CONSTRUCT triples in the SPARQL tab: ok');
   });
+
+  it("lays the Graph tab out live: it comes to rest, is framed and stops, a dragged element pulls its neighbour and is released, the middle stays, hiding the tab stops it, reduced motion shows it at rest, a switch of layout mid-run ends the run, the user's camera is kept, and click, double-click and pan work", async () => {
+    // Distances in model units unless said otherwise; "the zoom" is the rendered over the model distance
+    // between the middle actor and the component, drawn at every depth.
+    const panel = page.locator('graph-panel');
+    const cyBox = async () => (await panel.locator('.cy').boundingBox())!;
+    const rest = (what: string) => until(async () => (await graphTab(page)).layout === 'settled', what);
+    const statsRead = (text: string) => until(async () => (await graphTab(page)).stats === text, `the stats to read "${text}"`);
+    /** Where an element is drawn, in the page. */
+    const pointOf = async (g: GraphTab, iri: string) => {
+      const box = await cyBox();
+      return { x: box.x + g.rendered[iri]!.x, y: box.y + g.rendered[iri]!.y };
+    };
+    /** A model change through the app: a new Business Actor that `from` serves. */
+    const relate = (from: string, label: string) =>
+      page.evaluate(
+        ([from, label]) => {
+          const app = (window as any).__LA_GRAM_APP__;
+          const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+          const m = app.session.modelIri;
+          const iri: string = app.components.elementManager.createElement(AM4 + 'BusinessActor', m, { label }).value;
+          app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + 'Serving', sourceIri: from, targetIri: iri, modelIri: m });
+          app.components.eventBus.emit('model-changed', { origin: 'test' });
+          return iri;
+        },
+        [from, label] as const,
+      );
+    const fitButton = panel.locator('button[title="Fit the graph to the panel"]');
+
+    // 1. A Business Actor served by the component: round the first actor, a chain of three. The panel draws
+    // 300 ms after the model change; it comes to rest, framed.
+    const [middle] = (await model(page)).actors;
+    await page.evaluate((iri) => (window as any).__LA_GRAM_UI__.selectConcept(iri), middle!);
+    const component = await page.evaluate(() => {
+      const graph = (window as any).__LA_GRAM_UI__.graphPanel;
+      return (graph.graph.nodes as Array<{ iri: string }>).find((n) => n.iri !== graph.rootIri)!.iri;
+    });
+    const far = await relate(component, 'Courier');
+    await statsRead('3 elements · 2 relationships');
+    await rest('the chain at rest');
+    let g = await graphTab(page);
+    expect(framed(g)).toBe(true);
+
+    // 2. At rest nothing runs; a rename elsewhere moves nothing, and neither does the camera.
+    await page.waitForTimeout(600);
+    const later = await graphTab(page);
+    expect(later.model).toEqual(g.model);
+    expect(later.rendered).toEqual(g.rendered);
+    await page.evaluate((iri) => {
+      (window as any).__LA_GRAM_APP__.components.eventBus.emit('property-edited', {
+        elementIri: iri,
+        property: 'http://www.w3.org/2004/02/skos/core#prefLabel',
+        value: 'Dispatch',
+      });
+    }, component);
+    await until(
+      async () =>
+        page.evaluate((iri) => (window as any).__LA_GRAM_UI__.graphPanel.graph.nodes.some((n: any) => n.iri === iri && n.label === 'Dispatch'), component),
+      'the renamed component in the graph',
+    );
+    const renamed = await graphTab(page);
+    expect(renamed.model).toEqual(g.model);
+    expect(renamed.rendered).toEqual(g.rendered);
+
+    // 3. The far actor dragged 200 px straight away from the middle actor and held: live, its neighbour follows.
+    const from = await pointOf(g, far);
+    const centre = await pointOf(g, middle!);
+    const reach = apartBy(from, centre);
+    const to = { x: from.x + (200 * (from.x - centre.x)) / reach, y: from.y + (200 * (from.y - centre.y)) / reach };
+    const component0 = g.model[component]!;
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 20 });
+    expect((await graphTab(page)).layout).toBe('running');
+    const held = Date.now();
+    let towards = 0;
+    while (Date.now() - held < 500 && towards <= 10) {
+      const now = await graphTab(page);
+      const c = now.model[component]!;
+      const f = now.model[far]!;
+      towards = ((c.x - component0.x) * (f.x - component0.x) + (c.y - component0.y) * (f.y - component0.y)) / apartBy(f, component0);
+      if (towards <= 10) await page.waitForTimeout(40);
+    }
+    expect(towards).toBeGreaterThan(10);
+    const dropped = (await graphTab(page)).model[far]!;
+    await page.mouse.up();
+    await rest('the chain at rest after the drag');
+    const released = await graphTab(page);
+    expect(apartBy(released.model[far]!, dropped)).toBeGreaterThan(10);
+    expect(apartBy(released.model[middle!]!, g.model[middle!]!)).toBeLessThan(0.5);
+    expect(apartBy(released.rendered[middle!]!, g.rendered[middle!]!)).toBeLessThanOrEqual(1);
+    await fitButton.click();
+    expect(framed(await graphTab(page))).toBe(true);
+    await session.screenshot('workbench-graph-live');
+
+    // 4. The middle actor dragged 150 px left: it stays where it is dropped, and the graph follows its anchor.
+    g = await graphTab(page);
+    const anchor = await pointOf(g, middle!);
+    await page.mouse.move(anchor.x, anchor.y);
+    await page.mouse.down();
+    await page.mouse.move(anchor.x - 150, anchor.y, { steps: 15 });
+    const middleDrop = (await graphTab(page)).model[middle!]!;
+    await page.mouse.up();
+    await rest('the graph at rest round its new anchor');
+    const moved = await graphTab(page);
+    expect(apartBy(moved.model[middle!]!, middleDrop)).toBeLessThanOrEqual(1);
+    expect(apartBy(moved.model[component]!, g.model[component]!)).toBeGreaterThan(30);
+
+    // 5. Depth 1: the camera stays while the layout runs, and frames it at rest. Depth 2 and at once the
+    // Properties tab: the layout stops where it is, still unsettled, and goes on when the tab is back.
+    const zoom = zoomOf(moved, middle!, component);
+    await panel.locator('.depth button[data-depth="1"]').click();
+    const running = await graphTab(page);
+    expect(running.layout).toBe('running');
+    expect(Math.abs(zoomOf(running, middle!, component) / zoom - 1)).toBeLessThanOrEqual(0.001);
+    await rest('depth 1 at rest');
+    expect(framed(await graphTab(page))).toBe(true);
+    await panel.locator('.depth button[data-depth="2"]').click();
+    await page.locator('app-shell .tab[data-tab="properties"]').click();
+    const hidden = await graphTab(page);
+    await page.waitForTimeout(300);
+    const stillHidden = await graphTab(page);
+    expect(stillHidden.model).toEqual(hidden.model);
+    expect(stillHidden.layout).toBe('running');
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    await rest('depth 2 at rest, back on the Graph tab');
+
+    // 6. Reduced motion: laid out at once and shown at rest; a dragged element moves alone.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    for (const depth of [1, 2]) {
+      await panel.locator(`.depth button[data-depth="${depth}"]`).click();
+      expect((await graphTab(page)).layout).toBe('settled');
+      const frames = await page.evaluate(async () => {
+        const graph = (window as any).__LA_GRAM_UI__.graphPanel;
+        const seen: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => requestAnimationFrame(r));
+          seen.push(JSON.stringify(Object.fromEntries(graph.drawnPositions('model'))));
+        }
+        return seen;
+      });
+      expect(new Set(frames).size).toBe(1);
+    }
+    g = await graphTab(page);
+    const farAt = await pointOf(g, far);
+    await page.mouse.move(farAt.x, farAt.y);
+    await page.mouse.down();
+    await page.mouse.move(farAt.x + 80, farAt.y + 40, { steps: 8 });
+    await page.mouse.up();
+    const alone = await graphTab(page);
+    expect(alone.model[component]).toEqual(g.model[component]);
+    expect(apartBy(alone.model[far]!, g.model[far]!)).toBeGreaterThan(10);
+    expect(alone.layout).toBe('settled');
+    await page.emulateMedia({ reducedMotion: null });
+
+    // 7. Tree, then Force, and Rings while Force runs: the run ends at once, Rings remembered. Force again.
+    const layout = panel.locator('select[aria-label="Layout"]');
+    await layout.selectOption('tree');
+    expect((await graphTab(page)).layout).toBe('settled');
+    await layout.selectOption('force');
+    expect((await graphTab(page)).layout).toBe('running');
+    await layout.selectOption('rings');
+    expect((await graphTab(page)).layout).toBe('settled');
+    expect(await page.evaluate(() => localStorage.getItem('la-gram:graph-layout'))).toBe('rings');
+    await layout.selectOption('force');
+    expect((await graphTab(page)).layout).toBe('running');
+    await rest('Force at rest again');
+
+    // 8. Zoomed in by the user: a tab switch and a model change keep the camera.
+    g = await graphTab(page);
+    const over = await pointOf(g, middle!);
+    await page.mouse.move(over.x, over.y);
+    await page.mouse.wheel(0, -120);
+    await until(async () => Math.abs(zoomOf(await graphTab(page), middle!, component) / zoomOf(g, middle!, component) - 1) > 0.01, 'the zoom');
+    const zoomed = await graphTab(page);
+    const zoomIn = zoomOf(zoomed, middle!, component);
+    await page.locator('app-shell .tab[data-tab="properties"]').click();
+    await page.locator('app-shell .tab[data-tab="graph"]').click();
+    await until(async () => (await graphTab(page)).width > 0, 'the drawing shown again');
+    await page.waitForTimeout(200);
+    const back = await graphTab(page);
+    expect(Math.abs(zoomOf(back, middle!, component) / zoomIn - 1)).toBeLessThanOrEqual(0.001);
+    expect(apartBy(back.rendered[middle!]!, zoomed.rendered[middle!]!)).toBeLessThanOrEqual(1);
+    await relate(component, 'Warehouse');
+    await statsRead('4 elements · 3 relationships');
+    await rest('the graph at rest with a fourth element');
+    const kept = await graphTab(page);
+    expect(Math.abs(zoomOf(kept, middle!, component) / zoomIn - 1)).toBeLessThanOrEqual(0.001);
+    expect(apartBy(kept.rendered[middle!]!, zoomed.rendered[middle!]!)).toBeLessThanOrEqual(1);
+
+    // 9. At rest: a click selects, a double-click recentres and is framed at rest, a drag of the background
+    // pans by its length, and the next rest, after a model change, does not re-fit.
+    await fitButton.click();
+    g = await graphTab(page);
+    const farPoint = await pointOf(g, far);
+    await page.mouse.click(farPoint.x, farPoint.y);
+    await until(async () => (await graphTab(page)).selected === far, 'the far actor selected');
+    const componentPoint = await pointOf(await graphTab(page), component);
+    await page.mouse.dblclick(componentPoint.x, componentPoint.y);
+    await until(async () => (await graphTab(page)).root.startsWith('Dispatch'), 'the component in the middle');
+    await rest('the graph recentred at rest');
+    g = await graphTab(page);
+    expect(framed(g)).toBe(true);
+    const box = await cyBox();
+    await page.mouse.move(box.x + 10, box.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 110, box.y + 10, { steps: 10 });
+    await page.mouse.up();
+    const panned = await graphTab(page);
+    for (const iri of Object.keys(g.rendered)) {
+      expect(Math.abs(panned.rendered[iri]!.x - g.rendered[iri]!.x - 100)).toBeLessThanOrEqual(1);
+      expect(Math.abs(panned.rendered[iri]!.y - g.rendered[iri]!.y)).toBeLessThanOrEqual(1);
+    }
+    expect(panned.model).toEqual(g.model);
+    await relate(component, 'Supplier');
+    await statsRead('5 elements · 4 relationships');
+    await rest('the graph at rest after the pan');
+    const last = await graphTab(page);
+    expect(Math.abs(zoomOf(last, middle!, component) / zoomOf(panned, middle!, component) - 1)).toBeLessThanOrEqual(0.001);
+    expect(apartBy(last.rendered[component]!, panned.rendered[component]!)).toBeLessThanOrEqual(1);
+    findings.push(
+      'graph, live force: at rest and framed, stops; drag pulls and releases; middle pinned; paused while hidden; reduced motion at once; Rings mid-run ends it; camera kept; click, double-click, pan: ok',
+    );
+  }, 180_000);
+
+  it('sets the forces with sliders (Req 17.13): keys on Link distance move the graph, framed at rest, the middle pinned; laid out at once only when let go; remembered across a reload; Reset forgets them; shown with Force only', async () => {
+    // Continues from the test before: five elements round "Dispatch", Force, at rest, depth 2.
+    const panel = page.locator('graph-panel');
+    const rest = (what: string) => until(async () => (await graphTab(page)).layout === 'settled', what);
+    const forces = panel.locator('details.forces');
+    const link = panel.getByLabel('Link distance');
+    const charge = panel.getByLabel('Charge strength');
+    const collide = panel.getByLabel('Collision radius');
+    const sliders = async () => [await link.inputValue(), await charge.inputValue(), await collide.inputValue()];
+    const shown = async () => Promise.all(['force-link', 'force-charge', 'force-collide'].map((id) => panel.locator(`output[for="${id}"]`).innerText()));
+    const storedForces = async () => page.evaluate(() => localStorage.getItem('la-gram:graph-forces'));
+    const middle = await page.evaluate(() => (window as any).__LA_GRAM_UI__.graphPanel.rootIri as string);
+    /** The mean distance, in model units, from the middle element to the others. */
+    const spread = (g: GraphTab) => {
+      const others = Object.keys(g.model).filter((iri) => iri !== middle);
+      return others.reduce((sum, iri) => sum + apartBy(g.model[iri]!, g.model[middle]!), 0) / others.length;
+    };
+    await rest('the graph at rest');
+    const before = await graphTab(page);
+    expect(before.stats).toBe('5 elements · 4 relationships');
+
+    // 1. Folded at first; opened, the defaults.
+    expect(await forces.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
+    await forces.locator('summary').click();
+    expect(await sliders()).toEqual(['180', '350', '1']);
+    expect(await shown()).toEqual(['180 px', '350', '1.0×']);
+
+    // 2. By keyboard: Tab to Link distance, its focus ring shown; End and ←: 390 px. The graph runs, and comes to
+    // rest with longer lines, the middle element where it was, framed; the three remembered.
+    await page.keyboard.press('Tab');
+    expect(await link.evaluate((el) => (el.getRootNode() as ShadowRoot).activeElement === el)).toBe(true);
+    expect(await link.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth, getComputedStyle(el).outlineColor])).toEqual([
+      'solid',
+      '2px',
+      'rgb(26, 115, 232)',
+    ]);
+    await page.keyboard.press('End');
+    expect((await graphTab(page)).layout).toBe('running');
+    await page.keyboard.press('ArrowLeft');
+    expect(await link.inputValue()).toBe('390');
+    expect((await shown())[0]).toBe('390 px');
+    expect(await link.getAttribute('aria-valuetext')).toBe('390 pixels');
+    await rest('the graph at rest with longer lines');
+    const longer = await graphTab(page);
+    expect(spread(longer)).toBeGreaterThan(spread(before) + 40);
+    expect(apartBy(longer.model[middle]!, before.model[middle]!)).toBeLessThan(0.5);
+    expect(framed(longer)).toBe(true);
+    expect(JSON.parse((await storedForces())!)).toEqual({ linkDistance: 390, chargeStrength: -350, collideScale: 1 });
+    await session.screenshot('workbench-graph-forces');
+
+    // 3. A click still selects; Collision radius at 2.0×: the graph runs again and comes to rest.
+    const other = Object.keys(longer.rendered).find((iri) => iri !== middle)!;
+    const box = (await panel.locator('.cy').boundingBox())!;
+    await page.mouse.click(box.x + longer.rendered[other]!.x, box.y + longer.rendered[other]!.y);
+    await until(async () => (await graphTab(page)).selected === other, 'the element selected');
+    await collide.fill('2');
+    expect((await shown())[2]).toBe('2.0×');
+    expect(await collide.getAttribute('aria-valuetext')).toBe('2.0 times');
+    await rest('the graph at rest at 2.0×');
+    expect(JSON.parse((await storedForces())!)).toMatchObject({ collideScale: 2 });
+
+    // 4. Under reduced motion, laid out at once: a slider moving changes nothing; let go, the graph is shown at rest.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const still = await graphTab(page);
+    await charge.evaluate((el) => {
+      (el as HTMLInputElement).value = '1000';
+      el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    });
+    expect((await shown())[1]).toBe('1000');
+    expect((await graphTab(page)).model).toEqual(still.model);
+    await charge.evaluate((el) => el.dispatchEvent(new Event('change', { bubbles: true })));
+    const pushed = await graphTab(page);
+    expect(pushed.layout).toBe('settled');
+    expect(pushed.model).not.toEqual(still.model);
+    expect(apartBy(pushed.model[middle]!, still.model[middle]!)).toBeLessThan(0.5);
+    await page.emulateMedia({ reducedMotion: null });
+
+    // 5. Rings and Tree have no forces; Force has them again.
+    const layout = panel.locator('select[aria-label="Layout"]');
+    await layout.selectOption('rings');
+    await until(async () => (await forces.count()) === 0, 'no forces with Rings');
+    await layout.selectOption('tree');
+    await until(async () => (await forces.count()) === 0, 'no forces with Tree');
+    await layout.selectOption('force');
+    await forces.waitFor({ state: 'attached' });
+    await rest('Force at rest again');
+
+    // 6. Remembered across a reload. la-gram asks before leaving a changed model: leave it.
+    const leave = (dialog: Dialog) => void dialog.accept();
+    page.on('dialog', leave);
+    await page.reload();
+    await waitForAppReady(page);
+    page.off('dialog', leave);
+    await page.evaluate(() => (window as any).__LA_GRAM_UI__.showBottomTab('graph'));
+    await forces.waitFor({ state: 'visible' });
+    expect(await sliders()).toEqual(['390', '1000', '2']);
+
+    // 7. Reset: the defaults, and nothing remembered.
+    await forces.locator('summary').click();
+    await panel.locator('details.forces button[data-force="reset"]').click();
+    await until(async () => (await sliders()).join() === '180,350,1', 'the defaults');
+    expect(await shown()).toEqual(['180 px', '350', '1.0×']);
+    expect(await storedForces()).toBeNull();
+    findings.push('graph forces: keys on Link distance move the graph, framed at rest, middle pinned; reduced motion on release only; remembered across a reload; Reset forgets; Force only: ok');
+  }, 120_000);
 });
 
 describe('nesting', () => {
@@ -1693,6 +2086,55 @@ describe('version history', () => {
     expect(stored[0].triples).toBeGreaterThan(0);
     findings.push(`history: a commit of ${stored[0].triples} triples kept in IndexedDB`);
   }, 60_000);
+
+  it('scrolls a long history: the checkpoints and the one selected each scroll, the message field stays', async () => {
+    const { page, session } = await openPage();
+    await page.locator('app-shell .tab[data-tab="history"]').click();
+    // Its own (empty) history read first, so it does not replace what is set below.
+    await until(async () => /No checkpoints yet/.test(await page.locator('history-panel .status').innerText()), 'the history read');
+    await page.waitForTimeout(300);
+    // Forty checkpoints, each adding a triple, in a bottom panel of its usual height.
+    await page.evaluate(() => {
+      const ui = (window as any).__LA_GRAM_UI__;
+      const modelIri = (window as any).__LA_GRAM_APP__.session.modelIri as string;
+      const triples: string[] = [];
+      ui.historyPanel.commits = Array.from({ length: 40 }, (_, i) => {
+        triples.push(`<urn:x:e${i}> <http://www.w3.org/2000/01/rdf-schema#label> "Element ${i}" .`);
+        return {
+          id: `${String(1000 + i)}-test`,
+          modelIri,
+          timestamp: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(),
+          message: `Checkpoint ${i + 1}`,
+          ...(i > 0 ? { parent: `${String(1000 + i - 1)}-test` } : {}),
+          triples: [...triples],
+        };
+      }).reverse();
+    });
+    const list = page.locator('history-panel ul.commits');
+    await until(async () => (await page.locator('history-panel li[data-commit]').count()) === 40, 'forty checkpoints listed');
+    const box = (selector: string) => page.locator(selector).first().boundingBox();
+    const input = await box('history-panel input.commit-message');
+
+    // The list is taller than its room, and scrolls to its oldest checkpoint, which then shows.
+    const sizes = await list.evaluate((ul) => ({ scroll: ul.scrollHeight, client: ul.clientHeight }));
+    expect(sizes.scroll).toBeGreaterThan(sizes.client);
+    await list.evaluate((ul) => (ul.scrollTop = ul.scrollHeight));
+    const oldest = page.locator('history-panel li[data-commit]').last();
+    expect(await oldest.locator('.message').innerText()).toBe('Checkpoint 1');
+    const [listBox, oldestBox] = [await list.boundingBox(), await oldest.boundingBox()];
+    expect(oldestBox!.y + oldestBox!.height).toBeLessThanOrEqual(listBox!.y + listBox!.height + 1);
+    // The panel itself did not scroll: the message field is where it was.
+    expect((await box('history-panel input.commit-message'))!.y).toBe(input!.y);
+
+    // The one selected — the oldest, with its forty-odd added triples — scrolls on its own.
+    await oldest.click();
+    const detail = page.locator('history-panel .detail');
+    await detail.waitFor({ state: 'visible' });
+    const overflowY = await detail.evaluate((d) => getComputedStyle(d).overflowY);
+    expect(overflowY).toBe('auto');
+    await session.screenshot('workbench-history-scrolled');
+    findings.push(`history: 40 checkpoints scroll (${sizes.scroll}px in ${sizes.client}px), the message field stays: ok`);
+  }, 60_000);
 });
 
 describe('collaboration: two pages, one room', () => {
@@ -1856,6 +2298,81 @@ describe('two selected elements, and catalog and matrix views', () => {
     await until(async () => (await catalog.locator('tbody tr').count()) === 2, 'two rows');
     expect(await catalog.locator('.type-header').innerText()).toBe('Business Actor (2)');
     findings.push('catalog: lists its members by type, adds from the picker: ok');
+  });
+});
+
+describe('the model tree makes elements and views in a folder (Req 10.16)', () => {
+  let page: Page;
+  let session: BrowserSession;
+
+  beforeAll(async () => {
+    ({ page, session } = await openPage());
+  }, 120_000);
+
+  /** Right-click a row of the model tree, then pick `action` in its menu. */
+  async function treeMenu(row: ReturnType<Page['locator']>, action: string): Promise<void> {
+    await row.click({ button: 'right' });
+    await page.locator(`model-explorer .menu button[data-action="${action}"]`).click();
+  }
+
+  /** The folders an IRI is filed in (`dcterms:isPartOf`). */
+  const filedIn = (iri: string) =>
+    page.evaluate((member) => {
+      const store = (window as any).__LA_GRAM_APP__.components.store;
+      return store
+        .getQuads({ termType: 'NamedNode', value: member }, { termType: 'NamedNode', value: 'http://purl.org/dc/terms/isPartOf' })
+        .map((q: any) => q.object.value) as string[];
+    }, iri);
+
+  it('New element… on a folder of elements: a type, a name — the element in the folder, in no view', async () => {
+    await treeMenu(page.locator('model-explorer .row[data-id="folder:elements"]'), 'new-folder');
+    await answerPrompt(page, 'People');
+    const folder = page.locator('model-explorer .row[data-kind="folder"][data-id^="folder-iri:element:"]', { hasText: 'People' });
+    await folder.waitFor({ state: 'visible' });
+    const folderIri = (await folder.getAttribute('data-iri'))!;
+
+    await treeMenu(folder, 'new-element');
+    await page.locator(`.la-dialog .la-choice[data-value="${BUSINESS_ACTOR}"]`).click();
+    await page.locator('.la-dialog .la-button.primary').click();
+    await page.locator('.la-dialog .la-choice-list').waitFor({ state: 'detached' });
+    // The name offered is the type's.
+    await expect(page.locator('.la-dialog input.la-input').inputValue()).resolves.toBe('Business Actor');
+    await answerPrompt(page, 'Customer');
+
+    await until(async () => (await model(page)).actors.length === 1, 'the actor');
+    const m = await model(page);
+    const customer = m.actors[0];
+    expect(m.nodesIn['Default View']).toEqual([]);
+    expect(await filedIn(customer)).toEqual([folderIri]);
+    // The tree opens the folder and selects the element, to be dragged onto a diagram.
+    const row = page.locator(`model-explorer .row[data-iri="${customer}"]`);
+    await row.waitFor({ state: 'visible' });
+    expect(await row.getAttribute('class')).toContain('selected');
+    // Its row is in the folder's: the row of the list item around its own.
+    const parent = await row.evaluate((r) => r.closest('li')?.parentElement?.closest('li')?.querySelector(':scope > .row')?.getAttribute('data-iri'));
+    expect(parent).toBe(folderIri);
+    await session.screenshot('workbench-tree-new-element');
+    findings.push('tree: New element… on a folder → type, name → in the folder, in no view: ok');
+  });
+
+  it('New catalog view on a folder of views: named, filed there and opened', async () => {
+    await treeMenu(page.locator('model-explorer .row[data-id="folder:views"]'), 'new-folder');
+    await answerPrompt(page, 'Overviews');
+    const folder = page.locator('model-explorer .row[data-kind="folder"][data-id^="folder-iri:view:"]', { hasText: 'Overviews' });
+    await folder.waitFor({ state: 'visible' });
+    const folderIri = (await folder.getAttribute('data-iri'))!;
+
+    await treeMenu(folder, 'new-catalog');
+    await answerPrompt(page, 'All customers');
+    const chooser = page.locator('.la-dialog .la-choice-list');
+    if (await chooser.isVisible().catch(() => false)) await page.locator('.la-dialog .la-button.primary').click();
+
+    await page.locator('catalog-view').waitFor({ state: 'visible' });
+    const m = await model(page);
+    const catalog = m.views.find((v) => v.label === 'All customers')!;
+    expect(m.activeView).toBe(catalog.iri);
+    expect(await filedIn(catalog.iri)).toEqual([folderIri]);
+    findings.push('tree: New catalog view on a folder → named, filed, opened: ok');
   });
 });
 
@@ -2499,14 +3016,24 @@ describe('the Appearance tab', () => {
         }, iri)) === 1,
       'the picture for executives kept in the model',
     );
-    // Executives chosen: the Image tab draws it as the figure, for them.
+    // Executives chosen: drawn inside its box at once, the type's glyph its badge (core-vis 0.8).
     await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}ExecutiveContext`);
+    const drawnPicture = page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-image`);
+    await until(async () => /^data:image\/svg\+xml;base64,/.test((await drawnPicture.getAttribute('href').catch(() => null)) ?? ''), 'drawn inside its box');
+    expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-badge`).getAttribute('href')).toMatch(/glyphs\//);
+    // The Image tab draws it as the figure, for them…
     await panel.locator('.vtab[data-tab="image"]').click();
-    await panel.locator('.element-picture-as-figure').click();
+    expect(await panel.locator('.image-preview').getAttribute('data-element-picture')).toBe('true');
+    await panel.locator('.image-draw-as input[value="figure"]').check();
     const shape = page.locator(`.djs-shape[data-element-id="${iri}"] [data-rendering-mode]`);
     await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'IconCentric', 'drawn as its picture');
     expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-icon`).getAttribute('href')).toMatch(/^data:image\/svg\+xml;base64,/);
     await session.screenshot('appearance-picture-per-presentation');
+    // … or as its badge, its box kept.
+    await panel.locator('.image-draw-as input[value="badge"]').check();
+    await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'ShapeWithBadge', 'its box again');
+    expect(await page.locator(`.djs-shape[data-element-id="${iri}"] .la-shape-badge`).getAttribute('href')).toMatch(/^data:image\/svg\+xml;base64,/);
+    await session.screenshot('appearance-picture-as-badge');
     // Developers: its box.
     await page.evaluate((context) => (window as any).__LA_GRAM_APP__.setPresentationContext(context), `${PC}DeveloperContext`);
     await until(async () => (await shape.getAttribute('data-rendering-mode')) === 'ShapeWithBadge', 'its box for developers');

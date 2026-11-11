@@ -68,7 +68,7 @@ without `arch:inPresentationContext`.
 1. Meta: the guide page on names and labels per audience covers pictures and per-context styles, every case with an
    example; DD-34 is extended; `examples/labels-per-presentation.ttl` shows each case and is checked by the core-vis
    validation profile; the ontology reference and the visual notation guide are updated.
-2. la-gram: README, `.kiro/specs/la-gram/requirements.md` (Req 3.17 and a new criterion for element pictures),
+2. la-gram: README, `.agents/specs/la-gram/requirements.md` (Req 3.17 and a new criterion for element pictures),
    `design.md`, and a change-log entry.
 
 ## R7 — la-gram: every look per presentation (phase F, added 2026-11-08: "complete the whole task")

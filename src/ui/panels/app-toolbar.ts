@@ -2,7 +2,10 @@
  * App toolbar — the bar across the top.
  *
  * ```
- * [◭] la-gram │ Order Platform ● │ File ▾  Metamodels ▾  Help ▾ │ View: [Main ▾] [+] Viewpoint: [— ▾] │ Presentation: [Architect ▾] │ ◉ room · 2
+ * [◭] la-gram ▾ │ Order Platform ● │ File ▾  Metamodels ▾ │ View: [Main ▾] [+] Viewpoint: [— ▾] │ Presentation: [Architect ▾] │ ◉ room · 2
+ *
+ * The icon and name open la-gram's own menu: About, the keyboard shortcuts, the
+ * guides and la-gram's pages.
  * ```
  *
  * Purely presentational: every pick is a `toolbar-command` event
@@ -19,7 +22,7 @@ import {
   type CatalogueEntry,
 } from '../../metamodel-manager/catalogue.js';
 import { MODEL_FORMATS } from '../../import-export/model-io.js';
-import { HELP_LINKS, type HelpLink } from '../../help-links.js';
+import { HELP_LINKS, helpHref, type HelpLink } from '../../help-links.js';
 
 /** Commands the toolbar can issue. */
 export type ToolbarCommand =
@@ -57,10 +60,12 @@ export type ToolbarCommand =
   | 'settings'
   /** The Settings dialog, by its older name. */
   | 'modules'
-  /** Help › About la-gram, or a click on the name. */
+  /** About la-gram, in la-gram's menu (under the name). */
   | 'about'
-  /** Help › Keyboard shortcuts. */
-  | 'shortcuts';
+  /** Keyboard shortcuts, in la-gram's menu. */
+  | 'shortcuts'
+  /** Download the desktop app, in la-gram's menu: the latest release's, a link for each platform. */
+  | 'download';
 
 /** Detail of `toolbar-command`. */
 export interface ToolbarCommandDetail {
@@ -124,8 +129,13 @@ export class AppToolbar extends LitElement {
       white-space: nowrap;
       flex: none;
     }
-    .brand:hover {
+    .brand:hover,
+    .brand.open {
       background: #f1f3f4;
+    }
+    .brand .caret {
+      font-weight: 400;
+      color: #3c4043;
     }
     .brand img {
       width: 20px;
@@ -222,7 +232,7 @@ export class AppToolbar extends LitElement {
     .dropdown a:hover {
       background: #eef3fd;
     }
-    /* A page the Help menu opens: as an entry, marked as leaving the app. */
+    /* A page la-gram's menu opens: as an entry, marked as leaving the app. */
     .dropdown a {
       display: flex;
       justify-content: space-between;
@@ -392,8 +402,10 @@ export class AppToolbar extends LitElement {
   @property({ attribute: false }) fileMenuItems: () => FileMenuItem[] = () => [];
   /** Whether File › Settings… is offered: there is a module to switch, or a part with settings. */
   @property({ type: Boolean }) settingsMenu = false;
+  /** The web app's address, which serves la-gram's documentation beside it; empty in the desktop app: the published one. */
+  @property({ type: String }) appBase = '';
 
-  @state() private _open: 'file' | 'metamodels' | 'new-view' | 'help' | null = null;
+  @state() private _open: 'file' | 'metamodels' | 'new-view' | 'app' | null = null;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -437,7 +449,7 @@ export class AppToolbar extends LitElement {
     );
   }
 
-  private _toggle(menu: 'file' | 'metamodels' | 'new-view' | 'help'): void {
+  private _toggle(menu: 'file' | 'metamodels' | 'new-view' | 'app'): void {
     this._open = this._open === menu ? null : menu;
   }
 
@@ -563,21 +575,21 @@ export class AppToolbar extends LitElement {
     </div>`;
   }
 
-  /** Help: the keyboard shortcuts, the guides and la-gram's own pages, About. */
-  private _helpMenu() {
+  /** la-gram's menu, under its icon and name: About, the keyboard shortcuts, the guides, la-gram's own pages. */
+  private _appMenu() {
     const link = (l: HelpLink) =>
-      html`<a href=${l.href} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
+      html`<a href=${helpHref(l, this.appBase || undefined)} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
         >${l.label}<span class="hint">↗</span></a
       >`;
     return html`<div class="dropdown" role="menu">
+      <button data-command="about" role="menuitem" @click=${() => this._cmd('about')}>About la-gram</button>
       <button data-command="shortcuts" role="menuitem" @click=${() => this._cmd('shortcuts')}>Keyboard shortcuts</button>
       <hr />
       <div class="group">Guides</div>
       ${HELP_LINKS.filter((l) => l.group === 'guides').map(link)}
       <hr />
+      <button data-command="download" role="menuitem" @click=${() => this._cmd('download')}>Download the desktop app…</button>
       ${HELP_LINKS.filter((l) => l.group === 'la-gram').map(link)}
-      <hr />
-      <button data-command="about" role="menuitem" @click=${() => this._cmd('about')}>About la-gram</button>
     </div>`;
   }
 
@@ -600,9 +612,19 @@ export class AppToolbar extends LitElement {
 
   override render() {
     return html`
-      <button class="brand" data-command="about" title="About la-gram" @click=${() => this._cmd('about')}>
-        <img src="favicon.svg" alt="" />la-gram
-      </button>
+      <div class="menu-wrap">
+        <button
+          class="brand ${this._open === 'app' ? 'open' : ''}"
+          data-menu="app"
+          title="la-gram: About, keyboard shortcuts, guides"
+          aria-haspopup="menu"
+          aria-expanded=${this._open === 'app' ? 'true' : 'false'}
+          @click=${() => this._toggle('app')}
+        >
+          <img src="favicon.svg" alt="" />la-gram<span class="caret">▾</span>
+        </button>
+        ${this._open === 'app' ? this._appMenu() : nothing}
+      </div>
       <span class="sep"></span>
       <button class="model-name" title="Model settings: name, namespace" @click=${() => this._cmd('model-settings')}>
         ${this.modelLabel}${this.dirty ? html`<span class="dirty" title="Unsaved changes">●</span>` : nothing}
@@ -622,12 +644,6 @@ export class AppToolbar extends LitElement {
           Metamodels ▾
         </button>
         ${this._open === 'metamodels' ? this._metamodelMenu() : nothing}
-      </div>
-      <div class="menu-wrap">
-        <button class="menu-button ${this._open === 'help' ? 'open' : ''}" data-menu="help" @click=${() => this._toggle('help')}>
-          Help ▾
-        </button>
-        ${this._open === 'help' ? this._helpMenu() : nothing}
       </div>
       <button class="icon" title="Undo (Ctrl+Z)" @click=${() => this._cmd('undo')}>↶</button>
       <button class="icon" title="Redo (Ctrl+Y)" @click=${() => this._cmd('redo')}>↷</button>

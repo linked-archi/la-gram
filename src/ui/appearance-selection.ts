@@ -68,8 +68,12 @@ export interface ImageScope {
   position: ImagePosition;
   /** Drawn as the figure — its own icon (`arch-vis:iconSymbol`, `IconCentric`) — not inside it. */
   asFigure?: boolean;
+  /** Drawn as its badge, in place of its type's glyph — its own icon (`arch-vis:iconSymbol`) in box-with-badge. */
+  asBadge?: boolean;
   /** Drawn as its icon with no icon of its own: its element's picture is the figure (core-vis 0.7). */
   elementAsFigure?: boolean;
+  /** Drawn as a box, its element's picture its badge (core-vis 0.8: `arch-vis:useElementPicture`), no icon of its own. */
+  elementAsBadge?: boolean;
 }
 
 /**
@@ -112,7 +116,7 @@ export interface FigureOption {
    * either for the notation's own — and, drawn as its own picture now, no
    * picture as its icon.
    */
-  changes: { renderingMode: FigureMode | null; shapeType: string | null; iconSymbol?: null };
+  changes: { renderingMode: FigureMode | null; shapeType: string | null; iconSymbol?: null; useElementPicture?: null };
   /** Its preview: the glyph alone, or an outline 72 × 40 — its inner lines, its glyph as a badge or none. */
   preview: { icon: true } | { outline: string; details?: string; badge: boolean; dashed: boolean };
 }

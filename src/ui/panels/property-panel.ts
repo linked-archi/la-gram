@@ -196,7 +196,7 @@ export interface AppearanceChangeDetail {
 }
 
 /** The Image tab's keys: what a picture, where it is and how it is drawn are in a style. */
-const IMAGE_SCOPE_KEYS: AppearanceKey[] = ['image', 'imagePosition', 'iconSymbol', 'renderingMode', 'shapeType'];
+const IMAGE_SCOPE_KEYS: AppearanceKey[] = ['image', 'imagePosition', 'iconSymbol', 'useElementPicture', 'renderingMode', 'shapeType'];
 
 /** An element's picture for one presentation context, or — `context` null — for every one (`context-picture-change`); `null` takes it away. */
 export interface ContextPictureChangeDetail {
@@ -2369,7 +2369,8 @@ export class PropertyPanel extends LitElement {
       ${this._renderLookScope()}
       ${choices.selected < 0
         ? html`<p class="figure-own-picture muted">
-            Drawn as its own picture (the Image tab). A figure picked here puts the notation's glyph back.
+            Drawn with its own picture or its element's in place of the notation's glyph (the Image tab). A figure
+            picked here puts the glyph back.
           </p>`
         : nothing}
       <div class="figure-choices" role="radiogroup" aria-label="Figure">
@@ -2390,7 +2391,7 @@ export class PropertyPanel extends LitElement {
                   this._appearanceChange(
                     option.changes,
                     this.appearance?.context
-                      ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol'] } }
+                      ? { clearContext: { context: this.appearance.context, keys: ['renderingMode', 'shapeType', 'iconSymbol', 'useElementPicture'] } }
                       : {},
                   )}
           >
@@ -2690,26 +2691,50 @@ export class PropertyPanel extends LitElement {
             : { context: choices.context! },
       );
     const current = scope.image;
-    const asFigure = !!scope.asFigure;
-    // A picture given: in the figure, or as it.
-    const give = (uri: string) => change(asFigure ? { iconSymbol: uri } : { image: uri });
-    const remove: AppearanceChanges = scope.elementAsFigure
-      ? { renderingMode: null }
-      : asFigure
-        ? { iconSymbol: null, renderingMode: null }
-        : { image: null, imagePosition: null };
-    const drawAs = (figure: boolean) => {
-      if (figure === asFigure) return;
-      if (!current) return;
+    // The picture *Draw it* is about: the placement's own, else its element's own (Pictures by presentation),
+    // which core-vis 0.8 draws inside a box, as the figure in icon mode, or as the badge where asked.
+    const elementPicture = choices.canBeFigure && !current ? choices.elementPicture : undefined;
+    // Where it is drawn: inside the figure, as the figure, or as its badge.
+    const drawnAs: 'inside' | 'figure' | 'badge' = current
+      ? scope.asFigure
+        ? 'figure'
+        : scope.asBadge
+          ? 'badge'
+          : 'inside'
+      : scope.elementAsFigure && elementPicture
+        ? 'figure'
+        : scope.elementAsBadge
+          ? 'badge'
+          : 'inside';
+    // A picture given: in the figure, as it, or as its badge — its own, in place of its element's.
+    const give = (uri: string) => change(drawnAs === 'inside' ? { image: uri } : { iconSymbol: uri, useElementPicture: null });
+    const remove: AppearanceChanges = drawnAs === 'inside' ? { image: null, imagePosition: null } : { iconSymbol: null, renderingMode: null };
+    const drawAs = (as: 'inside' | 'figure' | 'badge') => {
+      if (as === drawnAs) return;
+      if (current) {
+        change(
+          as === 'figure'
+            ? { iconSymbol: current, renderingMode: 'IconCentric', shapeType: null, image: null, imagePosition: null, useElementPicture: null }
+            : as === 'badge'
+              ? // Its figure kept; the picture in place of its type's glyph.
+                { iconSymbol: current, renderingMode: 'ShapeWithBadge', image: null, imagePosition: null, useElementPicture: null }
+              : { image: current, iconSymbol: null, renderingMode: null, useElementPicture: null },
+        );
+        return;
+      }
+      if (!elementPicture) return;
+      // Its element's picture: as its icon (core-vis 0.7), as its badge (0.8, followed as it changes), or inside the box.
       change(
-        figure
-          ? { iconSymbol: current, renderingMode: 'IconCentric', shapeType: null, image: null, imagePosition: null }
-          : { image: current, iconSymbol: null, renderingMode: null },
+        as === 'figure'
+          ? { renderingMode: 'IconCentric', useElementPicture: null, iconSymbol: null, image: null, imagePosition: null, shapeType: null }
+          : as === 'badge'
+            ? { renderingMode: 'ShapeWithBadge', useElementPicture: true, iconSymbol: null }
+            : { renderingMode: null, useElementPicture: null },
       );
     };
-    // Its element's own picture (Pictures by presentation) as the figure: drawn as its icon, no picture of its own.
-    const elementAsFigure = () =>
-      change({ renderingMode: 'IconCentric', iconSymbol: null, image: null, imagePosition: null, shapeType: null });
+    // A picture of its own given up for its element's, drawn where its own was.
+    const useElementPicture = () =>
+      change(drawnAs === 'inside' ? { image: null } : drawnAs === 'badge' ? { iconSymbol: null, useElementPicture: true } : { iconSymbol: null });
     const setAddress = (input: HTMLInputElement) => {
       const typed = input.value.trim();
       if (!typed) {
@@ -2725,12 +2750,13 @@ export class PropertyPanel extends LitElement {
       this._imageError = '';
       if (uri !== current) give(uri);
     };
-    const shown = current ?? (scope.elementAsFigure ? choices.elementPicture : undefined);
+    const shown = current ?? elementPicture;
     return html`
       ${this._renderLookScope()}
       <div class="image-tab">
-        <div class="image-preview" data-empty=${shown ? nothing : 'true'}>
+        <div class="image-preview" data-empty=${shown ? nothing : 'true'} data-element-picture=${!current && shown ? 'true' : nothing}>
           ${shown ? html`<img src=${shown} alt="The picture drawn" />` : html`<span>No image</span>`}
+          ${!current && shown ? html`<span class="muted image-whose">Its element's own picture</span>` : nothing}
         </div>
         <div class="image-fields">
           <label class="appearance-field" data-field="image">
@@ -2765,14 +2791,10 @@ export class PropertyPanel extends LitElement {
             />
           </div>
           ${this._imageError ? html`<div class="image-error" role="alert">${this._imageError}</div>` : nothing}
-          ${choices.canBeFigure && choices.elementPicture
+          ${choices.canBeFigure && choices.elementPicture && current
             ? html`<div class="image-element-picture">
                 <img src=${choices.elementPicture} alt="" />
-                ${scope.elementAsFigure
-                  ? html`<span>Drawn as its element's own picture.</span>`
-                  : html`<button type="button" class="element-picture-as-figure" @click=${elementAsFigure}>
-                      Draw it as its own picture
-                    </button>`}
+                <button type="button" class="use-element-picture" @click=${useElementPicture}>Use its element's own picture</button>
               </div>`
             : nothing}
           ${choices.canBeFigure
@@ -2780,12 +2802,16 @@ export class PropertyPanel extends LitElement {
                 <span class="field-label">Draw it</span>
                 <span class="controls">
                   <label
-                    ><input type="radio" name="image-draw-as" value="inside" ?disabled=${!current} .checked=${live(!asFigure)} @change=${() => drawAs(false)} />
+                    ><input type="radio" name="image-draw-as" value="inside" ?disabled=${!shown} .checked=${live(drawnAs === 'inside')} @change=${() => drawAs('inside')} />
                     inside the figure</label
                   >
                   <label
-                    ><input type="radio" name="image-draw-as" value="figure" ?disabled=${!current} .checked=${live(asFigure)} @change=${() => drawAs(true)} />
+                    ><input type="radio" name="image-draw-as" value="figure" ?disabled=${!shown} .checked=${live(drawnAs === 'figure')} @change=${() => drawAs('figure')} />
                     as the figure, its name under it</label
+                  >
+                  <label
+                    ><input type="radio" name="image-draw-as" value="badge" ?disabled=${!shown} .checked=${live(drawnAs === 'badge')} @change=${() => drawAs('badge')} />
+                    in the badge, in place of its type's glyph</label
                   >
                 </span>
               </div>`
@@ -2795,16 +2821,14 @@ export class PropertyPanel extends LitElement {
             <span class="controls">
               <select
                 aria-label="Picture position"
-                ?disabled=${!current || asFigure}
+                ?disabled=${!shown || drawnAs !== 'inside'}
                 @change=${(e: Event) => change({ imagePosition: (e.target as HTMLSelectElement).value as ImagePosition })}
               >
                 ${IMAGE_POSITIONS.map(([value, name]) => html`<option value=${value} ?selected=${scope.position === value}>${name}</option>`)}
               </select>
             </span>
           </label>
-          ${current || scope.elementAsFigure
-            ? html`<button class="remove-image" @click=${() => change(remove)}>Remove image</button>`
-            : nothing}
+          ${current ? html`<button class="remove-image" @click=${() => change(remove)}>Remove image</button>` : nothing}
         </div>
         ${choices.used.length === 0
           ? html`<div class="image-used image-used-empty">

@@ -220,6 +220,37 @@ describe('ModelSession', () => {
     expect(store.getQuads(nn('urn:y:r'), nn(RDF_REIFIES))).toHaveLength(1);
   });
 
+  it('makes a relationship reify its own ends again on adopt, when an earlier namespace change left old IRIs in its triple term', () => {
+    // Moved from urn:old: to urn:new: before triple terms moved too: everything but the reified triple names the new IRIs.
+    store.addQuads([
+      quad(namedNode('urn:new:a'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(namedNode('urn:new:b'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(namedNode('urn:new:r'), namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(namedNode('urn:new:r'), namedNode(ARCH + 'source'), namedNode('urn:new:a')),
+      quad(namedNode('urn:new:r'), namedNode(ARCH + 'target'), namedNode('urn:new:b')),
+      quad(namedNode('urn:new:a'), namedNode(AM4 + 'serves'), namedNode('urn:new:b')),
+      quad(namedNode('urn:new:a'), namedNode(AM4 + 'qualifiedServing'), namedNode('urn:new:r')),
+      quad(
+        namedNode('urn:new:r'),
+        namedNode(RDF_REIFIES),
+        tripleTerm(namedNode('urn:old:a') as never, namedNode(AM4 + 'serves') as never, namedNode('urn:old:b') as never) as never,
+      ),
+    ] as never);
+
+    session.adopt({ fallbackLabel: 'Moved' });
+
+    const reified = () =>
+      store.getQuads(nn('urn:new:r'), nn(RDF_REIFIES)).map((q) => {
+        const t = q.object as unknown as { subject: Term; predicate: Term; object: Term };
+        return [t.subject.value, t.predicate.value, t.object.value];
+      });
+    expect(reified()).toEqual([['urn:new:a', AM4 + 'serves', 'urn:new:b']]);
+    // A relationship, not a proposition about one, and adopting again changes nothing.
+    expect(readModelContents(store, views.getViews()).relationships.map((r) => r.iri)).toContain('urn:new:r');
+    session.adopt();
+    expect(reified()).toEqual([['urn:new:a', AM4 + 'serves', 'urn:new:b']]);
+  });
+
   it('gives a relationship without one the qualified predicate leading to it on adopt, and keeps one it has', () => {
     store.addQuads([
       quad(namedNode('urn:z:a'), namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),

@@ -1,10 +1,10 @@
 /**
- * What the Help menu shows in a dialog: About la-gram and the keyboard
+ * What la-gram's menu shows in a dialog: About la-gram and the keyboard
  * shortcuts, as {@link DetailBlock}s.
  */
 
 import type { DetailBlock } from './dialogs.js';
-import { HELP_LINKS, LICENCE, TAGLINE } from '../help-links.js';
+import { DESKTOP_DOWNLOADS, docsHref, DOWNLOAD_SUMS, DOWNLOADS, HELP_LINKS, helpHref, LICENCE, RELEASES, TAGLINE } from '../help-links.js';
 
 /** An open-source component la-gram is built with, as its package says. */
 export interface BuildComponent {
@@ -53,6 +53,8 @@ export interface AboutContext {
   metamodels: string[];
   /** The bundled assets' snapshot (their digest), when the build says. */
   assetsVersion?: string;
+  /** The web app's address, its documentation beside it ({@link docsHref}); none in the desktop app. */
+  appBase?: string;
 }
 
 const versionLabel = (build: BuildInfo) => (build.version ? `Version ${build.version}` : 'Development build');
@@ -60,7 +62,8 @@ const versionLabel = (build: BuildInfo) => (build.version ? `Version ${build.ver
 /** About la-gram: what it is, its version and where it runs, help, its licence, and what it is built with. */
 export function aboutBlocks(context: AboutContext): DetailBlock[] {
   const { build } = context;
-  const links = (ids: string[]) => HELP_LINKS.filter((link) => ids.includes(link.id)).map(({ label, href }) => ({ label, href }));
+  const links = (ids: string[]) =>
+    HELP_LINKS.filter((link) => ids.includes(link.id)).map((link) => ({ label: link.label, href: helpHref(link, context.appBase) }));
   return [
     { kind: 'header', image: 'favicon.svg', title: 'la-gram', subtitle: TAGLINE, note: versionLabel(build) },
     {
@@ -75,10 +78,12 @@ export function aboutBlocks(context: AboutContext): DetailBlock[] {
     {
       kind: 'text',
       text:
-        'la-gram models architecture in the languages Linked.Archi publishes — ArchiMate and the others in its ' +
-        'catalogue — its palette, rules, notation and checks taken from the metamodels themselves, the model kept as RDF.',
+        'la-gram models architecture in any language whose metamodel follows the Linked.Archi principles: the ' +
+        'reference metamodels published at meta.linked.archi — ArchiMate and the others in its catalogue — or your ' +
+        'own, loaded from an address or a file. Its palette, rules, notation and checks come from the metamodels ' +
+        'themselves, and the model is kept as RDF.',
     },
-    { kind: 'links', links: links(['docs', 'catalogue', 'source', 'issues']) },
+    { kind: 'links', links: links(['la-gram-docs', 'docs', 'catalogue', 'source', 'issues']) },
     { kind: 'heading', text: 'Licence' },
     {
       kind: 'text',
@@ -106,6 +111,57 @@ export function versionText(context: AboutContext): string {
   ].join(' · ');
 }
 
+/** The system a user agent runs on, as the desktop apps are named — or none known (a phone, say). */
+export function systemOf(userAgent: string): 'darwin' | 'win32' | 'linux' | undefined {
+  if (/iPhone|iPad|Android/.test(userAgent)) return undefined;
+  if (/Mac OS X|Macintosh/.test(userAgent)) return 'darwin';
+  if (/Windows/.test(userAgent)) return 'win32';
+  if (/Linux|X11|CrOS/.test(userAgent)) return 'linux';
+  return undefined;
+}
+
+/**
+ * Download the desktop app: the latest release's, a link for each platform — the system it is asked from
+ * first — how to open one, the checksums, and every release. `appBase` is the web app's address, for the
+ * documentation ({@link docsHref}).
+ */
+export function downloadBlocks(options: { system?: 'darwin' | 'win32' | 'linux'; appBase?: string } = {}): DetailBlock[] {
+  const ours = DESKTOP_DOWNLOADS.filter((d) => options.system && d.id.startsWith(`${options.system}-`));
+  const others = DESKTOP_DOWNLOADS.filter((d) => !ours.includes(d));
+  const link = (d: (typeof DESKTOP_DOWNLOADS)[number]) => ({ label: d.label, href: DOWNLOADS + d.file });
+  return [
+    {
+      kind: 'text',
+      text:
+        'The latest release, as an app for your computer: the same la-gram, working offline, with nothing ' +
+        'else to install. Unzip it (on Linux, untar it) and open it.',
+    },
+    ...(ours.length > 0
+      ? ([
+          { kind: 'heading', text: 'For this computer' },
+          { kind: 'links', links: ours.map(link) },
+          { kind: 'heading', text: 'For the others' },
+        ] as DetailBlock[])
+      : []),
+    { kind: 'links', links: others.map(link) },
+    { kind: 'heading', text: 'The first time' },
+    {
+      kind: 'text',
+      text:
+        'The apps are not signed by a developer: the first time, macOS asks you to allow it (System ' +
+        'Settings › Privacy & Security › Open Anyway), and Windows to run it (More info › Run anyway).',
+    },
+    {
+      kind: 'links',
+      links: [
+        { label: 'Opening it, in the documentation', href: docsHref('getting-started/desktop/', options.appBase) },
+        { label: 'SHA-256 checksums', href: DOWNLOAD_SUMS },
+        { label: 'Every release, on GitLab', href: RELEASES },
+      ],
+    },
+  ];
+}
+
 /** Whether keys are shown as on a Mac (⌘, ⌥, ⇧). */
 export function isMacPlatform(nav: { platform?: string; userAgent?: string } | undefined = globalThis.navigator): boolean {
   return /Mac|iPhone|iPad/.test(nav?.platform || nav?.userAgent || '');
@@ -126,8 +182,11 @@ export function keyCombo(combo: string, mac: boolean): string {
   return [...modifiers.map((m) => (m === 'Mod' ? 'Ctrl' : m)), key].join('+');
 }
 
-/** The keyboard and mouse shortcuts, by where they work. */
-export function shortcutBlocks(mac: boolean): DetailBlock[] {
+/**
+ * The keyboard and mouse shortcuts, by where they work, then the documentation's page of them — `appBase` the
+ * web app's address ({@link docsHref}).
+ */
+export function shortcutBlocks(mac: boolean, appBase?: string): DetailBlock[] {
   const keys = (...combos: string[]) => combos.map((c) => keyCombo(c, mac)).join(' / ');
   const section = (text: string, rows: Array<[string, string]>): DetailBlock[] => [
     { kind: 'heading', text },
@@ -155,5 +214,6 @@ export function shortcutBlocks(mac: boolean): DetailBlock[] {
       [keys('Esc'), 'Cancel'],
       [keys('↑', '↓'), "Move through a list, or the property panel's tabs"],
     ]),
+    { kind: 'links', links: [{ label: 'Keyboard and mouse, in the documentation', href: docsHref('reference/keyboard/', appBase) }] },
   ];
 }

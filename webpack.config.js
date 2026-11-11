@@ -65,6 +65,7 @@ function buildInfo(desktop) {
     'lit',
     '@codemirror/view',
     'cytoscape',
+    'd3-force',
     'yjs',
     '@hocuspocus/provider',
     ...(desktop ? ['electron'] : []),
@@ -169,7 +170,9 @@ export default (_env, argv) => {
       filename: 'bundle.[contenthash:8].js',
       chunkFilename: '[name].[contenthash:8].js',
       path: path.resolve(__dirname, 'dist/web'),
-      clean: true,
+      // Cleaned, but for docs/: the documentation `npm run docs:build` writes
+      // there (MkDocs, docs-site/) stays across rebuilds of the app.
+      clean: { keep: /^docs(\/|$)/ },
     },
     resolve: {
       ...sharedResolve,
@@ -186,7 +189,7 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'la-gram — Semantic Architecture Modeller',
+        title: 'la-gram — Semantic Modeller for Enterprise and IT Architecture',
       }),
       bundledAssetsPlugin(),
       buildFlags(),
@@ -267,7 +270,7 @@ export default (_env, argv) => {
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/index.html',
-        title: 'la-gram — Semantic Architecture Modeller',
+        title: 'la-gram — Semantic Modeller for Enterprise and IT Architecture',
       }),
       bundledAssetsPlugin(),
       buildFlags({ desktop: true }),

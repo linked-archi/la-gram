@@ -97,7 +97,7 @@ two can be compared.
   - Tests use no real tokens or real repositories; use mocked providers, as `src/git/__tests__` does.
 - Names of new vocabulary, menus and packages are the user's decisions; ask before choosing them.
 - Finish each change with tests, then docs (`README.md`, and the requirements, design and tasks in
-  `.kiro/specs/la-gram/`, including the change log), then `npm run build`, then tell the user to reload.
+  `.agents/specs/la-gram/`, including the change log), then `npm run build`, then tell the user to reload.
 
 ## What exists today (verified 2026-11-05)
 
@@ -201,7 +201,7 @@ two can be compared.
   reference, a line is put under the concept it is about — a view's shapes and route cells under the view, a
   relationship's triple under the relationship — rather than under its subject.
 - [x] **Task 21:** the History tab shows the file's Git commits beside the checkpoints, with their changes in
-  this diff and *Open this version*. Its sub-tasks are in `.kiro/specs/la-gram/tasks.md` (Task 21).
+  this diff and *Open this version*. Its sub-tasks are in `.agents/specs/la-gram/tasks.md` (Task 21).
 - [x] ***Open merge request*** after saving to a branch:
   - GitHub: `POST /repos/{owner}/{repo}/pulls`. GitLab: `POST /projects/:id/merge_requests`.
   - A provider method for each host, with the result's link shown (`fileCommits`, `findMergeRequest`,

@@ -72,7 +72,8 @@ import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type Seria
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
-import { aboutBlocks, BUILD, isMacPlatform, runtimeOf, shortcutBlocks, versionText, type AboutContext } from './help.js';
+import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from './help.js';
+import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
@@ -437,6 +438,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // ── Top: app toolbar ─────────────────────────────────────────────────
   const appToolbar = document.createElement('app-toolbar');
   appToolbar.slot = 'toolbar';
+  // la-gram's documentation: the web app's own, served beside it; the desktop app has no site, so the published one.
+  const appBase = isElectronEnvironment() ? undefined : document.baseURI;
+  appToolbar.appBase = appBase ?? '';
   // The bundled catalogue, then the published one (App.loadCatalogue).
   appToolbar.catalogue = [];
   void app.loadCatalogue((entries) => {
@@ -1160,12 +1164,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         return runCommand({ command: 'rename-model' });
       case 'model-settings':
         return runCommand({ command: 'model-settings' });
+      // From the model, a group or a folder (Req 10.16): in the folder chosen, opened.
       case 'new-diagram':
-        return runCommand({ command: 'new-view', value: 'Diagram' });
+        return newView('Diagram', detail.kind === 'folder' ? detail.iri || undefined : undefined);
       case 'new-catalog':
-        return runCommand({ command: 'new-view', value: 'Catalog' });
+        return newView('Catalog', detail.kind === 'folder' ? detail.iri || undefined : undefined);
       case 'new-matrix':
-        return runCommand({ command: 'new-view', value: 'Matrix' });
+        return newView('Matrix', detail.kind === 'folder' ? detail.iri || undefined : undefined);
+      case 'new-element':
+        return newElement(detail.iri || undefined, detail.typeIri);
       case 'open-view':
         session.openView(iri);
         return;
@@ -1231,6 +1238,59 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'delete-folder':
         return deleteFolderAsked(iri);
     }
+  };
+
+  // ── New views and elements, from the toolbar and the model tree (Req 10.16) ──
+
+  /** A new view of a kind, named — and given a viewpoint — in a dialog, in `folderIri` when given; opened. */
+  const newView = async (kind: ViewKind, folderIri?: string): Promise<void> => {
+    const name = await dialogs.prompt(`New ${kind.toLowerCase()}`, 'Name', `New ${kind.toLowerCase()}`);
+    if (name === null) return;
+    // The metamodels expect every view to declare its viewpoint; offer
+    // the choice up front (none is allowed, and settable later).
+    const viewpoint = viewpointManager.getViewpoints().length > 0 ? await chooseViewpoint() : '';
+    session.createView(kind, { label: name, ...(viewpoint ? { viewpointIri: viewpoint } : {}), ...(folderIri ? { folderIri } : {}) });
+    if (folderIri) {
+      usedFolder(folderIri);
+      modelExplorer.refresh();
+    }
+  };
+
+  /**
+   * A new element of the model, of a type the loaded metamodels define — `typeIri`, else one chosen from the
+   * palette's types — named in a dialog, its type's name offered; in `folderIri` when given. In no view: the
+   * tree selects it, to be dragged onto a diagram. One undoable step.
+   */
+  const newElement = async (folderIri?: string, typeIri?: string): Promise<void> => {
+    const modelIri = session.modelIri;
+    if (!modelIri) return;
+    const types = currentPalette.elementGroups.flatMap((group) =>
+      group.elements.filter((type) => !type.isAbstract).map((type) => ({ type, group: group.category })),
+    );
+    if (types.length === 0) {
+      dialogs.toast('No element types: load a metamodel first (Metamodels).', 'warning');
+      return;
+    }
+    const chosen =
+      typeIri ??
+      (await dialogs.choose(
+        'New element',
+        types.map(({ type, group }) => ({ value: type.iri, label: type.label, group })),
+      ));
+    if (!chosen) return;
+    const type = types.find((t) => t.type.iri === chosen)?.type;
+    const name = await dialogs.prompt(`New ${type?.label ?? 'element'}`, 'Name', type?.label ?? 'New element');
+    if (name === null) return;
+    let iri = '';
+    changeProperties(modelIri, () => {
+      iri = elementManager.createElement(chosen, modelIri, { label: name.trim() || (type?.label ?? 'New element') }).value;
+      if (folderIri) applyFolderChange(store, moveToFolder(store, iri, folderIri, modelIri));
+    });
+    if (!iri) return;
+    usedFolder(folderIri);
+    modelExplorer.refresh();
+    modelExplorer.revealIri(iri);
+    selectConcept(iri);
   };
 
   // ── The model's folders (Req 10.13–10.15) ────────────────────────────
@@ -1473,6 +1533,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         if (cleared && detail.clearContext && target.kind === 'element') viewManager.setAppearance!(viewIri, target.iri, cleared, detail.clearContext.context);
       }
     });
+    // The scope a change is made in stays the tabs' until the selection or the presentation changes: a change that
+    // empties the presentation's own look (Remove image, a picture given up for its element's) does not switch them
+    // to every presentation.
+    if (diagramCanvas.presentationContextInUse) lookScope = detail.context ? 'context' : 'every';
     diagramCanvas.refreshLabels();
     propertyPanel.appearance = selectedLook();
   };
@@ -2470,26 +2534,24 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
             runtime: runtimeOf(globalThis.navigator?.userAgent ?? ''),
             metamodels: app.loadedMetamodels().map((m) => m.info.name || labelOf(store, m.metamodelIri)),
             ...(ASSETS_VERSION ? { assetsVersion: ASSETS_VERSION } : {}),
+            ...(appBase ? { appBase } : {}),
           };
           await showDetails('About la-gram', aboutBlocks(context), { copy: { label: 'Copy version info', text: versionText(context) } });
           return;
         }
         case 'shortcuts':
-          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform()));
+          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), appBase));
           return;
+        case 'download': {
+          const system = systemOf(globalThis.navigator?.userAgent ?? '');
+          await showDetails('Download the desktop app', downloadBlocks({ ...(system ? { system } : {}), ...(appBase ? { appBase } : {}) }));
+          return;
+        }
         case 'open-view':
           if (value) session.openView(value);
           return;
-        case 'new-view': {
-          const kind = (value as ViewKind) ?? 'Diagram';
-          const name = await dialogs.prompt(`New ${kind.toLowerCase()}`, 'Name', `New ${kind.toLowerCase()}`);
-          if (name === null) return;
-          // The metamodels expect every view to declare its viewpoint; offer
-          // the choice up front (none is allowed, and settable later).
-          const viewpoint = viewpointManager.getViewpoints().length > 0 ? await chooseViewpoint() : '';
-          session.createView(kind, { label: name, ...(viewpoint ? { viewpointIri: viewpoint } : {}) });
-          return;
-        }
+        case 'new-view':
+          return newView((value as ViewKind) ?? 'Diagram');
         case 'set-viewpoint':
           if (session.activeViewIri) session.setViewpoint(session.activeViewIri, value || undefined);
           return;

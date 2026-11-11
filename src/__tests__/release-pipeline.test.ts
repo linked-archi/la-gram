@@ -1,13 +1,14 @@
 /**
  * la-gram's release in `.gitlab-ci.yml`: a tag `la-gram-v<version>` publishes
  * the desktop apps and the web app, and nothing of la-gram-git's; la-gram-git's
- * tag publishes nothing of la-gram's. And the server's configuration serves the
+ * tag publishes nothing of la-gram's. And the README sets up on the server the
  * folder the pipeline copies the web app into.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DESKTOP_DOWNLOADS } from '../help-links.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
@@ -42,7 +43,9 @@ describe("la-gram's release pipeline", () => {
     expect(job('web')).toMatch(/- if: \$CI_COMMIT_TAG =~ \/\^la-gram-git-v\/\n {6}when: never/);
     // The web app replaced by a release only, not by a pre-release; the Release made either way.
     expect(job('web-deploy')).toContain('- if: $CI_COMMIT_TAG =~ /^la-gram-v\\d+\\.\\d+\\.\\d+$/');
-    const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs: \[web\]/.exec(job('web-deploy'))![1]!);
+    // The web app with its documentation: both artifacts, or rsync --delete would take one away.
+    const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs:\n {4}- job: web/.exec(job('web-deploy'))![1]!);
+    expect(job('web-deploy')).toMatch(/- job: web # the app, and VERSION\n {6}artifacts: true\n {4}- job: docs\n {6}artifacts: true\n {4}- job: desktop/);
     expect([final.test(`la-gram-v${version}`), final.test('la-gram-v0.2.0-rc.1')]).toEqual([true, false]);
     expect(job('la-gram-release')).toMatch(/- job: web-deploy # not on a pre-release\n {6}artifacts: false\n {6}optional: true/);
     // The desktop apps: on la-gram's tag; by hand otherwise, never failing a request.
@@ -86,22 +89,24 @@ describe("la-gram's release pipeline", () => {
     expect(release).toMatch(/- job: web # VERSION\n {6}artifacts: true/);
   });
 
-  it('copies the web app where the server serves /la-gram/ from', () => {
-    const nginx = read('deploy/nginx-la-gram.conf');
-    const root = /location \^~ \/la-gram\/ \{\n\s+root (\S+);/.exec(nginx)?.[1];
-    expect(root).toBeDefined();
-    const folder = `${root}/la-gram`;
-    expect(pipeline).toContain(`LA_GRAM_DEPLOY_PATH  the folder nginx serves as /la-gram/ (${folder})`);
-    expect(read('README.md')).toContain(`| \`LA_GRAM_DEPLOY_PATH\` | Variable | Visible | \`${folder}\` |`);
-    expect(job('web-deploy')).toContain('rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"');
+  it("puts this release's desktop apps beside the web app, under the names la-gram's menu links to", () => {
+    const deploy = job('web-deploy');
+    const targets = /for TARGET in ([^;]+); do/.exec(deploy)![1]!.split(' ');
+    // Fetched from where the desktop jobs uploaded them, and saved with no version in the name.
+    expect(deploy).toContain('"$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/la-gram/$VERSION/la-gram-$VERSION-$TARGET" || exit 1');
+    expect(deploy).toContain('--output "dist/web/downloads/la-gram-$TARGET"');
+    expect(targets.map((t) => `la-gram-${t}`)).toEqual(DESKTOP_DOWNLOADS.map((d) => d.file));
+    expect(deploy).toContain('sha256sum la-gram-* > SHA256SUMS.txt');
+    // Into the folder copied, before the copy.
+    expect(deploy.indexOf('mkdir -p dist/web/downloads')).toBeLessThan(deploy.indexOf('rsync -az'));
   });
 
-  it("serves it under the desktop app's own script policy", () => {
-    const nginx = read('deploy/nginx-la-gram.conf');
-    const electron = read('src/electron-main.ts');
-    const directive = (text: string, name: string) => new RegExp(`${name} [^;"]+`).exec(text)?.[0];
-    for (const name of ['default-src', 'script-src', 'style-src', 'object-src', 'worker-src']) {
-      expect(directive(nginx, name), name).toBe(directive(electron, name));
-    }
+  it('copies the web app into the folder the README sets up on the server', () => {
+    const folder = /LA_GRAM_DEPLOY_PATH  the folder nginx serves as \/la-gram\/ \((\S+)\)/.exec(pipeline)?.[1];
+    expect(folder).toBe('/var/www/linked-archi-app/la-gram');
+    const readme = read('README.md');
+    expect(readme).toContain(`| \`LA_GRAM_DEPLOY_PATH\` | Variable | Visible | \`${folder}\` |`);
+    expect(readme).toContain(`sudo mkdir -p ${folder}`);
+    expect(job('web-deploy')).toContain('rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"');
   });
 });

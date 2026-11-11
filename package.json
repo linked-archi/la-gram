@@ -1,7 +1,7 @@
 {
   "name": "la-gram",
-  "version": "0.1.0",
-  "description": "Semantic architecture modeller for Linked.Archi metamodels",
+  "version": "0.2.0",
+  "description": "Semantic modeller for enterprise and IT architecture, built on Linked.Archi metamodels",
   "productName": "la-gram",
   "main": "dist/electron/main.cjs",
   "private": true,
@@ -28,7 +28,11 @@
     "icons": "node scripts/make-icons.mjs",
     "package": "npm run build:electron && node scripts/package-electron.mjs",
     "bench": "node scripts/bench.mjs",
-    "bench:model": "node scripts/bench-model.mjs"
+    "bench:model": "node scripts/bench-model.mjs",
+    "docs:setup": "node scripts/docs/run.mjs setup",
+    "docs:build": "node scripts/docs/run.mjs build",
+    "docs:serve": "node scripts/docs/run.mjs serve",
+    "docs:screenshots": "node scripts/docs/screenshots.mjs"
   },
   "dependencies": {
     "@codemirror/language": "^6.10.0",
@@ -37,6 +41,7 @@
     "@hocuspocus/provider": "^4.7.0",
     "@hocuspocus/server": "^4.7.0",
     "cytoscape": "^3.34.3",
+    "d3-force": "3.0.1",
     "diagram-js": "^14.0.0",
     "diagram-js-direct-editing": "^3.5.1",
     "lit": "^3.1.0",
@@ -48,6 +53,7 @@
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",
+    "@types/d3-force": "3.0.10",
     "@types/n3": "^1.26.1",
     "@types/rdf-validate-shacl": "^0.5.7",
     "@vitest/coverage-v8": "^1.6.0",

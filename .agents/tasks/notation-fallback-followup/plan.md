@@ -45,8 +45,8 @@ Decisions:
       Verify: `npx vitest --run src/ui` passes; `npm run typecheck` is clean.
 
 - [ ] 5. Update the spec text to the new order.
-      In `.kiro/specs/la-gram/requirements.md` line ~84 (Req 2.16), rewrite the sequence as: (1) active set for C → (2) other loaded metamodels' default sets for C, load order → (3) C's own prefVisNotation → (4) active set for C's nearest superclass (BFS, IRI ties, stop at arch:Element / arch:QualifiedRelationship) → (5) default sets for nearest superclass, sets in load order outside, distance inside → (6) built-in defaults. Add the rule "anything specific to the class beats any generic descriptor; among equals the chosen set comes first" and keep the black-relationships sentence. In `.kiro/specs/la-gram/design.md` lines ~171-177, apply the same order. Grep both files and `.kiro/specs/la-gram/tasks.md` for other order listings ("nearest superclass", "prefVisNotation", "six steps") and align them.
-      Files: .kiro/specs/la-gram/requirements.md, design.md (tasks.md if it lists the order)
+      In `.agents/specs/la-gram/requirements.md` line ~84 (Req 2.16), rewrite the sequence as: (1) active set for C → (2) other loaded metamodels' default sets for C, load order → (3) C's own prefVisNotation → (4) active set for C's nearest superclass (BFS, IRI ties, stop at arch:Element / arch:QualifiedRelationship) → (5) default sets for nearest superclass, sets in load order outside, distance inside → (6) built-in defaults. Add the rule "anything specific to the class beats any generic descriptor; among equals the chosen set comes first" and keep the black-relationships sentence. In `.agents/specs/la-gram/design.md` lines ~171-177, apply the same order. Grep both files and `.agents/specs/la-gram/tasks.md` for other order listings ("nearest superclass", "prefVisNotation", "six steps") and align them.
+      Files: .agents/specs/la-gram/requirements.md, design.md (tasks.md if it lists the order)
       Verify: `npm test` passes; reread the edited paragraphs against item 1's code order.
 
 - [ ] 6. Final gate.

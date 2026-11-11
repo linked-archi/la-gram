@@ -1,20 +1,23 @@
 # la-gram
 
-A semantic architecture modeller for [Linked.Archi](https://meta.linked.archi/) metamodels.
+A semantic modeller for enterprise and IT architecture, built on [Linked.Archi](https://meta.linked.archi/) metamodels.
 
 The model lives in an RDF store; the diagram, the model tree, files and the
-collaboration document are views of it. Metamodels — ArchiMate 4.0 and 3.2
-and Basic bundled (Basic is the generic language, to add alongside another or
-use alone: its Connection relates any two elements), and every other language,
-framework and extension published on `meta.linked.archi` (the Metamodels menu
-lists its catalogue) — are loaded at runtime, so the palette, the relationship
-rules, the notation and the validation all come from data.
+collaboration document are views of it. It works with any metamodel that
+follows the Linked.Archi principles, loaded at runtime, so the palette, the
+relationship rules, the notation and the validation all come from data: the
+reference metamodels — ArchiMate 4.0 and 3.2 and Basic bundled (Basic is the
+generic language, to add alongside another or use alone: its Connection relates
+any two elements), and every other language, framework and extension published
+on `meta.linked.archi` (the Metamodels menu lists its catalogue) — and your own,
+from an address (*Metamodels › Load by IRI…*) or a file (*Metamodels › Upload
+metamodel or asset file…*).
 
 - **Model / views** — one model, any number of diagram, catalog and matrix views; an element is one resource wherever it appears. Delete from a view or from the model.
-- **Model tree** — the whole model on the left in three groups, Views, Elements and Relationships: by type, or with the model's own folders in them, each kind in folders of its own. A model converted from Archi (or another tool that keeps folders) opens in its folders, each folded, subfolders then concepts by name, and what no folder holds by type after them; *Folders* | *Types* in the tree's header switches, remembered in this browser (on a model without folders, *Folders* is greyed out). Make folders from the right-click menu — *New folder…* on a group or in a folder, *Rename…*, *Delete folder* (what it holds is kept) — and file a view, element, relationship or folder with *Move to folder…*, which lists the group's folders with their paths, filters by any words you type and puts the ones you last used first, or by dragging rows onto a folder. Ctrl/Cmd- or Shift-click selects several in the tree, and a selection on the canvas moves too (right-click one of them); all undoable, and saved with the model. To keep an Archi model's folders, export it from Archi with `--xmlexchange.exportFolders` before converting it — without that option Archi's Exchange file has none. Filter by name or type; the open view's concepts are marked.
+- **Model tree** — the whole model on the left in three groups, Views, Elements and Relationships: by type, or with the model's own folders in them, each kind in folders of its own. A model converted from Archi (or another tool that keeps folders) opens in its folders, each folded, subfolders then concepts by name, and what no folder holds by type after them; *Folders* | *Types* in the tree's header switches, remembered in this browser (on a model without folders, *Folders* is greyed out). Make folders from the right-click menu — *New folder…* on a group or in a folder, *Rename…*, *Delete folder* (what it holds is kept) — and file a view, element, relationship or folder with *Move to folder…*, which lists the group's folders with their paths, filters by any words you type and puts the ones you last used first, or by dragging rows onto a folder. Make views and elements where they belong, from the same menu: *New diagram view*, *New catalog view* and *New matrix view* on the Views group or a folder of views — named, a viewpoint chosen, filed there and opened — and *New element…* on the Elements group or a folder of elements — a type from the loaded metamodels', grouped as the palette groups them, then a name — filed there in one undoable step and placed in no view, selected in the tree to be dragged onto a diagram; an element type's row offers *New ‹type›…*. Ctrl/Cmd- or Shift-click selects several in the tree, and a selection on the canvas moves too (right-click one of them); all undoable, and saved with the model. To keep an Archi model's folders, export it from Archi with `--xmlexchange.exportFolders` before converting it — without that option Archi's Exchange file has none. Filter by name or type; the open view's concepts are marked.
 - **Relationships the metamodel permits** — connect, change type and the "+" menu offer only what the metamodel's relationship shapes allow (ArchiMate's relationship matrix); "+" appends a new element — asking which relationship when several fit — or brings in what the element is already related to in the model. A line drawn for a relationship the model already has between the two, but this view does not show, asks whether to use that one or make another.
 - **Published vocabulary** — `arch:inModel`, `arch:inView`, qualified relationships plus their unqualified triples, which they `rdf:reifies` (RDF 1.2), `arch-vis:ArchNode`/`Link` geometry; older models are migrated on open.
-- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type; the query behind it — as a SELECT (a table) or a CONSTRUCT (the triples) — runs in the SPARQL tab or downloads as `.rq`; the graph becomes a new view, laid out as drawn, or a Turtle file.
+- **Graph** — the Graph tab draws what the selected element is related to, 1–5 hops out, filterable by element and relationship type, drawn live with forces (d3-force) — or in rings or as a tree: the graph moves into place and comes to rest; drag an element and the elements linked to it follow, let go and it settles back among them. Its link distance, charge strength and collision radius are set by sliders, followed live and remembered. The query behind it — as a SELECT (a table) or a CONSTRUCT (the triples) — runs in the SPARQL tab or downloads as `.rq`; the graph becomes a new view, laid out as drawn, or a Turtle file.
 - **SPARQL** — the SPARQL Query tab shows results as tables with prefixed names that select the concept; *Render as new view* makes a diagram of the elements and relationships a result mentions.
 - **Model questions** — the questions the core and the model's language publish (ArchiMate 4.0 and 3.2 so far: "Which services does nothing realise?", "What is affected if this element changes?"): the SPARQL tab's *Questions* menu lists them by stage, those fitting the open view's viewpoint first, filterable by concern; picking one runs its query, bound to the open model, view and viewpoint and the selected element, and says what a row means and what it does not prove. Right-click an element › *Ask about this element…* for the questions about it. A view of the answer follows the question's viewpoint.
 - **Notation as published** — elements are drawn from the notation data in the shapes the published pictures show (EDGY's arrows and tag pills, C4's person…) — a notation declares its own shapes, with their geometry, in its own files — with their badges and label colours, and relationship ends from the published marker symbols. A kind of element with a look of its own is a class of its own (C4's Database, drawn as a cylinder); another audience's look is another notation set.
@@ -26,7 +29,7 @@ rules, the notation and the validation all come from data.
 - **Rename in place** — double-click an element's box (or select it and press F2) and type its name; Enter keeps it, Esc drops it, undo brings the old one back. A relationship is named the same way, on its line: double-click the line (or its name), or select it and press F2; emptied, its name is removed.
 - **An element placed twice** — drag an element from the model tree onto a view that already shows it to place it again, as ArchiMate allows: each placement moves, nests and is deleted on its own, lines join the placements they were drawn between — a relationship can be drawn again from another placement — and selecting the element selects every placement.
 - **Groups, notes and shapes** — the *Shapes* switch above the canvas opens a row of figures drawn with no model element behind them: a group (its name in a tab, holding elements), a sticky note, and rectangles, ellipses, circles, diamonds, hexagons, octagons and parallelograms — dragged onto the diagram, or clicked and placed; renamed, moved, resized and deleted as elements are; selected, the panel gives their text, and their look in the *Appearance* tab. Connect from a note (or a group or a shape) draws a dashed line to what it is about — drawing only, no relationship in the model; its Appearance tab makes it solid or dotted, puts an arrowhead, a diamond or a dot at either end and sets its text's font. Double-click the line (or select it and press F2) to write on it: the text is drawn at its middle — drag it elsewhere, as a relationship's name — and is the line's *Text* in the panel. An ArchiMate Exchange file's groups, notes and the lines from them import as these.
-- **Appearance** — select an element, a relationship's line, a figure or a line from a note on the canvas (one or several) and the property panel's *Appearance* tab sets how it looks in this view: fill colour, gradient and opacity, line colour, width, opacity and style, icon colour, text alignment and position, font (name, size, bold, italic, underline) and font colour, each with a reset to its notation's, and *Reset all*; for a line, where its text sits along it — near its source, at its middle, near its target. The look belongs to that placement or line alone — another placement of the element keeps its own — is stored on its own core-vis style, and is undoable. A notation may set the same for a type — drawn where a placement sets nothing. The *Figure* tab, next to it, draws an element as its shape with its icon, as its icon with its name under it, or as its shape alone. The *Label* tab says what an element's label says, in place of its name alone: text with placeholders — `{name}` (its name for the presentation chosen), `{type}`, a property's values by its prefixed name (`{dcterms:creator}`, `{skos:prefLabel}` for its own name; a resource shown by its name), a path (`{am4:assignedTo/skos:prefLabel}`, `^` to follow one backwards) — each line of it a line of the label, a line whose placeholders all come to nothing left out. It is said for the presentation chosen in the toolbar's *Presentation* (a presentation context: an audience), or the same in every presentation — with none chosen, for every one; a notation may say it too, for a type, and a presentation context for everything shown in it. Renaming in place still renames the element; what cannot be read is said, and drawn as written. **Names by presentation**, in the property panel's information tab, gives an element or a relationship a name for each audience — "Card payments" for executives, `pgw-svc` for developers (a SKOS-XL `skosxl:altLabel`, its text also a `skos:altLabel`) — drawn in place of its own name, and shown by `{name}`, while that presentation is chosen; its own name stays its `skos:prefLabel`. The *Image* tab puts a picture in an element or a figure: type or paste its address in *Address* — an https URL or a `data:image/…` URI — or *Choose file…* to keep a picture file of up to 200 KB in the model itself (as a `data:` URI); then choose a *Position*: a corner, a side, the centre (at its own size, made smaller to fit) or *Fill*. For an element, *Draw it* … *as the figure, its name under it* puts the picture in place of the whole figure instead — its own icon, drawn as the Figure tab's *Icon* draws the glyph; a figure picked in the Figure tab puts the notation's glyph back. Under *Pictures in this model* the tab lists, as thumbnails, every picture any element or figure of the model already has (none yet, it says so); click one to give it to what is selected. *Remove image* takes it away. Inside the figure, the picture is drawn over its fill, under its text and glyph. A picture given by its address is linked, not copied into the model, and is fetched where the view is drawn; the desktop app draws https and `data:` pictures only. With a presentation chosen in the toolbar, the Appearance, Figure and Image tabs set the look for that presentation alone — of an element, a group, a note, a shape or a line, a scope bar over them saying which presentation, *The same in every presentation* to switch (shared by the three tabs) — and the format painter copies and gives the look for that presentation; the model tree shows an element's own picture for it as the row's icon. The Image tab, for instance, sets the picture for that presentation alone — "for *Executive / C-Level*", a style of the placement's for that presentation over its style for every one — or, *The same in every presentation*, for every one: a picture inside the box for developers, the picture as the whole figure for executives. **Pictures by presentation**, under Names by presentation, gives an element its own picture for every presentation and one for each (an address, or a file kept in the model); a placement drawn as its icon shows the element's picture for the presentation chosen — *Draw it as its own picture* in the Image tab — while box-with-badge keeps the type's glyph as its badge. Renamed in place, a name is typed in its own font, where it is drawn. The format painter (🖌 above the canvas) copies a look: click the brush, click what has the look, then each thing to give it to — each one undoable; Esc or the brush again puts it down. A model converted from Archi, or an Exchange file opened directly, keeps the colours and fonts its diagrams had; the *Notation only* switch above the canvas draws everything as its notation does instead (off by default, remembered in this browser; while it is on, the Appearance tab says so).
+- **Appearance** — select an element, a relationship's line, a figure or a line from a note on the canvas (one or several) and the property panel's *Appearance* tab sets how it looks in this view: fill colour, gradient and opacity, line colour, width, opacity and style, icon colour, text alignment and position, font (name, size, bold, italic, underline) and font colour, each with a reset to its notation's, and *Reset all*; for a line, where its text sits along it — near its source, at its middle, near its target. The look belongs to that placement or line alone — another placement of the element keeps its own — is stored on its own core-vis style, and is undoable. A notation may set the same for a type — drawn where a placement sets nothing. The *Figure* tab, next to it, draws an element as its shape with its icon, as its icon with its name under it, or as its shape alone. The *Label* tab says what an element's label says, in place of its name alone: text with placeholders — `{name}` (its name for the presentation chosen), `{type}`, a property's values by its prefixed name (`{dcterms:creator}`, `{skos:prefLabel}` for its own name; a resource shown by its name), a path (`{am4:assignedTo/skos:prefLabel}`, `^` to follow one backwards) — each line of it a line of the label, a line whose placeholders all come to nothing left out. It is said for the presentation chosen in the toolbar's *Presentation* (a presentation context: an audience), or the same in every presentation — with none chosen, for every one; a notation may say it too, for a type, and a presentation context for everything shown in it. Renaming in place still renames the element; what cannot be read is said, and drawn as written. **Names by presentation**, in the property panel's information tab, gives an element or a relationship a name for each audience — "Card payments" for executives, `pgw-svc` for developers (a SKOS-XL `skosxl:altLabel`, its text also a `skos:altLabel`) — drawn in place of its own name, and shown by `{name}`, while that presentation is chosen; its own name stays its `skos:prefLabel`. The *Image* tab puts a picture in an element or a figure: type or paste its address in *Address* — an https URL or a `data:image/…` URI — or *Choose file…* to keep a picture file of up to 200 KB in the model itself (as a `data:` URI); then choose a *Position*: a corner, a side, the centre (at its own size, made smaller to fit) or *Fill*. For an element, *Draw it* … *as the figure, its name under it* puts the picture in place of the whole figure instead — its own icon, drawn as the Figure tab's *Icon* draws the glyph; a figure picked in the Figure tab puts the notation's glyph back — and *in the badge* puts it in place of the type's glyph in the corner, the figure kept. With no picture of its own, *Draw it* is about the element's own picture (Pictures by presentation): inside the box (where it is drawn by default), as the figure, or in the badge — followed as the element's picture changes; *Use its element's own picture* gives up a picture of the placement's own for it. Under *Pictures in this model* the tab lists, as thumbnails, every picture any element or figure of the model already has (none yet, it says so); click one to give it to what is selected. *Remove image* takes it away. Inside the figure, the picture is drawn over its fill, under its text and glyph. A picture given by its address is linked, not copied into the model, and is fetched where the view is drawn; the desktop app draws https and `data:` pictures only. With a presentation chosen in the toolbar, the Appearance, Figure and Image tabs set the look for that presentation alone — of an element, a group, a note, a shape or a line, a scope bar over them saying which presentation, *The same in every presentation* to switch (shared by the three tabs) — and the format painter copies and gives the look for that presentation; the model tree shows an element's own picture for it as the row's icon. The Image tab, for instance, sets the picture for that presentation alone — "for *Executive / C-Level*", a style of the placement's for that presentation over its style for every one — or, *The same in every presentation*, for every one: a picture inside the box for developers, the picture as the whole figure for executives. **Pictures by presentation**, under Names by presentation, gives an element its own picture for every presentation and one for each (an address, or a file kept in the model); a placement drawn as a box shows the element's picture for the presentation chosen inside the box (where the Image tab gives it no picture of its own), the badge still the type's glyph; the Image tab's *Draw it* draws it as the figure instead, or in the badge. Renamed in place, a name is typed in its own font, where it is drawn. The format painter (🖌 above the canvas) copies a look: click the brush, click what has the look, then each thing to give it to — each one undoable; Esc or the brush again puts it down. A model converted from Archi, or an Exchange file opened directly, keeps the colours and fonts its diagrams had; the *Notation only* switch above the canvas draws everything as its notation does instead (off by default, remembered in this browser; while it is on, the Appearance tab says so).
 - **Relationship names** — the *Relationship names* switch above the canvas shows each named relationship's name at the middle of its line — or near its source or its target end, where the line's Appearance tab (or its notation) puts it; off by default, remembered in this browser. A relationship without a name shows nothing. Drag a name to move it elsewhere: the view keeps where it is (an `arch-vis:LabelNode`), and it follows its line as the line moves; right-click › *Move name back to its place* undoes that. All undoable.
 - **About ‹type›** — under the model tree, what the loaded ontology and taxonomy say about the selected type (for a view, its viewpoint) or the type picked in the palette: definition, guidance, other names, classification and the other types in its group, superclasses, changes, the specification section. Folds to its header; resizes by its top edge.
 - **Properties** — the selected concept in vertical tabs (information, properties, analysis, views); adding a property offers what applies to its type (by the vocabularies' `rdfs:domain` and SHACL shapes), what the model already uses and documentation properties — or any name, prefixed name or IRI. A property whose shape lists its values is a choice of them; a boolean is a checkbox.
@@ -38,7 +41,7 @@ rules, the notation and the validation all come from data.
 - **History** — the History tab saves *checkpoints* of the model, each with a message; lists them with what each changed, shows what a checkpoint changed — or how the model differs from it now — **by element** (each concept added, removed or changed: a name old → new, a relationship's ends, a view's shapes placed, moved, rerouted) or as triples added and removed, and restores one (undoably). Checkpoints are kept on this machine (IndexedDB), per model: they are not Git commits — *File › Save to Git…* makes those. For a model bound to a file in Git, the tab lists that file's commits beside the checkpoints, newest first — each with its author and a link to it on the host — read when the tab opens and on *Read again*; a commit's changes are shown the same way, against the commit before it or the model now, and *Open this version* makes the model the file at that commit (undoably), still bound to its branch. Bound to a branch other than the default, the first entry is the branch against the default: what merging it would bring.
 - **See the RDF** — the "{ } RDF" toggle opens a panel on the right with the live model as Turtle (or any other format), written as it would be saved: the open view (its concepts and diagram), the selection, or the whole model — a large model's size rather than its text, with Copy and Download.
 - **Layout** — the model tree on the left; the palette on the right, relationship types first and each section folding; under the canvas, tabs for **Properties**, **Validation** (with the violation count), **SPARQL Query**, **Graph** and **History**. The tree, the palette and the RDF panel hide from the toolbar ("☰ Model", "▦ Palette", "{ } RDF") and resize by their inner edge; the bottom panel resizes by its top edge, folds to its tabs (click the open tab) and maximizes over the workspace (⤢; Esc restores) — as does the RDF panel, from its own header. Sizes are remembered.
-- **Help and About** — the toolbar's *Help* menu lists the keyboard shortcuts (⌘ and ⌥ on a Mac), the Linked.Archi guides (the documentation, the quick start, the modelling guide, the ArchiMate 4.0 primer, names, labels and pictures per audience, the metamodel catalogue) and la-gram's README and source, each opened in another tab; *About la-gram* — or a click on the icon and name at the top left — shows the version, where it runs (the browser, or the desktop app's Electron), the metamodels loaded and the bundled snapshot, the licence and the open-source components it is built with, and copies that line for a report. The tab and the window are titled by the open model ("• Payments platform — la-gram" while it has unsaved changes). In the desktop app, the menu bar's Help lists the same pages and *About la-gram* opens the system's About panel. The toolbar fits from 1100 px wide: on a narrower window its selectors and panel toggles drop their words (each says it on hover).
+- **Help and About** — the icon and name at the top left open la-gram's menu: *About la-gram*, the keyboard shortcuts (⌘ and ⌥ on a Mac, with a link to their page in the documentation), *la-gram documentation* — the guide built from `docs-site/`, which the web app serves beside it in `docs/`, of its own version (https://app.linked.archi/la-gram/docs/, which the desktop app opens) — the Linked.Archi guides (the documentation, the quick start, the modelling guide, the ArchiMate 4.0 primer, names, labels and pictures per audience, the metamodel catalogue), *Download the desktop app…* (a link to each platform's app of the latest release, this computer's first, with how to open it, the checksums and every release), and la-gram's README, source and issue tracker, each opened in another tab. *About la-gram* shows the version, where it runs (the browser, or the desktop app's Electron), the metamodels loaded and the bundled snapshot, the licence and the open-source components it is built with, and copies that line for a report. The tab and the window are titled by the open model ("• Payments platform — la-gram" while it has unsaved changes). In the desktop app, the menu bar's Help lists the same pages and *About la-gram* opens the system's About panel. The toolbar fits from 1100 px wide: on a narrower window its selectors and panel toggles drop their words (each says it on hover).
 - **Your namespace** — every IRI is an HTTP URI in the model's namespace, written as `m:element-…`, `m:view-…`. New models start under the placeholder `https://example.org/`; **Model settings** (click the model name) sets your own namespace and prefix and moves the model into it.
 
 ## Run
@@ -68,9 +71,15 @@ Then open http://localhost:8080. Useful URL parameters:
 ### Desktop app
 
 The same app as a desktop application (Electron 44), reading and writing files through the system's
-dialogs. Each release's apps — macOS (Apple silicon and Intel), Windows, Linux (x64 and arm64) — are on
-the project's [Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases):
-unzip and open; nothing else to install. To build one yourself, from a checkout, after `npm ci`:
+dialogs. The latest release's apps are at app.linked.archi — [macOS (Apple silicon)](https://app.linked.archi/la-gram/downloads/la-gram-darwin-arm64.zip),
+[macOS (Intel)](https://app.linked.archi/la-gram/downloads/la-gram-darwin-x64.zip),
+[Windows](https://app.linked.archi/la-gram/downloads/la-gram-win32-x64.zip),
+[Linux x64](https://app.linked.archi/la-gram/downloads/la-gram-linux-x64.tar.gz),
+[Linux arm64](https://app.linked.archi/la-gram/downloads/la-gram-linux-arm64.tar.gz), their
+[SHA-256 sums](https://app.linked.archi/la-gram/downloads/SHA256SUMS.txt) — and la-gram's menu links them
+(*Download the desktop app…*); every release's are on the project's
+[Releases page](https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram/-/releases).
+Unzip and open; nothing else to install. To build one yourself, from a checkout, after `npm ci`:
 
 ```bash
 npm run build:electron && npm run electron   # build and run it
@@ -218,10 +227,13 @@ On a tag `la-gram-v<version>` — the version in `package.json` — after the te
   registry (`la-gram/<version>/la-gram-<version>-<platform>-<arch>.zip`) and listed on the project's
   *Releases* page;
 - **the web app** at https://app.linked.archi/la-gram/: the build copied over SSH onto the server that
-  serves app.linked.archi (the host of meta.linked.archi), where nginx serves it under `/la-gram/`.
+  serves app.linked.archi (the host of meta.linked.archi), where nginx serves it under `/la-gram/` —
+  with this documentation in its `docs/`, and the desktop apps in its `downloads/`, fetched from the
+  package registry and named without the version (`la-gram-darwin-arm64.zip`…), each replacing the last
+  release's, with `SHA256SUMS.txt`: the links in la-gram's menu and its documentation stay.
 
 A pre-release — `la-gram-v0.3.0-rc.1` — gets its desktop apps and its Release, for trying; the web app
-stays as the last release left it.
+and the downloads on app.linked.archi stay as the last release left them.
 
 The apps are not signed by a developer (see *Desktop app*). Each release adds about 0.7 GB to the
 project's package registry: delete old versions' packages there (*Deploy › Package registry*) when they
@@ -236,9 +248,13 @@ are no longer wanted.
    protected branches and tags.
 2. **Let anyone download the apps:** *Settings › General › Visibility, project features, permissions*:
    the package registry for everyone with access.
-3. **Add the deploy variables:** *Settings › CI/CD › Variables › Add variable*, each with *Protect
-   variable* ticked, *Expand variable reference* cleared, and *Environments* `production` — only the
-   job that deploys the web app (`web-deploy`, environment `production`) then gets them:
+3. **Create the environment `production`,** so the variable form can offer it: *Operate ›
+   Environments › Create an environment*, the name `production` (its URL
+   `https://app.linked.archi/la-gram/`), *Save*. (The first deploy would create it too, but the
+   variables come first.)
+4. **Add the deploy variables:** *Settings › CI/CD › Variables › Add variable*, each with *Protect
+   variable* ticked, *Expand variable reference* cleared, and the environment scope `production` — only
+   the job that deploys the web app (`web-deploy`, environment `production`) then gets them:
 
    | Key | Type | Visibility | Value |
    |---|---|---|---|
@@ -253,9 +269,22 @@ are no longer wanted.
    three are no secrets. The key and the user are the ones meta.linked.archi's deploy uses (its
    project's *Settings › CI/CD › Variables*); a key of la-gram's own, added to the deploy user's
    `~/.ssh/authorized_keys`, works as well.
-4. **On the server:** create `/var/www/linked-archi-app/la-gram` for the deploy user, and add the
-   locations in [`deploy/nginx-la-gram.conf`](deploy/nginx-la-gram.conf) to the app.linked.archi
-   server block, as the file says.
+5. **On the server:** the folder, for the deploy user —
+
+   ```bash
+   sudo mkdir -p /var/www/linked-archi-app/la-gram
+   sudo chown -R deploy:www-data /var/www/linked-archi-app
+   ```
+
+   — and the web server's site for app.linked.archi, which is kept with the host's own configuration.
+   What la-gram needs of it: the folder served at `/la-gram/` (`/la-gram` sent there); `.wasm` as
+   `application/wasm` and `.ttl` as `text/turtle`; `index.html` and the bundled metamodels revalidated
+   on every load (they change with a release under the same names — the metamodels carry `?v=`), the
+   scripts and the WebAssembly, named by their content, cacheable for good. A Content-Security-Policy,
+   if the site sends one, must allow scripts from the site with `'wasm-unsafe-eval'` (no
+   `'unsafe-eval'` is needed: a production build has no `eval`), workers from `blob:`, images from
+   `data:`, `blob:` and `https:`, inline styles, and connections to `https:` and `wss:`. After that,
+   retry the release's `web-deploy` job (or run the next release).
 
 #### Each release
 
@@ -305,10 +334,11 @@ Step by step, from the default branch, after a merge request:
    Or in GitLab: *Code › Tags › New tag*, the name `la-gram-v0.2.0`, *Create from* `main`, a message,
    *Create tag*.
 
-3. **Follow it** in *Build › Pipelines*: the tests; then `web` and the five `desktop` jobs; then
+3. **Follow it** in *Build › Pipelines*: the tests; then `web`, `docs` and the five `desktop` jobs; then
    `web-deploy` and `la-gram-release`. When it is done, *Deploy › Releases* lists *la-gram 0.2.0* with
    the five downloads, and https://app.linked.archi/la-gram/, reloaded, says *Version 0.2.0* in
-   *Help › About la-gram*.
+   *About la-gram* (the menu under the name at the top left); *Download the desktop app…*, in the same
+   menu, downloads 0.2.0's apps.
 
 The first release is `la-gram-v0.1.0`: `package.json` says 0.1.0 already, so step 1 needs no
 `npm version` (it refuses to set the version it has) — only `main` with everything in it.
@@ -335,13 +365,18 @@ npm run test:browser:build  # production build + Playwright suite (needs Chrome,
 
 How long a modeller waits on large models: the built web app opens each model
 in Chrome, then its largest view, renames an element in it, and opens the model
-again over itself; and the memory it holds is measured.
+again over itself; and the memory it holds is measured. Each run also measures
+the Graph tab at depths 1–5 on every model, and runs the graph model's sweep —
+trees of 100 to 3 000 elements, animated and under reduced motion, at full and
+4× CPU — which checks the force layout's limits and fails the run when they do
+not hold.
 
 ```bash
 npm run build:web
 npm run bench                                   # generated models of 10 000 to 500 000 triples
 npm run bench -- --sizes 100000 --view-size 5000   # views of 5 000 nodes
 npm run bench -- path/to/model.ttl              # models of your own
+npm run bench -- --graph                        # the Graph tab's sweep alone
 npm run bench:model -- --triples 250000 --out model.ttl   # a generated model, to open by hand
 ```
 
@@ -349,7 +384,7 @@ A generated model is the same each time for the same options: ArchiMate 4.0
 elements of 30 types, two permitted relationships each, laid-out views — and a
 few faults planted (an unnamed element in 997, an impermissible relationship in
 503), so that validation always finds the same. Models and results (JSON) are
-kept in `test-results/bench/`; a table is printed.
+kept in `test-results/bench/`; a table for each is printed.
 
 ## Collaboration server
 
@@ -360,9 +395,27 @@ and `DATA_DIR`.
 
 ## Documentation
 
-- `.kiro/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
-- `.kiro/steering/project-conventions.md` — principles and code conventions
+- [la-gram's documentation](https://app.linked.archi/la-gram/docs/) — how to use, configure, run and build la-gram, published with the web app; its source is `docs-site/` (MkDocs, Material for MkDocs)
+- `.agents/specs/la-gram/` — requirements, design, tasks (what is done, what is next, and a change log)
+- `.agents/conventions.md` — principles and code conventions
+- `.agents/tasks/` — one folder per piece of work: its plan, requirements, design and report
+- `.kiro/` — links to `.agents/specs/` and `.agents/conventions.md`, where Kiro looks for them
+- `AGENTS.md`, `CLAUDE.md` — point coding agents to `.agents/conventions.md`, and its checklist for finishing a change
 - `docs/linked-archi-tool-spec.md` — the broader, implementation-independent tool specification; Appendix D says what la-gram implements of it
+
+The documentation builds in its own Python environment, `.venv-docs/` (Python 3.11 or later), with
+exactly the versions `requirements-docs.txt` pins:
+
+```bash
+npm run docs:setup     # once: make .venv-docs/ and install requirements-docs.txt into it
+npm run docs:serve     # preview on http://127.0.0.1:8000/la-gram/docs/, rebuilt on every save
+npm run docs:build     # strict, as CI builds it, into dist/web/docs/: any warning fails it
+```
+
+After `npm run docs:build`, `npm run dev` serves the documentation on http://localhost:8080/docs/,
+beside the app: the app's build leaves `dist/web/docs/` in place. CI's `docs` job builds it for every
+merge request, and `web-deploy` publishes it with the web app. Screenshots, the build's hooks and the
+server's Content-Security-Policy: *Developing › Writing the documentation*, in the documentation.
 
 ## Licence
 

@@ -662,9 +662,20 @@ describe('the workbench', () => {
     expect(views.getNode(view, nodeA)?.appearance).toBeUndefined();
     await ui.runCommand({ command: 'undo' });
     expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'IconCentric' });
-    // And back inside, at the top left.
+    // In the badge: its own icon in box-with-badge, its figure kept, in place of its type's glyph — no position.
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
     await panel.updateComplete;
+    drawAs('badge');
+    expect(views.getNode(view, nodeA)?.appearance).toEqual({ iconSymbol: LOGO, renderingMode: 'ShapeWithBadge' });
+    expect(drawnA().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
+    expect(drawnA().querySelector('.la-shape-badge')?.getAttribute('href')).toBe(LOGO);
+    expect(drawnA().querySelector('.la-shape-icon')).toBeNull();
+    await panel.updateComplete;
+    expect(root.querySelector<HTMLInputElement>('.image-draw-as input[value="badge"]')!.checked).toBe(true);
+    expect(root.querySelector<HTMLSelectElement>('.image-tab select')!.disabled).toBe(true);
+    app.runValidation();
+    expect(ui.validationPanel.results.filter((r) => JSON.stringify(r).includes(nodeA))).toEqual([]);
+    // And back inside, at the top left.
     drawAs('inside');
     expect(views.getNode(view, nodeA)?.appearance).toEqual({ image: LOGO });
     expect(drawnA().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
@@ -958,7 +969,17 @@ describe('the workbench', () => {
     root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
     await panel.updateComplete;
     expect(panel.appearance?.image?.elementPicture).toBe(CARD);
-    root.querySelector<HTMLButtonElement>('.element-picture-as-figure')!.click();
+    const pick = async (value: string) => {
+      await panel.updateComplete;
+      const radio = root.querySelector<HTMLInputElement>(`.image-draw-as input[value="${value}"]`)!;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    };
+    // Its own picture for executives given up for its element's: then Draw it is about the element's picture.
+    root.querySelector<HTMLButtonElement>('.use-element-picture')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.image-preview')!.getAttribute('data-element-picture')).toBe('true');
+    await pick('figure');
     expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric' });
     const icon = drawn().querySelector('.la-shape-icon')!;
     expect([drawn().getAttribute('data-rendering-mode'), icon.getAttribute('href'), icon.getAttribute('data-element-picture')]).toEqual([
@@ -966,6 +987,44 @@ describe('the workbench', () => {
       CARD,
       'true',
     ]);
+    // As its badge instead (core-vis 0.8): its box kept, its element's picture in place of the type's glyph.
+    await pick('badge');
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'ShapeWithBadge', useElementPicture: true });
+    const badge = () => drawn().querySelector('.la-shape-badge')!;
+    expect([drawn().getAttribute('data-rendering-mode'), badge().getAttribute('href')]).toEqual(['ShapeWithBadge', CARD]);
+    expect(inside()).toBe(FOR_EVERYONE);
+    // Written as core-vis 0.8 says (an xsd:boolean), which its shapes (0.4.0) accept.
+    const useFlag = app.components.store
+      .getQuads(null as never, DataFactory.namedNode(NAMESPACES['arch-vis'] + 'useElementPicture') as never)
+      .map((q: { object: { value: string; datatype?: { value: string } } }) => [q.object.value, q.object.datatype?.value]);
+    expect(useFlag).toEqual([['true', NAMESPACES.xsd + 'boolean']]);
+    app.runValidation();
+    expect(
+      ui.validationPanel.results.filter((r) => /core-vis-shapes#/.test(r.sourceShape?.value ?? '') && JSON.stringify(r).includes(node)),
+    ).toEqual([]);
+    // Followed, not copied: a new picture for executives is what the badge shows.
+    const CARD_2 = 'https://example.org/pictures/card-payments-2.png';
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="info"]')!.click();
+    await panel.updateComplete;
+    const newPicture = root.querySelector<HTMLInputElement>(`.context-picture[data-context="${EXECUTIVE}"] input.property-value`)!;
+    newPicture.value = CARD_2;
+    newPicture.dispatchEvent(new Event('change'));
+    expect(badge().getAttribute('href')).toBe(CARD_2);
+    // The Figure tab marks none of its figures while it is so; one picked there puts the type's glyph back.
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="figure"]')!.click();
+    await panel.updateComplete;
+    expect(root.querySelector('.figure-own-picture')!.textContent).toContain("its element's");
+    expect(root.querySelector('.figure-choice[aria-checked="true"]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.figure-choice[data-mode="ShapeWithBadge"]')!.click();
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toBeUndefined();
+    expect(badge().getAttribute('href')).toContain('glyphs/');
+    await ui.runCommand({ command: 'undo' });
+    expect(badge().getAttribute('href')).toBe(CARD_2);
+    root.querySelector<HTMLButtonElement>('.vtab[data-tab="image"]')!.click();
+    await panel.updateComplete;
+    // And as the figure again, for what follows.
+    await pick('figure');
+    expect(views.getNode(view, node)?.contextAppearances?.[EXECUTIVE]).toEqual({ renderingMode: 'IconCentric' });
     // Developers: the box, the picture for everyone inside it, the type's glyph as its badge.
     app.setPresentationContext(DEVELOPER);
     expect(drawn().getAttribute('data-rendering-mode')).toBe('ShapeWithBadge');
@@ -1174,6 +1233,9 @@ describe('the workbench', () => {
       resize: () => undefined,
       highlight: () => undefined,
       positions: () => placed,
+      pause: () => undefined,
+      setForceParams: () => undefined,
+      layoutStats: () => undefined,
       destroy: () => undefined,
     });
     ui.selectConcept(clerk);
@@ -1425,42 +1487,67 @@ describe('the workbench', () => {
     els.deleteElement(placed);
   });
 
-  it('shows its icon and name, which open About, and a Help menu: shortcuts, guides, About', async () => {
+  it("shows its icon and name, which open la-gram's menu: About, the shortcuts, the guides, its pages", async () => {
     await ui.appToolbar.updateComplete;
     const bar = ui.appToolbar.shadowRoot!;
     const brand = bar.querySelector<HTMLButtonElement>('button.brand')!;
-    expect([brand.querySelector('img')?.getAttribute('src'), brand.textContent?.trim(), brand.title]).toEqual([
+    expect([brand.querySelector('img')?.getAttribute('src'), brand.textContent?.replace(/\s+/g, ''), brand.getAttribute('aria-haspopup')]).toEqual([
       'favicon.svg',
-      'la-gram',
-      'About la-gram',
+      'la-gram▾',
+      'menu',
     ]);
+    // No Help menu of its own: it is all under the name.
+    expect(bar.querySelector('[data-menu="help"]')).toBeNull();
 
-    // About, in parts, where the dialogs show parts.
     const details = vi.fn(async () => undefined);
     script.dialogs.details = details;
-    try {
+    const open = async () => {
       brand.click();
+      await ui.appToolbar.updateComplete;
+      expect(brand.getAttribute('aria-expanded')).toBe('true');
+    };
+    try {
+      // The menu: About first, the shortcuts, then the guides and la-gram's pages opening apart.
+      await open();
+      const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
+      expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
+        'about', 'shortcuts', 'la-gram-docs', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues',
+      ]);
+      const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
+      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer')).toBe(true);
+      // la-gram's documentation: the copy served beside the web app; every other page, on its site.
+      const [docs, ...others] = links;
+      expect(docs!.dataset.link).toBe('la-gram-docs');
+      expect(docs!.href).toBe(new URL('docs/', document.baseURI).href);
+      expect(others.every((a) => a.href.startsWith('https://'))).toBe(true);
+
+      // About, in parts, where the dialogs show parts.
+      bar.querySelector<HTMLButtonElement>('.dropdown [data-command="about"]')!.click();
       await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(1));
       const [title, blocks, options] = details.mock.calls[0] as unknown as [string, DetailBlock[], DetailsOptions];
       expect(title).toBe('About la-gram');
-      expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Architecture Modeller' });
+      expect(blocks[0]).toMatchObject({ kind: 'header', title: 'la-gram', subtitle: 'Semantic Modeller for Enterprise and IT Architecture' });
       expect(blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []))).toContainEqual(['Metamodels', 'ArchiMate 4.0 Metamodel']);
       expect(options.copy?.text).toMatch(/^la-gram \(development build\) · .* · metamodels: ArchiMate 4\.0 Metamodel/);
-
-      // Help: the shortcuts first, the guides and la-gram's pages opening apart, About last.
-      bar.querySelector<HTMLButtonElement>('[data-menu="help"]')!.click();
       await ui.appToolbar.updateComplete;
-      const entries = [...bar.querySelectorAll('.dropdown [role="menuitem"]')];
-      expect(entries.map((e) => e.getAttribute('data-command') ?? e.getAttribute('data-link'))).toEqual([
-        'shortcuts', 'docs', 'quick-start', 'modelling-guide', 'archimate4', 'audiences', 'catalogue', 'download', 'readme', 'source', 'issues', 'about',
-      ]);
-      const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
-      expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer' && a.href.startsWith('https://'))).toBe(true);
+      expect(bar.querySelector('.dropdown')).toBeNull();
+
+      // The shortcuts.
+      await open();
       bar.querySelector<HTMLButtonElement>('.dropdown [data-command="shortcuts"]')!.click();
       await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(2));
       expect(details.mock.calls[1]![0]).toBe('Keyboard shortcuts');
       await ui.appToolbar.updateComplete;
       expect(bar.querySelector('.dropdown')).toBeNull();
+
+      // Download the desktop app: the latest release's, a link for each platform, on app.linked.archi.
+      await open();
+      bar.querySelector<HTMLButtonElement>('.dropdown [data-command="download"]')!.click();
+      await vi.waitFor(() => expect(details).toHaveBeenCalledTimes(3));
+      const [downloadTitle, downloadBlocks] = details.mock.calls[2] as unknown as [string, DetailBlock[]];
+      expect(downloadTitle).toBe('Download the desktop app');
+      const hrefs = downloadBlocks.flatMap((b) => (b.kind === 'links' ? b.links.map((l) => l.href) : []));
+      expect(hrefs.filter((h) => h.startsWith('https://app.linked.archi/la-gram/downloads/la-gram-'))).toHaveLength(5);
     } finally {
       delete script.dialogs.details;
     }
@@ -1471,7 +1558,7 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'about' });
     const [title, lines] = info.mock.calls[0] as [string, string[]];
     expect(title).toBe('About la-gram');
-    expect(lines.slice(0, 3)).toEqual(['la-gram', 'Semantic Architecture Modeller', 'Development build']);
+    expect(lines.slice(0, 3)).toEqual(['la-gram', 'Semantic Modeller for Enterprise and IT Architecture', 'Development build']);
   });
 
   it('hides and shows the model tree from the toolbar', async () => {
@@ -1727,6 +1814,73 @@ describe('the workbench', () => {
       await ui.runCommand({ command: 'settings' });
       expect(ui.appToolbar.hiddenCatalogue.size).toBe(0);
     }
+  });
+
+  it('makes elements and views in a folder of the model tree, or from a type’s row — an element in no view, undoably (Req 10.16)', async () => {
+    const act = (detail: Record<string, unknown>) => ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail }));
+    const folders = () => contents().folders ?? [];
+    const folder = (label: string) => folders().find((f) => f.label === label);
+    const element = (label: string) => contents().elements.find((e) => e.label === label);
+    const views = app.components.viewManager;
+    const placedAnywhere = (iri: string) => views.getViews().some((v) => views.getNodes(v.iri).some((n) => n.elementIri === iri));
+    script.answers.push('Customers');
+    act({ action: 'new-folder', iri: '', kind: 'folder', folderKind: 'element' });
+    await vi.waitFor(() => expect(folder('Customers')).toBeDefined());
+    script.answers.push('Overviews');
+    act({ action: 'new-folder', iri: '', kind: 'folder', folderKind: 'view' });
+    await vi.waitFor(() => expect(folder('Overviews')).toBeDefined());
+
+    // In a folder of elements: its type chosen from the loaded ones, its name — the type's offered — in the folder, in no view.
+    const choose = script.dialogs.choose as ReturnType<typeof vi.fn>;
+    choose.mockClear();
+    script.answers.push(`${AM4}BusinessActor`, 'Retail customer');
+    act({ action: 'new-element', iri: folder('Customers')!.iri, kind: 'folder', folderKind: 'element' });
+    await vi.waitFor(() => expect(element('Retail customer')).toBeDefined());
+    const offered = choose.mock.calls[0]![1] as Array<{ value: string; group?: string }>;
+    expect(offered.map((o) => o.value)).toContain(`${AM4}BusinessActor`);
+    expect(offered.every((o) => o.group)).toBe(true);
+    const retail = element('Retail customer')!;
+    expect(retail.typeIri).toBe(`${AM4}BusinessActor`);
+    expect(folder('Customers')!.members).toContain(retail.iri);
+    expect(placedAnywhere(retail.iri)).toBe(false);
+    expect(ui.propertyPanel.selectedIri).toBe(retail.iri);
+    // One undoable step: made and filed together.
+    await ui.runCommand({ command: 'undo' });
+    expect(element('Retail customer')).toBeUndefined();
+    expect(folder('Customers')!.members).not.toContain(retail.iri);
+    await ui.runCommand({ command: 'redo' });
+    expect(folder('Customers')!.members).toContain(retail.iri);
+
+    // From a type's row: one more of its type, no type to choose, in no folder.
+    choose.mockClear();
+    script.answers.push('Wholesale customer');
+    act({ action: 'new-element', iri: '', kind: 'folder', typeIri: `${AM4}BusinessActor` });
+    await vi.waitFor(() => expect(element('Wholesale customer')).toBeDefined());
+    expect(choose).not.toHaveBeenCalled();
+    expect(element('Wholesale customer')!.typeIri).toBe(`${AM4}BusinessActor`);
+    expect(folders().some((f) => f.members.includes(element('Wholesale customer')!.iri))).toBe(false);
+
+    // In a folder of views: named, its viewpoint asked, filed there and opened.
+    script.answers.push('Customer overview', '');
+    act({ action: 'new-diagram', iri: folder('Overviews')!.iri, kind: 'folder', folderKind: 'view' });
+    await vi.waitFor(() => expect(views.getViews().find((v) => v.label === 'Customer overview')).toBeDefined());
+    const overview = views.getViews().find((v) => v.label === 'Customer overview')!;
+    expect(folder('Overviews')!.members).toContain(overview.iri);
+    expect(app.session.activeViewIri).toBe(overview.iri);
+    // From the Views group: in no folder.
+    script.answers.push('Loose catalog', '');
+    act({ action: 'new-catalog', iri: '', kind: 'folder', folderKind: 'view' });
+    await vi.waitFor(() => expect(views.getViews().find((v) => v.label === 'Loose catalog')).toBeDefined());
+    expect(folders().some((f) => f.members.includes(views.getViews().find((v) => v.label === 'Loose catalog')!.iri))).toBe(false);
+
+    // Tidy up for the tests after: the elements and the views made here, and the folders.
+    for (const label of ['Retail customer', 'Wholesale customer']) app.components.elementManager.deleteElement(element(label)!.iri);
+    for (const label of ['Customer overview', 'Loose catalog']) app.session.deleteView(views.getViews().find((v) => v.label === label)!.iri);
+    for (const label of ['Customers', 'Overviews', 'Elements', 'Views']) {
+      const f = folder(label);
+      if (f) act({ action: 'delete-folder', iri: f.iri, kind: 'folder' });
+    }
+    await vi.waitFor(() => expect(folders().filter((f) => ['Customers', 'Overviews'].includes(f.label))).toEqual([]));
   });
 
   it('creates, names and opens a new view from the toolbar', async () => {

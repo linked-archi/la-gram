@@ -18,13 +18,27 @@
  * it waits for there (the app ready, the view drawn), whichever is later — the
  * UI blocked (the long tasks, summed) and the longest freeze; and when the
  * findings came (validation runs in a worker, so they follow).
+ *
+ * The Graph tab (key decision 17), in four passes — animated and under reduced
+ * motion, each at CPU rate 1 and throttled 4× — on every model at depths 1–5
+ * round its most connected element, and on a graph model made for it
+ * (`test-results/bench/graph.ttl`: a tree of each size from 100 to 3 000
+ * elements), each tree drawn at depth 5 and, animated, a leaf dragged. How each
+ * graph was laid out comes from the panel's `layoutStats()`; the frames from a
+ * sampler of animation frames. The force layout's limits are read from the
+ * throttled sweep, and checked by it:
+ *
+ *   node scripts/bench.mjs --graph              the graph model's sweep alone
+ *
+ * After the results are written, the run fails (exit 1) when a sweep row was not
+ * laid out as the limits say, or a node limit is above 3 000.
  */
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { generateModel } from './bench-model.mjs';
+import { generateGraphModel, generateModel, GRAPH_SWEEP, graphTree } from './bench-model.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = path.join(ROOT, 'dist/web');
@@ -46,12 +60,15 @@ function options(argv) {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : undefined;
   };
+  // Options that take a value; --graph takes none.
   const flags = new Set(['--sizes', '--view-size', '--out']);
   const files = argv.filter((a, i) => !a.startsWith('--') && !flags.has(argv[i - 1]));
+  const graph = argv.includes('--graph');
   return {
     files,
-    sizes: value('sizes') ? value('sizes').split(',').map(Number) : files.length > 0 ? [] : DEFAULT_SIZES,
+    sizes: value('sizes') ? value('sizes').split(',').map(Number) : files.length > 0 || graph ? [] : DEFAULT_SIZES,
     viewSize: Number(value('view-size') ?? 40),
+    graph,
     out: value('out') ?? path.join(OUT, `results-${new Date().toISOString().replace(/[:.]/g, '-')}.json`),
   };
 }
@@ -62,6 +79,194 @@ function generated(triples, viewSize) {
   const file = path.join(OUT, `model-${triples}${viewSize === 40 ? '' : `-view${viewSize}`}.ttl`);
   if (!existsSync(file)) writeFileSync(file, generateModel({ triples, viewSize }).text);
   return file;
+}
+
+/** The graph model's file (`bench-model.mjs` `generateGraphModel`), made when it is not there yet. */
+function generatedGraph() {
+  mkdirSync(OUT, { recursive: true });
+  const file = path.join(OUT, 'graph.ttl');
+  if (!existsSync(file)) writeFileSync(file, generateGraphModel({ seed: 1 }).text);
+  return file;
+}
+
+/** The Graph tab's four passes. */
+const PASSES = [
+  { name: 'animated', reducedMotion: false, rate: 1 },
+  { name: 'reduced motion', reducedMotion: true, rate: 1 },
+  { name: 'animated, 4× CPU', reducedMotion: false, rate: 4 },
+  { name: 'reduced motion, 4× CPU', reducedMotion: true, rate: 4 },
+];
+/** An animated pass of the sweep stops at the first size whose median frame interval passes this. */
+const SWEEP_STOP_MS = 100;
+/** The sweep's largest size: no node limit may be above it. */
+const LIMIT_CEILING = 3000;
+/** How long one Graph measurement may take before it is given up. */
+const GRAPH_LIMIT_MS = 10 * 60 * 1000;
+
+/** Emulate a pass: the reduced-motion preference and the CPU rate (through CDP). */
+async function setPass(page, cdp, pass) {
+  await page.emulateMedia({ reducedMotion: pass?.reducedMotion ? 'reduce' : null });
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: pass?.rate ?? 1 });
+}
+
+/**
+ * One Graph tab measurement, in the page (key design decision 17):
+ * a frame sampler that records each animation frame's time and nothing else, the
+ * call (select an element, or set the depth: both draw before they return), a wait
+ * for `data-layout="settled"` polled every frame, two frames more; then the graph,
+ * how it was laid out (`layoutStats()`), the time to rest, the frame intervals,
+ * the longest task in the window and, when the simulation laid it out, its run.
+ */
+async function measureGraph(page, call) {
+  return page.evaluate(
+    async ([call, limitMs]) => {
+      const ui = window.__LA_GRAM_UI__;
+      const panel = ui.graphPanel;
+      const cy = () => panel.shadowRoot.querySelector('.cy');
+      const frame = () => new Promise((r) => requestAnimationFrame(r));
+      const frames = [];
+      let sampling = true;
+      const sample = (t) => {
+        frames.push(t);
+        if (sampling) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      const start = performance.now();
+      if (call.kind === 'select') {
+        ui.selectConcept(call.iri);
+        await panel.updateComplete;
+      } else panel.setDepth(call.depth);
+      const called = performance.now();
+      let timedOut = false;
+      while (cy().dataset.layout !== 'settled') {
+        if (performance.now() - start > limitMs) {
+          timedOut = true;
+          break;
+        }
+        await frame();
+      }
+      await frame();
+      await frame();
+      sampling = false;
+      const end = performance.now();
+      // Long tasks are reported after they end: give the observer a moment.
+      await new Promise((r) => setTimeout(r, 100));
+      const stats = panel.layoutStats();
+      // This call's run: a depth that reaches nothing more changes nothing drawn, starts no run, and leaves an
+      // earlier run's figures, which started before the call.
+      const run = stats.drawnBy === 'force' && stats.run && !(stats.run.startedAt < start) ? stats.run : undefined;
+      const intervals = frames.slice(1).map((t, i) => t - frames[i]).sort((a, b) => a - b);
+      const at = (q) => (intervals.length > 0 ? intervals[Math.min(intervals.length - 1, Math.floor(q * intervals.length))] : null);
+      const tasks = window.__bench.tasks.filter(([t, d]) => t + d >= start && t <= end);
+      // After the call: the frames of an animation or the slices of a layout laid out at once.
+      const after = tasks.filter(([t]) => t >= called);
+      return {
+        elements: panel.graph?.nodes.length ?? 0,
+        lines: panel.graph?.edges.length ?? 0,
+        laidOut: stats.drawnBy === 'force' ? (run ? (run.mode === 'animate' ? 'animated' : 'at once') : 'unchanged') : stats.drawnBy,
+        restMs: run?.endedAt !== undefined ? run.endedAt - start : called - start,
+        // The call's own time: the walk, the drawing's update and what a selection does elsewhere. The time to
+        // rest less this is the layout's own, which the animation limit's 3 s rule is about.
+        callMs: called - start,
+        medianFrameMs: at(0.5),
+        p95FrameMs: at(0.95),
+        longestTaskMs: Math.max(0, ...tasks.map(([, d]) => d)),
+        longestAfterCallMs: Math.max(0, ...after.map(([, d]) => d)),
+        ...(run ? { steps: run.steps, syncMs: run.syncMs, meanStepMs: run.steps > 0 ? run.computeMs / run.steps : null, alpha: run.alpha } : {}),
+        ...(timedOut ? { timedOut } : {}),
+        limits: stats.limits,
+      };
+    },
+    [call, GRAPH_LIMIT_MS],
+  );
+}
+
+/**
+ * Drag a drawn element: pressed at its rendered centre, moved 200 px towards the
+ * drawing's middle in 30 mouse steps, released; then a wait for rest. The frame
+ * intervals while it is held. Not measured when its centre is outside the
+ * drawing, or when `data-layout` did not read `running` while it was held: the
+ * drag was not live (a live drag keeps the simulation running; a pan reports nothing).
+ */
+async function dragGraph(page, iri) {
+  const box = await page.locator('graph-panel .cy').boundingBox();
+  const centre = await page.evaluate((iri) => {
+    const p = window.__LA_GRAM_UI__.graphPanel.drawnPositions('rendered').get(iri);
+    return p ? { x: p.x, y: p.y } : null;
+  }, iri);
+  if (!box || !centre || centre.x < 0 || centre.y < 0 || centre.x > box.width || centre.y > box.height) return { measured: false, why: 'outside the drawing' };
+  await page.evaluate(() => {
+    const sampler = { frames: [], on: true };
+    window.__benchDrag = sampler;
+    const sample = (t) => {
+      sampler.frames.push(t);
+      if (sampler.on) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  const from = { x: box.x + centre.x, y: box.y + centre.y };
+  const toward = centre.x > box.width / 2 ? -1 : 1;
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + toward * 200, from.y, { steps: 30 });
+  const held = await page.evaluate(() => document.querySelector('graph-panel').shadowRoot.querySelector('.cy').dataset.layout);
+  const frames = await page.evaluate(() => {
+    window.__benchDrag.on = false;
+    return window.__benchDrag.frames;
+  });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector('graph-panel').shadowRoot.querySelector('.cy').dataset.layout === 'settled', null, {
+    timeout: GRAPH_LIMIT_MS,
+    polling: 'raf',
+  });
+  if (held !== 'running') return { measured: false, why: 'not live' };
+  const intervals = frames.slice(1).map((t, i) => t - frames[i]).sort((a, b) => a - b);
+  const at = (q) => (intervals.length > 0 ? intervals[Math.min(intervals.length - 1, Math.floor(q * intervals.length))] : null);
+  return { measured: true, medianFrameMs: at(0.5), p95FrameMs: at(0.95) };
+}
+
+/** Wait for the Graph tab at rest with a graph drawn. */
+async function graphAtRest(page) {
+  await page.waitForFunction(
+    () => {
+      const panel = window.__LA_GRAM_UI__.graphPanel;
+      return (panel.graph?.nodes.length ?? 0) > 0 && panel.shadowRoot.querySelector('.cy')?.dataset.layout === 'settled';
+    },
+    null,
+    { timeout: GRAPH_LIMIT_MS, polling: 'raf' },
+  );
+}
+
+/** The depth walk: round the model's most connected element, depth 1 to 5, in each pass. */
+async function graphWalk(page) {
+  const hub = await page.evaluate(() => {
+    const store = window.__LA_GRAM_APP__.components.store;
+    const counts = new Map();
+    for (const p of ['https://meta.linked.archi/core#source', 'https://meta.linked.archi/core#target'])
+      for (const q of store.getQuads(null, { termType: 'NamedNode', value: p }, null))
+        if (q.graph.termType === 'DefaultGraph' && q.object.termType === 'NamedNode') counts.set(q.object.value, (counts.get(q.object.value) ?? 0) + 1);
+    let best = null;
+    for (const [iri, n] of counts) if (!best || n > best.n) best = { iri, n };
+    return best;
+  });
+  if (!hub) return null;
+  // Two tasks, as a user's: the selection, then the tab, so the drawing is made with the tab shown.
+  await page.evaluate((iri) => window.__LA_GRAM_UI__.selectConcept(iri), hub.iri);
+  await page.evaluate(() => window.__LA_GRAM_UI__.showBottomTab('graph'));
+  await graphAtRest(page);
+  const cdp = await page.context().newCDPSession(page);
+  const passes = [];
+  try {
+    for (const pass of PASSES) {
+      await setPass(page, cdp, pass);
+      const depths = [];
+      for (let depth = 1; depth <= 5; depth++) depths.push({ depth, ...(await measureGraph(page, { kind: 'depth', depth })) });
+      passes.push({ pass: pass.name, depths });
+    }
+  } finally {
+    await setPass(page, cdp, undefined);
+  }
+  return { element: hub.iri, relationships: hub.n, passes };
 }
 
 /** Serve the built app and the model, on a port of its own. */
@@ -196,7 +401,73 @@ async function measureModel(file) {
       return phase(start, await now());
     })();
 
-    return { model: path.basename(file), ...facts, open: { ...open, ...openFindings }, view, rename, again, heapMB: await heaps(browser, page) };
+    // The Graph tab round the most connected element, depth 1 to 5, in each pass.
+    const graph = await graphWalk(page);
+
+    return { model: path.basename(file), ...facts, open: { ...open, ...openFindings }, view, rename, again, graph, heapMB: await heaps(browser, page) };
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
+/**
+ * The sweep on the graph model: the depth set to 5, each tree's root selected in
+ * turn, smallest first — a first drawing of exactly the tree's size — and, in an
+ * animated pass, its last element dragged. An animated pass stops at the first
+ * size whose median frame passes 100 ms; the larger sizes are not measured.
+ */
+async function measureSweep(file) {
+  const { server, base, modelPath } = await serve(file);
+  const executablePath = process.env.LA_GRAM_CHROME;
+  const browser = await chromium.launch({ ...(executablePath ? { executablePath } : { channel: 'chrome' }), args: ['--disable-gpu'] });
+  try {
+    const page = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
+    await page.addInitScript(instrument);
+    await page.goto(`${base}/index.html?model=${encodeURIComponent(base + modelPath)}`, { waitUntil: 'load' });
+    const last = graphTree(GRAPH_SWEEP.at(-1)).root;
+    await page.waitForFunction(
+      (iri) => window.__bench?.ready != null && window.__LA_GRAM_APP__.components.store.getQuads({ termType: 'NamedNode', value: iri }, null, null).length > 0,
+      last,
+      { timeout: LIMIT_MS, polling: 500 },
+    );
+    // Validation runs in a worker; the sweep's frames are not to share the machine with it.
+    for (const started = Date.now(); Date.now() - started < LIMIT_MS; ) {
+      if (!(await page.evaluate(() => window.__LA_GRAM_APP__.validationPending()))) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    await page.evaluate(() => window.__LA_GRAM_UI__.showBottomTab('graph'));
+    await page.evaluate(() => window.__LA_GRAM_UI__.graphPanel.setDepth(5));
+    const cdp = await page.context().newCDPSession(page);
+    const rows = [];
+    try {
+      for (const pass of PASSES) {
+        await setPass(page, cdp, pass);
+        let stopped = false;
+        for (const size of GRAPH_SWEEP) {
+          const row = { size, pass: pass.name, reducedMotion: pass.reducedMotion, rate: pass.rate };
+          if (stopped) {
+            rows.push({ ...row, measured: false });
+            continue;
+          }
+          const { root, leaf } = graphTree(size);
+          const m = await measureGraph(page, { kind: 'select', iri: root });
+          Object.assign(row, { measured: true }, m);
+          if (!pass.reducedMotion) {
+            if (m.medianFrameMs !== null && m.medianFrameMs > SWEEP_STOP_MS) {
+              stopped = true;
+              row.drag = { measured: false, why: `animation past ${SWEEP_STOP_MS} ms a frame` };
+            } else row.drag = await dragGraph(page, leaf);
+          }
+          rows.push(row);
+          process.stderr.write(`  ${size} elements, ${pass.name}: ${m.laidOut}, at rest in ${s(m.restMs)} s, p95 frame ${Math.round(m.p95FrameMs ?? 0)} ms\n`);
+        }
+      }
+    } finally {
+      await setPass(page, cdp, undefined);
+    }
+    const limits = await page.evaluate(() => window.__LA_GRAM_UI__.graphPanel.layoutStats()?.limits);
+    return { model: path.basename(file), limits, rows };
   } finally {
     await browser.close();
     server.close();
@@ -233,17 +504,64 @@ async function heaps(browser, page) {
 }
 
 const s = (ms) => (ms === null || ms === undefined ? '–' : (ms / 1000).toFixed(ms < 10000 ? 2 : 1));
+const ms = (n, digits = 0) => (n === null || n === undefined ? '–' : n.toFixed(digits));
+/** The models table's Graph column: depth 5 in the animated pass at CPU rate 1. */
+function graphCell(r) {
+  const d5 = r.graph?.passes.find((p) => p.pass === PASSES[0].name)?.depths.find((d) => d.depth === 5);
+  return d5 ? `${d5.elements}, ${d5.laidOut}, ${s(d5.restMs)}, ${ms(d5.p95FrameMs)}` : '–';
+}
 function table(rows) {
   const lines = [
-    '| Model | Triples | Open (s) | Longest freeze (s) | Findings (after opening, s) | Largest view: nodes, open (s) | Rename: UI blocked (ms) | Findings after rename (s) | Open again, over it (s) | Heap: UI + worker (MB) |',
-    '|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
+    '| Model | Triples | Open (s) | Longest freeze (s) | Findings (after opening, s) | Largest view: nodes, open (s) | Rename: UI blocked (ms) | Findings after rename (s) | Open again, over it (s) | Graph, depth 5: elements, laid out, at rest (s), p95 frame (ms) | Heap: UI + worker (MB) |',
+    '|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
   ];
   for (const r of rows) {
     lines.push(
-      `| ${r.model} | ${r.triples?.toLocaleString('en-GB') ?? '–'} | ${s(r.open.ms)} | ${s(r.open.longestMs)} | ${r.open.findings ?? '–'} (${s(r.open.findingsAfterMs)}) | ${r.view ? `${r.view.nodes}, ${s(r.view.ms)}` : '–'} | ${r.rename?.blockedMs ?? '–'} | ${s(r.rename?.findingsAfterMs)} | ${s(r.again?.ms)} | ${r.heapMB.ui} + ${r.heapMB.workers.join(' + ') || 0} |`,
+      `| ${r.model} | ${r.triples?.toLocaleString('en-GB') ?? '–'} | ${s(r.open.ms)} | ${s(r.open.longestMs)} | ${r.open.findings ?? '–'} (${s(r.open.findingsAfterMs)}) | ${r.view ? `${r.view.nodes}, ${s(r.view.ms)}` : '–'} | ${r.rename?.blockedMs ?? '–'} | ${s(r.rename?.findingsAfterMs)} | ${s(r.again?.ms)} | ${graphCell(r)} | ${r.heapMB.ui} + ${r.heapMB.workers.join(' + ') || 0} |`,
     );
   }
   return lines.join('\n');
+}
+
+/** The sweep: for each size and pass, how it was laid out, the time to rest, the frames, the longest task, the run, the drag. */
+function sweepTable(sweep) {
+  const lines = [
+    `Graph sweep, ${sweep.model} (limits: animateMaxNodes ${sweep.limits?.animateMaxNodes}, liveDragMaxNodes ${sweep.limits?.liveDragMaxNodes}, forceMaxNodes ${sweep.limits?.forceMaxNodes})`,
+    '',
+    '| Elements | Pass | Laid out | At rest (s) | The call (s) | Median frame (ms) | p95 frame (ms) | Longest task (ms) | after the call (ms) | Steps | Mean step (ms) | Alpha | Drag p95 (ms) |',
+    '|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|',
+  ];
+  for (const r of sweep.rows) {
+    if (!r.measured) {
+      lines.push(`| ${r.size} | ${r.pass} | not measured | | | | | | | | | | |`);
+      continue;
+    }
+    const drag = r.drag === undefined ? '' : r.drag.measured ? ms(r.drag.p95FrameMs) : `not measured (${r.drag.why})`;
+    lines.push(
+      `| ${r.size} | ${r.pass} | ${r.laidOut}${r.timedOut ? ' (timed out)' : ''} | ${s(r.restMs)} | ${s(r.callMs)} | ${ms(r.medianFrameMs)} | ${ms(r.p95FrameMs)} | ${ms(r.longestTaskMs)} | ${ms(r.longestAfterCallMs)} | ${r.steps ?? '–'} | ${ms(r.meanStepMs, 1)} | ${r.alpha === undefined ? '–' : r.alpha.toFixed(3)} | ${drag} |`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * The sweep's checks: every row laid out as its limits say — animated up to
+ * animateMaxNodes in an animated pass, laid out at once otherwise, in rings above
+ * forceMaxNodes — and no node limit above the sweep's largest size.
+ */
+function sweepErrors(sweep) {
+  const errors = [];
+  const limits = sweep.limits;
+  if (!limits) return [`${sweep.model}: the Graph tab gave no limits`];
+  for (const name of ['animateMaxNodes', 'liveDragMaxNodes', 'forceMaxNodes'])
+    if (!(limits[name] <= LIMIT_CEILING)) errors.push(`${name} is ${limits[name]}: above ${LIMIT_CEILING}, the sweep's largest size`);
+  for (const r of sweep.rows.filter((r) => r.measured)) {
+    const expected = r.size > limits.forceMaxNodes ? 'rings' : !r.reducedMotion && r.size <= limits.animateMaxNodes ? 'animated' : 'at once';
+    if (r.timedOut) errors.push(`${r.size} elements, ${r.pass}: did not come to rest`);
+    if (r.elements !== r.size) errors.push(`${r.size} elements, ${r.pass}: drew ${r.elements}`);
+    if (r.laidOut !== expected) errors.push(`${r.size} elements, ${r.pass}: laid out ${r.laidOut}; the limits say ${expected}`);
+  }
+  return errors;
 }
 
 async function main() {
@@ -252,7 +570,7 @@ async function main() {
     console.error('Build the web app first: npm run build:web');
     process.exit(1);
   }
-  const files = [...opts.sizes.map((n) => generated(n, opts.viewSize)), ...opts.files.map((f) => path.resolve(f))];
+  const files = opts.graph ? [] : [...opts.sizes.map((n) => generated(n, opts.viewSize)), ...opts.files.map((f) => path.resolve(f))];
   const rows = [];
   for (const file of files) {
     process.stderr.write(`${path.basename(file)} … `);
@@ -260,10 +578,21 @@ async function main() {
     process.stderr.write(`opened in ${s(row.open.ms)} s\n`);
     rows.push(row);
   }
+  // The graph model's sweep, after the other models (or alone, with --graph).
+  const graphFile = generatedGraph();
+  process.stderr.write(`${path.basename(graphFile)}, the Graph tab's sweep …\n`);
+  const sweeps = [await measureSweep(graphFile)];
   mkdirSync(path.dirname(opts.out), { recursive: true });
-  writeFileSync(opts.out, JSON.stringify({ date: new Date().toISOString(), rows }, null, 1));
-  console.log(table(rows));
-  console.log(`\n${path.relative(ROOT, opts.out)}`);
+  writeFileSync(opts.out, JSON.stringify({ date: new Date().toISOString(), rows, sweeps }, null, 1));
+  if (rows.length > 0) console.log(table(rows) + '\n');
+  for (const sweep of sweeps) console.log(sweepTable(sweep) + '\n');
+  console.log(path.relative(ROOT, opts.out));
+  // After the results are written, so that a run that fails keeps them.
+  const errors = sweeps.flatMap(sweepErrors);
+  if (errors.length > 0) {
+    console.error(`\nThe Graph tab's limits do not hold:\n${errors.map((e) => `- ${e}`).join('\n')}`);
+    process.exit(1);
+  }
 }
 
 await main();

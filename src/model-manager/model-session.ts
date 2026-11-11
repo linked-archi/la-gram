@@ -343,11 +343,16 @@ export class ModelSession {
     return viewIri;
   }
 
-  createView(kind: ViewKind, options: { label?: string; viewpointIri?: string; open?: boolean } = {}): string {
-    const viewIri = this.views.createView(kind, options.viewpointIri, {
-      label: options.label?.trim() || `New ${kind.toLowerCase()}`,
-      ...(this.currentModel ? { modelIri: this.currentModel } : {}),
-    }).value;
+  createView(kind: ViewKind, options: { label?: string; viewpointIri?: string; open?: boolean; folderIri?: string } = {}): string {
+    let viewIri = '';
+    // Made and filed in its folder (Req 10.16) as one change, which collaborators receive as one update.
+    this.batch(() => {
+      viewIri = this.views.createView(kind, options.viewpointIri, {
+        label: options.label?.trim() || `New ${kind.toLowerCase()}`,
+        ...(this.currentModel ? { modelIri: this.currentModel } : {}),
+      }).value;
+      if (options.folderIri) this.store.addQuads([triple(nn(viewIri), T.dctermsIsPartOf, nn(options.folderIri))]);
+    });
     this.events?.emit('views-changed', { viewIri });
     if (options.open !== false) this.openView(viewIri);
     return viewIri;
@@ -499,21 +504,40 @@ export class ModelSession {
    * a model saved before la-gram wrote it, or made by another tool. A
    * relationship whose class has no `arch:unqualifiedForm` stands for no triple
    * and gets none.
+   *
+   * And one whose triple term names other ends than the relationship's own
+   * `arch:source` and `arch:target` is made to name them again, its predicate
+   * kept: a namespace change before it rewrote triple terms moved every IRI of
+   * the model but those, leaving the relationship reifying a triple of IRIs the
+   * model no longer has.
    */
   private ensureReifies(): void {
     const add: Quad[] = [];
+    const remove: Quad[] = [];
     // The model's relationships, by index in the model graph (Task 22).
     const model = MODEL_GRAPH;
     for (const q of this.store.getQuads(null, T.source, null, model)) {
       if (q.subject.termType !== 'NamedNode') continue;
       const rel = q.subject.value;
-      if (this.store.getQuads(nn(rel), T.reifies, null, model).length > 0) continue;
       const target = this.store.getQuads(nn(rel), T.target, null, model)[0]?.object;
+      const ends = q.object.termType === 'NamedNode' && target?.termType === 'NamedNode';
+      const reifies = this.store.getQuads(nn(rel), T.reifies, null, model);
+      if (reifies.length > 0) {
+        for (const r of reifies) {
+          if (!ends || r.object.termType !== 'Quad') continue;
+          const term = r.object as unknown as Quad;
+          if (term.subject.value === q.object.value && term.object.value === target!.value) continue;
+          remove.push(r);
+          add.push(triple(nn(rel), T.reifies, tripleTerm(nn(q.object.value), term.predicate, nn(target!.value))));
+        }
+        continue;
+      }
       const classIri = relationshipClassOf(this.store, rel);
       const predicate = classIri ? unqualifiedFormOf(this.store, classIri) : undefined;
-      if (!target || target.termType !== 'NamedNode' || q.object.termType !== 'NamedNode' || !predicate) continue;
-      add.push(triple(nn(rel), T.reifies, tripleTerm(nn(q.object.value), nn(predicate), nn(target.value))));
+      if (!ends || !predicate) continue;
+      add.push(triple(nn(rel), T.reifies, tripleTerm(nn(q.object.value), nn(predicate), nn(target!.value))));
     }
+    if (remove.length > 0) this.store.removeQuads(remove);
     if (add.length > 0) this.store.addQuads(add);
   }
 

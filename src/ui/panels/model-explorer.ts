@@ -142,6 +142,7 @@ export type ExplorerAction =
   | 'new-diagram'
   | 'new-catalog'
   | 'new-matrix'
+  | 'new-element'
   | 'open-view'
   | 'rename-view'
   | 'duplicate-view'
@@ -172,6 +173,8 @@ export interface ExplorerActionDetail {
   folderKind?: FolderKind;
   /** *Move to folder…* on several selected: all of them of the row's group, the row's first. */
   iris?: string[];
+  /** *New ‹type›…* on a type's row: the element type to make one of. */
+  typeIri?: string;
 }
 
 /**
@@ -216,6 +219,19 @@ const HOVER_UNFOLD_MS = 600;
 
 /** The actions that take the folder's group along. */
 const FOLDER_ACTIONS: ReadonlySet<ExplorerAction> = new Set(['new-folder', 'rename-folder', 'move-to-folder', 'delete-folder']);
+
+/** What a folder of a group, or the group itself, offers to make in it (Req 10.16): views in Views, elements in Elements. */
+const NEW_IN_GROUP: Partial<Record<FolderKind, Array<{ action: ExplorerAction; label: string }>>> = {
+  view: [
+    { action: 'new-diagram', label: 'New diagram view' },
+    { action: 'new-catalog', label: 'New catalog view' },
+    { action: 'new-matrix', label: 'New matrix view' },
+  ],
+  element: [{ action: 'new-element', label: 'New element…' }],
+};
+
+/** Actions that make something in a folder or a group: allowed on a row with no concept of its own. */
+const NEW_ACTIONS: ReadonlySet<ExplorerAction> = new Set(['new-diagram', 'new-catalog', 'new-matrix', 'new-element']);
 
 /** Local name of an IRI, for fallbacks. */
 export function iriFragment(iri: string): string {
@@ -486,18 +502,25 @@ export function actionsFor(
         { action: 'new-catalog', label: 'New catalog view' },
         { action: 'new-matrix', label: 'New matrix view' },
       ];
-    case 'folder':
-      // The model's own folders, and the groups (Views, Elements, Relationships) folders are made in;
-      // a type's grouping has no menu.
+    case 'folder': {
+      // The model's own folders, and the groups (Views, Elements, Relationships) folders are made in:
+      // first what can be made there (Req 10.16).
+      const make = node.folderKind ? (NEW_IN_GROUP[node.folderKind] ?? []) : [];
       if (node.folderIri) {
         return [
+          ...make,
           { action: 'new-folder', label: 'New folder…' },
           { action: 'rename-folder', label: 'Rename…' },
           { action: 'move-to-folder', label: 'Move to folder…' },
           { action: 'delete-folder', label: 'Delete folder (keeps its contents)', danger: true },
         ];
       }
-      return node.folderKind ? [{ action: 'new-folder', label: 'New folder…' }] : [];
+      if (node.folderKind) return [...make, { action: 'new-folder', label: 'New folder…' }];
+      // An element type's row: one more of it. Other groupings have no menu.
+      return node.typeIri && node.children.some((child) => child.kind === 'element')
+        ? [{ action: 'new-element', label: `New ${node.label}…` }]
+        : [];
+    }
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
@@ -1014,14 +1037,17 @@ export class ModelExplorer extends LitElement {
     if (!menu) return;
     const { node, iris } = menu;
     const iri = node.iri ?? node.folderIri;
-    const folderKind = FOLDER_ACTIONS.has(action) ? (node.folderKind ?? folderKindOf(node)) : undefined;
-    if (!iri && node.kind !== 'model' && !folderKind) return;
+    const folderKind = FOLDER_ACTIONS.has(action) || NEW_ACTIONS.has(action) ? (node.folderKind ?? folderKindOf(node)) : undefined;
+    // A type's row makes one of its type, in no folder.
+    const typeIri = action === 'new-element' && node.kind === 'folder' && !node.folderKind ? node.typeIri : undefined;
+    if (!iri && node.kind !== 'model' && !folderKind && !typeIri) return;
     this._emit<ExplorerActionDetail>('explorer-action', {
       action,
       iri: iri ?? '',
       kind: node.kind,
       ...(folderKind ? { folderKind } : {}),
       ...(iris && action === 'move-to-folder' ? { iris } : {}),
+      ...(typeIri ? { typeIri } : {}),
     });
   }
 

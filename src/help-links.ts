@@ -1,22 +1,27 @@
 /**
- * Where la-gram's help is: the Help menu's links, in the toolbar and in the
+ * Where la-gram's help is: the links of la-gram's menu, in the toolbar, and of the
  * desktop app's own menu bar. No DOM here — the desktop app's main process
  * reads it too.
  */
 
-/** A page the Help menu opens, in the browser (the system's, from the desktop app). */
+/** A page la-gram's menu opens, in the browser (the system's, from the desktop app). */
 export interface HelpLink {
   id: string;
   label: string;
   href: string;
   /** The menu's part it is listed in. */
   group: 'guides' | 'la-gram';
+  /** A page of la-gram's own documentation, by its path there (`''`, its home page): see {@link helpHref}. */
+  docsPage?: string;
 }
 
 const DOCS = 'https://meta.linked.archi/docs/';
+/** la-gram's own documentation (`docs-site/`), as the release publishes it, in the web app's `docs/`. */
+export const LA_GRAM_DOCS = 'https://app.linked.archi/la-gram/docs/';
 const REPOSITORY = 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram';
 
 export const HELP_LINKS: readonly HelpLink[] = [
+  { id: 'la-gram-docs', label: 'la-gram documentation', href: LA_GRAM_DOCS, docsPage: '', group: 'guides' },
   { id: 'docs', label: 'Linked.Archi documentation', href: DOCS, group: 'guides' },
   { id: 'quick-start', label: 'Quick start', href: `${DOCS}guide/quick-start/`, group: 'guides' },
   { id: 'modelling-guide', label: 'Modelling guide', href: `${DOCS}guide/processes/modeling-guide/`, group: 'guides' },
@@ -33,15 +38,54 @@ export const HELP_LINKS: readonly HelpLink[] = [
     group: 'guides',
   },
   { id: 'catalogue', label: 'Metamodel catalogue', href: 'https://meta.linked.archi/', group: 'guides' },
-  { id: 'download', label: 'Download the desktop app', href: `${REPOSITORY}/-/releases`, group: 'la-gram' },
   { id: 'readme', label: 'la-gram: what it does (README)', href: `${REPOSITORY}/-/blob/main/README.md`, group: 'la-gram' },
   { id: 'source', label: 'Source code', href: REPOSITORY, group: 'la-gram' },
   // GitLab's tracker: anyone may read it; reporting takes a GitLab account.
   { id: 'issues', label: 'Report a problem or an idea', href: `${REPOSITORY}/-/issues`, group: 'la-gram' },
 ];
 
+/**
+ * A page of la-gram's documentation. The web app's own copy, served beside it in `docs/` — `appBase` is
+ * the app's address, so the link follows wherever the app is deployed, and its documentation is of the
+ * same version. With no `appBase` — the desktop app, whose files are no site — the published one.
+ */
+export function docsHref(page: string, appBase?: string): string {
+  return appBase ? new URL(`docs/${page}`, appBase).href : LA_GRAM_DOCS + page;
+}
+
+/** Where a link of la-gram's menu opens: a page of its documentation by {@link docsHref}, any other at its address. */
+export function helpHref(link: Pick<HelpLink, 'href' | 'docsPage'>, appBase?: string): string {
+  return link.docsPage === undefined ? link.href : docsHref(link.docsPage, appBase);
+}
+
+/** Every release: its desktop apps, under their versions, pre-releases too. */
+export const RELEASES = `${REPOSITORY}/-/releases`;
+
+/** The latest release's desktop apps, as the release puts them beside the web app (`.gitlab-ci.yml`, web-deploy). */
+export const DOWNLOADS = 'https://app.linked.archi/la-gram/downloads/';
+
+/** A desktop app to download: its platform, and its file in {@link DOWNLOADS}. */
+export interface DesktopDownload {
+  /** `<platform>-<arch>`, as Electron names them. */
+  id: string;
+  label: string;
+  /** Its name with no version: the next release's replaces it, so a link to it stays. */
+  file: string;
+}
+
+export const DESKTOP_DOWNLOADS: readonly DesktopDownload[] = [
+  { id: 'darwin-arm64', label: 'macOS (Apple silicon)', file: 'la-gram-darwin-arm64.zip' },
+  { id: 'darwin-x64', label: 'macOS (Intel)', file: 'la-gram-darwin-x64.zip' },
+  { id: 'win32-x64', label: 'Windows (x64)', file: 'la-gram-win32-x64.zip' },
+  { id: 'linux-x64', label: 'Linux (x64)', file: 'la-gram-linux-x64.tar.gz' },
+  { id: 'linux-arm64', label: 'Linux (arm64)', file: 'la-gram-linux-arm64.tar.gz' },
+];
+
+/** The SHA-256 sums of {@link DESKTOP_DOWNLOADS}, as `sha256sum --check` reads them. */
+export const DOWNLOAD_SUMS = `${DOWNLOADS}SHA256SUMS.txt`;
+
 /** la-gram's licence, as published by Apache. */
 export const LICENCE = { name: 'Apache License 2.0', href: 'https://www.apache.org/licenses/LICENSE-2.0' };
 
 /** What la-gram calls itself, under its name. */
-export const TAGLINE = 'Semantic Architecture Modeller';
+export const TAGLINE = 'Semantic Modeller for Enterprise and IT Architecture';

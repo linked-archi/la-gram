@@ -1,4 +1,4 @@
-> Copied from `tools/modellers/excalidraw-linked-archi-yjs-demo/linked-archi-tool-spec.md` (2026-09-25) so this repository is self-contained. It is implementation-independent; la-gram's own requirements are in `.kiro/specs/la-gram/`.
+> Copied from `tools/modellers/excalidraw-linked-archi-yjs-demo/linked-archi-tool-spec.md` (2026-09-25) so this repository is self-contained. It is implementation-independent; la-gram's own requirements are in `.agents/specs/la-gram/`.
 >
 > **Updated 2026-09-26 (v0.2)** with what building la-gram settled: the core namespace IRI (§0), property editing (§5.4), validation display (§5.5), formats and a live RDF view (§5.13), the model namespace and IRI shape (§8.1), the at-rest graph layout (§8.2), a triple-set Y.Doc (§8.3), and the implementation status (Appendix D).
 >
@@ -812,7 +812,7 @@ These are existing open-source projects whose patterns the build can lift or lea
 
 ## Appendix D — Implementation status (la-gram, 2026-10-10)
 
-What la-gram (`tools/modellers/la-gram`) implements of this specification. Details: `.kiro/specs/la-gram/` (requirements, design, tasks).
+What la-gram (`tools/modellers/la-gram`) implements of this specification. Details: `.agents/specs/la-gram/` (requirements, design, tasks).
 
 | Section | Status in la-gram | Notes |
 |---|---|---|

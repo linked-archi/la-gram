@@ -24,7 +24,7 @@ graph TB
             Tree["model-explorer<br/>model tree (left)"]
             Canvas["DiagramCanvas<br/>diagram-js + RDF modules"]
             Alt["catalog-view · matrix-view"]
-            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor · graph-panel (Cytoscape.js)"]
+            Bottom["bottom tabs (app-shell)<br/>property-panel (vertical tabs, property-picker) ·<br/>validation-panel · sparql-editor · graph-panel (Cytoscape.js, d3-force)"]
             Palette["palette-panel (right)"]
             Rdf["rdf-panel (hidden by default)<br/>live Turtle / TriG / JSON-LD …"]
         end
@@ -529,9 +529,21 @@ time a view is drawn, is what Task 22 took out. The name is the model's; where
 it is drawn, once moved, is the view's: see key decisions 15 and 16.
 
 **Help and About** (Req 15.4–15.7; `src/help-links.ts`, `src/ui/help.ts`,
-the toolbar's `_helpMenu`, `installMenu` in `electron-main.ts`). The pages the
-Help menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
-desktop app's menu bar read the same. About and the keyboard shortcuts are
+the toolbar's `_appMenu` under the name, `installMenu` in `electron-main.ts`).
+The pages the menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
+desktop app's menu bar read the same. A page of la-gram's own documentation (`docsPage`:
+*la-gram documentation*, and the shortcuts' page) is resolved by `helpHref`/`docsHref`
+against the web app's address — `docs/` beside it, where the build puts the site
+(`docs-site/`, `npm run docs:build`) and the release deploys it with the app — so a
+deployment elsewhere opens its own copy, of its own version. The desktop app's files
+are no site: `mount-ui` gives the toolbar, About and the shortcuts no address there
+(`isElectronEnvironment`), and they open the published copy, `LA_GRAM_DOCS`, as the
+menu bar does from the list's `href`. *Download the desktop app…* is a dialog of
+blocks too (`downloadBlocks`): a link for each of `DESKTOP_DOWNLOADS` at
+app.linked.archi — absolute, unlike the documentation: the apps are the project's
+release, which a deployment elsewhere does not build — those of the system the user
+agent names first (`systemOf`; a Mac's arm64 and x64 both, as a browser does not
+say which), then how to open an unsigned app, the checksums and the Releases page. About and the keyboard shortcuts are
 `DetailBlock`s — a header, headings, text, links, two columns — that
 `Dialogs.details` shows; it is optional, and `mount-ui` shows a `Dialogs`
 without it the same blocks as text (`detailLines`), so the scripted dialogs of
@@ -550,7 +562,7 @@ is taken down. The toolbar's menus, buttons and toggles do not shrink; the
 model's name does, down to 64 px, and media queries narrow the selectors, then
 hide their names, then the toggles' words, so the bar holds from 1100 px.
 
-**Releases** (Req 15.8; `.gitlab-ci.yml`, `deploy/nginx-la-gram.conf`). A tag
+**Releases** (Req 15.8; `.gitlab-ci.yml`). A tag
 `la-gram-v<version>` starts the tests, then `web` (the web build; it also runs
 on every merge request, and hands the version on as a dotenv variable, since
 the Release's fields take variables, not shell) and `desktop`, a matrix of five
@@ -568,13 +580,23 @@ are zipped (`zip -y` keeps the app bundle's symbolic links), the Linux ones
 tarred (modes kept), and uploaded to the generic package registry with the job
 token; then `web-deploy` copies the web build over SSH (meta.linked.archi's
 variables, and `LA_GRAM_DEPLOY_PATH`), and `la-gram-release` makes the Release
-with the `glab` image and the `release` keyword. The web app needs nothing to
+with the `glab` image and the `release` keyword. Before the copy, `web-deploy`
+fetches the five apps from the package registry (job token) into the build's
+`downloads/`, each named without its version (`la-gram-darwin-arm64.zip`), and
+writes their `SHA256SUMS.txt`: one `rsync --delete` then puts the app, its
+documentation and its desktop apps in place together, of one version, and the
+names stay, so la-gram's menu and documentation link the latest release's apps
+without knowing its version (`DESKTOP_DOWNLOADS` in `help-links.ts`; the
+pipeline's test checks the two name the same files). It waits for the desktop
+jobs: no web app goes out without its apps. A pre-release runs no `web-deploy`,
+so the downloads stay the last release's. The web app needs nothing to
 run under `/la-gram/`: webpack's `publicPath` is `auto`, and the bundled
-assets resolve against `document.baseURI`. nginx serves the folder with `^~`
-(the host's regular-expression locations, as for RDF, do not take la-gram's
-`.ttl` files), the page and the assets revalidated and the content-named
-scripts and WebAssembly kept a year, and the desktop app's Content-Security-
-Policy with `https:` and `wss:` connections.
+assets resolve against `document.baseURI`. The host's site for app.linked.archi
+— kept with the host's configuration, not here — serves the folder under
+`/la-gram/` (its exact name taking the host over from the `*.linked.archi`
+catch-all), the page and the metamodels revalidated, the content-named scripts
+and WebAssembly kept, and the desktop app's Content-Security-Policy with
+`https:` and `wss:` connections; the README says what la-gram needs of it.
 
 **Exporting the open view** (Req 14; `toSvg` in `diagram-canvas.ts`,
 `svg-png-exporter.ts`, `exportView` in `mount-ui.ts`). `toSvg` builds the file
@@ -879,6 +901,25 @@ several of a kind (elements, or relationships) and the model has folders
 (`canMoveToFolder`), and its menu is then *Move N elements to folder…* alone,
 handed to the host (`move-to-folder`), which moves the selected of that kind.
 
+**Made in the tree** (Req 10.16). `actionsFor` puts what can be made in a group first,
+before *New folder…* (`NEW_IN_GROUP`): on the Views group and a folder of views
+`new-diagram`, `new-catalog`, `new-matrix`; on the Elements group and a folder of
+elements `new-element`; on an element type's row (a `typeIri` row holding elements)
+`new-element` with the type (`ExplorerActionDetail.typeIri`). `mount-ui` handles them
+with the toolbar's own steps: `newView(kind, folderIri)` asks the name and the
+viewpoint and calls `ModelSession.createView` with `folderIri`, which writes the
+view's `dcterms:isPartOf` in the same batch as the view, then opens it; the toolbar's
+*New view* is `newView(kind)`. `newElement(folderIri, typeIri)` offers the palette's
+element types — `currentPalette.elementGroups`, abstract ones left out, each under its
+category — through `Dialogs.choose`, which filters a long list; asks the name, the
+type's label offered; and makes the element and files it inside one
+`changeProperties` (`createElement`, then `moveToFolder`'s `FolderChange`), so undo
+takes both back together (key decision 13's membership, from the member's end). The
+element is placed in no view: the tree reveals it — unfolding
+the folder — and `selectConcept` shows it in the property panel, from where it is
+dragged onto a diagram. A relationship needs both ends, so the Relationships group
+makes nothing.
+
 A view of thousands of shapes (Task 22): a sync indexes the connections drawn
 once, and `findConnection` looks a relationship up by id or among the few
 connections the user drew (diagram-js names those itself); a view already drawn
@@ -924,7 +965,8 @@ so the canvas keeps its size, viewbox and selection, and nothing has to be
 re-laid out on restore. Esc restores unless a dialog or a diagram-js popup is
 open; so does folding, and `mount-ui` restores it when a view is opened. The
 Graph tab watches its drawing area with a `ResizeObserver` (Cytoscape.js
-notices window resizes only) and refits when it changes. Sizes, the open tab and the folding are remembered per browser in
+notices window resizes only) and refits when it changes, at rest and unless the user has taken the camera
+(*Relationship graph*). Sizes, the open tab and the folding are remembered per browser in
 `localStorage`. The Validation tab carries the number of violations of its
 scope (the open view or the model), since it is often not the open one. A `ResizeObserver` on the canvas host tells
 diagram-js (`canvas.resized()`) whenever a panel changes the canvas's size.
@@ -1150,12 +1192,66 @@ smaller and closer than a diagram's.
 
 Drawing is Cytoscape.js (`graph-view.ts`, behind a factory so the panel is
 tested without a canvas): round rectangles in the notation's fill colour with the
-badge glyph, edges with the notation's line style and end decorations; rings
-(breadth-first, circular, around the root), tree or force-directed layout; a fit
-never zooms past 1.25×. The view is created the first time the tab is shown — a
-hidden container has no size — and the panel neither queries nor draws while the
-tab is hidden; while shown it refreshes 300 ms after a model change. The root
-follows the selection unless the selection came from the graph itself.
+badge glyph, edges with the notation's line style and end decorations; a fit
+never zooms past 1.25× and may zoom out to 0.05. The drawing is updated in place —
+elements gone removed, the rest given their new names and styles, new ones added —
+so a refresh that changes nothing drawn moves nothing, camera included. The view is
+created the first time the tab is shown — a hidden container has no size — and the
+panel neither queries nor draws while the tab is hidden; while shown it refreshes
+300 ms after a model change. The root follows the selection unless the selection
+came from the graph itself.
+
+The layouts (key design decision 17). **Rings** (breadth-first, circular, around the
+root) and **Tree** are Cytoscape.js's `breadthfirst`, framed after each layout.
+**Force**, the default, is d3-force's simulation, live, stepped by la-gram's own
+frame loop in `graph-force.ts` (`LiveForce`), which imports only d3-force; the view
+writes its positions into Cytoscape.js in one `cy.batch()` a frame. A run starts on
+the first drawing and on every change of the middle element, the depth or the
+filters, reheated by how much changed (`topologyChange`: the nodes and lines added
+or removed over the smaller graph's, 0.3 to 1; nothing when nothing drawn changed),
+and decides how it runs when it starts: **animated** up to `animateMaxNodes`
+elements without a reduced-motion preference — a step a frame, more while 4 ms
+holds, three at most — and otherwise **laid out at once**: the whole layout before
+the first paint when it fits in 100 ms (`syncSettleMs`), or a slice a frame
+(12 ms, `sliceMs`), written once at the end, within 1.5 s of computing
+(`settleBudgetMs`; alpha decays over 200 steps there). A step always runs whole,
+and every budget is checked before a step with the last step's time. With at least
+half of the new graph drawn before, the drawn elements are held during a
+computation, so nothing the user was looking at moves. Above `forceMaxNodes`, Force
+runs no simulation: the graph is laid out as Rings and the stats line says *drawn in
+rings: Force lays out up to k elements* (`layoutStats().drawnBy`). *Forces*, under
+*Layout* with Force (a folded `<details>`, native range inputs, disabled where Force
+draws rings), set the link distance, the charge and a factor on the collision radius
+(`ForceParams`, key design decision 17): an animated run follows a slider as it
+moves, at most one update a frame; a run laid out at once follows its release. Seeding
+(`seedPositions`): drawn elements start where they are; a new one one collision
+diameter (twice half the box's diagonal plus 2, times the collision factor: 133 px
+at 1.0×) from the element it was
+reached from breadth first, siblings fanned outward over at most a half circle, the
+fan turned in 30° steps until it clears every drawn element (cells one diameter
+wide make the check linear); a new middle element beside its first drawn neighbour,
+towards the view's centre, or at the centre. The middle element is pinned where it
+starts, the anchor of a weak pull (`forceX`/`forceY`, 0.02 along the drawing's long
+side, up to 4× along the short one) — no `forceCenter`, which would slide the graph
+against a drag. Dragging: **live** during an animated run and at rest up to
+`liveDragMaxNodes` (the node fixed at the pointer, `alphaTarget` 0.3; released on
+drop, it settles back), **held** while a computation's slices run (fixed at the
+drop until the one write), **alone** otherwise; the middle element stays where it
+is dropped, and the pull with it. d3 gets objects of `LiveForce`'s own, made anew at
+each rebuild, so the panel's nodes and lines are never changed. The camera moves by
+itself only at rest: the run frames the graph before `data-layout` turns `settled`,
+while the view is *following* — a press, scroll or pinch in the drawing ends it; the
+first drawing, a change the user asked for, a switch of layout, a change of forces
+and *Fit* start it.
+The panel says whether a drawing was asked for (`show(…, { follow })`) by comparing
+what is asked — source, root, depth, filters — with what it drew, so a refresh after
+a model change and a return to the tab keep the camera. Hiding the tab or folding
+the panel pauses the loop, a switch to Rings or Tree ends the run, removal destroys
+it; at rest nothing is scheduled. `layoutStats()` gives the layout, what drew it,
+the run's steps, times and alpha, and the limits, for the bench. Headless,
+`layoutPositions(…, 'force')` is `forcePositions`: the same forces (the defaults
+unless `params` are given) and seeding round (0, 0), deterministic, with no time
+budget and no force limit.
 
 ### SPARQL tab and views from results
 
@@ -1901,15 +1997,27 @@ context)` — the one for the context, else `arch:prefVisNotation` —
 `xsd:anyURI` `schema:contentUrl`; an address `imageUri` refuses changes
 nothing); the refresh puts the one for the presentation chosen on the business
 object (`elementPicture`, from `labelSource.pictureFor`), and the renderer's
-`iconOf` draws it as the icon where the placement is drawn as its icon and its
-own look names none — for drawing, for `drawnMode` (the in-place editor) and
-for the docking outline's stamp — not recoloured, marked `data-element-picture`.
+`iconOf` draws it as the icon where the placement is drawn as its icon, or
+where its look says `useElementPicture` (core-vis 0.8: its badge in box mode),
+and its own look names no `iconSymbol` — for drawing, for `drawnMode` (the
+in-place editor) and for the docking outline's stamp — not recoloured, marked
+`data-element-picture`. Drawn as a box, `pictureInside` draws it as an
+`arch-vis:image` of the placement's would be, at its `imagePosition`, where the
+look has no `image`, no `iconSymbol` and no `useElementPicture`; the badge is
+then the glyph. `useElementPicture` is an `xsd:boolean`, the one Appearance
+value of its kind (`appearanceObject` → `{ boolean }`), never taken from a
+notation (`lookOf` skips it, as it does `iconSymbol`).
 The Image tab's `ImageChoices` carries the style for every presentation's
-picture (`ImageScope`: picture, position, `asFigure`, `elementAsFigure`) and,
+picture (`ImageScope`: picture, position, `asFigure`, `asBadge` — its own
+`iconSymbol`, told apart by the mode it is drawn in, its own else what is under
+it — `elementAsFigure`, `elementAsBadge`) and, *Draw it* being about the
+placement's own picture, else about its element's; and,
 with a presentation chosen and elements selected, `context`, `contextLabel`,
 `forContext` and the element's picture; `_renderImage` edits one scope
 (`_imageEveryContext`, reset with the selection or the presentation, as the
-Label tab's `_labelEveryContext`), its changes an `appearance-change` with
+Label tab's `_labelEveryContext`; a change keeps `mount-ui`'s `lookScope` in the
+scope it was made in, so emptying the presentation's own look does not move the
+tabs to every presentation), its changes an `appearance-change` with
 `context`, or — for every presentation with one chosen — `clearContext`
 (`IMAGE_SCOPE_KEYS` taken away from the chosen presentation's style); the
 Figure tab sends `clearContext` for the figure keys. `mount-ui` writes both in
@@ -2730,7 +2838,8 @@ dialog; the modules' section).
     export; diagram-js with an auto-layout (elkjs) was the third option, heavier
     for a read-only view. Switching is contained: the drawing sits behind
     `GraphView` / `GraphViewFactory`, so the panel, query, filters and exports
-    would not change.
+    would not change. Since 2026-11 the force layout is d3-force's, live
+    (decision 17); Cytoscape.js still draws, hit-tests, pans, zooms and selects.
 11. **The graph is walked; the query is exported** (2026-09-27). The Graph tab
     offers the SPARQL query behind the graph because a query is the portable,
     rerunnable definition of "what this element is related to" — it runs on
@@ -2815,6 +2924,79 @@ dialog; the modules' section).
     label element, which would put a second element per line in every place
     that walks the canvas.
 
+17. **The Graph tab's force layout is d3-force, live, stepped by la-gram's own
+    loop** (2026-11-09). Force, the Graph tab's default layout, moves the graph into
+    place, comes to rest and stops, and a dragged element pulls the elements linked
+    to it. It is d3-force 3 (ISC): D3's own force module, typed (`@types/d3-force`),
+    16 KB minified with its three dependencies, no `eval` or `Function` in any of its
+    files, plain JavaScript that runs in the Electron renderer as in a browser.
+    Pinned exactly: `d3-force` 3.0.1 and `@types/d3-force` 3.0.10 in `package.json`;
+    the lockfile holds d3-dispatch, d3-quadtree and d3-timer 3.0.2 (no `overrides`,
+    as for every package). la-gram's loop (`graph-force.ts`) steps it; d3's timer
+    never does (the simulation is stopped when made, `restart()` never called), so
+    there is one frame handle to cancel on pause, on a switch to Rings or Tree and
+    on removal, and the loop can seed, anchor, slice and stop as Req 17.9–17.12
+    ask. Rejected: cytoscape-cola and cytoscape-d3-force pull neighbours only with
+    `infinite`, which never comes to rest, and are old and untyped; cytoscape-euler,
+    the built-in `cose` and fcose lay out and end, so a drag moves the node alone.
+    **A dropped element is released**: positions are the drawing's only, and pins
+    would be hidden state with no way to see or clear them. **The element in the
+    middle is pinned** where it is drawn, the anchor of a weak pull, stronger across
+    a wide panel; no `forceCenter`, which would slide the graph against a drag.
+    **The camera moves by itself only at rest**, and only while the user has not
+    pressed, scrolled or pinched since the last graph they asked for. **Above
+    `forceMaxNodes` Force draws rings**: there one step is longer than a 60 Hz frame
+    on the benchmark's 4×-throttled CPU, and force steps from the rings within the
+    1.5 s budget would stop half-formed (about 40 steps, alpha about 0.25, at 1 400
+    elements), while rings are a finished layout at any size; the stats line says
+    so. This band departs from the brief (a force layout at every size), and is
+    for the user to confirm. Settings: `linkDistance` 180 (at 150 a relationship's
+    type name was hidden between boxes side by side), `chargeStrength` −350 within
+    600, `gravity` 0.02 along the long side and up to 4× that along the short; the
+    collision radius half the drawn box's diagonal plus 2, new elements seeded twice
+    that from their parent; d3's alpha (300 steps, 200 above `animateMaxNodes`);
+    4 ms and three steps an animated frame; `syncSettleMs` 100, `sliceMs` 12,
+    `settleBudgetMs` 1 500. **Three of them are the user's** (Req 17.13), as
+    `ForceParams`: *Link distance* (40–400 px, step 10), *Charge strength* (0–1 500,
+    step 50) and *Collision radius* (0.5×–2×, step 0.1), their defaults the settings
+    above, so the layout at the defaults is the one these settings give. The charge's
+    slider shows the push, `-chargeStrength`, so that further right is stronger, as on
+    the other two; d3 and storage keep its sign (−350). The collision radius is a
+    factor on the radius above, not pixels added: the radius comes from the box's
+    size, and a headless layout gets other sizes than the drawn 120 × 46, so 1.0×
+    means the same for any box; new elements are seeded twice the scaled radius from
+    their parent. `toForceParams` clamps and snaps whatever it is given — a slider,
+    storage, a caller. `LiveForce.setParams` keeps them, and d3 gets them at the next
+    start, frame or rebuild, so any number of changes between two frames are one
+    update; with a graph it holds nothing still, raises alpha to at least
+    `reheatMin` (0.3), and cuts a run laid out at once off, so that the next one
+    starts afresh with a whole budget (an element held by a drag stays held). The
+    view applies a slider's `input` while the run animates, and otherwise only its
+    `change` (let go, or a key), which lays the graph out again at once; a change of
+    forces is one the user asked for, so the rest is framed. They are remembered as
+    one JSON object, `la-gram:graph-forces`, brought into range on read, never
+    rewritten then, and removed by *Reset*. **The remembered layout is not
+    migrated**: `la-gram:graph-layout` keeps a stored `rings` or `tree`; a stored
+    `force` is the live Force; only the default changed, from Rings to Force.
+    **The limits, measured** on 2026-11-10 (Apple M4 Pro,
+    Chrome, CPU throttled 4× through CDP, standing for a typical laptop):
+    `animateMaxNodes` **100**, `liveDragMaxNodes` **100**, `forceMaxNodes` **800**.
+    How to measure them again: set the three to 5 000 in `FORCE`,
+    `npm run build:web`, `npm run bench -- --graph` (the graph model
+    `test-results/bench/graph.ttl`, a tree of each size from 100 to 3 000 elements,
+    each drawn at depth 5, in four passes: animated and under reduced motion, at CPU
+    rate 1 and 4; it ends with the limits' error, its results written). From the 4×
+    rows, each limit is the largest size at and below which every size passes:
+    `forceMaxNodes`, the reduced-motion run's mean step at most 16 ms;
+    `animateMaxNodes` (at most that), the animated run's median frame at most
+    20 ms, its p95 at most two 60 Hz frames (33 ms) and its rest within 3 s of the
+    call's return; `liveDragMaxNodes` (between the two), the drag's p95 at most
+    50 ms, a drag not measured failing. `syncSettleMs` stays 100 unless a
+    reduced-motion run laid out whole inside its call has a longest task over
+    150 ms. Then set the values, build, and run `--graph` again: it must exit 0 —
+    it fails when a row is not laid out as the limits say, or a node limit is above
+    3 000 (as *graph-force.test* does).
+
 ---
 
 ## Technology stack
@@ -2822,7 +3004,7 @@ dialog; the modules' section).
 | Concern | Choice |
 |---|---|
 | Canvas | diagram-js 14 (MIT) + custom RDF renderer, rules, modeling, context pad, popup menus |
-| Relationship graph | Cytoscape.js 3 (MIT) |
+| Relationship graph | Cytoscape.js 3 (MIT); its live force layout d3-force 3 (ISC) |
 | Renaming on the canvas | diagram-js-direct-editing 3 (MIT) |
 | UI | Lit 3 web components, CodeMirror 6 (SPARQL) |
 | RDF store / SPARQL | Oxigraph 0.5 (WASM in the browser, native module in Node) — RDF 1.2 and SPARQL 1.2 |
@@ -2842,5 +3024,5 @@ dialog; the modules' section).
 | Unit tests | `npm test` |
 | Browser tests (builds first) | `npm run test:browser:build` |
 | Type-check | `npm run typecheck` |
-| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings, opening again over the open model, and the heap, in Chrome; `test-results/bench/` (Task 22) |
+| Benchmark (builds nothing: `npm run build:web` first) | `npm run bench` — generated models of 10 000 to 500 000 triples (`scripts/bench-model.mjs`: the same model for the same options, with faults planted), or `-- <files>`; `--sizes`, `--view-size`. Opening, the largest view, a rename, the findings, opening again over the open model, and the heap, in Chrome; the Graph tab at depths 1–5 on every model, and the graph model's sweep (`test-results/bench/graph.ttl`), animated and under reduced motion, unthrottled and at 4× CPU, which measures and checks the force layout's limits (key design decision 17); `--graph` for the sweep alone; `test-results/bench/` (Task 22) |
 | Desktop | `npm run build:electron && npm run electron`; package the app with `npm run package` (`scripts/package-electron.mjs`: `@electron/packager`, `dist/electron` and `package.json` only, in an asar; `dist/packages/`) |

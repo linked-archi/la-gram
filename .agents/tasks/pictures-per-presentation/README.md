@@ -37,7 +37,7 @@ core-vis 0.7, core-vis shapes 0.3.0. The user said earlier changes may stay in 0
 - Published docs (`doc/`, literals in published assets) never name `.scripts/` or `.reference/` paths.
 - Run meta's documentation generator only on a scratch copy of meta, never in the repository.
 - Protected: `tools/modellers/excalidraw-linked-archi-yjs-demo`, `linked-archi-meta/.agents/tasks/notation-order-followup/`.
-- Finish each la-gram change with tests, docs (README, `.kiro/specs/la-gram/` requirements, design, the change log in
+- Finish each la-gram change with tests, docs (README, `.agents/specs/la-gram/` requirements, design, the change log in
   `tasks.md`), `npm run build`, and tell the user to reload.
 - Describe behaviour as a requirement, never by comparison with another tool ("as Archi does").
 - la-gram's bundled meta assets are refreshed from a scratch copy of meta: `rsync -a --exclude .git --exclude

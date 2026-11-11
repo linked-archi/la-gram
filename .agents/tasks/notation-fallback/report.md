@@ -31,9 +31,9 @@ Modified:
 | `src/metamodel-manager/__tests__/palette-generator.test.ts` | `notation fallback layering` block (7 tests). |
 | `src/ui/canvas/__tests__/notation-styles.test.ts` | `notationIndex` block (7 tests). |
 | `src/ui/__tests__/mount-ui.test.ts` | One test pinning the load-order wiring. |
-| `.kiro/specs/la-gram/requirements.md` | Req 2.15 and 2.16 (the six steps, black relationships); Req 1.2 wording (hand-maintained catalogue, Basic). |
-| `.kiro/specs/la-gram/design.md` | Palette-generation paragraph: the six steps, `notation-resolver.ts`, `class-hierarchy.ts`, `notationIndex`, `usesNotationSet` loading. |
-| `.kiro/specs/la-gram/tasks.md` | One checked line under Task 2, naming the tests. |
+| `.agents/specs/la-gram/requirements.md` | Req 2.15 and 2.16 (the six steps, black relationships); Req 1.2 wording (hand-maintained catalogue, Basic). |
+| `.agents/specs/la-gram/design.md` | Palette-generation paragraph: the six steps, `notation-resolver.ts`, `class-hierarchy.ts`, `notationIndex`, `usesNotationSet` loading. |
+| `.agents/specs/la-gram/tasks.md` | One checked line under Task 2, naming the tests. |
 
 New:
 

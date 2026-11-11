@@ -40,14 +40,17 @@ clean. The two load-bearing rules here are ArchNodeShape (a diagram node that cl
 stand for a model element must say which one) and PlacedDiagElementShape (a shape or edge
 must belong to exactly one view); the remainder is cardinality and datatype hygiene.'''@en ;
     dcterms:created               "2026-08-13"^^xsd:date ;
-    dcterms:modified              "2026-11-07"^^xsd:date ;
+    dcterms:modified              "2026-11-09"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.3.0#> ;
-    owl:versionInfo               "0.3.0"@en ;
-    owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.2.0#> ;
-    skos:historyNote              '''0.3.0 — StyleShape checks the style terms core-vis 0.7 adds:
+    owl:versionIRI                <https://meta.linked.archi/core-vis-shapes/0.4.0#> ;
+    owl:versionInfo               "0.4.0"@en ;
+    owl:priorVersion              <https://meta.linked.archi/core-vis-shapes/0.3.0#> ;
+    skos:historyNote              '''0.4.0 — StyleShape checks arch-vis:useElementPicture, which core-vis 0.8
+adds: a single xsd:boolean.
+
+0.3.0 — StyleShape checks the style terms core-vis 0.7 adds:
 lineWidth a positive integer, fontStyle the keywords bold, italic and underline, textAlignment,
 textPosition and gradient members of their enumerations, iconColor a single string, image a single
 xsd:anyURI, imagePosition an IconPlacement, labelAnchor a LabelAnchor — and, as a line's own style
@@ -443,6 +446,12 @@ Parallelogram), or a ShapeType a notation declares itself with a fallback and it
         sh:maxCount 1 ;
         sh:datatype xsd:anyURI ;
         sh:message  "iconSymbol is a single xsd:anyURI naming the glyph to render."@en ;
+    ] ;
+    sh:property [
+        sh:path     arch-vis:useElementPicture ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:message  "useElementPicture is a single xsd:boolean: whether the element's own picture is the icon."@en ;
     ] ;
     sh:property [
         sh:path     arch-vis:iconPlacement ;

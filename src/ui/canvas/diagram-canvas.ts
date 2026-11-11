@@ -1917,23 +1917,35 @@ export class DiagramCanvas {
     const figure = this.figureChoices(selected, { ...first.own, ...(first.contextOwn ?? {}) }, first.defaults, inScope === 'context' ? first.own : undefined);
     // A picture for elements and figures — every one selected — not for a line.
     const elements = described.every((d) => d.target.kind === 'element');
-    // What a style says of the picture: its own icon — drawn as the figure — else the picture in it.
-    const scopeOf = (own: Appearance | undefined): ImageScope => ({
-      ...(own?.iconSymbol ? { image: own.iconSymbol, asFigure: true } : own?.image ? { image: own.image } : {}),
-      position: own?.imagePosition ?? 'TopLeft',
-      ...(own?.renderingMode === 'IconCentric' && !own.iconSymbol ? { elementAsFigure: true } : {}),
-    });
+    // What a style says of the picture: its own icon — drawn as the figure in icon mode, as the badge in box mode
+    // (core-vis: arch-vis:iconSymbol) — else the picture in it. The mode is its own, else what it is drawn with under it.
+    // Its element's picture, where it has no icon of its own: its figure in icon mode, its badge where its style asks
+    // for it (core-vis 0.8: arch-vis:useElementPicture), else inside the box.
+    const scopeOf = (own: Appearance | undefined, under: Appearance): ImageScope => {
+      const mode = own?.renderingMode ?? under.renderingMode;
+      const useElementPicture = own?.useElementPicture ?? under.useElementPicture;
+      return {
+        ...(own?.iconSymbol
+          ? { image: own.iconSymbol, ...(mode === 'IconCentric' ? { asFigure: true } : { asBadge: true }) }
+          : own?.image
+            ? { image: own.image }
+            : {}),
+        position: own?.imagePosition ?? 'TopLeft',
+        ...(!own?.iconSymbol && mode === 'IconCentric' ? { elementAsFigure: true } : {}),
+        ...(!own?.iconSymbol && useElementPicture && mode !== 'IconCentric' ? { elementAsBadge: true } : {}),
+      };
+    };
     const elementPicture = elements && firstNode ? this.labelSourceOf?.pictureFor?.(firstNode.elementIri) : undefined;
     const image = described.every((d) => IMAGE_KINDS.includes(d.target.kind))
       ? {
-          ...scopeOf(first.own),
+          ...scopeOf(first.own, first.defaults),
           canBeFigure: elements,
           // Per presentation: an element's placement, a figure.
           ...(context
             ? {
                 context,
                 ...(this.notationStyles.activePresentationContextLabel ? { contextLabel: this.notationStyles.activePresentationContextLabel } : {}),
-                forContext: scopeOf(first.contextOwn),
+                forContext: scopeOf(first.contextOwn, { ...first.defaults, ...first.own }),
               }
             : {}),
           ...(elementPicture ? { elementPicture } : {}),
@@ -2039,12 +2051,14 @@ export class DiagramCanvas {
       });
     }
     for (const mode of ['ShapeWithBadge', 'IconCentric', 'ShapeOnly'] as const) if (mode !== notationMode) options.push(generic(mode, false));
-    // Drawn as its own picture (the Image tab): none of these — and any of them puts the notation's glyph back.
-    if (own.iconSymbol) {
-      for (const option of options) option.changes = { ...option.changes, iconSymbol: null };
+    // Drawn with a picture in place of the notation's glyph (the Image tab) — its own, or its element's as its badge
+    // (core-vis 0.8): none of these — and any of them puts the glyph back.
+    const pictured = !!own.iconSymbol || !!own.useElementPicture;
+    if (pictured) {
+      for (const option of options) option.changes = { ...option.changes, iconSymbol: null, useElementPicture: null };
     }
     // Drawn now as its own shape, its own mode — else as the notation draws it.
-    const selectedIndex = own.iconSymbol
+    const selectedIndex = pictured
       ? -1
       : own.shapeType
       ? options.findIndex((option) => option.shapeIri === own.shapeType)
@@ -2053,7 +2067,7 @@ export class DiagramCanvas {
         : 0;
     return {
       options,
-      selected: own.iconSymbol ? -1 : Math.max(0, selectedIndex),
+      selected: pictured ? -1 : Math.max(0, selectedIndex),
       iconHref: iconHrefOfFirst,
       fillColor: own.fillColor ?? defaults.fillColor ?? NOTATION_DEFAULTS.fillColor,
       lineColor: own.lineColor ?? defaults.lineColor ?? NOTATION_DEFAULTS.lineColor,
