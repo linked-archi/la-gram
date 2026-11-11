@@ -3,9 +3,9 @@
 @prefix skos: <http://www.w3.org/2004/02/skos/core#>.
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
-@prefix am4vp: <https://meta.linked.archi/archimate4/viewpoints#>.
 @prefix am4: <https://meta.linked.archi/archimate4/onto#>.
 @prefix am4mm: <https://meta.linked.archi/archimate4/metamodel#>.
+@prefix am4vp: <https://meta.linked.archi/archimate4/viewpoints#>.
 @prefix m: <https://example.org/acme/shop/>.
 
 m:card-payment a am4:Service;
