@@ -1630,7 +1630,9 @@ describe('the workbench', () => {
     // The right-click menu on the shape: edit, relate, show, copy, delete.
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);
     const entries = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(shape) as Record<string, { group: string; action: () => void }>;
-    expect(Object.keys(entries)).toEqual(['rename', 'change-type', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model']);
+    expect(Object.keys(entries)).toEqual([
+      'rename', 'change-type', 'cut', 'copy', 'duplicate', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model',
+    ]);
     entries['graph']!.action();
     expect([ui.shell.bottomTab, ui.graphPanel.rootIri]).toEqual(['graph', placed]);
     entries['properties']!.action();
@@ -2024,7 +2026,12 @@ describe('the workbench', () => {
     await vi.waitFor(() => expect(registry.get(teller)).toBeDefined());
     const menu = () => ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(clerk)) as Record<string, { label: string; action: () => void }>;
     ui.diagramCanvas.selectIris([clerk, teller]);
-    expect(Object.entries(menu()).map(([id, e]) => [id, e.label])).toEqual([['move-to-folder', 'Move 2 elements to folder…']]);
+    expect(Object.entries(menu()).map(([id, e]) => [id, e.label])).toEqual([
+      ['cut', 'Cut'],
+      ['copy', 'Copy'],
+      ['duplicate', 'Duplicate'],
+      ['move-to-folder', 'Move 2 elements to folder…'],
+    ]);
     script.answers.push('');
     menu()['move-to-folder']!.action();
     await vi.waitFor(() => expect(members('Business')).toEqual([]));

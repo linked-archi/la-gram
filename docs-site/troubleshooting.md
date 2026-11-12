@@ -149,7 +149,6 @@ la-gram 0.1.0 · Web — Chrome 156 · metamodels: ArchiMate 4.0 Metamodel · bu
 
 These are not available in la-gram today. Some are planned; none is promised for a given release.
 
-- **Copy and paste** on the canvas ([below](#copy-and-paste)).
 - **Automatic layout** of a diagram. A model that arrives without geometry is placed in a simple grid.
 - **Running derivation rules.** la-gram shows the derived relationships a file brings, and confirms one
   into the model on request; it does not derive them itself.
@@ -162,9 +161,16 @@ These are not available in la-gram today. Some are planned; none is promised for
 - **A file with several models.** A file holds one model.
 - **A collaboration room bound to a Git branch.**
 
-### Copy and paste {#copy-and-paste}
+### Pasting does nothing {#copy-and-paste}
 
-Copy and paste are not available on the canvas: ++ctrl+c++ and ++ctrl+v++ (++cmd+c++ and ++cmd+v++ on a
-Mac) do nothing there. To show an element in another view, drag it from the model tree onto that view:
-it is the same element, shown twice. To make a new one like it, add one from the palette and set it up
-with the [format painter](guide/appearance.md#format-painter).
+- **The focus is in a field or a panel:** ++ctrl+v++ (++cmd+v++) pastes there, not on the diagram. Click an
+  empty part of the diagram first.
+- **What is on the clipboard is not la-gram's:** ++ctrl+v++ pastes on the diagram only what la-gram
+  copied — here or in another la-gram window. Copy on a diagram or in the model tree first.
+- ***Paste as copies*, *Paste as references*, *Duplicate* and the right-click menu's *Paste*** paste what
+  this window copied last, or last pasted: a page cannot read the clipboard without asking. After copying
+  in another window, press ++ctrl+v++ (++cmd+v++) once here first.
+- **In the desktop app**, the Edit menu has *Cut*, *Copy* and *Paste*; the other pastes and *Duplicate* are
+  on the keys and the right-click menu.
+
+See [Copy and paste](guide/canvas.md#copy-and-paste).

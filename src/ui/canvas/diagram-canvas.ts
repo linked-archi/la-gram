@@ -216,6 +216,8 @@ import {
 import { NEST_MENU_ID, RdfNestMenuProvider, nestingOffers, nestingShownBy, relationshipsShownByNesting, type NestingOffer } from './nesting.js';
 import { REUSE_MENU_ID, RdfReuseMenuProvider, type RdfReuseCheck } from './reuse-relationship.js';
 import { rdfAutoResizeModule } from './rdf-auto-resize.js';
+import { CanvasClipboard, fromTextField, type CanvasClipboardHost, type CanvasClipboardOptions } from './canvas-clipboard.js';
+import { isMacPlatform, keyCombo } from '../help.js';
 import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
 import {
   appendableTargetTypes,
@@ -336,6 +338,11 @@ export interface DiagramCanvasOptions {
    * them all (Req 10.14), the selection kept.
    */
   canMoveToFolder?: () => boolean;
+  /**
+   * Copy, cut, paste and duplicate on the canvas (copy-paste task): where a copy comes from, and how to
+   * ask. Without it, the canvas copies and pastes nothing.
+   */
+  clipboard?: CanvasClipboardOptions;
 }
 
 /** A right-click menu action the host carries out. */
@@ -461,6 +468,12 @@ const ROOT_ID = 'urn:la-gram:diagram-root';
  * to get its answer in before `removeSelection` claims the key.
  */
 const KEYBOARD_GUARD_PRIORITY = 2000;
+
+/**
+ * Copy and paste's own keys (Ctrl/⌘+D, Ctrl/⌘+Shift+V, Ctrl/⌘+Alt+V): under the guard against text fields,
+ * above diagram-js's bindings, as F2's renaming is (`rdf-label-editing.ts`).
+ */
+const CLIPBOARD_KEY_PRIORITY = 1500;
 
 /** Elements that own their keystrokes: text fields and anything contenteditable. */
 function isEditableElement(node: EventTarget | null | undefined): boolean {
@@ -593,11 +606,12 @@ interface DjsServices {
      *
      * A listener returning `false` makes `EventBus.fire` return `false`, which is
      * what stops `Keyboard._keyHandler` from calling `preventDefault()` on the DOM
-     * event. See {@link DiagramCanvas.guardKeyboardAgainstShadowInputs}.
+     * event. See {@link DiagramCanvas.guardKeyboardAgainstShadowInputs}. One returning `true` has
+     * handled the key: `_keyHandler` then prevents the browser's own (Ctrl/⌘+D's bookmark).
      */
     addListener(
       priority: number,
-      listener: (context: { keyEvent?: KeyboardEvent }) => false | undefined,
+      listener: (context: { keyEvent?: KeyboardEvent }) => boolean | undefined,
       type?: string,
     ): void;
   };
@@ -743,6 +757,13 @@ export class DiagramCanvas {
 
   private initialized = false;
 
+  /** Copy and paste (`canvas-clipboard.ts`), when the app gives it what it needs. */
+  private readonly clipboard?: CanvasClipboard;
+  /** Where the pointer is on the page while it is over the diagram, for a paste there. */
+  private pointerClient: { x: number; y: number } | undefined;
+  /** The listeners copy and paste added, to take away with the canvas. */
+  private clipboardListeners: Array<[EventTarget, string, EventListener]> = [];
+
   constructor(options: DiagramCanvasOptions) {
     this.container = options.container;
     this.eventBus = options.eventBus;
@@ -760,6 +781,7 @@ export class DiagramCanvas {
     this.confirmRetypeElement = options.confirmRetypeElement;
     this.onContextAction = options.onContextAction;
     this.canMoveToFolder = options.canMoveToFolder;
+    if (options.clipboard) this.clipboard = new CanvasClipboard(this.clipboardHost(), options.clipboard);
 
     this.notationStyles = new NotationStyleRegistry(options.paletteDefinition);
     this.paletteDefinition = options.paletteDefinition;
@@ -915,11 +937,183 @@ export class DiagramCanvas {
     this.registerProviders();
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
+    this.bindClipboard();
     this.otherwiseNamed.clear();
     this.restackOnlyWhatChanged();
     this.wireDiagramEvents();
     this.setupEventListeners();
     this.initialized = true;
+  }
+
+  // ── Copy and paste ─────────────────────────────────────────────────
+
+  /** What the canvas does for its clipboard (`canvas-clipboard.ts`). */
+  private clipboardHost(): CanvasClipboardHost {
+    return {
+      target: () => {
+        const store = this.changeStore;
+        const views = this.viewManager;
+        const viewIri = this.viewIri;
+        if (!store || !views || !viewIri) return undefined;
+        return { viewIri, modelIri: this.modelIri, deps: { store, elements: this.elementManager, relationships: this.relationshipManager, views } };
+      },
+      selectedPlacements: () => {
+        const viewIri = this.viewIri;
+        const selected = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+        return selected
+          .map((shape) => {
+            const shown = shape.businessObject;
+            if (shape.waypoints || !shown) return undefined;
+            if (shown.kind === 'figure') return shown.iri;
+            return shown.nodeIri ?? (viewIri ? this.viewManager?.getNode(viewIri, shown.iri)?.nodeIri : undefined);
+          })
+          .filter((iri): iri is string => Boolean(iri));
+      },
+      pointer: () => (this.pointerClient ? this.diagramPointAt(this.pointerClient) : undefined),
+      record: (apply) => this.recordChange(apply),
+      selectPlacements: (iris) => this.selectPlacements(iris),
+      removeSelectionFromView: () => this.service<{ trigger(action: string): unknown }>('editorActions')?.trigger('removeSelection'),
+      notice: (message, level) => this.onNotice?.(message, level),
+      sizeOf: (typeIri) => {
+        const style = this.notationStyles.styleFor(typeIri);
+        return { width: style?.defaultWidth ?? NOTATION_DEFAULTS.width, height: style?.defaultHeight ?? NOTATION_DEFAULTS.height };
+      },
+      viewport: () => this.viewport(),
+    };
+  }
+
+  /** Copy concepts chosen in the model tree (Ctrl/⌘+C there), into a copy event's data; false when nothing was. */
+  copyConcepts(iris: readonly string[], data?: DataTransfer | null): boolean {
+    return this.clipboard?.copyConcepts(iris, data) ?? false;
+  }
+
+  /** The model tree's *Copy* on these concepts. */
+  copyConceptsFromMenu(iris: readonly string[]): boolean {
+    return this.clipboard?.copyConceptsFromMenu(iris) ?? false;
+  }
+
+  /** A point on the page, in the diagram's coordinates. */
+  private diagramPointAt(client: { x: number; y: number }): { x: number; y: number } | undefined {
+    const canvas = this.service<{ viewbox(): { x: number; y: number; scale: number }; getContainer?(): HTMLElement }>('canvas');
+    if (!canvas) return undefined;
+    const rect = (canvas.getContainer?.() ?? this.container).getBoundingClientRect();
+    const box = canvas.viewbox();
+    const scale = box.scale || 1;
+    return { x: Math.round(box.x + (client.x - rect.left) / scale), y: Math.round(box.y + (client.y - rect.top) / scale) };
+  }
+
+  /** Select the placements a paste made: nodes and links, by their IRIs. */
+  private selectPlacements(iris: readonly string[]): void {
+    const services = this.services();
+    if (!services) return;
+    const wanted = new Set(iris);
+    const shapes = services.elementRegistry.getAll().filter((shape) => {
+      const shown = shape.businessObject;
+      if (!shown) return false;
+      if (shown.kind === 'figure' || shown.kind === 'connector') return wanted.has(shown.iri);
+      return wanted.has(shown.nodeIri ?? '') || wanted.has(shown.linkIri ?? '');
+    });
+    services.selection.select(shapes);
+  }
+
+  /**
+   * Whether a key or clipboard event is the canvas's: from the diagram, or from the page with nothing else
+   * focused — not from a panel, and not under a dialog.
+   */
+  private clipboardOwns(event: Event): boolean {
+    if (!this.clipboard || !this.viewIri || this.container.ownerDocument.querySelector('.la-dialog')) return false;
+    const path = event.composedPath?.() ?? [];
+    if (path.includes(this.container)) return true;
+    const active = this.container.ownerDocument.activeElement;
+    return !active || active === this.container.ownerDocument.body || active === this.container.ownerDocument.documentElement;
+  }
+
+  /**
+   * Copy and paste's keys and events: the browser's copy, cut and paste events (Ctrl/⌘+C, X, V and the
+   * desktop app's Edit menu); Ctrl/⌘+Shift+V, Ctrl/⌘+Alt+V and Ctrl/⌘+D, which are not paste events; and
+   * the pointer, for a paste where it is.
+   */
+  private bindClipboard(): void {
+    const clipboard = this.clipboard;
+    if (!clipboard || this.clipboardListeners.length > 0) return;
+    const doc = this.container.ownerDocument;
+    const on = (target: EventTarget, type: string, listener: EventListener) => {
+      target.addEventListener(type, listener);
+      this.clipboardListeners.push([target, type, listener]);
+    };
+    on(doc, 'copy', (event) => (clipboard.copyingConcepts() || this.clipboardOwns(event)) && clipboard.onCopyEvent(event as ClipboardEvent));
+    on(doc, 'cut', (event) => this.clipboardOwns(event) && clipboard.onCopyEvent(event as ClipboardEvent, true));
+    on(doc, 'paste', (event) => this.clipboardOwns(event) && clipboard.onPasteEvent(event as ClipboardEvent));
+    on(this.container, 'pointermove', (event) => {
+      const e = event as PointerEvent;
+      this.pointerClient = { x: e.clientX, y: e.clientY };
+    });
+    on(this.container, 'pointerleave', () => {
+      this.pointerClient = undefined;
+    });
+    this.services()?.keyboard.addListener(
+      CLIPBOARD_KEY_PRIORITY,
+      (context: { keyEvent?: KeyboardEvent }) => {
+        const e = context.keyEvent;
+        if (!e || !(e.ctrlKey || e.metaKey) || fromTextField(e) || !this.clipboardOwns(e)) return undefined;
+        // By the key's place, not its letter: ⌥ changes the letter on a Mac.
+        if (e.code === 'KeyD' && !e.shiftKey && !e.altKey) {
+          void clipboard.duplicate();
+          return true;
+        }
+        if (e.code === 'KeyV' && e.shiftKey && !e.altKey) {
+          void clipboard.paste('copies');
+          return true;
+        }
+        if (e.code === 'KeyV' && e.altKey && !e.shiftKey) {
+          void clipboard.paste('references');
+          return true;
+        }
+        return undefined;
+      },
+      'keyboard.keydown',
+    );
+  }
+
+  private unbindClipboard(): void {
+    for (const [target, type, listener] of this.clipboardListeners) target.removeEventListener(type, listener);
+    this.clipboardListeners = [];
+  }
+
+  /**
+   * The right-click menu's copy and paste: cut, copy and duplicate what is selected (`placed`: an element or
+   * a figure is), and the three pastes, at the menu's place, once something is copied.
+   */
+  private clipboardMenuActions(placed: boolean): ContextMenuAction[] {
+    const clipboard = this.clipboard;
+    if (!clipboard) return [];
+    const mac = isMacPlatform();
+    const key = (combo: string) => keyCombo(combo, mac);
+    const at = () => (this.contextMenuAt ? this.diagramPointAt(this.contextMenuAt) : undefined);
+    const actions: ContextMenuAction[] = [];
+    if (placed) {
+      actions.push(
+        { id: 'cut', label: 'Cut', section: 'clipboard', shortcut: key('Mod+X'), run: () => void clipboard.copyFromMenu(true) },
+        { id: 'copy', label: 'Copy', section: 'clipboard', shortcut: key('Mod+C'), run: () => void clipboard.copyFromMenu() },
+      );
+    }
+    if (clipboard.canPaste()) {
+      actions.push(
+        { id: 'paste', label: 'Paste', section: 'clipboard', shortcut: key('Mod+V'), run: () => void clipboard.paste('auto', at()) },
+        { id: 'paste-copies', label: 'Paste as copies', section: 'clipboard', shortcut: key('Mod+Shift+V'), run: () => void clipboard.paste('copies', at()) },
+        {
+          id: 'paste-references',
+          label: 'Paste as references',
+          section: 'clipboard',
+          shortcut: key('Mod+Alt+V'),
+          run: () => void clipboard.paste('references', at()),
+        },
+      );
+    }
+    if (placed) {
+      actions.push({ id: 'duplicate', label: 'Duplicate', section: 'clipboard', shortcut: key('Mod+D'), run: () => void clipboard.duplicate() });
+    }
+    return actions;
   }
 
   /** Whether the canvas is initialized and ready. */
@@ -2746,6 +2940,7 @@ export class DiagramCanvas {
 
   /** Tear the diagram down and leave the host container empty. */
   destroy(): void {
+    this.unbindClipboard();
     this.initialized = false;
     this.relationships.clear();
     this.appendTargetCache.clear();
@@ -2930,7 +3125,10 @@ export class DiagramCanvas {
     const alike = this.selectedAlike(element);
     if (alike.length > 1) {
       const words = shown.kind === 'relationship' ? 'relationships' : 'elements';
-      return [{ id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit', run: () => this.onContextAction?.('move-to-folder', iri) }];
+      return [
+        ...this.clipboardMenuActions(shown.kind !== 'relationship'),
+        { id: 'move-to-folder', label: `Move ${alike.length} ${words} to folder…`, section: 'edit', run: () => this.onContextAction?.('move-to-folder', iri) },
+      ];
     }
     const at = this.contextMenuAt ?? { x: 0, y: 0 };
     const pad = toContextPadElement(element as never);
@@ -2950,6 +3148,8 @@ export class DiagramCanvas {
       if (!this.services()?.popupMenu.isEmpty(element, ELEMENT_REPLACE_MENU_ID)) {
         actions.push({ id: 'change-type', label: 'Change type…', section: 'edit', run: then(() => this.openElementTypeMenu(element, at)) });
       }
+      // Cut, copy and duplicate it — with the others selected — and paste.
+      actions.push(...this.clipboardMenuActions(true));
       if (this.canAppend(pad)) {
         actions.push({ id: 'append', label: 'Append…', section: 'relate', run: then(() => this.openAppendMenu(pad, { clientX: at.x, clientY: at.y })) });
       }
@@ -2981,6 +3181,11 @@ export class DiagramCanvas {
           run: then(() => this.openRelationshipReplaceMenu(pad, { clientX: at.x, clientY: at.y })),
         });
       }
+      // A line is copied with its ends: only pasting here.
+      actions.push(...this.clipboardMenuActions(false));
+    } else if (shown.kind === 'figure') {
+      // A group, a note or a shape: cut, copied and duplicated as an element is.
+      actions.push(...this.clipboardMenuActions(true));
     }
 
     if (this.onContextAction && this.canMoveToFolder?.()) {
@@ -3026,6 +3231,7 @@ export class DiagramCanvas {
         { id: 'duplicate-view', label: 'Duplicate view', section: 'edit', run: host('duplicate-view') },
       );
     }
+    actions.push(...this.clipboardMenuActions(false));
     actions.push(
       {
         id: 'select-all',

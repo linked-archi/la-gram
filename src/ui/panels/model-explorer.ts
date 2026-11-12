@@ -158,7 +158,8 @@ export type ExplorerAction =
   | 'new-folder'
   | 'rename-folder'
   | 'move-to-folder'
-  | 'delete-folder';
+  | 'delete-folder'
+  | 'copy';
 
 /**
  * Detail of `explorer-action`: the row's concept — for a folder row, the
@@ -171,7 +172,7 @@ export interface ExplorerActionDetail {
   kind: TreeNodeKind;
   /** The group the row's concept or folder goes in, for the folder actions. */
   folderKind?: FolderKind;
-  /** *Move to folder…* on several selected: all of them of the row's group, the row's first. */
+  /** *Move to folder…* and *Copy* on several selected: all of them of the row's group, the row's first. */
   iris?: string[];
   /** *New ‹type›…* on a type's row: the element type to make one of. */
   typeIri?: string;
@@ -490,8 +491,13 @@ export function actionsFor(
 ): Array<{ action: ExplorerAction; label: string; danger?: boolean }> {
   const move = options.folders ? [{ action: 'move-to-folder' as const, label: 'Move to folder…' }] : [];
   const kind = folderKindOf(node);
-  if (options.many && options.many > 1 && options.folders && kind) {
-    return [{ action: 'move-to-folder', label: `Move ${options.many} ${KIND_WORDS[kind][1]} to folder…` }];
+  // Elements and relationships are copied, to paste into a diagram — not views, nor a derivation the model does not state.
+  const copy = (kind === 'element' || kind === 'relationship') && !node.derivation ? [{ action: 'copy' as const, label: 'Copy' }] : [];
+  if (options.many && options.many > 1 && kind && (options.folders || copy.length > 0)) {
+    return [
+      ...(copy.length > 0 ? [{ action: 'copy' as const, label: `Copy ${options.many} ${KIND_WORDS[kind][1]}` }] : []),
+      ...(options.folders ? [{ action: 'move-to-folder' as const, label: `Move ${options.many} ${KIND_WORDS[kind][1]} to folder…` }] : []),
+    ];
   }
   switch (node.kind) {
     case 'model':
@@ -537,6 +543,7 @@ export function actionsFor(
           ? { action: 'reveal', label: 'Select on canvas' }
           : { action: 'add-to-view', label: 'Add to current view' },
         { action: 'rename', label: 'Rename…' },
+        ...copy,
         ...move,
         { action: 'delete-from-model', label: 'Delete from model…', danger: true },
       ];
@@ -550,7 +557,7 @@ export function actionsFor(
           : []),
         { action: 'show-source', label: 'Show source' },
         { action: 'show-target', label: 'Show target' },
-        ...(node.derivation ? [] : [{ action: 'rename' as const, label: 'Rename…' }, ...move]),
+        ...(node.derivation ? [] : [{ action: 'rename' as const, label: 'Rename…' }, ...copy, ...move]),
         { action: 'delete-from-model', label: 'Delete from model…', danger: true },
       ];
     default:
@@ -1004,6 +1011,15 @@ export class ModelExplorer extends LitElement {
     return out;
   }
 
+  /** The elements and relationships selected in the tree — what Ctrl/⌘+C there copies. */
+  selectedConcepts(): string[] {
+    const kindOf = this._layout?.kindOf;
+    return [...this._selection].filter((iri) => {
+      const kind = kindOf?.get(iri);
+      return kind === 'element' || kind === 'relationship';
+    });
+  }
+
   /** A row's concept with the others selected of its group — the row's first — or the row's alone. */
   private _selectedWith(node: TreeNode): string[] {
     const kind = folderKindOf(node);
@@ -1046,7 +1062,7 @@ export class ModelExplorer extends LitElement {
       iri: iri ?? '',
       kind: node.kind,
       ...(folderKind ? { folderKind } : {}),
-      ...(iris && action === 'move-to-folder' ? { iris } : {}),
+      ...(iris && (action === 'move-to-folder' || action === 'copy') ? { iris } : {}),
       ...(typeIri ? { typeIri } : {}),
     });
   }

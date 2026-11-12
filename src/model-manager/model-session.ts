@@ -44,6 +44,7 @@ import type { NamedNode } from '@rdfjs/types';
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 import { isQualifiedPredicate, qualifiedFormOf, relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 import { certaintyNamed, isCertaintyPredicate, isLedTo } from './derivations.js';
+import { AUTO_LAYOUT } from './grid.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -53,8 +54,6 @@ export interface SessionEvents {
 /** Name given to the view every new model starts with. */
 export const DEFAULT_VIEW_LABEL = 'Default View';
 
-/** Grid used when laying out a model that arrived with no geometry at all. */
-const AUTO_LAYOUT = { columns: 6, dx: 170, dy: 100, x0: 40, y0: 40, width: 140, height: 60 };
 
 /** Result of {@link ModelSession.adopt}. */
 export interface AdoptResult {

@@ -43,4 +43,5 @@ request in [la-gram-git in CI](operating/ci.md).
 - [Troubleshooting and FAQ](troubleshooting.md): when something does not do what you expect.
 
 la-gram is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). The
-metamodels it bundles are Linked.Archi's, each under the licence it states.
+metamodels it bundles are Linked.Archi's, each under the licence it states. The open-source packages built
+into it are each under their own licence: *About la-gram › Third-party licences* lists them, with their texts.

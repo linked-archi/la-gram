@@ -4,7 +4,7 @@
  */
 
 import type { DetailBlock } from './dialogs.js';
-import { DESKTOP_DOWNLOADS, docsHref, DOWNLOAD_SUMS, DOWNLOADS, HELP_LINKS, helpHref, LICENCE, RELEASES, TAGLINE } from '../help-links.js';
+import { DESKTOP_DOWNLOADS, docsHref, DOWNLOAD_SUMS, DOWNLOADS, HELP_LINKS, helpHref, LICENCE, licencesHref, RELEASES, TAGLINE } from '../help-links.js';
 
 /** An open-source component la-gram is built with, as its package says. */
 export interface BuildComponent {
@@ -89,9 +89,16 @@ export function aboutBlocks(context: AboutContext): DetailBlock[] {
       kind: 'text',
       text:
         `la-gram is licensed under the ${LICENCE.name}. The metamodels it ships are Linked.Archi's, each under the ` +
-        'licence it states — Creative Commons Attribution 4.0 for most.',
+        'licence it states — Creative Commons Attribution 4.0 for most. The open-source packages built into it ' +
+        'are each under their own licence, listed with their texts in Third-party licences.',
     },
-    { kind: 'links', links: [{ label: LICENCE.name, href: LICENCE.href }] },
+    {
+      kind: 'links',
+      links: [
+        { label: LICENCE.name, href: LICENCE.href },
+        { label: 'Third-party licences', href: licencesHref(context.appBase) },
+      ],
+    },
     ...(build.components.length > 0
       ? ([
           { kind: 'heading', text: 'Built with' },
@@ -198,6 +205,12 @@ export function shortcutBlocks(mac: boolean, appBase?: string): DetailBlock[] {
       [keys('Mod+Y', 'Mod+Shift+Z'), 'Redo'],
       [keys('F2', 'Double-click'), 'Rename the selected element or relationship'],
       [keys('Delete', 'Backspace'), 'Delete the selection from the view (the model keeps it)'],
+      [keys('Mod+C'), 'Copy the selection'],
+      [keys('Mod+X'), 'Cut the selection: copy it, and delete it from the view'],
+      [keys('Mod+V'), 'Paste: the same elements into another view of the model; copies into this view or another model'],
+      [keys('Mod+Shift+V'), 'Paste as copies: new elements and relationships'],
+      [keys('Mod+Alt+V'), 'Paste as references: the same elements, placed again'],
+      [keys('Mod+D'), 'Duplicate the selection, as copies'],
       [keys('Shift+Click'), 'Add to the selection, or take from it'],
       [keys('Shift+Drag'), 'Select with a lasso'],
       [keys('Drag'), 'Move around the diagram, from the empty canvas'],

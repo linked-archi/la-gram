@@ -14,7 +14,7 @@ configuration with placeholders.
 
 | Need | Why |
 |---|---|
-| serve the folder's files, with `index.html` for the folder itself | the app is `index.html`, its scripts, its WebAssembly and its bundled metamodels |
+| serve the folder's files, with `index.html` for the folder itself | the app is `index.html`, its scripts, its WebAssembly and its bundled metamodels; `third-party-licences.txt`, which *About la-gram* links to, holds the licences of the packages built into it |
 | `.wasm` as `application/wasm` | the browser compiles the RDF store, Oxigraph, only from that type |
 | `.ttl` as `text/turtle` | the bundled metamodels and the example model are Turtle; most servers do not know the extension |
 | HTTPS | the app sends Git access tokens to Git hosts and models to collaborators: serve it over HTTPS, and collaboration over `wss:` ([below](#behind-tls)) |

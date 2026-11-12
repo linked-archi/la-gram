@@ -286,6 +286,8 @@ export interface ViewManager {
   addFigure?(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string;
   /** A figure's text (`skos:prefLabel`), or none. */
   setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
+  /** A connector's text (its `skos:prefLabel`); none removes it. */
+  setConnectorText?(viewIri: string, linkIri: string, text: string | undefined): void;
   /** Set a figure's colours on its own style — `null` takes one back to the default. */
   setFigureColours?(viewIri: string, nodeIri: string, colours: { [K in keyof FigureColours]?: string | null }): void;
   /**

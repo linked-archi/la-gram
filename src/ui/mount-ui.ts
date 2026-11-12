@@ -60,6 +60,7 @@ import {
 } from '../model-manager/folders.js';
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
 import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
+import { fromTextField } from './canvas/canvas-clipboard.js';
 import {
   listQuestions,
   offeredQuestions,
@@ -546,6 +547,23 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       canvasToolbar.activeTool = tool ?? undefined;
     },
     onNotice: (message, level) => dialogs.toast(message, level),
+    // Copy and paste on the canvas: where a copy comes from, its Turtle's prefixes, and what to do with
+    // elements of types no loaded metamodel defines, pasted from another model.
+    clipboard: {
+      source: () => {
+        const own = session.namespace();
+        return { ...(own ? { namespace: own.namespace } : {}), metamodelIris: session.metamodelIris(), ...(BUILD.version ? { version: BUILD.version } : {}) };
+      },
+      prefixes: () => app.modelIO.collectPrefixes(session.modelIri),
+      chooseUnknownTypes: async (typeIris) => {
+        const names = typeIris.map((iri) => typeLabelOf(iri) || localNameOf(iri)).join(', ');
+        const answer = await dialogs.choose(`Paste elements of types this model does not define?`, [
+          { value: 'keep', label: 'Paste them, unclassified', detail: `No loaded metamodel defines ${names}.` },
+          { value: 'skip', label: 'Leave them out', detail: 'With the relationships that end on them.' },
+        ]);
+        return answer === 'keep' || answer === 'skip' ? answer : null;
+      },
+    },
   });
 
   // What label expressions read (core-vis 0.7's arch-vis:labelExpression): the model's
@@ -1143,6 +1161,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   modelExplorer.addEventListener('explorer-drag-start', onExplorerDrag);
   modelExplorer.addEventListener('explorer-activate', onExplorerActivate);
   modelExplorer.addEventListener('explorer-action', onExplorerAction);
+  // Ctrl/⌘+C in the model tree: its selected elements and relationships, to paste into a diagram (R14).
+  const onTreeCopy = (e: ClipboardEvent): void => {
+    if (e.defaultPrevented || !e.composedPath().includes(modelExplorer) || fromTextField(e)) return;
+    if (diagramCanvas.copyConcepts(modelExplorer.selectedConcepts(), e.clipboardData)) e.preventDefault();
+  };
+  document.addEventListener('copy', onTreeCopy);
 
   const renameConcept = async (iri: string): Promise<void> => {
     const current = labelOf(store, iri);
@@ -1237,6 +1261,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       }
       case 'delete-folder':
         return deleteFolderAsked(iri);
+      case 'copy': {
+        // Copied to paste into a diagram (copy-paste task, R14).
+        const iris = detail.iris ?? [iri];
+        if (diagramCanvas.copyConceptsFromMenu(iris)) {
+          const one = iris.length === 1;
+          const what = detail.kind === 'relationship' ? (one ? 'relationship' : 'relationships') : one ? 'element' : 'elements';
+          dialogs.toast(`Copied ${iris.length} ${what}: paste into a diagram to place ${one ? 'it' : 'them'}.`);
+        }
+        return;
+      }
     }
   };
 
@@ -2960,6 +2994,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     modelExplorer.removeEventListener('explorer-drag-start', onExplorerDrag);
     modelExplorer.removeEventListener('explorer-activate', onExplorerActivate);
     modelExplorer.removeEventListener('explorer-action', onExplorerAction);
+    document.removeEventListener('copy', onTreeCopy);
     modelExplorer.removeEventListener('explorer-move', onExplorerMove);
     catalogView.removeEventListener('catalog-select', onCatalogSelect);
     catalogView.removeEventListener('view-members-change', onViewMembersChange);

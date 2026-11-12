@@ -5,6 +5,7 @@ import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
 import { createHash } from 'crypto';
 import { readdirSync, readFileSync } from 'fs';
+import { ThirdPartyLicencesPlugin } from './scripts/third-party-licences.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -194,6 +195,8 @@ export default (_env, argv) => {
       bundledAssetsPlugin(),
       buildFlags(),
       ...deploymentConfig(),
+      // The licences of the packages bundled, beside index.html (Req 15.9).
+      new ThirdPartyLicencesPlugin(),
     ],
     devtool,
   };
@@ -275,6 +278,8 @@ export default (_env, argv) => {
       bundledAssetsPlugin(),
       buildFlags({ desktop: true }),
       ...deploymentConfig(),
+      // The licences of the packages bundled, in the desktop app's renderer (Req 15.9).
+      new ThirdPartyLicencesPlugin(),
     ],
     devtool,
   };

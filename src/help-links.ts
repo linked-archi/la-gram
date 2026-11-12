@@ -87,5 +87,20 @@ export const DOWNLOAD_SUMS = `${DOWNLOADS}SHA256SUMS.txt`;
 /** la-gram's licence, as published by Apache. */
 export const LICENCE = { name: 'Apache License 2.0', href: 'https://www.apache.org/licenses/LICENSE-2.0' };
 
+/**
+ * The licences of every package bundled with la-gram (Req 15.9): the file each build writes beside its
+ * `index.html`. The build names it (`scripts/third-party-licences.mjs`, `LICENCES_FILE`).
+ */
+export const THIRD_PARTY_LICENCES = 'third-party-licences.txt';
+
+/**
+ * Where About links those licences: beside the web app it runs from (`appBase`); from the desktop app, which
+ * opens only web pages, in the system's browser, the published web app's — the same packages, as the desktop
+ * renderer is the web build.
+ */
+export function licencesHref(appBase?: string): string {
+  return new URL(THIRD_PARTY_LICENCES, appBase || 'https://app.linked.archi/la-gram/').href;
+}
+
 /** What la-gram calls itself, under its name. */
 export const TAGLINE = 'Semantic Modeller for Enterprise and IT Architecture';

@@ -6,8 +6,7 @@ description: How to place, connect, rename, nest, move and delete elements on la
 
 The canvas draws the open diagram view. What can be connected, and how, comes from the loaded
 metamodels: connect, change type and append offer only what their relationship shapes permit (for
-ArchiMate, its relationship tables). Copy and paste are
-[not in la-gram yet](../troubleshooting.md#copy-and-paste).
+ArchiMate, its relationship tables).
 
 ## Tools {#tools}
 
@@ -218,6 +217,58 @@ one placement **selects every placement** of the element.
 1. Drag "Customer" from the model tree onto the diagram, apart from the one there.
 2. Click either: both are selected.
 
+## Copy and paste {#copy-and-paste}
+
+Copy what is selected on a diagram — elements, groups, notes and shapes, with what is nested in them and
+the lines between them — and paste it into this view, another view, or another model. A line goes with
+its two ends: a relationship with only one end selected is not copied.
+
+| Keys (Windows and Linux / macOS) | Right-click menu | Does |
+|---|---|---|
+| ++ctrl+c++ / ++cmd+c++ | *Copy* | copies the selection |
+| ++ctrl+x++ / ++cmd+x++ | *Cut* | copies it, then deletes it from the view; the model keeps it |
+| ++ctrl+v++ / ++cmd+v++ | *Paste* | pastes by where it goes (below) |
+| ++ctrl+shift+v++ / ++shift+cmd+v++ | *Paste as copies* | always makes new elements and relationships |
+| ++ctrl+alt+v++ / ++alt+cmd+v++ | *Paste as references* | always places the same elements again |
+| ++ctrl+d++ / ++cmd+d++ | *Duplicate* | pastes the selection as copies into this view, 20 px right and down; the clipboard keeps what it held |
+
+*Paste* decides by where it goes:
+
+| Pasted into | Is |
+|---|---|
+| another view of the model it was copied from | **the same elements and relationships, placed again**: nothing new in the model |
+| the view it was copied from | **copies**: new elements and relationships |
+| another model | **copies**, always — *Paste as references* says so and makes copies |
+
+- **A copy** is a new element or relationship of the same type, with the original's names, in every
+  language, and its definition. Its other properties are left out, and la-gram says how many. In the
+  model it was copied from, a copy goes into the original's folder.
+- **A reference** is the element itself, placed again: pasted into the view it came from, the element is
+  placed a second time ([Placed twice](#placed-twice)). One deleted from the model since it was copied is
+  pasted as a copy, and la-gram says so.
+- **Where:** at the pointer when it is over the diagram; otherwise where it was copied from, 20 px right
+  and down, and 20 px further for each paste of the same copy. Lines keep their bends and moved names,
+  and nesting is kept.
+- **Into another model**, la-gram asks about elements of types the model's metamodels do not define:
+  *Paste them, unclassified* or *Leave them out*. A relationship the model's rules do not permit between
+  its two ends is left out. What was left out is said.
+- **What was pasted is selected**, and la-gram says what it did: *Pasted 2 new elements and 1 new
+  relationship; 1 property left out.* or *Placed 2 elements and 1 relationship again.* One paste is one
+  step to undo.
+- **Another window**: ++ctrl+v++ (++cmd+v++) pastes what another la-gram window copied. *Paste as
+  copies*, *Paste as references*, *Duplicate* and the menu's *Paste* paste what this window copied last,
+  or last pasted.
+- **A text editor**: pasting there gives the copy as Turtle.
+- **From the model tree**: *Copy* in a row's right-click menu, or ++ctrl+c++ (++cmd+c++) with rows
+  selected, copies elements and relationships without their places; pasted into a diagram, they go in
+  rows of six at each type's own size ([Model tree › Menus](model-tree.md#menus)).
+
+1. Drag a rectangle round "Customer" and "Place order", and press ++ctrl+c++ (++cmd+c++).
+2. Open another diagram view, point at an empty part of it, and press ++ctrl+v++ (++cmd+v++): the same
+   two elements are placed there, and la-gram says *Placed 2 elements … again*.
+3. Press ++ctrl+d++ (++cmd+d++): two new elements, copies of them, appear beside them.
+4. Undo: the copies are gone.
+
 ## Delete {#delete}
 
 | From | Does |
@@ -274,10 +325,11 @@ Right-click on the canvas for what applies to what is under the pointer.
 
 | On | Entries |
 |---|---|
-| an element | *Rename* (F2), *Change type…*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
-| a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
-| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
-| one of several selected | *Move 2 elements to folder…* (or relationships) alone, when the model has folders |
+| an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and its other entries |
+| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
+| one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
 
 What the entries do beyond the canvas:
 

@@ -71,6 +71,7 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
 import { shortHash } from './short-hash.js';
 import { picturesOf } from './element-pictures.js';
+import { copyPlacements } from './placement-copy.js';
 import {
   APPEARANCE_KEYS,
   APPEARANCE_PREDICATES,
@@ -276,63 +277,8 @@ export class OxigraphViewManager implements ViewManager {
       label: label ?? `${source.label || 'View'} (copy)`,
       ...(source.modelIri ? { modelIri: source.modelIri } : {}),
     });
-    const nodes = this.getNodes(viewIri);
-    // Node by node — an element placed twice is placed twice in the copy, a
-    // figure is a figure — what was inside one inside its copy.
-    const copies = new Map<string, string>();
-    for (const node of nodes) {
-      const copied = node.figure
-        ? this.addFigure(copy.value, { ...node.figure, bounds: node.bounds })
-        : this.addElementToView(copy.value, node.elementIri, node.bounds, { another: true });
-      copies.set(node.nodeIri, copied);
-      // Looking as it did: a figure's appearance is copied with it; its label saying what it said.
-      if (node.appearance) this.setAppearance(copy.value, copied, node.appearance);
-      for (const [context, look] of Object.entries(node.contextAppearances ?? {})) this.setAppearance(copy.value, copied, look, context);
-      for (const label of node.labelExpressions ?? []) this.setLabelExpression(copy.value, copied, label.context, label.expression);
-    }
-    for (const node of nodes) {
-      const parent = node.parentNodeIri ? copies.get(node.parentNodeIri) : undefined;
-      if (parent) this.setNodeParent(copy.value, copies.get(node.nodeIri)!, parent);
-    }
-    // Link by link — a relationship drawn twice is drawn twice in the copy — in
-    // passes: a link ending on another link waits for that one's copy.
-    const links = this.getLinks(viewIri);
-    const linkCopies = new Map<string, string>();
-    let pending = links;
-    for (;;) {
-      const waiting = pending.filter((link) => {
-        const end = (iri: string) => copies.get(iri) ?? linkCopies.get(iri);
-        const sourceNodeIri = end(link.sourceNodeIri);
-        const targetNodeIri = end(link.targetNodeIri);
-        // A connector joins nodes, copied already.
-        if (link.connector) {
-          const copied =
-            sourceNodeIri && targetNodeIri ? this.addConnector(copy.value, { sourceNodeIri, targetNodeIri }, link.waypoints) : undefined;
-          if (copied) linkCopies.set(link.linkIri, copied);
-          if (copied && link.appearance) this.setAppearance(copy.value, copied, link.appearance);
-          for (const [context, look] of Object.entries(link.contextAppearances ?? {})) if (copied) this.setAppearance(copy.value, copied, look, context);
-          if (copied && link.text) this.store.addQuads([triple(nn(copied), T.prefLabel, langLiteral(link.text))]);
-          if (copied && link.label) this.setLinkLabel(copy.value, copied, link.label);
-          return false;
-        }
-        const copied = this.addRelationshipToView(
-          copy.value,
-          link.relationshipIri,
-          link.waypoints,
-          { ...(sourceNodeIri ? { sourceNodeIri } : {}), ...(targetNodeIri ? { targetNodeIri } : {}) },
-          { another: true },
-        );
-        if (!copied) return true;
-        linkCopies.set(link.linkIri, copied);
-        if (link.appearance) this.setAppearance(copy.value, copied, link.appearance);
-        for (const [context, look] of Object.entries(link.contextAppearances ?? {})) this.setAppearance(copy.value, copied, look, context);
-        // A name moved off the middle of its line stays where it was put.
-        if (link.label) this.setLinkLabel(copy.value, copied, link.label);
-        return false;
-      });
-      if (waiting.length === 0 || waiting.length === pending.length) break;
-      pending = waiting;
-    }
+    // Every node and link placed again, as paste places a copy's (`placement-copy.ts`).
+    copyPlacements(this, viewIri, this, copy.value);
     // A catalog or matrix lists concepts without geometry: copy the membership.
     for (const q of this.read(null, T.inView, nn(viewIri))) {
       this.store.addQuads([triple(q.subject, T.inView, copy)]);
@@ -381,6 +327,14 @@ export class OxigraphViewManager implements ViewManager {
     const appearance = appearanceOrNone(Object.fromEntries(APPEARANCE_KEYS.map((key) => [key, figure[key]])) as Appearance);
     if (appearance) this.setAppearance(viewIri, nodeIri, appearance);
     return nodeIri;
+  }
+
+  /** A connector's text, on a connector of this view; none removes it. */
+  setConnectorText(viewIri: string, linkIri: string, text: string | undefined): void {
+    const link = nn(linkIri);
+    if (!this.objects(link, T.visView).includes(viewIri) || !this.objects(link, T.rdfType).includes(IRI.Link)) return;
+    this.remove(this.read(link, T.prefLabel));
+    if (text) this.store.addQuads([triple(link, T.prefLabel, langLiteral(text))]);
   }
 
   setFigureText(viewIri: string, nodeIri: string, text: string | undefined): void {

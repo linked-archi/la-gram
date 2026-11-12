@@ -26,6 +26,12 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++ctrl+z++ | undo the last change on the canvas or in the property panel |
     | ++ctrl+y++ or ++ctrl+shift+z++ | redo |
     | ++delete++ or ++backspace++ | delete the selection from the view; the model keeps it |
+    | ++ctrl+c++ | copy the selection |
+    | ++ctrl+x++ | cut the selection: copy it, and delete it from the view |
+    | ++ctrl+v++ | paste: the same elements into another view of the model; copies into this view or another model |
+    | ++ctrl+shift+v++ | paste as copies |
+    | ++ctrl+alt+v++ | paste as references: the same elements, placed again |
+    | ++ctrl+d++ | duplicate the selection, as copies |
     | ++f2++ | rename the one selected element or relationship |
     | ++ctrl+plus++ / ++ctrl+minus++ | zoom in / out one step |
     | ++ctrl+0++ | zoom to 100 % |
@@ -39,6 +45,12 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++cmd+z++ (or ++ctrl+z++) | undo the last change on the canvas or in the property panel |
     | ++cmd+y++ or ++shift+cmd+z++ (or the Ctrl forms) | redo |
     | ++delete++ or ++backspace++ | delete the selection from the view; the model keeps it |
+    | ++cmd+c++ | copy the selection |
+    | ++cmd+x++ | cut the selection: copy it, and delete it from the view |
+    | ++cmd+v++ | paste: the same elements into another view of the model; copies into this view or another model |
+    | ++shift+cmd+v++ | paste as copies |
+    | ++alt+cmd+v++ | paste as references: the same elements, placed again |
+    | ++cmd+d++ | duplicate the selection, as copies |
     | ++f2++ | rename the one selected element or relationship |
     | ++cmd+plus++ / ++cmd+minus++ (or the Ctrl forms) | zoom in / out one step |
     | ++cmd+0++ (or ++ctrl+0++) | zoom to 100 % |
@@ -53,7 +65,9 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
   field. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
 - **Delete** never deletes from the model: *Delete from model (all views)* on the context pad or the
   right-click menu does, after asking.
-- **Copy and paste** do nothing on the canvas: see [Copy and paste](../troubleshooting.md#copy-and-paste).
+- **Copy and paste** — what each pastes, and where: [Copy and paste](../guide/canvas.md#copy-and-paste). The
+  keys copy the diagram's selection unless a text field has the focus or text is selected on the page,
+  which they copy as usual.
 
 With the example model:
 
@@ -110,6 +124,7 @@ In the *Questions* menu, ++up++ and ++down++ move between the questions and ++es
     |---|---|
     | ++ctrl++ + click | add a row to the selection, or take it out |
     | ++shift++ + click | select every row from the last one clicked to this one |
+    | ++ctrl+c++ | copy the selected elements and relationships, to paste into a diagram |
     | ++esc++ while dragging rows | cancel the drag |
 
 === "macOS"
@@ -118,6 +133,7 @@ In the *Questions* menu, ++up++ and ++down++ move between the questions and ++es
     |---|---|
     | ++cmd++ + click | add a row to the selection, or take it out |
     | ++shift++ + click | select every row from the last one clicked to this one |
+    | ++cmd+c++ | copy the selected elements and relationships, to paste into a diagram |
     | ++esc++ while dragging rows | cancel the drag |
 
 Several rows are selected to move them to a folder together, with *Move … to folder…* or by dragging.

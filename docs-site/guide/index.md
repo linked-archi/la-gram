@@ -103,8 +103,10 @@ documentation*, *SHA-256 checksums* and *Every release, on GitLab*
 
 *About la-gram* shows the version (*Development build* for a build from a checkout), where it runs
 (*Web — Chrome 156*, say, or *Desktop app — Electron* and its version), the metamodels loaded, the snapshot of the
-bundled metamodels, the licence and the open-source components it is built with. *Copy version info*
-copies one line of it for a problem report.
+bundled metamodels, the licence and the open-source components it is built with. *Third-party licences*
+opens the licences of every package built into la-gram, with their texts: in the web app, the copy beside
+it; in the desktop app, the published web app's, in your browser. *Copy version info* copies one line of it
+for a problem report.
 
 1. Choose *la-gram › About la-gram*.
 2. Choose *Copy version info*, and paste the line into your report:

@@ -1621,6 +1621,9 @@ describe('changing an element’s type', () => {
     expect((await contextMenu.locator('.entry').allInnerTexts()).map((t) => t.trim())).toEqual([
       'Rename',
       'Change type…',
+      'Cut',
+      'Copy',
+      'Duplicate',
       'Append…',
       'Properties',
       'Show in model tree',
@@ -3078,4 +3081,75 @@ describe('the Appearance tab', () => {
     await page.locator('.la-diagram-host').click({ position: { x: 700, y: 450 } });
     expect(session.diagnostics.pageErrors).toEqual([]);
   });
+});
+
+describe('copy and paste on the canvas', () => {
+  it('copies two elements, pastes the same ones into another view, duplicates and pastes as copies, undoes, and cuts from the view — keys and the right-click menu', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    await dropActor(page, 200, 150);
+    await dropActor(page, 420, 150);
+    await until(async () => (await model(page)).actors.length === 2, 'two actors');
+    const shapes = page.locator(SHAPE);
+    await shapes.nth(0).click();
+    await shapes.nth(1).click({ modifiers: ['Shift'] });
+
+    await page.keyboard.press('ControlOrMeta+c');
+
+    // The right-click menu on an element: cut, copy, duplicate — and, something copied, the three pastes.
+    const menu = page.locator('.djs-popup.la-context-menu');
+    await shapes.nth(1).click({ button: 'right' });
+    await menu.waitFor({ state: 'visible' });
+    for (const id of ['cut', 'copy', 'duplicate', 'paste', 'paste-copies', 'paste-references']) {
+      expect(await menu.locator(`.la-context-${id}`).count(), id).toBe(1);
+    }
+    await page.keyboard.press('Escape');
+
+    // Another view: pasted with the pointer over it — the same two elements, placed again.
+    await page.locator('app-toolbar button[data-menu="new-view"]').click();
+    await page.locator('app-toolbar button[data-command="new-view"][data-value="Diagram"]').click();
+    await answerPrompt(page, 'Copies');
+    await page.locator('.la-dialog .la-choice-list').waitFor({ state: 'visible' });
+    await page.locator('.la-dialog .la-button.primary').click();
+    await until(async () => (await model(page)).views.length === 2, 'the second view');
+    const host = await page.locator('.la-diagram-host').boundingBox();
+    await page.mouse.move(host!.x + 300, host!.y + 250);
+    await page.keyboard.press('ControlOrMeta+v');
+    await until(async () => ((await model(page)).nodesIn['Copies'] ?? []).length === 2, 'the paste');
+    let m = await model(page);
+    expect(m.actors).toHaveLength(2);
+    expect([...m.nodesIn['Copies']].sort()).toEqual([...m.actors].sort());
+
+    // What was pasted is selected: Ctrl/⌘+D duplicates it as new elements; undo takes them back.
+    await page.keyboard.press('ControlOrMeta+d');
+    await until(async () => (await model(page)).actors.length === 4, 'the duplicate');
+    expect((await model(page)).nodesIn['Copies']).toHaveLength(4);
+    await page.keyboard.press('ControlOrMeta+z');
+    await until(async () => (await model(page)).actors.length === 2, 'undo');
+
+    // Paste as copies, from the keys; undone.
+    await page.keyboard.press('ControlOrMeta+Shift+v');
+    await until(async () => (await model(page)).actors.length === 4, 'paste as copies');
+    await page.keyboard.press('ControlOrMeta+z');
+    await until(async () => (await model(page)).actors.length === 2, 'undo');
+
+    // Cut one: out of the view, kept in the model.
+    await shapes.nth(0).click();
+    await page.keyboard.press('ControlOrMeta+x');
+    await until(async () => ((await model(page)).nodesIn['Copies'] ?? []).length === 1, 'the cut');
+    m = await model(page);
+    expect(m.actors).toHaveLength(2);
+
+    // From the model tree: Copy on the one cut, pasted back with the pointer over the diagram.
+    const cut = m.actors.find((iri) => !m.nodesIn['Copies'].includes(iri))!;
+    await page.locator(`model-explorer .row[data-iri="${cut}"]`).click({ button: 'right' });
+    await page.locator('model-explorer .menu [data-action="copy"]').click();
+    await page.mouse.move(host!.x + 500, host!.y + 300);
+    await page.keyboard.press('ControlOrMeta+v');
+    await until(async () => ((await model(page)).nodesIn['Copies'] ?? []).length === 2, 'the paste from the tree');
+    m = await model(page);
+    expect(m.actors).toHaveLength(2);
+    expect(m.nodesIn['Copies']).toContain(cut);
+    findings.push('copy and paste: references into another view, duplicate, paste as copies, undo, cut, copy from the tree: ok');
+  }, 120_000);
 });

@@ -2998,6 +2998,57 @@ dialog; the modules' section).
     150 ms. Then set the values, build, and run `--graph` again: it must exit 0 —
     it fails when a row is not laid out as the limits say, or a node limit is above
     3 000 (as *graph-force.test* does).
+18. **Every bundled package's licence, gathered from what the bundle emits, by
+    la-gram's own build plugin** (2026-11-12, Req 15.9). Minification keeps only the
+    comments marked `/*!` or `@license` (the `*.js.LICENSE.txt` files), and many
+    packages mark none — Cytoscape.js, diagram-js and D3 among them — so their
+    notices were not shipped. `scripts/third-party-licences.mjs` adds
+    `third-party-licences.txt` beside the web build's and the desktop renderer's
+    `index.html`: every npm package one of the bundle's emitted modules comes from
+    (the modules of every chunk, inside concatenated modules too), each with its
+    version, the licence its `package.json` declares, and each licence or notice
+    file it ships (`LICENSE`, `LICENCE`, `COPYING`, `NOTICE`, with a `-MIT`-style
+    suffix or a `.md`/`.txt` extension), as it ships it. A package shipping none is
+    listed with its declared licence, author and source repository. **What the
+    bundle emits, not what is installed**: a dependency whose code tree shaking
+    removed, or a development tool, is not in the app, and listing it would say
+    otherwise. **Our own plugin, not a dependency**: it is about 150 lines and reads
+    nothing but `package.json` files and licence files, where a plugin package would
+    be one more dependency in the build whose own output la-gram must then trust.
+    The desktop app's main and preload bundles emit no npm code (Electron's own
+    licences, `LICENSE` and `LICENSES.chromium.html`, are put in the app by
+    `@electron/packager`), and la-gram-git keeps every package an import, installed
+    with its own licence (`externals`), so neither gets the file. *About la-gram*
+    links to the file beside the web app it runs from; the desktop app, which opens
+    only web pages, links to the published web app's, whose packages are the
+    renderer's — the same build of `src/index.ts`.
+19. **Copy and paste are store changes, read back through a view manager, placed by
+    *Duplicate view*'s code** (2026-11-12, Req 3.22, 10.17; the copy-paste task). A
+    copy is RDF (`model-manager/clipboard.ts`): the copied concepts' own triples and
+    each placement's triples with what hangs off it — its route's cells, a moved
+    name's label node, its styles, looks and label expressions. A paste makes or
+    reuses the concepts through the managers, then reads the placements back through
+    a view manager over a scratch store holding the copy, and places them with
+    `copyPlacements` (`placement-copy.ts`), the function *Duplicate view* now calls
+    too: figures, an element placed twice, nesting, appearances per presentation,
+    label expressions, connectors, routes, moved names and a line on a line are
+    placed again the same way by both, and a later kind of placement or look is
+    copied by both. **Not diagram-js's `copyPaste`**: it copies shapes and pastes by
+    creating them through modelling commands, which la-gram would have to catch and
+    turn into model triples; here the store is the model of record, so a paste is
+    one recorded change (`recordChange`) the canvas redraws from, as it does a
+    collaborator's. **The browser's copy and paste events**, not the asynchronous
+    Clipboard API: they need no permission, the desktop app's Edit menu fires them,
+    and another la-gram window reads la-gram's type from them
+    (`application/x-la-gram-clipboard+json`, a JSON envelope — the source as JSON,
+    so no vocabulary is invented for it — with the triples as N-Triples), with Turtle
+    as `text/plain`. The forced pastes, *Duplicate* and the menus are not paste
+    events and a page may not read the clipboard unasked, so the window keeps what
+    it copied or pasted last for them. **A copy keeps type, names and definition
+    only**: an identifier, an owner or a status belongs to the original. **The
+    paste's mode follows the context** — the same concepts into another view of the
+    model, copies into the same view or another model — because a second placement in
+    the same view is rarely what a paste means.
 
 ---
 

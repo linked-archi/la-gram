@@ -310,8 +310,17 @@ describe('actionsFor', () => {
     expect(actions({ id: 'r', iri: 'r', kind: 'relationship', label: 'R', children: [] }, true)).toContain('move-to-folder');
     // A derivation is not the model's: nothing to file.
     expect(actions({ id: 'd', iri: 'd', kind: 'relationship', label: 'D', derivation: 'potential', children: [] }, true)).not.toContain('move-to-folder');
-    // Several selected: moving them is all there is.
-    expect(actionsFor(element, { folders: true, many: 3 })).toEqual([{ action: 'move-to-folder', label: 'Move 3 elements to folder…' }]);
+    // Copied to paste into a diagram — an element or a relationship, not a view, nor a derivation the model does not state.
+    expect(actions(element)).toContain('copy');
+    expect(actions({ id: 'r', iri: 'r', kind: 'relationship', label: 'R', children: [] })).toContain('copy');
+    expect(actions({ id: 'v', iri: 'v', kind: 'view', label: 'V', children: [] }, true)).not.toContain('copy');
+    expect(actions({ id: 'd', iri: 'd', kind: 'relationship', label: 'D', derivation: 'potential', children: [] }, true)).not.toContain('copy');
+    // Several selected: copying them and moving them is all there is.
+    expect(actionsFor(element, { folders: true, many: 3 })).toEqual([
+      { action: 'copy', label: 'Copy 3 elements' },
+      { action: 'move-to-folder', label: 'Move 3 elements to folder…' },
+    ]);
+    expect(actionsFor(element, { many: 3 })).toEqual([{ action: 'copy', label: 'Copy 3 elements' }]);
   });
 });
 
@@ -501,11 +510,11 @@ describe('<model-explorer>', () => {
       await click(`${M}/element/a`, { shiftKey: true });
       expect(selected()).toEqual([`${M}/view/1`, `${M}/view/2`, `${M}/element/b`, `${M}/element/a`]);
 
-      // Right-clicked among them: the menu moves those of its group, and they stay selected.
+      // Right-clicked among them: the menu copies and moves those of its group, and they stay selected.
       row(el, `${M}/element/a`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
       await el.updateComplete;
       const entries = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('.menu button')].map((b) => b.textContent?.trim());
-      expect(entries).toEqual(['Move 2 elements to folder…']);
+      expect(entries).toEqual(['Copy 2 elements', 'Move 2 elements to folder…']);
       expect(selected()).toHaveLength(4);
       el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="move-to-folder"]')!.click();
       expect(actions).toEqual([

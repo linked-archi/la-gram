@@ -306,8 +306,8 @@ The plan as first written:
 
 ## Still to decide
 
-- Whether `docs/git-collaboration-spec.md` and `docs/git-collaboration/` are committed as they are, or with a
-  note pointing to the corrections above.
+Nothing at present. `docs/git-collaboration-spec.md` and `docs/git-collaboration/` were committed as they are;
+the corrections above take precedence over them.
 
 ## Done when (per phase)
 
