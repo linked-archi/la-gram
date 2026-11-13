@@ -244,6 +244,15 @@ export class CanvasToolbar extends LitElement {
         >
           \u{1F58C}
         </button>
+        <button
+          type="button"
+          data-action="arrange-view"
+          title="Arrange view — lay out the diagram's elements, or the selected ones, in layers with right-angled lines"
+          aria-label="Arrange view"
+          @click=${() => this.dispatchEvent(new CustomEvent('arrange-view', { bubbles: true, composed: true }))}
+        >
+          Arrange…
+        </button>
         <span class="separator" aria-hidden="true"></span>
         <button
           type="button"

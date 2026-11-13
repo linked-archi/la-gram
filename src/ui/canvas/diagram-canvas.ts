@@ -359,6 +359,7 @@ export type CanvasContextAction =
   | 'rename-view'
   | 'set-viewpoint'
   | 'duplicate-view'
+  | 'arrange-view'
   | 'delete-view'
   | 'export-svg'
   | 'export-png';
@@ -980,6 +981,11 @@ export class DiagramCanvas {
       },
       viewport: () => this.viewport(),
     };
+  }
+
+  /** The placements selected on the open diagram — nodes of elements and figures — by node IRI. */
+  selectedPlacements(): string[] {
+    return this.clipboardHost().selectedPlacements();
   }
 
   /** Copy concepts chosen in the model tree (Ctrl/⌘+C there), into a copy event's data; false when nothing was. */
@@ -3229,6 +3235,7 @@ export class DiagramCanvas {
         { id: 'rename-view', label: 'Rename view…', section: 'edit', run: host('rename-view') },
         { id: 'set-viewpoint', label: 'Set viewpoint…', section: 'edit', run: host('set-viewpoint') },
         { id: 'duplicate-view', label: 'Duplicate view', section: 'edit', run: host('duplicate-view') },
+        { id: 'arrange-view', label: 'Arrange view…', section: 'edit', run: host('arrange-view') },
       );
     }
     actions.push(...this.clipboardMenuActions(false));

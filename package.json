@@ -44,6 +44,7 @@
     "d3-force": "3.0.1",
     "diagram-js": "^14.0.0",
     "diagram-js-direct-editing": "^3.5.1",
+    "elkjs": "0.12.1",
     "lit": "^3.1.0",
     "n3": "^2.13.12",
     "oxigraph": "^0.5.11",

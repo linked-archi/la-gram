@@ -25,7 +25,7 @@
 import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
-import type { Bounds, ElementManager, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
+import type { Bounds, ElementManager, Point, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
 import { migrateLegacyModel, type MigrationReport } from './legacy-migration.js';
 import { addRelationshipsToView } from './view-manager.js';
 import { classify, findModelIri, labelOf, modelQuads, typeClosure } from './model-queries.js';
@@ -366,7 +366,7 @@ export class ModelSession {
     label: string,
     nodes: ReadonlyArray<{ iri: string; bounds: Bounds }>,
     relationships: readonly string[],
-    options: { open?: boolean; viewpointIri?: string } = {},
+    options: { open?: boolean; viewpointIri?: string; routes?: ReadonlyMap<string, Point[]> } = {},
   ): string {
     let viewIri = '';
     this.batch(() => {
@@ -376,6 +376,8 @@ export class ModelSession {
       }).value;
       for (const node of nodes) this.views.addElementToView(viewIri, node.iri, node.bounds);
       addRelationshipsToView(this.views, viewIri, relationships);
+      // Routed by the layout (ELK task, R10): by relationship, its line in this view.
+      for (const [relationshipIri, route] of options.routes ?? []) this.views.updateLinkWaypoints(viewIri, relationshipIri, route);
       this.touch();
     });
     this.events?.emit('views-changed', { viewIri });

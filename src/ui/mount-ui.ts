@@ -61,6 +61,14 @@ import {
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
 import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
 import { fromTextField } from './canvas/canvas-clipboard.js';
+import { arrangeSettings, rememberArrangeSettings, type ArrangeSettings } from './arrange-settings.js';
+import { gridNote, layoutView, loadedBands, type ArrangeDeps } from './arrange-view.js';
+import { applyViewLayout } from '../layout/view-layout.js';
+import { layout as layOut } from '../layout/layout-service.js';
+import { withNeighbourBands } from '../layout/bands.js';
+import { workerEngine } from '../layout/elk-engine.js';
+import { DEFAULT_LAYOUT_OPTIONS, type LayoutDirection, type LayoutInput, type LayoutSpacing } from '../layout/layout-types.js';
+import { relationshipClassOf as relationshipClassIn } from '../model-manager/cascade.js';
 import {
   listQuestions,
   offeredQuestions,
@@ -133,7 +141,6 @@ import type { MatrixView } from './views/matrix-view.js';
 import type { RdfPanel, RdfDownloadDetail, RdfPanelContent, RdfPanelRequest, RdfSelectDetail } from './panels/rdf-panel.js';
 import type { GraphPanel, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
 import type { ResultsViewRequestDetail, SparqlSelectDetail } from './panels/sparql-editor.js';
-import { layoutPositions } from './panels/graph-view.js';
 import { mostSpecificType, relationshipGraph } from '../model-manager/relationship-graph.js';
 import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
@@ -1008,6 +1015,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'delete-view':
         void handleExplorerAction({ action, iri, kind: 'view' });
         return;
+      case 'arrange-view':
+        void arrangeView();
+        return;
       case 'move-to-folder': {
         // The one right-clicked and the others selected of its kind.
         const kind = kindOfConcept(iri);
@@ -1528,6 +1538,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // The format painter, from the toolbar's button; its state shown on the button.
   const onFormatPainter = (): void => diagramCanvas.toggleFormatPainter();
   canvasToolbar.addEventListener('format-painter', onFormatPainter);
+  const onArrangeView = (): void => void arrangeView();
+  canvasToolbar.addEventListener('arrange-view', onArrangeView);
   const onFormatPainterChanged: ModelEventHandler = (event) => {
     canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
   };
@@ -1999,6 +2011,145 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
    * drawn when `centres` places them all (the Graph tab), else as a tree;
    * following `viewpoint` when given (a question's).
    */
+  // ── Automatic layout (ELK task) ──────────────────────────────────────
+  const layoutDeps = (): ArrangeDeps => ({
+    store,
+    views: viewManager,
+    typeOf: (iri) => describe(iri)?.typeIri,
+    labelOf: (iri) => labelOf(store, iri),
+    relationshipTypeOf: (iri) => relationshipClassIn(store, iri),
+    closure: (typeIri) => closureLookup(typeIri),
+    engine: workerEngine,
+  });
+  /** Elements and the relationships between them, not yet placed, laid out by ELK: bounds by element, routes by relationship. */
+  const layoutPlan = async (elements: readonly string[], relationships: readonly string[]) => {
+    const settings = arrangeSettings();
+    const bands = settings.bands ? loadedBands(store) : new Map<string, number>();
+    const bandOf = (type: string | undefined) =>
+      type === undefined ? undefined : [type, ...closureLookup(type)].map((t) => bands.get(t)).find((b) => b !== undefined);
+    const input: LayoutInput = {
+      nodes: elements.map((iri) => {
+        const type = describe(iri)?.typeIri;
+        const band = bandOf(type);
+        return {
+          id: iri,
+          ...sizeOf(iri),
+          ...(band !== undefined ? { band } : {}),
+          key: [String(band ?? 999).padStart(4, '0'), type ?? '', labelOf(store, iri).toLowerCase(), iri].join('|'),
+        };
+      }),
+      edges: relationships.flatMap((id) => {
+        const ends = conceptKinds.endsOf(id);
+        if (!ends) return [];
+        return [{ id, source: ends.source, target: ends.target, kind: localNameOf(relationshipClassIn(store, id) ?? '') === 'Association' ? ('association' as const) : ('other' as const) }];
+      }),
+    };
+    return layOut(bands.size > 0 ? withNeighbourBands(input) : input, {
+      ...DEFAULT_LAYOUT_OPTIONS,
+      direction: settings.direction,
+      spacing: settings.spacing,
+      bands: bands.size > 0,
+    }, workerEngine);
+  };
+  /**
+   * A model opened with no geometry — placed in the grid by the session — laid out by ELK (R9): written as
+   * part of the load, not as a step to undo. What la-gram says when the grid stays.
+   */
+  const layoutLoaded = async (viewIri: string | undefined): Promise<string> => {
+    if (!viewIri) return '';
+    const result = await layoutView(layoutDeps(), viewIri, arrangeSettings());
+    if (result.engine !== 'elk' || session.activeViewIri !== viewIri) return gridNote(result);
+    applyViewLayout(viewManager, viewIri, result);
+    diagramCanvas.syncFromStore();
+    return '';
+  };
+  /** *Arrange view…* (R11): the open diagram, or what is selected, laid out as asked — one step to undo. */
+  const arrangeView = async (): Promise<void> => {
+    const viewIri = session.activeViewIri;
+    if (!viewIri || viewManager.getView(viewIri)?.type !== 'Diagram') {
+      dialogs.toast('Open a diagram view to arrange it.', 'warning');
+      return;
+    }
+    const selected = diagramCanvas.selectedPlacements();
+    const settings = arrangeSettings();
+    const hasBands = loadedBands(store).size > 0;
+    const values = await dialogs.form(
+      'Arrange view',
+      [
+        ...(selected.length > 0
+          ? [
+              {
+                name: 'scope',
+                label: 'Arrange',
+                type: 'select' as const,
+                value: 'selection',
+                options: [
+                  { value: 'view', label: 'The whole view' },
+                  { value: 'selection', label: selected.length === 1 ? 'The selected element, and what is in it' : `The ${selected.length} selected, and what is in them` },
+                ],
+              },
+            ]
+          : []),
+        {
+          name: 'direction',
+          label: 'Direction',
+          type: 'select' as const,
+          value: settings.direction,
+          hint: 'The way relationships lead, from their source to their target.',
+          options: [
+            { value: 'DOWN', label: 'Down' },
+            { value: 'RIGHT', label: 'Right' },
+            { value: 'UP', label: 'Up' },
+            { value: 'LEFT', label: 'Left' },
+          ],
+        },
+        {
+          name: 'spacing',
+          label: 'Spacing',
+          type: 'select' as const,
+          value: settings.spacing,
+          options: [
+            { value: 'compact', label: 'Compact' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'roomy', label: 'Roomy' },
+          ],
+        },
+        ...(hasBands
+          ? [
+              {
+                name: 'bands',
+                label: 'Group by band',
+                type: 'checkbox' as const,
+                value: settings.bands,
+                hint: "Keep elements in the bands their metamodel orders — in ArchiMate, Business above Application above Technology.",
+              },
+            ]
+          : []),
+      ],
+      { confirmLabel: 'Arrange' },
+    );
+    if (!values) return;
+    const chosen: ArrangeSettings = {
+      direction: values.direction as LayoutDirection,
+      spacing: values.spacing as LayoutSpacing,
+      bands: hasBands ? values.bands === true : settings.bands,
+    };
+    rememberArrangeSettings(chosen);
+    const only = values.scope === 'selection' ? new Set(selected) : undefined;
+    const result = await layoutView(layoutDeps(), viewIri, chosen, only);
+    if (session.activeViewIri !== viewIri) return;
+    diagramCanvas.recordChange(() => applyViewLayout(viewManager, viewIri, result));
+    const [placed, routed] = [result.bounds.size, result.routes.size];
+    const note = gridNote(result);
+    dialogs.toast(
+      `Arranged ${placed} element${placed === 1 ? '' : 's'}` +
+        (routed > 0 ? ` and ${routed} relationship${routed === 1 ? '' : 's'}` : '') +
+        (note ? `; ${note}` : '') +
+        '.',
+      note ? 'warning' : 'info',
+    );
+  };
+
   const newViewFrom = async (
     iris: string[],
     options: { label: string; centres?: Map<string, { x: number; y: number }>; viewpoint?: string },
@@ -2012,20 +2163,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const label = await dialogs.prompt('New view', `Name — ${counts}`, options.label);
     if (label === null) return;
     const drawn = !!options.centres && plan.elements.every((iri) => options.centres!.has(iri));
-    const centres = drawn
-      ? options.centres!
-      : layoutPositions(
-          plan.elements.map((id) => ({ id })),
-          plan.relationships.map((id) => ({ id, ...conceptKinds.endsOf(id)! })),
-          { layout: 'tree', width: NOTATION_DEFAULTS.width, height: NOTATION_DEFAULTS.height },
-        );
-    // The Graph tab draws smaller boxes, closer together, than a diagram.
-    const bounds = placeNodes(plan.elements, centres, sizeOf, { spread: drawn ? 1.3 : 1.1 });
+    // As drawn in the Graph tab — whose boxes are smaller, closer together, than a diagram's — else laid out
+    // by ELK, with its routes (ELK task, R10).
+    const laidOut = drawn ? undefined : await layoutPlan(plan.elements, plan.relationships);
+    const bounds = laidOut?.bounds ?? placeNodes(plan.elements, options.centres!, sizeOf, { spread: 1.3 });
     session.createViewWith(
       label,
       plan.elements.map((iri) => ({ iri, bounds: bounds.get(iri)! })),
       plan.relationships,
-      options.viewpoint ? { viewpointIri: options.viewpoint } : {},
+      { ...(options.viewpoint ? { viewpointIri: options.viewpoint } : {}), ...(laidOut ? { routes: laidOut.routes } : {}) },
     );
     const following = options.viewpoint ? ` (${labelOf(store, options.viewpoint)})` : '';
     dialogs.toast(`New view "${label.trim()}"${following}: ${counts}.`);
@@ -2416,9 +2562,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   /** Open a model file's text as File › Open does, and say what it did. */
   const openModelText = async (text: string, fileName: string): Promise<void> => {
     const opened = await app.openModel(text, fileName);
+    const gridOnly = opened.autoPlaced ? await layoutLoaded(session.activeViewIri) : '';
     report(
       `Opened ${fileName}: ${opened.quadCount} triples` +
-        (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out` : '') +
+        (opened.autoPlaced ? `, ${opened.autoPlaced} elements laid out${gridOnly ? ` (${gridOnly})` : ''}` : '') +
         (opened.migration.renamed + opened.migration.relationships + opened.migration.placements > 0
           ? ', older vocabulary migrated'
           : '') +
@@ -2530,6 +2677,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           const file = await pickFile('.xml');
           if (!file) return;
           const result = await app.importArchiMate(file.text, file.name);
+          if (result.autoPlaced) await layoutLoaded(result.viewIri);
           report(
             `Imported ${result.elementCount} elements, ${result.relationshipCount} relationships, ${result.viewCount} views.`,
           );

@@ -502,7 +502,7 @@ export class App {
    * Import an ArchiMate exchange file as a new model. Loads the ArchiMate 3.2
    * metamodel (bundled) first, because the exchange format is 3.x.
    */
-  async importArchiMate(xml: string, fileName = 'model.xml'): Promise<ImportReport & { modelIri: string; viewIri: string }> {
+  async importArchiMate(xml: string, fileName = 'model.xml'): Promise<ImportReport & { modelIri: string; viewIri: string; autoPlaced: number }> {
     const parsed = parseArchiMateExchange(xml);
     await this.loadMetamodel(ARCHIMATE3_METAMODEL);
     const store = this.components.store;
@@ -526,7 +526,7 @@ export class App {
     if (report.viewCount > 0 && emptyDefault) this.components.viewManager.deleteView(emptyDefault);
     const adopted = this.session.adopt({ metamodelIris: [ARCHIMATE3_METAMODEL] });
     this.scheduleValidation();
-    return { ...report, modelIri: adopted.modelIri, viewIri: adopted.viewIri };
+    return { ...report, modelIri: adopted.modelIri, viewIri: adopted.viewIri, autoPlaced: adopted.autoPlaced };
   }
 
   // ── Validation ─────────────────────────────────────────────────────────

@@ -1775,7 +1775,7 @@ describe('changing an element’s type', () => {
     await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
-      'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
+      'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Arrange view…', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
       'Copy IRI', 'Export view as SVG', 'Export view as PNG', 'Delete view…',
     ]);
     // Export from it: the pictures — the notation's glyphs — in the file, and a PNG drawn with them, at twice the size.
@@ -3151,5 +3151,53 @@ describe('copy and paste on the canvas', () => {
     expect(m.actors).toHaveLength(2);
     expect(m.nodesIn['Copies']).toContain(cut);
     findings.push('copy and paste: references into another view, duplicate, paste as copies, undo, cut, copy from the tree: ok');
+  }, 120_000);
+});
+
+describe('arranging a view', () => {
+  it('lays out a diagram from the toolbar — no element over another, in a worker — and undoes it in one step', async () => {
+    const { page } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const view = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const [m, v] = [app.session.modelIri, app.session.activeViewIri];
+      const make = (type: string, label: string) => {
+        const iri = app.components.elementManager.createElement(AM4 + type, m, { label }).value;
+        app.components.viewManager.addElementToView(v, iri, { x: 200, y: 200, width: 120, height: 55 });
+        return iri;
+      };
+      const actor = make('BusinessActor', 'Clerk');
+      const process = make('Process', 'Handle claim');
+      const app1 = make('ApplicationComponent', 'Claims app');
+      const node = make('Node', 'Server');
+      const relate = (type: string, s: string, t: string) => {
+        const r = app.components.relationshipManager.createQualifiedRelationship({ typeIri: AM4 + type, sourceIri: s, targetIri: t, modelIri: m }).iri;
+        app.components.viewManager.addRelationshipToView(v, r);
+      };
+      relate('Assignment', actor, process);
+      relate('Serving', app1, process);
+      relate('Serving', node, app1);
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return v as string;
+    });
+    const boxes = () =>
+      page.evaluate((v) => (window as any).__LA_GRAM_APP__.components.viewManager.getNodes(v).map((n: any) => n.bounds), view) as Promise<
+        Array<{ x: number; y: number; width: number; height: number }>
+      >;
+    const overlapping = (bs: Array<{ x: number; y: number; width: number; height: number }>) =>
+      bs.some((a, i) => bs.some((b, j) => i < j && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height));
+    const before = await boxes();
+    expect(overlapping(before)).toBe(true);
+
+    await page.locator('canvas-toolbar button[data-action="arrange-view"]').click({ timeout: 10_000 });
+    const dialog = page.locator('.la-dialog');
+    await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+    await dialog.locator('.la-button.primary').click({ timeout: 10_000 });
+    await until(async () => !overlapping(await boxes()), 'the layout', 30_000);
+
+    await page.keyboard.press('ControlOrMeta+z');
+    await until(async () => JSON.stringify(await boxes()) === JSON.stringify(before), 'undo');
+    findings.push('arrange view: laid out with no overlaps, undone in one step: ok');
   }, 120_000);
 });
