@@ -1984,7 +1984,9 @@ describe('Basic, the generic language', () => {
     expect(await connection.locator('.palette-tag').count()).toBe(0);
 
     // Dropped on the canvas: an element typed basic:Node, named, in the view. Under
-    // ArchiMate's axis, Basic's types are in "Other", at the foot of the palette.
+    // ArchiMate's axis, Basic's types are in "Other", at the foot of the palette, where a
+    // notice may cover them: found with the palette's search, at its top.
+    await page.locator('palette-panel input[type="search"]').fill('basic:Node');
     await node.scrollIntoViewIfNeeded();
     const box = (await node.boundingBox())!;
     const host = (await page.locator('.la-diagram-host').boundingBox())!;

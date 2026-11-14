@@ -327,7 +327,17 @@ shows (the vocabulary's `arch-vis:iconSymbol` convention), so they need no
 recolouring to match the pictures.
 
 Palette generation (existing, unchanged in approach): dual classification over
-the taxonomy (`conceptClassification`) and ontology, several axes. Notation is
+the taxonomy (`conceptClassification`) and ontology, several axes — in the order
+the manifest's palette grouping gives, each axis's groups in the order of its
+thesaurus array (key design decision 20). A group's members are the element
+types the ontology declares: a class the taxonomy lists, or a concept with nothing
+under it that stands for one (`rdfs:seeAlso`, or the same local name). A concept
+with nothing under it and no class behind it is an empty concept — neither an
+element type nor a reason its parent is no axis. A group under no axis and no
+other group (ArchiMate's Junction, a top concept of its own) is kept as a
+standalone axis of its one group: its members are palette types, in a section of
+its name when no grouping axis classifies them, and it is offered as no way of
+grouping. Notation is
 resolved per class by `notation-resolver.ts` in five steps (Req 2.16):
 
 For a class C, the active set A is the set that the active presentation context
@@ -381,7 +391,7 @@ axes come in the loaded metamodels' order (`PaletteOptions.metamodelIris`,
 which the UI passes as it passes the notation sets), so the first language's
 grouping stays the default, and under its axis another language's types are
 in "Other". Only an axis that groups some element type is offered: a taxonomy
-may also classify relationship types — ArchiMate's Relationship by Category —
+may also classify relationship types — ArchiMate's relationship categories —
 which are no palette elements. Basic's notation draws `arch:Element` and
 `arch:QualifiedRelationship` generically, so an element typed by a core class
 alone is drawn too. The core ontology document loads under its bundled
@@ -3049,6 +3059,21 @@ dialog; the modules' section).
     paste's mode follows the context** — the same concepts into another view of the
     model, copies into the same view or another model — because a second placement in
     the same view is rarely what a paste means.
+20. **The palette's grouping and a diagram's bands are the metamodel's data: an
+    axis's order in a thesaurus array, two lists the manifest points to**
+    (2026-11-13, Req 2.5, 2.6, 2.23; meta's DD-36). An axis stays a SKOS concept,
+    its groups narrower than it; the order of the groups is an ISO 25964 thesaurus
+    array, an ordered collection whose `iso-thes:superOrdinate` is the axis
+    (`taxonomy.ts` reads its `skos:memberList`) — a published term, so reading it
+    is not a rule of la-gram's, and a taxonomy without one still classifies. The
+    manifest names the palette's axes, main one first (`arch:paletteGrouping`),
+    and the groups a diagram keeps in bands, top first (`arch:diagramGroupOrder`,
+    read by `layout/bands.ts`). The palette and the diagram want different orders
+    — ArchiMate 3.2 has no motivation layer, yet its diagrams draw motivation on
+    top — so they are two lists, not one. The palette grouping replaces a guess:
+    which axis is the default, from "aspect" in its label (gone: without a palette
+    grouping, the axes come by name); and an axis it names is taken as one whatever
+    its shape, where the structural detection would find one beneath it.
 
 ---
 

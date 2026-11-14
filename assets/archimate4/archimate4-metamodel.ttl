@@ -108,6 +108,12 @@ into a single discoverable resource.'''@en ;
     ## File: archimate4-tax.ttl
     arch:conceptClassification    <https://meta.linked.archi/archimate4/tax#> ;
 
+    ## Palette grouping — sections by domain, each in order of aspect
+    ## Diagram group order — the domains a diagram keeps in bands, motivation and strategy first
+    ## File: archimate4-tax.ttl
+    arch:paletteGrouping          am4tax:PaletteGrouping ;
+    arch:diagramGroupOrder        am4tax:DiagramGroupOrder ;
+
     ## Viewpoints — viewpoint individuals and their properties
     ## File: archimate4-viewpoints.ttl
     arch:architectureViewpoints   <https://meta.linked.archi/archimate4/viewpoints#> ;

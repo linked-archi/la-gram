@@ -1,12 +1,14 @@
 /**
- * Bands (ELK task, R4): read from a loaded metamodel's `arch:BandOrder`, and given to elements of no band
- * from what they hold or are related to; and *Arrange view…*'s remembered settings.
+ * Bands (ELK task, R4): read from the list a loaded metamodel's manifest names with
+ * `arch:diagramGroupOrder`, and given to elements of no band from what they hold or are related to; and
+ * *Arrange view…*'s remembered settings.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { DataFactory, Parser } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { BAND_ORDER, bandsOf, withNeighbourBands } from '../bands.js';
+import { fetchAssetText } from '../../metamodel-manager/bundled-assets.js';
+import { DIAGRAM_GROUP_ORDER, bandsOf, withNeighbourBands } from '../bands.js';
 import { ARRANGE_DEFAULTS, arrangeSettings, rememberArrangeSettings } from '../../ui/arrange-settings.js';
 
 const TAXONOMY = `
@@ -14,29 +16,36 @@ const TAXONOMY = `
 @prefix arch: <https://meta.linked.archi/core#> .
 @prefix am4:  <https://meta.linked.archi/archimate4/onto#> .
 @prefix :     <https://meta.linked.archi/archimate4/tax#> .
-:ElementByDomain a skos:Concept .
-:BusinessDomain a skos:Concept ; skos:broader :ElementByDomain ; skos:narrower am4:BusinessActor, :BusinessExtras .
+:Domain a skos:Concept .
+:BusinessDomain a skos:Concept ; skos:broader :Domain ; skos:narrower am4:BusinessActor, :BusinessExtras .
 :BusinessExtras a skos:Concept ; skos:narrower am4:BusinessObject .
-:ApplicationDomain a skos:Concept ; skos:broader :ElementByDomain ; skos:narrower am4:ApplicationComponent .
+:ApplicationDomain a skos:Concept ; skos:broader :Domain ; skos:narrower am4:ApplicationComponent .
 :TechnologyDomain a skos:Concept ; skos:narrower am4:Node .
 am4:Device skos:broader :TechnologyDomain .
-:CommonDomain a skos:Concept ; skos:broader :ElementByDomain ; skos:narrower am4:Process .
-:Bands a skos:OrderedCollection, <${BAND_ORDER}> ;
+:CommonDomain a skos:Concept ; skos:broader :Domain ; skos:narrower am4:Process .
+:Bands a skos:OrderedCollection ;
     skos:memberList ( :BusinessDomain :ApplicationDomain :TechnologyDomain ) .
 `;
 
-function storeWith(turtle: string): OxigraphRdfStore {
+/** The manifest, in a graph of its own: the list it points to is in the taxonomy's. */
+const MANIFEST = `<https://meta.linked.archi/archimate4/metamodel#ArchiMate4> <${DIAGRAM_GROUP_ORDER}> <https://meta.linked.archi/archimate4/tax#Bands> .`;
+
+/** Each document in the graph named after it, as the loader keeps them. */
+function storeWith(...documents: Array<[graph: string, turtle: string]>): OxigraphRdfStore {
   const store = new OxigraphRdfStore();
-  const graph = DataFactory.namedNode('https://meta.linked.archi/archimate4/tax#');
-  const quads = new Parser().parse(turtle).map((q) => DataFactory.quad(q.subject, q.predicate, q.object, graph) as unknown as Quad);
-  store.addQuads(quads);
+  for (const [graphIri, turtle] of documents) {
+    const graph = DataFactory.namedNode(graphIri);
+    store.addQuads(new Parser().parse(turtle).map((q) => DataFactory.quad(q.subject, q.predicate, q.object, graph) as unknown as Quad));
+  }
   return store;
 }
+const TAX_GRAPH = 'https://meta.linked.archi/archimate4/tax#';
+const MANIFEST_GRAPH = 'https://meta.linked.archi/archimate4/metamodel#';
 
 describe('bands from a loaded metamodel', () => {
   it("each type of a listed group — at any depth, narrower or broader — in its group's band; a group not listed gives none", () => {
     const AM4 = 'https://meta.linked.archi/archimate4/onto#';
-    const bands = bandsOf(storeWith(TAXONOMY));
+    const bands = bandsOf(storeWith([TAX_GRAPH, TAXONOMY], [MANIFEST_GRAPH, MANIFEST]));
     expect(bands.get(`${AM4}BusinessActor`)).toBe(0);
     expect(bands.get(`${AM4}BusinessObject`)).toBe(0);
     expect(bands.get(`${AM4}ApplicationComponent`)).toBe(1);
@@ -45,8 +54,36 @@ describe('bands from a loaded metamodel', () => {
     expect(bands.has(`${AM4}Process`)).toBe(false);
   });
 
-  it('none when no metamodel publishes an order', () => {
-    expect(bandsOf(storeWith(TAXONOMY.replace(/:Bands[\s\S]*$/, ''))).size).toBe(0);
+  it('none when no manifest points to a list — a list alone is not an order', () => {
+    expect(bandsOf(storeWith([TAX_GRAPH, TAXONOMY])).size).toBe(0);
+  });
+
+  it("ArchiMate 3.2's: motivation, an aspect, above the layers; strategy elements in the Strategy layer's band, physical ones in the Technology layer's", async () => {
+    const AM = 'https://meta.linked.archi/archimate3/onto#';
+    const bands = bandsOf(
+      storeWith(
+        ['https://meta.linked.archi/archimate3/tax#', await fetchAssetText('archimate3/archimate3.2-tax.ttl')],
+        ['https://meta.linked.archi/archimate3/metamodel#', await fetchAssetText('archimate3/archimate3.2-metamodel.ttl')],
+      ),
+    );
+    expect(['Stakeholder', 'Capability', 'BusinessActor', 'ApplicationComponent', 'Node', 'Equipment', 'WorkPackage'].map((t) => bands.get(AM + t))).toEqual([
+      0, 1, 2, 3, 4, 4, 5,
+    ]);
+    expect(bands.has(AM + 'Grouping')).toBe(false);
+  });
+
+  it("ArchiMate 4.0's: motivation and strategy on top; the Common Domain's elements in no band", async () => {
+    const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+    const bands = bandsOf(
+      storeWith(
+        [TAX_GRAPH, await fetchAssetText('archimate4/archimate4-tax.ttl')],
+        [MANIFEST_GRAPH, await fetchAssetText('archimate4/archimate4-metamodel.ttl')],
+      ),
+    );
+    expect(['Goal', 'Capability', 'BusinessActor', 'ApplicationComponent', 'Node', 'WorkPackage'].map((t) => bands.get(AM4 + t))).toEqual([
+      0, 1, 2, 3, 4, 5,
+    ]);
+    expect(bands.has(AM4 + 'Process')).toBe(false);
   });
 });
 

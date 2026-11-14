@@ -416,8 +416,8 @@ describe('PalettePanel', () => {
 
   describe('the "Group by" axis selector', () => {
     const axes = [
-      { iri: 'ax:domain', label: 'Element by Domain' },
-      { iri: 'ax:aspect', label: 'Element by Aspect' },
+      { iri: 'ax:domain', label: 'Domain' },
+      { iri: 'ax:aspect', label: 'Aspect' },
     ];
 
     it('is hidden unless the metamodel publishes more than one axis', async () => {

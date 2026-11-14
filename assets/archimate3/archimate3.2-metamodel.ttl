@@ -133,6 +133,12 @@ contexts into a single discoverable resource.'''@en ;
     ## File: archimate3.2-tax.ttl
     arch:conceptClassification    <https://meta.linked.archi/archimate3/tax#> ;
 
+    ## Palette grouping — sections by layer, each in order of aspect
+    ## Diagram group order — the groups a diagram keeps in bands, motivation and strategy first
+    ## File: archimate3.2-tax.ttl
+    arch:paletteGrouping          amtax:PaletteGrouping ;
+    arch:diagramGroupOrder        amtax:DiagramGroupOrder ;
+
     ## Viewpoint library — SKOS scheme grouping viewpoints
     ## File: archimate3.2-viewpoints.ttl
     arch:viewpointLibrary         amvp:ViewpointCatalog ;

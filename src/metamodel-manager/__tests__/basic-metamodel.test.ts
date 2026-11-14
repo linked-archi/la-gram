@@ -46,8 +46,8 @@ describe('Basic, the generic language', () => {
   it('added to ArchiMate: its classification comes after ArchiMate’s, which stays the default grouping', async () => {
     await app.loadMetamodel(BASIC_MM);
     const p = palette();
-    expect(p.axes!.map((a) => a.label)).toEqual(['Element by Domain', 'Element by Aspect', 'Basic Concepts']);
-    expect(p.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#ElementByDomain');
+    expect(p.axes!.map((a) => a.label)).toEqual(['Domain', 'Aspect', 'Basic Concepts']);
+    expect(p.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#Domain');
     // Its types are there; under ArchiMate's axis, which does not classify them, in "Other".
     const other = p.elementGroups.find((g) => g.category === 'Other')!;
     expect(other.elements.map((e) => e.label).sort()).toEqual(['GroupNode', 'Node', 'SpecialNode']);

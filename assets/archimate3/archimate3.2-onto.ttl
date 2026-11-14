@@ -260,7 +260,8 @@ changes are breaking.'''@en ;
     rdfs:subClassOf :CoreLayerElement ;
     arch:isAbstractClass true ;
     skos:prefLabel "PhysicalLayerElement"@en ;
-    skos:scopeNote "Layer marker for physical assets — equipment, facilities, distribution networks, and materials."@en ;
+    skos:scopeNote "Marker for the physical elements — equipment, facilities, distribution networks, and materials. They extend the Technology Layer to the physical world and are part of it, not a layer of their own; this class keeps them apart from the other technology elements."@en ;
+    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Physical-Elements-Metamodel> ;
 .
 
 :StrategyLayerElement
@@ -906,7 +907,7 @@ process, or by deployment and operation of an IT system.'''@en ;
 .
 
 #################################################################
-# Physical Layer Elements
+# Physical Elements (part of the Technology Layer)
 #################################################################
 
 :Equipment
@@ -918,7 +919,7 @@ process, or by deployment and operation of an IT system.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Equipment> ;
     skos:definition      '''Equipment represents one or more physical machines, tools, or instruments that can create,
 use, store, move, or transform materials.'''@en ;
-    skos:changeNote      "3.0: Introduced as part of the new Physical layer. 3.2: No longer a subtype of Node; now a subtype of technology internal active structure element, with composition and aggregation relationships to Node."@en ;
+    skos:changeNote      "3.0: Introduced with the physical elements, an extension of the Technology Layer. 3.2: No longer a subtype of Node; now a subtype of technology internal active structure element, with composition and aggregation relationships to Node."@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/tech_equipment.svg" ;
 .
 
@@ -930,7 +931,7 @@ use, store, move, or transform materials.'''@en ;
     skos:altLabel        "Building"@en, "Data Center"@en, "Site"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Facility> ;
     skos:definition      '''A facility represents a physical structure or environment.'''@en ;
-    skos:changeNote      "3.0: Introduced as part of the new Physical layer. 3.2: No longer a subtype of Node; now a subtype of technology internal active structure element, with composition and aggregation relationships to Node."@en ;
+    skos:changeNote      "3.0: Introduced with the physical elements, an extension of the Technology Layer. 3.2: No longer a subtype of Node; now a subtype of technology internal active structure element, with composition and aggregation relationships to Node."@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/tech_facility.svg" ;
 .
 
@@ -942,7 +943,7 @@ use, store, move, or transform materials.'''@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Distribution-Network> ;
     skos:definition      '''A distribution network represents a physical network used to transport materials or
 energy.'''@en ;
-    skos:changeNote      "3.0: Introduced as part of the new Physical layer."@en ;
+    skos:changeNote      "3.0: Introduced with the physical elements, an extension of the Technology Layer."@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/tech_distribution_network.svg" ;
 .
 
@@ -953,7 +954,7 @@ energy.'''@en ;
     skos:prefLabel       "Material"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Material> ;
     skos:definition      '''Material represents tangible physical matter or physical elements.'''@en ;
-    skos:changeNote      "3.0: Introduced as part of the new Physical layer. 3.2: Realization from Material to Equipment added."@en ;
+    skos:changeNote      "3.0: Introduced with the physical elements, an extension of the Technology Layer. 3.2: Realization from Material to Equipment added."@en ;
     arch:prefVisNotation "https://meta.linked.archi/archimate/v3/img/tech_material.svg" ;
 .
 

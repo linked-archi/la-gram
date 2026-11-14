@@ -1,9 +1,10 @@
 /**
- * Bands (ELK task, R4): the order a loaded metamodel publishes for the groups of a classification axis
- * whose elements a diagram keeps in bands — an `arch:BandOrder`, a `skos:OrderedCollection` of the groups,
- * first band first (ArchiMate 4.0's domains, 3.2's layers, in their taxonomies). A group not listed — 4.0's
- * Common Domain — gives no band: its elements take the band of what they are related to
- * (`withNeighbourBands`).
+ * Bands (ELK task, R4): the groups a loaded metamodel's diagrams keep in bands, top band first — the
+ * `skos:OrderedCollection` its manifest names with `arch:diagramGroupOrder` (meta's DD-36), in its taxonomy.
+ * The groups may come from different classification axes: ArchiMate 3.2's lists the Motivation aspect above
+ * the layers. An element type takes the band of the first listed group that classifies it, at any depth. A
+ * group not listed — 4.0's Common Domain — gives no band: its elements take the band of what they are
+ * related to (`withNeighbourBands`).
  */
 
 import type { NamedNode, Term } from '@rdfjs/types';
@@ -12,8 +13,8 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { IRI, nn } from '../model-manager/vocabulary.js';
 import type { LayoutInput } from './layout-types.js';
 
-/** The class of a band order (core). */
-export const BAND_ORDER = NAMESPACES.arch + 'BandOrder';
+/** A metamodel's diagram group order (core): the list of groups its diagrams keep in bands. */
+export const DIAGRAM_GROUP_ORDER = NAMESPACES.arch + 'diagramGroupOrder';
 
 const SKOS = NAMESPACES.skos;
 
@@ -53,13 +54,15 @@ function membersOf(store: RdfStore, group: Term): string[] {
   return [...out];
 }
 
-/** Each element type a loaded band order classifies, and its band (0 first). */
+/** Each element type a loaded metamodel's diagram group order classifies, and its band (0 first). */
 export function bandsOf(store: RdfStore): Map<string, number> {
   const bands = new Map<string, number>();
-  for (const order of store.getQuads(null, nn(IRI.rdfType), nn(BAND_ORDER))) {
-    const head = store.getQuads(order.subject as NamedNode, nn(SKOS + 'memberList'), null, order.graph as NamedNode)[0]?.object;
-    if (!head) continue;
-    listItems(store, head, order.graph).forEach((group, band) => {
+  for (const pointer of store.getQuads(null, nn(DIAGRAM_GROUP_ORDER), null)) {
+    if (pointer.object.termType !== 'NamedNode') continue;
+    // The list is in the taxonomy's graph, not the manifest's that points to it.
+    const memberList = store.getQuads(pointer.object, nn(SKOS + 'memberList'), null)[0];
+    if (!memberList) continue;
+    listItems(store, memberList.object, memberList.graph).forEach((group, band) => {
       for (const type of membersOf(store, group)) if (!bands.has(type)) bands.set(type, band);
     });
   }

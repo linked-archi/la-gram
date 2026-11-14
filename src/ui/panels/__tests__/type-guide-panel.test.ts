@@ -20,7 +20,7 @@ const guides: Record<string, TypeGuide> = {
     superclasses: [{ iri: AM + 'ActiveStructure', label: 'Active Structure Element', definition: 'Performs behavior.' }],
     classifications: [
       {
-        axis: { iri: TAX + 'ByDomain', label: 'Element by Domain' },
+        axis: { iri: TAX + 'ByDomain', label: 'Domain' },
         path: [{ iri: TAX + 'Business', label: 'Business Domain' }],
         group: { iri: TAX + 'Business', label: 'Business Domain', definition: 'Elements specific to the business.', notes: [], changes: [] },
         members: [{ iri: AM + 'Interface', label: 'Business Interface' }],
@@ -100,7 +100,7 @@ describe('<type-guide-panel>', () => {
     expect(pane.querySelector('.definition')!.textContent).toMatch(/^A business actor represents/);
     const section = (id: string) => pane.querySelector<HTMLDetailsElement>(`details[data-section="${id}"]`)!;
     expect(section('guidance').querySelectorAll('p')).toHaveLength(2);
-    expect(section('classification').textContent).toMatch(/Element by Domain[\s\S]*Business Domain[\s\S]*Also in Business Domain: Business Interface/);
+    expect(section('classification').textContent).toMatch(/Domain[\s\S]*Business Domain[\s\S]*Also in Business Domain: Business Interface/);
     expect(section('ontology').textContent).toMatch(/Active Structure Element[\s\S]*Performs behavior/);
     expect(section('changes').textContent).toMatch(/roles moved/);
     // Guidance and classification open; the longer lists folded.

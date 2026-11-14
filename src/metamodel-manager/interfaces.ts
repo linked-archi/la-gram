@@ -145,7 +145,7 @@ export interface ResolvedUri {
 
 /** A classification axis a palette can be grouped by. */
 export interface PaletteAxis {
-  /** IRI of the axis concept (e.g. "Element by Domain"). */
+  /** IRI of the axis concept (e.g. "Domain"). */
   iri: string;
   /** Human-readable axis label. */
   label: string;

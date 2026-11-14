@@ -22,19 +22,37 @@ types are never offered.
 ## Group by {#group-by}
 
 When the metamodel classifies its types in more than one way, *Group by* picks the one the palette is
-grouped by: ArchiMate 4.0 has **Element by Domain** (the first, and the default) and
-**Element by Aspect**. With one way, there is no *Group by*. The choice lasts while la-gram is open.
+grouped by: ArchiMate 4.0 has **Domain** and **Aspect**, ArchiMate 3.2 **Layer** and **Aspect**.
+The default is the one the metamodel names first for its
+palette, by domain or by layer; a metamodel that names none groups by the first by name. With one way,
+there is no *Group by*. The choice lasts while la-gram is open.
 
-1. In *Group by*, choose **Element by Aspect**.
-2. The element types are grouped as active structure, behaviour, passive structure and so on.
+1. In *Group by*, choose **Aspect**.
+2. The element types are grouped by aspect: structure first — its active and passive structure sections among
+   them — then behaviour, and so on.
 
 ## Sections {#sections}
 
 The palette's sections, each with its count:
 
 1. *Relationships*, first: every relationship type.
-2. The element groups, in the metamodel's order: for ArchiMate 4.0 by domain, **Application Domain**,
-   **Business Domain**, **Common Domain** and the others.
+2. The element groups, in the order the metamodel gives them: for ArchiMate 4.0 by domain, **Common
+   Domain**, **Business Domain**, **Application Domain**, **Technology Domain**, **Strategy Domain**,
+   **Motivation Domain** and **Implementation and Migration Domain**; for ArchiMate 3.2 by layer, the
+   layers, then **Motivation** and **Composite**, whose elements are in no layer. A metamodel that gives
+   no order has its groups by name.
+3. **Junction**, last: the junctions, which are in no domain, layer or aspect — the metamodel classifies
+   them on their own, so they keep this section whatever *Group by* says. A type the metamodel
+   classifies nowhere is in *Other*.
+
+Within a section, the types follow the metamodel's other way of grouping, where it names one: in an
+ArchiMate 3.2 layer or an ArchiMate 4.0 domain, structure (active and passive), then behaviour, then
+composite — each by name.
+
+| Section | Begins with |
+|---|---|
+| **Business Domain** (4.0) | Business Actor, Business Interface, Business Object, Product |
+| **Business Layer** (3.2) | Business Actor, Business Collaboration, Business Interface, Business Object, Business Role, Contract, Representation, then the behaviour |
 
 Each section folds by its header. A search opens every section, so that nothing found is hidden.
 

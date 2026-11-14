@@ -230,8 +230,8 @@ export interface MountedUi {
   /** Currently visible centre view. */
   activeCanvasView(): CanvasViewKind;
   /**
-   * Regroup the palette along another classification axis (e.g. "Element by
-   * Aspect" instead of "Element by Domain"). Ignored when the metamodel does
+   * Regroup the palette along another classification axis (e.g. "Aspect"
+   * instead of "Domain"). Ignored when the metamodel does
    * not publish the axis.
    */
   setPaletteAxis(axisIri: string | undefined): void;

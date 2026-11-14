@@ -22,6 +22,12 @@ const PREFIXES = `
 const TAX = 'https://meta.linked.archi/archimate3/tax#';
 const ONTO = 'https://meta.linked.archi/archimate3/onto#';
 
+/** A metamodel's palette grouping (arch:paletteGrouping): the axes it groups by, main one first. */
+const GROUPING = (axes: string) => `${PREFIXES}
+<https://example.org/mm#M> a arch:Metamodel ; arch:paletteGrouping :PaletteGrouping .
+:PaletteGrouping a skos:OrderedCollection ; skos:memberList ( ${axes} ) .
+`;
+
 /**
  * Minimal ArchiMate-3.2-shaped taxonomy: one scheme, two axes (by Layer, by Aspect),
  * with a couple of leaf OWL classes that appear in BOTH axes under different groups.
@@ -42,23 +48,23 @@ const AM32_TAX = `${PREFIXES}
     skos:broader :ArchiMateConcept ; skos:inScheme <${TAX}> .
 
 # --- Axis 1: by Layer ---
-:ElementByLayer a skos:Concept ; skos:prefLabel "Element by Layer"@en ;
+:Layer a skos:Concept ; skos:prefLabel "Layer"@en ;
     skos:broader :ArchiMateElement ; skos:inScheme <${TAX}> .
 :BusinessLayer a skos:Concept ; skos:prefLabel "Business Layer"@en ;
-    skos:broader :ElementByLayer ; skos:inScheme <${TAX}> ;
+    skos:broader :Layer ; skos:inScheme <${TAX}> ;
     skos:narrower am:BusinessActor, am:BusinessProcess .
 :ApplicationLayer a skos:Concept ; skos:prefLabel "Application Layer"@en ;
-    skos:broader :ElementByLayer ; skos:inScheme <${TAX}> ;
+    skos:broader :Layer ; skos:inScheme <${TAX}> ;
     skos:narrower am:ApplicationComponent .
 
 # --- Axis 2: by Aspect ---
-:ElementByAspect a skos:Concept ; skos:prefLabel "Element by Aspect"@en ;
+:Aspect a skos:Concept ; skos:prefLabel "Aspect"@en ;
     skos:broader :ArchiMateElement ; skos:inScheme <${TAX}> .
 :ActiveStructure a skos:Concept ; skos:prefLabel "Active Structure"@en ;
-    skos:broader :ElementByAspect ; skos:inScheme <${TAX}> ;
+    skos:broader :Aspect ; skos:inScheme <${TAX}> ;
     skos:narrower am:BusinessActor, am:ApplicationComponent .
 :Behavior a skos:Concept ; skos:prefLabel "Behavior"@en ;
-    skos:broader :ElementByAspect ; skos:inScheme <${TAX}> ;
+    skos:broader :Aspect ; skos:inScheme <${TAX}> ;
     skos:narrower am:BusinessProcess .
 
 # --- OWL classes (instantiable elements) ---
@@ -69,13 +75,13 @@ am:ApplicationComponent a owl:Class ; rdfs:label "Application Component"@en .
 
 /** A third, structural axis layered on top of {@link AM32_TAX}. */
 const AM32_DOMAIN_AXIS = `${PREFIXES}
-:ElementByDomain a skos:Concept ; skos:prefLabel "Element by Domain"@en ;
+:Domain a skos:Concept ; skos:prefLabel "Domain"@en ;
     skos:broader :ArchiMateElement ; skos:inScheme <${TAX}> .
 :BusinessDomain a skos:Concept ; skos:prefLabel "Business Domain"@en ;
-    skos:broader :ElementByDomain ; skos:inScheme <${TAX}> ;
+    skos:broader :Domain ; skos:inScheme <${TAX}> ;
     skos:narrower am:BusinessActor, am:BusinessProcess .
 :ApplicationDomain a skos:Concept ; skos:prefLabel "Application Domain"@en ;
-    skos:broader :ElementByDomain ; skos:inScheme <${TAX}> ;
+    skos:broader :Domain ; skos:inScheme <${TAX}> ;
     skos:narrower am:ApplicationComponent .
 `;
 
@@ -89,10 +95,10 @@ const AM4_TAX = `${PREFIXES}
 <https://meta.linked.archi/archimate3/metamodel#> arch:conceptClassification <${TAX}> .
 
 :Concept a skos:Concept ; skos:prefLabel "Concept"@en ; skos:inScheme <${TAX}> .
-:ElementByDomain a skos:Concept ; skos:prefLabel "Element by Domain"@en ;
+:Domain a skos:Concept ; skos:prefLabel "Domain"@en ;
     skos:broader :Concept ; skos:inScheme <${TAX}> .
 :BusinessDomain a skos:Concept ; skos:prefLabel "Business Domain"@en ;
-    skos:broader :ElementByDomain ; skos:inScheme <${TAX}> ;
+    skos:broader :Domain ; skos:inScheme <${TAX}> ;
     skos:narrower :BusinessActorConcept .
 :BusinessActorConcept a skos:Concept ; skos:prefLabel "Business Actor"@en ;
     skos:inScheme <${TAX}> ;
@@ -106,10 +112,10 @@ am:BusinessActor a owl:Class ; rdfs:label "Business Actor"@en .
  */
 const NESTED_TWO_LEVEL = `${PREFIXES}
 <${TAX}> a skos:ConceptScheme .
-:ElementByAspect a skos:Concept ; skos:prefLabel "Element by Aspect"@en ;
+:Aspect a skos:Concept ; skos:prefLabel "Aspect"@en ;
     skos:inScheme <${TAX}> .
 :ActiveStructure a skos:Concept ; skos:prefLabel "Active Structure"@en ;
-    skos:broader :ElementByAspect ; skos:inScheme <${TAX}> ;
+    skos:broader :Aspect ; skos:inScheme <${TAX}> ;
     skos:narrower am:Path .
 :InternalActiveStructure a skos:Concept ; skos:prefLabel "Internal Active Structure"@en ;
     skos:broader :ActiveStructure ; skos:inScheme <${TAX}> ;
@@ -123,10 +129,10 @@ am:ApplicationComponent a owl:Class ; rdfs:label "Application Component"@en .
 /** Three grouping levels below the axis — the real depth of the published Structure branch. */
 const NESTED_THREE_LEVEL = `${PREFIXES}
 <${TAX}> a skos:ConceptScheme .
-:ElementByAspect a skos:Concept ; skos:prefLabel "Element by Aspect"@en ;
+:Aspect a skos:Concept ; skos:prefLabel "Aspect"@en ;
     skos:inScheme <${TAX}> .
 :Structure a skos:Concept ; skos:prefLabel "Structure"@en ;
-    skos:broader :ElementByAspect ; skos:inScheme <${TAX}> ;
+    skos:broader :Aspect ; skos:inScheme <${TAX}> ;
     skos:narrower am:Resource .
 :ActiveStructure a skos:Concept ; skos:prefLabel "Active Structure"@en ;
     skos:broader :Structure ; skos:inScheme <${TAX}> ;
@@ -149,13 +155,13 @@ am:BusinessActor a owl:Class ; rdfs:label "Business Actor"@en .
  */
 const NESTED_MIXED = `${PREFIXES}
 <${TAX}> a skos:ConceptScheme .
-:ElementByAspect a skos:Concept ; skos:prefLabel "Element by Aspect"@en ;
+:Aspect a skos:Concept ; skos:prefLabel "Aspect"@en ;
     skos:inScheme <${TAX}> .
 :Behavior a skos:Concept ; skos:prefLabel "Behavior"@en ;
-    skos:broader :ElementByAspect ; skos:inScheme <${TAX}> ;
+    skos:broader :Aspect ; skos:inScheme <${TAX}> ;
     skos:narrower am:BusinessProcess .
 :Structure a skos:Concept ; skos:prefLabel "Structure"@en ;
-    skos:broader :ElementByAspect ; skos:inScheme <${TAX}> .
+    skos:broader :Aspect ; skos:inScheme <${TAX}> .
 :ActiveStructure a skos:Concept ; skos:prefLabel "Active Structure"@en ;
     skos:broader :Structure ; skos:inScheme <${TAX}> ;
     skos:narrower am:BusinessActor .
@@ -198,21 +204,23 @@ describe('buildClassificationAxes', () => {
   it('discovers each classification axis separately instead of collapsing them', () => {
     const axes = buildClassificationAxes(storeFromTurtle(AM32_TAX));
     const labels = axes.map((a) => a.label);
-    expect(labels).toContain('Element by Layer');
-    expect(labels).toContain('Element by Aspect');
+    expect(labels).toContain('Layer');
+    expect(labels).toContain('Aspect');
     expect(axes).toHaveLength(2);
   });
 
-  it('orders structural axes (Layer/Domain) before the Aspect axis so Layer is the default', () => {
-    const axes = buildClassificationAxes(storeFromTurtle(AM32_TAX));
-    expect(axes[0]!.label).toBe('Element by Layer');
-    expect(axes[axes.length - 1]!.label).toBe('Element by Aspect');
+  it("orders the axes by the metamodel's palette grouping — its first the default — and by label without one", () => {
+    const grouped = buildClassificationAxes(storeFromTurtle(AM32_TAX, GROUPING(':Layer :Aspect')));
+    expect(grouped.map((a) => a.label)).toEqual(['Layer', 'Aspect']);
+    // No guess from a label: without the data, the axes come by label.
+    const plain = buildClassificationAxes(storeFromTurtle(AM32_TAX));
+    expect(plain.map((a) => a.label)).toEqual(['Aspect', 'Layer']);
   });
 
   it('groups the same element differently under each axis (dual classification)', () => {
     const axes = buildClassificationAxes(storeFromTurtle(AM32_TAX));
-    const byLayer = axes.find((a) => a.label === 'Element by Layer')!;
-    const byAspect = axes.find((a) => a.label === 'Element by Aspect')!;
+    const byLayer = axes.find((a) => a.label === 'Layer')!;
+    const byAspect = axes.find((a) => a.label === 'Aspect')!;
     const actor = `${ONTO}BusinessActor`;
     expect(byLayer.groups.get(actor)).toBe('Business Layer');
     expect(byAspect.groups.get(actor)).toBe('Active Structure');
@@ -223,9 +231,11 @@ describe('buildClassificationAxes', () => {
     expect(axes).toEqual([]);
   });
 
-  it('discovers three axes and keeps the Aspect axis last', () => {
-    const axes = buildClassificationAxes(storeFromTurtle(AM32_TAX, AM32_DOMAIN_AXIS));
-    expect(axes.map((a) => a.label)).toEqual(['Element by Domain', 'Element by Layer', 'Element by Aspect']);
+  it('discovers three axes, in the order the palette grouping gives', () => {
+    const axes = buildClassificationAxes(
+      storeFromTurtle(AM32_TAX, AM32_DOMAIN_AXIS, GROUPING(':Domain :Layer :Aspect')),
+    );
+    expect(axes.map((a) => a.label)).toEqual(['Domain', 'Layer', 'Aspect']);
     const actor = `${ONTO}BusinessActor`;
     expect(axes.map((a) => a.groups.get(actor))).toEqual(['Business Domain', 'Business Layer', 'Active Structure']);
   });
@@ -270,6 +280,78 @@ describe('buildClassificationAxes', () => {
   });
 });
 
+describe("buildClassificationAxes (thesaurus arrays: the order of an axis's groups)", () => {
+  /**
+   * ArchiMate 3.x's shape: two axis concepts under one element concept, the layers in order in an
+   * ISO 25964 thesaurus array under their axis; the Technology Layer not in it. A diagram's group
+   * order lists groups too, but names no axis as its superordinate.
+   */
+  const ARRAYS = `${PREFIXES}
+@prefix iso-thes: <http://purl.org/iso25964/skos-thes#> .
+<${TAX}> a skos:ConceptScheme .
+:ArchiMateElement a skos:Concept ; skos:prefLabel "ArchiMate Element"@en ; skos:topConceptOf <${TAX}> .
+:Layer a skos:Concept ; skos:prefLabel "Layer"@en ; skos:broader :ArchiMateElement .
+:Aspect a skos:Concept ; skos:prefLabel "Aspect"@en ; skos:broader :ArchiMateElement .
+:LayerOrder a skos:OrderedCollection, iso-thes:ThesaurusArray ; iso-thes:superOrdinate :Layer ;
+    skos:memberList ( :ApplicationLayer :BusinessLayer ) .
+:BusinessLayer a skos:Concept ; skos:prefLabel "Business Layer"@en ; skos:broader :Layer ;
+    skos:narrower am:BusinessActor, am:BusinessProcess .
+:ApplicationLayer a skos:Concept ; skos:prefLabel "Application Layer"@en ; skos:broader :Layer ;
+    skos:narrower am:ApplicationComponent .
+:TechnologyLayer a skos:Concept ; skos:prefLabel "Technology Layer"@en ; skos:broader :Layer ;
+    skos:narrower am:Node .
+:ActiveStructure a skos:Concept ; skos:prefLabel "Active Structure"@en ; skos:broader :Aspect ;
+    skos:narrower am:BusinessActor, am:ApplicationComponent, am:Node .
+:Behavior a skos:Concept ; skos:prefLabel "Behavior"@en ; skos:broader :Aspect ;
+    skos:narrower am:BusinessProcess .
+:DiagramGroupOrder a skos:OrderedCollection ; skos:memberList ( :Behavior :BusinessLayer ) .
+<https://example.org/mm#M> a arch:Metamodel ; arch:conceptClassification <${TAX}> ;
+    arch:diagramGroupOrder :DiagramGroupOrder .
+am:BusinessActor a owl:Class . am:BusinessProcess a owl:Class . am:ApplicationComponent a owl:Class . am:Node a owl:Class .
+`;
+
+  it('keeps each dimension a concept axis; neither the element concept above them nor a list is an axis', () => {
+    const axes = buildClassificationAxes(storeFromTurtle(ARRAYS));
+    expect(axes.map((a) => a.iri).sort()).toEqual([`${TAX}Aspect`, `${TAX}Layer`]);
+    const layer = axes.find((a) => a.iri === `${TAX}Layer`)!;
+    expect(layer.groups.get(`${ONTO}BusinessActor`)).toBe('Business Layer');
+    expect(layer.groups.get(`${ONTO}Node`)).toBe('Technology Layer');
+  });
+
+  it("ranks an axis's members by their group's place in its array; a group it does not list, and an axis without one, rank none", () => {
+    const store = storeFromTurtle(ARRAYS);
+    const axes = buildClassificationAxes(store);
+    const layer = axes.find((a) => a.iri === `${TAX}Layer`)!;
+    expect(layer.ranks.get(`${ONTO}ApplicationComponent`)).toBe(0);
+    expect(layer.ranks.get(`${ONTO}BusinessActor`)).toBe(1);
+    expect(layer.ranks.has(`${ONTO}Node`)).toBe(false);
+    expect(axes.find((a) => a.iri === `${TAX}Aspect`)!.ranks.size).toBe(0);
+    const actor = buildClasses(store, axes).find((c) => c.iri === `${ONTO}BusinessActor`)!;
+    expect(actor.ranksByAxis).toEqual({ [`${TAX}Layer`]: 1 });
+  });
+
+  it('takes no order from a list that names no superordinate — a diagram\'s group order', () => {
+    const axes = buildClassificationAxes(storeFromTurtle(ARRAYS.replace('iso-thes:superOrdinate :Layer ;', '')));
+    expect(axes.find((a) => a.iri === `${TAX}Layer`)!.ranks.size).toBe(0);
+  });
+
+  it('takes a concept the palette grouping names as an axis, where the shape alone finds one beneath it', () => {
+    const NESTED = `${PREFIXES}
+<${TAX}> a skos:ConceptScheme .
+:Place a skos:Concept ; skos:prefLabel "Place"@en ; skos:topConceptOf <${TAX}> .
+:Region a skos:Concept ; skos:prefLabel "Region"@en ; skos:broader :Place .
+:Indoor a skos:Concept ; skos:prefLabel "Indoor"@en ; skos:broader :Region ; skos:narrower am:Facility .
+:Outdoor a skos:Concept ; skos:prefLabel "Outdoor"@en ; skos:broader :Region ; skos:narrower am:Equipment .
+<https://example.org/mm#M> a arch:Metamodel ; arch:conceptClassification <${TAX}> .
+`;
+    expect(buildClassificationAxes(storeFromTurtle(NESTED)).map((a) => a.label)).toEqual(['Region']);
+    const named = buildClassificationAxes(storeFromTurtle(NESTED, GROUPING(':Place')), ['https://example.org/mm#M']);
+    expect(named.map((a) => a.label)).toEqual(['Place']);
+    expect(named[0]!.groups.get(`${ONTO}Facility`)).toBe('Indoor');
+    expect(named[0]!.topGroups.get(`${ONTO}Facility`)).toBe('Region');
+  });
+});
+
 describe('buildClassificationAxes (nested groups)', () => {
   const soleAxis = (...ttl: string[]): TaxonomyAxis => {
     const axes = buildClassificationAxes(storeFromTurtle(...ttl));
@@ -279,7 +361,7 @@ describe('buildClassificationAxes (nested groups)', () => {
 
   it('attributes members sitting under a sub-group two levels down', () => {
     const axis = soleAxis(NESTED_TWO_LEVEL);
-    expect(axis.iri).toBe(`${TAX}ElementByAspect`);
+    expect(axis.iri).toBe(`${TAX}Aspect`);
     expect([...axis.groups.entries()].sort()).toEqual([
       [`${ONTO}ApplicationComponent`, 'Internal Active Structure'],
       [`${ONTO}BusinessActor`, 'Internal Active Structure'],
@@ -306,7 +388,7 @@ describe('buildClassificationAxes (nested groups)', () => {
 
   it('handles a direct-member group and a nested-member sibling on the same axis', () => {
     const axis = soleAxis(NESTED_MIXED);
-    expect(axis.iri).toBe(`${TAX}ElementByAspect`);
+    expect(axis.iri).toBe(`${TAX}Aspect`);
     expect([...axis.groups.entries()].sort()).toEqual([
       [`${ONTO}BusinessActor`, 'Active Structure'],
       [`${ONTO}BusinessProcess`, 'Behavior'],
@@ -324,12 +406,12 @@ describe('buildClassificationAxes (nested groups)', () => {
     // would otherwise read as an axis. The axis above it must win.
     expect(iris).not.toContain(`${TAX}Structure`);
     expect(iris).not.toContain(`${TAX}ActiveStructure`);
-    expect(iris).toEqual([`${TAX}ElementByAspect`]);
+    expect(iris).toEqual([`${TAX}Aspect`]);
   });
 
   it('does not report a nested sub-group that has direct members as an axis either', () => {
     const iris = buildClassificationAxes(storeFromTurtle(NESTED_THREE_LEVEL)).map((a) => a.iri);
-    expect(iris).toEqual([`${TAX}ElementByAspect`]);
+    expect(iris).toEqual([`${TAX}Aspect`]);
   });
 
   it(
@@ -391,15 +473,15 @@ describe('buildClasses (taxonomy-driven)', () => {
   });
 
   it('records the group for every axis in groupsByAxis and defaults to the first axis', () => {
-    const store = storeFromTurtle(AM32_TAX);
+    const store = storeFromTurtle(AM32_TAX, GROUPING(':Layer :Aspect'));
     const axes = buildClassificationAxes(store);
     const classes = buildClasses(store, axes);
     const actor = classes.find((c) => c.iri.endsWith('#BusinessActor'))!;
-    const layerAxis = axes.find((a) => a.label === 'Element by Layer')!;
-    const aspectAxis = axes.find((a) => a.label === 'Element by Aspect')!;
+    const layerAxis = axes.find((a) => a.label === 'Layer')!;
+    const aspectAxis = axes.find((a) => a.label === 'Aspect')!;
     expect(actor.groupsByAxis[layerAxis.iri]).toBe('Business Layer');
     expect(actor.groupsByAxis[aspectAxis.iri]).toBe('Active Structure');
-    // default group follows the first (structural) axis
+    // default group follows the first axis — the palette grouping's first
     expect(actor.group).toBe('Business Layer');
   });
 
@@ -417,15 +499,15 @@ describe('buildClasses (taxonomy-driven)', () => {
   });
 
   it('records a group per axis when three axes classify the same class', () => {
-    const store = storeFromTurtle(AM32_TAX, AM32_DOMAIN_AXIS);
+    const store = storeFromTurtle(AM32_TAX, AM32_DOMAIN_AXIS, GROUPING(':Domain :Layer :Aspect'));
     const axes = buildClassificationAxes(store);
     const classes = buildClasses(store, axes);
     const actor = classes.find((c) => c.iri === `${ONTO}BusinessActor`)!;
     expect(Object.keys(actor.groupsByAxis)).toHaveLength(3);
-    expect(actor.groupsByAxis[`${TAX}ElementByDomain`]).toBe('Business Domain');
-    expect(actor.groupsByAxis[`${TAX}ElementByLayer`]).toBe('Business Layer');
-    expect(actor.groupsByAxis[`${TAX}ElementByAspect`]).toBe('Active Structure');
-    // Domain sorts first among the structural axes, so it supplies the default group.
+    expect(actor.groupsByAxis[`${TAX}Domain`]).toBe('Business Domain');
+    expect(actor.groupsByAxis[`${TAX}Layer`]).toBe('Business Layer');
+    expect(actor.groupsByAxis[`${TAX}Aspect`]).toBe('Active Structure');
+    // Domain comes first in the palette grouping, so it supplies the default group.
     expect(actor.group).toBe('Business Domain');
   });
 
@@ -497,6 +579,97 @@ describe('buildClasses (rdfs:seeAlso linking)', () => {
   });
 });
 
+/**
+ * A concept with nothing under it and no class behind it is an empty concept, not an element type:
+ * the element types are the ontology's classes. A root over an "ArchiMate Element" that classifies
+ * nothing, the relationship categories, and the connectors with the junctions; and a Layer axis.
+ */
+const EMPTY_CONCEPT = `${PREFIXES}
+<${TAX}> a skos:ConceptScheme ; skos:hasTopConcept :ArchiMateConcept, :Layer .
+:ArchiMateConcept a skos:Concept ; skos:prefLabel "ArchiMate Concept"@en ; skos:topConceptOf <${TAX}> .
+:ArchiMateElement a skos:Concept ; skos:prefLabel "ArchiMate Element"@en ;
+    skos:broader :ArchiMateConcept ; skos:inScheme <${TAX}> .
+:ArchiMateRelationship a skos:Concept ; skos:prefLabel "ArchiMate Relationship"@en ;
+    skos:broader :ArchiMateConcept ; skos:inScheme <${TAX}> .
+:StructuralRelationship a skos:Concept ; skos:prefLabel "Structural Relationship"@en ;
+    skos:broader :ArchiMateRelationship ; skos:inScheme <${TAX}> ; skos:narrower am:Composition .
+:ArchiMateConnector a skos:Concept ; skos:prefLabel "ArchiMate Connector"@en ;
+    skos:broader :ArchiMateConcept ; skos:inScheme <${TAX}> ; skos:narrower am:Junction_And .
+:Layer a skos:Concept ; skos:prefLabel "Layer"@en ; skos:topConceptOf <${TAX}> .
+:BusinessLayer a skos:Concept ; skos:prefLabel "Business Layer"@en ;
+    skos:broader :Layer ; skos:inScheme <${TAX}> ; skos:narrower am:BusinessActor .
+:Placeholder a skos:Concept ; skos:prefLabel "Placeholder"@en ;
+    skos:broader :BusinessLayer ; skos:inScheme <${TAX}> .
+am:BusinessActor a owl:Class ; rdfs:subClassOf arch:Element ; rdfs:label "Business Actor"@en .
+am:Junction_And a owl:Class ; rdfs:subClassOf arch:Element ; rdfs:label "And Junction"@en .
+am:Composition a owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; rdfs:label "Composition"@en .
+`;
+
+describe('buildClassificationAxes (a group under no axis: standalone)', () => {
+  const STANDALONE = `${PREFIXES}
+<${TAX}> a skos:ConceptScheme ; skos:hasTopConcept :Layer, :Junction .
+:Layer a skos:Concept ; skos:prefLabel "Layer"@en ; skos:topConceptOf <${TAX}> .
+:BusinessLayer a skos:Concept ; skos:prefLabel "Business Layer"@en ;
+    skos:broader :Layer ; skos:inScheme <${TAX}> ; skos:narrower am:BusinessActor .
+:Junction a skos:Concept ; skos:prefLabel "Junction"@en ; skos:topConceptOf <${TAX}> ;
+    skos:narrower am:Junction_And .
+:SpecialJunction a skos:Concept ; skos:prefLabel "Special Junction"@en ;
+    skos:broader :Junction ; skos:inScheme <${TAX}> ; skos:narrower am:Junction_Or .
+am:BusinessActor a owl:Class ; rdfs:subClassOf arch:Element ; rdfs:label "Business Actor"@en .
+am:Junction_And a owl:Class ; rdfs:subClassOf arch:Element ; rdfs:label "And Junction"@en .
+am:Junction_Or a owl:Class ; rdfs:subClassOf arch:Element ; rdfs:label "Or Junction"@en .
+`;
+
+  it('classifies the members of a top group under no axis, as a standalone axis after the others', () => {
+    const store = storeFromTurtle(STANDALONE);
+    const axes = buildClassificationAxes(store);
+    expect(axes.map((a) => [a.label, a.standalone ?? false])).toEqual([
+      ['Layer', false],
+      ['Junction', true],
+    ]);
+    // A group nested in the standalone one is part of it, not a second standalone axis.
+    const junction = axes[1]!;
+    expect(Object.fromEntries(junction.groups)).toEqual({
+      [`${ONTO}Junction_And`]: 'Junction',
+      [`${ONTO}Junction_Or`]: 'Special Junction',
+    });
+    expect(buildClasses(store, axes).map((c) => c.label).sort()).toEqual(['And Junction', 'Business Actor', 'Or Junction']);
+  });
+
+  it('leaves a flat taxonomy, groups and no axis, to its one synthesised axis', () => {
+    const flat = STANDALONE.replace('skos:hasTopConcept :Layer, :Junction', 'skos:hasTopConcept :Junction')
+      .replace(':Layer a skos:Concept ; skos:prefLabel "Layer"@en ; skos:topConceptOf <' + TAX + '> .', '')
+      .replace('skos:broader :Layer ; ', '');
+    const axes = buildClassificationAxes(storeFromTurtle(flat));
+    expect(axes).toHaveLength(1);
+    expect(axes[0]!.standalone).toBeUndefined();
+  });
+});
+
+describe('buildClassificationAxes (an empty concept is no element type)', () => {
+  it('does not take a concept with nothing under it for an element type', () => {
+    const store = storeFromTurtle(EMPTY_CONCEPT);
+    const axes = buildClassificationAxes(store);
+    const layer = axes.find((a) => a.iri === `${TAX}Layer`)!;
+    expect([...layer.groups.keys()]).toEqual([`${ONTO}BusinessActor`]);
+    expect(axes.some((a) => a.groups.has(`${TAX}Placeholder`) || a.groups.has(`${TAX}ArchiMateElement`))).toBe(false);
+    expect(buildClasses(store, axes).map((c) => c.iri).sort()).toEqual([`${ONTO}BusinessActor`, `${ONTO}Junction_And`]);
+  });
+
+  it('keeps the parent of an empty concept an axis, so what its other children classify is found', () => {
+    const axes = buildClassificationAxes(storeFromTurtle(EMPTY_CONCEPT));
+    expect(axes.map((a) => a.iri).sort()).toEqual([`${TAX}ArchiMateConcept`, `${TAX}Layer`]);
+    const concept = axes.find((a) => a.iri === `${TAX}ArchiMateConcept`)!;
+    expect(concept.groups.get(`${ONTO}Junction_And`)).toBe('ArchiMate Connector');
+  });
+
+  it('still takes a terminal concept that stands for a class (rdfs:seeAlso) for that element type', () => {
+    const store = storeFromTurtle(AM4_TAX);
+    const domain = buildClassificationAxes(store).find((a) => a.iri === `${TAX}Domain`)!;
+    expect([...domain.groups.keys()]).toEqual([`${TAX}BusinessActorConcept`]);
+  });
+});
+
 describe('buildClasses (OWL-only fallback)', () => {
   const OWL_ONLY = `
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
@@ -551,15 +724,20 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
   let axes: TaxonomyAxis[];
   /**
    * Every element class the taxonomy names — a skos:narrower leaf, not itself a concept, outside the
-   * Relationship by Category scheme, whose leaves are the relationship classes.
+   * Relationship axis, whose leaves are the relationship classes, and outside Junction.
    */
   let publishedMembers: string[];
-  /** The relationship classes the Relationship by Category scheme names. */
+  /** The relationship classes the Relationship axis names. */
   let relationshipMembers: string[];
+  /** The junction classes Junction names: a top concept of its own, in no domain or aspect. */
+  let junctionMembers: string[];
 
   beforeAll(async () => {
-    store = storeFromTurtle(await fetchAssetText('archimate4/archimate4-tax.ttl'));
-    axes = buildClassificationAxes(store);
+    store = storeFromTurtle(
+      await fetchAssetText('archimate4/archimate4-tax.ttl'),
+      await fetchAssetText('archimate4/archimate4-metamodel.ttl'),
+    );
+    axes = buildClassificationAxes(store, ['https://meta.linked.archi/archimate4/metamodel#ArchiMate4']);
 
     const members = new Set<string>();
     for (const quad of store.getQuads(null, SKOS_NARROWER, null, null)) {
@@ -567,12 +745,15 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
       const isConcept = store.getQuads(quad.object, RDF_TYPE, SKOS_CONCEPT, null).length > 0;
       if (!isConcept) members.add(quad.object.value);
     }
-    const relationships = axes.find((a) => a.iri === `${AM4_TAX_IRI}RelationshipByCategory`)!;
+    const relationships = axes.find((a) => a.iri === `${AM4_TAX_IRI}Relationship`)!;
+    const junctions = axes.find((a) => a.iri === `${AM4_TAX_IRI}Junction`)!;
     relationshipMembers = [...members].filter((iri) => relationships.groups.has(iri)).sort();
-    publishedMembers = [...members].filter((iri) => !relationships.groups.has(iri)).sort();
+    junctionMembers = [...members].filter((iri) => junctions.groups.has(iri)).sort();
+    publishedMembers = [...members].filter((iri) => !relationships.groups.has(iri) && !junctions.groups.has(iri)).sort();
   });
 
-  it('names 42 element classes across its two element axes, and the 11 relationship types by category', () => {
+  it('names 42 element classes across its two element axes, the 11 relationship types by category, and the 2 junctions', () => {
+    expect(junctionMembers.map((iri) => iri.slice(AM4_ONTO.length))).toEqual(['AndJunction', 'OrJunction']);
     expect(publishedMembers).toHaveLength(42);
     expect(publishedMembers.every((iri) => iri.startsWith(AM4_ONTO))).toBe(true);
     expect(relationshipMembers.map((iri) => iri.slice(AM4_ONTO.length))).toEqual([
@@ -581,15 +762,27 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
     ]);
   });
 
-  it('discovers the published axes and keeps Aspect last', () => {
-    // Relationship by Category is an axis of the taxonomy; the palette does not offer it, since it groups
-    // no element type (palette-generator.test.ts).
-    expect(axes.map((a) => a.label)).toEqual(['Element by Domain', 'Relationship by Category', 'Element by Aspect']);
+  it("discovers the published axes, the palette grouping's first: domain, then aspect", () => {
+    // Relationship is an axis of the taxonomy, after the two the palette grouping names; the palette
+    // does not offer it, since it groups no element type (palette-generator.test.ts). Junction, a group
+    // under no axis, comes last, standalone: it classifies the junctions but is no way of grouping.
+    expect(axes.map((a) => a.label)).toEqual(['Domain', 'Aspect', 'Relationship', 'Junction']);
     expect(axes.map((a) => a.iri)).toEqual([
-      `${AM4_TAX_IRI}ElementByDomain`,
-      `${AM4_TAX_IRI}RelationshipByCategory`,
-      `${AM4_TAX_IRI}ElementByAspect`,
+      `${AM4_TAX_IRI}Domain`,
+      `${AM4_TAX_IRI}Aspect`,
+      `${AM4_TAX_IRI}Relationship`,
+      `${AM4_TAX_IRI}Junction`,
     ]);
+    expect(axes.map((a) => a.standalone ?? false)).toEqual([false, false, false, true]);
+  });
+
+  it("ranks the domains by the taxonomy's thesaurus array (am4tax:DomainOrder), not by the diagram's group order", () => {
+    const domain = axes[0]!;
+    expect(domain.ranks.get(`${AM4_ONTO}Process`)).toBe(0);
+    expect(domain.ranks.get(`${AM4_ONTO}BusinessActor`)).toBe(1);
+    expect(domain.ranks.get(`${AM4_ONTO}Goal`)).toBe(5);
+    expect(axes.map((a) => a.iri)).not.toContain(`${AM4_TAX_IRI}PaletteGrouping`);
+    expect(axes.map((a) => a.iri)).not.toContain(`${AM4_TAX_IRI}DiagramGroupOrder`);
   });
 
   it('does not report the nested aspect sub-groups as axes', () => {
@@ -610,7 +803,7 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
   });
 
   it('leaves ZERO members unattributed on the Aspect axis', () => {
-    const aspect = axes.find((a) => a.label === 'Element by Aspect')!;
+    const aspect = axes.find((a) => a.label === 'Aspect')!;
     const unattributed = publishedMembers.filter((iri) => !aspect.groups.has(iri));
     expect(unattributed).toEqual([]);
     expect(aspect.groups.size).toBe(42);
@@ -618,7 +811,7 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
   });
 
   it('groups the Aspect axis by the nearest sub-group that lists each member', () => {
-    const aspect = axes.find((a) => a.label === 'Element by Aspect')!;
+    const aspect = axes.find((a) => a.label === 'Aspect')!;
     expect(countByGroup(aspect.groups)).toEqual({
       'Active Structure': 3,
       Behavior: 4,
@@ -635,7 +828,7 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
   });
 
   it('rolls the Aspect axis up to its four top-level groups', () => {
-    const aspect = axes.find((a) => a.label === 'Element by Aspect')!;
+    const aspect = axes.find((a) => a.label === 'Aspect')!;
     expect(countByGroup(aspect.topGroups)).toEqual({
       Behavior: 8,
       Composite: 4,
@@ -645,7 +838,7 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
   });
 
   it('leaves the flat Domain axis exactly as before', () => {
-    const domain = axes.find((a) => a.label === 'Element by Domain')!;
+    const domain = axes.find((a) => a.label === 'Domain')!;
     expect(publishedMembers.filter((iri) => !domain.groups.has(iri))).toEqual([]);
     expect(countByGroup(domain.groups)).toEqual({
       'Application Domain': 3,
@@ -666,11 +859,15 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
       await fetchAssetText('archimate4/archimate4-onto.ttl'),
     );
     const loadedAxes = buildClassificationAxes(withOntology);
-    const aspectIri = `${AM4_TAX_IRI}ElementByAspect`;
+    const aspectIri = `${AM4_TAX_IRI}Aspect`;
     const classes = buildClasses(withOntology, loadedAxes);
 
-    expect(classes).toHaveLength(42);
-    expect(classes.filter((c) => c.groupsByAxis[aspectIri] === undefined)).toEqual([]);
+    expect(classes).toHaveLength(44);
+    // The junctions are in no aspect: they are classified by Junction, a top concept of their own.
+    expect(classes.filter((c) => c.groupsByAxis[aspectIri] === undefined).map((c) => c.label).sort()).toEqual([
+      'And Junction',
+      'Or Junction',
+    ]);
     expect(classes.some((c) => c.group === 'Other')).toBe(false);
   });
 });

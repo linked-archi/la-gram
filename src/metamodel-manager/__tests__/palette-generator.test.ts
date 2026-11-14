@@ -55,15 +55,23 @@ const TEST_METAMODEL = `
   ex:TestMetamodel
     rdf:type arch:Metamodel ;
     arch:conceptClassification ex:Scheme ;
+    arch:paletteGrouping ex:PaletteGrouping ;
     arch:notationSet ex:StandardNotation .
 
-  # ── Taxonomy: two axes over the same classes ──────────────────────
+  # ── Taxonomy: two axes over the same classes; the layers in order (an ISO 25964 thesaurus array) ──
   ex:Scheme rdf:type skos:ConceptScheme ; skos:prefLabel "Test Scheme"@en .
+
+  ex:PaletteGrouping rdf:type skos:OrderedCollection ; skos:memberList ( ex:ByLayer ex:ByAspect ) .
 
   ex:ByLayer
     rdf:type skos:Concept ; skos:inScheme ex:Scheme ;
-    skos:prefLabel "Element by Layer"@en ;
+    skos:prefLabel "Layer"@en ;
     skos:narrower ex:BusinessLayer, ex:ApplicationLayer .
+
+  ex:LayerOrder
+    rdf:type skos:OrderedCollection, <http://purl.org/iso25964/skos-thes#ThesaurusArray> ;
+    <http://purl.org/iso25964/skos-thes#superOrdinate> ex:ByLayer ;
+    skos:memberList ( ex:BusinessLayer ex:ApplicationLayer ) .
 
   ex:BusinessLayer
     rdf:type skos:Concept ; skos:inScheme ex:Scheme ;
@@ -77,7 +85,7 @@ const TEST_METAMODEL = `
 
   ex:ByAspect
     rdf:type skos:Concept ; skos:inScheme ex:Scheme ;
-    skos:prefLabel "Element by Aspect"@en ;
+    skos:prefLabel "Aspect"@en ;
     skos:narrower ex:Behavior, ex:ActiveStructure .
 
   ex:Behavior
@@ -265,8 +273,8 @@ describe('SparqlPaletteGenerator', () => {
   describe('classification axes', () => {
     it('exposes every axis so a "Group by" selector can be offered', () => {
       const labels = palette.axes?.map((a) => a.label);
-      expect(labels).toContain('Element by Layer');
-      expect(labels).toContain('Element by Aspect');
+      expect(labels).toContain('Layer');
+      expect(labels).toContain('Aspect');
     });
 
     it('groups by the first axis by default', () => {
@@ -455,6 +463,74 @@ describe('SparqlPaletteGenerator', () => {
       expect(p.axes).toEqual([]);
       expect(p.activeAxisIri).toBeUndefined();
     });
+  });
+});
+
+describe("the palette grouping (arch:paletteGrouping): sections and their order from the metamodel's data", () => {
+  const GROUPED = (grouping: string) => `
+    @prefix owl:  <${NAMESPACES.owl}> .
+    @prefix rdf:  <${NAMESPACES.rdf}> .
+    @prefix rdfs: <${NAMESPACES.rdfs}> .
+    @prefix skos: <${NAMESPACES.skos}> .
+    @prefix arch: <${NAMESPACES.arch}> .
+    @prefix iso-thes: <http://purl.org/iso25964/skos-thes#> .
+    @prefix ex:   <${EX}> .
+    <${ONTOLOGY_IRI}> rdf:type owl:Ontology .
+    ex:Grouped rdf:type arch:Metamodel ; arch:conceptClassification ex:Scheme ${grouping} .
+    ex:Scheme rdf:type skos:ConceptScheme .
+    ex:PaletteGrouping rdf:type skos:OrderedCollection ; skos:memberList ( ex:ByLayer ex:ByAspect ) .
+    ex:ByLayer rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Layer"@en .
+    ex:LayerOrder rdf:type skos:OrderedCollection, iso-thes:ThesaurusArray ; iso-thes:superOrdinate ex:ByLayer ;
+      skos:memberList ( ex:Technology ex:Business ) .
+    ex:ByAspect rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Aspect"@en .
+    ex:AspectOrder rdf:type skos:OrderedCollection, iso-thes:ThesaurusArray ; iso-thes:superOrdinate ex:ByAspect ;
+      skos:memberList ( ex:Behaviour ex:Structure ex:Motivation ) .
+    ex:Technology rdf:type skos:Concept ; skos:prefLabel "Technology"@en ; skos:broader ex:ByLayer ; skos:narrower ex:Node .
+    ex:Business rdf:type skos:Concept ; skos:prefLabel "Business"@en ; skos:broader ex:ByLayer ; skos:narrower ex:Actor, ex:Process .
+    ex:Behaviour rdf:type skos:Concept ; skos:prefLabel "Behaviour"@en ; skos:broader ex:ByAspect ; skos:narrower ex:Process .
+    ex:Structure rdf:type skos:Concept ; skos:prefLabel "Structure"@en ; skos:broader ex:ByAspect ; skos:narrower ex:Actor, ex:Node .
+    ex:Motivation rdf:type skos:Concept ; skos:prefLabel "Motivation"@en ; skos:broader ex:ByAspect ; skos:narrower ex:Goal .
+    ex:E rdf:type owl:Class ; rdfs:subClassOf arch:Element ; arch:isAbstractClass true .
+    ex:Node rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Node"@en .
+    ex:Actor rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Actor"@en .
+    ex:Process rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Process"@en .
+    ex:Goal rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Goal"@en .
+  `;
+  const paletteOf = async (grouping: string, options: { axisIri?: string } = {}) => {
+    const store = new OxigraphRdfStore();
+    await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(GROUPED(grouping));
+    return new SparqlPaletteGenerator(store).generatePalette(ONTOLOGY_IRI, { ...options, metamodelIris: [`${EX}Grouped`] });
+  };
+  const sections = (p: PaletteDefinition) => p.elementGroups.map((g) => [g.category, g.elements.map((e) => e.label)]);
+
+  it("sections in the first axis's order; a class it does not classify in its group on the next; entries in the next axis's order", async () => {
+    const palette = await paletteOf('; arch:paletteGrouping ex:PaletteGrouping');
+    expect(palette.activeAxisIri).toBe(`${EX}ByLayer`);
+    expect(sections(palette)).toEqual([
+      ['Technology', ['Node']],
+      ['Business', ['Process', 'Actor']],
+      ['Motivation', ['Goal']],
+    ]);
+    expect(palette.axes?.find((a) => a.iri === `${EX}ByLayer`)?.groups).toEqual(['Technology', 'Business']);
+  });
+
+  it('under the other axis it names, that one first and the first after it', async () => {
+    const palette = await paletteOf('; arch:paletteGrouping ex:PaletteGrouping', { axisIri: `${EX}ByAspect` });
+    expect(sections(palette)).toEqual([
+      ['Behaviour', ['Process']],
+      ['Structure', ['Node', 'Actor']],
+      ['Motivation', ['Goal']],
+    ]);
+  });
+
+  it('without a palette grouping: the axes by label, the active one alone — sections in its order, entries by name', async () => {
+    const palette = await paletteOf('');
+    expect(palette.activeAxisIri).toBe(`${EX}ByAspect`);
+    expect(sections(palette)).toEqual([
+      ['Behaviour', ['Process']],
+      ['Structure', ['Actor', 'Node']],
+      ['Motivation', ['Goal']],
+    ]);
   });
 });
 
@@ -710,6 +786,33 @@ describe('Basic primary beside the bundled ArchiMate 4.0', () => {
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 
+describe('palette from the bundled ArchiMate 3.2 metamodel', () => {
+  it("groups by layer in the taxonomy's order, motivation and composite elements — of no layer — in their aspects' sections after", async () => {
+    const store = new OxigraphRdfStore();
+    const loaded = await new N3MetamodelLoader(new N3TtlParser(), store).loadBundledMetamodel(
+      'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2',
+    );
+    const palette = new SparqlPaletteGenerator(store).generatePalette(loaded.metamodelIri, { metamodelIris: [loaded.metamodelIri] });
+    expect(palette.activeAxisIri).toBe('https://meta.linked.archi/archimate3/tax#Layer');
+    expect(palette.elementGroups.map((g) => g.category)).toEqual([
+      'Business Layer',
+      'Application Layer',
+      'Technology Layer',
+      'Strategy Layer',
+      'Implementation and Migration Layer',
+      'Motivation',
+      'Composite',
+      'Junction',
+    ]);
+    const business = palette.elementGroups.find((g) => g.category === 'Business Layer')!.elements.map((e) => e.label);
+    // Structure first, active and passive alike (the 3.2 taxonomy's Structure aspect), then behaviour.
+    expect(business.slice(0, 6)).toEqual(['Business Actor', 'Business Collaboration', 'Business Interface', 'Business Object', 'Business Role', 'Contract']);
+    expect(business).toContain('Business Event');
+    expect(business.indexOf('Business Event')).toBeGreaterThan(business.indexOf('Representation'));
+    store.dispose();
+  });
+});
+
 describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   let loaded: LoadedMetamodel;
   let generator: SparqlPaletteGenerator;
@@ -753,32 +856,43 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
 
   it('generates a populated palette', () => {
     const elements = palette.elementGroups.flatMap((g) => g.elements);
-    expect(elements.length).toBe(42);
-    expect(palette.elementGroups.length).toBe(7);
+    // 42 element types in the domains, and the two junctions.
+    expect(elements.length).toBe(44);
+    expect(palette.elementGroups.length).toBe(8);
     expect(palette.relationshipTypes.length).toBe(15);
     expect(palette.notationSetIri).toBe(
       'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
     );
   });
 
-  it('groups the elements by domain, with every element in a real group', () => {
+  it("groups the elements by domain, in the taxonomy's order, with every element in a real group", () => {
+    // The junctions are in no domain: Junction, a top concept of their own, gives them a section last.
     expect(palette.elementGroups.map((g) => g.category)).toEqual([
-      'Application Domain',
-      'Business Domain',
       'Common Domain',
-      'Implementation and Migration Domain',
-      'Motivation Domain',
-      'Strategy Domain',
+      'Business Domain',
+      'Application Domain',
       'Technology Domain',
+      'Strategy Domain',
+      'Motivation Domain',
+      'Implementation and Migration Domain',
+      'Junction',
     ]);
+    expect(palette.elementGroups.at(-1)!.elements.map((e) => e.label)).toEqual(['And Junction', 'Or Junction']);
+  });
+
+  it("orders each domain's elements by aspect — structure, behaviour, composite — then by name", () => {
+    const section = (name: string) => palette.elementGroups.find((g) => g.category === name)!.elements.map((e) => e.label);
+    expect(section('Business Domain')).toEqual(['Business Actor', 'Business Interface', 'Business Object', 'Product']);
+    expect(section('Common Domain').slice(0, 3)).toEqual(['Collaboration', 'Path', 'Role']);
+    expect(section('Common Domain').slice(-2)).toEqual(['Grouping', 'Location']);
   });
 
   it('offers both element classification axes — the relationship categories group no element', () => {
     expect(palette.axes?.map((a) => a.label)).toEqual([
-      'Element by Domain',
-      'Element by Aspect',
+      'Domain',
+      'Aspect',
     ]);
-    expect(palette.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#ElementByDomain');
+    expect(palette.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#Domain');
   });
 
   it('styles am4:BusinessActor from the real notation set with a bundled icon', () => {
@@ -850,44 +964,46 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   });
 
   it('regroups by the aspect axis with every element in a real group', () => {
-    const aspectIri = 'https://meta.linked.archi/archimate4/tax#ElementByAspect';
+    const aspectIri = 'https://meta.linked.archi/archimate4/tax#Aspect';
     const byAspect = generator.generatePalette(loaded.metamodelIri, { axisIri: aspectIri });
     expect(byAspect.activeAxisIri).toBe(aspectIri);
 
     // The published aspect axis nests its groups (Structure → Active Structure → Internal
     // Active Structure → members), so every level that actually lists members becomes a
-    // section. Nothing falls through to "Other".
+    // section, in the order of the top-level group it is under, then by name. Nothing falls
+    // through to "Other": the junctions, in no aspect, are in Junction's section.
     expect(byAspect.elementGroups.map((g) => ({ category: g.category, count: g.elements.length }))).toEqual([
       { category: 'Active Structure', count: 3 },
-      { category: 'Behavior', count: 4 },
-      { category: 'Composite', count: 4 },
-      { category: 'Event', count: 1 },
       { category: 'External Active Structure', count: 3 },
-      { category: 'External Behavior', count: 1 },
       { category: 'Internal Active Structure', count: 9 },
-      { category: 'Internal Behavior', count: 2 },
-      { category: 'Motivation', count: 9 },
       { category: 'Passive Structure', count: 5 },
       { category: 'Structure', count: 1 },
+      { category: 'Behavior', count: 4 },
+      { category: 'Event', count: 1 },
+      { category: 'External Behavior', count: 1 },
+      { category: 'Internal Behavior', count: 2 },
+      { category: 'Composite', count: 4 },
+      { category: 'Motivation', count: 9 },
+      { category: 'Junction', count: 2 },
     ]);
-    // Same 42 classes, only regrouped.
-    expect(byAspect.elementGroups.flatMap((g) => g.elements)).toHaveLength(42);
+    // Same 44 classes, only regrouped.
+    expect(byAspect.elementGroups.flatMap((g) => g.elements)).toHaveLength(44);
   });
 
   it('lists the aspect axis groups on the axis descriptor', () => {
-    const aspect = palette.axes?.find((a) => a.label === 'Element by Aspect');
+    const aspect = palette.axes?.find((a) => a.label === 'Aspect');
     expect(aspect?.groups).toEqual([
       'Active Structure',
-      'Behavior',
-      'Composite',
-      'Event',
       'External Active Structure',
-      'External Behavior',
       'Internal Active Structure',
-      'Internal Behavior',
-      'Motivation',
       'Passive Structure',
       'Structure',
+      'Behavior',
+      'Event',
+      'External Behavior',
+      'Internal Behavior',
+      'Composite',
+      'Motivation',
     ]);
   });
 

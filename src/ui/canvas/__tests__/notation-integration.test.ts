@@ -152,12 +152,12 @@ describe('bundled ArchiMate 4.0 → palette → canvas', () => {
     const drawn = container.querySelectorAll(`.${RENDER_CLASSES.shape}`);
     expect(drawn).toHaveLength(types.length);
     // The published notation puts a badge on every one of them — each a box with
-    // its glyph, by default.
+    // its glyph, by default — but the junctions, a filled circle (ShapeOnly).
     const byShape = [...drawn]
       .filter((shape) => !shape.querySelector(`.${RENDER_CLASSES.badge}`))
       .map((shape) => shape.getAttribute('data-type-iri')!.split('#')[1])
       .sort();
-    expect(byShape).toEqual([]);
+    expect(byShape).toEqual(['AndJunction', 'OrJunction']);
   });
 
   it('renders a Serving relationship with the published line style and arrowhead', () => {
