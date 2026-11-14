@@ -236,22 +236,24 @@ describe('PalettePanel', () => {
     const relationshipList = (): HTMLElement => root().querySelector('.relationships .group-items') as HTMLElement;
     const relationshipHeader = (): HTMLElement => root().querySelector('.relationships .section-divider') as HTMLElement;
 
-    it('hides them on a click of their header and shows them again on the next', async () => {
+    it('is folded at first, its count shown; opens on a click of its header and folds again on the next', async () => {
       await mount();
-      relationshipHeader().click();
-      await panel.updateComplete;
       expect(relationshipList().classList.contains('hidden')).toBe(true);
       expect(relationshipHeader().querySelector('.group-toggle')!.classList.contains('collapsed')).toBe(true);
+      expect(relationshipHeader().querySelector('.group-count')?.textContent?.trim()).toBe('2');
 
       relationshipHeader().click();
       await panel.updateComplete;
       expect(relationshipList().classList.contains('hidden')).toBe(false);
+
+      relationshipHeader().click();
+      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(true);
     });
 
     it('leaves the element groups as they are, and they leave it', async () => {
       await mount();
-      relationshipHeader().click();
-      await panel.updateComplete;
+      // Folded at first, the element groups open all the same.
       expect((root().querySelector('.group .group-items') as HTMLElement).classList.contains('hidden')).toBe(false);
 
       relationshipHeader().click();
@@ -260,10 +262,9 @@ describe('PalettePanel', () => {
       expect(relationshipList().classList.contains('hidden')).toBe(false);
     });
 
-    it('opens for a search, so a hit is never hidden', async () => {
+    it('opens for a search, folded as it is at first, so a hit is never hidden', async () => {
       await mount();
-      relationshipHeader().click();
-      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(true);
       await type('serv');
       expect(labels()).toEqual(['Serves']);
       expect(relationshipList().classList.contains('hidden')).toBe(false);

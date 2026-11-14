@@ -35,9 +35,10 @@ there is no *Group by*. The choice lasts while la-gram is open.
 
 The palette's sections, each with its count:
 
-1. *Relationships*, first: every relationship type, grouped by category where the metamodel classifies
-   them — for ArchiMate, **Structural Relationship**, **Dependency Relationship**, **Dynamic
-   Relationship** and **Other Relationship**, in that order, each folding by its header. Within a
+1. *Relationships*, first, and **folded** — click its header to open it; a search opens it too. Every
+   relationship type, grouped by category where the metamodel classifies them — for ArchiMate,
+   **Structural Relationship**, **Dependency Relationship**, **Dynamic Relationship** and **Other
+   Relationship**, in that order, each folding by its header. Within a
    category the types come strongest first, as the metamodel orders them — **Composition**,
    **Aggregation**, **Assignment**, **Realization** — where it gives an order, else by name. A kind of
    relationship, such as **Read Access**, comes just after the relationship it is a kind of.

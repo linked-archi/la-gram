@@ -29,6 +29,15 @@ export interface ToolbarToolDetail {
   sourceEvent: MouseEvent;
 }
 
+/** Arrange view's icon: three boxes in two layers, joined by right-angled lines — what the arrangement draws. */
+const ARRANGE_GLYPH = html`<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none"
+  stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+  <rect x="5.5" y="1.5" width="5" height="3.5" rx="0.6"></rect>
+  <rect x="1" y="11" width="5" height="3.5" rx="0.6"></rect>
+  <rect x="10" y="11" width="5" height="3.5" rx="0.6"></rect>
+  <path d="M8 5v3M3.5 11V8h9v3"></path>
+</svg>`;
+
 /**
  * Toolbar strip above the diagram, holding the canvas's global tools.
  *
@@ -43,7 +52,8 @@ export interface ToolbarToolDetail {
  * and operable from the keyboard for free, and `aria-pressed` reports which tool
  * is armed.
  *
- * After the tools, one switch: *Relationship names*, which shows relationships'
+ * After the tools, the format painter and *Arrange view…* (an icon, opening its
+ * dialog); then one switch: *Relationship names*, which shows relationships'
  * names on their lines (off by default; the host remembers it). Pressed is on.
  *
  * Then *Shapes*, which opens a second row: figures drawn with no model element
@@ -247,11 +257,11 @@ export class CanvasToolbar extends LitElement {
         <button
           type="button"
           data-action="arrange-view"
-          title="Arrange view — lay out the diagram's elements, or the selected ones, in layers with right-angled lines"
-          aria-label="Arrange view"
+          title="Arrange view… — lay out the diagram's elements, or the selected ones, in layers with right-angled lines"
+          aria-label="Arrange view…"
           @click=${() => this.dispatchEvent(new CustomEvent('arrange-view', { bubbles: true, composed: true }))}
         >
-          Arrange…
+          ${ARRANGE_GLYPH}
         </button>
         <span class="separator" aria-hidden="true"></span>
         <button

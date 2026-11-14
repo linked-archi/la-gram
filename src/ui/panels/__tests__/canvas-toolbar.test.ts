@@ -142,6 +142,21 @@ describe('CanvasToolbar', () => {
     namesSwitch().click();
     expect(asked).toEqual([true, false]);
   });
+
+  it('offers Arrange view… as an icon beside the format painter, a button the size of the tools', async () => {
+    await mount();
+    const arrange = root().querySelector<HTMLButtonElement>('button[data-action="arrange-view"]')!;
+    // An icon, no words: the words made it wider than its 26px and ran over the format painter.
+    expect(arrange.textContent?.trim()).toBe('');
+    expect(arrange.querySelector('svg')).not.toBeNull();
+    expect(arrange.classList.contains('switch')).toBe(false);
+    expect(arrange.getAttribute('aria-label')).toBe('Arrange view…');
+    expect(arrange.previousElementSibling?.getAttribute('data-action')).toBe('format-painter');
+    let asked = 0;
+    document.body.addEventListener('arrange-view', () => asked++);
+    arrange.click();
+    expect(asked).toBe(1);
+  });
 });
 
 describe('toolFromManagerName', () => {

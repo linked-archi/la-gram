@@ -1074,7 +1074,21 @@ describe('appending from the context pad', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     for (const depth of [1, 2]) {
       await panel.locator(`.depth button[data-depth="${depth}"]`).click();
-      expect((await graphTab(page)).layout).toBe('settled');
+      // Laid out without movement: at once, or a slice a frame within 1.5 s — never drawn on the way. Whether
+      // it is at once depends on how quick the frame was, so wait for the rest and check nothing moved meanwhile.
+      const settling = await page.evaluate(async () => {
+        const graph = (window as any).__LA_GRAM_UI__.graphPanel;
+        const cy = graph.shadowRoot.querySelector('.cy') as HTMLElement;
+        const drawn = new Set<string>();
+        const start = performance.now();
+        while (cy.dataset.layout !== 'settled' && performance.now() - start < 1500) {
+          drawn.add(JSON.stringify(Object.fromEntries(graph.drawnPositions('model'))));
+          await new Promise((r) => requestAnimationFrame(r));
+        }
+        return { settled: cy.dataset.layout === 'settled', drawnWhileRunning: drawn.size };
+      });
+      expect(settling.settled).toBe(true);
+      expect(settling.drawnWhileRunning).toBeLessThanOrEqual(1);
       const frames = await page.evaluate(async () => {
         const graph = (window as any).__LA_GRAM_UI__.graphPanel;
         const seen: string[] = [];

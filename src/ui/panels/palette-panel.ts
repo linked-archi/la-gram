@@ -343,9 +343,13 @@ export class PalettePanel extends LitElement {
   @state()
   private _collapsedGroups: Set<string> = new Set();
 
-  /** Whether the relationships section is collapsed — apart from the groups, which a category could share a name with. */
+  /**
+   * Whether the relationships section is collapsed — apart from the groups, which a category could share a name with.
+   * Folded at first: the element types are what a palette is mostly for, and a line is mostly drawn with Connect,
+   * which proposes the relationship; a search still opens it.
+   */
   @state()
-  private _relationshipsCollapsed = false;
+  private _relationshipsCollapsed = true;
 
   /**
    * Current search text, exactly as typed. Empty means "no filter".
