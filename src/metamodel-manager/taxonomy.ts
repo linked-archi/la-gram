@@ -138,6 +138,11 @@ export interface TaxonomyAxis {
    */
   standalone?: boolean;
   /**
+   * Taxonomy member IRI to its position, 0 first, in the thesaurus array under the group that lists it —
+   * ArchiMate's :StructuralStrength under Structural Relationship. Absent for a member no such array lists.
+   */
+  memberRanks?: Map<string, number>;
+  /**
    * Taxonomy member IRI to group label under this axis.
    *
    * The label is the *nearest* group that lists the member. When the axis nests its groups
@@ -451,7 +456,7 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
 
   const axisConcepts = [...axisCandidates].filter((concept) => namedAxes.has(concept) || !hasCandidateAncestor(concept));
 
-  /** The axis's groups in order: the first thesaurus array under it (`iso-thes:superOrdinate`) that lists any. */
+  /** A concept's narrower concepts in order: the first thesaurus array under it (`iso-thes:superOrdinate`) that lists any. */
   const orderOf = (axisIri: string): string[] => {
     for (const array of store.getSubjects(namedNode(ISO_THES_SUPER_ORDINATE), namedNode(axisIri), null)) {
       const { members, ordered } = collectionMembers(store, array);
@@ -477,7 +482,21 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
         if (rank >= 0) ranks.set(member, rank);
       }
     }
-    return { iri: axisIri, label: labelOf(axisIri), groups, topGroups, ranks };
+    // Within a group, its members' order: the thesaurus array under the group itself (iso-thes:superOrdinate),
+    // where it has one — the nearest group's, as a member nested deeper is listed by its own group's array.
+    const memberRanks = new Map<string, number>();
+    const seen = new Set<string>([axisIri]);
+    const queue = [...conceptChildrenOf(axisIri)];
+    while (queue.length > 0) {
+      const concept = queue.shift() as string;
+      if (seen.has(concept)) continue;
+      seen.add(concept);
+      orderOf(concept).forEach((member, index) => {
+        if (groups.has(member) && !memberRanks.has(member)) memberRanks.set(member, index);
+      });
+      queue.push(...conceptChildrenOf(concept));
+    }
+    return { iri: axisIri, label: labelOf(axisIri), groups, topGroups, ranks, memberRanks };
   };
 
   let axes = axisConcepts.map(buildAxis).filter((axis) => axis.groups.size > 0);

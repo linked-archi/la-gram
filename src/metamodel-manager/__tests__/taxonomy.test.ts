@@ -785,6 +785,14 @@ describe('buildClassificationAxes (bundled ArchiMate 4.0 taxonomy)', () => {
     expect(axes.map((a) => a.iri)).not.toContain(`${AM4_TAX_IRI}DiagramGroupOrder`);
   });
 
+  it("orders a category's relationship types by the array under it, strongest first", () => {
+    const relationship = axes.find((a) => a.iri === `${AM4_TAX_IRI}Relationship`)!;
+    expect(relationship.ranks.get(`${AM4_ONTO}Triggering`)).toBe(2);
+    expect(['Composition', 'Aggregation', 'Assignment', 'Realization', 'Serving', 'Association', 'Triggering', 'Flow', 'Specialization'].map((t) =>
+      relationship.memberRanks?.get(`${AM4_ONTO}${t}`),
+    )).toEqual([0, 1, 2, 3, 0, 3, 0, 1, undefined]);
+  });
+
   it('does not report the nested aspect sub-groups as axes', () => {
     const iris = axes.map((a) => a.iri);
     for (const nested of [

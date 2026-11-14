@@ -922,8 +922,29 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(withoutBundledIcon.map((e) => e.iri)).toEqual([]);
   });
 
+  it('groups the relationship types by category, in the order of am4tax:RelationshipOrder, each strongest first, a kind after its superclass', () => {
+    const byCategory: Array<[string, string[]]> = [];
+    for (const r of palette.relationshipTypes) {
+      const last = byCategory.at(-1);
+      if (last && last[0] === r.category) last[1].push(r.label);
+      else byCategory.push([r.category!, [r.label]]);
+    }
+    // Within a category, the order of the array under it — strongest first, as the specification lists them
+    // (am4tax:StructuralRelationshipOrder, :DependencyRelationshipOrder, :DynamicRelationshipOrder) — a kind just
+    // after the relationship it is a kind of; a category with no such array, by name.
+    expect(byCategory).toEqual([
+      ['Structural Relationship', ['Composition', 'Aggregation', 'Assignment', 'Realization']],
+      [
+        'Dependency Relationship',
+        ['Serving', 'Access', 'Read Access', 'Read-Write Access', 'Write Access', 'Influence', 'Association', 'Directed Association'],
+      ],
+      ['Dynamic Relationship', ['Triggering', 'Flow']],
+      ['Other Relationship', ['Specialization']],
+    ]);
+  });
+
   it('finds the eleven relationship types, and the kinds of access and association, with their line styles', () => {
-    expect(palette.relationshipTypes.map((r) => r.label)).toEqual([
+    expect(palette.relationshipTypes.map((r) => r.label).sort()).toEqual([
       'Access',
       'Aggregation',
       'Assignment',

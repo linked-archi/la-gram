@@ -270,6 +270,59 @@ describe('PalettePanel', () => {
     });
   });
 
+  describe('relationship categories', () => {
+    /** The test palette with its two relationship types in categories, in the generator's order. */
+    const categorised = (): PaletteDefinition => {
+      const palette = testPalette();
+      const [serves, accesses] = palette.relationshipTypes;
+      return {
+        ...palette,
+        relationshipTypes: [
+          { ...serves!, category: 'Structural Relationship' },
+          { ...accesses!, category: 'Dependency Relationship' },
+          { iri: 'arch:influences', label: 'Influences', category: 'Dependency Relationship', domainTypes: [], rangeTypes: [] },
+        ],
+      };
+    };
+    const categoryHeaders = (): HTMLElement[] =>
+      Array.from(root().querySelectorAll('.relationships .relationship-group > .group-header'));
+    const categoryItems = (category: string): HTMLElement =>
+      root().querySelector(`.relationship-group[data-category="${category}"] .group-items`) as HTMLElement;
+
+    it('groups the relationships by category, in the order given, each with its count', async () => {
+      await mount(categorised());
+      expect(categoryHeaders().map((h) => h.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+        '▾ Structural Relationship 1',
+        '▾ Dependency Relationship 2',
+      ]);
+      expect(root().querySelector('.relationships .section-divider .group-count')?.textContent?.trim()).toBe('3');
+      expect(labels().slice(0, 3)).toEqual(['Serves', 'Accesses', 'Influences']);
+    });
+
+    it('folds a category by its header, leaving the others open', async () => {
+      await mount(categorised());
+      categoryHeaders()[1]!.click();
+      await panel.updateComplete;
+      expect(categoryItems('Dependency Relationship').classList.contains('hidden')).toBe(true);
+      expect(categoryItems('Structural Relationship').classList.contains('hidden')).toBe(false);
+    });
+
+    it('opens a folded category for a search, so a hit is never hidden', async () => {
+      await mount(categorised());
+      categoryHeaders()[1]!.click();
+      await panel.updateComplete;
+      await type('influ');
+      expect(labels()).toEqual(['Influences']);
+      expect(categoryItems('Dependency Relationship').classList.contains('hidden')).toBe(false);
+    });
+
+    it('lists the relationships in one section when none has a category', async () => {
+      await mount();
+      expect(categoryHeaders()).toEqual([]);
+      expect(labels().slice(0, 2)).toEqual(['Serves', 'Accesses']);
+    });
+  });
+
   describe('search', () => {
     it('filters element and relationship types by label', async () => {
       await mount();

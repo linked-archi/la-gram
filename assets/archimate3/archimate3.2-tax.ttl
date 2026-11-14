@@ -20,7 +20,7 @@
 <https://meta.linked.archi/archimate3/tax#>
     a                skos:ConceptScheme ;
     skos:prefLabel   "ArchiMate 3.2 Concept Scheme"@en ;
-    dcterms:description  "Classification of ArchiMate elements by layer and aspect, and relationship types by category, with the order of the layers and of the aspects, the grouping of a palette and the order of the groups a diagram keeps in bands."@en ;
+    dcterms:description  "Classification of ArchiMate elements by layer and aspect, and relationship types by category, with the order of the layers, of the aspects and of the relationship categories, the grouping of a palette and the order of the groups a diagram keeps in bands."@en ;
     skos:hasTopConcept :Layer, :Aspect, :Relationship, :Junction ;
     cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
     vann:preferredNamespaceUri    "https://meta.linked.archi/archimate3/tax#" ;
@@ -79,6 +79,27 @@ of junction (iso-thes:narrowerGeneric).'''@en ;
     skos:topConceptOf <https://meta.linked.archi/archimate3/tax#> ;
     skos:inScheme     <https://meta.linked.archi/archimate3/tax#> ;
     dcterms:source    <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html> ;
+.
+
+:RelationshipOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    skos:prefLabel         "Relationship Categories in Order"@en ;
+    skos:definition        "The categories of the ArchiMate 3.2 relationships in order: structural, dependency, dynamic and other."@en ;
+    skos:scopeNote         "The specification's order, that of its Chapter 5. A tool that lists the relationship types by category, as a palette does, lists the categories in this order."@en ;
+    skos:editorialNote     '''An ISO 25964 thesaurus array (http://purl.org/iso25964/skos-thes#): the order of the
+relationship categories, kept apart from their classification.
+• A collection is not a concept. A skos:Collection or skos:OrderedCollection groups concepts and can put them in
+  order, but it has no place in the concept hierarchy: it takes no skos:broader, is no top concept of a scheme,
+  and SKOS has no property that says whose narrower concepts it lists.
+• The array gives it that place. iso-thes:ThesaurusArray, a kind of skos:Collection, is a group of sibling
+  concepts, and iso-thes:superOrdinate attaches it under the concept they are narrower than, here :Relationship.
+• Each keeps one job. The classification stays in skos:broader, each category narrower than :Relationship, and
+  holds for a tool that never reads this array. The array adds only the order, in skos:memberList:
+  iso-thes:ThesaurusArray is unordered, so the order comes from skos:OrderedCollection.
+• The two stay in step. The array lists each concept narrower than :Relationship once and nothing else; the CI
+  run checks it.'''@en ;
+    iso-thes:superOrdinate :Relationship ;
+    skos:memberList        ( :StructuralRelationship :DependencyRelationship :DynamicRelationship :OtherRelationship ) ;
 .
 
 :Junction
@@ -466,6 +487,16 @@ aspects, kept apart from their classification.
     iso-thes:narrowerGeneric am:Composition, am:Aggregation, am:Assignment, am:Realization ;
 .
 
+:StructuralRelationshipOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    skos:prefLabel         "Structural Relationships in Order"@en ;
+    skos:definition        "The structural relationships of ArchiMate 3.2 in order, strongest first: composition, aggregation, assignment, realization — the order of the specification, and the reverse of :StructuralStrength."@en ;
+    skos:scopeNote         "A tool that lists these relationship types, as a palette lists a category, lists them in this order."@en ;
+    skos:editorialNote     "An ISO 25964 thesaurus array (http://purl.org/iso25964/skos-thes#) under :StructuralRelationship: the order of the relationship types narrower than it, kept apart from their classification, as :RelationshipOrder orders the categories. It lists each of them once and nothing else; the CI run checks it."@en ;
+    iso-thes:superOrdinate :StructuralRelationship ;
+    skos:memberList        ( am:Composition am:Aggregation am:Assignment am:Realization ) ;
+.
+
 :DependencyRelationship
     a              skos:Concept ;
     skos:prefLabel "Dependency Relationship"@en ;
@@ -481,6 +512,16 @@ aspects, kept apart from their classification.
     iso-thes:narrowerGeneric am:Serving, am:Access, am:Influence, am:Association ;
 .
 
+:DependencyRelationshipOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    skos:prefLabel         "Dependency Relationships in Order"@en ;
+    skos:definition        "The dependency relationships of ArchiMate 3.2 in order, strongest first: serving, access, influence, association — the order of the specification, and the reverse of :DependencyStrength."@en ;
+    skos:scopeNote         "A tool that lists these relationship types, as a palette lists a category, lists them in this order."@en ;
+    skos:editorialNote     "An ISO 25964 thesaurus array (http://purl.org/iso25964/skos-thes#) under :DependencyRelationship: the order of the relationship types narrower than it, kept apart from their classification, as :RelationshipOrder orders the categories. It lists each of them once and nothing else; the CI run checks it."@en ;
+    iso-thes:superOrdinate :DependencyRelationship ;
+    skos:memberList        ( am:Serving am:Access am:Influence am:Association ) ;
+.
+
 :DynamicRelationship
     a              skos:Concept ;
     skos:prefLabel "Dynamic Relationship"@en ;
@@ -492,6 +533,16 @@ aspects, kept apart from their classification.
     skos:inScheme  <https://meta.linked.archi/archimate3/tax#> ;
     skos:narrower  am:Triggering, am:Flow ;
     iso-thes:narrowerGeneric am:Triggering, am:Flow ;
+.
+
+:DynamicRelationshipOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    skos:prefLabel         "Dynamic Relationships in Order"@en ;
+    skos:definition        "The dynamic relationships of ArchiMate 3.2 in the order of the specification: triggering, then flow. The specification ranks them by no strength."@en ;
+    skos:scopeNote         "A tool that lists these relationship types, as a palette lists a category, lists them in this order."@en ;
+    skos:editorialNote     "An ISO 25964 thesaurus array (http://purl.org/iso25964/skos-thes#) under :DynamicRelationship: the order of the relationship types narrower than it, kept apart from their classification, as :RelationshipOrder orders the categories. It lists each of them once and nothing else; the CI run checks it."@en ;
+    iso-thes:superOrdinate :DynamicRelationship ;
+    skos:memberList        ( am:Triggering am:Flow ) ;
 .
 
 :OtherRelationship
@@ -574,10 +625,11 @@ aspects, kept apart from their classification.
 :ProposalOrder
     a               skos:OrderedCollection, arch:RelationshipProposalOrder ;
     skos:prefLabel  "Relationships in Order of Proposal"@en ;
-    skos:definition "The order in which a modelling tool proposes the relationships the metamodel figures draw between two elements: realization, serving, access, influence, triggering, flow, aggregation, composition, assignment, specialization, association."@en ;
-    skos:scopeNote  "Where the metamodel figures draw several relationships between two element types, the first of them in this order is proposed first: a process triggers another before it flows to it or aggregates it, a product aggregates a service before it is composed of it, and a node aggregates system software before it is composed of it. Linked.Archi modelling guidance, not part of the specification."@en ;
-    skos:memberList ( am:Realization am:Serving am:Access am:Influence am:Triggering am:Flow
-                      am:Aggregation am:Composition am:Assignment am:Specialization am:Association ) ;
+    skos:definition "The order in which a modelling tool proposes the relationships the metamodel figures draw between two elements, the strongest first: composition, aggregation, assignment, realization, serving, access, influence, triggering, flow, specialization, association."@en ;
+    skos:scopeNote  "Where the metamodel figures draw several relationships between two element types, the first of them in this order is proposed first. The structural relationships come first, then the dependency ones, each strongest first as the specification orders them (:RelationshipOrder, :StructuralRelationshipOrder, :DependencyRelationshipOrder), then the dynamic ones and specialization; association, the weakest and the one to use where no other fits, comes last. So a product is composed of a service before it aggregates it, a collaboration aggregates a role before it is assigned to it, and a process realizes a service before it triggers it. Linked.Archi modelling guidance, not part of the specification."@en ;
+    skos:memberList ( am:Composition am:Aggregation am:Assignment am:Realization
+                      am:Serving am:Access am:Influence am:Triggering am:Flow
+                      am:Specialization am:Association ) ;
 .
 
 :GroupingProposalOrder

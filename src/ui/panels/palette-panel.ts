@@ -158,8 +158,20 @@ export class PalettePanel extends LitElement {
       padding: 0;
     }
 
-    .group-items.hidden {
+    .group-items.hidden,
+    .relationship-groups.hidden {
       display: none;
+    }
+
+    /* A category inside the Relationships section: indented under it, a step lighter. */
+    .relationship-group .group-header {
+      padding-left: 20px;
+      background: #fafafa;
+      font-weight: 400;
+    }
+
+    .relationship-group .palette-item {
+      padding-left: 32px;
     }
 
     .palette-item {
@@ -571,10 +583,22 @@ export class PalettePanel extends LitElement {
    */
   /**
    * The relationships section: collapsible as a group is, and opened by a
-   * search the same way, so a hit is never hidden.
+   * search the same way, so a hit is never hidden. Where the taxonomy classifies
+   * relationship types, the section holds a group for each category, in the
+   * order the generator gives them (ArchiMate's Structural, Dependency, Dynamic,
+   * Other); each folds by its header, as an element group does.
    */
   private _renderRelationships(relationshipTypes: readonly RelationshipTypeInfo[]): unknown {
     const collapsed = !this._normalisedQuery && this._relationshipsCollapsed;
+    const categories: Array<[string, RelationshipTypeInfo[]]> = [];
+    if (relationshipTypes.some((r) => r.category)) {
+      for (const r of relationshipTypes) {
+        const category = r.category ?? 'Other';
+        const last = categories.at(-1);
+        if (last && last[0] === category) last[1].push(r);
+        else categories.push([category, [r]]);
+      }
+    }
     return html`
       <section class="relationships">
         <div class="section-divider" @click=${() => (this._relationshipsCollapsed = !this._relationshipsCollapsed)}>
@@ -582,10 +606,32 @@ export class PalettePanel extends LitElement {
           <span class="section-label">Relationships</span>
           <span class="group-count">${relationshipTypes.length}</span>
         </div>
-        <ul class="group-items ${collapsed ? 'hidden' : ''}">
-          ${relationshipTypes.map((r) => this._renderRelationship(r))}
-        </ul>
+        ${categories.length === 0
+          ? html`<ul class="group-items ${collapsed ? 'hidden' : ''}">
+              ${relationshipTypes.map((r) => this._renderRelationship(r))}
+            </ul>`
+          : html`<div class="relationship-groups ${collapsed ? 'hidden' : ''}">
+              ${categories.map(([category, types]) => this._renderRelationshipGroup(category, types))}
+            </div>`}
       </section>
+    `;
+  }
+
+  /** A category of relationship types, folding as an element group does; its key apart from the element groups'. */
+  private _renderRelationshipGroup(category: string, types: readonly RelationshipTypeInfo[]): unknown {
+    const key = `relationships:${category}`;
+    const collapsed = !this._normalisedQuery && this._collapsedGroups.has(key);
+    return html`
+      <div class="group relationship-group" data-category=${category}>
+        <div class="group-header" @click=${() => this._toggleGroup(key)}>
+          <span class="group-toggle ${collapsed ? 'collapsed' : ''}">▾</span>
+          ${category}
+          <span class="group-count">${types.length}</span>
+        </div>
+        <ul class="group-items ${collapsed ? 'hidden' : ''}">
+          ${types.map((r) => this._renderRelationship(r))}
+        </ul>
+      </div>
     `;
   }
 

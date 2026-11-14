@@ -219,6 +219,13 @@ export interface RelationshipTypeInfo {
    * colour only when the descriptor states one; renderers draw black otherwise.
    */
   relationshipStyle?: RelationshipVisualStyle;
+  /**
+   * Its category: its group under the taxonomy axis that classifies relationship types (ArchiMate's
+   * Structural Relationship, Dependency Relationship…), through its nearest superclass for a kind of
+   * relationship the taxonomy does not list. Absent when no axis classifies relationship types; the palette
+   * then lists them in one section.
+   */
+  category?: string;
   /** IRIs of valid source element types (arch:domainIncludes). */
   domainTypes: string[];
   /** IRIs of valid target element types (arch:rangeIncludes). */

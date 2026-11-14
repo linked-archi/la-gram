@@ -337,7 +337,13 @@ element type nor a reason its parent is no axis. A group under no axis and no
 other group (ArchiMate's Junction, a top concept of its own) is kept as a
 standalone axis of its one group: its members are palette types, in a section of
 its name when no grouping axis classifies them, and it is offered as no way of
-grouping. Notation is
+grouping. The relationship types take their category from the first axis whose
+groups list relationship types (ArchiMate's Relationship), through their nearest
+superclass for a kind the taxonomy does not list, and come in the order of that
+axis's array; within a category, in the order of the array under it (the axis's
+`memberRanks` — ArchiMate's strongest first), a kind after its superclass, then
+by name (`categoriseRelationships`). The panel shows a group per category inside
+the Relationships section. Notation is
 resolved per class by `notation-resolver.ts` in five steps (Req 2.16):
 
 For a class C, the active set A is the set that the active presentation context
@@ -740,9 +746,9 @@ exceptions scoped with `arch:domainIncludes` / `arch:rangeIncludes`
 (`model-manager/proposal-order.ts`). Candidates come in five groups
 (`RelationshipPreference`), best first: `first`, a scoped exception names it for
 these elements (composition between two capabilities, aggregation from a
-grouping); `drawn`, the figures draw it, in the general order (a process
-realizes a service before it triggers it, triggers another process before it
-flows to or aggregates it); `direct`; `derived`, only by derivation; and
+grouping); `drawn`, the figures draw it, in the general order — ArchiMate's
+strongest first, Association last (a process realizes a service before it
+triggers it, aggregates another process before it triggers it); `direct`; `derived`, only by derivation; and
 `fallback`, Association and the core's generic relationship. Within the last
 three, a candidate whose `arch:domainIncludes`/`arch:rangeIncludes` hints
 describe the pair comes first, then the score's nudges (Specialization,

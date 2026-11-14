@@ -95,7 +95,7 @@ import {
   type VisualNotation,
   type VisualStyle,
 } from './notation.js';
-import { NOTATION_ROOTS, buildSuperClassMap, closureOf, compareIris } from './class-hierarchy.js';
+import { NOTATION_ROOTS, buildSuperClassMap, closureOf, compareIris, superClassesNearestFirst } from './class-hierarchy.js';
 import {
   NotationResolver,
   orderedFallbackSets,
@@ -207,7 +207,11 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
 
     const elements = semanticClasses.map((cls) => this.toElementTypeInfo(cls, groupingAxes, standaloneAxes, resolver));
     const elementGroups = this.groupElements(elements, activeAxis, groupingAxes, semanticClasses);
-    const relationshipTypes = this.discoverRelationships(graph, resolver, superClassMap);
+    const relationshipTypes = categoriseRelationships(
+      this.discoverRelationships(graph, resolver, superClassMap),
+      classificationAxes,
+      superClassMap,
+    );
     const notationIndex = buildNotationIndex(graph, resolver, superClassMap, [
       ...(notationSet ? [notationSet] : []),
       ...fallbackSets,
@@ -709,6 +713,45 @@ function unionOf(a: Store, b: Store): Store {
     getObjects: (...args: Args<'getObjects'>) => distinct([...a.getObjects(...args), ...b.getObjects(...args)]),
     getSubjects: (...args: Args<'getSubjects'>) => distinct([...a.getSubjects(...args), ...b.getSubjects(...args)]),
   } as unknown as Store;
+}
+
+/**
+ * Each relationship type's category: its group under the first axis that classifies relationship types —
+ * ArchiMate's Relationship, its groups Structural, Dependency, Dynamic and Other — or, for a kind of
+ * relationship the taxonomy does not list (ArchiMate 4.0's Read Access), its nearest superclass's. The types
+ * come in the order of the axis's groups (its thesaurus array, ArchiMate's `:RelationshipOrder`), then by name;
+ * a type of no category after them. Within a category, the order of the array under it (ArchiMate's order of
+ * strength, :StructuralStrength and :DependencyStrength, weakest first), a kind just after the relationship it is
+ * a kind of, then by name. With no axis classifying a relationship type, the list is as it was.
+ */
+function categoriseRelationships(
+  relationships: RelationshipTypeInfo[],
+  axes: readonly TaxonomyAxis[],
+  superClassMap: ReadonlyMap<string, readonly string[]>,
+): RelationshipTypeInfo[] {
+  const axis = axes.find((a) => !a.standalone && relationships.some((rel) => a.groups.has(rel.iri)));
+  if (!axis) return relationships;
+  const LAST = Number.MAX_SAFE_INTEGER;
+  const placed = relationships.map((rel) => {
+    const listed = [rel.iri, ...superClassesNearestFirst(rel.iri, superClassMap)].find((iri) => axis.groups.has(iri));
+    const category = listed ? axis.groups.get(listed) : undefined;
+    const rank = listed ? (axis.ranks.get(listed) ?? LAST - 1) : LAST;
+    // Within its category: the category's own array (ArchiMate's order of strength), a kind just after the
+    // relationship it is a kind of, then by name.
+    const memberRank = listed ? (axis.memberRanks?.get(listed) ?? LAST) : LAST;
+    const isKind = listed !== undefined && listed !== rel.iri ? 1 : 0;
+    return { rel: category ? { ...rel, category } : rel, rank, memberRank, isKind };
+  });
+  return placed
+    .sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        (a.rel.category ?? '').localeCompare(b.rel.category ?? '') ||
+        a.memberRank - b.memberRank ||
+        a.isKind - b.isKind ||
+        a.rel.label.localeCompare(b.rel.label),
+    )
+    .map(({ rel }) => rel);
 }
 
 /**

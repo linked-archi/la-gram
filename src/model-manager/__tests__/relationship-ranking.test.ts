@@ -67,8 +67,8 @@ describe('what the metamodel draws comes first, in the order of proposal', () =>
     expect(first('BusinessActor', 'Role').label).toBe('Assignment');
   });
 
-  it('a process triggers another, then flows to it, then aggregates it', () => {
-    expect(labels('Process', 'Process').slice(0, 3)).toEqual(['Triggering', 'Flow', 'Aggregation']);
+  it('between two processes, the strongest first: aggregation, then triggering and flow', () => {
+    expect(labels('Process', 'Process').slice(0, 3)).toEqual(['Aggregation', 'Triggering', 'Flow']);
   });
 
   it('a process realizes a service before it triggers it', () => {
@@ -144,8 +144,8 @@ describe('ArchiMate 3.2: its own figures, the same order of proposal', () => {
     expect(first3('ApplicationComponent', 'DataObject').label).toBe('Access');
   });
 
-  it('a business process triggers another, then flows to it, then aggregates it', () => {
-    expect(labels3('BusinessProcess', 'BusinessProcess').slice(0, 3)).toEqual(['Triggering', 'Flow', 'Aggregation']);
+  it('between two business processes, the strongest first: composition, aggregation, then triggering', () => {
+    expect(labels3('BusinessProcess', 'BusinessProcess').slice(0, 3)).toEqual(['Composition', 'Aggregation', 'Triggering']);
   });
 
   it('a business actor is assigned to a business role, as figure 53 draws it', () => {
