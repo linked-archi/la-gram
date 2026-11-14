@@ -203,7 +203,11 @@ yellow**. An ArchiMate Exchange file's groups, notes and the lines from them imp
 
 Drag an element to move it, with its lines; a selection moves together. Drag a selected element's corner
 handles to resize it. Drag a line's segment to add a bendpoint, and a bendpoint to move it. A move snaps
-to line up with the elements around it.
+to line up with the elements around it. A straight line stays aimed at the two elements' centres; a line
+of right angles — as *Arrange view* draws them — keeps its right angles: the bend next to the moved
+element follows it, and where it would end up inside an element, the line is routed again at right
+angles. A straight line *Arrange view* drew between elements one above the other stays straight while
+they stay in line, and turns a right angle when one moves aside.
 
 1. Drag "Gift wrapping" a little to the right: its line follows.
 2. Select it and drag its bottom right handle to make it wider.

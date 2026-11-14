@@ -586,6 +586,97 @@ describe('the graphics of what changed', () => {
 
 // ── Routes stored with or without their ends ─────────────────────────────
 
+describe('a right-angled route, as Arrange view draws it, when an element moves', () => {
+  const A = 'https://example.org/model/sa';
+  const B = 'https://example.org/model/sb';
+  const REL = 'https://example.org/model/square';
+  /** A over B, to its right: down from A's bottom, across, down into B's top. */
+  function arranged() {
+    const canvas = mount();
+    canvas.addElement(A, typeIriFor('Rectangle'), { x: 0, y: 0, width: 100, height: 60 });
+    canvas.addElement(B, typeIriFor('Rectangle'), { x: 300, y: 200, width: 100, height: 60 });
+    canvas.addRelationship(A, B, REL_TYPE, REL, [
+      { x: 50, y: 60 },
+      { x: 50, y: 130 },
+      { x: 350, y: 130 },
+      { x: 350, y: 200 },
+    ]);
+    return canvas;
+  }
+  const move = (canvas: DiagramCanvas, iri: string, delta: Point) =>
+    service<{ moveElements(elements: unknown[], delta: unknown): void }>(canvas, 'modeling').moveElements([registry(canvas).get(iri)], delta);
+  const routeOf = (canvas: DiagramCanvas) =>
+    (registry(canvas).get(REL)!.waypoints ?? []).map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  const square = (route: Point[]) =>
+    route.every((p, i) => i === 0 || Math.abs(p.x - route[i - 1]!.x) <= 1 || Math.abs(p.y - route[i - 1]!.y) <= 1);
+
+  it('keeps its right angles: the bend next to the moved end follows it, the others stay', () => {
+    const canvas = arranged();
+    move(canvas, B, { x: 40, y: 0 });
+    expect(routeOf(canvas)).toEqual([
+      { x: 50, y: 60 },
+      { x: 50, y: 130 },
+      { x: 390, y: 130 },
+      { x: 390, y: 200 },
+    ]);
+  });
+
+  it('moved the other way, along its own segment, too', () => {
+    const canvas = arranged();
+    move(canvas, A, { x: 0, y: 30 });
+    const route = routeOf(canvas);
+    expect(square(route)).toBe(true);
+    expect(route[0]).toEqual({ x: 50, y: 90 });
+    expect(route.at(-1)).toEqual({ x: 350, y: 200 });
+  });
+
+  it('is routed again at right angles where the old bends would fall inside an element', () => {
+    const canvas = arranged();
+    // B moved up beside A: the bend at y = 130 is inside it now.
+    move(canvas, B, { x: 0, y: -100 });
+    const route = routeOf(canvas);
+    expect(square(route)).toBe(true);
+    expect(route.length).toBeGreaterThanOrEqual(2);
+  });
+
+  /** A over B, an arranged straight line from A's bottom to B's top — on the outlines, not the centres. */
+  function stacked() {
+    const canvas = mount();
+    canvas.addElement(A, typeIriFor('Rectangle'), { x: 0, y: 0, width: 100, height: 60 });
+    canvas.addElement(B, typeIriFor('Rectangle'), { x: 0, y: 200, width: 100, height: 60 });
+    canvas.addRelationship(A, B, REL_TYPE, REL, [{ x: 50, y: 60 }, { x: 50, y: 200 }]);
+    return canvas;
+  }
+
+  it('an arranged straight line becomes right-angled when an element leaves its axis, its ends where they were', () => {
+    const canvas = stacked();
+    move(canvas, B, { x: 150, y: 0 });
+    const route = routeOf(canvas);
+    expect(square(route)).toBe(true);
+    expect(route.length).toBeGreaterThan(2);
+    expect(route[0]).toEqual({ x: 50, y: 60 });
+    expect(route.at(-1)).toEqual({ x: 200, y: 200 });
+  });
+
+  it('an arranged straight line moved along its axis stays straight', () => {
+    const canvas = stacked();
+    move(canvas, B, { x: 0, y: 50 });
+    expect(routeOf(canvas)).toEqual([{ x: 50, y: 60 }, { x: 50, y: 250 }]);
+  });
+
+  it('leaves a straight line straight, aimed at the centres', () => {
+    const canvas = mount();
+    const { waypoints } = withConnection(canvas, typeIriFor('Rectangle'), typeIriFor('Rectangle'), { target: { x: 200, y: 0 } });
+    expect(waypoints).toHaveLength(2);
+    move(canvas, TARGET_IRI, { x: 0, y: 120 });
+    const id = [...canvas.getRelationships().keys()][0] as string;
+    const moved = registry(canvas).get(id)!.waypoints!;
+    expect(moved).toHaveLength(2);
+    expect(moved[0].original).toEqual({ x: 50, y: 50 });
+    expect(moved[1].original).toEqual({ x: 250, y: 170 });
+  });
+});
+
 describe('a stored route', () => {
   const A = 'https://example.org/model/ra';
   const B = 'https://example.org/model/rb';

@@ -681,8 +681,17 @@ centre. `rdfModelingModule` binds three services that belong together
   element, when it is the element's centre. A resize that grows an element over
   bends hands the last (or first) of them over as the end
   (`getResizedSourceAnchor` / `getResizedTargetAnchor`), and the bends from
-  there to the element go. A connection with no route yet is laid out centre to
-  centre; both ends are then cropped by the docking service.
+  there to the element go. A right-angled route (bends, every segment along an
+  axis — as Arrange view draws them) stays right-angled: the bend next to a moved
+  end follows it along their segment's axis, the others stay; where that would put
+  a bend inside an element, or fold two points into one, the line is routed again
+  at right angles between the centres, leaving as the old route left the source
+  (diagram-js's `connectRectangles`). An arranged straight line — along an axis,
+  its ends on the outlines where a drawn line's are aimed at the centres — stays
+  straight while its ends share the axis, and turns right-angled when an element
+  leaves it, out of and into the elements where it was. A connection with no route yet — a new
+  line between two elements — is laid out centre to centre, the gesture's points
+  aside; both ends are then cropped by the docking service.
 - **`connectionDocking` — `FastCroppingConnectionDocking`.** diagram-js's
   cropping assumes an end's reference lies inside the element, and keeps the
   reference as the end when the line misses the outline. A shape is hit-tested on
