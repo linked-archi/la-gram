@@ -566,11 +566,40 @@ describe('relationship type choice', () => {
     expect(entries[relationshipEntryId(ASSOCIATION)].description).toContain('matched Association');
   });
 
-  it('does not open itself when the connection is drawn', () => {
-    const f = fixture();
+  /** Serving and Flow, both specific, and Association, the fallback: as the relationship manager ranks them. */
+  const twoSpecific = (): RelationshipTypeInfo[] => [
+    { iri: SERVING, label: 'Serving', domainTypes: [], rangeTypes: [], score: 10, preference: 'drawn', unqualifiedPredicateIri: SERVES },
+    { iri: `${MM}Flow`, label: 'Flow', domainTypes: [], rangeTypes: [], score: 8, preference: 'direct' },
+    { iri: ASSOCIATION, label: 'Association', domainTypes: [], rangeTypes: [], score: 1, preference: 'fallback', unqualifiedPredicateIri: ASSOCIATED_WITH },
+  ];
+
+  it('opens the relationship-type menu on the new line when more than one specific type is valid', () => {
+    const f = fixture({ candidates: twoSpecific });
 
     completeConnect(f.canvas);
 
+    // The best-ranked is drawn; the menu offers it and the others, best first, to change it at once.
+    expect(f.triples()).toEqual([`${SRC}|${SERVES}|${TGT}`]);
+    expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(true);
+    const entries = f.canvas.replaceMenuProvider.getPopupMenuEntries(connectionElement(f));
+    expect(Object.values(entries).map((entry) => entry.label)).toEqual(['Serving', 'Flow', 'Association']);
+  });
+
+  it('does not open itself when one specific type is valid, Association aside', () => {
+    const f = fixture({ candidates: () => twoSpecific().filter((c) => c.label !== 'Flow') });
+
+    completeConnect(f.canvas);
+
+    expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(false);
+  });
+
+  it('does not open itself when the type was picked in the palette', () => {
+    const f = fixture({ candidates: twoSpecific });
+    f.canvas.setPreferredRelationshipType(SERVING);
+
+    completeConnect(f.canvas);
+
+    expect(f.triples()).toEqual([`${SRC}|${SERVES}|${TGT}`]);
     expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(false);
   });
 

@@ -15,7 +15,7 @@ canvas is back to selecting.
 
 | Tool | Tooltip | Does |
 |---|---|---|
-| ↗ | *Connect — click a source element, then a target* | draws a relationship of the type the metamodel ranks first for the two (or the type chosen in the palette) |
+| ↗ | *Connect — click a source element, then a target* | draws a relationship of the type the metamodel ranks first for the two, and opens *Change relationship type* on it when the two permit more than one specific type (no menu for a type chosen in the palette) |
 | ⬚ | *Lasso select* | drag a rectangle round what to select |
 | ✋ | *Pan the canvas* | drag to move the view; dragging the empty canvas does the same |
 
@@ -78,10 +78,12 @@ Component. Permitted: Aggregation, …*
 | *Connect these two…* | two elements selected |
 
 1. Select "Payments".
-2. Drag from *Connect* in its pad to "Online ordering". An Assignment is drawn: the type ArchiMate 4.0
-   ranks first from an Application Component to a Service.
-3. To make it a Realization, select the line and choose *Change relationship type* in its pad. To draw a
-   Realization at once, click **Realization** in the palette first.
+2. Drag from *Connect* in its pad to "Online ordering". An Assignment is drawn — the type ArchiMate 4.0
+   ranks first from an Application Component to a Service — and *Change relationship type* opens on it:
+   every type the two permit, best first.
+3. Choose **Realization** to make it one; **Escape** keeps the Assignment. Later, select the line and choose
+   *Change relationship type* in its pad. To draw a Realization at once, click **Realization** in the
+   palette first: then no menu opens.
 
 ## Append {#append}
 

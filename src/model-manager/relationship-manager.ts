@@ -32,10 +32,9 @@
  *
  * Within the last three, a candidate whose `arch:domainIncludes` /
  * `arch:rangeIncludes` hints describe the pair comes before one they do not,
- * then the score's small nudges decide, then the label. The general order is
- * kept to the relationships the figures draw: where they draw nothing it
- * proposes worse than the hints do — between an actor and a process, serving
- * before assignment.
+ * then the general proposal order — ArchiMate's strongest first, so between two
+ * application components, which the figures draw nothing between, composition
+ * before aggregation — then the score's small nudges, then the label.
  *
  * `arch:domainIncludes` / `arch:rangeIncludes` are `owl:AnnotationProperty`
  * *hints*, not `rdfs:domain` / `rdfs:range` axioms. The core ontology is
@@ -368,13 +367,17 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     return matches.sort((a, b) => {
       const ra = ranking.get(a)!;
       const rb = ranking.get(b)!;
+      const ordered = (preference: RelationshipPreference | undefined) => preference === 'first' || preference === 'drawn';
       return (
         PREFERENCE_RANK[a.preference!] - PREFERENCE_RANK[b.preference!] ||
         // A scoped order puts its members first in its own order; the general order ranks what is drawn.
-        (a.preference === 'first' || a.preference === 'drawn'
+        (ordered(a.preference)
           ? compare(ra.proposal.scope, rb.proposal.scope) || compare(ra.proposal.position, rb.proposal.position)
           : 0) ||
         Number(rb.hintFit) - Number(ra.hintFit) ||
+        // Elsewhere too, after the hints: ArchiMate's general order puts the strongest first — composition
+        // before aggregation between two application components, which the figures draw nothing between.
+        (ordered(a.preference) ? 0 : compare(ra.proposal.position, rb.proposal.position)) ||
         (b.score ?? 0) - (a.score ?? 0) ||
         a.label.localeCompare(b.label)
       );

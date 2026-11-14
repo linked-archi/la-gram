@@ -68,11 +68,12 @@ describe('readRelationshipTable', () => {
 describe('getValidRelationships against the relationship shapes', () => {
   it('offers only what the shapes permit — not everything the domain/range hints would', () => {
     // The hints alone admit Composition and Access here too; the matrix does not. Serving leads the
-    // three the matrix permits by derivation: its hints describe an actor serving a component.
+    // three the matrix permits by derivation: its hints describe an actor serving a component; then the
+    // general order, triggering before flow.
     expect(labels('BusinessActor', 'ApplicationComponent')).toEqual([
       'Serving',
-      'Flow',
       'Triggering',
+      'Flow',
       'Association',
       'Directed Association',
     ]);

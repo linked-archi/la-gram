@@ -169,7 +169,17 @@ export class CroppingLayouter extends BaseLayouterBase {
       if (layoutHints.connectionEnd && at(end) >= 0) bends = bends.slice(0, at(end));
       waypoints = [start, ...bends, end];
     } else {
-      waypoints = super.layoutConnection(connection, hints);
+      // A new line between two elements runs centre to centre, wherever the gesture pressed and let go, so
+      // the first line drawn already looks as an arranged one does; docking then crops it at the outlines.
+      // An end on a relationship keeps its point — where on the line it was dropped is the choice — and so
+      // does a line from an element to itself, which centre to centre would not show.
+      const centred: LayoutHints = { ...layoutHints };
+      const isLine = (end: unknown) => Boolean((end as { waypoints?: unknown } | undefined)?.waypoints);
+      if (source && target && source !== target) {
+        if (!isLine(source)) delete centred.connectionStart;
+        if (!isLine(target)) delete centred.connectionEnd;
+      }
+      waypoints = super.layoutConnection(connection, centred);
       // Nothing to crop against while an end is still unattached — which is the
       // state `Connect` is in until it hovers a valid target.
       if (!source || !target || waypoints.length < 2) return waypoints;

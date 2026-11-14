@@ -526,18 +526,18 @@ describe('bundled ArchiMate 4.0 → two selected → "Connect these two…" → 
       'connect-pair',
     ]);
 
-    // Both directions, each ranked: direct, then only by derivation (marked) — Serving, whose hints
-    // describe two actors, before Flow and Triggering — then the associations.
+    // Both directions, each ranked: direct, strongest first, then only by derivation (marked) — Serving,
+    // whose hints describe two actors, before Triggering and Flow — then the associations.
     const entries = Object.values(f.canvas.pairConnectMenuProvider.getPopupMenuEntries(pair));
     expect([...new Set(entries.map((e) => e.group.id))]).toEqual(['forward', 'backward']);
     const forward = entries.filter((e) => e.group.id === 'forward');
     expect(forward.map((e) => e.label)).toEqual([
-      'Aggregation',
       'Composition',
+      'Aggregation',
       'Specialization',
       'Serving',
-      'Flow',
       'Triggering',
+      'Flow',
       'Association',
       'Directed Association',
     ]);

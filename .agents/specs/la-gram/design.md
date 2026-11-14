@@ -751,10 +751,13 @@ strongest first, Association last (a process realizes a service before it
 triggers it, aggregates another process before it triggers it); `direct`; `derived`, only by derivation; and
 `fallback`, Association and the core's generic relationship. Within the last
 three, a candidate whose `arch:domainIncludes`/`arch:rangeIncludes` hints
-describe the pair comes first, then the score's nudges (Specialization,
-Composition and Aggregation down), then the label. The general order is kept to
-what the figures draw: where they draw nothing it proposes worse than the hints
-(an actor serving a process before being assigned to it). So in 4.0 an
+describe the pair comes first, then the general order — strongest first, so
+composition before aggregation between two application components, which the
+figures draw nothing between — then the score's nudges (Specialization,
+Composition and Aggregation down), then the label. A connect with no type chosen
+draws the best-ranked type, and where the pair permits more than one specific
+type, `connect.end` (after `Connect`'s own handler) opens the relationship-type
+menu on the new line: picking one is a retype, Escape keeps it. So in 4.0 an
 application component is assigned to a data object — the system of record, as
 the Application Structure metamodel draws it — with Access, derived, second. The
 menus say why in words (`preferenceNotes`): "proposed first", "drawn in the

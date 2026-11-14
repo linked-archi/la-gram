@@ -756,14 +756,14 @@ describe('appending from the context pad', () => {
     const icons = await menu.locator('img').count();
     expect(icons).toBeGreaterThan(20);
 
-    // Business Actor → Application Component: Serving (its hints describe the pair), Flow, Triggering — so it asks.
+    // Business Actor → Application Component: Serving (its hints describe the pair), Triggering, Flow — so it asks.
     const component = menu.locator('.entry', { hasText: 'Application Component' }).first();
-    expect(await component.innerText()).toMatch(/choose: Serving \/ Flow \/ Triggering/);
+    expect(await component.innerText()).toMatch(/choose: Serving \/ Triggering \/ Flow/);
     await session.screenshot('workbench-append-menu');
     await component.click();
     await until(async () => (await menu.locator('.entry').allInnerTexts()).some((t) => t.includes('Serving')), 'the relationship step');
     const step = (await menu.locator('.entry .djs-popup-label').allInnerTexts()).map((t) => t.trim());
-    expect(step).toEqual(['Serving', 'Flow', 'Triggering', 'Association', 'Directed Association']);
+    expect(step).toEqual(['Serving', 'Triggering', 'Flow', 'Association', 'Directed Association']);
     // Each with its icon: ArchiMate publishes none for its relationships, so each is drawn from its line and ends.
     const relationshipIcons = await menu.locator('.entry img').evaluateAll((imgs) =>
       imgs.map((i) => [(i as HTMLImageElement).src.startsWith('data:image/svg+xml'), (i as HTMLImageElement).naturalWidth > 0]),

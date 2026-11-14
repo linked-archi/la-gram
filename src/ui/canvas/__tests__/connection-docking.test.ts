@@ -427,6 +427,27 @@ describe('a drawn connection docks to the shape boundaries', () => {
 
 // ── Re-docking ───────────────────────────────────────────────────────────
 
+describe('a new line between two elements', () => {
+  it('runs centre to centre, wherever the gesture pressed and let go, cropped at the outlines', () => {
+    const canvas = mount();
+    canvas.addElement(SOURCE_IRI, typeIriFor('Rectangle'), { x: 0, y: 0, width: 100, height: 100 });
+    canvas.addElement(TARGET_IRI, typeIriFor('Rectangle'), { x: 200, y: 0, width: 100, height: 100 });
+    const source = registry(canvas).get(SOURCE_IRI)!;
+    const target = registry(canvas).get(TARGET_IRI)!;
+    const layouter = service<{ layoutConnection(connection: unknown, hints?: unknown): Point[] }>(canvas, 'layouter');
+
+    // As `Connect` asks it: pressed near the source's bottom-left corner, let go near the target's top-right.
+    const waypoints = layouter.layoutConnection(
+      { source, target },
+      { source, target, connectionStart: { x: 10, y: 90 }, connectionEnd: { x: 290, y: 5 } },
+    );
+
+    expect(waypoints).toHaveLength(2);
+    expect(waypoints[0]).toMatchObject({ x: 100, y: 50 });
+    expect(waypoints[1]).toMatchObject({ x: 200, y: 50 });
+  });
+});
+
 describe('re-docking', () => {
   it('re-docks a connection when the target shape moves', () => {
     const canvas = mount();

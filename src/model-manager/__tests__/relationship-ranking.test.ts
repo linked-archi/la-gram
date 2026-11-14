@@ -71,6 +71,10 @@ describe('what the metamodel draws comes first, in the order of proposal', () =>
     expect(labels('Process', 'Process').slice(0, 3)).toEqual(['Aggregation', 'Triggering', 'Flow']);
   });
 
+  it('between two application components, which the figures draw nothing between, the strongest first', () => {
+    expect(labels('ApplicationComponent', 'ApplicationComponent').slice(0, 3)).toEqual(['Composition', 'Aggregation', 'Specialization']);
+  });
+
   it('a process realizes a service before it triggers it', () => {
     expect(first('Process', 'Service').label).toBe('Realization');
   });

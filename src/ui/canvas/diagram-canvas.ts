@@ -155,7 +155,7 @@ import {
   type RenderOptions,
 } from './rdf-renderer.js';
 import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
-import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal } from './rdf-rule-provider.js';
+import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal, type RdfConnectionAttrs } from './rdf-rule-provider.js';
 import { humanize } from '../../model-manager/vocabulary.js';
 import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '../../model-manager/appearance.js';
 import { labelFromExpression, parseLabelExpression, type LabelSource } from '../../model-manager/label-expression.js';
@@ -3523,6 +3523,17 @@ export class DiagramCanvas {
     );
   }
 
+  /** The relationship-type menu on a line, at a point: after a connect that chose no type. */
+  private openRelationshipTypeMenuAt(connection: DjsShape, at: { x: number; y: number }): void {
+    const services = this.services();
+    if (!services || services.popupMenu.isEmpty(connection, RELATIONSHIP_REPLACE_MENU_ID)) return;
+    services.popupMenu.open(connection, RELATIONSHIP_REPLACE_MENU_ID, at, {
+      title: 'Change relationship type',
+      width: 300,
+      search: true,
+    });
+  }
+
   /** Where a pad-opened popup menu goes: just below the context pad. */
   private padMenuPosition(event: unknown): { x: number; y: number } {
     const PAD_OFFSET = 5;
@@ -4330,6 +4341,22 @@ export class DiagramCanvas {
       if (!sourceType || !targetType || context.hover?.waypoints) return;
       const refusal = this.ruleProvider.refusal(sourceType, targetType);
       if (refusal) this.onNotice?.(this.refusalMessage(refusal, sourceType, targetType), 'warning');
+    });
+
+    // A relationship drawn with no type chosen is the best-ranked one; where the pair permits more than one
+    // specific relationship, the relationship-type menu opens on the new line at once — every type the pair
+    // permits, best first, as when changing it later — so another is one pick away, and Escape keeps the
+    // best-ranked. After `Connect`'s own handler (default priority), which made the line; a type picked in
+    // the palette is still in force here (see `tool-manager.update` above) and asks for no menu.
+    djs.on('connect.end', 500, (event: { context?: { connection?: DjsShape; canExecute?: unknown }; originalEvent?: MouseEvent }) => {
+      const connection = event.context?.connection;
+      if (!connection || this.ruleProvider.getPreferredType()) return;
+      const attrs = event.context?.canExecute as RdfConnectionAttrs | false | undefined;
+      const specific = (attrs && !attrs.connector ? attrs.candidates ?? [] : []).filter((c) => c.preference !== 'fallback');
+      if (specific.length < 2) return;
+      const pointer = event.originalEvent;
+      const at = pointer && typeof pointer.clientX === 'number' ? { x: pointer.clientX + 8, y: pointer.clientY + 8 } : this.padMenuPosition(undefined);
+      this.openRelationshipTypeMenuAt(connection, at);
     });
 
     // A relationship retyped on one of its lines: its other lines show it too, undo included.
