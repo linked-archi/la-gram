@@ -18,10 +18,13 @@
  *    clear of the boxes that crosses no line is taken. Else A* over (vertex, direction), its grid capped: the length, plus a penalty per bend — more where the bend comes
  *    closer than the clearance to either end's box — plus a smaller one per other line the step crosses: a bend
  *    costs more than any two crossings, so a line takes no bend to avoid a crossing or two.
- * 4. **Ends.** Lines leaving one side of a box at one point are spread along it, in the order of where they go; a
- *    straight line only where both its ends can move, so spreading never adds a bend.
+ * 4. **Ends.** The lines on one side of a box dock in the order that crosses least — a line turning towards one end
+ *    of the side on that end's side of the lines running straight on — as near the middle as that order allows;
+ *    crossings come before the middle. Spreading never adds a bend.
  * 5. **Channels.** Each inner segment is moved to the middle of the gap between the boxes on either side of it;
  *    segments sharing a gap run side by side about its middle, in the order of where they come from and go.
+ * 6. **Loops.** A line stepping out and back is brought as near its ends as the boxes allow — flat, where it
+ *    returns to the level it left.
  *
  * Deterministic: lines in order of id, ties broken by position. A line whose ends overlap, or one of which holds
  * the other, has no route here — the caller keeps its own.
@@ -622,79 +625,123 @@ function sideOf(r: Rect, p: Point): Side | undefined {
 }
 
 /**
- * Lines leaving one side of a box at one point spread along it, in the order of where they go next, so they do not
- * run together at the box. The end and its first bend move together, so the route keeps its bends; a straight line
- * moves only where both its ends can and stay clear, and is then left where it is. An end whose move would run
- * through a box stays.
+ * The lines on one side of a box, docked in the order that crosses least, as near the middle as that order allows.
+ * Crossings come before the middle: a line turning towards one end of the side docks on that end's side of every line
+ * running straight on, and of the lines turning that way, the one turning soonest outermost — so none runs across
+ * another as it leaves. A straight line stays where it is, at the point it shares with its other end; lines on one
+ * point move apart, a straight one only where both its ends can, so no bend is added. A bent line moves with its
+ * first bend, and stays where moving it would run through a box.
  */
 function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], rects: ReadonlyMap<string, Rect>, spacing: number): void {
   const edgeOf = new Map(edges.map((e) => [e.id, e]));
-  const atPoint = new Map<string, Array<{ id: string; atStart: boolean; side: Side; nodeId: string }>>();
+  interface End {
+    id: string;
+    atStart: boolean;
+    nodeId: string;
+    side: Side;
+  }
+  const bySide = new Map<string, End[]>();
   for (const e of edges) {
     const points = routes.get(e.id);
     if (!points) continue;
     for (const [atStart, nodeId] of [[true, e.source], [false, e.target]] as const) {
-      const point = atStart ? points[0] : points[points.length - 1];
-      const side = sideOf(rects.get(nodeId)!, point);
+      const side = sideOf(rects.get(nodeId)!, atStart ? points[0] : points[points.length - 1]);
       if (!side) continue;
-      const key = `${nodeId} ${side} ${point.x} ${point.y}`;
-      if (!atPoint.has(key)) atPoint.set(key, []);
-      atPoint.get(key)!.push({ id: e.id, atStart, side, nodeId });
+      const key = `${nodeId} ${side}`;
+      if (!bySide.has(key)) bySide.set(key, []);
+      bySide.get(key)!.push({ id: e.id, atStart, nodeId, side });
     }
   }
+  /** Straight lines moved at both ends already: left where they are. */
   const settled = new Set<string>();
-  for (const [, ends] of [...atPoint].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [, ends] of [...bySide].sort(([a], [b]) => a.localeCompare(b))) {
     if (ends.length < 2) continue;
     const { side, nodeId } = ends[0];
     const r = rects.get(nodeId)!;
     const alongX = side === 'top' || side === 'bottom';
-    const length = alongX ? r.right - r.left : r.bottom - r.top;
-    const step = Math.min(spacing, length / (ends.length + 1));
-    // Along the side, in the order that crosses least: those turning one way first — of them, the one turning
-    // nearest the box outermost — then those running straight on, then those turning the other way, the one
-    // turning nearest outermost on that side.
-    const rank = (end: { id: string; atStart: boolean }): [number, number] => {
+    const [lo, hi] = alongX ? [r.left, r.right] : [r.top, r.bottom];
+    const inset = Math.min(8, (hi - lo) / 4);
+    const coordinate = (p: Point) => (alongX ? p.x : p.y);
+    const endPoints = (end: End) => {
       const points = routes.get(end.id)!;
-      const at = end.atStart ? points[0] : points[points.length - 1];
-      if (points.length < 3) return [0, 0];
-      const bend = end.atStart ? points[1] : points[points.length - 2];
-      const after = end.atStart ? points[2] : points[points.length - 3];
-      const turn = Math.sign(alongX ? after.x - bend.x : after.y - bend.y);
-      const reach = alongX ? Math.abs(bend.y - at.y) : Math.abs(bend.x - at.x);
-      return turn < 0 ? [-1, reach] : turn > 0 ? [1, -reach] : [0, 0];
+      return { points, a: end.atStart ? 0 : points.length - 1, b: end.atStart ? 1 : points.length - 2 };
     };
-    const sorted = [...ends].sort((a, b) => {
-      const [ta, ra] = rank(a);
-      const [tb, rb] = rank(b);
-      return ta - tb || ra - rb || a.id.localeCompare(b.id);
-    });
-    sorted.forEach((end, k) => {
-      const shift = Math.round((k - (sorted.length - 1) / 2) * step);
-      if (shift === 0 || settled.has(end.id)) return;
-      const points = routes.get(end.id)!;
+    const shiftOf = (end: End, to: number): boolean => {
+      const { points, a, b } = endPoints(end);
+      const shift = Math.round(to) - coordinate(points[a]);
+      if (shift === 0) return true;
       const edge = edgeOf.get(end.id)!;
       const except = new Set([edge.source, edge.target]);
-      const a = end.atStart ? 0 : points.length - 1;
-      const b = end.atStart ? 1 : points.length - 2;
       const move = (p: Point): Point => (alongX ? { x: p.x + shift, y: p.y } : { x: p.x, y: p.y + shift });
       if (points.length === 2) {
         const other = rects.get(end.atStart ? edge.target : edge.source)!;
         const p = move(points[b]);
         const fits = alongX ? other.left < p.x && p.x < other.right : other.top < p.y && p.y < other.bottom;
-        if (fits && !hitsBox(move(points[a]), p, rects, except)) {
-          points[a] = move(points[a]);
-          points[b] = p;
-          settled.add(end.id);
-        }
-        return;
+        if (!fits || hitsBox(move(points[a]), p, rects, except)) return false;
+        points[a] = move(points[a]);
+        points[b] = p;
+        settled.add(end.id);
+        return true;
       }
       const movedA = move(points[a]);
       const movedB = move(points[b]);
       const beyond = points[end.atStart ? b + 1 : b - 1];
-      if (hitsBox(movedA, movedB, rects, except) || (beyond && hitsBox(movedB, beyond, rects, except))) return;
+      if (hitsBox(movedA, movedB, rects, except) || (beyond && hitsBox(movedB, beyond, rects, except))) return false;
       points[a] = movedA;
       points[b] = movedB;
-    });
+      return true;
+    };
+
+    // Each end: straight on, or turning towards `lo` or `hi`, and how soon.
+    const straight: Array<{ end: End; at: number }> = [];
+    const towardsLo: Array<{ end: End; reach: number }> = [];
+    const towardsHi: Array<{ end: End; reach: number }> = [];
+    for (const end of ends) {
+      const { points, a, b } = endPoints(end);
+      if (points.length < 3 || settled.has(end.id)) {
+        straight.push({ end, at: coordinate(points[a]) });
+        continue;
+      }
+      const after = points[end.atStart ? b + 1 : b - 1];
+      const turn = Math.sign(coordinate(after) - coordinate(points[b]));
+      const reach = alongX ? Math.abs(points[b].y - points[a].y) : Math.abs(points[b].x - points[a].x);
+      (turn < 0 ? towardsLo : towardsHi).push({ end, reach });
+    }
+    const byId = (x: { end: End }, y: { end: End }) => x.end.id.localeCompare(y.end.id);
+    // Straight lines on one point: apart about it, both ends moving.
+    const atPoint = new Map<number, Array<{ end: End; at: number }>>();
+    for (const s of straight) {
+      if (!atPoint.has(s.at)) atPoint.set(s.at, []);
+      atPoint.get(s.at)!.push(s);
+    }
+    for (const [at, together] of atPoint) {
+      if (together.length < 2) continue;
+      together.sort(byId).forEach((s, k) => {
+        const to = at + (k - (together.length - 1) / 2) * spacing;
+        if (shiftOf(s.end, to)) s.at = Math.round(to);
+      });
+    }
+    // Of those turning one way, the one turning soonest outermost.
+    towardsLo.sort((x, y) => x.reach - y.reach || byId(x, y));
+    towardsHi.sort((x, y) => x.reach - y.reach || byId(x, y));
+    const fixed = straight.map((s) => s.at);
+    if (fixed.length === 0) {
+      // Nothing straight: all of them about the middle, those turning towards `lo` on its side.
+      const order = [...towardsLo.map((x) => x.end), ...towardsHi.map((x) => x.end).reverse()];
+      const step = Math.min(spacing, (hi - lo - 2 * inset) / Math.max(1, order.length - 1));
+      const middle = (lo + hi) / 2;
+      order.forEach((end, k) => shiftOf(end, middle + (k - (order.length - 1) / 2) * step));
+      continue;
+    }
+    // Beyond the straight ones, nearest them first — as near the middle as the order allows.
+    const first = Math.min(...fixed);
+    const last = Math.max(...fixed);
+    const loRoom = first - (lo + inset);
+    const hiRoom = hi - inset - last;
+    const loStep = towardsLo.length === 0 ? 0 : Math.min(spacing, loRoom / towardsLo.length);
+    const hiStep = towardsHi.length === 0 ? 0 : Math.min(spacing, hiRoom / towardsHi.length);
+    if (loStep >= 4) towardsLo.forEach((x, k) => shiftOf(x.end, first - loStep * (towardsLo.length - k)));
+    if (hiStep >= 4) towardsHi.forEach((x, k) => shiftOf(x.end, last + hiStep * (towardsHi.length - k)));
   }
 }
 
@@ -775,12 +822,13 @@ function centreChannels(
       if (!Number.isFinite(above)) above = below + 3 * clearance;
       const prev = horizontal ? points[k - 1].y : points[k - 1].x;
       const next = horizontal ? points[k + 2].y : points[k + 2].x;
-      // Its neighbours run from `prev` to it and from it to `next`: between the two (a step), or short of both (a U).
+      // Its neighbours run from `prev` to it and from it to `next`: between the two (a step), or short of both (a U),
+      // which only comes nearer its ends, never further out — a step round a box grown into a loop.
       let min: number;
       let max: number;
       if (prev < at === next < at) {
-        min = prev < at ? Math.max(prev, next) + margin : -Infinity;
-        max = prev < at ? Infinity : Math.min(prev, next) - margin;
+        min = prev < at ? Math.max(prev, next) + margin : at;
+        max = prev < at ? at : Math.min(prev, next) - margin;
       } else {
         min = Math.min(prev, next) + margin;
         max = Math.max(prev, next) - margin;
@@ -831,6 +879,10 @@ function centreChannels(
         for (const k of [s.k, s.k + 1]) {
           moved[k] = s.horizontal ? { x: moved[k].x, y: placed } : { x: placed, y: moved[k].y };
         }
+        // Its neighbours, as they are now — another of the line's segments may have moved — keep their direction.
+        const along = (a: Point, b: Point) => Math.sign(s.horizontal ? b.y - a.y : b.x - a.x);
+        if (along(points[s.k - 1], points[s.k]) !== along(moved[s.k - 1], moved[s.k])) return;
+        if (along(points[s.k + 1], points[s.k + 2]) !== along(moved[s.k + 1], moved[s.k + 2])) return;
         // Moved, the segment and its two neighbours must stay clear of every box but the line's own: two segments
         // of one line centred to one line would otherwise close the step between them that went round a box.
         const except = endsOf.get(s.id) ?? new Set<string>();
@@ -840,6 +892,41 @@ function centreChannels(
         routes.set(s.id, moved);
       });
     }
+  }
+}
+
+/**
+ * Each U between two inner segments — a line stepping out and back — brought as near its ends as the boxes allow: to
+ * the nearer of its two far ends, which takes two bends away, and where both are level, flat. A U whose sides are the
+ * line's first or last segments, between two boxes one above the other, stays: brought in, it would run along their
+ * edges.
+ */
+function flattenUs(routes: Map<string, Point[]>, rectsById: ReadonlyMap<string, Rect>, endsOf: ReadonlyMap<string, ReadonlySet<string>>): void {
+  for (const [id, original] of [...routes].sort(([a], [b]) => a.localeCompare(b))) {
+    let points = original;
+    const except = endsOf.get(id) ?? new Set<string>();
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (let k = 2; k + 3 < points.length; k++) {
+        const p = points[k];
+        const q = points[k + 1];
+        const horizontal = p.y === q.y;
+        const at = horizontal ? p.y : p.x;
+        const prev = horizontal ? points[k - 1].y : points[k - 1].x;
+        const next = horizontal ? points[k + 2].y : points[k + 2].x;
+        if (prev < at !== next < at) continue;
+        const to = prev < at ? Math.max(prev, next) : Math.min(prev, next);
+        const moved = points.slice();
+        for (const i of [k, k + 1]) moved[i] = horizontal ? { x: moved[i].x, y: to } : { x: to, y: moved[i].y };
+        let clear = true;
+        for (let i = k; i <= k + 2 && clear; i++) if (hitsBox(moved[i - 1], moved[i], rectsById, except)) clear = false;
+        if (!clear) continue;
+        points = simplify(moved);
+        changed = true;
+        break;
+      }
+    }
+    if (points !== original) routes.set(id, points);
   }
 }
 
@@ -934,6 +1021,7 @@ export function routeOrthogonal(
   spreadEnds(routes, sorted, rects, options.spacing);
   const endsOf = new Map(sorted.map((e) => [e.id, new Set([e.source, e.target, ...ancestors(e.source), ...ancestors(e.target)])]));
   centreChannels(routes, rects, endsOf, options.margin, options.channelSpacing, options.bendClearance);
+  flattenUs(routes, rects, endsOf);
   for (const [id, points] of routes) routes.set(id, simplify(points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }))));
   return routes;
 }

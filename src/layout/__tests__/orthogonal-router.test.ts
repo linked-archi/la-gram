@@ -113,6 +113,32 @@ describe('routes at right angles around the boxes', () => {
     expect(route).toEqual([{ x: 50, y: 50 }, { x: 50, y: 200 }]);
   });
 
+  it('goes over a box in the way with the fewest bends, and no further out than the gap it runs in', () => {
+    const blocker = node('c', 250, 110, 60, 40);
+    const route = routeOrthogonal([node('a', 0, 100), node('b', 500, 100), blocker], [{ id: 'l', source: 'a', target: 'b' }]).get('l')!;
+    expect(passesThrough(route, blocker)).toBe(false);
+    // From the top of one to the top of the other — two bends, where stepping round from the sides takes four.
+    expect(route.length).toBe(4);
+    expect(Math.min(...route.map((p) => p.y))).toBeGreaterThanOrEqual(100 - 72);
+  });
+
+  it('a line turning up docks above the straight lines on its side, so it crosses none of them', () => {
+    // A tall box: a line running straight to B, one turning up to C, one straight to D lower down.
+    const nodes = [node('a', 0, 0, 120, 300), node('b', 400, 120, 100, 50), node('c', 400, -200, 100, 50), node('d', 400, 250, 100, 50)];
+    const routes = routeOrthogonal(nodes, [
+      { id: 'ab', source: 'a', target: 'b' },
+      { id: 'ac', source: 'a', target: 'c' },
+      { id: 'ad', source: 'a', target: 'd' },
+    ]);
+    const segments = [...routes.values()].flatMap((w) => w.slice(1).map((q, i) => [w[i], q] as const));
+    const crossings = segments.filter(([p, q]) => p.y === q.y).flatMap(([p, q]) =>
+      segments.filter(([r, s]) => r.x === s.x && r.x > Math.min(p.x, q.x) && r.x < Math.max(p.x, q.x) && p.y > Math.min(r.y, s.y) && p.y < Math.max(r.y, s.y)),
+    );
+    expect(crossings).toHaveLength(0);
+    expect(routes.get('ab')).toHaveLength(2);
+    expect(routes.get('ac')![0].y).toBeLessThan(routes.get('ab')![0].y);
+  });
+
   it('none for boxes that overlap', () => {
     expect(routeOrthogonal([node('a', 0, 0), node('b', 50, 20)], [{ id: 'l', source: 'a', target: 'b' }]).size).toBe(0);
   });

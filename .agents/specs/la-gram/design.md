@@ -797,13 +797,18 @@ beside a large one keeps its line at its middle and none is pushed to an edge; a
 pixel. A* weighs, in pixels of length: a bend 150, a bend within 24 px of either
 end's placement 150 more — as much as a second bend, so two bends clear of the elements beat one cramped against
 one — a crossing of a line already routed 40: fewer bends come first, and a line is not bent to avoid one or two
-crossings. Then lines leaving
-one point of a side are spread along it (a straight line only where both its ends can move, so no bend is added),
-those turning one way first, the one turning nearest outermost; and each inner segment is moved to the middle of
+crossings. Then the lines on each side of a placement dock in the order that crosses least: straight ones stay at the
+point they share with their other end; a line turning towards one end of the side docks beyond them on that end's
+side, of those turning that way the one turning soonest outermost, each as near the middle as that allows — a
+crossing avoided comes before a dock at the middle; lines on one point move apart, a straight one only where both its
+ends can, so no bend is added; and each inner segment is moved to the middle of
 the gap between the placements either side of it — open on one side, 72 px wide — segments sharing a gap side by
 side about its middle, 4–16 px apart so the outer ones stay 24 px from the placements where the gap has room, in
 the order that crosses least: where one leaves the gap before the other, it goes on the side it leaves towards. Each
-move is kept only where the segment and its neighbours stay clear of every placement. Routing every line a second
+move is kept only where the segment and its neighbours stay clear of every placement and keep their direction, read
+from the line as it is then; a U — a line stepping out and back — only comes nearer its ends, never further out, and
+a last pass brings each U between two inner segments to the nearer of its far ends as far as the placements allow,
+flat where the line returns to the level it left: a step round an element is never grown into a loop. Routing every line a second
 time, around all the others, was tried and dropped: 2% fewer crossings for 8% more bends and twice the time. It runs on the main thread: 200 lines among 100
 placements in 40 ms, 1 000 among 500 in 0.35–1.8 s, 4 000 among 2 000 in 4.4 s (Node, Apple M4 Pro).
 
