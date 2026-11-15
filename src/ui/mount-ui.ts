@@ -61,10 +61,24 @@ import {
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
 import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
 import { fromTextField } from './canvas/canvas-clipboard.js';
-import { arrangeSettings, rememberArrangeSettings, type ArrangeSettings } from './arrange-settings.js';
+import {
+  arrangeSettings,
+  GRID_SIZES,
+  gridSettings,
+  rememberArrangeSettings,
+  rememberGridSettings,
+  rememberSizeSettings,
+  sizeSettings,
+  type ArrangeSettings,
+  type GridSettings,
+  type SizeSettings,
+} from './arrange-settings.js';
+import type { ArrangeDialog, ArrangeQuickAction } from './panels/canvas-toolbar.js';
+import type { Alignment, GridAxis } from '../layout/arrange-geometry.js';
 import { gridNote, layoutView, loadedBands, type ArrangeDeps } from './arrange-view.js';
 import { applyViewLayout } from '../layout/view-layout.js';
 import { layout as layOut } from '../layout/layout-service.js';
+import { withRouterRoutes, withViewRouterRoutes } from '../layout/reroute.js';
 import { withNeighbourBands } from '../layout/bands.js';
 import { workerEngine } from '../layout/elk-engine.js';
 import { DEFAULT_LAYOUT_OPTIONS, type LayoutDirection, type LayoutInput, type LayoutSpacing } from '../layout/layout-types.js';
@@ -1018,6 +1032,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       case 'arrange-view':
         void arrangeView();
         return;
+      case 'arrange-relationships':
+        void arrangeRelationshipsDialog();
+        return;
+      case 'align-to-grid':
+        void alignToGridDialog();
+        return;
+      case 'sizes':
+        void sizesDialog();
+        return;
       case 'move-to-folder': {
         // The one right-clicked and the others selected of its kind.
         const kind = kindOfConcept(iri);
@@ -1540,6 +1563,40 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   canvasToolbar.addEventListener('format-painter', onFormatPainter);
   const onArrangeView = (): void => void arrangeView();
   canvasToolbar.addEventListener('arrange-view', onArrangeView);
+  // The arrange options (Req 22): the menu's dialogs, the quick actions, the buttons kept in step with the selection.
+  canvasToolbar.sizeReference = sizeSettings().reference;
+  canvasToolbar.grid = gridSettings();
+  const onArrangeSelection = (): void => {
+    canvasToolbar.arrangeSelected = diagramCanvas.arrangeAvailability().selected;
+  };
+  eventBus.on('selection-changed', onArrangeSelection);
+  eventBus.on('view-opened', onArrangeSelection);
+  const onArrangeDialog = (event: Event): void => {
+    const dialog = (event as CustomEvent<{ dialog: ArrangeDialog }>).detail?.dialog;
+    if (dialog === 'relationships') void arrangeRelationshipsDialog();
+    else if (dialog === 'grid') void alignToGridDialog();
+    else if (dialog === 'sizes') void sizesDialog();
+  };
+  canvasToolbar.addEventListener('arrange-dialog', onArrangeDialog);
+  const onArrangeQuick = (event: Event): void => {
+    const action = (event as CustomEvent<{ action: ArrangeQuickAction }>).detail?.action;
+    if (!action || !diagramOpen()) return;
+    if (action.startsWith('align-') && action !== 'align-to-grid') {
+      diagramCanvas.alignSelection(action.slice('align-'.length) as Alignment);
+    } else if (action === 'distribute-horizontal' || action === 'distribute-vertical') {
+      diagramCanvas.distributeSelection(action === 'distribute-horizontal' ? 'horizontal' : 'vertical');
+    } else if (action === 'match-width' || action === 'match-height' || action === 'match-size') {
+      diagramCanvas.matchSizes(sizeSettings().reference, action === 'match-width' ? 'width' : action === 'match-height' ? 'height' : 'both');
+    } else if (action === 'default-size') {
+      sayResized(diagramCanvas.defaultSizes());
+    } else if (action === 'align-to-grid') {
+      const grid = gridSettings();
+      sayAligned(diagramCanvas.alignToGrid(grid.axis, grid.grid), grid);
+    } else if (action === 'arrange-relationships') {
+      sayRouted(diagramCanvas.arrangeRelationships());
+    }
+  };
+  canvasToolbar.addEventListener('arrange-quick', onArrangeQuick);
   const onFormatPainterChanged: ModelEventHandler = (event) => {
     canvasToolbar.formatPainter = (event.detail?.state as 'off' | 'pick' | 'paint' | undefined) ?? 'off';
   };
@@ -2044,12 +2101,15 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         return [{ id, source: ends.source, target: ends.target, kind: localNameOf(relationshipClassIn(store, id) ?? '') === 'Association' ? ('association' as const) : ('other' as const) }];
       }),
     };
-    return layOut(bands.size > 0 ? withNeighbourBands(input) : input, {
+    const result = await layOut(bands.size > 0 ? withNeighbourBands(input) : input, {
       ...DEFAULT_LAYOUT_OPTIONS,
       direction: settings.direction,
       spacing: settings.spacing,
       bands: bands.size > 0,
     }, workerEngine);
+    // The lines routed as *Arrange relationships* routes them (Req 22.2), around the elements ELK placed.
+    const nodes = [...result.bounds].map(([id, b]) => ({ id, x: b.x, y: b.y, width: b.width, height: b.height }));
+    return withRouterRoutes(result, nodes, input.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
   };
   /**
    * A model opened with no geometry — placed in the grid by the session — laid out by ELK (R9): written as
@@ -2057,7 +2117,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
    */
   const layoutLoaded = async (viewIri: string | undefined): Promise<string> => {
     if (!viewIri) return '';
-    const result = await layoutView(layoutDeps(), viewIri, arrangeSettings());
+    const result = withViewRouterRoutes(viewManager, viewIri, await layoutView(layoutDeps(), viewIri, arrangeSettings()));
     if (result.engine !== 'elk' || session.activeViewIri !== viewIri) return gridNote(result);
     applyViewLayout(viewManager, viewIri, result);
     diagramCanvas.syncFromStore();
@@ -2136,7 +2196,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     };
     rememberArrangeSettings(chosen);
     const only = values.scope === 'selection' ? new Set(selected) : undefined;
-    const result = await layoutView(layoutDeps(), viewIri, chosen, only);
+    // ELK places the elements; the lines are routed as *Arrange relationships* routes them (Req 22.2).
+    const result = withViewRouterRoutes(viewManager, viewIri, await layoutView(layoutDeps(), viewIri, chosen, only));
     if (session.activeViewIri !== viewIri) return;
     diagramCanvas.recordChange(() => applyViewLayout(viewManager, viewIri, result));
     const [placed, routed] = [result.bounds.size, result.routes.size];
@@ -2148,6 +2209,135 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         '.',
       note ? 'warning' : 'info',
     );
+  };
+
+  /** Whether a diagram is open to arrange; says so where none is. */
+  const diagramOpen = (): boolean => {
+    const viewIri = session.activeViewIri;
+    if (viewIri && viewManager.getView(viewIri)?.type === 'Diagram') return true;
+    dialogs.toast('Open a diagram view to arrange it.', 'warning');
+    return false;
+  };
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const sayRouted = (routed: number): void =>
+    dialogs.toast(routed > 0 ? `Arranged ${plural(routed, 'relationship')}.` : 'The relationships are routed so already.', 'info');
+  const sayAligned = (moved: number, grid: GridSettings): void =>
+    dialogs.toast(moved > 0 ? `Aligned ${plural(moved, 'element')} to the ${grid.grid} px grid.` : `On the ${grid.grid} px grid already.`, 'info');
+  const sayResized = (resized: number): void =>
+    dialogs.toast(resized > 0 ? `Resized ${plural(resized, 'element')} to the default size.` : 'At the default size already.', 'info');
+  /** The *Arrange* field, when something is selected: the whole view, or the selection. */
+  const scopeField = (selected: number, whole: string, part: string) =>
+    selected > 0
+      ? [{ name: 'scope', label: 'Arrange', type: 'select' as const, value: 'selection', options: [{ value: 'view', label: whole }, { value: 'selection', label: part }] }]
+      : [];
+  const selectedWords = (n: number) => (n === 1 ? 'the selected element' : `the ${n} selected`);
+
+  /** *Arrange relationships…* (Req 22.2): the lines routed again around the elements, which stay. */
+  const arrangeRelationshipsDialog = async (): Promise<void> => {
+    if (!diagramOpen()) return;
+    const selected = diagramCanvas.arrangeAvailability().selected;
+    const values = await dialogs.form(
+      'Arrange relationships',
+      scopeField(selected, 'Every relationship of the view', `The relationships of ${selectedWords(selected)}`),
+      {
+        message: 'The lines are routed again at right angles, around the elements in their way; the elements stay where they are.',
+        confirmLabel: 'Arrange',
+      },
+    );
+    if (!values) return;
+    sayRouted(diagramCanvas.arrangeRelationships(values.scope !== 'selection'));
+  };
+
+  /** *Align to grid…* (Req 22.4): top-left corners to the nearest grid line; the grid kept for the quick action. */
+  const alignToGridDialog = async (): Promise<void> => {
+    if (!diagramOpen()) return;
+    const selected = diagramCanvas.arrangeAvailability().selected;
+    const settings = gridSettings();
+    const values = await dialogs.form(
+      'Align to grid',
+      [
+        ...scopeField(selected, 'The whole view', selectedWords(selected).replace(/^t/, 'T')),
+        {
+          name: 'grid',
+          label: 'Grid',
+          type: 'select',
+          value: String(settings.grid),
+          options: GRID_SIZES.map((g) => ({ value: String(g), label: `${g} px` })),
+        },
+        {
+          name: 'axis',
+          label: 'Align',
+          type: 'select',
+          value: settings.axis,
+          hint: "Each element's top-left corner moves to the nearest grid line.",
+          options: [
+            { value: 'both', label: 'Across and down (x and y)' },
+            { value: 'x', label: 'Across only (x)' },
+            { value: 'y', label: 'Down only (y)' },
+          ],
+        },
+      ],
+      { confirmLabel: 'Align' },
+    );
+    if (!values) return;
+    const chosen: GridSettings = { grid: Number(values.grid), axis: values.axis as GridAxis };
+    rememberGridSettings(chosen);
+    canvasToolbar.grid = chosen;
+    sayAligned(diagramCanvas.alignToGrid(chosen.axis, chosen.grid, values.scope !== 'selection'), chosen);
+  };
+
+  /**
+   * *Sizes…* (Req 22.5): the selected elements' sizes matched — to the largest, the smallest or the median — or
+   * each at its default size, the whole view's when nothing is selected. What it matches to is kept for the
+   * toolbar's match buttons.
+   */
+  const sizesDialog = async (): Promise<void> => {
+    if (!diagramOpen()) return;
+    const selected = diagramCanvas.arrangeAvailability().selected;
+    const settings = sizeSettings();
+    const values = await dialogs.form(
+      'Sizes',
+      [
+        {
+          name: 'reference',
+          label: 'Make them',
+          type: 'select',
+          value: selected >= 2 ? settings.reference : 'default',
+          options: [
+            { value: 'largest', label: 'The largest' },
+            { value: 'smallest', label: 'The smallest' },
+            { value: 'median', label: 'The median' },
+            { value: 'default', label: 'Each its default size' },
+          ],
+        },
+        {
+          name: 'dimension',
+          label: 'Change',
+          type: 'select',
+          value: settings.dimension,
+          hint: 'Each keeps its centre; a group never shrinks below what it holds. The default size sets both.',
+          options: [
+            { value: 'both', label: 'Width and height' },
+            { value: 'width', label: 'Width' },
+            { value: 'height', label: 'Height' },
+          ],
+        },
+      ],
+      {
+        message: selected === 0 ? 'Nothing is selected: the default size applies to every element of the view.' : `Resizes ${selectedWords(selected)}.`,
+        confirmLabel: 'Resize',
+        validate: (v) => (v.reference !== 'default' && selected < 2 ? { message: 'Select two or more elements to match their sizes.', field: 'reference' } : null),
+      },
+    );
+    if (!values) return;
+    if (values.reference === 'default') {
+      sayResized(diagramCanvas.defaultSizes());
+      return;
+    }
+    const chosen = { reference: values.reference, dimension: values.dimension } as SizeSettings;
+    rememberSizeSettings(chosen);
+    canvasToolbar.sizeReference = chosen.reference;
+    diagramCanvas.matchSizes(chosen.reference, chosen.dimension);
   };
 
   const newViewFrom = async (
@@ -3136,6 +3326,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel.removeEventListener('context-picture-change', onContextPictureChange);
     canvasToolbar.removeEventListener('notation-only', onNotationOnly);
     canvasToolbar.removeEventListener('format-painter', onFormatPainter);
+    canvasToolbar.removeEventListener('arrange-view', onArrangeView);
+    canvasToolbar.removeEventListener('arrange-dialog', onArrangeDialog);
+    canvasToolbar.removeEventListener('arrange-quick', onArrangeQuick);
+    eventBus.off('selection-changed', onArrangeSelection);
+    eventBus.off('view-opened', onArrangeSelection);
     eventBus.off('format-painter-changed', onFormatPainterChanged);
     propertyPanel.removeEventListener('notation-only', onNotationOnly);
     modelExplorer.removeEventListener('explorer-select', onExplorerSelect);

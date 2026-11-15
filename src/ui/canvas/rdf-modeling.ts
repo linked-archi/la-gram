@@ -85,6 +85,7 @@ import Modeling from 'diagram-js/lib/features/modeling/Modeling.js';
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
+import { ARRANGE_APPLY_COMMAND, ArrangeApplyHandler } from './canvas-arrange.js';
 import { AttachedConnectionBehavior, CroppingLayouter } from './connection-docking.js';
 import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
@@ -771,6 +772,8 @@ export class RdfModeling extends ModelingBase {
       [RDF_CHANGE_COMMAND]: RdfChangeHandler,
       [RDF_STORE_EDIT_COMMAND]: RdfChangeHandler,
       [RDF_MODEL_DELETE_COMMAND]: ModelDeleteHandler,
+      // The arrange options' moves, resizes and routes, one step (canvas-arrange.ts).
+      [ARRANGE_APPLY_COMMAND]: ArrangeApplyHandler,
     };
   }
 

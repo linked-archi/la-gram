@@ -772,6 +772,54 @@ with twice as many relationships between random types, in the built app in Chrom
 at CPU rate 1 and 4×, and fails when one is not laid out by ELK, or has an element
 over another, at rate 1.
 
+### Arrange options
+
+*Arrange relationships*, align and distribute, align to a grid and sizes (Req 22) tidy a diagram without laying it
+out again. Each computes, from the shapes on the canvas, moves (a delta per placement), resizes (bounds per
+placement) or routes (waypoints per line) — `layout/arrange-geometry.ts` and `layout/orthogonal-router.ts`, pure
+functions — and `ui/canvas/canvas-arrange.ts` runs them as one diagram-js command, `la.arrange.apply`, whose
+`preExecute` calls `modeling.moveShape`, `resizeShape` and `updateWaypoints`. Nested, they share the outer command's
+undo step, and the canvas's `shape.move` / `shape.resize` / `connection.updateWaypoints` hooks write them to the view
+as a drag's are written: a moved element's lines keep their bends and re-dock their ends, a container grows to hold
+what moves into its edge.
+
+What is acted on is what is selected less what is in a selected container (it moves with it), unlocked; with nothing
+selected, align to grid, arrange relationships and the default size act on the whole view.
+
+The router routes each line, in order of IRI, on the orthogonal visibility graph of the placements near it: the grid
+of the edges, grown by a 16 px margin, of every placement but the line's ends and their containers, with the ports'
+stubs and the middle of the gap between the two ends, within the ends' bounding box grown by a border (widened if no
+route is found); each obstacle marks the vertices and steps it covers by binary search, so building the graph costs
+the obstacles' areas on it. Its ports are the middle of each side and, where the two placements face each other with
+their sides overlapping, a point they share — the same for both, so the line runs straight: the middle of the one
+with the shorter side, moved into the overlap, and only within the middle half of that side, so a small element
+beside a large one keeps its line at its middle and none is pushed to an edge; a port off the middle costs 0.4 per
+pixel. A* weighs, in pixels of length: a bend 150, a bend within 24 px of either
+end's placement 150 more — as much as a second bend, so two bends clear of the elements beat one cramped against
+one — a crossing of a line already routed 40: fewer bends come first, and a line is not bent to avoid one or two
+crossings. Then lines leaving
+one point of a side are spread along it (a straight line only where both its ends can move, so no bend is added),
+those turning one way first, the one turning nearest outermost; and each inner segment is moved to the middle of
+the gap between the placements either side of it — open on one side, 72 px wide — segments sharing a gap side by
+side about its middle, 4–16 px apart so the outer ones stay 24 px from the placements where the gap has room, in
+the order that crosses least: where one leaves the gap before the other, it goes on the side it leaves towards. Each
+move is kept only where the segment and its neighbours stay clear of every placement. Routing every line a second
+time, around all the others, was tried and dropped: 2% fewer crossings for 8% more bends and twice the time. It runs on the main thread: 200 lines among 100
+placements in 40 ms, 1 000 among 500 in 0.35–1.8 s, 4 000 among 2 000 in 4.4 s (Node, Apple M4 Pro).
+
+*Arrange view*, a model opened with no geometry and *Render as new view* take ELK's placement and the router's
+routes (`layout/reroute.ts`): ELK's own dock anywhere along a side — at a corner, beside a large element — and bend
+close to the elements. Up to 500 placements: the router runs on the main thread, and a layout spreads a large
+diagram wide, its lines long — 500 placements add about a second, 2 000 would add nine or more — so above it ELK's
+routes stay, and *Arrange relationships* routes them when asked. For a long line in a wide diagram the router keeps
+its effort bounded: the simple shapes first (straight, an L, a Z through the middle of the gap), taken when clear and
+crossing nothing; the search's estimate counts the bends still needed, not only the distance; a search past 30 000
+states is done again with crossings free; a grid above 60 000 vertices is not searched.
+
+The toolbar's quick actions use what the dialogs last chose, remembered per browser (`la-gram:arrange-grid`,
+`la-gram:arrange-sizes`, `arrange-settings.ts`), and say it in their tooltips; the toolbar is told how many
+placements are selected (`DiagramCanvas.arrangeAvailability`) on every selection change, to enable what that allows.
+
 ### Which relationships are permitted
 
 `RelationshipManager.getValidRelationships(source, target)` answers for connect,
@@ -3187,6 +3235,20 @@ dialog; the modules' section).
     graph, so a model file cannot change them. "Subclass of" between two orders'
     classes is measured by closure size, which agrees with it wherever one's
     classes are subclasses of the other's.
+23. **Arrange options are moves, resizes and routes run as one command; routing
+    alone is la-gram's own router** (2026-11-15; Req 22; `.agents/tasks/arrange-options/`).
+    Run as diagram-js's own `moveShape` / `resizeShape` / `updateWaypoints` inside
+    one command, an option is undone in one step and written to the view exactly
+    as a drag is, lines re-docked as after a drag — nothing of the canvas's
+    write-back is repeated. diagram-js's align and distribute features were left
+    unused: they need rules of their own and move through `elements.align`, where
+    sizes, the grid and routes would have needed three more paths. Routing without
+    moving cannot be ELK's — its layered layout places the elements, its fixed one
+    routes nothing — and libavoid, the orthogonal router of record, would bring an
+    LGPL licence and a WebAssembly file of its own; la-gram's is a few hundred lines,
+    deterministic, after Wybrow, Marriott and Stuckey's orthogonal connector routing.
+    The quick actions take the dialogs' last choices so that a click needs no
+    question, and say them in their tooltips. The median is the "middle" size.
 
 ---
 

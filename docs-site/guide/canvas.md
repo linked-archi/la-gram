@@ -20,8 +20,10 @@ canvas is back to selecting.
 | ✋ | *Pan the canvas* | drag to move the view; dragging the empty canvas does the same |
 
 After them come the format painter (🖌, see [Appearance](appearance.md#format-painter)), *Arrange view…*
-(three boxes in two rows joined by right-angled lines; see [Arrange view](#arrange-view)) and three
-switches: *Relationship names*, *Notation only* and *Shapes*.
+(three boxes in two rows joined by right-angled lines; see [Arrange view](#arrange-view)) with ▾ beside
+it for the other ways to arrange, the quick actions that align, distribute, size and route what is
+selected (see [Tidy a diagram](#tidy-a-diagram)), and three switches: *Relationship names*, *Notation
+only* and *Shapes*.
 
 1. Click ⬚ in the canvas toolbar.
 2. Drag a rectangle round "Customer" and "Place order": both are selected.
@@ -250,7 +252,9 @@ they stay in line, and turns a right angle when one moves aside.
 
 *Arrange view…*, on the canvas toolbar or in the empty canvas's right-click menu, lays the open diagram
 out: its elements in rows, in the direction its relationships lead, each at its present size and each
-nested element inside its parent; its relationships routed at right angles. A relationship ending on
+nested element inside its parent; its relationships routed at right angles, as [*Arrange
+relationships*](#arrange-relationships) routes them — from the middle of a side, bending clear of the
+elements — in a diagram of up to 500 elements. A relationship ending on
 another relationship keeps its line docked to that one. With elements selected, it can arrange only
 those, with what is nested in them, keeping them where their top left was. It is one step to undo and one
 change for collaborators, and it says what it did: *Arranged 8 elements and 8 relationships.*
@@ -283,14 +287,102 @@ choices is placed the same, to the pixel.
 !!! note "Large diagrams"
     The layout runs in the background, and la-gram keeps responding while it runs: on an Apple M4 Pro in
     Chrome, a diagram of 100 elements is arranged in under half a second, 500 elements with 1 000
-    relationships in about 2 seconds, 2 000 with 4 000 in about 7. Drawing the result pauses the canvas
-    for about half a second at 500 elements, and 2 seconds at 2 000. Above 2 000 elements, or when the
+    relationships in about 3 seconds, 2 000 with 4 000 in about 7. Routing the lines and drawing the
+    result pause the canvas for about a second and a half at 500 elements, and 2 seconds at 2 000. Above
+    500 elements, the lines are routed by the layout itself, which may dock them nearer a corner and bend
+    them nearer the elements: [*Arrange relationships*](#arrange-relationships) routes them afterwards. Above 2 000 elements, or when the
     layout fails or takes more than 10 seconds, the elements are placed in a grid instead, and the
     message says why: *Arranged 2100 elements; too many elements for the layered layout: placed in a
     grid.*
 
 A model opened with no diagram geometry, and a diagram made with [*Render as new
 view*](sparql.md#render-as-new-view), are laid out the same way, with the choices last made here.
+
+## Tidy a diagram {#tidy-a-diagram}
+
+To tidy a diagram without laying it out again, la-gram offers four more ways to arrange it, each one
+step to undo:
+
+- **Arrange relationships:** the lines are routed again at right angles, around the elements in their
+  way. The elements stay where they are.
+- **Align and distribute:** the selected elements are lined up, or spaced with equal gaps.
+- **Align to grid:** each element's top-left corner moves to the nearest grid line.
+- **Sizes:** the selected elements are made the same size, or each is reset to its default size.
+
+The dialogs open from ▾ beside *Arrange view…* in the canvas toolbar, and from the empty canvas's
+right-click menu. The quick actions, buttons in the canvas toolbar after ▾, act at once on what is
+selected, using what the dialogs last chose:
+
+| Button | Does | Needs |
+|---|---|---|
+| *Align left*, *Align centre*, *Align right* | moves the selected elements' left edges to the leftmost, their centres to the selection's centre, or their right edges to the rightmost | 2 selected |
+| *Align top*, *Align middle*, *Align bottom* | the same, up and down | 2 selected |
+| *Distribute horizontally*, *Distribute vertically* | makes the gaps between neighbours equal; the first and the last stay where they are | 3 selected |
+| *Match width*, *Match height*, *Match size* | makes them as wide, as high, or both, as what *Sizes…* last chose (**the largest** at first) | 2 selected |
+| *Default size* | each its default size | — (the whole view when nothing is selected) |
+| *Align to grid* | to the grid *Align to grid…* last chose (**20 px**, across and down, at first) | — (the whole view when nothing is selected) |
+| *Arrange relationships* | routes the selected elements' lines again | — (every line of the view when nothing is selected) |
+
+A button whose selection is too small is greyed out. Its tooltip says the size or grid it uses. What is
+inside a selected element moves with it, and an element another collaborator is editing stays where it
+is.
+
+### Arrange relationships… {#arrange-relationships}
+
+The lines are routed again at right angles, around the elements and shapes in their way, keeping a
+margin; the elements stay where they are. Each line has as few bends as the elements in its way allow. It
+leaves and reaches an element at the middle of a side, or, between two elements facing each other, runs
+straight, from the middle of the smaller one. Where it bends, it bends clear of the elements, in the middle of the gap it runs through, and
+it takes a longer way round rather than cross other lines, though not an extra bend for one or two
+crossings. Lines leaving one side of an element are spread along it, and lines sharing a gap run side by
+side. A line between
+elements that overlap, or between an element and something inside it, keeps its route. la-gram says
+how many lines it routed: *Arranged 2 relationships.*
+
+| Field | Does | Values |
+|---|---|---|
+| *Arrange* | which lines; shown when elements are selected | **The relationships of the selected element** (*of the 2 selected* for two), *Every relationship of the view* |
+
+1. Select nothing, and choose ▾ › *Arrange relationships…* in the canvas toolbar.
+2. Choose *Arrange*: the lines run around the elements; the elements have not moved.
+
+### Align to grid… {#align-to-grid}
+
+Each element's top-left corner moves to the nearest line of the grid. What is inside an element is
+aligned from where moving the element put it.
+
+| Field | Does | Values |
+|---|---|---|
+| *Arrange* | what is aligned; shown when elements are selected | **The selected element** (*The 2 selected* for two), *The whole view* |
+| *Grid* | the distance between grid lines | *10 px*, **20 px**, *40 px* |
+| *Align* | which way | **Across and down (x and y)**, *Across only (x)*, *Down only (y)* |
+
+1. Drag "Customer" a little to the right; it stays selected.
+2. Choose ▾ › *Align to grid…*, leave *The selected element*, *20 px* and *Across and down*, and choose
+   *Align*: *Aligned 1 element to the 20 px grid.*
+3. Choose ▾ › *Align to grid…* again with *Grid* *40 px*: the *Align to grid* button now uses 40 px.
+
+### Sizes… {#sizes}
+
+The selected elements are made the same width, height or both; each keeps its centre, and an element
+that holds others is never made smaller than what it holds. With nothing selected, only *Each its
+default size* is possible, and it resets every element of the view.
+
+| Field | Does | Values |
+|---|---|---|
+| *Make them* | the size they take | **The largest**, *The smallest*, *The median* (of an even number, the mean of the middle two), *Each its default size* — an element its type's, a group, note or shape its kind's |
+| *Change* | which dimension; the default size sets both | **Width and height**, *Width*, *Height* |
+
+1. Select "Customer" and "Shop team", and choose ▾ › *Sizes…*.
+2. Choose *Make them* *The median*, and *Resize*. The *Match* buttons now match to the median.
+
+The choices of *Align to grid…* and *Sizes…* are remembered in this browser
+([Stored data](../reference/stored-data.md#panel-choices)).
+
+!!! note "Large diagrams"
+    *Arrange relationships* works out the routes before it draws them, and the canvas pauses meanwhile:
+    on an Apple M4 Pro, under a tenth of a second for 200 lines, up to 2 seconds for 1 000, and about 4
+    seconds for 4 000.
 
 ## Placed twice {#placed-twice}
 
@@ -414,7 +506,7 @@ Right-click on the canvas for what applies to what is under the pointer.
 | an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and its other entries |
-| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
+| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
 | one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
 
 What the entries do beyond the canvas:

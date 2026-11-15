@@ -3,6 +3,8 @@ import { customElement, property } from 'lit/decorators.js';
 
 import { CANVAS_TOOLS, type CanvasTool } from '../canvas/canvas-tools.js';
 import { FIGURE_CHOICES, type FigureChoice } from '../figure-bar.js';
+import type { SizeReference } from '../../layout/arrange-geometry.js';
+import { GRID_DEFAULTS, type GridSettings } from '../arrange-settings.js';
 
 /**
  * Emitted when a figure's button is pressed or clicked: the start of a gesture
@@ -38,6 +40,70 @@ const ARRANGE_GLYPH = html`<svg viewBox="0 0 16 16" width="16" height="16" aria-
   <path d="M8 5v3M3.5 11V8h9v3"></path>
 </svg>`;
 
+/** A quick action's glyph, 16 × 16: a line where things align, boxes for what moves or resizes. */
+const glyph = (body: ReturnType<typeof svg>) => html`<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
+  fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">${body}</svg>`;
+
+/** The arrange options a button does at once, with the settings its dialog last kept (Req 22). */
+export type ArrangeQuickAction =
+  | 'align-left'
+  | 'align-center'
+  | 'align-right'
+  | 'align-top'
+  | 'align-middle'
+  | 'align-bottom'
+  | 'distribute-horizontal'
+  | 'distribute-vertical'
+  | 'match-width'
+  | 'match-height'
+  | 'match-size'
+  | 'default-size'
+  | 'align-to-grid'
+  | 'arrange-relationships';
+
+/** The dialogs the arrange menu opens. */
+export type ArrangeDialog = 'view' | 'relationships' | 'grid' | 'sizes';
+
+interface QuickButton {
+  action: ArrangeQuickAction;
+  title: string;
+  /** How many placements must be selected; 0 acts on the whole view when none are. */
+  needs: 0 | 2 | 3;
+  glyph: ReturnType<typeof html>;
+}
+
+const REFERENCE_WORDS: Record<SizeReference, string> = { largest: 'the largest', smallest: 'the smallest', median: 'the median' };
+
+/** The quick actions, in groups separated on the toolbar. */
+function quickButtons(reference: SizeReference, grid: GridSettings): QuickButton[][] {
+  const to = REFERENCE_WORDS[reference];
+  const axis = grid.axis === 'both' ? '' : grid.axis === 'x' ? ', across' : ', down';
+  return [
+    [
+      { action: 'align-left', title: 'Align left', needs: 2, glyph: glyph(svg`<path d="M1.5 1v14"/><rect x="3.5" y="3" width="10" height="3.5"/><rect x="3.5" y="9.5" width="6" height="3.5"/>`) },
+      { action: 'align-center', title: 'Align centre', needs: 2, glyph: glyph(svg`<path d="M8 1v14"/><rect x="3" y="3" width="10" height="3.5"/><rect x="5" y="9.5" width="6" height="3.5"/>`) },
+      { action: 'align-right', title: 'Align right', needs: 2, glyph: glyph(svg`<path d="M14.5 1v14"/><rect x="2.5" y="3" width="10" height="3.5"/><rect x="6.5" y="9.5" width="6" height="3.5"/>`) },
+      { action: 'align-top', title: 'Align top', needs: 2, glyph: glyph(svg`<path d="M1 1.5h14"/><rect x="3" y="3.5" width="3.5" height="10"/><rect x="9.5" y="3.5" width="3.5" height="6"/>`) },
+      { action: 'align-middle', title: 'Align middle', needs: 2, glyph: glyph(svg`<path d="M1 8h14"/><rect x="3" y="3" width="3.5" height="10"/><rect x="9.5" y="5" width="3.5" height="6"/>`) },
+      { action: 'align-bottom', title: 'Align bottom', needs: 2, glyph: glyph(svg`<path d="M1 14.5h14"/><rect x="3" y="2.5" width="3.5" height="10"/><rect x="9.5" y="6.5" width="3.5" height="6"/>`) },
+    ],
+    [
+      { action: 'distribute-horizontal', title: 'Distribute horizontally — equal gaps', needs: 3, glyph: glyph(svg`<rect x="1" y="5" width="3" height="6"/><rect x="6.5" y="5" width="3" height="6"/><rect x="12" y="5" width="3" height="6"/><path d="M1 2.5h14" stroke-dasharray="1.5 1.5"/>`) },
+      { action: 'distribute-vertical', title: 'Distribute vertically — equal gaps', needs: 3, glyph: glyph(svg`<rect x="5" y="1" width="6" height="3"/><rect x="5" y="6.5" width="6" height="3"/><rect x="5" y="12" width="6" height="3"/><path d="M2.5 1v14" stroke-dasharray="1.5 1.5"/>`) },
+    ],
+    [
+      { action: 'match-width', title: `Match width — to ${to} (Sizes… sets which)`, needs: 2, glyph: glyph(svg`<rect x="2" y="2" width="12" height="4"/><rect x="2" y="10" width="12" height="4"/><path d="M4 8h8M4 8l1.5-1.2M4 8l1.5 1.2M12 8l-1.5-1.2M12 8l-1.5 1.2"/>`) },
+      { action: 'match-height', title: `Match height — to ${to} (Sizes… sets which)`, needs: 2, glyph: glyph(svg`<rect x="2" y="2" width="4" height="12"/><rect x="10" y="2" width="4" height="12"/><path d="M8 4v8M8 4l-1.2 1.5M8 4l1.2 1.5M8 12l-1.2-1.5M8 12l1.2-1.5"/>`) },
+      { action: 'match-size', title: `Match size — to ${to} (Sizes… sets which)`, needs: 2, glyph: glyph(svg`<rect x="1.5" y="1.5" width="6.5" height="6.5"/><rect x="8" y="8" width="6.5" height="6.5"/>`) },
+      { action: 'default-size', title: 'Default size — the selected, or every element of the view', needs: 0, glyph: glyph(svg`<rect x="2" y="4" width="9" height="7"/><path d="M13.5 2.5v4h-4" /><path d="M13.5 6.5l-3 -3" />`) },
+    ],
+    [
+      { action: 'align-to-grid', title: `Align to grid — ${grid.grid} px${axis}; the selected, or the whole view (Align to grid… sets it)`, needs: 0, glyph: glyph(svg`<path d="M1 1h.01M8 1h.01M15 1h.01M1 8h.01M15 8h.01M1 15h.01M8 15h.01M15 15h.01" stroke-width="2" stroke-linecap="round"/><rect x="4" y="4" width="8" height="8"/>`) },
+      { action: 'arrange-relationships', title: 'Arrange relationships — route the lines again around the elements, which stay; the selected’s, or the whole view’s', needs: 0, glyph: glyph(svg`<rect x="1" y="1" width="4.5" height="3.5"/><rect x="10.5" y="11.5" width="4.5" height="3.5"/><rect x="5.5" y="6.5" width="4.5" height="3"/><path d="M3.2 4.5v8.7h7.3" stroke-dasharray="none"/>`) },
+    ],
+  ];
+}
+
 /**
  * Toolbar strip above the diagram, holding the canvas's global tools.
  *
@@ -53,7 +119,11 @@ const ARRANGE_GLYPH = html`<svg viewBox="0 0 16 16" width="16" height="16" aria-
  * is armed.
  *
  * After the tools, the format painter and *Arrange view…* (an icon, opening its
- * dialog); then one switch: *Relationship names*, which shows relationships'
+ * dialog), with ▾ beside it for the other arrange dialogs — *Arrange relationships…*,
+ * *Align to grid…*, *Sizes…* — and then the quick actions (Req 22): align, distribute,
+ * match sizes, default size, align to grid, arrange relationships, each acting at
+ * once with what its dialog last chose, disabled until the selection
+ * (`arrangeSelected`) is big enough. Then one switch: *Relationship names*, which shows relationships'
  * names on their lines (off by default; the host remembers it). Pressed is on.
  *
  * Then *Shapes*, which opens a second row: figures drawn with no model element
@@ -73,9 +143,55 @@ export class CanvasToolbar extends LitElement {
 
     .toolbar {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 4px;
       padding: 4px 6px;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+      background: #fff;
+      border-color: #dadce0;
+    }
+
+    /* The arrange menu: a narrow button beside Arrange view, and the dialogs under it. */
+    .arrange {
+      position: relative;
+      display: inline-flex;
+    }
+
+    button.menu-toggle {
+      width: 14px;
+      margin-left: -3px;
+      font-size: 9px;
+    }
+
+    .menu {
+      position: absolute;
+      top: 28px;
+      left: 0;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      min-width: 180px;
+      padding: 4px 0;
+      background: #fff;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .menu button {
+      justify-content: flex-start;
+      width: auto;
+      height: 26px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 0;
+      font-size: 12px;
+      white-space: nowrap;
     }
 
     button {
@@ -171,6 +287,60 @@ export class CanvasToolbar extends LitElement {
   @property({ type: Boolean, attribute: false })
   figuresOpen = false;
 
+  /** How many placements are selected, less those in a selected container: what the quick actions may act on. */
+  @property({ type: Number, attribute: false })
+  arrangeSelected = 0;
+
+  /** What the match buttons match to: *Sizes…*'s last choice. */
+  @property({ attribute: false })
+  sizeReference: SizeReference = 'largest';
+
+  /** The grid the grid button aligns to: *Align to grid…*'s last choice. */
+  @property({ attribute: false })
+  grid: GridSettings = GRID_DEFAULTS;
+
+  /** Whether the arrange menu is open. */
+  @property({ type: Boolean, attribute: false })
+  arrangeMenuOpen = false;
+
+  private readonly closeMenu = (event: Event): void => {
+    if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+    if (!(event instanceof KeyboardEvent) && event.composedPath().includes(this)) return;
+    this.arrangeMenuOpen = false;
+  };
+
+  override updated(changed: Map<string, unknown>): void {
+    if (!changed.has('arrangeMenuOpen')) return;
+    if (this.arrangeMenuOpen) {
+      document.addEventListener('pointerdown', this.closeMenu, true);
+      document.addEventListener('keydown', this.closeMenu, true);
+    } else {
+      document.removeEventListener('pointerdown', this.closeMenu, true);
+      document.removeEventListener('keydown', this.closeMenu, true);
+    }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    document.removeEventListener('pointerdown', this.closeMenu, true);
+    document.removeEventListener('keydown', this.closeMenu, true);
+  }
+
+  /** A dialog picked from the arrange menu: `arrange-view`, or `arrange-dialog` with `{ dialog }`. */
+  private _onArrangeDialog(dialog: ArrangeDialog): void {
+    this.arrangeMenuOpen = false;
+    if (dialog === 'view') {
+      this.dispatchEvent(new CustomEvent('arrange-view', { bubbles: true, composed: true }));
+      return;
+    }
+    this.dispatchEvent(new CustomEvent<{ dialog: ArrangeDialog }>('arrange-dialog', { detail: { dialog }, bubbles: true, composed: true }));
+  }
+
+  /** A quick action: `arrange-quick` with `{ action }`. */
+  private _onQuick(action: ArrangeQuickAction): void {
+    this.dispatchEvent(new CustomEvent<{ action: ArrangeQuickAction }>('arrange-quick', { detail: { action }, bubbles: true, composed: true }));
+  }
+
   /** The *Shapes* switch flipped: `figures-open` with `{ open }`. */
   private _onFiguresClick(): void {
     this.dispatchEvent(
@@ -263,6 +433,51 @@ export class CanvasToolbar extends LitElement {
         >
           ${ARRANGE_GLYPH}
         </button>
+        <span class="arrange">
+          <button
+            type="button"
+            class="menu-toggle"
+            data-action="arrange-menu"
+            title="More ways to arrange: relationships only, to a grid, sizes"
+            aria-label="Arrange"
+            aria-haspopup="menu"
+            aria-expanded=${this.arrangeMenuOpen ? 'true' : 'false'}
+            @click=${() => (this.arrangeMenuOpen = !this.arrangeMenuOpen)}
+          >
+            ▾
+          </button>
+          ${this.arrangeMenuOpen
+            ? html`<div class="menu" role="menu" aria-label="Arrange">
+                ${(
+                  [
+                    ['view', 'arrange-view', 'Arrange view…'],
+                    ['relationships', 'arrange-relationships', 'Arrange relationships…'],
+                    ['grid', 'align-to-grid', 'Align to grid…'],
+                    ['sizes', 'sizes', 'Sizes…'],
+                  ] as const
+                ).map(
+                  ([dialog, action, label]) => html`<button type="button" role="menuitem" data-menu=${action} @click=${() => this._onArrangeDialog(dialog)}>
+                    ${label}
+                  </button>`,
+                )}
+              </div>`
+            : nothing}
+        </span>
+        ${quickButtons(this.sizeReference, this.grid).map(
+          (group) => html`<span class="separator" aria-hidden="true"></span>
+            ${group.map(
+              (quick) => html`<button
+                type="button"
+                data-quick=${quick.action}
+                title=${quick.title}
+                aria-label=${quick.title.split(' — ')[0]}
+                ?disabled=${quick.needs > 0 && this.arrangeSelected < quick.needs}
+                @click=${() => this._onQuick(quick.action)}
+              >
+                ${quick.glyph}
+              </button>`,
+            )}`,
+        )}
         <span class="separator" aria-hidden="true"></span>
         <button
           type="button"

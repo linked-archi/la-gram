@@ -1654,7 +1654,7 @@ describe('the workbench', () => {
     const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();
     const onView = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(canvasRoot) as Record<string, { action: () => void }>;
     expect(Object.keys(onView)).toEqual([
-      'rename-view', 'set-viewpoint', 'duplicate-view', 'arrange-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
+      'rename-view', 'set-viewpoint', 'duplicate-view', 'arrange-view', 'arrange-relationships', 'align-to-grid', 'sizes', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
       'export-svg', 'export-png', 'delete-view',
     ]);
     onView['properties']!.action();

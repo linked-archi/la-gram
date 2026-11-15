@@ -1789,7 +1789,7 @@ describe('changing an element’s type', () => {
     await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
-      'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Arrange view…', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
+      'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Arrange view…', 'Arrange relationships…', 'Align to grid…', 'Sizes…', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
       'Copy IRI', 'Export view as SVG', 'Export view as PNG', 'Delete view…',
     ]);
     // Export from it: the pictures — the notation's glyphs — in the file, and a PNG drawn with them, at twice the size.

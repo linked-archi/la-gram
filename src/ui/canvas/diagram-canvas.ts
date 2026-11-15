@@ -220,6 +220,8 @@ import { CanvasClipboard, fromTextField, type CanvasClipboardHost, type CanvasCl
 import { isMacPlatform, keyCombo } from '../help.js';
 import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
 import { joinLastStep, lastStepId } from './undo-steps.js';
+import { CanvasArrange, type ArrangeAvailability, type ArrangeShape } from './canvas-arrange.js';
+import type { Alignment, DistributeAxis, GridAxis, SizeDimension, SizeReference } from '../../layout/arrange-geometry.js';
 import {
   appendableTargetTypes,
   shapesOf,
@@ -361,6 +363,9 @@ export type CanvasContextAction =
   | 'set-viewpoint'
   | 'duplicate-view'
   | 'arrange-view'
+  | 'arrange-relationships'
+  | 'align-to-grid'
+  | 'sizes'
   | 'delete-view'
   | 'export-svg'
   | 'export-png';
@@ -992,6 +997,68 @@ export class DiagramCanvas {
   /** The placements selected on the open diagram — nodes of elements and figures — by node IRI. */
   selectedPlacements(): string[] {
     return this.clipboardHost().selectedPlacements();
+  }
+
+  /** The arrange options (Req 22, `canvas-arrange.ts`), made once the canvas has its services. */
+  private arrangeOptions?: CanvasArrange;
+  private arranger(): CanvasArrange {
+    return (this.arrangeOptions ??= new CanvasArrange({
+      all: () => {
+        const services = this.services();
+        if (!services) return [];
+        const root = services.canvas.getRootElement();
+        return services.elementRegistry.getAll().filter((e) => e !== root) as unknown as ArrangeShape[];
+      },
+      selected: () => (this.services()?.selection.get() ?? []) as unknown as ArrangeShape[],
+      locked: (shape) => !!shape.businessObject?.iri && this.locked.has(shape.businessObject.iri),
+      defaultSizeOf: (shape) => {
+        const object = shape.businessObject;
+        if (object?.kind === 'figure' && object.figure) return FIGURE_SIZES[object.figure.kind];
+        const style = object?.typeIri ? this.notationStyles.styleFor(object.typeIri) : undefined;
+        return { width: style?.defaultWidth ?? NOTATION_DEFAULTS.width, height: style?.defaultHeight ?? NOTATION_DEFAULTS.height };
+      },
+      execute: (command, context) => {
+        const services = this.services();
+        if (!services || !this.viewIri) return false;
+        services.commandStack.execute(command, context);
+        return true;
+      },
+    }));
+  }
+
+  /** What the quick actions may do with the selection as it is. */
+  arrangeAvailability(): ArrangeAvailability {
+    return this.arranger().availability();
+  }
+
+  /** Align the selected placements to their bounding box's edge or centre: how many moved. */
+  alignSelection(alignment: Alignment): number {
+    return this.arranger().align(alignment);
+  }
+
+  /** Equal gaps between the selected placements, along the axis. */
+  distributeSelection(axis: DistributeAxis): number {
+    return this.arranger().distribute(axis);
+  }
+
+  /** The selected placements, or the view's, their top-left corners to the grid. */
+  alignToGrid(axis: GridAxis, grid: number, wholeView = false): number {
+    return this.arranger().alignToGrid(axis, grid, wholeView);
+  }
+
+  /** The selected placements' widths, heights or both made the largest's, the smallest's or the median. */
+  matchSizes(reference: SizeReference, dimension: SizeDimension): number {
+    return this.arranger().matchSize(reference, dimension);
+  }
+
+  /** The selected placements, or the view's, each at its default size. */
+  defaultSizes(wholeView = false): number {
+    return this.arranger().defaultSize(wholeView);
+  }
+
+  /** The lines of the selected placements, or the view's, routed again around the placements, which stay. */
+  arrangeRelationships(wholeView = false): number {
+    return this.arranger().arrangeRelationships(wholeView);
   }
 
   /** Copy concepts chosen in the model tree (Ctrl/⌘+C there), into a copy event's data; false when nothing was. */
@@ -3242,6 +3309,9 @@ export class DiagramCanvas {
         { id: 'set-viewpoint', label: 'Set viewpoint…', section: 'edit', run: host('set-viewpoint') },
         { id: 'duplicate-view', label: 'Duplicate view', section: 'edit', run: host('duplicate-view') },
         { id: 'arrange-view', label: 'Arrange view…', section: 'edit', run: host('arrange-view') },
+        { id: 'arrange-relationships', label: 'Arrange relationships…', section: 'edit', run: host('arrange-relationships') },
+        { id: 'align-to-grid', label: 'Align to grid…', section: 'edit', run: host('align-to-grid') },
+        { id: 'sizes', label: 'Sizes…', section: 'edit', run: host('sizes') },
       );
     }
     actions.push(...this.clipboardMenuActions(false));
