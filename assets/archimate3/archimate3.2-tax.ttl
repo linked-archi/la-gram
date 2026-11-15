@@ -126,7 +126,7 @@ relationship categories, kept apart from their classification.
     skos:prefLabel    "Layer"@en ;
     skos:altLabel     "Element by Layer"@en ;
     skos:definition   "A level at which ArchiMate 3.2 models an enterprise: strategy, business, application, technology — its physical elements included — and implementation and migration. Each narrower concept is a layer, and its narrower concepts are the element types that are part of it."@en ;
-    skos:editorialNote "Each layer concept's skos:narrower list must match the concrete OWL classes in archimate3.2-onto.ttl that have the corresponding LayerElement as a superclass — the Technology Layer's, TechnologyLayerElement or PhysicalLayerElement."@en ;
+    skos:editorialNote "Each layer concept's skos:narrower list must match the concrete OWL classes in archimate3.2-onto.ttl that have the corresponding LayerElement as a superclass — the Technology Layer's, TechnologyLayerElement, PhysicalLayerElement being one."@en ;
     skos:topConceptOf <https://meta.linked.archi/archimate3/tax#> ;
     skos:inScheme     <https://meta.linked.archi/archimate3/tax#> ;
     dcterms:source    <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Language-Structure.html#sec-Layering-of-the-ArchiMate-Language>, <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Language-Structure.html#sec-The-ArchiMate-Full-Framework> ;
@@ -324,7 +324,7 @@ aspects, kept apart from their classification.
 :InternalActiveStructure
     a              skos:Concept ;
     skos:prefLabel "Internal Active Structure"@en ;
-    skos:definition "The internal active structure aspect: the entities that perform behaviour — actors, roles, collaborations, components and nodes."@en ;
+    skos:definition "The internal active structure aspect: the entities that perform behaviour — actors, roles, collaborations, components, and the technology internal active structure elements: nodes, devices, system software, technology collaborations, equipment and facilities."@en ;
     skos:scopeNote "These are the performers — the entities that do things. They are connected to behavior via assignment relationships. In diagrams, internal active structure elements are typically shown as boxes (actors, components, nodes). They can be composed of or aggregated with other internal active structure elements."@en ;
     skos:broader   :ActiveStructureAspect ;
     iso-thes:broaderGeneric :ActiveStructureAspect ;
@@ -333,10 +333,12 @@ aspects, kept apart from their classification.
     rdfs:seeAlso   am:InternalActiveStructureElement ;
     skos:narrower  am:BusinessActor, am:BusinessRole, am:BusinessCollaboration,
                    am:ApplicationComponent, am:ApplicationCollaboration,
-                   am:Node, am:Device, am:SystemSoftware, am:TechnologyCollaboration ;
+                   am:Node, am:Device, am:SystemSoftware, am:TechnologyCollaboration,
+                   am:Equipment, am:Facility ;
     iso-thes:narrowerPartitive am:BusinessActor, am:BusinessRole, am:BusinessCollaboration,
                                am:ApplicationComponent, am:ApplicationCollaboration,
-                               am:Node, am:Device, am:SystemSoftware, am:TechnologyCollaboration ;
+                               am:Node, am:Device, am:SystemSoftware, am:TechnologyCollaboration,
+                               am:Equipment, am:Facility ;
 .
 
 :ExternalActiveStructure
@@ -668,18 +670,18 @@ aspects, kept apart from their classification.
 
 :FacilityNodeProposalOrder
     a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Facility to a Node"@en ;
-    skos:definition     "From a facility to a node — a device, system software, equipment or a facility among them, which the ontology classifies as nodes — composition is proposed first, and then :ProposalOrder."@en ;
+    skos:prefLabel      "Order of Proposal from a Facility to a Node, Device, System Software, Equipment or Facility"@en ;
+    skos:definition     "From a facility to a node, a device, system software, equipment or another facility — each a technology internal active structure element, which a facility may be composed of — composition is proposed first, and then :ProposalOrder."@en ;
     arch:domainIncludes am:Facility ;
-    arch:rangeIncludes  am:Node ;
+    arch:rangeIncludes  am:Node, am:Device, am:SystemSoftware, am:Equipment, am:Facility ;
     skos:memberList     ( am:Composition ) ;
 .
 
 :NodeArtifactProposalOrder
     a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Node to an Artifact"@en ;
-    skos:definition     "From a node to an artifact, assignment is proposed first — the artifact deployed on the node — and then :ProposalOrder."@en ;
-    arch:domainIncludes am:Node ;
+    skos:prefLabel      "Order of Proposal from a Node, Device, System Software, Equipment or Facility to an Artifact"@en ;
+    skos:definition     "From a node, a device, system software, equipment or a facility to an artifact, assignment is proposed first — the artifact deployed on it — and then :ProposalOrder."@en ;
+    arch:domainIncludes am:Node, am:Device, am:SystemSoftware, am:Equipment, am:Facility ;
     arch:rangeIncludes  am:Artifact ;
     skos:memberList     ( am:Assignment ) ;
 .

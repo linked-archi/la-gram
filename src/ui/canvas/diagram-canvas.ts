@@ -219,6 +219,7 @@ import { rdfAutoResizeModule } from './rdf-auto-resize.js';
 import { CanvasClipboard, fromTextField, type CanvasClipboardHost, type CanvasClipboardOptions } from './canvas-clipboard.js';
 import { isMacPlatform, keyCombo } from '../help.js';
 import { rdfOrderingModule, shapeIndex } from './rdf-ordering.js';
+import { joinLastStep, lastStepId } from './undo-steps.js';
 import {
   appendableTargetTypes,
   shapesOf,
@@ -725,6 +726,11 @@ export class DiagramCanvas {
 
   /** Relationship registry keyed by the connection's diagram-js id. */
   private relationships = new Map<string, CanvasRelationship>();
+  /**
+   * The line a connect with no type chosen just drew, and its undo step, while the relationship-type menu it
+   * opened is open: a type picked there joins that step (Req 4.2).
+   */
+  private drawnAwaitingType: { connectionId: string; stepId: number } | undefined;
   /**
    * The connections not named by their relationship's IRI — one the user draws
    * gets diagram-js's id, and its relationship after — which are all
@@ -3560,7 +3566,10 @@ export class DiagramCanvas {
    * otherwise choosing "no change" would leave the menu open.
    */
   private applyRelationshipTypeChoice(connectionId: string, typeIri: string): void {
-    this.changeRelationshipType(connectionId, typeIri);
+    const drawn = this.drawnAwaitingType?.connectionId === connectionId ? this.drawnAwaitingType : undefined;
+    const changed = this.changeRelationshipType(connectionId, typeIri);
+    // Picked from the menu the drawing opened: one undo takes the line away, not the type first (Req 4.2).
+    if (changed && drawn) joinLastStep(this.services()?.commandStack, drawn.stepId);
     this.services()?.popupMenu.close();
   }
 
@@ -4356,7 +4365,14 @@ export class DiagramCanvas {
       if (specific.length < 2) return;
       const pointer = event.originalEvent;
       const at = pointer && typeof pointer.clientX === 'number' ? { x: pointer.clientX + 8, y: pointer.clientY + 8 } : this.padMenuPosition(undefined);
+      // The drawing's undo step, read before the menu opens: a type picked there joins it (Req 4.2).
+      const stepId = lastStepId(this.services()?.commandStack);
       this.openRelationshipTypeMenuAt(connection, at);
+      if (stepId !== undefined && this.services()?.popupMenu.isOpen()) this.drawnAwaitingType = { connectionId: connection.id, stepId };
+    });
+    // Closed — a type picked, Escape, a click elsewhere, another menu: a later change of type is a step of its own.
+    djs.on('popupMenu.close', () => {
+      this.drawnAwaitingType = undefined;
     });
 
     // A relationship retyped on one of its lines: its other lines show it too, undo included.

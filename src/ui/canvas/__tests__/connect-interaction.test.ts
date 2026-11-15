@@ -585,6 +585,44 @@ describe('relationship type choice', () => {
     expect(Object.values(entries).map((entry) => entry.label)).toEqual(['Serving', 'Flow', 'Association']);
   });
 
+  /** diagram-js's command stack, as the keys use it. */
+  const commandStack = (f: { canvas: DiagramCanvas }) => service<{ undo(): void; redo(): void; canUndo(): boolean }>(f.canvas, 'commandStack');
+  const pick = (f: ReturnType<typeof fixture>, typeIri: string) =>
+    f.canvas.replaceMenuProvider.getPopupMenuEntries(connectionElement(f))[relationshipEntryId(typeIri)].action(undefined);
+
+  it("a type picked from that menu is part of the drawing's undo step: one undo takes the line away, one redo draws it with that type (Req 4.2)", () => {
+    const f = fixture({ candidates: twoSpecific });
+    completeConnect(f.canvas);
+    expect(commandStack(f).canUndo()).toBe(true);
+
+    pick(f, `${MM}Flow`);
+
+    expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(false);
+    const flow = f.triples();
+    expect(flow).toHaveLength(1);
+    expect(flow[0]).toContain('Flow');
+    commandStack(f).undo();
+    expect(f.triples()).toEqual([]);
+    expect(f.canvas.getRelationships().size).toBe(0);
+    expect(commandStack(f).canUndo()).toBe(false);
+    commandStack(f).redo();
+    expect(f.triples()).toEqual(flow);
+    expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(`${MM}Flow`);
+  });
+
+  it('a type changed once that menu is closed is a step of its own: undo puts the drawn type back', () => {
+    const f = fixture({ candidates: twoSpecific });
+    completeConnect(f.canvas);
+    service<PopupMenu>(f.canvas, 'popupMenu').close();
+
+    pick(f, `${MM}Flow`);
+    commandStack(f).undo();
+
+    expect(f.triples()).toEqual([`${SRC}|${SERVES}|${TGT}`]);
+    commandStack(f).undo();
+    expect(f.triples()).toEqual([]);
+  });
+
   it('does not open itself when one specific type is valid, Association aside', () => {
     const f = fixture({ candidates: () => twoSpecific().filter((c) => c.label !== 'Flow') });
 

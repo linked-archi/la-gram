@@ -87,6 +87,7 @@ Each is off until you switch it on.
 | `la-gram:validation-scope` | the Validation tab's scope | **View** |
 | `la-gram:graph-depth`, `la-gram:graph-layout`, `la-gram:graph-query-form` | the Graph tab's depth, layout and query form | **2**, **Force**, **SELECT** |
 | `la-gram:graph-forces` | the Graph tab's [*Forces*](../guide/graph.md#forces), *Link distance*, *Charge strength* and *Collision radius*, as one JSON object: `{"linkDistance":180,"chargeStrength":-350,"collideScale":1}`, the charge as d3-force takes it, negative. Written when a slider is let go or a key moves it; a value out of range, or between two steps, is read as the nearest its slider offers, anything unreadable as the default. *Reset* removes the key | **180 px**, **350**, **1.0×** |
+| `la-gram:arrange-view` | [*Arrange view…*](../guide/canvas.md#arrange-view)'s *Direction*, *Spacing* and *Group by band*, as one JSON object: `{"direction":"DOWN","spacing":"normal","bands":true}`. Written when *Arrange* is chosen; a value it does not know is read as the default. Also used for a model opened with no geometry and for *Render as new view* | **Down**, **Normal**, **on** |
 | `la-gram:about-sections` | which sections of *About ‹type›* are open | **as la-gram opens them** |
 | `la-gram:matrix-axes:<viewIri>` | a matrix view's row and column types, per view | **the two most common types** |
 

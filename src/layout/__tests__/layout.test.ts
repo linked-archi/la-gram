@@ -10,7 +10,7 @@ import { OxigraphRelationshipManager } from '../../model-manager/relationship-ma
 import { OxigraphViewManager } from '../../model-manager/view-manager.js';
 import { snapshotOf } from '../../model-manager/version-history.js';
 import type { Bounds } from '../../model-manager/interfaces.js';
-import { toElkGraph, laidOutEdges } from '../elk-graph.js';
+import { toElkGraph, laidOutEdges, MODEL_ORDER_MAX_NODES, THOROUGH_MAX_NODES } from '../elk-graph.js';
 import { fromElkGraph } from '../elk-result.js';
 import { gridLayout } from '../grid-layout.js';
 import { layout } from '../layout-service.js';
@@ -75,6 +75,25 @@ describe('the ELK graph', () => {
     expect(toElkGraph(banded, options({ bands: true })).layoutOptions!['elk.partitioning.activate']).toBe('true');
     expect(toElkGraph(banded, options({ bands: false })).layoutOptions!['elk.partitioning.activate']).toBeUndefined();
   });
+
+  it("spends ELK's effort by the diagram's size: the given order kept up to 150 elements, banded layers by longest path above, less crossing effort above 500 (R13)", () => {
+    const nodes = (n: number, band?: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `n${String(i).padStart(4, '0')}`, width: 120, height: 55, ...(band !== undefined ? { band: i % band } : {}) }));
+    const opts = (n: number, bands: boolean) => toElkGraph({ nodes: nodes(n, bands ? 3 : undefined), edges: [] }, options({ bands })).layoutOptions!;
+    const order = 'elk.layered.considerModelOrder.strategy';
+    const layering = 'elk.layered.layering.strategy';
+    const thoroughness = 'elk.layered.thoroughness';
+    expect(opts(MODEL_ORDER_MAX_NODES, true)).toMatchObject({ [order]: 'NODES_AND_EDGES' });
+    expect(opts(MODEL_ORDER_MAX_NODES, true)[layering]).toBeUndefined();
+    const larger = opts(MODEL_ORDER_MAX_NODES + 1, true);
+    expect(larger[order]).toBeUndefined();
+    expect(larger[layering]).toBe('LONGEST_PATH');
+    expect(larger[thoroughness]).toBeUndefined();
+    // Without bands, network simplex — ELK's default — is quick enough.
+    expect(opts(MODEL_ORDER_MAX_NODES + 1, false)[layering]).toBeUndefined();
+    expect(opts(THOROUGH_MAX_NODES, true)[thoroughness]).toBeUndefined();
+    expect(opts(THOROUGH_MAX_NODES + 1, true)[thoroughness]).toBe('1');
+  });
 });
 
 describe("ELK's result", () => {
@@ -136,6 +155,23 @@ describe('the layout, with ELK', () => {
     expect(y('biz')).toBeLessThan(y('app'));
     expect(y('app')).toBeLessThan(y('tech'));
   });
+
+  it('lays out a large banded diagram the faster way — bands in order, nothing over anything, every edge routed (R4, R13)', async () => {
+    const count = THOROUGH_MAX_NODES + 20;
+    const nodes = Array.from({ length: count }, (_, i) => ({ id: `n${String(i).padStart(4, '0')}`, width: 120, height: 55, band: i % 4 }));
+    // Each to two others a fixed stride away: a graph as tangled as the benchmark's, the same every run.
+    const edges = nodes.flatMap((n, i) => [7, 31].map((stride) => ({ id: `e${i}-${stride}`, source: n.id, target: nodes[(i + stride) % count].id })));
+    const result = await layout({ nodes, edges }, options({ bands: true }), bundledEngine);
+    expect(result.engine).toBe('elk');
+    const boxes = nodes.map((n) => ({ band: n.band, ...result.bounds.get(n.id)! }));
+    const byY = [...boxes].sort((a, b) => a.y - b.y || a.x - b.x);
+    for (let i = 1; i < byY.length; i++) expect(byY[i].band).toBeGreaterThanOrEqual(byY[i - 1].band);
+    const rows = new Map<number, typeof boxes>();
+    for (const b of boxes) rows.set(b.y, [...(rows.get(b.y) ?? []), b]);
+    for (const row of rows.values())
+      for (let i = 0; i < row.length; i++) for (let j = i + 1; j < row.length; j++) expect(overlap(row[i], row[j])).toBe(false);
+    expect(result.routes.size).toBe(edges.length);
+  }, 60_000);
 });
 
 describe('the grid instead (R8)', () => {

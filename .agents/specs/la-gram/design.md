@@ -722,6 +722,56 @@ The reconnect rule (`RdfRules.checkReconnect`) answers `false`, not
 allowed, and a reattach let go over empty canvas — the diagram's root — was
 attached to it.
 
+### Automatic layout
+
+Req 21; key design decision 21. `src/layout/` is DOM-free; `ui/arrange-view.ts`
+and `mount-ui` use it.
+
+| File | Does |
+|---|---|
+| `layout-types.ts` | `LayoutInput` (nodes with size, parent, padding, band and sort key; edges, an association marked), `LayoutOptions` (direction, spacing, bands, origin, `maxNodes` 2 000, `timeoutMs` 10 000), `LayoutResult` (bounds by node, routes by edge, the engine and why) |
+| `elk-graph.ts` | the input as ELK's JSON graph: nodes nested under their parents, in the order of their keys (band, type, name, IRI); edges at the root, by IRI, none between a node and one nested in it; the options, and ELK's effort by the diagram's size (below) |
+| `elk-result.ts` | ELK's result as top-left bounds and routes (start, bends, end), rounded and moved to the origin |
+| `bands.ts` | the bands: the list a loaded manifest names with `arch:diagramGroupOrder`, a band for each type it lists; `withNeighbourBands` gives an element of no band the band most of what it holds, else most of what it is related to, is in |
+| `grid-layout.ts` | the fallback: rows, what is nested inside its parent |
+| `layout-service.ts` | `layout()`: the size limit, ELK raced against the timeout (the worker stopped when it loses), the grid on failure; never half of one |
+| `elk-engine.ts`, `elk.worker.ts`, `elk-node-engine.ts` | ELK in a worker, created on the first layout (`elk-api.js` with the worker as one webpack chunk), for the browser and the desktop app; the bundled ELK in Node, for the tests |
+| `view-layout.ts` | a view as an input — each placement by its node IRI, at its current size, nesting and figures included — and a result written back by node and link IRI (`updateNodeBounds`, `updateLinkWaypoints`); a line ELK did not route whose ends moved is made straight |
+
+ELK is asked for layered layout (`elk.algorithm` layered), the direction, orthogonal
+routes, `elk.hierarchyHandling` INCLUDE_CHILDREN (nested nodes in their parents, in
+one run), `elk.randomSeed` 1, the spacing (node to node 30 / 50 / 80, layer to layer
+50 / 80 / 120), coordinates relative to the root (`elk.json.shapeCoords` and
+`edgeCoords` ROOT, so nested results need no adding up), and with bands
+`elk.partitioning.activate` and each node's `elk.partitioning.partition`. An
+association's edge has `elk.layered.priority.direction` 0. Its effort follows the
+diagram's size (`effortOptions`): up to 150 nodes
+`elk.layered.considerModelOrder.strategy` NODES_AND_EDGES, so a layer keeps the
+given order where it adds no crossing; above, with bands,
+`elk.layered.layering.strategy` LONGEST_PATH; above 500,
+`elk.layered.thoroughness` 1.
+
+Where it runs:
+
+- ***Arrange view…*** (`arrangeView`): the dialog, then `layoutView` — the view's
+  placements, or those selected and what is nested in them, kept at their top-left
+  (the input's origin) — then `diagramCanvas.recordChange(() =>
+  applyViewLayout(…))`: one `rdf.store.edit` on the command stack, so one step to
+  undo and one change for collaborators. The choices are `arrange-settings.ts`'s,
+  remembered as `la-gram:arrange-view`.
+- **A model opened with no geometry**: `ModelSession.autoLayoutIfNoGeometry`
+  places every element in the grid on the first diagram, as before; then
+  `layoutLoaded` lays that view out with the remembered choices and writes it as
+  part of the load, not as a step to undo. When the grid stays, the message says why.
+- ***Render as new view***: `layoutPlan` lays out the elements and relationships the
+  plan holds, not yet placed, at their notation's default sizes, and
+  `createViewWith` writes the bounds and the routes.
+
+`npm run bench -- --layout` arranges diagrams of 100, 500 and 2 000 elements, each
+with twice as many relationships between random types, in the built app in Chrome,
+at CPU rate 1 and 4×, and fails when one is not laid out by ELK, or has an element
+over another, at rate 1.
+
 ### Which relationships are permitted
 
 `RelationshipManager.getValidRelationships(source, target)` answers for connect,
@@ -1302,10 +1352,10 @@ the IRIs the result mentions, in order, and keeps the model's elements
 relationships between elements, each bringing its ends; `placeNodes` turns
 layout centres into bounds at each element's notation default size;
 `ModelSession.createViewWith` writes the diagram, its nodes and links in one
-batch and opens it. Without positions from a drawing, the layout is the Graph
-tab's tree, run headless (`layoutPositions` in `graph-view.ts`, Cytoscape.js
-without a container). Like *New view*, it is not on the canvas's undo stack;
-deleting the view removes it.
+batch and opens it. Without positions from a drawing for every element, the
+elements are laid out by ELK, with their routes (`layoutPlan`, *Automatic
+layout*). Like *New view*, it is not on the canvas's undo stack; deleting the view
+removes it.
 
 ### Model questions in the workbench
 
@@ -3096,6 +3146,25 @@ dialog; the modules' section).
     which axis is the default, from "aspect" in its label (gone: without a palette
     grouping, the axes come by name); and an axis it names is taken as one whatever
     its shape, where the structural detection would find one beneath it.
+21. **Automatic layout is ELK's, in a worker, its effort set by the diagram's
+    size, the grid when it cannot** (2026-11-12, 2026-11-15; Req 21). One library
+    gives what the three uses need: layered layout with right-angled routes,
+    nesting in the same run (INCLUDE_CHILDREN) and ordered bands (partitions) —
+    `elkjs` 0.12.1, pinned exactly, used under EPL-2.0, its licence shipped with
+    the others (decision 18). It runs in a worker, so a long layout never freezes
+    the app; it uses neither `eval` nor `new Function`, so it runs under the web
+    app's Content-Security-Policy. Determinism (Req 21.6) comes from the input
+    order and the seed, not from ELK's model order. Keeping the given order inside
+    each layer costs most, and more with bands — on the benchmark's diagrams, 0.3 s
+    at 100 elements, 1.1 s at 200, 4.8 s at 300, 14.5 s at 500 (Node, Apple M4
+    Pro), so the first measurement of 500 elements hit the 10 s limit and fell back
+    to the grid — so it is kept up to 150 elements, where a layout is read most
+    closely; above, banded layers by longest path (network simplex costs several
+    times more within partitions) and above 500 less crossing effort: in the app,
+    500 elements are arranged in 1.9 s and 2 000 in 6.6 s. The grid stays for
+    what ELK cannot do in time, said, never half a layout. The result is written
+    through the view manager in one recorded change, so it is undone, and shared,
+    as one.
 
 ---
 

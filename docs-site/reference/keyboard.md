@@ -229,7 +229,7 @@ The same on every platform:
 | scroll, or a trackpad's pinch | zoom in or out |
 
 Once you have clicked, dragged or scrolled in the drawing, the view stays where you put it until you
-choose another element, depth, filter or layout, or *Fit*. More on each gesture in
+choose another element, depth, filter or layout, change the *Forces*, or choose *Fit*. More on each gesture in
 [Relationship graph › Navigate](../guide/graph.md#navigate).
 
 1. Select *Web shop* and open the *Graph* tab.

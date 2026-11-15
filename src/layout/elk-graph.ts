@@ -14,6 +14,26 @@ const SPACING: Record<LayoutSpacing, { node: number; layer: number }> = {
   roomy: { node: 80, layer: 120 },
 };
 
+/**
+ * ELK's effort by the diagram's size (ELK task, R13; the benchmark, `npm run bench -- --layout`). Keeping the
+ * given order inside each layer (`considerModelOrder`) costs most, and more with bands: on a diagram of
+ * random relationships, 0.3 s at 100 elements, 1.1 s at 200, 4.8 s at 300, 14.5 s at 500 (Node, Apple M4
+ * Pro). So it is kept up to {@link MODEL_ORDER_MAX_NODES} elements, where the layout is read most closely;
+ * above, banded layers are made by longest path (network simplex costs several times more within bands), and
+ * above {@link THOROUGH_MAX_NODES} crossings are minimised with less effort — 500 elements 0.9 s, 2 000
+ * elements 4.4 s. The same diagram still gets the same options, so the same geometry (R6).
+ */
+export const MODEL_ORDER_MAX_NODES = 150;
+export const THOROUGH_MAX_NODES = 500;
+
+function effortOptions(nodeCount: number, bands: boolean): ElkOptions {
+  if (nodeCount <= MODEL_ORDER_MAX_NODES) return { 'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES' };
+  return {
+    ...(bands ? { 'elk.layered.layering.strategy': 'LONGEST_PATH' } : {}),
+    ...(nodeCount > THOROUGH_MAX_NODES ? { 'elk.layered.thoroughness': '1' } : {}),
+  };
+}
+
 /** The order nodes are given in: their key, else their band and IRI. */
 function compareNodes(a: LayoutNode, b: LayoutNode): number {
   const key = (n: LayoutNode) => n.key ?? `${String(n.band ?? 999).padStart(4, '0')}|${n.id}`;
@@ -82,7 +102,7 @@ export function toElkGraph(input: LayoutInput, options: LayoutOptions): ElkNode 
       'elk.direction': options.direction,
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-      'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      ...effortOptions(input.nodes.length, bands),
       'elk.randomSeed': '1',
       'elk.spacing.nodeNode': String(spacing.node),
       'elk.layered.spacing.nodeNodeBetweenLayers': String(spacing.layer),

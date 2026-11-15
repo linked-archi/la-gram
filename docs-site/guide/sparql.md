@@ -110,7 +110,8 @@ m:gift-wrapping  Gift wrapping
 ## Render as new view {#render-as-new-view}
 
 *Render as new view*, over a `SELECT` or `CONSTRUCT` result, makes a diagram of the elements and
-relationships the result mentions: the elements laid out as a tree, with the relationships among them.
+relationships the result mentions, laid out as [*Arrange view*](canvas.md#arrange-view) lays a diagram
+out, with the choices last made there: in rows, the relationships among them routed at right angles.
 It asks for the view's name, *New view*, with what it will hold in the field's label (*Name — 4
 elements, 2 relationships*); the name proposed is the question asked, or *Query results*. A view of a
 question's answer follows the question's viewpoint. A result that mentions no element of the model says

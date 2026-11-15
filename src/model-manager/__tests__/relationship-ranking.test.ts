@@ -180,9 +180,23 @@ describe('ArchiMate 3.2: its own figures, the same order of proposal', () => {
     expect(first3('Node', 'Artifact').preference).toBe('first');
   });
 
-  it('composition from a device to system software, and from a facility to a device — a node in 3.2', () => {
+  it('composition from a device to system software, and from a facility to a device', () => {
     expect(labels3('Device', 'SystemSoftware')[0]).toBe('Composition');
     expect(first3('Facility', 'Device').label).toBe('Composition');
+  });
+
+  it('a device, system software, equipment and a facility are no nodes in 3.2 (§E.3): a device has its own row of the tables, not a node\'s', () => {
+    // A node may be composed of a node; a device of devices and system software only.
+    expect(labels3('Node', 'Node')).toContain('Composition');
+    expect(labels3('Device', 'Node')).not.toContain('Composition');
+    expect(labels3('Equipment', 'Node')).not.toContain('Composition');
+  });
+
+  it('the scoped orders name all five: composition first from a facility to equipment or system software, assignment first to an artifact from a device or equipment', () => {
+    expect(first3('Facility', 'Equipment').label).toBe('Composition');
+    expect(first3('Facility', 'SystemSoftware').label).toBe('Composition');
+    expect(first3('Device', 'Artifact').label).toBe('Assignment');
+    expect(first3('Equipment', 'Artifact').label).toBe('Assignment');
   });
 
   it('between events, triggering in a layer and realization upwards across layers, as the figures draw them', () => {

@@ -1,6 +1,6 @@
 ---
 title: Drawing on the canvas
-description: How to place, connect, rename, nest, move and delete elements on la-gram's canvas, with the context pad, the right-click menu, figures and undo.
+description: How to place, connect, rename, nest, move, arrange and delete elements on la-gram's canvas, with the context pad, the right-click menu, figures and undo.
 ---
 # Drawing on the canvas
 
@@ -19,7 +19,8 @@ canvas is back to selecting.
 | ⬚ | *Lasso select* | drag a rectangle round what to select |
 | ✋ | *Pan the canvas* | drag to move the view; dragging the empty canvas does the same |
 
-After them come the format painter (🖌, see [Appearance](appearance.md#format-painter)) and three
+After them come the format painter (🖌, see [Appearance](appearance.md#format-painter)), *Arrange view…*
+(three boxes in two rows joined by right-angled lines; see [Arrange view](#arrange-view)) and three
 switches: *Relationship names*, *Notation only* and *Shapes*.
 
 1. Click ⬚ in the canvas toolbar.
@@ -81,7 +82,8 @@ Component. Permitted: Aggregation, …*
 2. Drag from *Connect* in its pad to "Online ordering". An Assignment is drawn — the type ArchiMate 4.0
    ranks first from an Application Component to a Service — and *Change relationship type* opens on it:
    every type the two permit, best first.
-3. Choose **Realization** to make it one; **Escape** keeps the Assignment. Later, select the line and choose
+3. Choose **Realization** to make it one; **Escape** keeps the Assignment. The line and the type picked
+   are one step: ++ctrl+z++ (++cmd+z++) takes the line away. Later, select the line and choose
    *Change relationship type* in its pad. To draw a Realization at once, click **Realization** in the
    palette first: then no menu opens.
 
@@ -213,6 +215,52 @@ they stay in line, and turns a right angle when one moves aside.
 2. Select it and drag its bottom right handle to make it wider.
 3. Drag the middle of its line to "Customer" sideways: the line bends.
 
+## Arrange view {#arrange-view}
+
+*Arrange view…*, on the canvas toolbar or in the empty canvas's right-click menu, lays the open diagram
+out: its elements in rows, in the direction its relationships lead, each at its present size and each
+nested element inside its parent; its relationships routed at right angles. A relationship ending on
+another relationship keeps its line docked to that one. With elements selected, it can arrange only
+those, with what is nested in them, keeping them where their top left was. It is one step to undo and one
+change for collaborators, and it says what it did: *Arranged 8 elements and 8 relationships.*
+
+| Field | Does | Values |
+|---|---|---|
+| *Arrange* | what is laid out; shown when elements are selected | **The selected element, and what is in it** (*The 2 selected, and what is in them* for two), *The whole view* |
+| *Direction* | the way relationships lead, from their source to their target. An Association, which has no direction in ArchiMate, does not decide which of its ends comes first | **Down**, *Right*, *Up*, *Left* |
+| *Spacing* | the room between elements side by side, and between rows | *Compact* (30 px, 50 px), **Normal** (50 px, 80 px), *Roomy* (80 px, 120 px) |
+| *Group by band* | keeps elements in the bands their metamodel orders, in the direction chosen (with *Down*, the first band at the top). Shown when a loaded metamodel orders bands | **on** |
+
+The bands are the groups a metamodel's manifest lists for its diagrams (`arch:diagramGroupOrder`):
+
+| Language | Bands, in order |
+|---|---|
+| ArchiMate 4.0 | Motivation, Strategy, Business, Application, Technology, Implementation and Migration |
+| ArchiMate 3.2 | Motivation, Strategy, Business, Application, Technology (its physical elements included), Implementation and Migration |
+
+An element of no band — in ArchiMate 4.0, a Common Domain element such as a process, a service or a
+role, or a grouping — goes into the band most of what it holds is in, else the band most of what it is
+related to is in; on a tie, the upper. The choices are remembered in this browser
+([Stored data](../reference/stored-data.md#panel-choices)). The same diagram arranged twice with the same
+choices is placed the same, to the pixel.
+
+1. Click *Arrange view…* in the canvas toolbar.
+2. Leave *Down*, *Normal* and *Group by band*, and choose *Arrange*: Customer and Shop team, business
+   actors, are above Payments, an application component, and the lines run at right angles.
+3. Press ++ctrl+z++ (++cmd+z++): the diagram is back as it was.
+
+!!! note "Large diagrams"
+    The layout runs in the background, and la-gram keeps responding while it runs: on an Apple M4 Pro in
+    Chrome, a diagram of 100 elements is arranged in under half a second, 500 elements with 1 000
+    relationships in about 2 seconds, 2 000 with 4 000 in about 7. Drawing the result pauses the canvas
+    for about half a second at 500 elements, and 2 seconds at 2 000. Above 2 000 elements, or when the
+    layout fails or takes more than 10 seconds, the elements are placed in a grid instead, and the
+    message says why: *Arranged 2100 elements; too many elements for the layered layout: placed in a
+    grid.*
+
+A model opened with no diagram geometry, and a diagram made with [*Render as new
+view*](sparql.md#render-as-new-view), are laid out the same way, with the choices last made here.
+
 ## Placed twice {#placed-twice}
 
 As ArchiMate allows, an element can be placed more than once on a view: drag it from the model tree onto
@@ -294,7 +342,8 @@ undoable from the canvas. A figure has *Delete* only: it is in no model.
 ## Undo and redo {#undo-redo}
 
 ↶ and ↷ in the toolbar, or the keys, undo and redo what was done on the canvas, in the Properties tab and
-in the model tree: placements, moves, model-level deletes, property edits, folder changes.
+in the model tree: placements, moves, model-level deletes, property edits, folder changes, an *Arrange
+view…*. A line drawn with *Connect* and the type then picked from the menu it opened are one step.
 
 === "Windows and Linux"
 
@@ -334,7 +383,7 @@ Right-click on the canvas for what applies to what is under the pointer.
 | an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and its other entries |
-| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
+| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
 | one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
 
 What the entries do beyond the canvas:

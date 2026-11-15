@@ -252,15 +252,15 @@ changes are breaking.'''@en ;
     rdfs:subClassOf :CoreLayerElement ;
     arch:isAbstractClass true ;
     skos:prefLabel "TechnologyLayerElement"@en ;
-    skos:scopeNote "Layer marker for technology and infrastructure elements. Realizes Application layer elements."@en ;
+    skos:scopeNote "Layer marker for technology and infrastructure elements, the physical elements among them (PhysicalLayerElement). Realizes Application layer elements."@en ;
 .
 
 :PhysicalLayerElement
     a              owl:Class ;
-    rdfs:subClassOf :CoreLayerElement ;
+    rdfs:subClassOf :TechnologyLayerElement ;
     arch:isAbstractClass true ;
     skos:prefLabel "PhysicalLayerElement"@en ;
-    skos:scopeNote "Marker for the physical elements — equipment, facilities, distribution networks, and materials. They extend the Technology Layer to the physical world and are part of it, not a layer of their own; this class keeps them apart from the other technology elements."@en ;
+    skos:scopeNote "Marker for the physical elements — equipment, facilities, distribution networks, and materials. They extend the Technology Layer to the physical world and are part of it, not a layer of their own: a kind of technology layer element, so that what holds for the Technology Layer holds for them, and this class tells them from the other technology elements."@en ;
     dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Physical-Elements-Metamodel> ;
 .
 
@@ -767,7 +767,8 @@ interacts with other computational or physical resources.'''@en ;
 
 :Device
     a                    owl:Class ;
-    rdfs:subClassOf      :Node ;
+    rdfs:subClassOf      :InternalActiveStructureElement,
+                         :TechnologyLayerElement ;
     skos:prefLabel       "Device"@en ;
     skos:altLabel        "Hardware"@en, "Physical Server"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-Device> ;
@@ -779,7 +780,8 @@ or deployed for execution.'''@en ;
 
 :SystemSoftware
     a                    owl:Class ;
-    rdfs:subClassOf      :Node ;
+    rdfs:subClassOf      :InternalActiveStructureElement,
+                         :TechnologyLayerElement ;
     skos:prefLabel       "System Software"@en ;
     skos:altLabel        "Platform Software"@en, "Middleware"@en, "Operating System"@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#sec-System-Software> ;
@@ -912,7 +914,7 @@ process, or by deployment and operation of an IT system.'''@en ;
 
 :Equipment
     a                    owl:Class ;
-    rdfs:subClassOf      :Node,
+    rdfs:subClassOf      :InternalActiveStructureElement,
                          :PhysicalLayerElement ;
     skos:prefLabel       "Equipment"@en ;
     skos:altLabel        "Machine"@en, "Physical Device"@en ;
@@ -925,7 +927,7 @@ use, store, move, or transform materials.'''@en ;
 
 :Facility
     a                    owl:Class ;
-    rdfs:subClassOf      :Node,
+    rdfs:subClassOf      :InternalActiveStructureElement,
                          :PhysicalLayerElement ;
     skos:prefLabel       "Facility"@en ;
     skos:altLabel        "Building"@en, "Data Center"@en, "Site"@en ;

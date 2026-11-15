@@ -149,7 +149,6 @@ la-gram 0.1.0 · Web — Chrome 156 · metamodels: ArchiMate 4.0 Metamodel · bu
 
 These are not available in la-gram today. Some are planned; none is promised for a given release.
 
-- **Automatic layout** of a diagram. A model that arrives without geometry is placed in a simple grid.
 - **Running derivation rules.** la-gram shows the derived relationships a file brings, and confirms one
   into the model on request; it does not derive them itself.
 - **Decision modelling.**

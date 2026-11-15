@@ -30,8 +30,17 @@
  *
  *   node scripts/bench.mjs --graph              the graph model's sweep alone
  *
+ * *Arrange view…* (the ELK task), on a model of one diagram of each size — 100,
+ * 500 and 2 000 elements, every relationship between them drawn
+ * (`test-results/bench/layout-<size>.ttl`) — at CPU rate 1 and throttled 4×: from
+ * the dialog's *Arrange* to la-gram saying what it arranged, the UI blocked in
+ * that time and the longest task, and whether ELK laid it out or the grid:
+ *
+ *   node scripts/bench.mjs --layout             the layout sweep alone
+ *
  * After the results are written, the run fails (exit 1) when a sweep row was not
- * laid out as the limits say, or a node limit is above 3 000.
+ * laid out as the limits say, a node limit is above 3 000, or a diagram of up to
+ * 2 000 elements was placed in the grid at CPU rate 1.
  */
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -60,15 +69,19 @@ function options(argv) {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : undefined;
   };
-  // Options that take a value; --graph takes none.
+  // Options that take a value; --graph and --layout take none.
   const flags = new Set(['--sizes', '--view-size', '--out']);
   const files = argv.filter((a, i) => !a.startsWith('--') && !flags.has(argv[i - 1]));
   const graph = argv.includes('--graph');
+  const layout = argv.includes('--layout');
   return {
     files,
-    sizes: value('sizes') ? value('sizes').split(',').map(Number) : files.length > 0 || graph ? [] : DEFAULT_SIZES,
+    sizes: value('sizes') ? value('sizes').split(',').map(Number) : files.length > 0 || graph || layout ? [] : DEFAULT_SIZES,
     viewSize: Number(value('view-size') ?? 40),
-    graph,
+    // Alone, each runs only its sweep; together, both sweeps and no models.
+    alone: graph || layout,
+    graph: graph || !layout,
+    layout: layout || !graph,
     out: value('out') ?? path.join(OUT, `results-${new Date().toISOString().replace(/[:.]/g, '-')}.json`),
   };
 }
@@ -86,6 +99,22 @@ function generatedGraph() {
   mkdirSync(OUT, { recursive: true });
   const file = path.join(OUT, 'graph.ttl');
   if (!existsSync(file)) writeFileSync(file, generateGraphModel({ seed: 1 }).text);
+  return file;
+}
+
+/** *Arrange view…*'s sizes: one diagram of each, every relationship between its elements drawn. */
+const LAYOUT_SIZES = [100, 500, 2000];
+/** *Arrange view…*'s passes: the CPU as it is, and throttled as the Graph tab's limits are measured. */
+const LAYOUT_PASSES = [
+  { name: 'CPU 1×', reducedMotion: false, rate: 1 },
+  { name: 'CPU 4×', reducedMotion: false, rate: 4 },
+];
+
+/** A model of one diagram of `elements` elements (`bench-model.mjs`), made when it is not there yet. */
+function generatedLayout(elements) {
+  mkdirSync(OUT, { recursive: true });
+  const file = path.join(OUT, `layout-${elements}.ttl`);
+  if (!existsSync(file)) writeFileSync(file, generateModel({ elements, viewSize: elements }).text);
   return file;
 }
 
@@ -474,6 +503,92 @@ async function measureSweep(file) {
   }
 }
 
+/**
+ * *Arrange view…* on a model of one diagram (the ELK task): the diagram opened,
+ * validation let finish, then in each pass the toolbar's *Arrange view…*, the
+ * dialog's *Arrange* pressed in the page — the time taken from there to the
+ * message saying what was arranged, the long tasks in between — and the diagram
+ * checked for elements over one another. Each pass lays out the diagram the last
+ * one laid out: the same input, the layout depending on no position.
+ */
+async function measureLayout(file) {
+  const { server, base, modelPath } = await serve(file);
+  const executablePath = process.env.LA_GRAM_CHROME;
+  const browser = await chromium.launch({ ...(executablePath ? { executablePath } : { channel: 'chrome' }), args: ['--disable-gpu'] });
+  try {
+    const page = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
+    await page.addInitScript(instrument);
+    await page.goto(`${base}/index.html?model=${encodeURIComponent(base + modelPath)}`, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__bench?.ready != null && window.__LA_GRAM_APP__.components.viewManager.getViews().length > 0, null, {
+      timeout: LIMIT_MS,
+      polling: 500,
+    });
+    const view = await page.evaluate(() => {
+      const vm = window.__LA_GRAM_APP__.components.viewManager;
+      const v = vm.getViews().map((v) => ({ iri: v.iri, nodes: vm.getNodes(v.iri).length, links: vm.getLinks(v.iri).length })).sort((a, b) => b.nodes - a.nodes)[0];
+      return v;
+    });
+    await page.evaluate((iri) => window.__LA_GRAM_UI__.runCommand({ command: 'open-view', value: iri }), view.iri);
+    await page.waitForFunction((n) => document.querySelectorAll('.djs-shape').length >= n, view.nodes, { timeout: LIMIT_MS, polling: 500 });
+    // Validation runs in a worker; the layout's is not to share the machine with it.
+    for (const started = Date.now(); Date.now() - started < LIMIT_MS; ) {
+      if (!(await page.evaluate(() => window.__LA_GRAM_APP__.validationPending()))) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    const cdp = await page.context().newCDPSession(page);
+    const rows = [];
+    try {
+      for (const pass of LAYOUT_PASSES) {
+        await setPass(page, cdp, pass);
+        await page.evaluate(() => document.querySelectorAll('.la-toast').forEach((t) => t.remove()));
+        await page.locator('canvas-toolbar button[data-action="arrange-view"]').click({ timeout: LIMIT_MS });
+        await page.locator('.la-dialog').waitFor({ state: 'visible', timeout: LIMIT_MS });
+        const m = await page.evaluate(
+          async ([viewIri, limitMs]) => {
+            const frame = () => new Promise((r) => requestAnimationFrame(r));
+            const said = () => [...document.querySelectorAll('.la-toast')].find((t) => t.textContent.startsWith('Arranged'));
+            const start = performance.now();
+            document.querySelector('.la-dialog .la-button.primary').click();
+            while (!said()) {
+              if (performance.now() - start > limitMs) return { timedOut: true };
+              await frame();
+            }
+            const end = performance.now();
+            // Long tasks are reported after they end: give the observer a moment.
+            await new Promise((r) => setTimeout(r, 100));
+            const tasks = window.__bench.tasks.filter(([t, d]) => t + d >= start && t <= end);
+            const boxes = window.__LA_GRAM_APP__.components.viewManager.getNodes(viewIri).map((n) => n.bounds);
+            let overlaps = 0;
+            for (let i = 0; i < boxes.length; i++)
+              for (let j = i + 1; j < boxes.length; j++) {
+                const [a, b] = [boxes[i], boxes[j]];
+                if (a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height) overlaps++;
+              }
+            const message = said().textContent;
+            return {
+              ms: end - start,
+              blockedMs: tasks.reduce((a, [, d]) => a + d, 0),
+              longestTaskMs: Math.max(0, ...tasks.map(([, d]) => d)),
+              engine: /grid/.test(message) ? 'grid' : 'elk',
+              message,
+              overlaps,
+            };
+          },
+          [view.iri, LIMIT_MS],
+        );
+        rows.push({ pass: pass.name, rate: pass.rate, ...m });
+        process.stderr.write(`  ${view.nodes} elements, ${pass.name}: ${m.timedOut ? 'timed out' : `${m.engine}, ${s(m.ms)} s, longest task ${Math.round(m.longestTaskMs)} ms`}\n`);
+      }
+    } finally {
+      await setPass(page, cdp, undefined);
+    }
+    return { model: path.basename(file), elements: view.nodes, relationships: view.links, rows };
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
 /** The heap after a collection, in MB: the page's, and each worker's. */
 async function heaps(browser, page) {
   const cdp = await page.context().newCDPSession(page);
@@ -544,6 +659,36 @@ function sweepTable(sweep) {
   return lines.join('\n');
 }
 
+/** *Arrange view…*: for each diagram and pass, how it was laid out, the time taken, the UI blocked, the longest task. */
+function layoutTable(layouts) {
+  const lines = [
+    'Arrange view',
+    '',
+    '| Elements | Relationships | Pass | Laid out by | Arranged in (s) | UI blocked (ms) | Longest task (ms) | Overlapping pairs |',
+    '|--:|--:|---|---|--:|--:|--:|--:|',
+  ];
+  for (const l of layouts)
+    for (const r of l.rows)
+      lines.push(
+        r.timedOut
+          ? `| ${l.elements} | ${l.relationships} | ${r.pass} | timed out | | | | |`
+          : `| ${l.elements} | ${l.relationships} | ${r.pass} | ${r.engine === 'elk' ? 'ELK' : 'the grid'} | ${s(r.ms)} | ${ms(r.blockedMs)} | ${ms(r.longestTaskMs)} | ${r.overlaps} |`,
+      );
+  return lines.join('\n');
+}
+
+/** *Arrange view…*'s check: at CPU rate 1, a diagram of up to 2 000 elements laid out by ELK, nothing over anything. */
+function layoutErrors(layouts) {
+  const errors = [];
+  for (const l of layouts)
+    for (const r of l.rows.filter((r) => r.rate === 1)) {
+      if (r.timedOut) errors.push(`${l.elements} elements, ${r.pass}: not arranged`);
+      else if (r.engine !== 'elk') errors.push(`${l.elements} elements, ${r.pass}: placed in the grid (${r.message})`);
+      else if (r.overlaps > 0) errors.push(`${l.elements} elements, ${r.pass}: ${r.overlaps} pairs of elements over one another`);
+    }
+  return errors;
+}
+
 /**
  * The sweep's checks: every row laid out as its limits say — animated up to
  * animateMaxNodes in an animated pass, laid out at once otherwise, in rings above
@@ -570,7 +715,7 @@ async function main() {
     console.error('Build the web app first: npm run build:web');
     process.exit(1);
   }
-  const files = opts.graph ? [] : [...opts.sizes.map((n) => generated(n, opts.viewSize)), ...opts.files.map((f) => path.resolve(f))];
+  const files = opts.alone ? [] : [...opts.sizes.map((n) => generated(n, opts.viewSize)), ...opts.files.map((f) => path.resolve(f))];
   const rows = [];
   for (const file of files) {
     process.stderr.write(`${path.basename(file)} … `);
@@ -579,20 +724,32 @@ async function main() {
     rows.push(row);
   }
   // The graph model's sweep, after the other models (or alone, with --graph).
-  const graphFile = generatedGraph();
-  process.stderr.write(`${path.basename(graphFile)}, the Graph tab's sweep …\n`);
-  const sweeps = [await measureSweep(graphFile)];
+  const sweeps = [];
+  if (opts.graph) {
+    const graphFile = generatedGraph();
+    process.stderr.write(`${path.basename(graphFile)}, the Graph tab's sweep …\n`);
+    sweeps.push(await measureSweep(graphFile));
+  }
+  // Arrange view, last (or alone, with --layout).
+  const layouts = [];
+  if (opts.layout)
+    for (const size of LAYOUT_SIZES) {
+      const file = generatedLayout(size);
+      process.stderr.write(`${path.basename(file)}, Arrange view …\n`);
+      layouts.push(await measureLayout(file));
+    }
   mkdirSync(path.dirname(opts.out), { recursive: true });
-  writeFileSync(opts.out, JSON.stringify({ date: new Date().toISOString(), rows, sweeps }, null, 1));
+  writeFileSync(opts.out, JSON.stringify({ date: new Date().toISOString(), rows, sweeps, layouts }, null, 1));
   if (rows.length > 0) console.log(table(rows) + '\n');
   for (const sweep of sweeps) console.log(sweepTable(sweep) + '\n');
+  if (layouts.length > 0) console.log(layoutTable(layouts) + '\n');
   console.log(path.relative(ROOT, opts.out));
   // After the results are written, so that a run that fails keeps them.
   const errors = sweeps.flatMap(sweepErrors);
-  if (errors.length > 0) {
-    console.error(`\nThe Graph tab's limits do not hold:\n${errors.map((e) => `- ${e}`).join('\n')}`);
-    process.exit(1);
-  }
+  if (errors.length > 0) console.error(`\nThe Graph tab's limits do not hold:\n${errors.map((e) => `- ${e}`).join('\n')}`);
+  const layoutFailures = layoutErrors(layouts);
+  if (layoutFailures.length > 0) console.error(`\nArrange view did not lay out:\n${layoutFailures.map((e) => `- ${e}`).join('\n')}`);
+  if (errors.length > 0 || layoutFailures.length > 0) process.exit(1);
 }
 
 await main();

@@ -18,7 +18,10 @@ older vocabulary was migrated. Metamodels the file declares that could not be lo
 (*Could not load: …*).
 
 A file of RDF that is not a la-gram model is opened too: la-gram adopts its model resource, its
-membership and a view, and lays the elements out in a grid when there is no geometry.
+membership and a view. When no view has diagram geometry, every element is placed on the first diagram
+with the relationships between them, laid out as [*Arrange view*](canvas.md#arrange-view) lays a diagram
+out, with the choices last made there; when that layout cannot be used, in a grid, and the message says
+why.
 
 1. Choose *File › Open…*.
 2. Choose [shop.ttl](../examples/shop.ttl), saved from this site. The diagram opens.
