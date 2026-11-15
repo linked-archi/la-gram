@@ -803,29 +803,34 @@ candidate `direct: true | false`, or leaves it unmarked where the tables do not
 say (a junction, which they do not list). The same tables say which
 relationships the specification's metamodel figures draw for a pair
 (`am4:assignedTo am4rt:drawnBy am4rt:drawsAssignment`), read by the same code
-under the name `drawnBy`; and the language's taxonomy gives its order of
-proposal — `arch:RelationshipProposalOrder` collections, a general one and
-exceptions scoped with `arch:domainIncludes` / `arch:rangeIncludes`
-(`model-manager/proposal-order.ts`). Candidates come in five groups
-(`RelationshipPreference`), best first: `first`, a scoped exception names it for
-these elements (composition between two capabilities, aggregation from a
-grouping); `drawn`, the figures draw it, in the general order — ArchiMate's
-strongest first, Association last (a process realizes a service before it
-triggers it, aggregates another process before it triggers it); `direct`; `derived`, only by derivation; and
-`fallback`, Association and the core's generic relationship. Within the last
-three, a candidate whose `arch:domainIncludes`/`arch:rangeIncludes` hints
-describe the pair comes first, then the general order — strongest first, so
-composition before aggregation between two application components, which the
-figures draw nothing between — then the score's nudges (Specialization,
-Composition and Aggregation down), then the label. A connect with no type chosen
+under the name `drawnBy` and said on the candidate (`drawn`), not ranked by. The
+order is the metamodel's: the ordered collections its manifest names with
+`arch:relationshipProposalOrder` (`model-manager/proposal-order.ts`, which reads
+the pointer only from a named graph — a metamodel's document — never the
+model's default graph), a general one and ones scoped with `arch:domainIncludes`
+/ `arch:rangeIncludes` to kinds of element. Candidates come in three groups,
+core's rule: what the tables let a modeller draw directly, or say nothing about;
+then `direct: false`, only by derivation; then the fallbacks (`fallback`),
+Association and the core's generic relationship, unless an order scoped to the
+pair lists one — ArchiMate's association to a meaning or a value. Within a group,
+each takes the place the most specific order that lists it gives it
+(`Proposal`: the ends an order names, then the closure sizes of the classes it
+matches them by, then the position): between two processes Triggering, Flow,
+Composition, Aggregation; from a process to a service Realization; elsewhere the
+general order, strongest first. What no order lists — every candidate, in a
+language that publishes none — follows: one whose hints describe the pair first,
+then the score's nudges (Specialization, Composition and Aggregation down), then
+the label. A connect with no type chosen
 draws the best-ranked type, and where the pair permits more than one specific
 type, `connect.end` (after `Connect`'s own handler) opens the relationship-type
 menu on the new line: picking one is a retype, Escape keeps it. So in 4.0 an
 application component is assigned to a data object — the system of record, as
 the Application Structure metamodel draws it — with Access, derived, second. The
-menus say why in words (`preferenceNotes`): "proposed first", "drawn in the
-metamodel", "only by derivation", "always permitted"; the candidate's reason
-says it too.
+menus say in words (`preferenceNotes`): "drawn in the metamodel", "only by
+derivation", "always permitted"; the candidate's reason says it too. The "+"
+menu's target types keep the figures as their order — a type a figure draws a
+relationship to before one only permitted (`relationship-resolution.ts`) — which
+is which elements to offer, not which relationship.
 
 **Append.** "+" on the pad lists the element types some relationship is
 permitted to, with the palette's icons. Association is permitted between any two
@@ -3165,6 +3170,23 @@ dialog; the modules' section).
     what ELK cannot do in time, said, never half a layout. The result is written
     through the view manager in one recorded change, so it is undone, and shared,
     as one.
+22. **The order of proposal is the metamodel's — orders its manifest names, by
+    the kinds of the two elements — under one rule, core's; the figures are said,
+    not ranked by** (2026-11-15; Req 4.2; meta's DD-38). la-gram had five tiers:
+    a scoped exception, then what the figures draw, then direct, derived,
+    fallback. The figures split the order — a relationship they do not draw fell
+    below every one they do, so composition between two processes came after flow
+    in 4.0 and before it in 3.2 — and, expanded from abstract types, put
+    assignment first between two roles. The order is now data: orders for kinds of
+    element (between behaviour elements triggering first), each kept only where
+    taking it out changes a pair, and a general one. Derivation still demotes:
+    letting the order alone decide put a derived relationship before a direct one
+    in 46 of the 5 364 pairs of 4.0 and 3.2, 42 for the worse (in 3.2, across
+    layers, triggering before the realization the tables permit directly). The
+    orders are found through the manifest, not by a class searched for in every
+    graph, so a model file cannot change them. "Subclass of" between two orders'
+    classes is measured by closure size, which agrees with it wherever one's
+    classes are subclasses of the other's.
 
 ---
 

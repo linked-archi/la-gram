@@ -14,27 +14,21 @@
  * subclasses). The hints below decide only for relationship types no shape
  * covers — metamodels without relationship shapes.
  *
- * **What is proposed first.** The candidates are ranked in five groups
- * (`RelationshipPreference`), best first:
- *
- * 1. `first` — a proposal order scoped to these elements puts it first
- *    (`proposal-order.ts`: ArchiMate 4.0 proposes composition between two
- *    capabilities, aggregation from a grouping);
- * 2. `drawn` — the language's metamodel figures draw it for the pair
- *    (`direct-permissions.ts`, `drawnBy`), in the language's general proposal
- *    order: a process realizes a service before it triggers it;
- * 3. `direct` — the relationship tables let a modeller draw it directly (the
- *    tables' upper case), or say nothing either way;
- * 4. `derived` — permitted only as the conclusion of a derivation (lower case),
- *    marked `direct: false`;
- * 5. `fallback` — Association and a generic relationship (Basic's Connection),
- *    which every pair admits and which say least.
- *
- * Within the last three, a candidate whose `arch:domainIncludes` /
- * `arch:rangeIncludes` hints describe the pair comes before one they do not,
- * then the general proposal order — ArchiMate's strongest first, so between two
- * application components, which the figures draw nothing between, composition
- * before aggregation — then the score's small nudges, then the label.
+ * **What is proposed first.** In three groups (core's `arch:relationshipProposalOrder`):
+ * what the relationship tables let a modeller draw directly, or say nothing
+ * about; then what they permit only as the conclusion of a derivation (`direct:
+ * false`); then the fallbacks — Association and a generic relationship (Basic's
+ * Connection), which every pair admits and which say least — unless an order
+ * scoped to the pair lists one, as ArchiMate's does association to a meaning or
+ * a value. Within a group, a candidate takes the place the most specific order
+ * of proposal that lists it gives it (`proposal-order.ts`): between two
+ * behaviour elements triggering and flow first, from a service serving, the
+ * strongest first elsewhere. What no order lists — every candidate, in a
+ * language that publishes none — comes after what an order lists: one whose
+ * `arch:domainIncludes` / `arch:rangeIncludes` hints describe the pair before one
+ * they do not, then the score's small nudges, then the label. Whether the
+ * language's metamodel figures draw a relationship does not move it; it is
+ * said (`drawn`).
  *
  * `arch:domainIncludes` / `arch:rangeIncludes` are `owl:AnnotationProperty`
  * *hints*, not `rdfs:domain` / `rdfs:range` axioms. The core ontology is
@@ -98,8 +92,7 @@ import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
 import { modelNamespace } from './model-namespace.js';
 import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
 import { readDirectPermissions, readDrawnPermissions, type TablePermissions } from './direct-permissions.js';
-import { readProposalOrders, type ProposalOrders, type Proposal } from './proposal-order.js';
-import type { RelationshipPreference } from '../metamodel-manager/interfaces.js';
+import { compareProposals, isProposed, readProposalOrders, type ProposalOrders, type Proposal } from './proposal-order.js';
 import {
   collectRelationshipQuads,
   qualifiedFormOf,
@@ -141,14 +134,6 @@ const CONTAINMENT_PENALTY = 1;
 const SPECIALIZATION_PENALTY = 1;
 /** A generic relationship (relates any elements) says less than any language's: below Association. */
 const GENERIC_PENALTY = 5;
-
-/** The groups candidates rank in, best first (see the module documentation). */
-const PREFERENCE_RANK: Record<RelationshipPreference, number> = { first: 0, drawn: 1, direct: 2, derived: 3, fallback: 4 };
-
-/** Numbers in order, where both may be infinite (no proposal order lists either). */
-function compare(a: number, b: number): number {
-  return a === b ? 0 : a < b ? -1 : 1;
-}
 
 /** Counter for generating unique QualifiedRelationship IRIs. */
 let qrCounter = 0;
@@ -316,12 +301,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       const direct = predicate ? directPermissions.holds(predicate, sourceClosure, targetClosure) : undefined;
       const drawn = predicate ? drawnPermissions.holds(predicate, sourceClosure, targetClosure) === true : false;
       const proposal = proposalOrders.proposal(candidate.iri, relationshipClosure, sourceClosure, targetClosure);
-      const preference: RelationshipPreference =
-        proposal.scope <= 1 ? 'first'
-        : drawn ? 'drawn'
-        : association || generic ? 'fallback'
-        : direct === false ? 'derived'
-        : 'direct';
+      const fallback = association || generic;
       const hintFit =
         (domainTypes.length === 0 || domainTypes.some((iri) => matchesClass(sourceClosure, iri))) &&
         (rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri)));
@@ -335,12 +315,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
           `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}.`
         : 'Allowed because the metamodel declares no arch:domainIncludes or ' +
           'arch:rangeIncludes for this type, and an absent constraint hint is permissive.';
-      const why =
-        preference === 'first'
-          ? ' Proposed first for these elements, by the language\'s order of proposal.'
-          : preference === 'drawn'
-          ? ' The language\'s metamodel figures draw it between these element types.'
-          : '';
+      const why = drawn ? ' The language\'s metamodel figures draw it between these element types.' : '';
       const reason =
         direct === false
           ? `${allowed}${why} Only by derivation: the relationship tables permit it as the conclusion of a ` +
@@ -358,26 +333,30 @@ export class OxigraphRelationshipManager implements RelationshipManager {
         reason,
         ...(direct === undefined ? {} : { direct }),
         ...(generic ? { generic } : {}),
-        preference,
+        ...(drawn ? { drawn } : {}),
+        ...(fallback ? { fallback } : {}),
       };
       matches.push(match);
       ranking.set(match, { proposal, hintFit });
     }
 
+    // Three groups, in core's rule: what a modeller may draw directly, what only a derivation gives, and the
+    // fallbacks — Association, a generic relationship — unless an order scoped to the pair lists one.
+    const group = (match: RelationshipTypeInfo, proposal: Proposal) =>
+      match.fallback && !(isProposed(proposal) && proposal.ends > 0) ? 2 : match.direct === false ? 1 : 0;
     return matches.sort((a, b) => {
       const ra = ranking.get(a)!;
       const rb = ranking.get(b)!;
-      const ordered = (preference: RelationshipPreference | undefined) => preference === 'first' || preference === 'drawn';
+      const byGroup = group(a, ra.proposal) - group(b, rb.proposal);
+      if (byGroup !== 0) return byGroup;
+      const listedA = isProposed(ra.proposal);
+      const listedB = isProposed(rb.proposal);
+      if (listedA !== listedB) return listedA ? -1 : 1;
       return (
-        PREFERENCE_RANK[a.preference!] - PREFERENCE_RANK[b.preference!] ||
-        // A scoped order puts its members first in its own order; the general order ranks what is drawn.
-        (ordered(a.preference)
-          ? compare(ra.proposal.scope, rb.proposal.scope) || compare(ra.proposal.position, rb.proposal.position)
-          : 0) ||
+        // The place the most specific order that lists each gives it.
+        (listedA ? compareProposals(ra.proposal, rb.proposal) : 0) ||
+        // Where no order decides — a language that publishes none — the hints' fit, the score, the label.
         Number(rb.hintFit) - Number(ra.hintFit) ||
-        // Elsewhere too, after the hints: ArchiMate's general order puts the strongest first — composition
-        // before aggregation between two application components, which the figures draw nothing between.
-        (ordered(a.preference) ? 0 : compare(ra.proposal.position, rb.proposal.position)) ||
         (b.score ?? 0) - (a.score ?? 0) ||
         a.label.localeCompare(b.label)
       );

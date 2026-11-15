@@ -139,6 +139,15 @@ contexts into a single discoverable resource.'''@en ;
     arch:paletteGrouping          amtax:PaletteGrouping ;
     arch:diagramGroupOrder        amtax:DiagramGroupOrder ;
 
+    ## Relationship proposal order — the orders a modelling tool proposes relationships in, the general one
+    ## and those for the kinds of element they name
+    ## File: archimate3.2-tax.ttl
+    arch:relationshipProposalOrder amtax:ProposalOrder, amtax:BehaviorProposalOrder,
+                                   amtax:BehaviorServiceProposalOrder, amtax:StrategyBehaviorProposalOrder,
+                                   amtax:CapabilityProposalOrder, amtax:CollaborationProposalOrder,
+                                   amtax:MotivationProposalOrder, amtax:MeaningValueProposalOrder,
+                                   amtax:CompositeProposalOrder ;
+
     ## Viewpoint library — SKOS scheme grouping viewpoints
     ## File: archimate3.2-viewpoints.ttl
     arch:viewpointLibrary         amvp:ViewpointCatalog ;

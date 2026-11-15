@@ -59,11 +59,11 @@ them: without it, the potential rules derive nothing.
 Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
 subproperty of :permitsRealization (am4:realizes :drawnBy :drawsRealization), lists the types the
 figures draw a realization to from this type — expanded from the abstract types a figure names to the
-concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
-proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
-it. A pair a figure names itself is given as the figure draws it: figures 8-1, 9-1 and 11-1 draw an
-interface serving a business actor, an application component and a facility, which the tables give only
-as derived.
+concrete pairs beneath them that the tables permit directly. They say what the specification
+illustrates, which a modelling tool may show; the order in which it proposes relationships is the
+taxonomy's. Each such triple's reifier cites, with dcterms:source, every figure that draws it. A pair a
+figure names itself is given as the figure draws it: figures 8-1, 9-1 and 11-1 draw an interface serving
+a business actor, an application component and a facility, which the tables give only as derived.
 
 This is not an official Open Group document.'''@en ;
     dcterms:created               "2026-10-15"^^xsd:date ;
@@ -99,7 +99,7 @@ This is not an official Open Group document.'''@en ;
 :drawnBy
     a               owl:AnnotationProperty ;
     skos:prefLabel  "drawn by"@en ;
-    skos:definition "The annotation that gives, for each element type, the types the specification's metamodel figures draw this relationship to: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition "The annotation that gives, for each element type, the types the specification's metamodel figures draw this relationship to."@en ;
     rdfs:domain     owl:ObjectProperty ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -129,7 +129,7 @@ am4:accesses :permittedDirectlyBy :permitsDirectAccess .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAccess ;
     skos:prefLabel     "draws access"@en ;
-    skos:definition    "The specification's metamodel figures draw an access relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an access relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -161,7 +161,7 @@ am4:aggregates :permittedDirectlyBy :permitsDirectAggregation .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAggregation ;
     skos:prefLabel     "draws aggregation"@en ;
-    skos:definition    "The specification's metamodel figures draw an aggregation relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an aggregation relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -193,7 +193,7 @@ am4:assignedTo :permittedDirectlyBy :permitsDirectAssignment .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAssignment ;
     skos:prefLabel     "draws assignment"@en ;
-    skos:definition    "The specification's metamodel figures draw an assignment relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an assignment relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -225,7 +225,7 @@ am4:associatedWith :permittedDirectlyBy :permitsDirectAssociation .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAssociation ;
     skos:prefLabel     "draws association"@en ;
-    skos:definition    "The specification's metamodel figures draw an association relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an association relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -257,7 +257,7 @@ am4:composedOf :permittedDirectlyBy :permitsDirectComposition .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsComposition ;
     skos:prefLabel     "draws composition"@en ;
-    skos:definition    "The specification's metamodel figures draw a composition relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a composition relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -289,7 +289,7 @@ am4:flowsTo :permittedDirectlyBy :permitsDirectFlow .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsFlow ;
     skos:prefLabel     "draws flow"@en ;
-    skos:definition    "The specification's metamodel figures draw a flow relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a flow relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -321,7 +321,7 @@ am4:influences :permittedDirectlyBy :permitsDirectInfluence .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsInfluence ;
     skos:prefLabel     "draws influence"@en ;
-    skos:definition    "The specification's metamodel figures draw an influence relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an influence relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -353,7 +353,7 @@ am4:realizes :permittedDirectlyBy :permitsDirectRealization .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsRealization ;
     skos:prefLabel     "draws realization"@en ;
-    skos:definition    "The specification's metamodel figures draw a realization relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a realization relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -385,7 +385,7 @@ am4:serves :permittedDirectlyBy :permitsDirectServing .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsServing ;
     skos:prefLabel     "draws serving"@en ;
-    skos:definition    "The specification's metamodel figures draw a serving relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a serving relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -417,7 +417,7 @@ am4:specializes :permittedDirectlyBy :permitsDirectSpecialization .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsSpecialization ;
     skos:prefLabel     "draws specialization"@en ;
-    skos:definition    "The specification's metamodel figures draw a specialization relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a specialization relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .
@@ -449,7 +449,7 @@ am4:triggers :permittedDirectlyBy :permitsDirectTriggering .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsTriggering ;
     skos:prefLabel     "draws triggering"@en ;
-    skos:definition    "The specification's metamodel figures draw a triggering relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a triggering relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/> ;
 .

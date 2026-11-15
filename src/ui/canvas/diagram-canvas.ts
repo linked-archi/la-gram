@@ -4361,7 +4361,7 @@ export class DiagramCanvas {
       const connection = event.context?.connection;
       if (!connection || this.ruleProvider.getPreferredType()) return;
       const attrs = event.context?.canExecute as RdfConnectionAttrs | false | undefined;
-      const specific = (attrs && !attrs.connector ? attrs.candidates ?? [] : []).filter((c) => c.preference !== 'fallback');
+      const specific = (attrs && !attrs.connector ? attrs.candidates ?? [] : []).filter((c) => !c.fallback);
       if (specific.length < 2) return;
       const pointer = event.originalEvent;
       const at = pointer && typeof pointer.clientX === 'number' ? { x: pointer.clientX + 8, y: pointer.clientY + 8 } : this.padMenuPosition(undefined);

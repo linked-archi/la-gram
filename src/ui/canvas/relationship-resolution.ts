@@ -37,13 +37,22 @@ import { matchesClass } from '../../metamodel-manager/taxonomy.js';
 import type {
   ElementTypeInfo,
   PaletteDefinition,
-  RelationshipPreference,
   RelationshipTypeInfo,
 } from '../../metamodel-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
-/** The groups a pair's relationships rank in, best first (`RelationshipPreference`). */
-const PREFERENCE_RANK: Record<RelationshipPreference, number> = { first: 0, drawn: 1, direct: 2, derived: 3, fallback: 4 };
+/**
+ * How typical a target type is for the source, for ordering the pad's create-and-connect list — which elements
+ * to offer, not which relationship: one the language's metamodel figures draw a relationship to first, then one
+ * the best relationship may be drawn to, then one it reaches only by derivation, then one only the fallbacks
+ * reach.
+ */
+function targetGroup(relationships: readonly RelationshipTypeInfo[]): number {
+  const best = relationships[0];
+  if (relationships.some((r) => r.drawn)) return 0;
+  if (!best || best.fallback) return 3;
+  return best.direct === false ? 2 : 1;
+}
 
 /** Resolves a type IRI to its `rdfs:subClassOf*` closure, the type included. */
 export type ClassClosure = (typeIri: string) => string[];
@@ -258,9 +267,8 @@ export function appendableTargetTypes(
     }
   }
 
-  // By the group of the best relationship that reaches the target — one proposed first or drawn in
-  // the metamodel before one only permitted, before one reached only by derivation — then by score.
-  const group = (t: AppendTarget) => PREFERENCE_RANK[t.relationships[0]?.preference ?? 'direct'];
+  // By how typical the target is (`targetGroup`), then by the best relationship's score.
+  const group = (t: AppendTarget) => targetGroup(t.relationships);
   targets.sort((a, b) => {
     const byGroup = group(a) - group(b);
     const byScore = (b.relationships[0]?.score ?? 0) - (a.relationships[0]?.score ?? 0);

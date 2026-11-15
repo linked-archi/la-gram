@@ -87,6 +87,36 @@ Component. Permitted: Aggregation, …*
    *Change relationship type* in its pad. To draw a Realization at once, click **Realization** in the
    palette first: then no menu opens.
 
+### The order of the types {#relationship-order}
+
+The types a pair permits come in three groups, and within each in the metamodel's order of proposal:
+
+| Group | Note in the menu | Example (ArchiMate 4.0) |
+|---|---|---|
+| what the relationship tables let you draw directly | — | Process → Process: **Triggering**, Flow, Composition, Aggregation |
+| what they permit only as the conclusion of a derivation | *only by derivation* | Application Component → Process: **Assignment** |
+| Association and Directed Association | *always permitted* | last — except to a Meaning or a Value, where Association comes first |
+
+The order of proposal is the metamodel's, published with it: an order for every pair, and orders for
+kinds of element that come before it. ArchiMate 4.0's and 3.2's are the same:
+
+| From | To | First |
+|---|---|---|
+| a behaviour element | a behaviour element | Triggering, Flow, then Composition, Aggregation |
+| a process, function or interaction | a service | Realization |
+| a capability, value stream or course of action | one of those | Realization, then Serving |
+| a capability | a capability | Composition |
+| a collaboration | an actor, role, component, node… | Aggregation |
+| a motivation element | a motivation element | Realization, then Influence |
+| any other element | a Meaning or a Value | Association |
+| a grouping, location, product or plateau | any element | Aggregation |
+| anything else | | the strongest first: Composition, Aggregation, Assignment, Realization, Serving, Access, Influence, Triggering, Flow, Specialization |
+
+*drawn in the metamodel* marks a type the specification's metamodel figures draw between the two
+elements; it does not change the order. In ArchiMate 3.2, across layers, the tables permit Triggering
+and Flow between behaviour elements only as derived, so the Realization they permit directly comes
+first: an Application Process to a Business Process, **Realization**.
+
 ## Append {#append}
 
 *Append element*, in the context pad, opens a menu of what can follow the element, in two tabs:
@@ -119,7 +149,8 @@ The relationship keeps its identity, its name and its placements.
 With two elements selected, the pad offers *Connect these two…*, which lists the relationships allowed
 between them in both directions (*Customer → Gift wrapping*, then *Gift wrapping → Customer*), each
 saying why it is allowed: *always permitted*, *only by derivation* (the relationship tables permit it as
-the conclusion of a derivation, not drawn directly), or because the language's metamodel figures draw it.
+the conclusion of a derivation, not drawn directly), or *drawn in the metamodel* (the language's metamodel
+figures draw it). Each direction is in the [order of the types](#relationship-order).
 
 1. Click "Customer", then ++shift++-click "Online ordering".
 2. Choose *Connect these two…* in the pad.

@@ -267,25 +267,18 @@ export interface RelationshipTypeInfo {
    */
   generic?: boolean;
   /**
-   * For the queried pair: why the candidate ranks where it does, best first —
-   * see {@link RelationshipPreference}. Undefined outside a pair-specific query.
+   * For the queried pair: the language's metamodel figures draw this relationship
+   * between the two element types (the relationship tables' `draws…`). Said, not
+   * ranked by. Undefined when they do not, or outside a pair-specific query.
    */
-  preference?: RelationshipPreference;
+  drawn?: boolean;
+  /**
+   * For the queried pair: Association, a kind of it, or a generic relationship —
+   * always permitted, saying least. Undefined otherwise, or outside a
+   * pair-specific query.
+   */
+  fallback?: boolean;
 }
-
-/**
- * The groups `RelationshipManager.getValidRelationships` ranks a pair's
- * candidates in, best first:
- *
- * - `first` — a proposal order scoped to these elements puts it first
- *   (`arch:RelationshipProposalOrder` with `arch:domainIncludes`);
- * - `drawn` — the language's metamodel figures draw it for the pair;
- * - `direct` — the relationship tables permit it to be drawn directly, or say
- *   nothing either way;
- * - `derived` — the tables permit it only as the conclusion of a derivation;
- * - `fallback` — Association, or a generic relationship: always permitted, saying least.
- */
-export type RelationshipPreference = 'first' | 'drawn' | 'direct' | 'derived' | 'fallback';
 
 /** Complete palette definition generated from a metamodel. */
 export interface PaletteDefinition {

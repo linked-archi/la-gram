@@ -975,10 +975,10 @@ here, target points to the element at which the relationship arrives.''' ;
     skos:prefLabel  "domainIncludes" ;
     skos:definition "The classes a property's subject is expected to be. Guidance, not a constraint: not used for validation."@en ;
     skos:closeMatch schema:domainIncludes ;
-    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its source element; on a relationship
-proposal order (:RelationshipProposalOrder), the sources it is scoped to. Unlike rdfs:domain it infers nothing about
-what uses the property: it guides modelling tools and readers, and restricts nothing. Restrictions, as all
-constraints, are SHACL's.'''@en ;
+    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its source element; on an order of
+proposal a Metamodel names (:relationshipProposalOrder), the sources it applies to. Unlike rdfs:domain it infers
+nothing about what uses the property: it guides modelling tools and readers, and restricts nothing. Restrictions, as
+all constraints, are SHACL's.'''@en ;
 .
 
 :rangeIncludes
@@ -986,24 +986,10 @@ constraints, are SHACL's.'''@en ;
     skos:prefLabel  "rangeIncludes" ;
     skos:definition "The classes a property's object is expected to be. Guidance, not a constraint: not used for validation."@en ;
     skos:closeMatch schema:rangeIncludes ;
-    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its target element; on a relationship
-proposal order (:RelationshipProposalOrder), the targets it is scoped to. Unlike rdfs:range it infers nothing about
-the values: it guides modelling tools and readers, and restricts nothing. Restrictions, as all constraints, are
-SHACL's.'''@en ;
-.
-
-:RelationshipProposalOrder
-    a               owl:Class ;
-    rdfs:subClassOf skos:OrderedCollection ;
-    skos:prefLabel  "Relationship Proposal Order"@en ;
-    skos:definition "Relationship types in the order a modelling tool proposes them when two elements are connected."@en ;
-    skos:scopeNote  '''Without :domainIncludes, it is a language's general order, which decides between the
-relationships the language's metamodel draws between the two elements. With :domainIncludes, and :rangeIncludes,
-it puts its members first between the elements it names, whether the metamodel draws them or only permits them;
-one that names both ends is more specific than one that names the source only. Where the metamodel draws nothing,
-a tool falls back on what the language permits directly before what it permits only by derivation. Guidance, like
-:domainIncludes itself: it orders what a language permits and restricts nothing. ArchiMate 4.0's are in its
-taxonomy.'''@en ;
+    skos:scopeNote  '''On a relationship's predicate (am4:serves), the classes of its target element; on an order of
+proposal a Metamodel names (:relationshipProposalOrder), the targets it applies to. Unlike rdfs:range it infers
+nothing about the values: it guides modelling tools and readers, and restricts nothing. Restrictions, as all
+constraints, are SHACL's.'''@en ;
 .
 
 
@@ -2532,6 +2518,43 @@ am4tax:DiagramGroupOrder
     rdfs:domain     :Metamodel ;
     rdfs:range      skos:OrderedCollection ;
     skos:broader    :PresentationCategory ;
+.
+
+:relationshipProposalOrder
+    a               owl:ObjectProperty ;
+    skos:prefLabel  "relationshipProposalOrder"@en ;
+    skos:definition '''Links a Metamodel to an order in which a modelling tool proposes relationship types when two
+elements are connected: an ordered collection of relationship types.'''@en ;
+    skos:scopeNote  '''One with no :domainIncludes or :rangeIncludes is the language's general order, which applies
+to every pair; a Metamodel names one. One with :domainIncludes, :rangeIncludes or both applies where the source, the
+target, or both are of a class it names, or of a subclass of one: an order between behaviour elements applies to two
+processes. For two elements, a tool proposes the relationships the language permits between them in three groups:
+those a modeller may draw directly; then those the language permits only as the conclusion of a derivation; then
+those it permits between any two elements, to use where no other fits — ArchiMate's association — unless an order
+that names either element lists one. Within a group, each relationship takes the place the most specific order that
+lists it gives it. An order that names both elements is more specific than one that names one, and that than the
+general order; between two that name the same ends, the one whose classes are subclasses of the other's is. A
+relationship's place in an order is that of its own class, or else of the first superclass the order lists: a read
+access takes the place of access. So within a group the most specific order's members come first, in its order, and
+what it does not list follows in the order of the next, down to the general one. Guidance, like :domainIncludes
+itself: it orders what a language permits and restricts nothing.'''@en ;
+    skos:example    '''
+## ArchiMate 4.0: between behaviour elements, triggering and flow first; elsewhere, the strongest first
+am4mm:ArchiMate4 arch:relationshipProposalOrder am4tax:ProposalOrder, am4tax:BehaviorProposalOrder .
+am4tax:ProposalOrder
+    a               skos:OrderedCollection ;
+    skos:memberList ( am4:Composition am4:Aggregation am4:Assignment am4:Realization am4:Serving am4:Access
+                      am4:Influence am4:Triggering am4:Flow am4:Specialization am4:Association ) .
+am4tax:BehaviorProposalOrder
+    a                   skos:OrderedCollection ;
+    arch:domainIncludes am4:BehaviorElement ;
+    arch:rangeIncludes  am4:BehaviorElement ;
+    skos:memberList     ( am4:Triggering am4:Flow am4:Composition am4:Aggregation am4:Serving
+                          am4:Specialization ) .
+'''@en ;
+    rdfs:domain     :Metamodel ;
+    rdfs:range      skos:OrderedCollection ;
+    skos:broader    :ModelingCategory ;
 .
 
 # annotation general

@@ -617,80 +617,98 @@ aspects, kept apart from their classification.
 #
 # Linked.Archi modelling guidance, not the specification: the order
 # in which a modelling tool proposes the relationships the tables
-# permit between two elements. The general order applies everywhere;
-# a collection scoped with arch:domainIncludes (and arch:rangeIncludes)
-# puts its members first for the elements it names, the general
-# order following. A pair-scoped collection is more specific than a
-# source-scoped one. The same as ArchiMate 4.0's.
+# permit between two elements. The manifest names these collections
+# (arch:relationshipProposalOrder), and core's definition of that
+# property gives the rule: what a modeller may draw directly first,
+# then what only a derivation gives, then association; within each,
+# a relationship takes the place the most specific collection that
+# lists it gives it. :ProposalOrder applies to every pair. The
+# others name, with arch:domainIncludes and arch:rangeIncludes, the
+# kinds of element they apply to — by the abstract classes of the
+# ontology — and a few the element types a kind's order does not
+# fit. The relationship tables decide what is permitted; a
+# collection only orders it, so one listing a relationship the
+# tables do not permit for a pair leaves it out there. The same as
+# ArchiMate 4.0's.
 #################################################################
 
 :ProposalOrder
-    a               skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    a               skos:OrderedCollection ;
     skos:prefLabel  "Relationships in Order of Proposal"@en ;
-    skos:definition "The order in which a modelling tool proposes the relationships the metamodel figures draw between two elements, the strongest first: composition, aggregation, assignment, realization, serving, access, influence, triggering, flow, specialization, association."@en ;
-    skos:scopeNote  "Where the metamodel figures draw several relationships between two element types, the first of them in this order is proposed first. The structural relationships come first, then the dependency ones, each strongest first as the specification orders them (:RelationshipOrder, :StructuralRelationshipOrder, :DependencyRelationshipOrder), then the dynamic ones and specialization; association, the weakest and the one to use where no other fits, comes last. So a product is composed of a service before it aggregates it, a collaboration aggregates a role before it is assigned to it, and a process realizes a service before it triggers it. Linked.Archi modelling guidance, not part of the specification."@en ;
-    skos:memberList ( am:Composition am:Aggregation am:Assignment am:Realization
-                      am:Serving am:Access am:Influence am:Triggering am:Flow
-                      am:Specialization am:Association ) ;
+    skos:definition "The order in which a modelling tool proposes the relationships the language permits between two elements where no more specific order applies, and those a more specific one does not list, the strongest first: composition, aggregation, assignment, realization, serving, access, influence, triggering, flow, specialization, association."@en ;
+    skos:scopeNote  "The specification's order of the relationship categories and of the relationships in each, strongest first (:RelationshipOrder, :StructuralRelationshipOrder, :DependencyRelationshipOrder, :DynamicRelationshipOrder), with specialization after them and association — the weakest, and the one to use where no other fits — last; the CI run checks that it is. Linked.Archi modelling guidance, not part of the specification."@en ;
+    skos:memberList ( am:Composition am:Aggregation am:Assignment am:Realization am:Serving am:Access
+                      am:Influence am:Triggering am:Flow am:Specialization am:Association ) ;
 .
 
-:GroupingProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Grouping"@en ;
-    skos:definition     "From a grouping, aggregation is proposed first — aggregating concepts is what a grouping is for — and then :ProposalOrder."@en ;
-    arch:domainIncludes am:Grouping ;
-    skos:memberList     ( am:Aggregation ) ;
+:BehaviorProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal between Behaviour Elements"@en ;
+    skos:definition     "Between two behaviour elements, triggering and flow are proposed first — one behaviour causing the next, or passing something to it — then composition and aggregation, which decompose a behaviour, then serving and specialization."@en ;
+    skos:scopeNote      "Services, events and work packages are behaviour elements too. From internal behaviour to a service (:BehaviorServiceProposalOrder) and between strategy behaviour elements (:StrategyBehaviorProposalOrder) a more specific order applies."@en ;
+    arch:domainIncludes am:BehaviorElement ;
+    arch:rangeIncludes  am:BehaviorElement ;
+    skos:memberList     ( am:Triggering am:Flow am:Composition am:Aggregation am:Serving am:Specialization ) ;
 .
 
-:PlateauProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Plateau"@en ;
-    skos:definition     "From a plateau, aggregation is proposed first — a plateau is the set of elements that make up an architecture at a point in time — and then :ProposalOrder. Figure 112 also draws composition and realization."@en ;
-    arch:domainIncludes am:Plateau ;
-    skos:memberList     ( am:Aggregation ) ;
+:BehaviorServiceProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal from Internal Behaviour to a Service"@en ;
+    skos:definition     "From a process, function or interaction to a service, realization is proposed first — the behaviour that provides the service — then serving, triggering and flow."@en ;
+    arch:domainIncludes am:InternalBehaviorElement ;
+    arch:rangeIncludes  am:ExternalBehaviorElement ;
+    skos:memberList     ( am:Realization am:Serving am:Triggering am:Flow ) ;
+.
+
+:StrategyBehaviorProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal between Strategy Behaviour Elements"@en ;
+    skos:definition     "Between capabilities, value streams and courses of action, realization is proposed first — a capability realizing a course of action — then serving — a capability serving a value stream — then triggering and flow, composition and aggregation, and specialization."@en ;
+    arch:domainIncludes am:StrategyBehaviorElement, am:CourseOfAction ;
+    arch:rangeIncludes  am:StrategyBehaviorElement, am:CourseOfAction ;
+    skos:memberList     ( am:Realization am:Serving am:Triggering am:Flow am:Composition am:Aggregation
+                          am:Specialization ) ;
 .
 
 :CapabilityProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
+    a                   skos:OrderedCollection ;
     skos:prefLabel      "Order of Proposal between Capabilities"@en ;
-    skos:definition     "Between two capabilities, composition is proposed first — decomposing a capability into the capabilities it consists of — and then :ProposalOrder."@en ;
+    skos:definition     "Between two capabilities, composition is proposed first — decomposing a capability into the capabilities it consists of — and then :StrategyBehaviorProposalOrder."@en ;
     arch:domainIncludes am:Capability ;
     arch:rangeIncludes  am:Capability ;
     skos:memberList     ( am:Composition ) ;
 .
 
-:WorkPackageEventProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Work Package to an Implementation Event"@en ;
-    skos:definition     "From a work package to an implementation event, triggering is proposed first — a work package triggers a milestone — and then :ProposalOrder."@en ;
-    arch:domainIncludes am:WorkPackage ;
-    arch:rangeIncludes  am:ImplementationEvent ;
-    skos:memberList     ( am:Triggering ) ;
+:CollaborationProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal from a Collaboration"@en ;
+    skos:definition     "From a collaboration to an internal active structure element, aggregation is proposed first: a collaboration is an aggregate of the elements that work together in it."@en ;
+    arch:domainIncludes am:Collaboration ;
+    arch:rangeIncludes  am:InternalActiveStructureElement ;
+    skos:memberList     ( am:Aggregation ) ;
 .
 
-:FacilityNodeProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Facility to a Node, Device, System Software, Equipment or Facility"@en ;
-    skos:definition     "From a facility to a node, a device, system software, equipment or another facility — each a technology internal active structure element, which a facility may be composed of — composition is proposed first, and then :ProposalOrder."@en ;
-    arch:domainIncludes am:Facility ;
-    arch:rangeIncludes  am:Node, am:Device, am:SystemSoftware, am:Equipment, am:Facility ;
-    skos:memberList     ( am:Composition ) ;
+:MotivationProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal between Motivation Elements"@en ;
+    skos:definition     "Between two motivation elements, realization is proposed first — a requirement realizing an outcome, an outcome a goal — then influence — how one affects the other — then composition, aggregation and specialization."@en ;
+    arch:domainIncludes am:MotivationElement ;
+    arch:rangeIncludes  am:MotivationElement ;
+    skos:memberList     ( am:Realization am:Influence am:Composition am:Aggregation am:Specialization ) ;
 .
 
-:NodeArtifactProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Node, Device, System Software, Equipment or Facility to an Artifact"@en ;
-    skos:definition     "From a node, a device, system software, equipment or a facility to an artifact, assignment is proposed first — the artifact deployed on it — and then :ProposalOrder."@en ;
-    arch:domainIncludes am:Node, am:Device, am:SystemSoftware, am:Equipment, am:Facility ;
-    arch:rangeIncludes  am:Artifact ;
-    skos:memberList     ( am:Assignment ) ;
+:MeaningValueProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal to a Meaning or a Value"@en ;
+    skos:definition     "To a meaning or a value, association is proposed first: the specification associates a meaning or a value with the concept it is the meaning or value of. Between two motivation elements, :MotivationProposalOrder applies."@en ;
+    arch:rangeIncludes  am:Meaning, am:Value ;
+    skos:memberList     ( am:Association ) ;
 .
 
-:DeviceSystemSoftwareProposalOrder
-    a                   skos:OrderedCollection, arch:RelationshipProposalOrder ;
-    skos:prefLabel      "Order of Proposal from a Device to System Software"@en ;
-    skos:definition     "From a device to system software, composition is proposed first, and then :ProposalOrder. Figure 83 also draws aggregation and assignment."@en ;
-    arch:domainIncludes am:Device ;
-    arch:rangeIncludes  am:SystemSoftware ;
-    skos:memberList     ( am:Composition ) ;
+:CompositeProposalOrder
+    a                   skos:OrderedCollection ;
+    skos:prefLabel      "Order of Proposal from a Composite Element"@en ;
+    skos:definition     "From a grouping, a location, a product or a plateau, aggregation is proposed first — the concepts it brings together — then composition."@en ;
+    arch:domainIncludes am:CompositeElement ;
+    skos:memberList     ( am:Aggregation am:Composition ) ;
 .

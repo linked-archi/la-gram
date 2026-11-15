@@ -114,6 +114,15 @@ into a single discoverable resource.'''@en ;
     arch:paletteGrouping          am4tax:PaletteGrouping ;
     arch:diagramGroupOrder        am4tax:DiagramGroupOrder ;
 
+    ## Relationship proposal order — the orders a modelling tool proposes relationships in, the general one
+    ## and those for the kinds of element they name
+    ## File: archimate4-tax.ttl
+    arch:relationshipProposalOrder am4tax:ProposalOrder, am4tax:BehaviorProposalOrder,
+                                   am4tax:BehaviorServiceProposalOrder, am4tax:StrategyBehaviorProposalOrder,
+                                   am4tax:CapabilityProposalOrder, am4tax:CollaborationProposalOrder,
+                                   am4tax:MotivationProposalOrder, am4tax:MeaningValueProposalOrder,
+                                   am4tax:CompositeProposalOrder ;
+
     ## Viewpoints — viewpoint individuals and their properties
     ## File: archimate4-viewpoints.ttl
     arch:architectureViewpoints   <https://meta.linked.archi/archimate4/viewpoints#> ;

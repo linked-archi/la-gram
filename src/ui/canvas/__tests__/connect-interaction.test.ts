@@ -568,9 +568,9 @@ describe('relationship type choice', () => {
 
   /** Serving and Flow, both specific, and Association, the fallback: as the relationship manager ranks them. */
   const twoSpecific = (): RelationshipTypeInfo[] => [
-    { iri: SERVING, label: 'Serving', domainTypes: [], rangeTypes: [], score: 10, preference: 'drawn', unqualifiedPredicateIri: SERVES },
-    { iri: `${MM}Flow`, label: 'Flow', domainTypes: [], rangeTypes: [], score: 8, preference: 'direct' },
-    { iri: ASSOCIATION, label: 'Association', domainTypes: [], rangeTypes: [], score: 1, preference: 'fallback', unqualifiedPredicateIri: ASSOCIATED_WITH },
+    { iri: SERVING, label: 'Serving', domainTypes: [], rangeTypes: [], score: 10, drawn: true, unqualifiedPredicateIri: SERVES },
+    { iri: `${MM}Flow`, label: 'Flow', domainTypes: [], rangeTypes: [], score: 8 },
+    { iri: ASSOCIATION, label: 'Association', domainTypes: [], rangeTypes: [], score: 1, fallback: true, unqualifiedPredicateIri: ASSOCIATED_WITH },
   ];
 
   it('opens the relationship-type menu on the new line when more than one specific type is valid', () => {
