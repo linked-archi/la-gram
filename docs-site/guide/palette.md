@@ -51,12 +51,15 @@ The palette's sections, each with its count:
    them on their own, so they keep this section whatever *Group by* says. A type the metamodel
    classifies nowhere is in *Other*.
 
-Within a section, the types follow the metamodel's other way of grouping, where it names one: in an
-ArchiMate 3.2 layer or an ArchiMate 4.0 domain, structure (active and passive), then behaviour, then
+Within a section, the types follow the order the metamodel gives the section's group, where it gives
+one — ArchiMate 4.0's **Common Domain**: Process, Function, Service, Event, Role, Collaboration, Path,
+Grouping, Location. Elsewhere they follow the metamodel's other way of grouping, where it names one: in
+an ArchiMate 3.2 layer or an ArchiMate 4.0 domain, structure (active and passive), then behaviour, then
 composite — each by name.
 
 | Section | Begins with |
 |---|---|
+| **Common Domain** (4.0) | Process, Function, Service, Event, then Role, Collaboration, Path |
 | **Business Domain** (4.0) | Business Actor, Business Interface, Business Object, Product |
 | **Business Layer** (3.2) | Business Actor, Business Collaboration, Business Interface, Business Object, Business Role, Contract, Representation, then the behaviour |
 

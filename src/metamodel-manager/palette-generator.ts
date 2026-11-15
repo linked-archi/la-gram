@@ -418,9 +418,16 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       if (!before || here[0] < before[0] || (here[0] === before[0] && here[1] < before[1])) place.set(category, here);
     }
 
+    // Within a section: first the order its group gives its own members, where it gives one (an array under
+    // the group — ArchiMate 4.0's Common Domain: process, function, service, event…); then the groups' order
+    // under the other grouping axes (the aspects); then, after this, the label.
     const withinKey = (element: ElementTypeInfo, sectionAxis: number): number[] => {
       const cls = classOf.get(element.iri);
-      return groupingAxes.filter((_, i) => i !== sectionAxis).map((axis) => cls?.ranksByAxis[axis] ?? LAST);
+      const own = groupingAxes[sectionAxis];
+      return [
+        own !== undefined ? (cls?.memberRanksByAxis?.[own] ?? LAST) : LAST,
+        ...groupingAxes.filter((_, i) => i !== sectionAxis).map((axis) => cls?.ranksByAxis[axis] ?? LAST),
+      ];
     };
     const compareKeys = (a: number[], b: number[]): number => {
       for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return (a[i] ?? LAST) - (b[i] ?? LAST);

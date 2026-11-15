@@ -124,6 +124,17 @@ domains, kept apart from their classification.
                                am4:Grouping, am4:Location ;
 .
 
+:CommonDomainOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    skos:prefLabel         "Common Domain Elements in Order"@en ;
+    skos:definition        "The element types of the Common Domain in order: process, function, service, event, role, collaboration, path, grouping, location."@en ;
+    skos:scopeNote         "Linked.Archi modelling guidance, not the specification. The behaviour the Common Domain was made for comes first, then the active structure that performs it, then the composite elements. A tool that lists the domain's element types, as a palette lists its section, lists them in this order, rather than by aspect and name."@en ;
+    skos:editorialNote     "An ISO 25964 thesaurus array (http://purl.org/iso25964/skos-thes#) under :CommonDomain: the order of the element types that are part of it, kept apart from their classification, as :DomainOrder orders the domains. It lists each of them once and nothing else; the CI run checks it."@en ;
+    iso-thes:superOrdinate :CommonDomain ;
+    skos:memberList        ( am4:Process am4:Function am4:Service am4:Event am4:Role am4:Collaboration am4:Path
+                             am4:Grouping am4:Location ) ;
+.
+
 :BusinessDomain
     a              skos:Concept ;
     skos:prefLabel "Business Domain"@en ;

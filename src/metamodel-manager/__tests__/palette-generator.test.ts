@@ -883,8 +883,11 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   it("orders each domain's elements by aspect — structure, behaviour, composite — then by name", () => {
     const section = (name: string) => palette.elementGroups.find((g) => g.category === name)!.elements.map((e) => e.label);
     expect(section('Business Domain')).toEqual(['Business Actor', 'Business Interface', 'Business Object', 'Product']);
-    expect(section('Common Domain').slice(0, 3)).toEqual(['Collaboration', 'Path', 'Role']);
-    expect(section('Common Domain').slice(-2)).toEqual(['Grouping', 'Location']);
+  });
+
+  it("orders the Common Domain by the array under it (am4tax:CommonDomainOrder): behaviour, active structure, composite", () => {
+    const common = palette.elementGroups.find((g) => g.category === 'Common Domain')!.elements.map((e) => e.label);
+    expect(common).toEqual(['Process', 'Function', 'Service', 'Event', 'Role', 'Collaboration', 'Path', 'Grouping', 'Location']);
   });
 
   it('offers both element classification axes — the relationship categories group no element', () => {

@@ -333,7 +333,11 @@ thesaurus array (key design decision 20). A group's members are the element
 types the ontology declares: a class the taxonomy lists, or a concept with nothing
 under it that stands for one (`rdfs:seeAlso`, or the same local name). A concept
 with nothing under it and no class behind it is an empty concept — neither an
-element type nor a reason its parent is no axis. A group under no axis and no
+element type nor a reason its parent is no axis. Within a section, the types
+come first in the order of the array under their own group, where it has one
+(`memberRanksByAxis`, from the axis's `memberRanks` — ArchiMate 4.0's Common
+Domain), then by their groups' ranks under the other grouping axes, then by name.
+A group under no axis and no
 other group (ArchiMate's Junction, a top concept of its own) is kept as a
 standalone axis of its one group: its members are palette types, in a section of
 its name when no grouping axis classifies them, and it is offered as no way of

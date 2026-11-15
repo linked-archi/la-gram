@@ -182,6 +182,11 @@ export interface SemanticClass {
   groupsByAxis: Record<string, string>;
   /** Position of the class's group per ordered axis IRI ({@link TaxonomyAxis.ranks}). */
   ranksByAxis: Record<string, number>;
+  /**
+   * Position of the class within its group per axis IRI, where the group orders its members with an array
+   * of its own ({@link TaxonomyAxis.memberRanks}) — ArchiMate 4.0's Common Domain.
+   */
+  memberRanksByAxis?: Record<string, number>;
   isAbstract: boolean;
 }
 
@@ -682,11 +687,14 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
       // Record the group under each axis; the first axis provides the default group.
       const groupsByAxis: Record<string, string> = {};
       const ranksByAxis: Record<string, number> = {};
+      const memberRanksByAxis: Record<string, number> = {};
       for (const axis of axes) {
         const group = axis.groups.get(memberIri);
         if (group) groupsByAxis[axis.iri] = group;
         const rank = axis.ranks.get(memberIri);
         if (rank !== undefined) ranksByAxis[axis.iri] = rank;
+        const memberRank = axis.memberRanks?.get(memberIri);
+        if (memberRank !== undefined) memberRanksByAxis[axis.iri] = memberRank;
       }
       const primaryAxis = axes[0];
       const defaultGroup =
@@ -701,6 +709,7 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
         group: defaultGroup,
         groupsByAxis,
         ranksByAxis,
+        ...(Object.keys(memberRanksByAxis).length > 0 ? { memberRanksByAxis } : {}),
         isAbstract: false,
       });
     }
