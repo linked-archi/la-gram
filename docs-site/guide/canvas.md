@@ -125,7 +125,7 @@ first: an Application Process to a Business Process, **Realization**.
 
 | Tab | Lists |
 |---|---|
-| *New element* | the element types a relationship from it may reach, by domain, each with its relationships (*choose: Assignment / Serving / Flow / Triggering*) or the one it would be (*via Influence*) |
+| *New element* | the element types a relationship from it may reach, by domain, each with its relationships (*choose: Assignment / Serving / Flow / Triggering*) or the one it would be (*via Influence*): first the element's own type, then its own domain, then the others in the palette's order; within a domain, the types most like it first — after a process, a function, a service, an event, then a role |
 | *Existing relationships (N)* | what the element is already related to in the model, to bring into this view |
 
 A new element is placed beside it, connected. When several relationships fit, la-gram asks *Which

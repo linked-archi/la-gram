@@ -881,9 +881,14 @@ application component is assigned to a data object — the system of record, as
 the Application Structure metamodel draws it — with Access, derived, second. The
 menus say in words (`preferenceNotes`): "drawn in the metamodel", "only by
 derivation", "always permitted"; the candidate's reason says it too. The "+"
-menu's target types keep the figures as their order — a type a figure draws a
-relationship to before one only permitted (`relationship-resolution.ts`) — which
-is which elements to offer, not which relationship.
+menu's target types come in the order a modeller reaches for next
+(`appendableTargetTypes`): the source's own type, then the rest of its palette
+section, then the other sections in the palette's order; within a section the
+types most like the source first — the most superclasses in common — then the
+palette's order. Both orders are the metamodel's data: its palette grouping and
+thesaurus arrays, its ontology. (The figures ordered them before, and so led a
+process's menu with the Technology Domain: a figure draws access to an artifact,
+and the twelve drawn types tied, broken by name.)
 
 **Append.** "+" on the pad lists the element types some relationship is
 permitted to, with the palette's icons. Association is permitted between any two

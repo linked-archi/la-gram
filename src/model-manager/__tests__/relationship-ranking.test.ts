@@ -13,6 +13,8 @@ import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
 import { OxigraphRelationshipManager } from '../relationship-manager.js';
 import { readDrawnPermissions } from '../direct-permissions.js';
 import { readProposalOrders, RELATIONSHIP_PROPOSAL_ORDER } from '../proposal-order.js';
+import { SparqlPaletteGenerator } from '../../metamodel-manager/palette-generator.js';
+import { appendableTargetTypes, buildClassClosure } from '../../ui/canvas/relationship-resolution.js';
 
 const { namedNode, quad, defaultGraph } = DataFactory;
 
@@ -286,3 +288,26 @@ describe('ArchiMate 3.2: devices, system software, equipment and facilities are 
     expect(labels3('Device', 'SystemSoftware')[0]).toBe('Composition');
   });
 });
+
+describe('what the "+" menu offers first after an element: its own type, its own section, the most like it', () => {
+  const offered = (s: OxigraphRdfStore, m: OxigraphRelationshipManager, metamodel: string, source: string) => {
+    const iri = s.getQuads(null, namedNode(RDF + 'type'), namedNode(ARCH + 'Metamodel'))[0]?.subject.value ?? metamodel;
+    const palette = new SparqlPaletteGenerator(s).generatePalette(iri);
+    return appendableTargetTypes(palette, buildClassClosure(s), (a, b) => m.getValidRelationships(a, b), source);
+  };
+
+  it('after a 4.0 process: a process, the Common Domain\'s behaviour, then business, application, technology', () => {
+    const targets = offered(store, manager, AM4MM, AM4 + 'Process');
+    expect(targets.slice(0, 4).map((t) => t.type.label)).toEqual(['Process', 'Function', 'Service', 'Event']);
+    const sections = [...new Set(targets.map((t) => t.category))];
+    expect(sections.slice(0, 4)).toEqual(['Common Domain', 'Business Domain', 'Application Domain', 'Technology Domain']);
+  });
+
+  it('after a 3.2 business process: a business process, then the business behaviour before the business actor', () => {
+    const targets = offered(store3, manager3, '', AM3 + 'BusinessProcess');
+    expect(targets.slice(0, 6).map((t) => t.type.label)).toEqual([
+      'Business Process', 'Business Function', 'Business Interaction', 'Business Event', 'Business Service', 'Business Actor',
+    ]);
+  });
+});
+
