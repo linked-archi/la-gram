@@ -335,8 +335,9 @@ leaves and reaches an element at the middle of a side, or, between two elements 
 straight, from the middle of the smaller one. Where it bends, it bends clear of the elements, in the middle of the gap it runs through, and
 it takes a longer way round rather than cross other lines, though not an extra bend for one or two
 crossings, and never loops out and back where it could run on. The lines on one side of an element dock
-in the order that crosses least — one turning up docks above those running straight on — as near the
-middle as that allows: not crossing comes first. Lines sharing a gap run side by side. A line between
+so that none crosses another as it leaves — one turning up docks above the straight lines it would
+cross, and beside one that ends before it turns — as near the middle as that allows: not crossing comes
+first, and no two lines leave from one point. Lines sharing a gap run side by side. A line between
 elements that overlap, or between an element and something inside it, keeps its route. la-gram says
 how many lines it routed: *Arranged 2 relationships.*
 

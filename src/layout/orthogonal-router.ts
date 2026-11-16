@@ -18,11 +18,13 @@
  *    clear of the boxes that crosses no line is taken. Else A* over (vertex, direction), its grid capped: the length, plus a penalty per bend — more where the bend comes
  *    closer than the clearance to either end's box — plus a smaller one per other line the step crosses: a bend
  *    costs more than any two crossings, so a line takes no bend to avoid a crossing or two.
- * 4. **Ends.** The lines on one side of a box dock in the order that crosses least — a line turning towards one end
- *    of the side on that end's side of the lines running straight on — as near the middle as that order allows;
- *    crossings come before the middle. Spreading never adds a bend.
+ * 4. **Ends.** The lines on one side of a box dock so that none crosses another as it leaves — a line that turns
+ *    where its turn crosses no line running straight on further than it, and of the lines turning one way the one
+ *    turning soonest outermost — as near where they are as that allows; crossings come before the middle, lines on
+ *    top of one another before crossings. Spreading never adds a bend.
  * 5. **Channels.** Each inner segment is moved to the middle of the gap between the boxes on either side of it;
- *    segments sharing a gap run side by side about its middle, in the order of where they come from and go.
+ *    segments sharing a gap run side by side about its middle, in the order of where they come from and go. Then the
+ *    ends again (4): lines that left a side on one level now turn on two.
  * 6. **Loops.** A line stepping out and back is brought as near its ends as the boxes allow — flat, where it
  *    returns to the level it left.
  *
@@ -116,6 +118,40 @@ const rectOf = (n: RouterNode): Rect => ({ left: n.x, top: n.y, right: n.x + n.w
 const grow = (r: Rect, by: number): Rect => ({ left: r.left - by, top: r.top - by, right: r.right + by, bottom: r.bottom + by });
 const overlaps = (a: Rect, b: Rect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+/** The least distance between two lines leaving one side, where the room is too short for the spacing. */
+const MIN_STEP = 4;
+
+/**
+ * Places for points in a given order along a line, each at least `gap` after the one before: as near each one's
+ * `place` as the order allows — the least sum of squared moves, by pooling neighbours that would be out of order —
+ * then each within its bounds, pushing its neighbours on where that breaks the order. Where the bounds leave no room
+ * for the order, the bounds win.
+ */
+export function placeInOrder(points: ReadonlyArray<{ place: number; lower: number; upper: number }>, gap: number): number[] {
+  // Pool adjacent violators over `place - k·gap`, which must not decrease.
+  const blocks: Array<{ sum: number; count: number }> = [];
+  points.forEach((p, k) => {
+    blocks.push({ sum: p.place - k * gap, count: 1 });
+    while (blocks.length > 1) {
+      const [a, b] = blocks.slice(-2);
+      if (a.sum / a.count <= b.sum / b.count) break;
+      blocks.splice(-2, 2, { sum: a.sum + b.sum, count: a.count + b.count });
+    }
+  });
+  const places: number[] = [];
+  for (const b of blocks) for (let i = 0; i < b.count; i++) places.push(b.sum / b.count + places.length * gap);
+  const within = (k: number) => clamp(places[k], points[k].lower, points[k].upper);
+  for (let k = 0; k < places.length; k++) places[k] = within(k);
+  for (let k = 1; k < places.length; k++) {
+    places[k] = Math.max(places[k], places[k - 1] + gap);
+    places[k] = within(k);
+  }
+  for (let k = places.length - 2; k >= 0; k--) {
+    places[k] = Math.min(places[k], places[k + 1] - gap);
+    places[k] = within(k);
+  }
+  return places;
+}
 
 /** How far a point lies outside a box: 0 on or inside it. */
 function distanceOutside(r: Rect, x: number, y: number): number {
@@ -625,12 +661,15 @@ function sideOf(r: Rect, p: Point): Side | undefined {
 }
 
 /**
- * The lines on one side of a box, docked in the order that crosses least, as near the middle as that order allows.
- * Crossings come before the middle: a line turning towards one end of the side docks on that end's side of every line
- * running straight on, and of the lines turning that way, the one turning soonest outermost — so none runs across
- * another as it leaves. A straight line stays where it is, at the point it shares with its other end; lines on one
- * point move apart, a straight one only where both its ends can, so no bend is added. A bent line moves with its
- * first bend, and stays where moving it would run through a box.
+ * The lines on one side of a box, docked so that none crosses another as it leaves — before docking at the middle. A
+ * straight line stays where it is, at the point it shares with its other end; lines on one point move apart, a
+ * straight one only where both its ends can, so no bend is added. A line that turns docks where its first turn crosses
+ * no straight line: between the level it turns to and the first straight line beyond that level that runs further
+ * than it before turning — one ending sooner it passes by. Along the side, those turning towards one end before those
+ * turning towards the other, and of those turning one way the one turning soonest outermost; each as near where it
+ * is as that order allows, the spacing apart — or less where the room is short. Where even the least leaves no room,
+ * a crossing comes before lines on top of one another. A bent line moves with its first bend; one that would run
+ * through a box stays where it is, and the others are placed about it.
  */
 function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], rects: ReadonlyMap<string, Rect>, spacing: number): void {
   const edgeOf = new Map(edges.map((e) => [e.id, e]));
@@ -666,7 +705,8 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
       const points = routes.get(end.id)!;
       return { points, a: end.atStart ? 0 : points.length - 1, b: end.atStart ? 1 : points.length - 2 };
     };
-    const shiftOf = (end: End, to: number): boolean => {
+    /** Moves an end along the side to `to` — or, `trying`, only says whether it could. */
+    const shiftOf = (end: End, to: number, trying = false): boolean => {
       const { points, a, b } = endPoints(end);
       const shift = Math.round(to) - coordinate(points[a]);
       if (shift === 0) return true;
@@ -678,6 +718,7 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
         const p = move(points[b]);
         const fits = alongX ? other.left < p.x && p.x < other.right : other.top < p.y && p.y < other.bottom;
         if (!fits || hitsBox(move(points[a]), p, rects, except)) return false;
+        if (trying) return true;
         points[a] = move(points[a]);
         points[b] = p;
         settled.add(end.id);
@@ -687,29 +728,44 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
       const movedB = move(points[b]);
       const beyond = points[end.atStart ? b + 1 : b - 1];
       if (hitsBox(movedA, movedB, rects, except) || (beyond && hitsBox(movedB, beyond, rects, except))) return false;
+      if (trying) return true;
       points[a] = movedA;
       points[b] = movedB;
       return true;
     };
 
-    // Each end: straight on, or turning towards `lo` or `hi`, and how soon.
-    const straight: Array<{ end: End; at: number }> = [];
-    const towardsLo: Array<{ end: End; reach: number }> = [];
-    const towardsHi: Array<{ end: End; reach: number }> = [];
+    // Each end: straight on — how far — or turning towards `lo` or `hi` — how soon, and to where along the side.
+    interface Straight {
+      end: End;
+      at: number;
+      length: number;
+    }
+    interface Bent {
+      end: End;
+      towards: -1 | 1;
+      reach: number;
+      level: number;
+      at: number;
+      /** The first straight line beyond `level` on the bent line's own side that runs past its turn. */
+      beyond: number;
+    }
+    const outward = (points: Point[], a: number, b: number) =>
+      alongX ? Math.abs(points[b].y - points[a].y) : Math.abs(points[b].x - points[a].x);
+    const straight: Straight[] = [];
+    const bent: Bent[] = [];
     for (const end of ends) {
       const { points, a, b } = endPoints(end);
+      const at = coordinate(points[a]);
       if (points.length < 3 || settled.has(end.id)) {
-        straight.push({ end, at: coordinate(points[a]) });
+        straight.push({ end, at, length: outward(points, a, b) });
         continue;
       }
-      const after = points[end.atStart ? b + 1 : b - 1];
-      const turn = Math.sign(coordinate(after) - coordinate(points[b]));
-      const reach = alongX ? Math.abs(points[b].y - points[a].y) : Math.abs(points[b].x - points[a].x);
-      (turn < 0 ? towardsLo : towardsHi).push({ end, reach });
+      const level = coordinate(points[end.atStart ? b + 1 : b - 1]);
+      bent.push({ end, towards: level < at ? -1 : 1, reach: outward(points, a, b), level, at, beyond: NaN });
     }
     const byId = (x: { end: End }, y: { end: End }) => x.end.id.localeCompare(y.end.id);
     // Straight lines on one point: apart about it, both ends moving.
-    const atPoint = new Map<number, Array<{ end: End; at: number }>>();
+    const atPoint = new Map<number, Straight[]>();
     for (const s of straight) {
       if (!atPoint.has(s.at)) atPoint.set(s.at, []);
       atPoint.get(s.at)!.push(s);
@@ -721,27 +777,67 @@ function spreadEnds(routes: Map<string, Point[]>, edges: readonly RouterEdge[], 
         if (shiftOf(s.end, to)) s.at = Math.round(to);
       });
     }
-    // Of those turning one way, the one turning soonest outermost.
-    towardsLo.sort((x, y) => x.reach - y.reach || byId(x, y));
-    towardsHi.sort((x, y) => x.reach - y.reach || byId(x, y));
-    const fixed = straight.map((s) => s.at);
-    if (fixed.length === 0) {
-      // Nothing straight: all of them about the middle, those turning towards `lo` on its side.
-      const order = [...towardsLo.map((x) => x.end), ...towardsHi.map((x) => x.end).reverse()];
-      const step = Math.min(spacing, (hi - lo - 2 * inset) / Math.max(1, order.length - 1));
-      const middle = (lo + hi) / 2;
-      order.forEach((end, k) => shiftOf(end, middle + (k - (order.length - 1) / 2) * step));
-      continue;
+    if (bent.length === 0) continue;
+    // Where each bent line may dock and cross no straight one: between the level it turns to and the first straight
+    // line beyond that level on its own side that runs past its turn — one ending sooner it passes by — `gap` from
+    // each. Where no place is, the crossing is unavoidable and it may dock anywhere along the side.
+    for (const x of bent) {
+      const past = straight.filter((s) => s.length > x.reach).map((s) => s.at);
+      x.beyond = x.towards < 0 ? Math.min(...past.filter((s) => s > x.level)) : Math.max(...past.filter((s) => s < x.level));
     }
-    // Beyond the straight ones, nearest them first — as near the middle as the order allows.
-    const first = Math.min(...fixed);
-    const last = Math.max(...fixed);
-    const loRoom = first - (lo + inset);
-    const hiRoom = hi - inset - last;
-    const loStep = towardsLo.length === 0 ? 0 : Math.min(spacing, loRoom / towardsLo.length);
-    const hiStep = towardsHi.length === 0 ? 0 : Math.min(spacing, hiRoom / towardsHi.length);
-    if (loStep >= 4) towardsLo.forEach((x, k) => shiftOf(x.end, first - loStep * (towardsLo.length - k)));
-    if (hiStep >= 4) towardsHi.forEach((x, k) => shiftOf(x.end, last + hiStep * (towardsHi.length - k)));
+    const along = { lower: lo + inset, upper: hi - inset };
+    const crossingFree = (x: Bent, gap: number) => {
+      const lower = Math.max(x.towards < 0 ? x.level + gap : x.beyond + gap, along.lower);
+      const upper = Math.min(x.towards < 0 ? x.beyond - gap : x.level - gap, along.upper);
+      return lower <= upper ? { lower, upper } : undefined;
+    };
+    const avoidable = new Set(bent.filter((x) => crossingFree(x, MIN_STEP)));
+    // In one order along the side, so that none crosses another as it leaves: those turning towards `lo` before
+    // those turning towards `hi`, and of those turning one way, the one turning soonest outermost; the straight lines
+    // fixed among them, where the bent lines would go without them.
+    const ups = bent.filter((x) => x.towards < 0).sort((x, y) => x.reach - y.reach || byId(x, y));
+    const downs = bent.filter((x) => x.towards > 0).sort((x, y) => y.reach - x.reach || byId(x, y));
+    const order = [...ups, ...downs];
+    const fixed = straight.map((s) => s.at).sort((x, y) => x - y);
+    const attempt = (gap: number, boundsOf: (x: Bent) => { lower: number; upper: number } | undefined, strict: boolean) => {
+      const bounds = order.map(boundsOf);
+      if (bounds.some((b) => !b)) return undefined;
+      const wished = order.map((x, k) => ({ x, place: clamp(x.at, bounds[k]!.lower, bounds[k]!.upper), ...bounds[k]! }));
+      placeInOrder(wished, gap).forEach((place, k) => (wished[k].place = place));
+      const items: Array<{ x?: Bent; place: number; lower: number; upper: number }> = [];
+      let f = 0;
+      for (const w of wished) {
+        while (f < fixed.length && (fixed[f] < w.place || (fixed[f] === w.place && w.x.towards > 0))) items.push({ place: fixed[f], lower: fixed[f], upper: fixed[f++] });
+        items.push(w);
+      }
+      for (; f < fixed.length; f++) items.push({ place: fixed[f], lower: fixed[f], upper: fixed[f] });
+      const places = placeInOrder(items, gap);
+      const fits = places.every(
+        (p, k) =>
+          p >= items[k].lower - 0.5 &&
+          p <= items[k].upper + 0.5 &&
+          (k === 0 || (!items[k].x && !items[k - 1].x) || p - places[k - 1] >= gap - 0.5),
+      );
+      return fits || !strict ? new Map(items.flatMap((it, k) => (it.x ? [[it.x, places[k]] as const] : []))) : undefined;
+    };
+    // The spacing, or less where the room is short; where even the least leaves no room, a crossing before lines on
+    // top of one another — each the least apart, anywhere along the side. A line that cannot move where it is placed
+    // — the move would run through a box — stays where it is, and the others are placed again about it.
+    const stuck = new Set<Bent>();
+    const held = (x: Bent) => ({ lower: x.at, upper: x.at });
+    for (;;) {
+      const placed =
+        [spacing, spacing / 2, MIN_STEP]
+          .map((gap) => attempt(gap, (x) => (stuck.has(x) ? held(x) : avoidable.has(x) ? crossingFree(x, gap) : along), true))
+          .find((p) => p) ?? attempt(MIN_STEP, (x) => (stuck.has(x) ? held(x) : along), false)!;
+      const moves = [...placed].filter(([x, place]) => Math.round(place) !== x.at);
+      const blocked = moves.filter(([x, place]) => !shiftOf(x.end, place, true));
+      if (blocked.length === 0) {
+        for (const [x, place] of moves) shiftOf(x.end, place);
+        break;
+      }
+      for (const [x] of blocked) stuck.add(x);
+    }
   }
 }
 
@@ -1021,6 +1117,9 @@ export function routeOrthogonal(
   spreadEnds(routes, sorted, rects, options.spacing);
   const endsOf = new Map(sorted.map((e) => [e.id, new Set([e.source, e.target, ...ancestors(e.source), ...ancestors(e.target)])]));
   centreChannels(routes, rects, endsOf, options.margin, options.channelSpacing, options.bendClearance);
+  // Again with the channels placed: lines that left a side together, turning on one level, now turn on two, and the
+  // one turning sooner goes outermost.
+  spreadEnds(routes, sorted, rects, options.spacing);
   flattenUs(routes, rects, endsOf);
   for (const [id, points] of routes) routes.set(id, simplify(points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }))));
   return routes;

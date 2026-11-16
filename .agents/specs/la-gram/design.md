@@ -797,14 +797,20 @@ beside a large one keeps its line at its middle and none is pushed to an edge; a
 pixel. A* weighs, in pixels of length: a bend 150, a bend within 24 px of either
 end's placement 150 more — as much as a second bend, so two bends clear of the elements beat one cramped against
 one — a crossing of a line already routed 40: fewer bends come first, and a line is not bent to avoid one or two
-crossings. Then the lines on each side of a placement dock in the order that crosses least: straight ones stay at the
-point they share with their other end; a line turning towards one end of the side docks beyond them on that end's
-side, of those turning that way the one turning soonest outermost, each as near the middle as that allows — a
-crossing avoided comes before a dock at the middle; lines on one point move apart, a straight one only where both its
-ends can, so no bend is added; and each inner segment is moved to the middle of
+crossings. Then the lines on each side of a placement dock so that none crosses another as it leaves: straight ones
+stay at the point they share with their other end, lines on one point moving apart — a straight one only where both
+its ends can, so no bend is added. A line that turns may dock between the level it turns to and the first straight
+line beyond that level that runs further than it before turning; one ending sooner it passes by. Along the side, the
+lines turning towards one end before those turning towards the other, of those turning one way the one turning
+soonest outermost, the straight ones fixed among them; each placed as near where the search docked it — the middle —
+as that order allows, by least squares (adjacent violators pooled), 12 px apart, else 6, else 4. Where even 4 leaves
+no room, every line goes 4 px apart anywhere along the side: a crossing comes before lines on top of one another. A
+move that would run through a placement is not made, and the others are placed again about that line. Then each
+inner segment is moved to the middle of
 the gap between the placements either side of it — open on one side, 72 px wide — segments sharing a gap side by
 side about its middle, 4–16 px apart so the outer ones stay 24 px from the placements where the gap has room, in
-the order that crosses least: where one leaves the gap before the other, it goes on the side it leaves towards. Each
+the order that crosses least: where one leaves the gap before the other, it goes on the side it leaves towards; and
+the ends are docked again, for lines that left a side on one level and now turn on two. Each
 move is kept only where the segment and its neighbours stay clear of every placement and keep their direction, read
 from the line as it is then; a U — a line stepping out and back — only comes nearer its ends, never further out, and
 a last pass brings each U between two inner segments to the nearer of its far ends as far as the placements allow,
