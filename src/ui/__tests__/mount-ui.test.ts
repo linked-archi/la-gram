@@ -405,13 +405,16 @@ describe('mountUi', () => {
       });
     });
 
-    it("passes the loaded metamodels, and their default notation sets, in load order (Req 2.16)", () => {
+    it("passes the loaded metamodels — each with the documents it loaded (Req 2.24) — and their default notation sets, in load order (Req 2.16)", () => {
       const loaded = (iri: string, notationSetIri?: string): LoadedMetamodel => ({
         metamodelIri: iri,
         manifestGraphIri: iri,
-        info: { iri, name: '', version: '', description: '' },
+        info: { iri, name: `${iri.slice(7)} Metamodel`, version: '', description: '' },
         graphsByRole: {},
-        assets: [],
+        assets: [
+          { referencedIri: `${iri}:onto`, documentIri: `${iri}:onto`, via: 'arch:modelConcepts', outcome: 'loaded' },
+          { referencedIri: `${iri}:gone`, documentIri: `${iri}:gone`, via: 'arch:formalRules', outcome: 'unavailable' },
+        ],
         ...(notationSetIri ? { notationSetIri } : {}),
       });
       vi.spyOn(app, 'loadedMetamodels').mockReturnValue([
@@ -424,6 +427,11 @@ describe('mountUi', () => {
 
       expect(app.components.paletteGenerator.generatePalette).toHaveBeenLastCalledWith('urn:mm:primary', {
         metamodelIris: ['urn:mm:primary', 'urn:mm:without-a-set', 'urn:mm:added'],
+        metamodels: [
+          { iri: 'urn:mm:primary', label: 'primary', documents: ['urn:mm:primary:onto'], conceptDocuments: ['urn:mm:primary:onto'] },
+          { iri: 'urn:mm:without-a-set', label: 'without-a-set', documents: ['urn:mm:without-a-set:onto'], conceptDocuments: ['urn:mm:without-a-set:onto'] },
+          { iri: 'urn:mm:added', label: 'added', documents: ['urn:mm:added:onto'], conceptDocuments: ['urn:mm:added:onto'] },
+        ],
         defaultNotationSetIris: ['urn:set:primary', 'urn:set:added'],
       });
     });

@@ -79,6 +79,7 @@ const ARCH_PALETTE_GROUPING = `${CORE}paletteGrouping`;
 /** The abstractness flag actually published in the Linked.Archi ontologies. */
 const ARCH_IS_ABSTRACT_CLASS = `${CORE}isAbstractClass`;
 const CORE_ELEMENT = `${CORE}Element`;
+const CORE_VIEW = 'https://meta.linked.archi/core#View';
 const CORE_MODEL_CONCEPT = `${CORE}ModelConcept`;
 const CORE_QUALIFIED_RELATIONSHIP = `${CORE}QualifiedRelationship`;
 
@@ -166,6 +167,9 @@ export interface TaxonomyAxis {
   ranks: Map<string, number>;
 }
 
+/** The palette section of the element types no classification names. */
+export const UNCLASSIFIED_GROUP = 'Other';
+
 /** An instantiable palette class resolved from the taxonomy and the OWL ontology. */
 export interface SemanticClass {
   /** IRI of the OWL class that gets instantiated. */
@@ -188,6 +192,8 @@ export interface SemanticClass {
    */
   memberRanksByAxis?: Record<string, number>;
   isAbstract: boolean;
+  /** No classification names the class, though one names others: it is listed under "Other". */
+  unclassified?: boolean;
 }
 
 /** An RDF list's named items, in order (cycle-safe). */
@@ -314,7 +320,7 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
 
   const isConcept = (iri: string): boolean => schemeConcepts.has(iri);
 
-  const childrenOf = (conceptIri: string): string[] => {
+  const skosChildrenOf = (conceptIri: string): string[] => {
     const narrower = store
       .getObjects(namedNode(conceptIri), namedNode(SKOS_NARROWER), null)
       .filter(isNamedNode)
@@ -325,6 +331,33 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
       .map((term) => term.value);
     return unique([...narrower, ...broaderInverse]);
   };
+
+  // A third style of listing members (DoDAF's, UAF's and the ML extension's taxonomies): a concept with nothing
+  // under it names the classes it groups with `rdfs:seeAlso` — "Capability Viewpoint" names Capability, Capability
+  // Increment and Desired Effect. One class named so may be the class the concept stands for (ArchiMate's style,
+  // below); several are its members, and then every sibling written the same way is a group too, the one that
+  // names a single class with it.
+  const seeAlsoClassesOf = (conceptIri: string): string[] =>
+    store
+      .getObjects(namedNode(conceptIri), namedNode(RDFS_SEE_ALSO), null)
+      .filter(isNamedNode)
+      .map((term) => term.value)
+      .filter((iri) => store.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(OWL_CLASS), null).length > 0);
+  const seeAlsoGroups = new Map<string, string[]>();
+  for (const concept of schemeConcepts) {
+    if (skosChildrenOf(concept).length > 0 || seeAlsoClassesOf(concept).length < 2) continue;
+    const parents = unique([
+      ...store.getObjects(namedNode(concept), namedNode(SKOS_BROADER), null).filter(isNamedNode).map((term) => term.value),
+      ...store.getSubjects(namedNode(SKOS_NARROWER), namedNode(concept), null).filter(isNamedNode).map((term) => term.value),
+    ]);
+    for (const sibling of [concept, ...parents.flatMap(skosChildrenOf)]) {
+      if (!schemeConcepts.has(sibling) || seeAlsoGroups.has(sibling) || skosChildrenOf(sibling).length > 0) continue;
+      const classes = seeAlsoClassesOf(sibling);
+      if (classes.length > 0) seeAlsoGroups.set(sibling, classes);
+    }
+  }
+
+  const childrenOf = (conceptIri: string): string[] => seeAlsoGroups.get(conceptIri) ?? skosChildrenOf(conceptIri);
 
   const conceptChildrenOf = (conceptIri: string): string[] => childrenOf(conceptIri).filter(isConcept);
 
@@ -603,8 +636,8 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
  * `arch:isAbstractClass true`, and relationship classes (transitive-closure hit on
  * `arch:QualifiedRelationship`, or a well-known relationship local name).
  *
- * When `axes` is empty there is no taxonomy to drive grouping, so the function falls back to an
- * OWL-only walk over the non-abstract subclasses of `arch:Element` / `arch:ModelConcept`.
+ * When `axes` is empty — or its schemes classify none of the classes — there is no taxonomy to drive grouping, so
+ * the function falls back to an OWL-only walk over the non-abstract subclasses of `arch:Element` / `arch:ModelConcept`.
  *
  * @param store n3 store holding the taxonomy and the OWL ontology.
  * @param axes Axes from {@link buildClassificationAxes}; the first supplies the default group.
@@ -676,10 +709,12 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
       if (isAbstractClass(store, owlClassIri)) continue;
 
       const closure = computeClosure(owlClassIri, superClassMap);
+      // By its superclasses; by a well-known relationship name only where they do not say it is an element
+      // (EA on a Page's Realization, a phase of a process, is one).
       const isRelationship =
         owlClassIri === CORE_QUALIFIED_RELATIONSHIP ||
         closure.includes(CORE_QUALIFIED_RELATIONSHIP) ||
-        RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri));
+        (RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri)) && !closure.includes(CORE_ELEMENT));
       if (isRelationship) continue;
 
       seenOwl.add(owlClassIri);
@@ -714,38 +749,55 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
       });
     }
 
-    return taxonomyResult.sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
+    // Schemes that classify no class at all are no taxonomy of these classes — core's question stages are all a
+    // metamodel without a classification of its own has — so the OWL walk alone finds them. Where the schemes
+    // classify some, the element classes they leave out — a metamodel loaded beside this one with no classification,
+    // or one whose classification is incomplete — follow under "Other": a type the ontology defines is one to draw.
+    if (taxonomyResult.length > 0) {
+      const classified = taxonomyResult.sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
+      const rest = owlWalk()
+        .filter((cls) => !seenOwl.has(cls.iri))
+        .map((cls) => ({ ...cls, group: UNCLASSIFIED_GROUP, unclassified: true }));
+      return [...classified, ...rest.sort((a, b) => a.label.localeCompare(b.label))];
+    }
   }
 
-  // Fallback: no taxonomy — OWL-only walk over the non-abstract subclasses of arch:Element.
-  const owlOnlyResult: SemanticClass[] = [];
-  for (const iri of allClassIris) {
-    const closure = computeClosure(iri, superClassMap);
-    const isSubOfElement = closure.includes(CORE_ELEMENT) || closure.includes(CORE_MODEL_CONCEPT);
-    if (!isSubOfElement) continue;
-    if (iri === CORE_ELEMENT || iri === CORE_MODEL_CONCEPT) continue;
-    if (iri.startsWith(CORE)) continue;
+  // Fallback: no taxonomy of these classes — the OWL walk, grouped by a guess from each class's name.
+  return owlWalk().sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
 
-    const fragment = iriFragment(iri);
-    const isRelationship = closure.includes(CORE_QUALIFIED_RELATIONSHIP) || RELATIONSHIP_FRAGMENTS.has(fragment);
-    if (isRelationship) continue;
+  /** Every non-abstract subclass of `arch:Element` that is no relationship type and no core class. */
+  function owlWalk(): SemanticClass[] {
+    const result: SemanticClass[] = [];
+    for (const iri of allClassIris) {
+      const closure = computeClosure(iri, superClassMap);
+      const isSubOfElement = closure.includes(CORE_ELEMENT) || closure.includes(CORE_MODEL_CONCEPT);
+      if (!isSubOfElement) continue;
+      if (iri === CORE_ELEMENT || iri === CORE_MODEL_CONCEPT) continue;
+      if (iri.startsWith(CORE)) continue;
+      // A kind of view (BPMN's diagram) is a model concept and no element: nothing to place on a diagram.
+      if (closure.includes(CORE_VIEW)) continue;
 
-    if (isAbstractClass(store, iri) || ABSTRACT_FRAGMENTS.has(fragment)) continue;
+      const fragment = iriFragment(iri);
+      const isRelationship =
+        closure.includes(CORE_QUALIFIED_RELATIONSHIP) || (RELATIONSHIP_FRAGMENTS.has(fragment) && !closure.includes(CORE_ELEMENT));
+      if (isRelationship) continue;
 
-    owlOnlyResult.push({
-      iri,
-      label: labelFor(store, iri),
-      definition: definitionFor(store, iri),
-      superClasses: superClassMap.get(iri) ?? [],
-      transitiveSuperClasses: closure,
-      group: groupFor(iri, closure),
-      groupsByAxis: {},
-      ranksByAxis: {},
-      isAbstract: false,
-    });
+      if (isAbstractClass(store, iri) || ABSTRACT_FRAGMENTS.has(fragment)) continue;
+
+      result.push({
+        iri,
+        label: labelFor(store, iri),
+        definition: definitionFor(store, iri),
+        superClasses: superClassMap.get(iri) ?? [],
+        transitiveSuperClasses: closure,
+        group: groupFor(iri, closure),
+        groupsByAxis: {},
+        ranksByAxis: {},
+        isAbstract: false,
+      });
+    }
+    return result;
   }
-
-  return owlOnlyResult.sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
 }
 
 /**

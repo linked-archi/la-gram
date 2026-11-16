@@ -90,6 +90,7 @@ Each is off until you switch it on.
 | `la-gram:arrange-view` | [*Arrange view…*](../guide/canvas.md#arrange-view)'s *Direction*, *Spacing* and *Group by band*, as one JSON object: `{"direction":"DOWN","spacing":"normal","bands":true}`. Written when *Arrange* is chosen; a value it does not know is read as the default. Also used for a model opened with no geometry and for *Render as new view* | **Down**, **Normal**, **on** |
 | `la-gram:arrange-grid` | [*Align to grid…*](../guide/canvas.md#align-to-grid)'s *Grid* and *Align*, as one JSON object: `{"grid":20,"axis":"both"}`. Written when *Align* is chosen; also what the *Align to grid* button uses | **20**, **both** |
 | `la-gram:arrange-sizes` | [*Sizes…*](../guide/canvas.md#sizes)'s *Make them* and *Change*, as one JSON object: `{"reference":"largest","dimension":"both"}`. Written when *Resize* matches sizes; also what the *Match* buttons use | **largest**, **both** |
+| `la-gram:palette-notices-closed` | the [notices about incomplete metamodels](../guide/palette.md#incomplete) closed with ✕, as a JSON array, each the metamodel's IRI and what the notice said: `["https://meta.linked.archi/atam/metamodel#ATAM it names no classification…"]`. A notice that reads differently is shown again | **none closed** |
 | `la-gram:about-sections` | which sections of *About ‹type›* are open | **as la-gram opens them** |
 | `la-gram:matrix-axes:<viewIri>` | a matrix view's row and column types, per view | **the two most common types** |
 

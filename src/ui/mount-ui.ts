@@ -1754,11 +1754,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       .flatMap((m) => (m.notationSetIri ? [m.notationSetIri] : []));
     // In load order too: the first language's classification stays the default grouping.
     const metamodelIris = app.loadedMetamodels().map((m) => m.metamodelIri);
+    // Each with the documents it loaded: what the palette says is missing from it (Req 2.24).
+    const checkedMetamodels = app.loadedMetamodels().map((m) => ({
+      iri: m.metamodelIri,
+      label: (m.info?.name || m.metamodelIri).replace(/\s+Metamodel$/i, ''),
+      documents: (m.assets ?? []).filter((a) => a.outcome === 'loaded' || a.outcome === 'already-loaded').map((a) => a.documentIri),
+      conceptDocuments: (m.assets ?? []).filter((a) => a.via === 'arch:modelConcepts').map((a) => a.documentIri),
+    }));
     // A relationship type its notation publishes no icon for — or one that does
     // not load — is shown with one drawn from its line and ends.
     const palette = withRelationshipIcons(
       paletteGenerator.generatePalette(currentMetamodelIri, {
         ...(metamodelIris.length > 0 ? { metamodelIris } : {}),
+        ...(checkedMetamodels.length > 0 ? { metamodels: checkedMetamodels } : {}),
         ...(currentAxisIri ? { axisIri: currentAxisIri } : {}),
         ...(context ? { presentationContextIri: context } : {}),
         ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),
@@ -1787,6 +1795,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     regeneratePalette();
   };
   palettePanel.addEventListener('palette-axis-change', onAxisChange);
+  palettePanel.addEventListener('palette-show-assets', () => void runCommand({ command: 'show-assets' }));
 
   // ── Views on the canvas ──────────────────────────────────────────────
   let active: CanvasViewKind = 'diagram';
@@ -2962,6 +2971,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           const lines: string[] = [];
           for (const m of app.loadedMetamodels()) {
             lines.push(`■ ${m.info.name || m.metamodelIri}`);
+            // What is missing from it, with the types concerned (Req 2.24).
+            for (const finding of currentPalette?.completeness?.find((c) => c.metamodelIri === m.metamodelIri)?.findings ?? []) {
+              lines.push(`   ⚠ Incomplete: ${finding.message}${finding.types?.length ? `: ${finding.types.join(', ')}` : ''}.`);
+            }
             for (const a of m.assets) {
               lines.push(`   ${a.outcome.padEnd(14)} ${a.role ?? ''} ${a.documentIri}${a.origin ? ` (${a.origin})` : ''}${a.quadCount ? ` · ${a.quadCount} triples` : ''}`);
             }

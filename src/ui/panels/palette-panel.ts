@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type {
+  MetamodelCompleteness,
   PaletteDefinition,
   ElementGroup,
   ElementTypeInfo,
@@ -105,6 +106,24 @@ function matches(text: string | undefined, query: string): boolean {
  * 2. Internally — set the `activeViewpoint` property and the component
  *    filters the palette to only show permitted types.
  */
+/** localStorage key of the closed notices about incomplete metamodels: a JSON array of {@link noticeKey}s. */
+const CLOSED_NOTICES_KEY = 'la-gram:palette-notices-closed';
+
+/** A notice as it reads: the metamodel and what it says of it. Closed, it stays closed while it reads the same. */
+function noticeKey(m: MetamodelCompleteness): string {
+  return `${m.metamodelIri} ${m.findings.map((f) => f.message).join('; ')}`;
+}
+
+/** The notices closed in this browser; none where that cannot be read. */
+function closedNotices(): Set<string> {
+  try {
+    const saved: unknown = JSON.parse(globalThis.localStorage?.getItem(CLOSED_NOTICES_KEY) ?? '[]');
+    return new Set(Array.isArray(saved) ? saved.filter((k): k is string => typeof k === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
 @customElement('palette-panel')
 export class PalettePanel extends LitElement {
   static override styles = css`
@@ -245,6 +264,37 @@ export class PalettePanel extends LitElement {
       font-size: 12px;
     }
 
+    .palette-incomplete strong {
+      font-weight: 600;
+    }
+
+    .notice-close {
+      float: right;
+      margin: -2px -6px 0 4px;
+      padding: 0 4px;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      line-height: 1.2;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    .notice-close:hover {
+      opacity: 1;
+    }
+
+    .notice-link {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
     .axis-selector {
       display: flex;
       align-items: center;
@@ -342,6 +392,10 @@ export class PalettePanel extends LitElement {
 
   @state()
   private _collapsedGroups: Set<string> = new Set();
+
+  /** The notices about incomplete metamodels that were closed ({@link _closeNotice}). */
+  @state()
+  private _closedNotices: Set<string> = closedNotices();
 
   /**
    * Whether the relationships section is collapsed — apart from the groups, which a category could share a name with.
@@ -537,6 +591,8 @@ export class PalettePanel extends LitElement {
    */
   private _renderOwlOnlyNotice(): unknown {
     if (this.palette.grouping !== 'owl' || this.palette.elementGroups.length === 0) return nothing;
+    // Said by name where the loaded metamodels were checked (below).
+    if ((this.palette.completeness ?? []).some((m) => m.findings.some((f) => f.kind === 'no-classification'))) return nothing;
     return html`<div
       class="palette-notice"
       role="note"
@@ -544,6 +600,48 @@ export class PalettePanel extends LitElement {
     >
       No classification loaded — types grouped by name.
     </div>`;
+  }
+
+  /**
+   * What each loaded metamodel leaves out (Req 2.24): one that defines nothing to draw, names no classification, or
+   * classifies part of its types — which are listed under "Other". *Details…* opens the loaded assets, which list
+   * the types.
+   */
+  private _renderCompleteness(): unknown {
+    const incomplete = (this.palette.completeness ?? []).filter((m) => !this._closedNotices.has(noticeKey(m)));
+    if (incomplete.length === 0) return nothing;
+    return incomplete.map(
+      (m) => html`<div
+        class="palette-notice palette-incomplete"
+        role="note"
+        title=${m.findings.map((f) => (f.types?.length ? `${f.types.join(', ')}.` : '')).filter(Boolean).join('\n') || 'Show loaded assets… lists what each metamodel loaded.'}
+      >
+        <button type="button" class="notice-close" title="Close" aria-label=${`Close the notice about ${m.label}`} @click=${() => this._closeNotice(m)}>
+          ✕
+        </button>
+        <strong>${m.label}</strong> is incomplete: ${m.findings.map((f) => f.message).join('; ')}.
+        <button
+          type="button"
+          class="notice-link"
+          @click=${() => this.dispatchEvent(new CustomEvent('palette-show-assets', { bubbles: true, composed: true }))}
+        >
+          Details…
+        </button>
+      </div>`,
+    );
+  }
+
+  /**
+   * Closes a metamodel's notice, for as long as it would say the same: it is remembered in this browser, and shown
+   * again when what the metamodel leaves out changes. *Show loaded assets…* goes on saying it.
+   */
+  private _closeNotice(m: MetamodelCompleteness): void {
+    this._closedNotices = new Set([...this._closedNotices, noticeKey(m)]);
+    try {
+      globalThis.localStorage?.setItem(CLOSED_NOTICES_KEY, JSON.stringify([...this._closedNotices]));
+    } catch {
+      /* not remembered: closed until the page is loaded again */
+    }
   }
 
   /** "Group by" selector, shown only when the metamodel offers several axes. */
@@ -689,12 +787,14 @@ export class PalettePanel extends LitElement {
     this._shared = sharedNames(labels.values());
     return html`
       <div class="palette-header">Palette</div>
-      ${this._renderSearch()} ${this._renderAxisSelector()} ${this._renderOwlOnlyNotice()}
+      ${this._renderSearch()} ${this._renderAxisSelector()} ${this._renderOwlOnlyNotice()} ${this._renderCompleteness()}
       ${empty
         ? html`<div class="palette-empty">
             ${this._normalisedQuery
               ? `No type matches “${this._query.trim()}”.`
-              : 'No metamodel loaded.'}
+              : (this.palette.completeness ?? []).length > 0
+                ? 'The loaded metamodels define no types to draw.'
+                : 'No metamodel loaded.'}
           </div>`
         : nothing}
       ${relationshipTypes.length > 0 ? this._renderRelationships(relationshipTypes) : nothing}

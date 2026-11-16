@@ -1051,3 +1051,29 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(labels).not.toContain('Process');
   });
 });
+
+describe('relationship categories come from the dimension that names the most relationship types', () => {
+  it('not from a dimension of element types that lists one beside them (UML: Transition in the state machine diagram)', async () => {
+    const store = new OxigraphRdfStore();
+    await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(`
+      @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+      @prefix arch: <https://meta.linked.archi/core#> . @prefix ex: <https://example.org/mm#> .
+      <https://example.org/mm> rdf:type owl:Ontology .
+      ex:Scheme rdf:type skos:ConceptScheme ; skos:hasTopConcept ex:ByDiagram, ex:ByCategory .
+      ex:ByDiagram rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Diagram"@en .
+      ex:ByCategory rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Category"@en .
+      ex:StateMachine rdf:type skos:Concept ; skos:prefLabel "State Machine Diagram"@en ; skos:broader ex:ByDiagram ; skos:narrower ex:State, ex:Transition .
+      ex:Relationships rdf:type skos:Concept ; skos:prefLabel "Relationships"@en ; skos:broader ex:ByCategory ; skos:narrower ex:Transition, ex:Association .
+      ex:State rdf:type owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "State"@en .
+      ex:Transition rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Transition"@en .
+      ex:Association rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Association"@en .
+    `);
+    const palette = new SparqlPaletteGenerator(store).generatePalette('https://example.org/mm');
+    expect(palette.relationshipTypes.map((r) => [r.label, r.category])).toEqual([
+      ['Association', 'Relationships'],
+      ['Transition', 'Relationships'],
+    ]);
+    expect(palette.elementGroups.map((g) => g.category)).toEqual(['State Machine Diagram']);
+  });
+});

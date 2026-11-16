@@ -91,6 +91,38 @@ name, and says so:
 
 [Show loaded assets…](metamodels.md#loaded-assets) says which of the two it is.
 
+## An incomplete metamodel {#incomplete}
+
+Every element type a loaded ontology defines is offered. One that no classification names is listed in
+a section **Other**, after the others: the types of a metamodel that names no classification, loaded
+beside one that does, and the types a metamodel's own classification leaves out. Relationship types in
+no category are under *Other* in *Relationships* in the same way.
+
+A notice at the top of the palette says, for each loaded metamodel, what it leaves out:
+
+| The notice says | Means |
+|---|---|
+| *it defines no element or relationship types: its documents hold 10 concepts and no classes, so nothing of it can be drawn* | the metamodel is a classification or a set of viewpoints: it adds nothing to the palette |
+| *it defines no element or relationship types: none of its 24 classes is a subclass of arch:Element or arch:QualifiedRelationship, so nothing of it can be drawn* | its ontology has classes, but none la-gram can place on a diagram |
+| *it names no classification (arch:conceptClassification): its 8 element types are listed under “Other”* | its manifest names no taxonomy; with no other metamodel loaded the types are *grouped by a guess from their names* instead |
+| *its classification names 36 of its 53 element types: the other 17 are listed under “Other”* | its taxonomy leaves some of its element types out |
+| *its classification names none of its 1 element type: it is grouped by a guess from its name* | its taxonomy is loaded, and lists none of its types |
+| *18 of its 19 relationship types are in no category, and listed under “Other”* | its taxonomy puts some relationship types in categories and not these |
+
+A metamodel's types are those of the documents its manifest names as its concepts
+(`arch:modelConcepts`) and of what they import. A document that only its shapes or mappings import —
+another version's ontology — is loaded for validation, and its types are not offered.
+
+!!! example "The notice, with ATAM loaded beside ArchiMate 4.0"
+
+    **ATAM** is incomplete: it names no classification (arch:conceptClassification): its 8 element types
+    are listed under “Other”. *Details…*
+
+Pointing at the notice names the types; *Details…* opens
+[Show loaded assets…](metamodels.md#loaded-assets), which lists them under the metamodel. **✕** closes
+the notice. It stays closed in this browser for as long as it would say the same, and comes back when
+what the metamodel leaves out changes; *Show loaded assets…* goes on saying it.
+
 ## About ‹type› {#about-type}
 
 Under the model tree, *About ‹type›* says what the loaded ontology and taxonomy say about a type: the

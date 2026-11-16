@@ -48,9 +48,12 @@ describe('Basic, the generic language', () => {
     const p = palette();
     expect(p.axes!.map((a) => a.label)).toEqual(['Domain', 'Aspect', 'Basic Concepts']);
     expect(p.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#Domain');
-    // Its types are there; under ArchiMate's axis, which does not classify them, in "Other".
-    const other = p.elementGroups.find((g) => g.category === 'Other')!;
-    expect(other.elements.map((e) => e.label).sort()).toEqual(['GroupNode', 'Node', 'SpecialNode']);
+    // Its types are there: ArchiMate's axis does not classify them, so they keep their own group, after
+    // ArchiMate's sections — not "Other".
+    const categories = p.elementGroups.map((g) => g.category);
+    expect(categories.indexOf('Elements')).toBeGreaterThan(categories.indexOf('Implementation and Migration Domain'));
+    expect(p.elementGroups.find((g) => g.category === 'Elements')!.elements.map((e) => e.label).sort()).toEqual(['GroupNode', 'Node', 'SpecialNode']);
+    expect(p.elementGroups.find((g) => g.category === 'Other')).toBeUndefined();
     expect(p.relationshipTypes.map((r) => r.label)).toContain('Connection');
     // No core class is a palette type.
     expect(elementIris()).not.toContain(NAMESPACES.arch + 'Element');

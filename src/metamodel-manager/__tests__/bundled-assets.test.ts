@@ -33,7 +33,7 @@ describe('bundled asset registry', () => {
     // Five core files (the core question set among them), thirteen per ArchiMate version (4.0 and 3.2,
     // their question sets among them), and Basic's six: manifest, ontology, taxonomy, its two notation
     // sets and its presentation contexts.
-    expect(BUNDLED_ASSETS).toHaveLength(37);
+    expect(BUNDLED_ASSETS).toHaveLength(42);
     expect(getAssetsByRole('coreQuestions').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/core-questions#']);
     expect(getAssetsByRole('questions').map((a) => [a.metamodel, a.ontologyIri])).toEqual([
       ['archimate4', 'https://meta.linked.archi/archimate4/questions#'],
@@ -48,11 +48,21 @@ describe('bundled asset registry', () => {
 
   it('covers every single-valued role exactly once per bundled language', () => {
     const roles: BundledAssetRole[] = ['manifest', 'ontology', 'taxonomy', 'presentationContexts'];
-    for (const metamodel of BUNDLED_METAMODELS) {
+    for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'arch-decision')) {
       for (const role of roles) {
         expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
       }
     }
+    // The decision extension: a manifest, its vocabulary and the relationship types that draw its links, a
+    // taxonomy and its shapes; no notation and no presentation contexts.
+    expect(getAssetsByRole('manifest', 'arch-decision')).toHaveLength(1);
+    expect(getAssetsByRole('ontology', 'arch-decision').map((a) => a.ontologyIri)).toEqual([
+      'https://meta.linked.archi/arch-decision#',
+      'https://meta.linked.archi/arch-decision/relationships#',
+    ]);
+    expect(getAssetsByRole('taxonomy', 'arch-decision')).toHaveLength(1);
+    expect(getAssetsByRole('shapes', 'arch-decision')).toHaveLength(1);
+    expect(getAssetsByRole('presentationContexts', 'arch-decision')).toHaveLength(0);
     for (const id of ['archimate4', 'archimate3']) {
       for (const role of ['notation', 'viewpoints', 'referenceData', 'questions'] as const) {
         expect(getAssetsByRole(role, id), `${id}/${role}`).toHaveLength(1);
@@ -205,4 +215,43 @@ describe('Node-side asset loading', () => {
   it('exposes the asset root the webpack copy target uses', () => {
     expect(ASSET_ROOT).toBe('assets');
   });
+});
+
+describe('the bundled Architecture Decisions extension', () => {
+  it('loads offline beside ArchiMate, with its element types in two groups and its links as relationship types', async () => {
+    const { OxigraphRdfStore } = await import('../../rdf-engine/rdf-store.js');
+    const { N3TtlParser } = await import('../../rdf-engine/ttl-parser.js');
+    const { N3MetamodelLoader } = await import('../metamodel-loader.js');
+    const { SparqlPaletteGenerator } = await import('../palette-generator.js');
+    const { qualifiedFormOf, unqualifiedFormOf } = await import('../../model-manager/cascade.js');
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+    const am4 = await loader.loadBundledMetamodel('archimate4');
+    const decisions = await loader.loadBundledMetamodel('arch-decision');
+    expect(decisions.assets.filter((a) => a.outcome !== 'loaded' && a.outcome !== 'already-loaded')).toEqual([]);
+
+    const documents = (m: typeof am4) => ({
+      iri: m.metamodelIri,
+      label: m.info.name,
+      documents: m.assets.map((a) => a.documentIri),
+      conceptDocuments: m.assets.filter((a) => a.via === 'arch:modelConcepts').map((a) => a.documentIri),
+    });
+    const palette = new SparqlPaletteGenerator(store).generatePalette(undefined, {
+      metamodelIris: [am4.metamodelIri, decisions.metamodelIri],
+      metamodels: [documents(am4), documents(decisions)],
+    });
+    const AD = 'https://meta.linked.archi/arch-decision#';
+    const ADREL = 'https://meta.linked.archi/arch-decision/relationships#';
+    const group = (name: string) => palette.elementGroups.find((g) => g.category === name)?.elements.map((e) => e.label);
+    expect(group('Decision Record')?.sort()).toEqual(['Decision', 'Issue', 'Option']);
+    expect(group('Forces')).toHaveLength(11);
+    expect(palette.completeness).toBeUndefined();
+    const relationship = (iri: string) => palette.relationshipTypes.find((r) => r.iri === iri);
+    expect(relationship(`${ADREL}ModifiesConcept`)).toMatchObject({ label: 'Modifies', unqualifiedPredicateIri: `${AD}modifiesConcept` });
+    // An influence is drawn as one of its two kinds, each reached by Force Influence's qualified property.
+    expect(relationship(`${AD}ForceInfluence`)).toBeUndefined();
+    expect(unqualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}influencedByForce`);
+    expect(qualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}hasInfluence`);
+    expect(qualifiedFormOf(store, `${ADREL}ModifiesConcept`)).toBe(`${ADREL}qualifiedModifiesConcept`);
+  }, 60_000);
 });

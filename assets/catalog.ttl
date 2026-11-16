@@ -14,7 +14,7 @@
   dcterms:language <http://id.loc.gov/vocabulary/iso639-1/en>;
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:issued "2024-06-01"^^xsd:date;
-  dcterms:modified "2026-11-09"^^xsd:date;
+  dcterms:modified "2026-11-16"^^xsd:date;
   dcterms:publisher <https://linked.archi>;
   foaf:homepage <https://meta.linked.archi/>;
   dcat:themeTaxonomy <https://meta.linked.archi/catalog#themes>;
@@ -25,27 +25,29 @@
     <https://meta.linked.archi/ai-governance/onto>, <https://meta.linked.archi/ai-governance/reference-data>,
     <https://meta.linked.archi/ai-governance/shapes>, <https://meta.linked.archi/ai-governance/tax>,
     <https://meta.linked.archi/arch-decision>, <https://meta.linked.archi/arch-decision-shapes>,
-    <https://meta.linked.archi/arch-processes>, <https://meta.linked.archi/arch-processes-shapes>,
-    <https://meta.linked.archi/archimate/framework>, <https://meta.linked.archi/archimate3/deliverable-templates>,
-    <https://meta.linked.archi/archimate3/derivation>, <https://meta.linked.archi/archimate3/element-shapes>,
-    <https://meta.linked.archi/archimate3/metamodel>, <https://meta.linked.archi/archimate3/notation>,
-    <https://meta.linked.archi/archimate3/onto>, <https://meta.linked.archi/archimate3/onto/3.0>,
-    <https://meta.linked.archi/archimate3/onto/3.1>, <https://meta.linked.archi/archimate3/presentation-contexts>,
-    <https://meta.linked.archi/archimate3/principle-shapes>, <https://meta.linked.archi/archimate3/questions>,
-    <https://meta.linked.archi/archimate3/reference-data>, <https://meta.linked.archi/archimate3/reference-models>,
-    <https://meta.linked.archi/archimate3/relationship-tables>, <https://meta.linked.archi/archimate3/shapes>,
-    <https://meta.linked.archi/archimate3/tax>, <https://meta.linked.archi/archimate3/tax/3.0>,
-    <https://meta.linked.archi/archimate3/tax/3.1>, <https://meta.linked.archi/archimate3/viewpoint-shapes>,
-    <https://meta.linked.archi/archimate3/viewpoints>, <https://meta.linked.archi/archimate4/deliverable-templates>,
-    <https://meta.linked.archi/archimate4/derivation>, <https://meta.linked.archi/archimate4/element-shapes>,
-    <https://meta.linked.archi/archimate4/metamodel>, <https://meta.linked.archi/archimate4/notation>,
-    <https://meta.linked.archi/archimate4/onto>, <https://meta.linked.archi/archimate4/presentation-contexts>,
-    <https://meta.linked.archi/archimate4/principle-shapes>, <https://meta.linked.archi/archimate4/questions>,
-    <https://meta.linked.archi/archimate4/reference-data>, <https://meta.linked.archi/archimate4/reference-models>,
-    <https://meta.linked.archi/archimate4/relationship-tables>, <https://meta.linked.archi/archimate4/shapes>,
-    <https://meta.linked.archi/archimate4/tax>, <https://meta.linked.archi/archimate4/viewpoint-shapes>,
-    <https://meta.linked.archi/archimate4/viewpoints>, <https://meta.linked.archi/atam/metamodel>,
-    <https://meta.linked.archi/atam/onto>, <https://meta.linked.archi/atam/shapes>, <https://meta.linked.archi/backstage/crossmappings>,
+    <https://meta.linked.archi/arch-decision/metamodel>, <https://meta.linked.archi/arch-decision/relationships>,
+    <https://meta.linked.archi/arch-decision/tax>, <https://meta.linked.archi/arch-processes>,
+    <https://meta.linked.archi/arch-processes-shapes>, <https://meta.linked.archi/archimate/framework>,
+    <https://meta.linked.archi/archimate3/deliverable-templates>, <https://meta.linked.archi/archimate3/derivation>,
+    <https://meta.linked.archi/archimate3/element-shapes>, <https://meta.linked.archi/archimate3/metamodel>,
+    <https://meta.linked.archi/archimate3/notation>, <https://meta.linked.archi/archimate3/onto>,
+    <https://meta.linked.archi/archimate3/onto/3.0>, <https://meta.linked.archi/archimate3/onto/3.1>,
+    <https://meta.linked.archi/archimate3/presentation-contexts>, <https://meta.linked.archi/archimate3/principle-shapes>,
+    <https://meta.linked.archi/archimate3/questions>, <https://meta.linked.archi/archimate3/reference-data>,
+    <https://meta.linked.archi/archimate3/reference-models>, <https://meta.linked.archi/archimate3/relationship-tables>,
+    <https://meta.linked.archi/archimate3/shapes>, <https://meta.linked.archi/archimate3/tax>,
+    <https://meta.linked.archi/archimate3/tax/3.0>, <https://meta.linked.archi/archimate3/tax/3.1>,
+    <https://meta.linked.archi/archimate3/viewpoint-shapes>, <https://meta.linked.archi/archimate3/viewpoints>,
+    <https://meta.linked.archi/archimate4/deliverable-templates>, <https://meta.linked.archi/archimate4/derivation>,
+    <https://meta.linked.archi/archimate4/element-shapes>, <https://meta.linked.archi/archimate4/metamodel>,
+    <https://meta.linked.archi/archimate4/notation>, <https://meta.linked.archi/archimate4/onto>,
+    <https://meta.linked.archi/archimate4/presentation-contexts>, <https://meta.linked.archi/archimate4/principle-shapes>,
+    <https://meta.linked.archi/archimate4/questions>, <https://meta.linked.archi/archimate4/reference-data>,
+    <https://meta.linked.archi/archimate4/reference-models>, <https://meta.linked.archi/archimate4/relationship-tables>,
+    <https://meta.linked.archi/archimate4/shapes>, <https://meta.linked.archi/archimate4/tax>,
+    <https://meta.linked.archi/archimate4/viewpoint-shapes>, <https://meta.linked.archi/archimate4/viewpoints>,
+    <https://meta.linked.archi/atam/metamodel>, <https://meta.linked.archi/atam/onto>,
+    <https://meta.linked.archi/atam/shapes>, <https://meta.linked.archi/backstage/crossmappings>,
     <https://meta.linked.archi/backstage/deliverable-templates>, <https://meta.linked.archi/backstage/metamodel>,
     <https://meta.linked.archi/backstage/notation>, <https://meta.linked.archi/backstage/onto>,
     <https://meta.linked.archi/backstage/presentation-contexts>, <https://meta.linked.archi/backstage/reference-data>,
@@ -70,9 +72,10 @@
     <https://meta.linked.archi/c4/onto>, <https://meta.linked.archi/c4/presentation-contexts>,
     <https://meta.linked.archi/c4/reference-data>, <https://meta.linked.archi/c4/shapes>,
     <https://meta.linked.archi/c4/structurizr>, <https://meta.linked.archi/c4/structurizr-shapes>,
-    <https://meta.linked.archi/c4/tax>, <https://meta.linked.archi/c4/viewpoints>, <https://meta.linked.archi/core>,
+    <https://meta.linked.archi/c4/tax>, <https://meta.linked.archi/c4/viewpoints>, <https://meta.linked.archi/cloud-services/onto>,
+    <https://meta.linked.archi/cloud-services/tax>, <https://meta.linked.archi/core>,
     <https://meta.linked.archi/core-deliverable-templates>, <https://meta.linked.archi/core-questions>,
-    <https://meta.linked.archi/core-shapes>, <https://meta.linked.archi/core-tax>, <https://meta.linked.archi/core-viewpoints>,
+    <https://meta.linked.archi/core-shapes>, <https://meta.linked.archi/core-viewpoints>,
     <https://meta.linked.archi/core-vis>, <https://meta.linked.archi/core-vis-shapes>,
     <https://meta.linked.archi/dodaf/metamodel>, <https://meta.linked.archi/dodaf/onto>,
     <https://meta.linked.archi/dodaf/shapes>, <https://meta.linked.archi/dodaf/tax>, <https://meta.linked.archi/dodaf/viewpoints>,
@@ -104,7 +107,8 @@
     <https://meta.linked.archi/leanix/deliverable-templates>, <https://meta.linked.archi/leanix/metamodel>,
     <https://meta.linked.archi/leanix/notation>, <https://meta.linked.archi/leanix/onto>,
     <https://meta.linked.archi/leanix/shapes>, <https://meta.linked.archi/leanix/tax>,
-    <https://meta.linked.archi/leanix/v3/metamodel>, <https://meta.linked.archi/leanix/v3/onto>,
+    <https://meta.linked.archi/leanix/v3/metamodel>, <https://meta.linked.archi/leanix/v3/notation>,
+    <https://meta.linked.archi/leanix/v3/onto>, <https://meta.linked.archi/leanix/v3/tax>,
     <https://meta.linked.archi/leanix/viewpoints>, <https://meta.linked.archi/ml-systems/metamodel>,
     <https://meta.linked.archi/ml-systems/onto>, <https://meta.linked.archi/ml-systems/quality-attributes>,
     <https://meta.linked.archi/ml-systems/shapes>, <https://meta.linked.archi/ml-systems/tax>,
@@ -602,8 +606,8 @@ iterative decision processes."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/arch-decision#";
   vann:preferredNamespacePrefix "ad";
-  owl:versionInfo "0.0.6";
-  dcterms:modified "2026-08-01"^^xsd:date;
+  owl:versionInfo "0.0.7";
+  dcterms:modified "2026-11-16"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -654,6 +658,90 @@ constraints are not repeated here except where a tighter rule applies."""@en;
   dcat:distribution [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/arch-decision-shapes/arch-decision-shapes.ttl>;
       dcat:downloadURL <https://meta.linked.archi/arch-decision-shapes/arch-decision-shapes.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/arch-decision/metamodel> a dcat:Dataset;
+  dcterms:title "Linked.Archi Architecture Decisions Metamodel Definition"@en;
+  dcterms:description """Metamodel manifest for the Architecture Decisions extension. Ties together
+the decision ontology, the relationship types that draw its links, the SKOS taxonomy and the SHACL
+shapes into a single discoverable resource. Designed to be added beside a modelling language: a
+decision record links to the elements of the architecture it decides about."""@en;
+  dcterms:conformsTo arch:Metamodel;
+  vann:preferredNamespaceUri "https://meta.linked.archi/arch-decision/metamodel#";
+  vann:preferredNamespacePrefix "admm";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-11-16"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#extensions>;
+  dcat:landingPage <https://meta.linked.archi/arch-decision/metamodel/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/arch-decision/metamodel/arch-decision-metamodel.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/arch-decision/metamodel/arch-decision-metamodel.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ];
+  foaf:primaryTopic <https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions> .
+
+<https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions> a arch:Metamodel;
+  skos:prefLabel "Architecture Decisions Metamodel"@en .
+
+<https://meta.linked.archi/arch-decision/relationships> a dcat:Dataset;
+  dcterms:title "Linked.Archi Architecture Decision Relationships"@en;
+  dcterms:description """Relationship types that make the links of the Architecture Decision
+ontology drawable: for each chosen link — an Option affects a concept, a Decision has a selected
+Option — a qualified relationship class whose unqualified form is the existing ad: predicate. A tool
+that draws one writes the same triple a tool that sets the property writes, with a relationship
+resource beside it. The vocabulary and the data stay as they are."""@en;
+  dcterms:conformsTo owl:Ontology;
+  vann:preferredNamespaceUri "https://meta.linked.archi/arch-decision/relationships#";
+  vann:preferredNamespacePrefix "adrel";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-11-16"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#extensions>;
+  dcat:landingPage <https://meta.linked.archi/arch-decision/relationships/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/arch-decision/relationships/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/arch-decision/relationships/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/arch-decision/relationships/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/arch-decision/relationships/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/arch-decision/relationships/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/arch-decision/relationships/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/arch-decision/relationships/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/arch-decision/relationships/ontology.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/arch-decision/tax> a dcat:Dataset;
+  dcterms:title "Linked.Archi Architecture Decision Taxonomy"@en;
+  dcterms:description "Classification of the Architecture Decision element types — the decision record and the forces on it — and of the relationship types that draw its links."@en;
+  dcterms:conformsTo skos:ConceptScheme;
+  vann:preferredNamespaceUri "https://meta.linked.archi/arch-decision/tax#";
+  vann:preferredNamespacePrefix "adtax";
+  dcterms:modified "2026-11-16"^^xsd:date;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#extensions>;
+  dcat:landingPage <https://meta.linked.archi/arch-decision/tax/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/arch-decision/tax/arch-decision-tax.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/arch-decision/tax/arch-decision-tax.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -1210,16 +1298,17 @@ derives only what these permit from the one element type to the other, so load t
 model to run them: without it, the potential rules derive nothing.
 
 Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
-subproperty of :permitsRealization (am:realizes :drawnBy :drawsRealization), lists the types the
-figures draw a realization to from this type — expanded from the abstract types a figure names to the
-concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
-proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
-it. The generic figures hold within a layer: across layers the tables give their triggering, flow, access
-and assignment only as derived (a business process accessing a data object), and the figures of Chapter
-12 draw what holds between layers. They leave the implementation and migration elements out too, which
-3.2 classifies as internal behaviour, event and passive structure elements: their own figures draw their
-relationships. A pair a figure names itself is given as the figure draws it: figure 113 draws a work
-package realizing and influencing a requirement, which the tables give only as derived.
+subproperty of :permitsRealization (am:realizes :drawnBy :drawsRealization), lists the types the figures
+draw a realization to from this type — expanded from the abstract types a figure names to the concrete
+pairs beneath them that the tables permit directly. They say what the specification illustrates, which a
+modelling tool may show; the order in which it proposes relationships is the taxonomy's. Each such
+triple's reifier cites, with dcterms:source, every figure that draws it. The generic figures hold within
+a layer: across layers the tables give their triggering, flow, access and assignment only as derived (a
+business process accessing a data object), and the figures of Chapter 12 draw what holds between layers.
+They leave the implementation and migration elements out too, which 3.2 classifies as internal
+behaviour, event and passive structure elements: their own figures draw their relationships. A pair a
+figure names itself is given as the figure draws it: figure 113 draws a work package realizing and
+influencing a requirement, which the tables give only as derived.
 
 This is not an official Open Group document."""@en;
   dcterms:conformsTo owl:Ontology;
@@ -1267,7 +1356,7 @@ relationship instances and unqualified direct triples. Pure SHACL core — no SP
 
 <https://meta.linked.archi/archimate3/tax> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 3.2 Taxonomy"@en;
-  dcterms:description "Classification of ArchiMate elements by layer and aspect, and relationship types by category."@en;
+  dcterms:description "Classification of ArchiMate elements by layer and aspect, and relationship types by category, with the order of the layers, of the aspects and of the relationship categories, the grouping of a palette and the order of the groups a diagram keeps in bands."@en;
   dcterms:conformsTo skos:ConceptScheme;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/tax#";
   vann:preferredNamespacePrefix "amtax";
@@ -1742,11 +1831,11 @@ them: without it, the potential rules derive nothing.
 Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
 subproperty of :permitsRealization (am4:realizes :drawnBy :drawsRealization), lists the types the
 figures draw a realization to from this type — expanded from the abstract types a figure names to the
-concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
-proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
-it. A pair a figure names itself is given as the figure draws it: figures 8-1, 9-1 and 11-1 draw an
-interface serving a business actor, an application component and a facility, which the tables give only
-as derived.
+concrete pairs beneath them that the tables permit directly. They say what the specification
+illustrates, which a modelling tool may show; the order in which it proposes relationships is the
+taxonomy's. Each such triple's reifier cites, with dcterms:source, every figure that draws it. A pair a
+figure names itself is given as the figure draws it: figures 8-1, 9-1 and 11-1 draw an interface serving
+a business actor, an application component and a facility, which the tables give only as derived.
 
 This is not an official Open Group document."""@en;
   dcterms:conformsTo owl:Ontology;
@@ -1795,7 +1884,7 @@ unqualified direct triples. Pure SHACL core."""@en;
 
 <https://meta.linked.archi/archimate4/tax> a dcat:Dataset;
   dcterms:title "Linked.Archi ArchiMate 4.0 Taxonomy"@en;
-  dcterms:description "Classification of ArchiMate 4.0 elements by domain and by aspect, and of its relationships by category, with the order of strength the derivation rules apply and the order in which a modelling tool proposes them."@en;
+  dcterms:description "Classification of ArchiMate 4.0 elements by domain and by aspect, of its relationships by category, and of its junctions, with the order of the domains, of the aspects and of the relationship categories, the order of strength the derivation rules apply, the order in which a modelling tool proposes them, the grouping of a palette and the order of the domains a diagram keeps in bands."@en;
   dcterms:conformsTo skos:ConceptScheme;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/tax#";
   vann:preferredNamespacePrefix "am4tax";
@@ -3472,6 +3561,71 @@ cross-cutting viewpoint."""@en;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
+<https://meta.linked.archi/cloud-services/onto> a dcat:Dataset;
+  dcterms:title "Linked.Archi Cloud Services Extension"@en;
+  dcterms:description """Classifies the elements of any model that stand for concrete cloud products and
+services — a managed database, an object store, a container platform — by a classification common to the
+cloud providers, so that products of Microsoft Azure, Amazon Web Services, Google Cloud and others can be
+compared and queried together. Two properties tag an element with a concept of the cloud services
+taxonomy: its service category (compute, storage, databases…) and its service model (IaaS, PaaS,
+SaaS). Trademarked names referenced herein are property of their respective owners."""@en;
+  dcterms:conformsTo owl:Ontology;
+  vann:preferredNamespaceUri "https://meta.linked.archi/cloud-services/onto#";
+  vann:preferredNamespacePrefix "cs";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-11-14"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#extensions>;
+  dcat:landingPage <https://meta.linked.archi/cloud-services/onto/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/cloud-services/onto/ontology.jsonld>;
+      dcat:downloadURL <https://meta.linked.archi/cloud-services/onto/ontology.jsonld>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/ld+json>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/cloud-services/onto/ontology.nt>;
+      dcat:downloadURL <https://meta.linked.archi/cloud-services/onto/ontology.nt>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/n-triples>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/cloud-services/onto/ontology.owl>;
+      dcat:downloadURL <https://meta.linked.archi/cloud-services/onto/ontology.owl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/application/rdf+xml>
+    ], [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/cloud-services/onto/ontology.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/cloud-services/onto/ontology.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/cloud-services/tax> a dcat:Dataset;
+  dcterms:title "Linked.Archi Cloud Services Taxonomy"@en;
+  dcterms:description """Classification of concrete cloud products and services, common to the cloud
+providers: the service categories — compute, storage, databases and so on — and the service
+models, infrastructure, platform and software as a service. Each category carries, as alternative labels, the
+names Microsoft Azure, Amazon Web Services and Google Cloud give it in their product catalogues, so that a
+product of any of them finds its category under the name it is known by. An element of a model takes them by
+the cloud services extension's properties, cs:serviceCategory and cs:serviceModel. Trademarked names referenced
+herein are property of their respective owners."""@en;
+  dcterms:conformsTo skos:ConceptScheme;
+  vann:preferredNamespaceUri "https://meta.linked.archi/cloud-services/tax#";
+  vann:preferredNamespacePrefix "cstax";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-11-14"^^xsd:date;
+  adms:status <http://purl.org/adms/status/UnderDevelopment>;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#extensions>;
+  dcat:landingPage <https://meta.linked.archi/cloud-services/tax/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/cloud-services/tax/cloud-services-tax.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/cloud-services/tax/cloud-services-tax.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
 <https://meta.linked.archi/core> a dcat:Dataset;
   dcterms:title "Core Linked.Archi Ontology"@en;
   dcterms:description """Core Linked.Archi Ontology for Enterprise and IT Architecture modeling.
@@ -3580,23 +3734,6 @@ so they work for any viewpoint — a language's catalogue, a framework's, or you
   dcat:distribution [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/core-shapes/core-shapes.ttl>;
       dcat:downloadURL <https://meta.linked.archi/core-shapes/core-shapes.ttl>;
-      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
-    ] .
-
-<https://meta.linked.archi/core-tax> a dcat:Dataset;
-  dcterms:title "Linked.Archi Core Taxonomy"@en;
-  dcterms:description "SKOS taxonomy providing a hierarchical classification of Linked.Archi concepts."@en;
-  dcterms:conformsTo skos:ConceptScheme;
-  vann:preferredNamespaceUri "https://meta.linked.archi/core-tax#";
-  vann:preferredNamespacePrefix "arch-tax";
-  dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
-  dcterms:creator [ a foaf:Person;
-      foaf:name "Kalin Maldzhanski"
-    ];
-  dcat:landingPage <https://meta.linked.archi/core-tax/>;
-  dcat:distribution [ a dcat:Distribution;
-      dcat:accessURL <https://meta.linked.archi/core-tax/common-tax.ttl>;
-      dcat:downloadURL <https://meta.linked.archi/core-tax/common-tax.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 
@@ -5481,6 +5618,27 @@ This is not an official SAP document."""@en;
 <https://meta.linked.archi/leanix/v3/metamodel#LeanIXv3> a arch:Metamodel;
   skos:prefLabel "LeanIX Meta Model v3 Metamodel"@en .
 
+<https://meta.linked.archi/leanix/v3/notation> a dcat:Dataset;
+  dcterms:title "Linked.Archi LeanIX Meta Model v3 Visual Notation Set"@en;
+  dcterms:description "Visual notation descriptors for LeanIX Meta Model v3 fact sheet types."@en;
+  dcterms:conformsTo <https://meta.linked.archi/core-vis#NotationSet>;
+  vann:preferredNamespaceUri "https://meta.linked.archi/leanix/v3/notation#";
+  vann:preferredNamespacePrefix "lmm3not";
+  owl:versionInfo "0.1.0";
+  dcterms:modified "2026-11-16"^^xsd:date;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#languages>;
+  dcat:keyword "SAP LeanIX"@en;
+  dcat:landingPage <https://meta.linked.archi/leanix/v3/notation/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/leanix/v3/notation/leanIX-v3-notation.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/leanix/v3/notation/leanIX-v3-notation.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
 <https://meta.linked.archi/leanix/v3/onto> a dcat:Dataset;
   dcterms:title "Linked.Archi LeanIX Meta Model v3 Ontology"@en;
   dcterms:description """Ontology representation of SAP LeanIX Meta Model v3 fact sheets and relations.
@@ -5513,6 +5671,26 @@ This is not an official SAP document."""@en;
     ], [ a dcat:Distribution;
       dcat:accessURL <https://meta.linked.archi/leanix/v3/onto/ontology.ttl>;
       dcat:downloadURL <https://meta.linked.archi/leanix/v3/onto/ontology.ttl>;
+      dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
+    ] .
+
+<https://meta.linked.archi/leanix/v3/tax> a dcat:Dataset;
+  dcterms:title "Linked.Archi LeanIX Meta Model v3 Taxonomy"@en;
+  dcterms:description "Classification of the LeanIX Meta Model v3 fact sheet types by architecture layer."@en;
+  dcterms:conformsTo skos:ConceptScheme;
+  vann:preferredNamespaceUri "https://meta.linked.archi/leanix/v3/tax#";
+  vann:preferredNamespacePrefix "lmm3tax";
+  dcterms:modified "2026-11-16"^^xsd:date;
+  dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
+  dcterms:creator [ a foaf:Person;
+      foaf:name "Kalin Maldzhanski"
+    ];
+  dcat:theme <https://meta.linked.archi/catalog#languages>;
+  dcat:keyword "SAP LeanIX"@en;
+  dcat:landingPage <https://meta.linked.archi/leanix/v3/tax/>;
+  dcat:distribution [ a dcat:Distribution;
+      dcat:accessURL <https://meta.linked.archi/leanix/v3/tax/leanIX-v3-tax.ttl>;
+      dcat:downloadURL <https://meta.linked.archi/leanix/v3/tax/leanIX-v3-tax.ttl>;
       dcat:mediaType <http://www.iana.org/assignments/media-types/text/turtle>
     ] .
 

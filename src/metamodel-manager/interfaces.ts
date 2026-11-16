@@ -281,7 +281,25 @@ export interface RelationshipTypeInfo {
 }
 
 /** Complete palette definition generated from a metamodel. */
+/** One thing a loaded metamodel leaves out, or leaves the palette to guess. */
+export interface MetamodelFinding {
+  kind: 'nothing-to-draw' | 'no-classification' | 'unclassified-elements' | 'unclassified-relationships';
+  /** What is missing and what la-gram does about it, to follow "‹metamodel› is incomplete: " — "it names no classification…". */
+  message: string;
+  /** The labels of the types concerned. */
+  types?: string[];
+}
+
+/** What is incomplete about one loaded metamodel. */
+export interface MetamodelCompleteness {
+  metamodelIri: string;
+  label: string;
+  findings: MetamodelFinding[];
+}
+
 export interface PaletteDefinition {
+  /** The loaded metamodels that are incomplete, each with what is missing; none when all are complete. */
+  completeness?: MetamodelCompleteness[];
   elementGroups: ElementGroup[];
   relationshipTypes: RelationshipTypeInfo[];
   /** Every classification axis the taxonomy offers — drives a "Group by" UI. */
@@ -355,6 +373,13 @@ export interface PaletteOptions {
    * label after the structural/aspect rule.
    */
   metamodelIris?: readonly string[];
+  /**
+   * The loaded metamodels with the graphs of the documents each loaded, and which of them its manifest names as
+   * its concepts: what each is checked for ({@link PaletteDefinition.completeness}), and whose classes are offered —
+   * not those of a document only a shapes or mappings document imports. Without it, nothing is checked and every
+   * class in the store is offered.
+   */
+  metamodels?: ReadonlyArray<{ iri: string; label: string; documents: readonly string[]; conceptDocuments?: readonly string[] }>;
 }
 
 /** Generates UI palettes from metamodel definitions. */

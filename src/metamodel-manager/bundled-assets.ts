@@ -19,6 +19,7 @@
  * assets/archimate4/icons/glyphs/*.svg   ← badge glyphs
  * assets/basic/*.ttl                     ← Basic, the generic language
  * assets/basic/icons/, basic/notation-bubble/icons/ ← its two notations' icons
+ * assets/arch-decision/*.ttl             ← the Architecture Decisions extension
  * assets/catalog.ttl                     ← meta.linked.archi's catalogue
  * ```
  *
@@ -182,6 +183,9 @@ export const BUNDLED_ICON_PREFIXES: readonly string[] = [
  * ontology whether or not the network is up. Basic ships because it is the
  * generic language — elements and relationships no other loaded language has,
  * its Connection relating any two elements — and that has to work offline too.
+ * Architecture Decisions ships because it is added beside whichever language is
+ * loaded, to record the decisions about a model: an extension, with no
+ * presentation contexts and no notation of its own.
  */
 export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
   {
@@ -201,6 +205,12 @@ export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
     metamodelIri: 'https://meta.linked.archi/basic/metamodel#Basic',
     manifestIri: 'https://meta.linked.archi/basic/metamodel#',
     label: 'Basic',
+  },
+  {
+    id: 'arch-decision',
+    metamodelIri: 'https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions',
+    manifestIri: 'https://meta.linked.archi/arch-decision/metamodel#',
+    label: 'Architecture Decisions',
   },
 ];
 
@@ -321,6 +331,18 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     path: 'basic/basic-presentation-contexts.ttl',
     metamodel: 'basic',
   },
+  // The decision extension: its vocabulary and shapes keep their flat namespaces; the relationship types that
+  // draw its links, its taxonomy and its manifest are nested under it.
+  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/arch-decision/metamodel#', path: 'arch-decision/arch-decision-metamodel.ttl', metamodel: 'arch-decision' },
+  { role: 'ontology', ontologyIri: 'https://meta.linked.archi/arch-decision#', path: 'arch-decision/arch-decision-onto.ttl', metamodel: 'arch-decision' },
+  {
+    role: 'ontology',
+    ontologyIri: 'https://meta.linked.archi/arch-decision/relationships#',
+    path: 'arch-decision/arch-decision-relationships-onto.ttl',
+    metamodel: 'arch-decision',
+  },
+  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/arch-decision/tax#', path: 'arch-decision/arch-decision-tax.ttl', metamodel: 'arch-decision' },
+  { role: 'shapes', ontologyIri: 'https://meta.linked.archi/arch-decision-shapes#', path: 'arch-decision/arch-decision-shapes.ttl', metamodel: 'arch-decision' },
 ];
 
 // ── Registry lookups ───────────────────────────────────────────────────

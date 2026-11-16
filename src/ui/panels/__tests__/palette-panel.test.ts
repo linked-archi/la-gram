@@ -14,7 +14,7 @@
  * produces.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PaletteDefinition, ViewpointInfo } from '../../../metamodel-manager/interfaces.js';
 import { PalettePanel, type PaletteDragDetail } from '../palette-panel.js';
 
@@ -120,6 +120,58 @@ afterEach(() => {
 });
 
 describe('PalettePanel', () => {
+  it('says what a loaded metamodel leaves out, and opens the loaded assets for the details', async () => {
+    await mount({
+      ...testPalette(),
+      completeness: [
+        {
+          metamodelIri: 'https://example.org/ext#Ext',
+          label: 'Ext',
+          findings: [{ kind: 'no-classification', message: 'it names no classification (arch:conceptClassification): its 1 element type is listed under “Other”', types: ['Decision'] }],
+        },
+      ],
+    });
+    const notice = root().querySelector('.palette-incomplete') as HTMLElement;
+    expect(notice.textContent?.replace(/\s+/g, ' ')).toContain('Ext is incomplete: it names no classification (arch:conceptClassification): its 1 element type is listed under “Other”.');
+    expect(notice.title).toBe('Decision.');
+    let asked = 0;
+    panel.addEventListener('palette-show-assets', () => asked++);
+    (notice.querySelector('.notice-link') as HTMLButtonElement).click();
+    expect(asked).toBe(1);
+
+    await mount(testPalette());
+    expect(root().querySelector('.palette-incomplete')).toBeNull();
+  });
+
+  it('closes a notice, and keeps it closed in this browser while it reads the same', async () => {
+    // Node's own localStorage stub shadows jsdom's: what is remembered goes here.
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => void stored.set(key, value),
+      removeItem: (key: string) => void stored.delete(key),
+    });
+    const incomplete = (message: string) => ({
+      ...testPalette(),
+      completeness: [{ metamodelIri: 'https://example.org/ext#Ext', label: 'Ext', findings: [{ kind: 'no-classification' as const, message }] }],
+    });
+    await mount(incomplete('it names no classification'));
+    (root().querySelector('.palette-incomplete .notice-close') as HTMLButtonElement).click();
+    await panel.updateComplete;
+    expect(root().querySelector('.palette-incomplete')).toBeNull();
+
+    // Loaded again — a new panel, as after a reload — it stays closed…
+    panel.remove();
+    await mount(incomplete('it names no classification'));
+    expect(root().querySelector('.palette-incomplete')).toBeNull();
+    // …and shows again when the metamodel leaves out something else.
+    panel.remove();
+    await mount(incomplete('its classification names 2 of its 3 element types'));
+    expect(root().querySelector('.palette-incomplete')?.textContent).toContain('2 of its 3');
+    expect(JSON.parse(stored.get('la-gram:palette-notices-closed') ?? '[]')).toEqual(['https://example.org/ext#Ext it names no classification']);
+    vi.unstubAllGlobals();
+  });
+
   it('says when the types are grouped by the OWL-only fallback, and not otherwise', async () => {
     await mount({ ...testPalette(), grouping: 'owl' });
     expect(root().querySelector('.palette-notice')?.textContent).toContain('No classification loaded');

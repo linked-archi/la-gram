@@ -697,6 +697,86 @@ am4:Unrelated a owl:Class ; rdfs:label "Unrelated"@en .
   it('returns nothing for an empty store', () => {
     expect(buildClasses(new Store(), [])).toEqual([]);
   });
+
+  it('lists an element class no scheme names under "Other", where a scheme names others', () => {
+    // ArchiMate's taxonomy beside an ontology with no classification: its types are still ones to draw.
+    const store = storeFromTurtle(AM4_TAX, `${PREFIXES}
+@prefix ex:  <https://example.org/onto#> .
+am:BusinessActor rdfs:subClassOf arch:Element .
+ex:Risk a owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "Risk"@en .
+ex:Kind a owl:Class ; rdfs:subClassOf arch:Element ; arch:isAbstractClass true .
+ex:Causes a owl:Class ; rdfs:subClassOf arch:QualifiedRelationship .
+`);
+    const classes = buildClasses(store, buildClassificationAxes(store));
+    const risk = classes.find((c) => c.iri === 'https://example.org/onto#Risk');
+    expect(risk).toMatchObject({ group: 'Other', unclassified: true, groupsByAxis: {} });
+    expect(classes.find((c) => c.iri === `${ONTO}BusinessActor`)).toMatchObject({ group: 'Business Domain' });
+    expect(classes.find((c) => c.iri === `${ONTO}BusinessActor`)?.unclassified).toBeUndefined();
+    // Neither an abstract class nor a relationship type is an element type to list.
+    expect(classes.map((c) => c.iri).filter((iri) => iri.startsWith('https://example.org/'))).toEqual(['https://example.org/onto#Risk']);
+  });
+
+  it('reads a concept naming several classes with rdfs:seeAlso as their group, and its siblings written so with it', () => {
+    // DoDAF's, UAF's and the ML extension's style: the viewpoint names the classes it groups.
+    const store = storeFromTurtle(`${PREFIXES}
+@prefix ex: <https://example.org/onto#> .
+<https://example.org/tax#> a skos:ConceptScheme ; skos:hasTopConcept :ByViewpoint .
+<https://example.org/metamodel#M> arch:conceptClassification <https://example.org/tax#> .
+:ByViewpoint a skos:Concept ; skos:prefLabel "By Viewpoint"@en ; skos:inScheme <https://example.org/tax#> .
+:CapabilityViewpoint a skos:Concept ; skos:broader :ByViewpoint ; skos:prefLabel "Capability Viewpoint"@en ;
+    skos:inScheme <https://example.org/tax#> ; rdfs:seeAlso ex:Capability, ex:DesiredEffect .
+:StandardsViewpoint a skos:Concept ; skos:broader :ByViewpoint ; skos:prefLabel "Standards Viewpoint"@en ;
+    skos:inScheme <https://example.org/tax#> ; rdfs:seeAlso ex:Standard .
+ex:Capability a owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "Capability"@en .
+ex:DesiredEffect a owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "Desired Effect"@en .
+ex:Standard a owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "Standard"@en .
+`);
+    const axes = buildClassificationAxes(store);
+    expect(axes.map((a) => a.label)).toEqual(['By Viewpoint']);
+    const classes = buildClasses(store, axes);
+    expect(Object.fromEntries(classes.map((c) => [c.label, c.group]))).toEqual({
+      Capability: 'Capability Viewpoint',
+      'Desired Effect': 'Capability Viewpoint',
+      Standard: 'Standards Viewpoint',
+    });
+    expect(classes.some((c) => c.unclassified)).toBe(false);
+  });
+
+  it('takes a class named like a relationship for an element type where its superclasses say it is one', () => {
+    // EA on a Page's Realization is a phase of a process — an element type — not ArchiMate's relationship.
+    const store = storeFromTurtle(`${PREFIXES}
+@prefix ex: <https://example.org/onto#> .
+<https://example.org/tax#> a skos:ConceptScheme ; skos:hasTopConcept :Kind .
+:Kind a skos:Concept ; skos:prefLabel "Kind"@en ; skos:inScheme <https://example.org/tax#> .
+:Phases a skos:Concept ; skos:broader :Kind ; skos:prefLabel "Phases"@en ; skos:inScheme <https://example.org/tax#> ;
+    skos:narrower ex:Initiation, ex:Realization .
+ex:Phase a owl:Class ; rdfs:subClassOf arch:Element ; arch:isAbstractClass true .
+ex:Initiation a owl:Class ; rdfs:subClassOf ex:Phase ; skos:prefLabel "Initiation"@en .
+ex:Realization a owl:Class ; rdfs:subClassOf ex:Phase ; skos:prefLabel "Realization"@en .
+ex:Serving a owl:Class ; skos:prefLabel "Serving"@en .
+ex:Flow a owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Flow"@en .
+`);
+    const classes = buildClasses(store, buildClassificationAxes(store));
+    expect(classes.map((c) => c.label).sort()).toEqual(['Initiation', 'Realization']);
+    // With no taxonomy: the same, by the walk over the classes.
+    expect(buildClasses(store, []).map((c) => c.label).sort()).toEqual(['Initiation', 'Realization']);
+  });
+
+  it('walks the classes too when the only schemes classify none of them', async () => {
+    // A metamodel with an ontology and no classification of its own: the one scheme in the store is core's question
+    // stages, which classify no class. Its element types are still the palette's.
+    const store = storeFromTurtle(
+      await fetchAssetText('core/core-onto.ttl'),
+      `${PREFIXES}
+@prefix ex: <https://example.org/onto#> .
+ex:Risk a owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "Risk"@en .
+ex:Tradeoff a owl:Class ; rdfs:subClassOf ex:Risk ; skos:prefLabel "Tradeoff"@en .
+`,
+    );
+    const axes = buildClassificationAxes(store);
+    expect(axes.length).toBeGreaterThan(0);
+    expect(buildClasses(store, axes).map((c) => c.label).sort()).toEqual(['Risk', 'Tradeoff']);
+  });
 });
 
 // ---------------------------------------------------------------------------

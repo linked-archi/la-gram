@@ -1,0 +1,105 @@
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix cc:      <http://creativecommons.org/ns#> .
+@prefix vann:    <http://purl.org/vocab/vann/> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix iso-thes: <http://purl.org/iso25964/skos-thes#> .
+@prefix ad:      <https://meta.linked.archi/arch-decision#> .
+@prefix adrel:   <https://meta.linked.archi/arch-decision/relationships#> .
+@prefix :        <https://meta.linked.archi/arch-decision/tax#> .
+
+<https://meta.linked.archi/arch-decision/tax#>
+    a                             skos:ConceptScheme ;
+    skos:prefLabel                "Architecture Decision Concept Scheme"@en ;
+    dcterms:description           "Classification of the Architecture Decision element types — the decision record and the forces on it — and of the relationship types that draw its links."@en ;
+    skos:hasTopConcept            :ElementKind, :RelationshipKind ;
+    cc:license                    "http://creativecommons.org/licenses/by/4.0/" ;
+    vann:preferredNamespaceUri    "https://meta.linked.archi/arch-decision/tax#" ;
+    vann:preferredNamespacePrefix "adtax" ;
+    dcterms:title                 "Linked.Archi Architecture Decision Taxonomy"@en ;
+    dcterms:created               "2026-11-16"^^xsd:date ;
+    dcterms:modified              "2026-11-16"^^xsd:date ;
+    dcterms:publisher             "Linked.Archi"@en ;
+    dcterms:creator               "Kalin Maldzhanski"^^xsd:string .
+
+
+#################################################################
+# Element types
+#################################################################
+
+:ElementKind
+    a skos:Concept ; skos:topConceptOf <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:prefLabel "Element Kind"@en ;
+    skos:definition "The Architecture Decision element types by what they record: the decision itself, or a force on it."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+.
+
+:DecisionRecord
+    a skos:Concept ; skos:broader :ElementKind ;
+    skos:prefLabel "Decision Record"@en ;
+    skos:definition "What a decision record holds: the issue, the decision and the options considered."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:narrower ad:Issue, ad:Decision, ad:Option ;
+.
+
+:Forces
+    a skos:Concept ; skos:broader :ElementKind ;
+    skos:prefLabel "Forces"@en ;
+    skos:definition "What pushes a decision one way or another: requirements, constraints, principles, policies, trends and personal preferences."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:narrower ad:Force, ad:Requirement, ad:FunctionalRequirement, ad:QualityAttributeRequirement,
+                  ad:Constraint, ad:TechnicalConstraint, ad:BusinessConstraint,
+                  ad:Principle, ad:Policy, ad:Trend, ad:PersonalPreference ;
+.
+
+:ElementKindOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    iso-thes:superOrdinate :ElementKind ;
+    skos:prefLabel         "Element Kind Order"@en ;
+    skos:memberList        ( :DecisionRecord :Forces ) ;
+.
+
+
+#################################################################
+# Relationship types
+#################################################################
+
+:RelationshipKind
+    a skos:Concept ; skos:topConceptOf <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:prefLabel "Relationship Kind"@en ;
+    skos:definition "The relationship types that draw the links of a decision record, by what they connect."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+.
+
+:RecordLinks
+    a skos:Concept ; skos:broader :RelationshipKind ;
+    skos:prefLabel "Record Links"@en ;
+    skos:definition "Links within a decision record: from a decision to its issue, its selected option, its alternatives and the concepts it concerns."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:narrower adrel:HasIssue, adrel:HasSelectedOption, adrel:HasAlternative, adrel:RelatedConcept ;
+.
+
+:ChangeLinks
+    a skos:Concept ; skos:broader :RelationshipKind ;
+    skos:prefLabel "Change Links"@en ;
+    skos:definition "Links from an option to the architecture it would change: what it adds, removes, modifies, reuses or includes."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:narrower adrel:AffectsConcept, adrel:AddsConcept, adrel:RemovesConcept, adrel:ModifiesConcept,
+                  adrel:MakesUseConcept, adrel:IncludesConcept ;
+.
+
+:ForceLinks
+    a skos:Concept ; skos:broader :RelationshipKind ;
+    skos:prefLabel "Force Links"@en ;
+    skos:definition "Links to forces: the forces an option addresses, and how a force influenced a decision."@en ;
+    skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
+    skos:narrower adrel:AddressesForce, ad:SupportingInfluence, ad:ImpendingInfluence ;
+.
+
+:RelationshipKindOrder
+    a                      skos:OrderedCollection, iso-thes:ThesaurusArray ;
+    iso-thes:superOrdinate :RelationshipKind ;
+    skos:prefLabel         "Relationship Kind Order"@en ;
+    skos:memberList        ( :RecordLinks :ChangeLinks :ForceLinks ) ;
+.
