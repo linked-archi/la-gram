@@ -67,7 +67,7 @@ describe('Basic, the generic language', () => {
     expect(p.elementGroups.map((g) => [g.category, g.elements.map((e) => e.label).sort()])).toEqual([
       ['Elements', ['GroupNode', 'Node', 'SpecialNode']],
     ]);
-    expect(p.relationshipTypes.map((r) => r.label)).toEqual(['Aggregation', 'Association', 'Connection']);
+    expect(p.relationshipTypes.filter((r) => !r.core).map((r) => r.label)).toEqual(['Aggregation', 'Association', 'Connection']);
   });
 
   it('Connection relates any two elements, and ranks last between ArchiMate ones', async () => {

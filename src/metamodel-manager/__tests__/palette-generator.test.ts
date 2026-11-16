@@ -859,7 +859,9 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     // 42 element types in the domains, and the two junctions.
     expect(elements.length).toBe(44);
     expect(palette.elementGroups.length).toBe(8);
-    expect(palette.relationshipTypes.length).toBe(15);
+    // The language's own; the core's three (Association, Has Part, Refines) come with every metamodel.
+    expect(palette.relationshipTypes.filter((r) => !r.core).length).toBe(15);
+    expect(palette.relationshipTypes.filter((r) => r.core).map((r) => r.label).sort()).toEqual(['Association', 'Has Part', 'Refines']);
     expect(palette.notationSetIri).toBe(
       'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
     );
@@ -927,7 +929,7 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
 
   it('groups the relationship types by category, in the order of am4tax:RelationshipOrder, each strongest first, a kind after its superclass', () => {
     const byCategory: Array<[string, string[]]> = [];
-    for (const r of palette.relationshipTypes) {
+    for (const r of palette.relationshipTypes.filter((type) => !type.core)) {
       const last = byCategory.at(-1);
       if (last && last[0] === r.category) last[1].push(r.label);
       else byCategory.push([r.category!, [r.label]]);
@@ -947,7 +949,7 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   });
 
   it('finds the eleven relationship types, and the kinds of access and association, with their line styles', () => {
-    expect(palette.relationshipTypes.map((r) => r.label).sort()).toEqual([
+    expect(palette.relationshipTypes.filter((r) => !r.core).map((r) => r.label).sort()).toEqual([
       'Access',
       'Aggregation',
       'Assignment',

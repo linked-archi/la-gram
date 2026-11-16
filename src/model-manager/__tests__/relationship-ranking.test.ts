@@ -311,3 +311,51 @@ describe('what the "+" menu offers first after an element: its own type, its own
   });
 });
 
+
+describe('the core\'s relationship types, where no loaded language relates two elements (Req 4.21)', () => {
+  const AM = 'https://meta.linked.archi/archimate4/onto#';
+  const AD = 'https://meta.linked.archi/arch-decision#';
+  const ADREL = 'https://meta.linked.archi/arch-decision/relationships#';
+  const ARCH = 'https://meta.linked.archi/core#';
+  let both: OxigraphRdfStore;
+  let relationships: OxigraphRelationshipManager;
+
+  beforeAll(async () => {
+    both = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), both);
+    await loader.loadBundledMetamodel('archimate4');
+    await loader.loadBundledMetamodel('arch-decision');
+    relationships = new OxigraphRelationshipManager(both);
+  }, 120_000);
+
+  it('are offered between elements of two metamodels — Association first — and say why', () => {
+    const offered = relationships.getValidRelationships(`${AM}ApplicationComponent`, `${AD}Decision`);
+    expect(offered.map((r) => r.iri)).toEqual([`${ARCH}Association`, `${ARCH}HasPart`, `${ARCH}Refines`]);
+    expect(offered.every((r) => r.fallback)).toBe(true);
+    expect(offered[0]!.reason).toContain('the loaded metamodels permit no relationship between these two element types');
+    expect(offered[0]!.unqualifiedPredicateIri).toBe(`${ARCH}associatedWith`);
+  });
+
+  it('are not offered where a language permits something: between two ArchiMate elements, or from an option to a component', () => {
+    const core = (source: string, target: string) =>
+      relationships.getValidRelationships(source, target).filter((r) => r.iri.startsWith(ARCH));
+    expect(core(`${AM}ApplicationComponent`, `${AM}Node`)).toEqual([]);
+    expect(core(`${AD}Option`, `${AM}ApplicationComponent`)).toEqual([]);
+    expect(relationships.getValidRelationships(`${AD}Option`, `${AM}ApplicationComponent`).map((r) => r.iri)).toContain(`${ADREL}ModifiesConcept`);
+  });
+
+  it('a relationship type no notation describes is drawn with an arrowhead at its target; one with no direction, plain (Req 2.25)', () => {
+    const palette = new SparqlPaletteGenerator(both).generatePalette();
+    const style = (iri: string) => palette.relationshipTypes.find((r) => r.iri === iri)?.relationshipStyle;
+    // A decision link, and the core's directed ones: from source to target.
+    expect(style(`${ADREL}ModifiesConcept`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
+    expect(style(`${AD}SupportingInfluence`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
+    expect(style(`${ARCH}HasPart`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
+    // The core's Association: its predicate is symmetric.
+    expect(palette.relationshipTypes.some((r) => r.iri === `${ARCH}Association`)).toBe(true);
+    expect(style(`${ARCH}Association`)).toBeUndefined();
+    // A type its notation describes keeps that: ArchiMate's Serving.
+    expect(style(`${AM}Serving`)?.targetDecor).toBe('OpenArrowhead');
+    expect(style(`${AM}Composition`)?.sourceDecor).toBe('FilledDiamond');
+  });
+});

@@ -99,6 +99,22 @@ The types a pair permits come in three groups, and within each in the metamodel'
 | what they permit only as the conclusion of a derivation | *only by derivation* | Application Component → Process: **Assignment** |
 | Association and Directed Association | *always permitted* | last — except to a Meaning or a Value, where Association comes first |
 
+Between two elements that no loaded metamodel relates — an element of one metamodel and an element of
+another, or two of a metamodel that defines no relationship types — la-gram offers the core's own
+three, each *always permitted*: **Association**, which has no direction, then *Has Part* and
+*Refines*. Where a loaded metamodel permits anything between the two, they are not offered, and they
+are not in the palette.
+
+!!! example "Connecting an ArchiMate element and an ATAM risk"
+
+    With ArchiMate 4.0 and ATAM loaded, drag the Connect handle from the Application Component
+    "Billing" to the Architectural Risk "Latency under load": the line is an **Association**, and its
+    menu offers *Has Part* and *Refines* too.
+
+A relationship type whose metamodel publishes no notation — a decision's *Modifies*, a process's
+*Precedes*, an evaluation's *Identified Risk* — is drawn as a solid line with an open arrowhead at
+its target. The core's Association is a plain line.
+
 The order of proposal is the metamodel's, published with it: an order for every pair, and orders for
 kinds of element that come before it. ArchiMate 4.0's and 3.2's are the same:
 

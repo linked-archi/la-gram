@@ -3266,7 +3266,22 @@ dialog; the modules' section).
     The quick actions take the dialogs' last choices so that a click needs no
     question, and say them in their tooltips. The median is the "middle" size.
 
+24. **What a metamodel leaves unsaid, la-gram supplies from the core and says so** (Req 2.24, 2.25, 4.21;
+    `metamodel-manager/metamodel-completeness.ts`, `palette-generator.ts`, `model-manager/relationship-manager.ts`).
+    Loaded metamodels are data of uneven completeness, and several are loaded at once. Three rules keep that
+    from hiding things. *Types:* every non-abstract element class of the documents a manifest names as its
+    concepts (and of what they import) is offered — under its own metamodel's group, else *Other* — and a notice
+    names each metamodel that leaves something out; an ontology loaded only because a shapes document imports it
+    gives no types. *Relationships:* where the loaded metamodels permit nothing between two elements, the core's
+    own three are offered (Association first), marked as the fallback they are; they are flagged `core` on the
+    palette's types so the canvas can draw and name them, and the palette panel does not list them. *Looks:* a
+    relationship type no notation describes is given a style when the palette is generated — an open arrowhead
+    at the target, none where its predicate is `owl:SymmetricProperty` — so the canvas, the menus and the icons
+    all draw the same thing without knowing why. Not done by loading Basic silently: that would add a metamodel
+    to the model the modeller did not choose.
+
 ---
+
 
 ## Technology stack
 

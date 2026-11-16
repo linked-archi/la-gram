@@ -267,6 +267,11 @@ export interface RelationshipTypeInfo {
    */
   generic?: boolean;
   /**
+   * One of the core's own relationship types (Association, Has Part, Refines): offered where the loaded metamodels
+   * permit nothing between two elements (Req 4.21), and not listed in the palette.
+   */
+  core?: boolean;
+  /**
    * For the queried pair: the language's metamodel figures draw this relationship
    * between the two element types (the relationship tables' `draws…`). Said, not
    * ranked by. Undefined when they do not, or outside a pair-specific query.

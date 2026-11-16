@@ -34,12 +34,12 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
     '''@en ;
     dcterms:created                                         "2019-03-17"^^xsd:date ;
     dcterms:issued                                          "2019-03-17"^^xsd:date ;
-    dcterms:modified                                        "2026-11-08"^^xsd:date ;
+    dcterms:modified                                        "2026-11-16"^^xsd:date ;
     dcterms:publisher                                            "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                                             "draft" ;
     owl:versionIRI                                          <https://meta.linked.archi/core#> ;
-    owl:versionInfo                                         "0.5.0"@en ;
-    owl:priorVersion                                        <https://meta.linked.archi/core/0.4.0#> ;
+    owl:versionInfo                                         "0.6.0"@en ;
+    owl:priorVersion                                        <https://meta.linked.archi/core/0.5.0#> ;
     skos:historyNote                                        '''0.5.0 — names, labels and pictures per presentation context.
 arch:inPresentationContext says which presentation context — which audience — something is for: a
 name an element is given for that audience (a SKOS-XL label, skosxl:altLabel, whose plain form is
@@ -1083,6 +1083,94 @@ constraints, are SHACL's.'''@en ;
     rdfs:domain     :ModelConcept ;
     rdfs:range      :ModelConcept ;
     owl:inverseOf   :partOf ;
+.
+
+#################################################################
+# Basic relationships
+#
+# Three relationship types of the core itself, for two elements no
+# loaded language relates: elements of different metamodels, or of
+# one that defines no relationship types. A language's own
+# relationship types say more, and come first.
+#################################################################
+
+:associatedWith
+    a               owl:ObjectProperty, owl:SymmetricProperty ;
+    skos:prefLabel  "associatedWith"@en ;
+    skos:definition '''Relates two model concepts that have to do with each other, where nothing more specific
+is said. It has no direction: what holds from one to the other holds back.'''@en ;
+    skos:scopeNote  '''The weakest statement a model can make about two concepts. Use the relationship of the
+modelling language where it has one for the two.'''@en ;
+    rdfs:domain     :ModelConcept ;
+    rdfs:range      :ModelConcept ;
+.
+
+:Association
+    a                 owl:Class ;
+    rdfs:subClassOf   :QualifiedRelationship ;
+    :unqualifiedForm  :associatedWith ;
+    skos:prefLabel    "Association"@en ;
+    skos:definition   '''A relationship between two model concepts that have to do with each other, where
+nothing more specific is said; it has no direction.'''@en ;
+    skos:scopeNote    '''A modelling tool offers it where the loaded metamodels permit no relationship between
+the two elements — an element of one language and an element of another, or two of a metamodel that defines
+no relationship types — and draws it as a line with no arrowhead.'''@en ;
+    skos:example      '''
+ex:Billing arch:associatedWith ex:LatencyRisk .
+ex:Billing arch:qualifiedAssociation ex:rel-1 .
+ex:rel-1 a arch:Association ;
+    arch:source ex:Billing ;
+    arch:target ex:LatencyRisk ;
+    rdf:reifies <<( ex:Billing arch:associatedWith ex:LatencyRisk )>> .
+'''@en ;
+.
+
+:qualifiedAssociation
+    a                 owl:ObjectProperty ;
+    skos:prefLabel    "qualifiedAssociation"@en ;
+    skos:definition   "Links the source of an Association to its relationship resource."@en ;
+    rdfs:domain       :ModelConcept ;
+    rdfs:range        :Association ;
+    :unqualifiedForm  :associatedWith ;
+.
+
+:HasPart
+    a                 owl:Class ;
+    rdfs:subClassOf   :QualifiedRelationship ;
+    :unqualifiedForm  :hasPart ;
+    skos:prefLabel    "Has Part"@en ;
+    skos:definition   "A relationship from a model concept to one that is a part of it."@en ;
+    skos:scopeNote    '''A modelling tool offers it where the loaded metamodels permit no relationship between
+the two elements, and draws it from the whole to the part.'''@en ;
+.
+
+:qualifiedHasPart
+    a                 owl:ObjectProperty ;
+    skos:prefLabel    "qualifiedHasPart"@en ;
+    skos:definition   "Links the source of a Has Part relationship — the whole — to its relationship resource."@en ;
+    rdfs:domain       :ModelConcept ;
+    rdfs:range        :HasPart ;
+    :unqualifiedForm  :hasPart ;
+.
+
+:Refines
+    a                 owl:Class ;
+    rdfs:subClassOf   :QualifiedRelationship ;
+    :unqualifiedForm  :refines ;
+    skos:prefLabel    "Refines"@en ;
+    skos:definition   '''A relationship from a model concept to one it is a more concrete or more complete
+representation of.'''@en ;
+    skos:scopeNote    '''A modelling tool offers it where the loaded metamodels permit no relationship between
+the two elements, and draws it from the more concrete concept to the one it refines.'''@en ;
+.
+
+:qualifiedRefines
+    a                 owl:ObjectProperty ;
+    skos:prefLabel    "qualifiedRefines"@en ;
+    skos:definition   "Links the source of a Refines relationship — the more concrete concept — to its relationship resource."@en ;
+    rdfs:domain       :ModelConcept ;
+    rdfs:range        :Refines ;
+    :unqualifiedForm  :refines ;
 .
 
 # use provo

@@ -93,6 +93,7 @@ import {
   resolveNotationSetForContext,
   type Decoration,
   type NotationSet,
+  type RelationshipVisualStyle,
   type VisualNotation,
   type VisualStyle,
 } from './notation.js';
@@ -127,6 +128,7 @@ const SKOS_DEFINITION = `${NAMESPACES.skos}definition`;
 const ARCH_QUALIFIED_RELATIONSHIP = `${NAMESPACES.arch}QualifiedRelationship`;
 const ARCH_RELATIONSHIP_LEGACY = `${NAMESPACES.arch}Relationship`;
 const ARCH_UNQUALIFIED_FORM = `${NAMESPACES.arch}unqualifiedForm`;
+const OWL_SYMMETRIC_PROPERTY = `${NAMESPACES.owl}SymmetricProperty`;
 const ARCH_DOMAIN_INCLUDES = `${NAMESPACES.arch}domainIncludes`;
 const ARCH_RANGE_INCLUDES = `${NAMESPACES.arch}rangeIncludes`;
 const ARCH_IS_ABSTRACT_CLASS = `${NAMESPACES.arch}isAbstractClass`;
@@ -537,10 +539,11 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
         definition: definitionFor(graph, iri),
         iconUrl: prefVisNotation?.url,
         prefVisNotation,
-        relationshipStyle: resolved.notation?.relationshipStyle,
+        relationshipStyle: resolved.notation?.relationshipStyle ?? unstyledRelationship(graph, unqualifiedPredicateIri),
         domainTypes,
         rangeTypes,
         unqualifiedPredicateIri,
+        ...(iri.startsWith(NAMESPACES.arch) ? { core: true } : {}),
       });
     }
 
@@ -647,6 +650,19 @@ function styleWithResolvedIcon(notation: VisualNotation | undefined): VisualStyl
   if (!notation?.style) return undefined;
   const iconSymbol = resolveUri(notation.style.iconSymbol);
   return { ...notation.style, iconSymbol: iconSymbol?.url ?? notation.style.iconSymbol };
+}
+
+/**
+ * How a relationship type no notation describes is drawn (Req 2.25): it leads from its source to its target, so
+ * with an open arrowhead at the target — the links of an extension that publishes no notation (a decision's, a
+ * process's, an evaluation's) read by their direction. One whose direct predicate is symmetric
+ * (`owl:SymmetricProperty`: core's Association) has no direction, and is a plain line.
+ */
+function unstyledRelationship(graph: Store, unqualifiedPredicateIri: string | undefined): RelationshipVisualStyle | undefined {
+  const symmetric =
+    unqualifiedPredicateIri !== undefined &&
+    graph.getQuads(namedNode(unqualifiedPredicateIri), namedNode(RDF_TYPE), namedNode(OWL_SYMMETRIC_PROPERTY), null).length > 0;
+  return symmetric ? undefined : { lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' };
 }
 
 /** True when the class carries `arch:isAbstractClass true`. */

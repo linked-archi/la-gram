@@ -340,6 +340,24 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       ranking.set(match, { proposal, hintFit });
     }
 
+    // Core's own relationship types (Association, Has Part, Refines) are for two elements no loaded language
+    // relates — an element of one metamodel and one of another, or two of a metamodel with no relationship types:
+    // where a language permits anything, they are not offered (Req 4.21).
+    const ofLanguage = matches.filter((m) => !m.iri.startsWith(NAMESPACES.arch));
+    if (ofLanguage.length > 0 && ofLanguage.length < matches.length) {
+      matches.length = 0;
+      matches.push(...ofLanguage);
+    } else if (ofLanguage.length === 0) {
+      // The least said first: Association, then Has Part, then Refines.
+      const CORE_ORDER = ['Association', 'HasPart', 'Refines'];
+      for (const match of matches) {
+        const place = CORE_ORDER.indexOf(match.iri.slice(NAMESPACES.arch.length));
+        match.fallback = true;
+        match.score = CORE_ORDER.length - (place === -1 ? CORE_ORDER.length : place);
+        match.reason = 'Allowed because the loaded metamodels permit no relationship between these two element types: one of the core\'s own.';
+      }
+    }
+
     // Three groups, in core's rule: what a modeller may draw directly, what only a derivation gives, and the
     // fallbacks — Association, a generic relationship — unless an order scoped to the pair lists one.
     const group = (match: RelationshipTypeInfo, proposal: Proposal) =>

@@ -143,6 +143,20 @@ describe('PalettePanel', () => {
     expect(root().querySelector('.palette-incomplete')).toBeNull();
   });
 
+  it('does not list the core\'s own relationship types: they are offered when two elements are connected', async () => {
+    const palette = testPalette();
+    await mount({
+      ...palette,
+      relationshipTypes: [
+        ...palette.relationshipTypes,
+        { iri: 'https://meta.linked.archi/core#HasPart', label: 'Has Part', domainTypes: [], rangeTypes: [], core: true },
+      ],
+    });
+    expect(labels()).not.toContain('Has Part');
+    await type('has part');
+    expect(labels()).not.toContain('Has Part');
+  });
+
   it('closes a notice, and keeps it closed in this browser while it reads the same', async () => {
     // Node's own localStorage stub shadows jsdom's: what is remembered goes here.
     const stored = new Map<string, string>();
