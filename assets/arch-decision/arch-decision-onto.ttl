@@ -43,9 +43,9 @@ iterative decision processes.'''@en ;
     dcterms:publisher                  <https://linked.archi>,
                                   "Linked.Archi"@en ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/arch-decision/0.0.7#> ;
-    owl:priorVersion              <https://meta.linked.archi/arch-decision/0.0.6#> ;
-    owl:versionInfo               "0.0.7"@en ;
+    owl:versionIRI                <https://meta.linked.archi/arch-decision/0.0.8#> ;
+    owl:priorVersion              <https://meta.linked.archi/arch-decision/0.0.7#> ;
+    owl:versionInfo               "0.0.8"@en ;
     schema:citation               "Linked.Archi Architecture Decision Ontology" ;
     rdfs:seeAlso                  <http://dx.doi.org/10.1109/WICSA.2014.32>,
                                   <http://dx.doi.org/10.1007/978-3-540-87879-7_14>,
@@ -969,4 +969,259 @@ Decision Option in which it is applied.'''@en ;
                        skos:mappingRelation ;
     skos:prefLabel     "quality attribute match"@en ;
     skos:definition    "Maps ontology concepts between domains, for example between Tactics and Quality Attributes."@en ;
+.
+
+#################################################################
+# Relationship types — the links that are drawn
+#
+# For each link whose two ends can be placed on a view, a qualified
+# relationship class whose unqualified form is the predicate above, with
+# its qualified property: a tool that draws one writes the same triple a
+# tool that sets the property writes, with a relationship resource beside
+# it. The class is named after its predicate.
+#################################################################
+
+:AffectsConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :affectsConcept ;
+    skos:prefLabel       "Affects"@en ;
+    skos:definition      "A drawn link from an Option to a model concept that would be affected if the Option is selected."@en ;
+.
+
+:qualifiedAffectsConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified affects"@en ;
+    skos:definition      "Links the source of a drawn Affects link to its relationship resource."@en ;
+    rdfs:range           :AffectsConcept ;
+    arch:unqualifiedForm :affectsConcept ;
+.
+
+:AddsConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      :AffectsConcept ;
+    arch:unqualifiedForm :addsConcept ;
+    skos:prefLabel       "Adds"@en ;
+    skos:definition      "A drawn link from an Option to a new model concept that would be introduced if the Option is selected."@en ;
+.
+
+:qualifiedAddsConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified adds"@en ;
+    skos:definition      "Links the source of a drawn Adds link to its relationship resource."@en ;
+    rdfs:range           :AddsConcept ;
+    arch:unqualifiedForm :addsConcept ;
+.
+
+:RemovesConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      :AffectsConcept ;
+    arch:unqualifiedForm :removesConcept ;
+    skos:prefLabel       "Removes"@en ;
+    skos:definition      "A drawn link from an Option to a model concept that would be removed from the architecture if the Option is selected."@en ;
+.
+
+:qualifiedRemovesConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified removes"@en ;
+    skos:definition      "Links the source of a drawn Removes link to its relationship resource."@en ;
+    rdfs:range           :RemovesConcept ;
+    arch:unqualifiedForm :removesConcept ;
+.
+
+:ModifiesConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      :AffectsConcept ;
+    arch:unqualifiedForm :modifiesConcept ;
+    skos:prefLabel       "Modifies"@en ;
+    skos:definition      "A drawn link from an Option to a model concept that would be modified if the Option is selected."@en ;
+.
+
+:qualifiedModifiesConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified modifies"@en ;
+    skos:definition      "Links the source of a drawn Modifies link to its relationship resource."@en ;
+    rdfs:range           :ModifiesConcept ;
+    arch:unqualifiedForm :modifiesConcept ;
+.
+
+:MakesUseConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      :AffectsConcept ;
+    arch:unqualifiedForm :makesUseConcept ;
+    skos:prefLabel       "Makes Use Of"@en ;
+    skos:definition      "A drawn link from an Option to an existing model concept that it reuses without significant changes."@en ;
+.
+
+:qualifiedMakesUseConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified makes Use Of"@en ;
+    skos:definition      "Links the source of a drawn Makes Use Of link to its relationship resource."@en ;
+    rdfs:range           :MakesUseConcept ;
+    arch:unqualifiedForm :makesUseConcept ;
+.
+
+:IncludesConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :includesConcept ;
+    skos:prefLabel       "Includes"@en ;
+    skos:definition      "A drawn link from an Option to a model concept that is part of the Option."@en ;
+.
+
+:qualifiedIncludesConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified includes"@en ;
+    skos:definition      "Links the source of a drawn Includes link to its relationship resource."@en ;
+    rdfs:range           :IncludesConcept ;
+    arch:unqualifiedForm :includesConcept ;
+.
+
+:HasSelectedOption
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :hasSelectedOption ;
+    skos:prefLabel       "Selected Option"@en ;
+    skos:definition      "A drawn link from a Decision to the Option that was selected as the chosen solution."@en ;
+.
+
+:qualifiedHasSelectedOption
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified selected Option"@en ;
+    skos:definition      "Links the source of a drawn Selected Option link to its relationship resource."@en ;
+    rdfs:range           :HasSelectedOption ;
+    arch:unqualifiedForm :hasSelectedOption ;
+.
+
+:HasAlternative
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :hasAlternative ;
+    skos:prefLabel       "Alternative"@en ;
+    skos:definition      "A drawn link from a Decision to a candidate Option that was considered."@en ;
+.
+
+:qualifiedHasAlternative
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified alternative"@en ;
+    skos:definition      "Links the source of a drawn Alternative link to its relationship resource."@en ;
+    rdfs:range           :HasAlternative ;
+    arch:unqualifiedForm :hasAlternative ;
+.
+
+:HasIssue
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :hasIssue ;
+    skos:prefLabel       "Addresses Issue"@en ;
+    skos:definition      "A drawn link from a Decision to the Issue it is supposed to address."@en ;
+.
+
+:qualifiedHasIssue
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified addresses Issue"@en ;
+    skos:definition      "Links the source of a drawn Addresses Issue link to its relationship resource."@en ;
+    rdfs:range           :HasIssue ;
+    arch:unqualifiedForm :hasIssue ;
+.
+
+:RelatedConcept
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :relatedConcept ;
+    skos:prefLabel       "Related Concept"@en ;
+    skos:definition      "A drawn link from a Decision to a model concept that is related to or affected by the decision."@en ;
+.
+
+:qualifiedRelatedConcept
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified related Concept"@en ;
+    skos:definition      "Links the source of a drawn Related Concept link to its relationship resource."@en ;
+    rdfs:range           :RelatedConcept ;
+    arch:unqualifiedForm :relatedConcept ;
+.
+
+:AddressesForce
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :addressesForce ;
+    skos:prefLabel       "Addresses Force"@en ;
+    skos:definition      "A drawn link from an Option to a Force that it directly addresses or satisfies."@en ;
+.
+
+:qualifiedAddressesForce
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified addresses Force"@en ;
+    skos:definition      "Links the source of a drawn Addresses Force link to its relationship resource."@en ;
+    rdfs:range           :AddressesForce ;
+    arch:unqualifiedForm :addressesForce ;
+.
+
+#################################################################
+# Typical ends of the predicates drawn
+#
+# Modelling-tool guidance (arch:domainIncludes, arch:rangeIncludes): where
+# a line of each kind usually starts and ends. An end that is no element —
+# a model, a metamodel, a quality attribute, a pattern — is not drawn, and
+# is not listed.
+#################################################################
+
+:affectsConcept
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:addsConcept
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:removesConcept
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:modifiesConcept
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:makesUseConcept
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:includesConcept
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:hasSelectedOption
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Option ;
+.
+
+:hasAlternative
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Option ;
+.
+
+:hasIssue
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Issue ;
+.
+
+:relatedConcept
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   arch:ModelConcept ;
+.
+
+:addressesForce
+    arch:domainIncludes  :Option ;
+    arch:rangeIncludes   :Force ;
+.
+
+:influencedByForce
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Force ;
 .

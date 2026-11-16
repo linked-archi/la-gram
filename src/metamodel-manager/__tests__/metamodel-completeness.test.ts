@@ -25,13 +25,14 @@ function storeOf(documents: Record<string, string>): Store {
   return store;
 }
 
-const rel = (iri: string, label: string): RelationshipTypeInfo => ({ iri, label, domainTypes: [], rangeTypes: [] }) as RelationshipTypeInfo;
+const rel = (iri: string, label: string, category?: string): RelationshipTypeInfo =>
+  ({ iri, label, domainTypes: [], rangeTypes: [], ...(category ? { category } : {}) }) as RelationshipTypeInfo;
 
 function check(store: Store, metamodels: CheckedMetamodel[], relationships: RelationshipTypeInfo[] = []) {
   const axes = buildClassificationAxes(store, metamodels.map((m) => m.iri));
   const classes = buildClasses(store, axes);
   const groupedByName = !classes.some((c) => Object.keys(c.groupsByAxis).length > 0);
-  return metamodelCompleteness(store, metamodels, classes, relationships, axes, groupedByName);
+  return metamodelCompleteness(store, metamodels, classes, relationships, groupedByName);
 }
 
 /** A language whose taxonomy names every one of its two element types. */
@@ -137,7 +138,7 @@ describe('what a loaded metamodel leaves out', () => {
 <https://example.org/lang/tax#Kind> skos:narrower <https://example.org/lang/tax#Dependency> .
 <https://example.org/lang/tax#Dependency> a skos:Concept ; skos:prefLabel "Dependency"@en ; skos:narrower <https://example.org/lang/onto#Serving> .`,
     });
-    const findings = check(store, [LANG], [rel('https://example.org/lang/onto#Serving', 'Serving'), rel('https://example.org/lang/onto#Flow', 'Flow')])[0]?.findings;
+    const findings = check(store, [LANG], [rel('https://example.org/lang/onto#Serving', 'Serving', 'Dependency'), rel('https://example.org/lang/onto#Flow', 'Flow')])[0]?.findings;
     expect(findings).toEqual([
       { kind: 'unclassified-relationships', message: '1 of its 2 relationship types is in no category, and listed under “Other”', types: ['Flow'] },
     ]);

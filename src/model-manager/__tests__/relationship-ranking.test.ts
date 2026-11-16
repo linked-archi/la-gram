@@ -315,7 +315,6 @@ describe('what the "+" menu offers first after an element: its own type, its own
 describe('the core\'s relationship types, where no loaded language relates two elements (Req 4.21)', () => {
   const AM = 'https://meta.linked.archi/archimate4/onto#';
   const AD = 'https://meta.linked.archi/arch-decision#';
-  const ADREL = 'https://meta.linked.archi/arch-decision/relationships#';
   const ARCH = 'https://meta.linked.archi/core#';
   let both: OxigraphRdfStore;
   let relationships: OxigraphRelationshipManager;
@@ -341,14 +340,14 @@ describe('the core\'s relationship types, where no loaded language relates two e
       relationships.getValidRelationships(source, target).filter((r) => r.iri.startsWith(ARCH));
     expect(core(`${AM}ApplicationComponent`, `${AM}Node`)).toEqual([]);
     expect(core(`${AD}Option`, `${AM}ApplicationComponent`)).toEqual([]);
-    expect(relationships.getValidRelationships(`${AD}Option`, `${AM}ApplicationComponent`).map((r) => r.iri)).toContain(`${ADREL}ModifiesConcept`);
+    expect(relationships.getValidRelationships(`${AD}Option`, `${AM}ApplicationComponent`).map((r) => r.iri)).toContain(`${AD}ModifiesConcept`);
   });
 
   it('a relationship type no notation describes is drawn with an arrowhead at its target; one with no direction, plain (Req 2.25)', () => {
     const palette = new SparqlPaletteGenerator(both).generatePalette();
     const style = (iri: string) => palette.relationshipTypes.find((r) => r.iri === iri)?.relationshipStyle;
     // A decision link, and the core's directed ones: from source to target.
-    expect(style(`${ADREL}ModifiesConcept`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
+    expect(style(`${AD}ModifiesConcept`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
     expect(style(`${AD}SupportingInfluence`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
     expect(style(`${ARCH}HasPart`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
     // The core's Association: its predicate is symmetric.

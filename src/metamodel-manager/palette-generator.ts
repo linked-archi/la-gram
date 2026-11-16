@@ -128,6 +128,7 @@ const SKOS_DEFINITION = `${NAMESPACES.skos}definition`;
 const ARCH_QUALIFIED_RELATIONSHIP = `${NAMESPACES.arch}QualifiedRelationship`;
 const ARCH_RELATIONSHIP_LEGACY = `${NAMESPACES.arch}Relationship`;
 const ARCH_UNQUALIFIED_FORM = `${NAMESPACES.arch}unqualifiedForm`;
+const RDFS_SEE_ALSO = `${NAMESPACES.rdfs}seeAlso`;
 const OWL_SYMMETRIC_PROPERTY = `${NAMESPACES.owl}SymmetricProperty`;
 const ARCH_DOMAIN_INCLUDES = `${NAMESPACES.arch}domainIncludes`;
 const ARCH_RANGE_INCLUDES = `${NAMESPACES.arch}rangeIncludes`;
@@ -221,6 +222,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
       this.discoverRelationships(graph, resolver, superClassMap).filter((rel) => declaredOutside(graph, rel.iri, withoutTypes)),
       classificationAxes,
       superClassMap,
+      graph,
     );
     const notationIndex = buildNotationIndex(graph, resolver, superClassMap, [
       ...(notationSet ? [notationSet] : []),
@@ -238,7 +240,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
 
     const groupedByName = taxonomyAxes.length === 0;
     const completeness = options?.metamodels
-      ? metamodelCompleteness(graph, options.metamodels, semanticClasses, relationshipTypes, classificationAxes, groupedByName)
+      ? metamodelCompleteness(graph, options.metamodels, semanticClasses, relationshipTypes, groupedByName)
       : [];
 
     return {
@@ -764,40 +766,83 @@ function unionOf(a: Store, b: Store): Store {
 }
 
 /**
- * Each relationship type's category: its group under the axis that classifies the most relationship types —
- * ArchiMate's Relationship, its groups Structural, Dependency, Dynamic and Other — or, for a kind of
- * relationship the taxonomy does not list (ArchiMate 4.0's Read Access), its nearest superclass's. The types
- * come in the order of the axis's groups (its thesaurus array, ArchiMate's `:RelationshipOrder`), then by name;
- * a type of no category after them. Within a category, the order of the array under it (ArchiMate's order of
- * strength, :StructuralStrength and :DependencyStrength, weakest first), a kind just after the relationship it is
- * a kind of, then by name. With no axis classifying a relationship type, the list is as it was.
+ * Each relationship type's category: its group under a dimension that classifies relationship types — ArchiMate's
+ * Relationship, its groups Structural, Dependency, Dynamic and Other; the decision extension's Relationship Kind —
+ * or, for a kind of relationship the taxonomy does not list (ArchiMate 4.0's Read Access), its nearest superclass's.
+ * A dimension lists a type by its class, or by a concept that stands for it (`rdfs:seeAlso`: LeanIX's, BPMN's).
+ *
+ * Several metamodels are loaded, each with its own: a type takes its category from the dimension that lists it —
+ * of several, the one that lists the most relationship types: a dimension of element types may list one too (UML's
+ * state machine diagram lists Transition), and is not their classification. A group under no dimension (LeanIX's
+ * Relationship Type, BPMN's Connecting Objects) gives a category only beside a dimension that does: alone, the list
+ * stays as it is.
+ *
+ * The types come dimension by dimension — the one that lists the most first — in the order of each one's groups
+ * (its thesaurus array, ArchiMate's
+ * `:RelationshipOrder`), then by name; a type of no category after them. Within a category, the order of the array
+ * under it (ArchiMate's order of strength, weakest first), a kind just after the relationship it is a kind of, then
+ * by name. With no dimension classifying a relationship type, the list is as it was.
  */
 function categoriseRelationships(
   relationships: RelationshipTypeInfo[],
   axes: readonly TaxonomyAxis[],
   superClassMap: ReadonlyMap<string, readonly string[]>,
+  graph: Store,
 ): RelationshipTypeInfo[] {
-  // The axis that names the most relationship types — the first of those that name as many: a dimension of
-  // element types may list one too (UML's state machine diagram lists Transition), and is not their classification.
-  const names = (a: TaxonomyAxis): number => relationships.filter((rel) => a.groups.has(rel.iri)).length;
-  const axis = axes
-    .filter((a) => !a.standalone && names(a) > 0)
-    .reduce<TaxonomyAxis | undefined>((best, a) => (best && names(best) >= names(a) ? best : a), undefined);
-  if (!axis) return relationships;
+  const types = new Set(relationships.map((rel) => rel.iri));
+  /** The relationship type a member of a dimension is, or stands for. */
+  const typeOf = (member: string): string | undefined => {
+    if (types.has(member)) return member;
+    const linked = [
+      ...graph.getObjects(namedNode(member), namedNode(RDFS_SEE_ALSO), null),
+      ...graph.getSubjects(namedNode(RDFS_SEE_ALSO), namedNode(member), null),
+    ];
+    return linked.find((term) => types.has(term.value))?.value;
+  };
+  /** Per dimension that lists a relationship type: the member that lists each type. */
+  const listing = axes
+    .map((axis) => {
+      const members = new Map<string, string>();
+      for (const member of axis.groups.keys()) {
+        const type = typeOf(member);
+        if (type !== undefined && !members.has(type)) members.set(type, member);
+      }
+      return { axis, members };
+    })
+    .filter(({ members }) => members.size > 0)
+    // The dimension that lists the most first: a metamodel's own relationship types before those of one it
+    // imports (LeanIX's before the processes extension's).
+    .sort((a, b) => b.members.size - a.members.size);
+  const dimensions = listing.some(({ axis }) => !axis.standalone) ? listing : [];
+  if (dimensions.length === 0) return relationships;
+
   const LAST = Number.MAX_SAFE_INTEGER;
   const placed = relationships.map((rel) => {
-    const listed = [rel.iri, ...superClassesNearestFirst(rel.iri, superClassMap)].find((iri) => axis.groups.has(iri));
-    const category = listed ? axis.groups.get(listed) : undefined;
-    const rank = listed ? (axis.ranks.get(listed) ?? LAST - 1) : LAST;
-    // Within its category: the category's own array (ArchiMate's order of strength), a kind just after the
-    // relationship it is a kind of, then by name.
-    const memberRank = listed ? (axis.memberRanks?.get(listed) ?? LAST) : LAST;
-    const isKind = listed !== undefined && listed !== rel.iri ? 1 : 0;
-    return { rel: category ? { ...rel, category } : rel, rank, memberRank, isKind };
+    const chain = [rel.iri, ...superClassesNearestFirst(rel.iri, superClassMap)];
+    let best: { at: number; listed: string; member: string; size: number } | undefined;
+    dimensions.forEach(({ members }, at) => {
+      const listed = chain.find((iri) => members.has(iri));
+      if (listed !== undefined && (!best || members.size > best.size)) {
+        best = { at, listed, member: members.get(listed) as string, size: members.size };
+      }
+    });
+    if (!best) return { rel, at: LAST, rank: LAST, memberRank: LAST, isKind: 0 };
+    const { axis } = dimensions[best.at]!;
+    const category = axis.groups.get(best.member);
+    return {
+      rel: category ? { ...rel, category } : rel,
+      at: best.at,
+      rank: axis.ranks.get(best.member) ?? LAST - 1,
+      // Within its category: the category's own array (ArchiMate's order of strength), a kind just after the
+      // relationship it is a kind of, then by name.
+      memberRank: axis.memberRanks?.get(best.member) ?? LAST,
+      isKind: best.listed !== rel.iri ? 1 : 0,
+    };
   });
   return placed
     .sort(
       (a, b) =>
+        a.at - b.at ||
         a.rank - b.rank ||
         (a.rel.category ?? '').localeCompare(b.rel.category ?? '') ||
         a.memberRank - b.memberRank ||

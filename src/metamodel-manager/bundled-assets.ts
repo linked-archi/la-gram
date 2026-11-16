@@ -331,16 +331,10 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     path: 'basic/basic-presentation-contexts.ttl',
     metamodel: 'basic',
   },
-  // The decision extension: its vocabulary and shapes keep their flat namespaces; the relationship types that
-  // draw its links, its taxonomy and its manifest are nested under it.
+  // The decision extension: its vocabulary — the relationship types that draw its links with it — and its shapes
+  // keep their flat namespaces; its taxonomy and its manifest are nested under it.
   { role: 'manifest', ontologyIri: 'https://meta.linked.archi/arch-decision/metamodel#', path: 'arch-decision/arch-decision-metamodel.ttl', metamodel: 'arch-decision' },
   { role: 'ontology', ontologyIri: 'https://meta.linked.archi/arch-decision#', path: 'arch-decision/arch-decision-onto.ttl', metamodel: 'arch-decision' },
-  {
-    role: 'ontology',
-    ontologyIri: 'https://meta.linked.archi/arch-decision/relationships#',
-    path: 'arch-decision/arch-decision-relationships-onto.ttl',
-    metamodel: 'arch-decision',
-  },
   { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/arch-decision/tax#', path: 'arch-decision/arch-decision-tax.ttl', metamodel: 'arch-decision' },
   { role: 'shapes', ontologyIri: 'https://meta.linked.archi/arch-decision-shapes#', path: 'arch-decision/arch-decision-shapes.ttl', metamodel: 'arch-decision' },
 ];

@@ -1078,4 +1078,33 @@ describe('relationship categories come from the dimension that names the most re
     ]);
     expect(palette.elementGroups.map((g) => g.category)).toEqual(['State Machine Diagram']);
   });
+
+  it('each metamodel\'s types by its own dimension; a group under none, listed by concepts, beside one that is', async () => {
+    const PREFIXES = `
+      @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+      @prefix arch: <https://meta.linked.archi/core#> . @prefix ex: <https://example.org/mm#> .
+      <https://example.org/mm> rdf:type owl:Ontology .`;
+    // A language whose relationship types are under a dimension…
+    const LANGUAGE = `
+      ex:Scheme rdf:type skos:ConceptScheme ; skos:hasTopConcept ex:ByCategory .
+      ex:ByCategory rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Category"@en .
+      ex:Structural rdf:type skos:Concept ; skos:prefLabel "Structural"@en ; skos:broader ex:ByCategory ; skos:narrower ex:Composition .
+      ex:Composition rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Composition"@en .`;
+    // …and one that lists its own by a concept each, in a group under no dimension (LeanIX's Relationship Type).
+    const OTHER = `
+      ex:Other rdf:type skos:ConceptScheme ; skos:hasTopConcept ex:RelationshipType .
+      ex:RelationshipType rdf:type skos:Concept ; skos:inScheme ex:Other ; skos:prefLabel "Relationship Type"@en .
+      ex:UsageConcept rdf:type skos:Concept ; skos:prefLabel "Usage"@en ; skos:broader ex:RelationshipType ; rdfs:seeAlso ex:Usage .
+      ex:Usage rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Usage"@en .`;
+    const categories = async (ttl: string) => {
+      const store = new OxigraphRdfStore();
+      await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(PREFIXES + ttl);
+      return new SparqlPaletteGenerator(store).generatePalette('https://example.org/mm').relationshipTypes.map((r) => [r.label, r.category]);
+    };
+    expect(await categories(LANGUAGE + OTHER)).toEqual([
+      ['Composition', 'Structural'],
+      ['Usage', 'Relationship Type'],
+    ]);
+  });
 });

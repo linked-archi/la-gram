@@ -9,7 +9,7 @@
 
 import { DataFactory, type Store } from 'n3';
 import type { MetamodelCompleteness, MetamodelFinding, RelationshipTypeInfo } from './interfaces.js';
-import type { SemanticClass, TaxonomyAxis } from './taxonomy.js';
+import type { SemanticClass } from './taxonomy.js';
 
 const { namedNode } = DataFactory;
 
@@ -81,8 +81,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * Each metamodel's findings; a metamodel with none is left out.
  *
  * @param classes The palette's element classes ({@link SemanticClass.unclassified} set by `buildClasses`).
- * @param relationships The palette's relationship types.
- * @param axes Every classification axis, standalone groups included.
+ * @param relationships The palette's relationship types, each with the category its taxonomy gives it.
  * @param groupedByName The palette groups by a guess from the names: no scheme classifies any class.
  */
 export function metamodelCompleteness(
@@ -90,11 +89,10 @@ export function metamodelCompleteness(
   metamodels: readonly CheckedMetamodel[],
   classes: readonly SemanticClass[],
   relationships: readonly RelationshipTypeInfo[],
-  axes: readonly TaxonomyAxis[],
   groupedByName: boolean,
 ): MetamodelCompleteness[] {
   const result: MetamodelCompleteness[] = [];
-  const relationshipsClassified = relationships.some((rel) => axes.some((axis) => axis.groups.has(rel.iri)));
+  const relationshipsClassified = relationships.some((rel) => rel.category !== undefined);
   for (const metamodel of metamodels) {
     const documents = new Set(metamodel.documents.filter((d) => !d.startsWith(CORE)));
     const sources = new Set([...typeSources(graph, metamodel)].filter((d) => !d.startsWith(CORE)));
@@ -148,16 +146,8 @@ export function metamodelCompleteness(
       });
     }
 
-    // A relationship type no scheme names, where schemes name others: it has no category.
-    const supers = (iri: string, seen = new Set<string>()): Set<string> => {
-      for (const o of graph.getObjects(namedNode(iri), namedNode(RDFS_SUBCLASS), null)) {
-        if (o.termType === 'NamedNode' && !seen.has(o.value)) supers(o.value, seen.add(o.value));
-      }
-      return seen;
-    };
-    const uncategorised = relationshipsClassified
-      ? own.filter((rel) => ![rel.iri, ...supers(rel.iri)].some((iri) => axes.some((axis) => axis.groups.has(iri))))
-      : [];
+    // A relationship type no dimension lists, where dimensions list others: it has no category.
+    const uncategorised = relationshipsClassified ? own.filter((rel) => rel.category === undefined) : [];
     if (uncategorised.length > 0) {
       findings.push({
         kind: 'unclassified-relationships',

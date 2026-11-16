@@ -38,8 +38,7 @@ decision record links to the elements of the architecture it decides about.'''@e
     dcterms:description           '''The Architecture Decisions metamodel definition, aggregating the decision
 ontology — decisions, issues, options and the forces on them — the relationship types that draw the
 links between them and to the architecture, the SKOS taxonomy and the SHACL shapes.'''@en ;
-    arch:modelConcepts            <https://meta.linked.archi/arch-decision#>,
-                                  <https://meta.linked.archi/arch-decision/relationships#> ;
+    arch:modelConcepts            <https://meta.linked.archi/arch-decision#> ;
     arch:conceptClassification    <https://meta.linked.archi/arch-decision/tax#> ;
     arch:formalRules              <https://meta.linked.archi/arch-decision-shapes#> ;
 .

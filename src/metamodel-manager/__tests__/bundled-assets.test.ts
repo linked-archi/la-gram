@@ -33,7 +33,7 @@ describe('bundled asset registry', () => {
     // Five core files (the core question set among them), thirteen per ArchiMate version (4.0 and 3.2,
     // their question sets among them), and Basic's six: manifest, ontology, taxonomy, its two notation
     // sets and its presentation contexts.
-    expect(BUNDLED_ASSETS).toHaveLength(42);
+    expect(BUNDLED_ASSETS).toHaveLength(41);
     expect(getAssetsByRole('coreQuestions').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/core-questions#']);
     expect(getAssetsByRole('questions').map((a) => [a.metamodel, a.ontologyIri])).toEqual([
       ['archimate4', 'https://meta.linked.archi/archimate4/questions#'],
@@ -53,13 +53,10 @@ describe('bundled asset registry', () => {
         expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
       }
     }
-    // The decision extension: a manifest, its vocabulary and the relationship types that draw its links, a
+    // The decision extension: a manifest, its vocabulary — with the relationship types that draw its links — a
     // taxonomy and its shapes; no notation and no presentation contexts.
     expect(getAssetsByRole('manifest', 'arch-decision')).toHaveLength(1);
-    expect(getAssetsByRole('ontology', 'arch-decision').map((a) => a.ontologyIri)).toEqual([
-      'https://meta.linked.archi/arch-decision#',
-      'https://meta.linked.archi/arch-decision/relationships#',
-    ]);
+    expect(getAssetsByRole('ontology', 'arch-decision').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/arch-decision#']);
     expect(getAssetsByRole('taxonomy', 'arch-decision')).toHaveLength(1);
     expect(getAssetsByRole('shapes', 'arch-decision')).toHaveLength(1);
     expect(getAssetsByRole('presentationContexts', 'arch-decision')).toHaveLength(0);
@@ -241,17 +238,19 @@ describe('the bundled Architecture Decisions extension', () => {
       metamodels: [documents(am4), documents(decisions)],
     });
     const AD = 'https://meta.linked.archi/arch-decision#';
-    const ADREL = 'https://meta.linked.archi/arch-decision/relationships#';
     const group = (name: string) => palette.elementGroups.find((g) => g.category === name)?.elements.map((e) => e.label);
     expect(group('Decision Record')?.sort()).toEqual(['Decision', 'Issue', 'Option']);
     expect(group('Forces')).toHaveLength(11);
     expect(palette.completeness).toBeUndefined();
     const relationship = (iri: string) => palette.relationshipTypes.find((r) => r.iri === iri);
-    expect(relationship(`${ADREL}ModifiesConcept`)).toMatchObject({ label: 'Modifies', unqualifiedPredicateIri: `${AD}modifiesConcept` });
+    expect(relationship(`${AD}ModifiesConcept`)).toMatchObject({ label: 'Modifies', unqualifiedPredicateIri: `${AD}modifiesConcept` });
+    // Each metamodel's relationship types keep their own categories.
+    expect(relationship(`${AD}ModifiesConcept`)?.category).toBe('Change Links');
+    expect(relationship('https://meta.linked.archi/archimate4/onto#Composition')?.category).toBe('Structural Relationship');
     // An influence is drawn as one of its two kinds, each reached by Force Influence's qualified property.
     expect(relationship(`${AD}ForceInfluence`)).toBeUndefined();
     expect(unqualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}influencedByForce`);
     expect(qualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}hasInfluence`);
-    expect(qualifiedFormOf(store, `${ADREL}ModifiesConcept`)).toBe(`${ADREL}qualifiedModifiesConcept`);
+    expect(qualifiedFormOf(store, `${AD}ModifiesConcept`)).toBe(`${AD}qualifiedModifiesConcept`);
   }, 60_000);
 });

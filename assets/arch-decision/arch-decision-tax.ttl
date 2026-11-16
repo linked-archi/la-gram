@@ -6,7 +6,6 @@
 @prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix iso-thes: <http://purl.org/iso25964/skos-thes#> .
 @prefix ad:      <https://meta.linked.archi/arch-decision#> .
-@prefix adrel:   <https://meta.linked.archi/arch-decision/relationships#> .
 @prefix :        <https://meta.linked.archi/arch-decision/tax#> .
 
 <https://meta.linked.archi/arch-decision/tax#>
@@ -77,7 +76,7 @@
     skos:prefLabel "Record Links"@en ;
     skos:definition "Links within a decision record: from a decision to its issue, its selected option, its alternatives and the concepts it concerns."@en ;
     skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
-    skos:narrower adrel:HasIssue, adrel:HasSelectedOption, adrel:HasAlternative, adrel:RelatedConcept ;
+    skos:narrower ad:HasIssue, ad:HasSelectedOption, ad:HasAlternative, ad:RelatedConcept ;
 .
 
 :ChangeLinks
@@ -85,8 +84,8 @@
     skos:prefLabel "Change Links"@en ;
     skos:definition "Links from an option to the architecture it would change: what it adds, removes, modifies, reuses or includes."@en ;
     skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
-    skos:narrower adrel:AffectsConcept, adrel:AddsConcept, adrel:RemovesConcept, adrel:ModifiesConcept,
-                  adrel:MakesUseConcept, adrel:IncludesConcept ;
+    skos:narrower ad:AffectsConcept, ad:AddsConcept, ad:RemovesConcept, ad:ModifiesConcept,
+                  ad:MakesUseConcept, ad:IncludesConcept ;
 .
 
 :ForceLinks
@@ -94,7 +93,7 @@
     skos:prefLabel "Force Links"@en ;
     skos:definition "Links to forces: the forces an option addresses, and how a force influenced a decision."@en ;
     skos:inScheme <https://meta.linked.archi/arch-decision/tax#> ;
-    skos:narrower adrel:AddressesForce, ad:SupportingInfluence, ad:ImpendingInfluence ;
+    skos:narrower ad:AddressesForce, ad:SupportingInfluence, ad:ImpendingInfluence ;
 .
 
 :RelationshipKindOrder
