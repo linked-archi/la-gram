@@ -65,6 +65,19 @@ composite — each by name.
 
 Each section folds by its header. A search opens every section, so that nothing found is hidden.
 
+## Icons {#icons}
+
+Each type in the palette shows the icon its metamodel's notation publishes: ArchiMate's element symbols,
+Basic's relationship lines. A type whose notation publishes none, or whose icon does not load, shows what
+the canvas draws for it instead:
+
+- **An element type**: its figure — the shape, in the fill and line colours an element of that type gets
+  on the canvas. A LeanIX **Application** shows a green rounded rectangle.
+- **A relationship type**: its line — the line style and colour, with the ends it is drawn with. ArchiMate's
+  **Serving** shows a solid line with an open arrowhead.
+
+The menus that offer types — the "+" menu, *Change type* and *Connect these two…* — show the same icons.
+
 ## Viewpoint filter {#viewpoint-filter}
 
 With a viewpoint set on the open view, the palette offers only the element types it names, and the

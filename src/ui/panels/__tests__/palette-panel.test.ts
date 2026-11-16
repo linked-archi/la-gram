@@ -229,7 +229,7 @@ describe('PalettePanel', () => {
       expect(entry('Business Actor').dataset.kind).toBe('element');
     });
 
-    it('shows the published glyph, and a notation swatch when there is none', async () => {
+    it('shows the published glyph, and the figure its notation draws when there is none', async () => {
       await mount({
         elementGroups: [
           {
@@ -249,9 +249,38 @@ describe('PalettePanel', () => {
       });
 
       expect(entry('With Icon').querySelector('img')?.getAttribute('src')).toContain('bp.svg');
-      const swatch = entry('No Icon').querySelector('.palette-swatch');
-      expect(swatch).not.toBeNull();
-      expect(swatch!.classList.contains('ellipse')).toBe(true);
+      const drawn = entry('No Icon').querySelector('img');
+      expect(drawn?.dataset.figure).toBe('drawn');
+      const svg = decodeURIComponent(drawn!.getAttribute('src')!.replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
+      expect(svg).toContain('<ellipse');
+      expect(svg).toContain('fill="#FFFFB5"');
+    });
+
+    it('draws the figure in place of a published icon that does not load', async () => {
+      await mount({
+        elementGroups: [
+          {
+            category: 'Business',
+            elements: [
+              {
+                iri: 'arch:AP',
+                label: 'Broken Icon',
+                iconUrl: 'https://example.org/missing.svg',
+                isAbstract: false,
+                style: { shapeType: 'RoundedRectangle', fillColor: '#E8F5E9', lineColor: '#2E7D32' },
+              },
+            ],
+          },
+        ],
+        relationshipTypes: [],
+      });
+
+      const img = entry('Broken Icon').querySelector('img')!;
+      expect(img.getAttribute('src')).toBe('https://example.org/missing.svg');
+      img.dispatchEvent(new Event('error'));
+      const svg = decodeURIComponent(img.getAttribute('src')!.replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
+      expect(svg).toContain('stroke="#2E7D32"');
+      expect(svg).toContain('fill="#E8F5E9"');
     });
 
     it('omits the relationships section when the metamodel publishes none', async () => {

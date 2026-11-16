@@ -159,7 +159,7 @@ import { mostSpecificType, relationshipGraph } from '../model-manager/relationsh
 import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
 import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
 import { ASSETS_VERSION, assetUrl } from '../metamodel-manager/bundled-assets.js';
-import { iconHref, NOTATION_DEFAULTS, withRelationshipIcons } from './canvas/notation-shapes.js';
+import { iconHref, NOTATION_DEFAULTS, withElementIcons, withRelationshipIcons } from './canvas/notation-shapes.js';
 import { NotationStyleRegistry } from './canvas/notation-styles.js';
 
 // The diagram canvas is a plain class, not a custom element: it takes a host
@@ -1710,27 +1710,34 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   let currentMetamodelIri: string | undefined;
   let currentAxisIri: string | undefined;
 
-  /** Relationship icons a metamodel names that do not load: drawn from the notation instead. */
+  /** Icons a metamodel names that do not load: drawn from the notation instead. */
   const brokenIcons = new Set<string>();
   const triedIcons = new Set<string>();
   let iconRepair: ReturnType<typeof setTimeout> | undefined;
+  const isBroken = (url: string): boolean => brokenIcons.has(url);
   /**
-   * Try each relationship icon the palette names (once); one that does not
-   * load — the ArchiMate 3.2 ontology names images never published — is
-   * swapped for a drawn one, in the palette and the canvas's menus.
+   * Try each icon the palette names (once); one that does not load — the
+   * ArchiMate 3.2 ontology names relationship images never published, and a
+   * notation may name glyphs not yet published — is swapped for a drawn one, in
+   * the palette and the canvas's menus: an element type's figure, a
+   * relationship type's line.
    */
-  const tryRelationshipIcons = (palette: PaletteDefinition): void => {
+  const tryIcons = (palette: PaletteDefinition): void => {
     if (typeof Image !== 'function') return;
     const failed = (iconUrl: string) => () => {
       brokenIcons.add(iconUrl);
       iconRepair ??= setTimeout(() => {
         iconRepair = undefined;
-        currentPalette = withRelationshipIcons(currentPalette, (url) => brokenIcons.has(url));
+        currentPalette = withElementIcons(withRelationshipIcons(currentPalette, isBroken), isBroken);
         palettePanel.palette = currentPalette;
         diagramCanvas.updatePaletteDefinition(currentPalette, { iconsOnly: true });
       }, 50);
     };
-    for (const { iconUrl } of palette.relationshipTypes) {
+    const named = [
+      ...palette.elementGroups.flatMap((g) => g.elements),
+      ...palette.relationshipTypes,
+    ];
+    for (const { iconUrl } of named) {
       if (!iconUrl || iconUrl.startsWith('data:') || triedIcons.has(iconUrl)) continue;
       triedIcons.add(iconUrl);
       const href = iconHref(iconUrl, assetUrl);
@@ -1761,9 +1768,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       documents: (m.assets ?? []).filter((a) => a.outcome === 'loaded' || a.outcome === 'already-loaded').map((a) => a.documentIri),
       conceptDocuments: (m.assets ?? []).filter((a) => a.via === 'arch:modelConcepts').map((a) => a.documentIri),
     }));
-    // A relationship type its notation publishes no icon for — or one that does
-    // not load — is shown with one drawn from its line and ends.
-    const palette = withRelationshipIcons(
+    // A type its notation publishes no icon for — or one that does not load —
+    // is shown with one drawn from its notation: an element type's figure, a
+    // relationship type's line and ends.
+    const generated = withRelationshipIcons(
       paletteGenerator.generatePalette(currentMetamodelIri, {
         ...(metamodelIris.length > 0 ? { metamodelIris } : {}),
         ...(checkedMetamodels.length > 0 ? { metamodels: checkedMetamodels } : {}),
@@ -1771,9 +1779,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         ...(context ? { presentationContextIri: context } : {}),
         ...(defaultNotationSetIris.length > 0 ? { defaultNotationSetIris } : {}),
       }),
-      (url) => brokenIcons.has(url),
+      isBroken,
     );
-    tryRelationshipIcons(palette);
+    tryIcons(generated);
+    const palette = withElementIcons(generated, isBroken);
     // The active axis may differ from the requested one when the metamodel does
     // not publish it; follow what the generator actually used.
     currentAxisIri = palette.activeAxisIri;

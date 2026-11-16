@@ -15,12 +15,14 @@ import {
   NOTATION_DEFAULTS,
   SHAPE_TYPES,
   badgeBox,
+  elementIconDataUri,
   iconHref,
   labelFitsInside,
   labelLayout,
   markerDefinition,
   markerId,
   relationshipIconDataUri,
+  withElementIcons,
   withRelationshipIcons,
   shapeGeometry,
   shapeLayout,
@@ -610,5 +612,68 @@ describe('a relationship type\u2019s icon, drawn from its notation', () => {
     // One named that does not load: drawn too.
     const repaired = withRelationshipIcons(published as never, (url) => url === 'basic/icons/relationship.svg');
     expect(repaired.relationshipTypes[0]!.iconUrl).toMatch(/^data:image\/svg\+xml/);
+  });
+});
+
+describe('an element type’s icon, drawn from its notation', () => {
+  const svgOf = (uri: string) => {
+    expect(uri.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
+    return new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(',') + 1)), 'image/svg+xml');
+  };
+
+  it('draws its figure in its fill and line colours, as the canvas does', () => {
+    const doc = svgOf(elementIconDataUri({ shapeType: 'RoundedRectangle', fillColor: '#E8F5E9', lineColor: '#2E7D32' }));
+    expect(doc.querySelector('parsererror')).toBeNull();
+    const body = doc.querySelector('rect')!;
+    expect(body.getAttribute('fill')).toBe('#E8F5E9');
+    expect(Number(body.getAttribute('rx'))).toBeGreaterThan(0);
+    expect(doc.querySelector('g')!.getAttribute('stroke')).toBe('#2E7D32');
+  });
+
+  it('draws a notation’s own shape, inner lines included', () => {
+    const doc = svgOf(
+      elementIconDataUri({
+        customShape: { iri: 'urn:tab', outline: 'M0,0 L{w},0 L{w},{h} L0,{h} Z', details: 'M0,4 L{w},4', fallback: 'Rectangle' },
+        fillColor: '#FFF',
+      }),
+    );
+    expect(doc.querySelector('parsererror')).toBeNull();
+    const paths = [...doc.querySelectorAll('path')];
+    expect(paths).toHaveLength(2);
+    expect(paths[1]!.getAttribute('fill')).toBe('none');
+  });
+
+  it('is the default figure without a notation, and keeps a stated colour from breaking out of its attribute', () => {
+    const plain = svgOf(elementIconDataUri(undefined));
+    expect(plain.querySelector('rect')!.getAttribute('fill')).toBe('#FFFFFF');
+    const odd = svgOf(elementIconDataUri({ fillColor: '"/><script/>' }));
+    expect(odd.querySelector('parsererror')).toBeNull();
+    expect(odd.querySelector('script')).toBeNull();
+  });
+
+  it('is given to the palette’s element types with no icon, or one that does not load, and only to those', () => {
+    const published = {
+      elementGroups: [{ category: 'A', elements: [{ iri: 'urn:a', label: 'A', iconUrl: 'https://example.org/a.svg', isAbstract: false }] }],
+      relationshipTypes: [],
+    };
+    expect(withElementIcons(published as never)).toBe(published);
+    const palette = withElementIcons({
+      elementGroups: [
+        {
+          category: 'A',
+          elements: [
+            { iri: 'urn:a', label: 'A', iconUrl: 'https://example.org/a.svg', isAbstract: false },
+            { iri: 'urn:b', label: 'B', isAbstract: false, style: { shapeType: 'Ellipse' } },
+            { iri: 'urn:c', label: 'C', iconUrl: 'https://example.org/missing.svg', isAbstract: false },
+          ],
+        },
+      ],
+      relationshipTypes: [],
+    } as never, (url) => url.endsWith('missing.svg'));
+    expect(palette.elementGroups[0]!.elements.map((e) => e.iconUrl?.slice(0, 19))).toEqual([
+      'https://example.org',
+      'data:image/svg+xml;',
+      'data:image/svg+xml;',
+    ]);
   });
 });

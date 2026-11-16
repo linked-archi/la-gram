@@ -30,6 +30,7 @@ import type {
   LineStyle,
   RelationshipVisualStyle,
   ShapeType,
+  VisualStyle,
 } from '../../metamodel-manager/notation.js';
 import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 
@@ -1244,6 +1245,47 @@ export function relationshipIconDataUri(style: RelationshipVisualStyle | undefin
     (dash ? ` stroke-dasharray="${dash}"` : '') +
     `${ends.join('')}/></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * An element type's icon drawn from its notation — for a type whose notation
+ * publishes no image, or one that does not load: its figure, in its fill and
+ * line colours, as the canvas draws a shape of that type (a notation's own shape
+ * from its templates, inner lines included). A type without a notation gets the
+ * canvas's default figure. A `data:` URI of a standalone SVG, for an `<img>`.
+ */
+export function elementIconDataUri(style: VisualStyle | undefined): string {
+  const width = 22;
+  const height = 15;
+  const fill = style?.fillColor ?? NOTATION_DEFAULTS.fillColor;
+  const line = style?.lineColor ?? NOTATION_DEFAULTS.lineColor;
+  const geometry = shapeGeometry(style?.customShape ?? style?.shapeType, width, height);
+  const attrs = Object.entries(geometry.attrs).map(([name, value]) => ` ${name}="${xmlAttr(value)}"`).join('');
+  const svg =
+    `<svg xmlns="${SVG_NS}" viewBox="0 0 24 24" width="24" height="24">` +
+    `<g transform="translate(1 ${(24 - height) / 2})" stroke="${xmlAttr(line)}" stroke-width="1.2">` +
+    `<${geometry.tag}${attrs} fill="${xmlAttr(fill)}"/>` +
+    (geometry.details ? `<path d="${xmlAttr(geometry.details)}" fill="none"/>` : '') +
+    `</g></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * The palette with an icon for every element type: the one its notation
+ * publishes, else — none, or one `broken` says does not load — its figure
+ * ({@link elementIconDataUri}). The canvas draws a shape from its style, never
+ * from this icon, so only the palette and the menus see the drawn one.
+ */
+export function withElementIcons(palette: PaletteDefinition, broken: (iconUrl: string) => boolean = () => false): PaletteDefinition {
+  const usable = (iconUrl: string | undefined): iconUrl is string => Boolean(iconUrl) && !broken(iconUrl!);
+  if (palette.elementGroups.every((g) => g.elements.every((e) => usable(e.iconUrl)))) return palette;
+  return {
+    ...palette,
+    elementGroups: palette.elementGroups.map((g) => ({
+      ...g,
+      elements: g.elements.map((e) => (usable(e.iconUrl) ? e : { ...e, iconUrl: elementIconDataUri(e.style) })),
+    })),
+  };
 }
 
 /**

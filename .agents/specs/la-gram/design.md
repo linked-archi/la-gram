@@ -279,6 +279,21 @@ the palette — and the canvas's menus, without redrawing the shapes
 (`updatePaletteDefinition(…, { iconsOnly: true })`) — take the drawn one. The
 swap waits on the network: a few seconds for a link that does not resolve.
 
+**Element icons** (Req 2.26). An element type's icon is its descriptor's
+`arch:prefVisNotation`, else its `arch-vis:iconSymbol` badge glyph. A notation
+may name glyphs not yet published — LeanIX's, BPMN's, UML's and Backstage's
+answer 404 — and a type with no notation names none. `withElementIcons`
+(`notation-shapes.ts`) gives those its figure (`elementIconDataUri`): a
+standalone 24 × 24 SVG as a `data:` URI, the shape `shapeGeometry` builds for
+the canvas at 22 × 15 — a notation's own shape from its templates, inner lines
+stroked — in its fill and line colours, escaped into the markup. `mount-ui`
+tries the element icons with the relationship icons, once each, and swaps a
+broken one the same way. Only the palette and the menus read an element
+type's icon; the canvas draws a shape from its style and its badge from
+`iconSymbol`, so the drawn figure never reaches a diagram. The palette panel
+also swaps an `<img>` that fails for the figure itself (its `error` event), so
+the palette shows no broken image while the probe is waiting on the network.
+
 **The palette panel** (Req 2.8, 2.22). `palette-panel.ts` lists the
 relationship types first, above the element groups — a short list, kept in
 reach — in a section that folds by its header as a group does; its state is

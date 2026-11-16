@@ -9,7 +9,7 @@ import type {
   ViewpointInfo,
 } from '../../metamodel-manager/interfaces.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
-import { iconHref } from '../canvas/notation-shapes.js';
+import { elementIconDataUri, iconHref } from '../canvas/notation-shapes.js';
 import { sharedNames } from '../show-iris.js';
 
 /**
@@ -348,21 +348,6 @@ export class PalettePanel extends LitElement {
       font-style: italic;
     }
 
-    /* Colour swatch standing in for the shape when no icon is published. */
-    .palette-swatch {
-      width: 16px;
-      height: 12px;
-      flex-shrink: 0;
-      border: 1px solid #666;
-    }
-
-    .palette-swatch.rounded {
-      border-radius: 4px;
-    }
-
-    .palette-swatch.ellipse {
-      border-radius: 50%;
-    }
   `;
 
   @property({ attribute: false })
@@ -512,37 +497,28 @@ export class PalettePanel extends LitElement {
   /**
    * Visual preview for an element entry.
    *
-   * The published icon when there is one; otherwise a swatch in the notation's
-   * fill colour, shaped roughly like the notation's `shapeType`. Full shape
-   * construction belongs to the canvas renderer, not here.
+   * The published icon when there is one; otherwise — none, or one that does
+   * not load — the type's figure as the canvas draws it, in its notation's
+   * shape and colours (`elementIconDataUri`). `mount-ui` swaps a broken icon
+   * for the figure in the palette definition too, for the canvas's menus; the
+   * `error` handler here is what spares the palette a broken image meanwhile.
    *
    * `iconUrl` goes through `iconHref`/`assetUrl` rather than into `src`
    * directly: `PaletteGenerator` resolves a bundled glyph to an
    * *asset-root-relative* path (`archimate4/icons/business-actor.svg`), which a
    * browser resolves against the document — one directory short of `assets/` —
    * so used raw every glyph 404s. `iconHref` also filters out values that are
-   * not loadable at all (`urn:` and friends), which is what makes the swatch
+   * not loadable at all (`urn:` and friends), which is what makes the figure
    * fallback below the right thing rather than a broken-image icon.
    */
   private _renderElementPreview(el: ElementTypeInfo): unknown {
-    const src = iconHref(el.iconUrl, assetUrl);
-    if (src) {
-      return html`<img class="palette-icon" src=${src} alt="" />`;
-    }
-    const style = el.style;
-    if (style?.fillColor) {
-      const shapeClass =
-        style.shapeType === 'Ellipse' || style.shapeType === 'Circle'
-          ? 'ellipse'
-          : style.shapeType === 'RoundedRectangle'
-            ? 'rounded'
-            : '';
-      return html`<span
-        class="palette-swatch ${shapeClass}"
-        style="background:${style.fillColor};border-color:${style.lineColor ?? '#666'}"
-      ></span>`;
-    }
-    return html`<span class="palette-icon"></span>`;
+    const figure = elementIconDataUri(el.style);
+    const src = iconHref(el.iconUrl, assetUrl) ?? figure;
+    const drawFigure = (event: Event): void => {
+      const img = event.target as HTMLImageElement;
+      if (img.getAttribute('src') !== figure) img.setAttribute('src', figure);
+    };
+    return html`<img class="palette-icon" src=${src} alt="" data-figure=${src === figure ? 'drawn' : 'published'} @error=${drawFigure} />`;
   }
 
   private _renderElementItem(el: ElementTypeInfo): unknown {
