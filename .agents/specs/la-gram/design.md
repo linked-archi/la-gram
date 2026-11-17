@@ -3389,6 +3389,21 @@ dialog; the modules' section).
     Keeping the button outside the picker lets a modeller inspect or copy the
     IRI without opening the choices or changing the type.
 
+29. **Pull incorporates a remote base without committing** (Req 18.24; 2026-11-17).
+    `git-pull.ts` reads the bound commit and the file at a pinned branch head through the
+    shared read-access helper. After all I/O, it serializes the latest working model and
+    validates all snapshots before `git-merge.ts`’s shared `reconcile` applies the existing
+    three-way merge as one store-change command. With no await between that snapshot and
+    application, edits during network requests are included without a revision retry loop.
+    A no-op skips the command. The binding records the incorporated remote head/version,
+    independently of local-file saves and undo; bindings read from storage are pinned per
+    editor so another tab cannot silently advance its base. A fresh snapshot comparison
+    determines the dirty marker, and conflicts keep it dirty. Model-loaded generations,
+    the full binding and room state reject obsolete reads; module stop invalidates them.
+    A module-owned busy guard prevents overlapping manual Git menu flows. Pull cannot run
+    in shared rooms or with an unfinished cross-branch merge. Periodic checks and auto-commit
+    remain separate pending stages; History stays demand-loaded.
+
 ## Running
 
 | What | Command |

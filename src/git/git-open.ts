@@ -56,19 +56,21 @@ const OTHER_BRANCH = '\u0000branch';
 /** Failures the host gives a read without a token that a token may cure. */
 const NEEDS_TOKEN = new Set(['auth', 'forbidden', 'not-found', 'rate-limit']);
 
+type ReadContext = Pick<GitOpenContext, 'tokens' | 'dialogs' | 'provider'>;
+
 /**
  * A repository, read with the access it needs: without a token unless one is
  * kept, asking for one once when the host refuses (the History tab too).
  */
 export class Access {
   private constructor(
-    private readonly ctx: GitOpenContext,
+    private readonly ctx: ReadContext,
     readonly link: RepositoryLink,
     private token: string | undefined,
     private provider: GitHostProvider,
   ) {}
 
-  static async create(ctx: GitOpenContext, link: RepositoryLink): Promise<Access> {
+  static async create(ctx: ReadContext, link: RepositoryLink): Promise<Access> {
     const token = await ctx.tokens.get(link.host);
     return new Access(ctx, link, token, ctx.provider(link, token));
   }

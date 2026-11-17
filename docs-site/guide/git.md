@@ -1,6 +1,6 @@
 ---
 title: Git storage
-description: How la-gram opens a model from a GitHub or GitLab repository and saves it there as a commit, merges newer versions, resolves conflicts and opens merge requests.
+description: Open, pull and save models with GitHub or GitLab, preserve local changes, resolve conflicts and open merge requests in la-gram.
 ---
 # Git storage
 
@@ -28,6 +28,7 @@ without diagram geometry*:
 | *Save to Git…* | the model is not bound to a file | commits it as a new file, or over one |
 | *Save to Git* | the model is bound, its repository and branch beside it | commits it to its file, asking for a message |
 | *Save to Git as…* | bound | commits it to another branch or file |
+| *Pull from Git* | bound, outside a shared room | incorporates the current branch's newer model, preserving local changes, without committing |
 | *Update from main…* | bound | merges another branch into the bound one |
 | *Open merge request…* | bound | proposes the bound branch for merging (*a pull request from* the branch, on GitHub) |
 
@@ -120,10 +121,38 @@ went.
 1. Choose *File › Save to Git as…*.
 2. In *New branch*, type `la-gram/shop-payments`, and choose *Commit*.
 
+## Pull from Git {#pull-from-git}
+
+*File › Pull from Git* reads the bound file's latest version on its current branch and combines it
+with your local model. It makes no commit and creates no branch. Public repositories need no token;
+private repositories use the same read access as *Open from Git…*.
+
+1. Open a model with *Open from Git…*, or save it with *Save to Git…*.
+2. After a colleague commits a change, choose *File › Pull from Git*.
+3. Review the updated model. If the *Conflicts* tab opens, choose which changes to keep.
+4. Choose *Save to Git* when you want to commit your local changes and conflict choices.
+
+For example, if you rename “Web shop” while a colleague moves “Payments”, pulling keeps your name
+and their position. If you both change the same name, the Conflicts tab offers both choices. Resolve
+the outstanding conflicts before pulling again.
+
+Pull keeps edits made while it is reading the repository. Saving to a local file does not make those
+edits count as saved to Git. A pull with changes is one undoable step; undo restores the earlier model
+as local changes against the pulled version. A pull with no model changes adds no undo step. The
+result message says whether changes arrived, local changes remain, or conflicts need attention.
+
+Pull is available outside shared rooms. Finish a pending *Update from main…* with *Save to Git* first.
+A missing file, branch or previous version, a file containing a different model, invalid RDF, or blank
+nodes that cannot be matched between versions stops the pull and leaves the model unchanged. Switching
+or reloading the model while a pull is reading discards that pull's result.
+
+Pull and Save are manual actions. Periodic remote checks, automatic pull and automatic commits are
+not available. *History › Read again* refreshes the commit list; it does not pull changes into the model.
+
 ## When the file changed {#when-the-file-changed}
 
 A save never overwrites a change it has not seen. When the file moved on in the repository since it was
-opened or last saved, the save asks, *models/shop.ttl changed in the repository*:
+opened, last saved or pulled, the save asks, *models/shop.ttl changed in the repository*:
 
 | Choice | Does |
 |---|---|
@@ -152,7 +181,7 @@ A save asks first in two cases:
 
 ## Conflicts tab {#conflicts-tab}
 
-A merge (*Merge with the newer version*, or *Update from main…*) combines both sides by element. What
+A merge (*Pull from Git*, *Merge with the newer version*, or *Update from main…*) combines both sides by element. What
 both changed the same thing in, a name, a node's position, a route, a relationship's ends, a concept
 deleted on one side and changed on the other, is listed in a *Conflicts* tab beside History, each with
 the two versions and a button for each:
@@ -199,13 +228,13 @@ a branch of its own first, with *Save to Git as…*.
 
 ## Access tokens {#access-tokens}
 
-A public repository opens without a token. Otherwise la-gram asks, in *Access token for github.com*, for
+A public repository opens and pulls without a token. Otherwise la-gram asks, in *Access token for github.com*, for
 a *Token*, and sends it to that host only, never into the model or a file.
 
 | Host | Token |
 |---|---|
-| GitHub | a fine-grained personal access token with *Contents: read and write* on the repository (read to open), and *Pull requests: read and write* to open pull requests |
-| GitLab | a personal, project or group access token with the `api` scope (`read_repository` to open) |
+| GitHub | a fine-grained personal access token with *Contents: read and write* on the repository (read to open or pull), and *Pull requests: read and write* to open pull requests |
+| GitLab | a personal, project or group access token with the `api` scope (`read_repository` to open or pull) |
 
 A token is kept for each host. By default it is kept **in memory** for the session: a reload, or closing
 the tab, forgets it. Ticked, the dialog's *Remember* box keeps it:

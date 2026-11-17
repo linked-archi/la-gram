@@ -43,10 +43,14 @@ const host = fakeHost([
     ],
   },
 ]);
+let beforeHeadRead: (() => Promise<void>) | undefined;
 
 /** The host, and the file as last committed — read back by Open from Git. */
 const fetchFn: typeof host.fetch = async (url, init) => {
-  if (url === `${GH}/branches/main`) return new Response(JSON.stringify({ commit: { sha: 'abc1234def' } }), { status: 200 });
+  if (url === `${GH}/branches/main`) {
+    await beforeHeadRead?.();
+    return new Response(JSON.stringify({ commit: { sha: 'abc1234def' } }), { status: 200 });
+  }
   if (url === `${GH}/contents/models/shop-floor.ttl?ref=abc1234def`) {
     const put = host.calls.filter((c) => c.method === 'PUT').at(-1);
     return new Response(JSON.stringify({ type: 'file', sha: 'blob1', size: 1, encoding: 'base64', content: put?.body?.['content'] }), { status: 200 });
@@ -117,6 +121,7 @@ describe('the Git module in the File menu', () => {
       'git:open Open from Git… [GitHub, GitLab]',
       'git:save Save to Git [acme/arch · main]',
       'git:save-as Save to Git as… [another branch or file]',
+      'git:pull Pull from Git [acme/arch · main]',
       'git:update Update from main… [merge another branch into main]',
       'git:review Open merge request… [a pull request from main]',
     ]);
@@ -139,6 +144,42 @@ describe('the Git module in the File menu', () => {
     expect(history.git?.where).toBe('acme/arch · main · models/shop-floor.ttl');
     expect(history.shadowRoot!.querySelector('li[data-git="abc1234def"] .message')!.textContent).toContain('Add Shop Floor');
     ui.shell.showTab('properties');
+  });
+
+  it('pulls through the menu without a write, and is not offered in a shared room', async () => {
+    const puts = host.calls.filter((c) => c.method === 'PUT').length;
+    await ui.runCommand({ command: 'module', value: 'git:pull' });
+    expect(app.session.modelLabel()).toBe('Shop Floor');
+    expect(app.isDirty()).toBe(false);
+    expect(host.calls.filter((c) => c.method === 'PUT')).toHaveLength(puts);
+    app.collaborationRoom = 'shared';
+    expect(entries().some((entry) => entry.startsWith('git:pull'))).toBe(false);
+    app.collaborationRoom = undefined;
+  });
+
+  it('rejects overlapping Git actions and discards a pull after reloading the same model', async () => {
+    const snapshot = git.context.serialize('turtle');
+    const model = app.session.modelIri;
+    let release!: () => void;
+    let started!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    const reading = new Promise<void>((resolve) => { started = resolve; });
+    beforeHeadRead = async () => { started(); await waiting; };
+    const pull = ui.runCommand({ command: 'module', value: 'git:pull' });
+    try {
+      await reading;
+      const promptsBefore = vi.mocked(ui.dialogs.prompt).mock.calls.length;
+      await ui.runCommand({ command: 'module', value: 'git:save' });
+      expect(ui.dialogs.prompt).toHaveBeenCalledTimes(promptsBefore);
+      await ui.openModelText(snapshot, 'shop-floor.ttl');
+      expect(app.session.modelIri).toBe(model);
+    } finally {
+      beforeHeadRead = undefined;
+      release();
+    }
+    await pull;
+    expect(ui.dialogs.toast).toHaveBeenCalledWith(expect.stringContaining('Pull discarded'), 'info');
+    expect(app.isDirty()).toBe(false);
   });
 
   it('the token is not in the page’s storage (not remembered), nor in the address', () => {
@@ -222,8 +263,22 @@ describe('the Git module in the File menu', () => {
     expect(git.context.merge!.blankNodes()).toBe(1);
   });
 
-  it('stopped: its entries are gone, and the History tab has no Git history', () => {
+  it('stopped: its entries and History source are gone, and an in-flight pull cannot mark the model saved', async () => {
+    const put = host.calls.filter((c) => c.method === 'PUT').at(-1)!;
+    await ui.openModelText(fromBase64(String(put.body?.['content'])), 'shop-floor.ttl');
+    let release!: () => void;
+    let started!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    const reading = new Promise<void>((resolve) => { started = resolve; });
+    beforeHeadRead = async () => { started(); await waiting; };
+    const pull = ui.runCommand({ command: 'module', value: 'git:pull' });
+    await reading;
     git.stop();
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    beforeHeadRead = undefined;
+    release();
+    await pull;
+    expect(app.isDirty()).toBe(true);
     expect(entries()).toEqual([]);
     expect(ui.historyPanel.git).toBeUndefined();
   });

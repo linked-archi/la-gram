@@ -40,6 +40,14 @@ class FakeGitHub {
     return `blob${text.length}x${h}`;
   }
 
+  /** A colleague pushes on main while an editor is open. */
+  push(text: string): string {
+    const commit = `remote${++this.n}`.padEnd(40, '0');
+    this.commits.set(commit, { text, parent: this.head, message: 'Colleague update', date: new Date(Date.UTC(2026, 10, 17, 9, this.n)).toISOString() });
+    this.branches.set('main', commit);
+    return commit;
+  }
+
   /** The file on a branch (main when none is named), or at a commit. */
   file(ref = 'main'): string {
     return this.commits.get(this.branches.get(ref) ?? ref)?.text ?? '';
@@ -207,6 +215,7 @@ afterAll(async () => {
 describe('two clients saving the same bound file (Phase 1 of the Git collaboration plan)', () => {
   let a: Page;
   let b: Page;
+  let c: Page;
   let billing: string;
   let portal: string;
 
@@ -311,6 +320,8 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     await answer(a);
     await until(async () => github.pulls.length === 1, 'the pull request');
     expect(github.pulls[0]).toMatchObject({ number: 1, title: 'Rename Portal', head: 'la-gram/review', base: 'main', body: description });
+    // The fake host has written it; wait for the editor to receive that reply too.
+    await a.locator('.la-toast', { hasText: 'Opened pull request #1 from la-gram/review into main' }).waitFor({ state: 'visible' });
 
     // Asked again: the one open is named, none opened.
     await run(a, 'review');
@@ -329,5 +340,68 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     await row.first().waitFor({ state: 'visible' });
     expect((await row.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim())).toEqual(['~ Portal (A3) Application Component Name (en): “Portal (B)” → “Portal (A3)”']);
     await sessions[0]!.screenshot('git-history-branch');
+  }, 60_000);
+
+  it('Pull from Git works from the keyboard, creates no commit, and is one undoable change; a no-op adds no undo step', async () => {
+    c = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(c, billing)).includes('Billing (A2)'), 'C to open main');
+    const head = github.push(github.file().replace('Billing (A2)', 'Billing (pulled)'));
+    const commits = github.commits.size;
+    await c.locator('app-toolbar button[data-menu="file"]').click();
+    const pull = c.locator('app-toolbar button[data-value="git:pull"]');
+    expect(await pull.innerText()).toContain('Pull from Git');
+    await pull.focus();
+    await pull.press('Enter');
+    await until(async () => (await nameOf(c, billing)).includes('Billing (pulled)'), 'the pulled label');
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(github.head).toBe(head);
+    expect(github.commits.size).toBe(commits);
+    // Await the complete command here, so undo runs after the no-op has settled.
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'undo' }));
+    expect(await nameOf(c, billing)).toEqual(['Billing (A2)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(true);
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'redo' }));
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled)']);
+    expect(await c.locator('.la-dialog').count()).toBe(0); // public pull needed no token
+  }, 60_000);
+
+  it('pull preserves disjoint local changes, even after saving to disk, and refreshes the Git history source', async () => {
+    await rename(c, portal, 'Portal (local pull)');
+    await c.evaluate(() => (window as any).__LA_GRAM_APP__.components.eventBus.emit('model-saved', { fileName: 'local.ttl' }));
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    await c.locator('app-shell .tab[data-tab="history"]').click();
+    const head = github.push(github.file().replace('Billing (pulled)', 'Billing (pulled again)'));
+    const commits = github.commits.size;
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled again)']);
+    expect(await nameOf(c, portal)).toEqual(['Portal (local pull)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(true);
+    expect(github.head).toBe(head);
+    expect(github.commits.size).toBe(commits);
+    await c.locator(`history-panel li[data-git="${head}"]`).waitFor({ state: 'visible' });
+  }, 60_000);
+
+  it('pull conflicts can be chosen without committing; a later Save to Git commits those choices on the same branch', async () => {
+    const head = github.push(github.file().replace('Portal (B)', 'Portal (remote pull)'));
+    const commits = github.commits.size;
+    const branches = github.branchesMade;
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    const panel = c.locator('git-conflicts');
+    await panel.waitFor({ state: 'visible' });
+    expect(await nameOf(c, portal)).toEqual(['Portal (B)']);
+    expect(await panel.locator('.conflict .value').allInnerTexts()).toEqual(['“Portal (local pull)” (en)', '“Portal (remote pull)” (en)']);
+    await sessions.at(-1)!.screenshot('git-pull-conflicts');
+    await panel.locator('.conflict button[data-side="ours"]').click();
+    expect(await nameOf(c, portal)).toEqual(['Portal (local pull)']);
+    expect(github.head).toBe(head);
+    expect(github.commits.size).toBe(commits);
+    await run(c, 'save');
+    await answer(c);
+    await answer(c, { token: TOKEN });
+    await until(async () => github.head !== head, 'explicit save after pull');
+    expect(github.file()).toContain('Portal (local pull)');
+    expect(github.branchesMade).toBe(branches);
+    await panel.waitFor({ state: 'detached' });
   }, 60_000);
 });

@@ -20,9 +20,9 @@ export interface GitBinding {
   webUrl: string;
   branch: string;
   path: string;
-  /** The file's version the model was opened or last saved at. */
+  /** The file's version last incorporated by opening, saving or pulling. */
   version: string;
-  /** The commit it was opened or last saved at — a new branch starts there. */
+  /** The incorporated commit — a new branch starts there; undo does not rewind it. */
   commit: string;
   /**
    * Another branch merged into the model (*Update from main*), not yet
@@ -48,7 +48,10 @@ export class GitBindings {
   constructor(private readonly storage: Storage | undefined = safeLocalStorage()) {}
 
   get(modelIri: string): GitBinding | undefined {
-    return this.memory.get(modelIri) ?? this.all()[modelIri];
+    const binding = this.memory.get(modelIri) ?? this.all()[modelIri];
+    // Another tab may persist a newer base without this editor incorporating it.
+    if (binding) this.memory.set(modelIri, binding);
+    return binding;
   }
 
   set(modelIri: string, binding: GitBinding): void {

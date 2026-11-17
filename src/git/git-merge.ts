@@ -55,6 +55,14 @@ export interface MergeSupport {
 /** How many times a merge is tried again when the branch moves on while merging. */
 export const MERGE_ATTEMPTS = 3;
 
+/** Reconcile and apply once, without committing; shared by Pull and Save. */
+export function reconcile(merge: MergeSupport, base: string[], ours: string[], theirs: string[]) {
+  const result = mergeSnapshots(base, ours, theirs, merge.options());
+  const changed = !sameLines(result.merged, ours);
+  if (changed) merge.replace(result.merged);
+  return { ...result, changed };
+}
+
 /**
  * Merge the model with the newer version of its file and commit the result —
  * the first choice when a save is refused. `undefined` when nothing was
@@ -87,8 +95,7 @@ export async function mergeWithNewer(
     }
     const theirs = snapshotOfText(there.text, path);
     const ours = snapshotOfText(ctx.serialize(target.format), path);
-    const { merged, conflicts } = mergeSnapshots(base, ours, theirs, merge.options());
-    if (!sameLines(merged, ours)) merge.replace(merged);
+    const { merged, conflicts } = reconcile(merge, base, ours, theirs);
     binding = { ...binding, version: there.version, commit: head };
 
     if (conflicts.length > 0) {
@@ -284,6 +291,6 @@ export async function updateFromBranch(ctx: GitSaveContext): Promise<CommitResul
   }
 }
 
-function sameLines(a: readonly string[], b: readonly string[]): boolean {
+export function sameLines(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((line, i) => line === b[i]);
 }

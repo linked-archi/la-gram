@@ -18,6 +18,7 @@ import { GitError, setDesktop } from './errors.js';
 import type { GitConfig } from '../config.js';
 import { saveToGit, type GitSaveContext } from './git-save.js';
 import { updateFromBranch } from './git-merge.js';
+import { pullFromGit } from './git-pull.js';
 import { openMergeRequest } from './git-review.js';
 import { gitHistorySource, historyKey } from './git-history.js';
 import type { HistoryGitSource } from '../ui/panels/history-panel.js';
@@ -79,6 +80,11 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   const mine = personal().rememberByDefault;
   if (mine !== undefined && tokens.rememberLabel) tokens.rememberByDefault = mine;
   const { eventBus } = app.components;
+  let generation = 0;
+  let stopped = false;
+  let running = false;
+  const onLoaded = () => { generation++; };
+  eventBus.on('model-loaded', onLoaded);
 
   const openContext: GitOpenContext = {
     dialogs: ui.dialogs,
@@ -122,6 +128,32 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     gitSettingsSection({ config, personal: settings, tokens, hostKinds, report: (message) => ui.report(message) }),
   );
 
+  // One manual Git flow per editor: a late pull must not race a save or reopen.
+  const run = async (id: string, address?: string): Promise<void> => {
+    if (stopped) return;
+    if (running) {
+      ui.report('A Git operation is in progress. Wait for it to finish.', 'warning');
+      return;
+    }
+    running = true;
+    const started = generation;
+    try {
+      if (id === 'open') await openFromGit(openContext, address);
+      else if (id === 'save') await saveToGit(context);
+      else if (id === 'save-as') await saveToGit(context, true);
+      else if (id === 'pull') await pullFromGit({
+        ...context,
+        current: () => !stopped && generation === started,
+        room: () => app.collaborationRoom,
+        changed: () => eventBus.emit('model-changed', { origin: 'git' }),
+      });
+      else if (id === 'update') await updateFromBranch(context);
+      else if (id === 'review') await openMergeRequest(context);
+    } finally {
+      running = false;
+    }
+  };
+
   const removeMenu = ui.addFileMenu(
     'git',
     () => {
@@ -133,19 +165,14 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
           ? { id: 'save', section: 'save' as const, label: 'Save to Git', hint: `${binding.repository} · ${binding.branch}` }
           : { id: 'save', section: 'save' as const, label: 'Save to Git…', hint: 'GitHub, GitLab' },
         ...(binding ? [{ id: 'save-as', section: 'save' as const, label: 'Save to Git as…', hint: 'another branch or file' }] : []),
+        ...(binding && !app.collaborationRoom ? [{ id: 'pull', section: 'save' as const, label: 'Pull from Git', hint: `${binding.repository} · ${binding.branch}` }] : []),
         ...(binding ? [{ id: 'update', section: 'save' as const, label: 'Update from main…', hint: `merge another branch into ${binding.branch}` }] : []),
         ...(binding
           ? [{ id: 'review', section: 'save' as const, label: 'Open merge request…', hint: `${binding.provider === 'github' ? 'a pull request ' : ''}from ${binding.branch}` }]
           : []),
       ];
     },
-    async (id) => {
-      if (id === 'open') await openFromGit(openContext);
-      else if (id === 'save') await saveToGit(context);
-      else if (id === 'save-as') await saveToGit(context, true);
-      else if (id === 'update') await updateFromBranch(context);
-      else if (id === 'review') await openMergeRequest(context);
-    },
+    run,
   );
 
   // The History tab: the bound file's commits, one source per file and commit bound.
@@ -167,12 +194,14 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     return history.source;
   });
 
-  if (options.open) await openFromGit(openContext, options.open);
+  if (options.open) await run('open', options.open);
 
   return {
     context,
     openContext,
     stop() {
+      stopped = true;
+      eventBus.off('model-loaded', onLoaded);
       removeMenu();
       removeSettings();
       removeHistory();

@@ -166,6 +166,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 
 ### Task 19: Git storage (Req 18) — an optional module
 In three parts, each reviewed before the next.
+- [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Periodic checks and auto-commit remain in [git-sync Stages 2–3](../../tasks/git-sync/tasks.md).
 - [x] **1. Document** (2026-10-19): Req 18; design — *Git storage (optional module)*
 - [x] **2. Save to Git** (2026-10-19)
   - [x] The switch: `LA_GRAM_GIT` in the build (the module's own chunk, not emitted when off); a setting on this machine, on by default (*File › Modules…*); `?git=off` — `src/modules.ts` — *modules.test, module-boundary.test, workbench.spec*
@@ -373,6 +374,8 @@ Agreed order; relationship visuals come first.
   - a shared room committed to Git by the person who shares it.
 
   Planned from `docs/git-collaboration-spec.md`, with its corrections; the plan is in `.agents/tasks/git-collaboration/tasks.md`.
+- [x] **Git synchronization Stage 1: manual Pull from Git** — implemented (2026-11-17), Req 18.24: current-branch pull without committing, preserving local edits with the existing merge/conflict flow. [Plan and remaining stages](../../tasks/git-sync/README.md); *git-pull.test, git-module.test, git-merge.test, git-merge.spec*.
+- [ ] **Git synchronization Stages 2–3: regular checks and optional auto-commit** — recorded (2026-11-17), not started: configurable remote checks and optional clean-only pull; then per-destination idle/interval commits, remote reconciliation first and pause on conflicts. Manual commits remain the default. History stays demand-loaded. Shared rooms and their committer remain in Git collaboration Phase 4. [Checklist](../../tasks/git-sync/tasks.md).
 - [x] **The History tab shows the Git history too** (Task 21) — done (2026-11-05), with Phase 2 of the Git collaboration plan: for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes by element and *Open this version*.
 - [x] **Configuration** (Task 20, Req 19) — done (2026-10-19): the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). See the change log.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
@@ -387,6 +390,9 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Known limitations
+
+- Git synchronization is manual. Pull is available outside shared rooms, and waits for unresolved
+  conflicts or pending branch merges to be finished. Periodic checks and automatic commits are pending.
 
 1. ~~**One placement per element per view.**~~ An element may be placed more than once since 2026-11-06 (Req 3.14), and a relationship drawn more than once; Exchange imports draw them so.
 2. ~~**Visual groups and free-standing labels** are not drawn~~ — drawn since 2026-11-06 as figures (Req 3.13): groups, notes, and the core-vis shapes from the toolbar; an Exchange file's `Container` and `Label` import as a group and a note, and lines from them (since 2026-11-06) as lines standing for no relationship; `archimate2linkedarchi` writes them so since 2026-11-07 (core-vis 0.7).
@@ -406,6 +412,35 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-17 — pull the bound branch without committing
+
+- *File › Pull from Git* incorporates the bound file at a pinned branch head, preserving local edits
+  through the existing three-way merge and Conflicts tab (Req 18.24; key design decision 29).
+  Reconciliation is shared with Save’s merge-with-newer path; Pull never commits or creates a branch.
+- The latest snapshot is captured after all reads, so in-flight edits and local-file saves cannot lose
+  changes. A changed pull is undoable; a no-op adds no step, and undo leaves the incorporated Git base
+  in place. Bindings remain independent in open editors. Lifecycle/binding checks discard obsolete
+  replies, and a busy guard prevents overlapping manual Git menu actions.
+- Tests: *git-pull.test* covers both providers, clean/dirty/no-op pulls, conflicts and a later save,
+  undo semantics, pinned heads, edits in flight, invalid/missing versions and authentication;
+  *git-module.test* covers the menu, rooms, concurrent actions, reload and stop;
+  *git-merge.spec* covers keyboard invocation, real undo/redo, history, and pull conflicts in Chrome.
+  Existing save/branch-merge coverage is retained in *git-merge.test*.
+- Verified: type checking, 2,559 unit tests, 86 browser tests, web/desktop/CLI build, strict docs build
+  and `git diff --check` pass. The existing review browser test waits for the first response before
+  starting its next Git action.
+- Limits: no new pull in shared rooms, unresolved conflicts or pending branch merges; unmatched blank
+  nodes stop a pull. Periodic checks and automatic commits remain queued in git-sync Stages 2–3.
+
+
+### 2026-11-17 — plan Git synchronization before implementation
+
+- Recorded manual pull, periodic remote checks with optional clean-only pull, and opt-in idle/interval
+  commits beside the existing pending Git collaboration work. The task folder has planned requirements
+  GS-1–GS-24, design and a staged checklist, including preservation of edits made during requests and
+  conflict pause/resume. Shared-room Phase 4 stays pending. This is a planning change; no synchronization
+  behaviour is implemented. [Plan](../../tasks/git-sync/README.md).
 
 ### 2026-11-17 — inspect the direct type beside its picker
 
