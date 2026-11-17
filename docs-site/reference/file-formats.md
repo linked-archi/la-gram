@@ -147,6 +147,15 @@ Turtle reads `m:element-…`, `m:view-…`, `m:node-…`. Opening a file keeps t
 without `rdf:reifies` is given the triple its type's predicate names, and one whose triple names other ends
 than its `arch:source` and `arch:target` is made to name its own, its predicate kept.
 
+**A link written only as a triple** is a relationship once the file is open. A tool or a hand-written file
+may state `m:card-payment am4:serves m:web-shop` and nothing more; la-gram gives it the resource, of the most
+general type whose predicate it is (`am4:Serving`), named `relationship-` and the SHA-1 of the triple's three
+IRIs, space-separated — the name the Linked.Archi derivation rules give it, so opening the file again, or in
+another window of a shared room, makes no second one. A triple of the inverse a vocabulary declares of a drawn
+predicate (`ap:taskOfActivity`, of `ap:hasTask`) is the same link read the other way: its resource, and its
+drawn triple, run the drawn way. A triple between something that is no concept of the model, or of a predicate
+two unrelated types share, is left as it is. The file changes on the next save.
+
 The Serving from *Card payment* to *Web shop*, as la-gram writes it:
 
 ```turtle

@@ -45,6 +45,7 @@ const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedN
 import { isQualifiedPredicate, qualifiedFormOf, relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 import { certaintyNamed, isCertaintyPredicate, isLedTo } from './derivations.js';
 import { AUTO_LAYOUT } from './grid.js';
+import { sha1Hex } from './short-hash.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -62,6 +63,8 @@ export interface AdoptResult {
   migration: MigrationReport;
   /** Elements placed by the automatic layout (0 when the model had geometry). */
   autoPlaced: number;
+  /** Relationships the model stated only as a direct triple, now each a resource (see `ensureRelationshipResources`). */
+  qualified: number;
 }
 
 export class ModelSession {
@@ -201,6 +204,7 @@ export class ModelSession {
     const unstated = this.unstated();
     this.ensureMembership(modelIri, unstated);
     this.ensureReifies();
+    const qualified = this.ensureRelationshipResources(modelIri);
     this.ensureQualifiedPointers(unstated);
 
     // A view to open: the first diagram, else a new one.
@@ -212,7 +216,7 @@ export class ModelSession {
       this.events?.emit('model-loaded', { modelIri, viewIri });
       this.events?.emit('view-opened', { viewIri });
     }
-    return { modelIri, viewIri, migration, autoPlaced };
+    return { modelIri, viewIri, migration, autoPlaced, qualified };
   }
 
   /** Rename the model. */
@@ -540,6 +544,110 @@ export class ModelSession {
     }
     if (remove.length > 0) this.store.removeQuads(remove);
     if (add.length > 0) this.store.addQuads(add);
+  }
+
+  /**
+   * Make a relationship resource for every relationship the model states only as a direct triple — a file
+   * written by a tool or by hand, `?option ad:modifiesConcept ?component`, or an ArchiMate file of bare
+   * `am4:serves` — so that it is listed, drawn and given properties as any other is (decision D6 of
+   * linked-archi-meta's `decision-modelling-layer` task).
+   *
+   * A triple qualifies when a loaded relationship class names its predicate as its `arch:unqualifiedForm`,
+   * both ends are concepts of the model, and no resource reifies it. The resource is what meta's rules make of
+   * it (the ArchiMate derivation rules' `:QualifyRelationships`): the most general class of that form (a bare
+   * triple says no more than that), `arch:source` and `arch:target`, `rdf:reifies` the triple, and the IRI
+   * `relationship-` + the SHA-1 of "s p o" in the model's namespace. So two windows opening the same file in
+   * one collaboration room, or a run of the rules, make the same resource, not two. It gets `arch:inModel`, and
+   * {@link ensureQualifiedPointers}, after it, the qualified predicate from its source.
+   *
+   * A triple of a predicate declared the `owl:inverseOf` of a drawn one (`?task ap:taskOfActivity ?activity`,
+   * of `ap:hasTask`) is the same link read the other way: the resource is made for the drawn direction, and
+   * that direction's triple is stated beside the one the file has, as a drawn link states it.
+   *
+   * A predicate two unrelated classes name as their form is left as a triple: which of them it is, the
+   * triple does not say.
+   *
+   * @returns How many resources were made.
+   */
+  private ensureRelationshipResources(modelIri: string): number {
+    const closure = typeClosure(this.store);
+    const candidates = new Map<string, Set<string>>();
+    for (const q of this.store.getQuads(null, T.unqualifiedForm, null)) {
+      if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+      if (!closure(q.subject.value).includes(IRI.QualifiedRelationship)) continue;
+      const set = candidates.get(q.object.value) ?? new Set<string>();
+      set.add(q.subject.value);
+      candidates.set(q.object.value, set);
+    }
+    const classOf = new Map<string, string>();
+    for (const [predicate, classes] of candidates) {
+      const general = [...classes].filter((c) => !closure(c).some((parent) => parent !== c && classes.has(parent)));
+      if (general.length === 1) classOf.set(predicate, general[0]!);
+    }
+    if (classOf.size === 0) return 0;
+    // A predicate read the other way: its inverse is drawn.
+    const reversedOf = new Map<string, string>();
+    for (const q of this.store.getQuads(null, T.inverseOf, null)) {
+      if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+      const [x, y] = [q.subject.value, q.object.value];
+      if (classOf.has(y) && !classOf.has(x)) reversedOf.set(x, y);
+      if (classOf.has(x) && !classOf.has(y)) reversedOf.set(y, x);
+    }
+
+    const model = MODEL_GRAPH;
+    const reified = new Set<string>();
+    for (const q of this.store.getQuads(null, T.reifies, null, model)) {
+      if (q.object.termType !== 'Quad') continue;
+      const term = q.object as unknown as Quad;
+      reified.add(`${term.subject.value} ${term.predicate.value} ${term.object.value}`);
+    }
+    const typesOf = new Map<string, string[]>();
+    for (const q of this.store.getQuads(null, T.rdfType, null, model)) {
+      if (q.subject.termType !== 'NamedNode') continue;
+      const list = typesOf.get(q.subject.value) ?? [];
+      list.push(q.object.value);
+      typesOf.set(q.subject.value, list);
+    }
+    const isConcept = (iri: string): boolean => {
+      const types = typesOf.get(iri);
+      if (!types) return false;
+      const kind = classify(types, closure, true);
+      return kind === 'element' || kind === 'relationship' || kind === 'unclassified';
+    };
+
+    const namespace = ensureNamespace(this.currentNamespace ?? readModelNamespace(this.store, modelIri).namespace);
+    const add: Quad[] = [];
+    let made = 0;
+    const qualify = (source: string, predicate: string, target: string, stated: boolean): void => {
+      const key = `${source} ${predicate} ${target}`;
+      if (reified.has(key) || !isConcept(source) || !isConcept(target)) return;
+      reified.add(key);
+      made += 1;
+      const rel = nn(`${namespace}relationship-${sha1Hex(key)}`);
+      add.push(
+        triple(rel, T.rdfType, nn(classOf.get(predicate)!)),
+        triple(rel, T.source, nn(source)),
+        triple(rel, T.target, nn(target)),
+        triple(rel, T.reifies, tripleTerm(nn(source), nn(predicate), nn(target))),
+        triple(rel, T.inModel, nn(modelIri)),
+      );
+      if (!stated) add.push(triple(nn(source), nn(predicate), nn(target)));
+    };
+    for (const predicate of classOf.keys()) {
+      for (const q of this.store.getQuads(null, nn(predicate), null, model)) {
+        if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+        qualify(q.subject.value, predicate, q.object.value, true);
+      }
+    }
+    for (const [inverse, predicate] of reversedOf) {
+      for (const q of this.store.getQuads(null, nn(inverse), null, model)) {
+        if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+        const stated = this.store.getQuads(nn(q.object.value), nn(predicate), nn(q.subject.value), model).length > 0;
+        qualify(q.object.value, predicate, q.subject.value, stated);
+      }
+    }
+    if (add.length > 0) this.store.addQuads(add);
+    return made;
   }
 
   /**

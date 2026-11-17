@@ -54,7 +54,7 @@ The row at the bottom adds one: *Add a property…*, a value, and *Add*.
 
 | What | Offers |
 |---|---|
-| *Add a property…* | what applies to its type (by the vocabularies' `rdfs:domain` and the SHACL shapes), what the model already uses, and documentation properties; or any name, prefixed name or IRI typed |
+| *Add a property…* | what applies to its type (by the vocabularies' `rdfs:domain` and the SHACL shapes) — its links among them, `ad:hasDecisionGoal` for a decision, but not those drawn as relationships on the canvas — what the model already uses, and documentation properties; or any name, prefixed name or IRI typed |
 | the value | a choice when the property's shape lists its values (`sh:in`); *true* or *false* for a boolean; for a link, the model's concepts by name (*Search the model, or type an address or text*); else text (*Value*) |
 
 1. Select "Web shop", and open *Properties*.

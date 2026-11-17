@@ -32,8 +32,8 @@ describe('bundled asset registry', () => {
   it('describes every bundled TTL with a role, graph IRI and path', () => {
     // Five core files (the core question set among them), thirteen per ArchiMate version (4.0 and 3.2,
     // their question sets among them), and Basic's six: manifest, ontology, taxonomy, its two notation
-    // sets and its presentation contexts.
-    expect(BUNDLED_ASSETS).toHaveLength(41);
+    // sets and its presentation contexts; four for each extension, decisions and processes.
+    expect(BUNDLED_ASSETS).toHaveLength(45);
     expect(getAssetsByRole('coreQuestions').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/core-questions#']);
     expect(getAssetsByRole('questions').map((a) => [a.metamodel, a.ontologyIri])).toEqual([
       ['archimate4', 'https://meta.linked.archi/archimate4/questions#'],
@@ -48,7 +48,7 @@ describe('bundled asset registry', () => {
 
   it('covers every single-valued role exactly once per bundled language', () => {
     const roles: BundledAssetRole[] = ['manifest', 'ontology', 'taxonomy', 'presentationContexts'];
-    for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'arch-decision')) {
+    for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'arch-decision' && m.id !== 'arch-processes')) {
       for (const role of roles) {
         expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
       }
@@ -60,6 +60,11 @@ describe('bundled asset registry', () => {
     expect(getAssetsByRole('taxonomy', 'arch-decision')).toHaveLength(1);
     expect(getAssetsByRole('shapes', 'arch-decision')).toHaveLength(1);
     expect(getAssetsByRole('presentationContexts', 'arch-decision')).toHaveLength(0);
+    // The processes extension, the same four.
+    for (const role of ['manifest', 'ontology', 'taxonomy', 'shapes'] as const) {
+      expect(getAssetsByRole(role, 'arch-processes'), `arch-processes/${role}`).toHaveLength(1);
+    }
+    expect(getAssetsByRole('ontology', 'arch-processes').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/arch-processes#']);
     for (const id of ['archimate4', 'archimate3']) {
       for (const role of ['notation', 'viewpoints', 'referenceData', 'questions'] as const) {
         expect(getAssetsByRole(role, id), `${id}/${role}`).toHaveLength(1);
@@ -252,5 +257,36 @@ describe('the bundled Architecture Decisions extension', () => {
     expect(unqualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}influencedByForce`);
     expect(qualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}hasInfluence`);
     expect(qualifiedFormOf(store, `${AD}ModifiesConcept`)).toBe(`${AD}qualifiedModifiesConcept`);
+  }, 60_000);
+
+  it('loads the bundled processes extension with no network: its three groups and ten relationship types in their categories', async () => {
+    const { OxigraphRdfStore } = await import('../../rdf-engine/rdf-store.js');
+    const { N3TtlParser } = await import('../../rdf-engine/ttl-parser.js');
+    const { N3MetamodelLoader } = await import('../metamodel-loader.js');
+    const { SparqlPaletteGenerator } = await import('../palette-generator.js');
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+    const processes = await loader.loadBundledMetamodel('arch-processes');
+    expect(processes.assets.filter((a) => a.outcome !== 'loaded' && a.outcome !== 'already-loaded')).toEqual([]);
+    const palette = new SparqlPaletteGenerator(store).generatePalette(undefined, {
+      metamodelIris: [processes.metamodelIri],
+      metamodels: [{
+        iri: processes.metamodelIri,
+        label: processes.info.name,
+        documents: processes.assets.map((a) => a.documentIri),
+        conceptDocuments: processes.assets.filter((a) => a.via === 'arch:modelConcepts').map((a) => a.documentIri),
+      }],
+    });
+    expect(palette.elementGroups.map((g) => g.category)).toEqual(['Process Structure', 'Deliverables', 'Roles']);
+    const own = palette.relationshipTypes.filter((r) => !r.core);
+    expect(own.map((r) => r.iri.replace('https://meta.linked.archi/arch-processes#', 'ap:')).sort()).toEqual([
+      'ap:ApprovedBy', 'ap:Governs', 'ap:HasActivity', 'ap:HasSubProcess', 'ap:HasTask',
+      'ap:Input', 'ap:MilestoneOfProcess', 'ap:Output', 'ap:PerformedBy', 'ap:Precedes',
+    ]);
+    expect(new Set(own.map((r) => r.category))).toEqual(
+      new Set(['Structure Links', 'Flow Links', 'Responsibility Links', 'Governance Links']),
+    );
+    expect(palette.completeness).toBeUndefined();
+    store.dispose();
   }, 60_000);
 });

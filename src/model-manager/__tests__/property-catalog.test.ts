@@ -175,3 +175,48 @@ describe('curieOf', () => {
     expect(curieOf('https://ex.org/a/b', prefixes)).toBe('https://ex.org/a/b');
   });
 });
+
+describe('PropertyCatalog.suggest — links', () => {
+  const AD = 'https://meta.linked.archi/arch-decision#';
+  let decisionApp: App;
+  let decisionCatalog: PropertyCatalog;
+  let decision: string;
+  let issue: string;
+
+  beforeAll(async () => {
+    decisionApp = await createApp({ assetMode: 'offline' });
+    await decisionApp.loadMetamodel('https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions');
+    const store = decisionApp.components.store;
+    const closure = typeClosure(store);
+    decisionCatalog = new PropertyCatalog(store, {
+      closure: () => closure,
+      prefixes: () => decisionApp.modelIO.collectPrefixes(decisionApp.session.modelIri),
+      modelNamespace: () => decisionApp.session.namespace()!.namespace,
+    });
+    const make = (type: string, label: string) =>
+      decisionApp.components.elementManager.createElement(AD + type, decisionApp.session.modelIri!, { label }).value;
+    decision = make('Decision', 'Payment routing');
+    issue = make('Issue', 'How to route payments');
+  }, 60_000);
+  afterAll(() => (decisionApp.components.store as { dispose?: () => void }).dispose?.());
+
+  it('offers a link its vocabulary gives the type, and none a relationship class draws', () => {
+    const offered = new Map(decisionCatalog.suggest(decision).map((s) => [s.iri, s.group]));
+    // Links for a decision, typed rather than drawn.
+    expect(offered.get(AD + 'hasDecisionGoal')).toBe('type');
+    expect(offered.get(AD + 'pertainsTo')).toBe('type');
+    expect(offered.get(AD + 'relatedDecision')).toBe('type');
+    // Drawn: the form of a relationship class, and its qualified predicate.
+    expect(offered.has(AD + 'hasSelectedOption')).toBe(false);
+    expect(offered.has(AD + 'qualifiedHasSelectedOption')).toBe(false);
+    expect(offered.has(AD + 'hasIssue')).toBe(false);
+    // A link of another type is not offered at all.
+    expect(offered.has(AD + 'hasRisk')).toBe(false);
+  });
+
+  it('nor the declared inverse of a drawn link', () => {
+    // ad:hasDecision is owl:inverseOf the drawn ad:hasIssue, from the issue's side.
+    const offered = decisionCatalog.suggest(issue).map((s) => s.iri);
+    expect(offered).not.toContain(AD + 'hasDecision');
+  });
+});

@@ -87,6 +87,7 @@ export const IRI = {
   rdfRest: NAMESPACES.rdf + 'rest',
   rdfNil: NAMESPACES.rdf + 'nil',
   subClassOf: NAMESPACES.rdfs + 'subClassOf',
+  inverseOf: NAMESPACES.owl + 'inverseOf',
   rdfsLabel: NAMESPACES.rdfs + 'label',
   prefLabel: NAMESPACES.skos + 'prefLabel',
   definition: NAMESPACES.skos + 'definition',

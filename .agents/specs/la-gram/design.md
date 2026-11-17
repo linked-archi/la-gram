@@ -280,6 +280,27 @@ the palette — and the canvas's menus, without redrawing the shapes
 (`updatePaletteDefinition(…, { iconsOnly: true })`) — take the drawn one. The
 swap waits on the network: a few seconds for a link that does not resolve.
 
+**Bare triples become relationships** (Req 4.22). `ModelSession.adopt` repairs a model as it opens —
+membership, `rdf:reifies`, qualified pointers — and `ensureRelationshipResources` runs between the second and
+the third: for each predicate some relationship class names as its `arch:unqualifiedForm`, the most general
+such class (a bare triple says no more), and for each `owl:inverseOf` of one, the drawn predicate read the
+other way; every model triple of those, both ends concepts of the model and not yet reified, gets a resource.
+Its IRI is `{namespace}relationship-{SHA-1 of "s p o"}` — the IRI meta's ArchiMate derivation rules give the
+same triple (`:QualifyRelationships`) — so the repair is idempotent and two clients adopting one room's data
+make one resource, not two: a random IRI, as a drawn link gets, would have made both. SHA-1 is computed
+synchronously (`sha1Hex`, `short-hash.ts`), as the repairs are; Web Crypto's is asynchronous. Making them on
+opening rather than when a link is placed on a view (decision D6 of meta's decision task) is what lists them
+under Relationships and lets a view draw them: the model changes on the next save, as the other repairs
+change it.
+
+**Links in the property picker** (Req 3.6). `PropertyCatalog.suggest` offers an object property by
+`rdfs:domain` or `arch:domainIncludes`, and leaves out what a relationship class draws: every
+`arch:unqualifiedForm`, the qualified predicates (which name one too), and the `owl:inverseOf` of either. A
+link whose only fitting domain is `arch:Element`, `arch:ModelConcept` or `owl:Thing` is not offered: core's
+are notation and metamodel authoring (`arch:prefVisNotation`, `arch:templateResource`,
+`arch:hasQualifiedRelationship`), and under *More* they took a typed name's Enter — "owner" became
+`arch:conceptOwner` rather than a new `m:owner`.
+
 **Element icons** (Req 2.26). An element type's icon is its descriptor's
 `arch:prefVisNotation`, else its `arch-vis:iconSymbol` badge glyph. A notation
 may name glyphs not yet published — LeanIX's, BPMN's, UML's and Backstage's

@@ -10,7 +10,7 @@ description: la-gram, the semantic modeller for enterprise and IT architecture, 
 The model lives in an RDF store; the diagram, the model tree, the files and the collaboration document
 are views of it. la-gram works with any metamodel that follows the Linked.Archi principles, loaded while
 it runs, so the palette, the relationship rules, the notation and the validation all come from data:
-ArchiMate 4.0, ArchiMate 3.2, Basic and the Architecture Decisions extension are bundled, every other language, framework and extension
+ArchiMate 4.0, ArchiMate 3.2, Basic and the Architecture Decisions and Architecture Processes extensions are bundled, every other language, framework and extension
 published on [meta.linked.archi](https://meta.linked.archi/) is a menu entry away, and your own loads from
 an address or a file.
 

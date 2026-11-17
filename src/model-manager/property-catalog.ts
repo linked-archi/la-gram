@@ -12,9 +12,19 @@
  * | group           | what                                                        |
  * |-----------------|-------------------------------------------------------------|
  * | `type`          | properties whose domain — or a SHACL shape — covers the concept's type |
+ * |                 | (a link by `rdfs:domain` or `arch:domainIncludes` more particular than `arch:Element`) |
  * | `model`         | properties the model already uses (custom ones included)    |
  * | `documentation` | SKOS / Dublin Core / PROV documentation properties          |
  * | `more`          | the rest that may apply: no declared domain                 |
+ *
+ * A link — an object property — that a loaded relationship class draws is not
+ * offered: its `arch:unqualifiedForm`, the inverse a vocabulary declares of one
+ * (`ap:taskOfActivity`, of the drawn `ap:hasTask`), and a qualified predicate,
+ * which leads to a relationship resource. Those are made on the canvas, where a
+ * link is a line with a resource behind it, not a value typed here. Nor is a link
+ * whose domain is any element (`arch:Element`, `arch:ModelConcept`, `owl:Thing`):
+ * core's are metamodel authoring and notation (`arch:templateResource`,
+ * `arch:prefVisNotation`), and the rest can be typed.
  *
  * A property whose domain is some other class is not offered — it does not
  * apply — nor is one its vocabulary deprecates (`owl:deprecated true`, as
@@ -162,6 +172,27 @@ export class PropertyCatalog {
     const objectProperties = new Set(
       store.getQuads(null, T.rdfType, nn(NAMESPACES.owl + 'ObjectProperty')).map((q) => q.subject.value),
     );
+    // Links: by domain too, except what a relationship class draws (see the module doc).
+    const drawn = new Set<string>();
+    for (const q of store.getQuads(null, T.unqualifiedForm, null)) {
+      drawn.add(q.object.value);
+      // The qualified predicate names the form too: it leads to the resource.
+      if (objectProperties.has(q.subject.value)) drawn.add(q.subject.value);
+    }
+    for (const q of store.getQuads(null, nn(NAMESPACES.owl + 'inverseOf'), null)) {
+      if (drawn.has(q.object.value)) drawn.add(q.subject.value);
+      else if (drawn.has(q.subject.value)) drawn.add(q.object.value);
+    }
+    const anyElement = new Set([IRI.Element, IRI.ModelConcept, NAMESPACES.owl + 'Thing']);
+    for (const iri of objectProperties) {
+      if (drawn.has(iri)) continue;
+      const domains = [
+        ...store.getQuads(nn(iri), nn(NAMESPACES.rdfs + 'domain')),
+        ...store.getQuads(nn(iri), nn(NAMESPACES.arch + 'domainIncludes')),
+      ].map((d) => d.object.value);
+      if (domains.some((d) => applicable.has(d) && !anyElement.has(d))) offer(iri, 'type');
+    }
+
     for (const kind of ['DatatypeProperty', 'AnnotationProperty']) {
       for (const q of store.getQuads(null, T.rdfType, nn(NAMESPACES.owl + kind))) {
         if (q.subject.termType !== 'NamedNode' || q.graph.termType === 'DefaultGraph') continue;

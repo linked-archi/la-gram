@@ -167,6 +167,8 @@ la-gram ships, in `assets/`, a snapshot of what meta.linked.archi serves for:
 - **Basic**, the generic language, whose Connection relates any two elements;
 - **Architecture Decisions**, the extension for decision records — issues, decisions, options and the
   forces on them — to add beside a language;
+- **Architecture Processes**, the extension for the architecture practice's own processes — a process, its
+  activities and tasks, milestones, deliverables and roles, and what it governs — to add beside a language;
 - the core vocabularies: core, core-vis, the core shapes and the core questions;
 - their icons and the relationship-end markers;
 - the catalogue, `assets/catalog.ttl`.

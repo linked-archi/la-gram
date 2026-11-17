@@ -20,6 +20,7 @@
  * assets/basic/*.ttl                     ← Basic, the generic language
  * assets/basic/icons/, basic/notation-bubble/icons/ ← its two notations' icons
  * assets/arch-decision/*.ttl             ← the Architecture Decisions extension
+ * assets/arch-processes/*.ttl            ← the Architecture Processes extension
  * assets/catalog.ttl                     ← meta.linked.archi's catalogue
  * ```
  *
@@ -212,6 +213,12 @@ export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
     manifestIri: 'https://meta.linked.archi/arch-decision/metamodel#',
     label: 'Architecture Decisions',
   },
+  {
+    id: 'arch-processes',
+    metamodelIri: 'https://meta.linked.archi/arch-processes/metamodel#ArchitectureProcesses',
+    manifestIri: 'https://meta.linked.archi/arch-processes/metamodel#',
+    label: 'Architecture Processes',
+  },
 ];
 
 /** The metamodel loaded when nothing else is asked for. */
@@ -337,6 +344,12 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
   { role: 'ontology', ontologyIri: 'https://meta.linked.archi/arch-decision#', path: 'arch-decision/arch-decision-onto.ttl', metamodel: 'arch-decision' },
   { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/arch-decision/tax#', path: 'arch-decision/arch-decision-tax.ttl', metamodel: 'arch-decision' },
   { role: 'shapes', ontologyIri: 'https://meta.linked.archi/arch-decision-shapes#', path: 'arch-decision/arch-decision-shapes.ttl', metamodel: 'arch-decision' },
+  // The processes extension, as the decision one: its vocabulary and shapes flat, its taxonomy and manifest nested.
+  // LeanIX and EA on a Page import its vocabulary, which loads from here too.
+  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/arch-processes/metamodel#', path: 'arch-processes/arch-processes-metamodel.ttl', metamodel: 'arch-processes' },
+  { role: 'ontology', ontologyIri: 'https://meta.linked.archi/arch-processes#', path: 'arch-processes/archProcesses.ttl', metamodel: 'arch-processes' },
+  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/arch-processes/tax#', path: 'arch-processes/arch-processes-tax.ttl', metamodel: 'arch-processes' },
+  { role: 'shapes', ontologyIri: 'https://meta.linked.archi/arch-processes-shapes#', path: 'arch-processes/archProcesses-shapes.ttl', metamodel: 'arch-processes' },
 ];
 
 // ── Registry lookups ───────────────────────────────────────────────────
