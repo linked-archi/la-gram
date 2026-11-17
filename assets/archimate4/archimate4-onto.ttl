@@ -34,8 +34,9 @@ duplicated per layer (e.g., BusinessProcess, ApplicationProcess, TechnologyProce
 merged into single cross-domain elements (Process, Function, Event, Service). New Common
 Domain elements (Role, Collaboration, Path) are introduced as generic, domain-independent
 concepts. Each relationship class has as its skos:notation the letter the relationship tables of
-the specification write it with (c composition, r realization, v serving …). This is not an
-official Open Group document.'''@en ;
+the specification write it with (g aggregation, r realization, v serving …); composition, which
+the 4.0 tables write as g too, keeps the c of the 3.2 tables. This is not an official Open Group
+document.'''@en ;
     dcterms:created               "2026-04-19"^^xsd:date ;
     dcterms:issued                "2026-04-29"^^xsd:date ;
     dcterms:modified              "2026-10-10"^^xsd:date ;
@@ -94,7 +95,7 @@ can coexist for migration purposes.'''@en ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Behavior-Elements> ;
-    skos:definition      '''An internal behavior element represents a unit of activity that can be performed by one or more internal active structure elements.'''@en ;
+    skos:definition      '''Behavior elements represent the dynamic aspects of an enterprise.'''@en ;
     skos:scopeNote       "Superclass for all behavior: processes, functions, events, services, capabilities, value streams, courses of action, and work packages. In 4.0, core behavior elements (Process, Function, Event, Service) are cross-domain — they belong to the Common Domain."@en ;
 .
 
@@ -103,8 +104,12 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      :BehaviorElement ;
     arch:isAbstractClass true ;
     skos:prefLabel       "InternalBehaviorElement"@en ;
-    skos:definition      "Internal behaviour elements — units of activity performed by active structure elements."@en ;
-    skos:scopeNote       "Processes and functions. Realized by internal active structure via assignment. Realizes external behaviour (services)."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Behavior-Elements> ;
+    skos:definition      '''An internal behavior element represents a unit of activity that can be performed by one or more internal active structure elements.'''@en ;
+    skos:scopeNote       "Processes and functions. Performed by the internal active structure elements assigned to them; they realize external behaviour (services)."@en ;
 .
 
 :ExternalBehaviorElement
@@ -112,16 +117,12 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      :BehaviorElement ;
     arch:isAbstractClass true ;
     skos:prefLabel       "ExternalBehaviorElement"@en ;
-    skos:definition      "External behaviour elements (services) — explicitly defined exposed behaviour."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Behavior-Elements>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Behavior-Elements> ;
+    skos:definition      '''An external behavior element, called a service, represents an explicitly defined behavior, exposed to the environment.'''@en ;
     skos:scopeNote       "Services offered to consumers. Realized by internal behaviour and exposed through interfaces."@en ;
-.
-
-:EventElement
-    a                    owl:Class ;
-    rdfs:subClassOf      :BehaviorElement ;
-    arch:isAbstractClass true ;
-    skos:prefLabel       "EventElement"@en ;
-    skos:definition      "Event elements — state changes that trigger or are triggered by other behaviour."@en ;
 .
 
 
@@ -142,7 +143,7 @@ can coexist for migration purposes.'''@en ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Active-Structure-Elements> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Active-Structure-Elements>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Active-Structure-Elements> ;
-    skos:definition      '''An internal active structure element represents an entity that is capable of performing behavior.'''@en ;
+    skos:definition      '''Active structure elements are the subjects that can perform behavior.'''@en ;
     skos:scopeNote       "Superclass for all performers: internal active structure (actors, components, nodes, roles, collaborations) and external active structure (interfaces). Also includes paths, communication networks, and distribution networks."@en ;
 .
 
@@ -155,7 +156,7 @@ can coexist for migration purposes.'''@en ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Active-Structure-Elements> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Active-Structure-Elements>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Active-Structure-Elements> ;
-    skos:definition      "An internal active structure element represents an entity capable of performing behavior."@en ;
+    skos:definition      '''An internal active structure element represents an entity that is capable of performing behavior.'''@en ;
     skos:scopeNote       "The performers — actors, roles, collaborations, components, nodes, devices, system software, equipment, facilities. Connected to behavior via assignment. In 4.0, Role and Collaboration are generic Common Domain elements."@en ;
 .
 
@@ -168,8 +169,8 @@ can coexist for migration purposes.'''@en ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Active-Structure-Elements> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Active-Structure-Elements>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Active-Structure-Elements> ;
-    skos:definition      '''An internal active structure element represents an entity that is capable of performing behavior.'''@en ;
-    skos:scopeNote       "Interfaces expose services to the environment and hide internal complexity. Typically composed by the internal active structure element they belong to. Assigned to the services they expose."@en ;
+    skos:definition      '''An external active structure element, called an interface, represents a point of access where an internal active structure element makes one or more services available to its environment.'''@en ;
+    skos:scopeNote       "Interfaces expose services to the environment and hide internal complexity. Typically aggregated by the internal active structure element they belong to. Assigned to the services they expose."@en ;
 .
 
 :PassiveStructureElement
@@ -182,7 +183,7 @@ can coexist for migration purposes.'''@en ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Passive-Structure-Elements>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Passive-Structure-Elements> ;
     skos:definition      '''A passive structure element represents an element on which behavior is performed.'''@en ;
-    skos:scopeNote       "Objects acted upon by behavior — business objects, data objects, artifacts, materials, deliverables, and resources. Connected to behavior via access relationships (read, write, read-write)."@en ;
+    skos:scopeNote       "Objects acted upon by behavior — business objects, data objects, artifacts, materials, and deliverables. Connected to behavior via access relationships (read, write, read-write)."@en ;
 .
 
 :MotivationElement
@@ -190,11 +191,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "MotivationElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Motivation-Elements-Metamodel> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Motivation-Elements-Metamodel> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Motivation-Elements-Metamodel>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Motivation-Elements-Metamodel> ;
-    skos:definition      "A motivation element represents the context of or reason behind the architecture."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Motivation-Elements> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Motivation-Elements> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Motivation-Elements>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Motivation-Elements> ;
+    skos:definition      '''A motivation element represents the context of or reason behind the architecture of an enterprise.'''@en ;
     skos:scopeNote       "The 'why' behind the architecture: stakeholders, drivers, assessments, goals, outcomes, principles, requirements, meanings, and values. Connected to other elements via influence relationships."@en ;
 .
 
@@ -207,7 +208,7 @@ can coexist for migration purposes.'''@en ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html#sec-Composite-Elements> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html#sec-Composite-Elements>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Composite-Elements> ;
-    skos:definition      "Composite elements consist of other concepts, possibly from multiple aspects or domains."@en ;
+    skos:definition      '''Unlike elements from the active structure, behavior, and passive structure aspects, composite elements are collections of concepts that can be from multiple aspects of the language.'''@en ;
     skos:scopeNote       "Elements that cross aspect boundaries: products (bundle services and objects), groupings (generic containers), locations (physical or logical places), and plateaus (stable architecture states)."@en ;
 .
 
@@ -216,11 +217,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "StrategyElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#sec-Strategy-Elements-Metamodel>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Strategy-Elements-Metamodel> ;
-    skos:definition      "Strategy elements represent strategic concepts used to model the enterprise at a high level."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#chap07> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#chap07> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap07.html#chap07>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#chap07> ;
+    skos:definition      '''The strategy elements are typically used to model the strategic direction and choices of an enterprise, as far as the impact on its architecture is concerned.'''@en ;
     skos:scopeNote       "High-level planning elements: capabilities (what the organization can do), value streams (how value is delivered), courses of action (plans), and resources (assets). Realized by elements from other domains."@en ;
 .
 
@@ -243,11 +244,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "CommonDomainElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html#sec-Common-Domain-Active-Structure-Elements> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html#sec-Common-Domain-Active-Structure-Elements> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html#sec-Common-Domain-Active-Structure-Elements>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Common-Domain-Active-Structure-Elements> ;
-    skos:definition      "Common Domain elements are generic, cross-domain concepts shared across Business, Application, and Technology."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Domains-of-the-ArchiMate-Language> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Domains-of-the-ArchiMate-Language> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap03.html#sec-Domains-of-the-ArchiMate-Language>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Domains-of-the-ArchiMate-Language> ;
+    skos:definition      '''The Common Domain contains generic elements (in particular behavior elements) that can be used in combination with elements from different domains.'''@en ;
     skos:scopeNote       "New in 4.0. Contains behavior elements (Process, Function, Event, Service) that were previously duplicated per layer, plus generic active structure (Role, Collaboration, Path) and composite elements (Grouping, Location). Use domain-specific assignment to indicate context."@en ;
 .
 
@@ -256,11 +257,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "BusinessDomainElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap08.html#sec-business-Active-Structure-Elements> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap08.html#sec-business-Active-Structure-Elements> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap08.html#sec-business-Active-Structure-Elements>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-business-Active-Structure-Elements> ;
-    skos:definition      "Business Domain elements represent concepts specific to the business domain."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap08.html#chap08> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap08.html#chap08> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap08.html#chap08>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#chap08> ;
+    skos:definition      '''Business Domain elements are used to model the operational organization of an enterprise in a technology-independent manner, whereas strategy elements (see :StrategyElement) are used to model the strategic direction and choices of the enterprise.'''@en ;
     skos:scopeNote       "Domain marker for business-specific elements: actors, interfaces, objects, and products. Behavior is modeled using Common Domain elements assigned to business actors."@en ;
 .
 
@@ -269,11 +270,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "ApplicationDomainElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html#sec-application-Active-Structure-Elements> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html#sec-application-Active-Structure-Elements> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html#sec-application-Active-Structure-Elements>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-application-Active-Structure-Elements> ;
-    skos:definition      "Application Domain elements represent concepts specific to the application domain."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html#chap09> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html#chap09> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap09.html#chap09>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#chap09> ;
+    skos:definition      '''The Application Domain elements are typically used to model the Application Architecture that describes the structure, behavior, and interaction of the applications of the enterprise.'''@en ;
     skos:scopeNote       "Domain marker for application-specific elements: components, interfaces, and data objects. Behavior is modeled using Common Domain elements assigned to application components."@en ;
 .
 
@@ -282,11 +283,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "TechnologyDomainElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html#sec-technology-Active-Structure-Elements> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html#sec-technology-Active-Structure-Elements> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html#sec-technology-Active-Structure-Elements>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-technology-Active-Structure-Elements> ;
-    skos:definition      "Technology Domain elements represent concepts specific to the technology and physical domain."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html#chap10> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html#chap10> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap10.html#chap10>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#chap10> ;
+    skos:definition      '''The Technology Domain elements are typically used to model the Technology Architecture of the enterprise, describing the structure and behavior of the technology infrastructure of the enterprise.'''@en ;
     skos:scopeNote       "Domain marker for technology and physical elements: nodes, devices, system software, networks, equipment, facilities, artifacts, and materials. Merges the 3.x Technology and Physical layers."@en ;
 .
 
@@ -295,11 +296,11 @@ can coexist for migration purposes.'''@en ;
     rdfs:subClassOf      arch:Element ;
     arch:isAbstractClass true ;
     skos:prefLabel       "ImplementationAndMigrationDomainElement"@en ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#sec-Implementation-and-Migration-Elements-Metamodel> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#sec-Implementation-and-Migration-Elements-Metamodel> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#sec-Implementation-and-Migration-Elements-Metamodel>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Implementation-and-Migration-Elements-Metamodel> ;
-    skos:definition      "Implementation and Migration Domain elements support planning and execution of architecture changes."@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#chap12> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#chap12> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#chap12>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#chap12> ;
+    skos:definition      '''The implementation and migration elements support the implementation and migration of architectures.'''@en ;
     skos:scopeNote       "Domain marker for transition planning: work packages, deliverables, and plateaus. Gap and ImplementationEvent from 3.x have been removed in 4.0."@en ;
 .
 
@@ -384,7 +385,7 @@ A complex process may be an aggregation of other, finer-grained processes. To ea
 There is a potential many-to-many relationship between processes and functions. Informally speaking, processes describe some kind of “flow” of activities, whereas functions group activities according to required skills, knowledge, resources, etc.
 A process may be triggered by, or trigger, any other behavior element (i.e., event, process, or function). A process may access passive elements. A process may realize one or more services and may be served by other services. A role may be assigned to a process to model the responsibility for performing this process.
 The name of a process should clearly indicate a predefined sequence of actions using a verb or verb-noun combination and may include the word “process”. Examples are “adjudicate claim”, “employee on-boarding”, “approval process”, “general ledger update job”, or “replicate database”.
-In an ArchiMate model, the existence of processes is depicted: High-level business, end-to-end processes, macro flows, workflows, and automated processes can all be expressed with the same process element in the ArchiMate language. It does not, however, list the flow of activities in detail. This is typically done during detailed process modeling in a process design language such as BPMN [BPMN].'''@en ;
+In an ArchiMate model, the existence of processes is depicted: High-level business, end-to-end processes, macro flows, workflows, and automated processes can all be expressed with the same process element in the ArchiMate language. It does not, however, list the flow of activities in detail. This is typically done during detailed process modeling in a process design language such as BPMN.'''@en ;
     skos:changeNote    "4.0: Merges BusinessProcess, ApplicationProcess, and TechnologyProcess into a single generic element."@en ;
 .
 
@@ -402,7 +403,7 @@ In an ArchiMate model, the existence of processes is depicted: High-level busine
 There is a potential many-to-many relation between processes and functions. Complex processes in general involve activities that require various functions. In this sense, a process can form a string of functions. Organizational units or applications may coincide with functions due to their specific grouping of activities. In the Business Domain, functions are often closely aligned to an organization, but not necessarily explicitly governed by the organization.
 Functions can realize capabilities. Where functions are often aligned with organization structure and describe the current, day-to-day activities of the enterprise, capabilities (see :Capability) represent its potential behavior and are independent from the implementation in the organization structure.
 A function may be triggered by, or trigger, any other behavior element (event, process, or function). A function may access passive elements. A function may realize one or more services and may be served by other services. A role may be assigned to a function. The name of a function should clearly indicate a well-defined behavior, but unlike processes, it is typically not in the form of a verb-noun phrase. Examples are customer management, claims administration, recycling, or payment processing.'''@en ;
-    skos:changeNote    "4.0: Merges BusinessFunction, ApplicationFunction, and TechnologyFunction into a single generic element. Also replaces Interaction (BusinessInteraction, ApplicationInteraction, TechnologyInteraction)."@en ;
+    skos:changeNote    "4.0: Merges BusinessFunction, ApplicationFunction, and TechnologyFunction into a single generic element. The removed interactions (BusinessInteraction, ApplicationInteraction, TechnologyInteraction) can be replaced by a function or a process."@en ;
 .
 
 :Event
@@ -417,8 +418,7 @@ A function may be triggered by, or trigger, any other behavior element (event, p
     skos:definition    '''An event represents something that happens or occurs inside or outside the enterprise, such as a state change.'''@en ;
     skos:scopeNote     '''Processes and other behavior may be triggered or interrupted by an event. Processes may raise events that trigger other processes or functions. Unlike processes or functions, an event is instantaneous: it does not have a duration. Events may originate from the environment of the organization (e.g., from a customer) or some external physical or IT system, as well as internal events generated within the organization or system world.
 An event may trigger or be triggered (raised) by a process or function. An event may access passive elements and may aggregate other events. The name of an event should preferably be a verb in the perfect tense; e.g., “Claim Received”.
-This event concept is similar to a BPMN event, and to the initial state and final state elements in UML activity diagrams. However, the ArchiMate event is more generally applicable in the sense that it can also be used to model other types of events, in addition to triggers of processes.
-“Claims Administration” is a function that aggregates a number of processes. This function realizes a “Claims Processing” service. An event “Claim Filed” triggers the first process “Accept Claim Risk”, which in turn triggers a process “Assign Claim”. Depending on the type of claim, either the process “Adjudicate Standard Claim” or the process “Adjudicate High-Risk Claim” is performed. According to the company policy, two roles should always be involved in the latter process, to minimize the risk of fraud. This is modeled with the collaboration “High-Risk Claims Adjudication”. After adjudication, the processes “Notify Customer” and “Pay Claim” are performed in parallel, and when both have finished, process “Close Claim” is triggered.'''@en ;
+This event concept is similar to a BPMN event, and to the initial state and final state elements in UML activity diagrams. However, the ArchiMate event is more generally applicable in the sense that it can also be used to model other types of events, in addition to triggers of processes.'''@en ;
     skos:changeNote    "4.0: Merges BusinessEvent, ApplicationEvent, TechnologyEvent, and ImplementationEvent into a single generic element."@en ;
 .
 
@@ -433,8 +433,10 @@ This event concept is similar to a BPMN event, and to the initial state and fina
     skos:definition    '''A grouping represents a collection of concepts that belong together based on some common characteristic.'''@en ;
     skos:scopeNote     '''The grouping element is used to aggregate an arbitrary group of concepts, which can be elements and/or relationships of the same or of different types. An aggregation relationship is used to link the grouping element to the grouped concepts. Grouping elements can also have other relationships to and from them, as shown in Appendix B, Relationships (Normative).
 Concepts may be aggregated by multiple (overlapping) groups.
-One useful way of employing grouping is for modeling ABBs and SBBs, as described in the TOGAF Standard [C220].
-Another useful application of grouping is for modeling domains. For example, the TOGAF Standard [C220] Glossary of Supplementary Definition defines Information Domain as: “grouping of information (or data entities) by a set of criteria such as security classification, ownership, location, etc. In the context of security, Information Domains are defined as a set of users, their information objects, and a security policy”.'''@en ;
+One useful way of employing grouping is for modeling ABBs and SBBs, as described in the TOGAF Standard.
+Another useful application of grouping is for modeling domains. For example, the TOGAF Standard Glossary of Supplementary Definition defines Information Domain as: “grouping of information (or data entities) by a set of criteria such as security classification, ownership, location, etc. In the context of security, Information Domains are defined as a set of users, their information objects, and a security policy”.
+Note: The use of grouping is not to be confused with creating views on the architecture (see Section 13.3, “Architecture Views and Viewpoints”). Although, like a view, it comprises concepts that belong together for some reason, it does not provide a separate visualization of these concepts. Moreover, groupings are used within architecture views to provide additional structure to an architecture model and its visualization.
+Note: The semantics of grouping imply that a relationship from or to a group should be interpreted as a collective relationship with the group’s contents. However, this is not always easily expressed in simple derivable relationships.'''@en ;
 .
 
 :Location
@@ -446,7 +448,7 @@ Another useful application of grouping is for modeling domains. For example, the
     rdfs:seeAlso       <https://pubs.opengroup.org/architecture/archimate4-doc/chap04.html#sec-Location>,
                        <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Location> ;
     skos:definition    '''A location represents a place or position where structure elements can be located or behavior can be performed.'''@en ;
-    skos:scopeNote     '''The location element is used to model the place where (active and passive) structure elements such as business actors, application components, and devices are located. This covers both physical (e.g., geographical) locations and logical places such as the regions of cloud providers. This is modeled by means of an aggregation relationship from a location to structure element. A location can also aggregate a behavior element, to indicate where the behavior is performed. This element corresponds to the “Where” column of the Zachman® framework [Sowa & Jackman, 1992].'''@en ;
+    skos:scopeNote     '''The location element is used to model the place where (active and passive) structure elements such as business actors, application components, and devices are located. This covers both physical (e.g., geographical) locations and logical places such as the regions of cloud providers. This is modeled by means of an aggregation relationship from a location to structure element. A location can also aggregate a behavior element, to indicate where the behavior is performed. This element corresponds to the “Where” column of the Zachman® framework.'''@en ;
 .
 
 
@@ -475,7 +477,7 @@ Another useful application of grouping is for modeling domains. For example, the
     rdfs:seeAlso       <https://pubs.opengroup.org/architecture/archimate4-doc/chap06.html#sec-Driver>,
                        <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Driver> ;
     skos:definition    '''A driver represents an external or internal condition that motivates an organization to define its goals and implement the changes necessary to achieve them.'''@en ;
-    skos:scopeNote     '''Drivers that are associated with a stakeholder are often called “concerns” of that stakeholder. Stakeholder concerns are defined in the TOGAF Standard [C220] as “an interest in a system relevant to one or more of its stakeholders. Concerns may pertain to any aspect of the system’s functioning, development, or operation, including considerations such as performance, reliability, security, distribution, and evolvability and may determine the acceptability of the system.” Drivers of change may be external to the enterprise (e.g., economic changes or changing legislation) and need not have a stakeholder associated with them. The name of a driver should preferably be a noun.'''@en ;
+    skos:scopeNote     '''Drivers that are associated with a stakeholder are often called “concerns” of that stakeholder. Stakeholder concerns are defined in the TOGAF Standard as “an interest in a system relevant to one or more of its stakeholders. Concerns may pertain to any aspect of the system’s functioning, development, or operation, including considerations such as performance, reliability, security, distribution, and evolvability and may determine the acceptability of the system.” Drivers of change may be external to the enterprise (e.g., economic changes or changing legislation) and need not have a stakeholder associated with them. The name of a driver should preferably be a noun.'''@en ;
 .
 
 :Assessment
@@ -656,7 +658,7 @@ It is recommended that the name of a value stream be expressed using a verb-noun
                        <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Business-Actor> ;
     skos:altLabel      "Organization"@en, "Department"@en, "Person"@en ;
     skos:definition    '''A business actor represents a business entity that is capable of performing behavior.'''@en ;
-    skos:scopeNote     '''A business actor is a business entity as opposed to a technical entity; i.e., it belongs to the Business Domain. Actors may, however, include entities outside the actual organization; e.g., customers and partners. A business actor can represent such business entities at different levels of detail and may correspond to both an actor and an organizational unit in the TOGAF Standard [C220]. Examples of business actors are humans, departments, and business units.
+    skos:scopeNote     '''A business actor is a business entity as opposed to a technical entity; i.e., it belongs to the Business Domain. Actors may, however, include entities outside the actual organization; e.g., customers and partners. A business actor can represent such business entities at different levels of detail and may correspond to both an actor and an organizational unit in the TOGAF Standard. Examples of business actors are humans, departments, and business units.
 A business actor may be assigned to one or more roles. It can then perform the behavior to which these roles are assigned. Business actors can also be assigned to business objects, to express that someone is responsible for some specific information or another kind of business object.
 The name of a business actor should preferably be a noun. Business actors may be specific individuals or organizations; e.g., “John Smith” or “ABC Corporation”, or they may be generic; e.g., “customer” or “supplier”.
 ArchiMate modelers may represent generic organizational entities that perform behavior as either business actors or roles. For example, the business actor “Supplier” depicts an organizational entity, while the role “Supplier” depicts a responsibility. Specific or generic business actors can be assigned to carry responsibilities depicted as roles. For example, the specific business actor “ABC Corporation” or the generic business actor “Business Partner” can be assigned to the “Supplier” role.'''@en ;
@@ -724,7 +726,7 @@ A value may be associated with a product. The name of a product is usually the n
     skos:definition    '''An application component represents an encapsulation of application functionality aligned to implementation structure, which is modular and replaceable.'''@en ;
     skos:scopeNote     '''An application component is a self-contained unit. As such, it is independently deployable, re-usable, and replaceable. It encapsulates its behavior and data, exposes services, and makes them available through interfaces. An application component may be assigned (through a role) to one or more internal application behavior or application event. Application components can also be assigned to data objects, to express that the application is the repository, golden source, or single source of truth of that data.
 Cooperating application components can be aggregated in collaborations. Application interfaces of other application components may serve an application component. The name of an application component should preferably be a noun.
-The application component element is used to model entire applications (i.e., deployed and operational IT systems, as defined by the TOGAF Standard [C220]) and individual parts of such applications, at all relevant levels of detail. This is explained in Section 3.5, “Abstraction in the ArchiMate Language”.'''@en ;
+The application component element is used to model entire applications (i.e., deployed and operational IT systems, as defined by the TOGAF Standard) and individual parts of such applications, at all relevant levels of detail. This is explained in Section 3.5, “Abstraction in the ArchiMate Language”.'''@en ;
 .
 
 :ApplicationInterface
@@ -772,7 +774,7 @@ A function, process, or service can access data objects. A data object may be tr
                        <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Node> ;
     skos:altLabel      "Server"@en, "Host"@en, "Compute Node"@en ;
     skos:definition    '''A node represents a generic IT or physical structure that hosts, manipulates, or interacts with other such structures.'''@en ;
-    skos:scopeNote     '''Nodes are active structure elements that perform behavior and execute, store, and process artifacts or materials. For instance, nodes are used to model application platforms, defined by the TOGAF Standard [C220] as: “a collection of technology components of hardware and software that provide the services used to support applications”.
+    skos:scopeNote     '''Nodes are active structure elements that perform behavior and execute, store, and process artifacts or materials. For instance, nodes are used to model application platforms, defined by the TOGAF Standard as: “a collection of technology components of hardware and software that provide the services used to support applications”.
 Nodes can be interconnected by paths, communication networks or distribution networks, and may be assigned to an artifact to model that the artifact is deployed on the node.
 The name of a node should preferably be a noun. A node may consist of sub-nodes.'''@en ;
 .
@@ -937,7 +939,7 @@ Conceptually, a work package is similar to a process, in that it consists of a s
     rdfs:seeAlso       <https://pubs.opengroup.org/architecture/archimate4-doc/chap12.html#sec-Deliverable>,
                        <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Deliverable> ;
     skos:definition    '''A deliverable represents a result of a work package.'''@en ;
-    skos:scopeNote     '''Work packages produce deliverables. These may be results of any kind; e.g., reports, papers, services, software, physical products, etc., or intangible results such as organizational change. A deliverable may also be the implementation of (a part of) an architecture. Often, deliverables are contractually specified and in turn formally reviewed, agreed, and signed off by the stakeholders as is; for example, prescribed by the TOGAF Standard [C220].'''@en ;
+    skos:scopeNote     '''Work packages produce deliverables. These may be results of any kind; e.g., reports, papers, services, software, physical products, etc., or intangible results such as organizational change. A deliverable may also be the implementation of (a part of) an architecture. Often, deliverables are contractually specified and in turn formally reviewed, agreed, and signed off by the stakeholders as is; for example, prescribed by the TOGAF Standard.'''@en ;
 .
 
 :Plateau
@@ -960,17 +962,41 @@ In order to support this, the plateau element is defined.'''@en ;
 #################################################################
 
 :AndJunction
-    a               owl:Class ;
-    rdfs:subClassOf arch:Element ;
-    skos:prefLabel  "And Junction"@en ;
-    skos:definition '''Used to connect relationships of the same type.'''@en ;
+    a                  owl:Class ;
+    rdfs:subClassOf    arch:Element ;
+    skos:prefLabel     "And Junction"@en ;
+    dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Junction> ;
+    prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Junction> ;
+    rdfs:seeAlso       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Junction>,
+                       <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Junction> ;
+    skos:definition    '''A junction connects two or more relationships of the same type.'''@en ;
+    skos:scopeNote     '''A junction is not a relationship in the same sense as the other relationships described in this chapter, but rather a connector between relationships.
+A chain of junctions and relationships of a specific type is only allowed between two concepts if a direct relationship of that type between these concepts is also permitted. Simply put, you cannot use junctions to create relationships between concepts that would otherwise not be allowed.
+A junction may have multiple incoming relationships and one outgoing relationship, one incoming relationship and multiple outgoing relationships, or multiple incoming and outgoing relationships (the latter can be considered a shorthand of two contiguous junctions).
+A junction is used to explicitly express that all elements together must participate in the relationship (and-junction) or that at least one of the elements participates in the relationship (or-junction). The or-junction can be used to express both inclusive and exclusive or conditions, which could be indicated by a modeler by naming the junction to reflect its type.
+The default interpretation of incoming relationships without a junction is (inclusive) or, and for outgoing relationships it is and. Even though it is not strictly necessary, using junctions in such a case can still be useful for reasons of clarity or to stress the importance of a combination of relationships.
+In addition to the above, a junction (which connects some relationships), may also be aggregated in a plateau, grouping, or location element. If that junction connects other aggregation relationships, it should be interpreted without the aggregation to this containing element. The aggregation merely states that the junction is part of a plateau, grouping, or location. Without that relationship, the junction must fulfill the same conditions as above: it connects relationships of the same type, with at least one incoming and one outgoing relationship.
+It is allowed to omit arrowheads of relationships leading into a junction.
+Junctions may be used on triggering relationships. This is a technique used by other modeling languages. For example, the BPMN notation uses gateways as junctions, and the UML notation uses forks and joins in their modeling activity diagrams. They can be used to model high-level process flow. A label may be added to outgoing triggering relationships of a junction to indicate a choice, condition, or guard that applies to that relationship. Such a label is only an informal indication. No formal, operational semantics have been defined for these relationships because implementation-level languages, such as BPMN and UML, differ in their execution semantics and the ArchiMate language does not want to unduly constrain mappings to such languages.'''@en ;
 .
 
 :OrJunction
-    a               owl:Class ;
-    rdfs:subClassOf arch:Element ;
-    skos:prefLabel  "Or Junction"@en ;
-    skos:definition '''Used to connect relationships of the same type.'''@en ;
+    a                  owl:Class ;
+    rdfs:subClassOf    arch:Element ;
+    skos:prefLabel     "Or Junction"@en ;
+    dcterms:source     <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Junction> ;
+    prov:wasQuotedFrom <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Junction> ;
+    rdfs:seeAlso       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Junction>,
+                       <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Junction> ;
+    skos:definition    '''A junction connects two or more relationships of the same type.'''@en ;
+    skos:scopeNote     '''A junction is not a relationship in the same sense as the other relationships described in this chapter, but rather a connector between relationships.
+A chain of junctions and relationships of a specific type is only allowed between two concepts if a direct relationship of that type between these concepts is also permitted. Simply put, you cannot use junctions to create relationships between concepts that would otherwise not be allowed.
+A junction may have multiple incoming relationships and one outgoing relationship, one incoming relationship and multiple outgoing relationships, or multiple incoming and outgoing relationships (the latter can be considered a shorthand of two contiguous junctions).
+A junction is used to explicitly express that all elements together must participate in the relationship (and-junction) or that at least one of the elements participates in the relationship (or-junction). The or-junction can be used to express both inclusive and exclusive or conditions, which could be indicated by a modeler by naming the junction to reflect its type.
+The default interpretation of incoming relationships without a junction is (inclusive) or, and for outgoing relationships it is and. Even though it is not strictly necessary, using junctions in such a case can still be useful for reasons of clarity or to stress the importance of a combination of relationships.
+In addition to the above, a junction (which connects some relationships), may also be aggregated in a plateau, grouping, or location element. If that junction connects other aggregation relationships, it should be interpreted without the aggregation to this containing element. The aggregation merely states that the junction is part of a plateau, grouping, or location. Without that relationship, the junction must fulfill the same conditions as above: it connects relationships of the same type, with at least one incoming and one outgoing relationship.
+It is allowed to omit arrowheads of relationships leading into a junction.
+Junctions may be used on triggering relationships. This is a technique used by other modeling languages. For example, the BPMN notation uses gateways as junctions, and the UML notation uses forks and joins in their modeling activity diagrams. They can be used to model high-level process flow. A label may be added to outgoing triggering relationships of a junction to indicate a choice, condition, or guard that applies to that relationship. Such a label is only an informal indication. No formal, operational semantics have been defined for these relationships because implementation-level languages, such as BPMN and UML, differ in their execution semantics and the ArchiMate language does not want to unduly constrain mappings to such languages.'''@en ;
 .
 
 
@@ -984,7 +1010,7 @@ In order to support this, the plateau element is defined.'''@en ;
     a                   owl:ObjectProperty ;
     rdfs:subPropertyOf  :aggregates ;
     skos:prefLabel      "Composed Of"@en ;
-    skos:definition     '''Indicates that an element consists of one or more other elements.'''@en ;
+    skos:definition     '''Indicates that an element combines one or more other concepts, where the existence of those concepts depends on that of the element.'''@en ;
     arch:domainIncludes arch:Element ;
     arch:rangeIncludes  arch:Element ;
 .
@@ -995,14 +1021,16 @@ In order to support this, the plateau element is defined.'''@en ;
     arch:unqualifiedForm :composedOf ;
     skos:prefLabel       "Composition"@en ;
     skos:notation        "c" ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Aggregation-Relationship> ;
+    skos:editorialNote   '''The relationship tables of the 4.0 specification write aggregation and composition alike
+as g. Composition keeps c, its letter in the 3.2 tables, so that it has a letter of its own and the
+tables of the two versions can be compared.'''@en ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#_composition_relationship> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#_composition_relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#_composition_relationship>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#_composition_relationship> ;
     skos:definition      '''A composition relationship represents that an element combines one or more other concepts, where the existence of those concepts depends on that of the element.'''@en ;
-    skos:scopeNote       '''The composition relationship is a specialisation of the aggregation relationship that expresses an existence dependency: if a composite is deleted, its parts are deleted as well.
-A composition relationship is allowed in exactly the same cases where an aggregation relationship would be allowed. It follows the same semantics as aggregation relationships. See also Section 5.1.5, "Semantics of Structural Relationships".
-'''@en ;
+    skos:scopeNote       '''The composition relationship is a specialization of the aggregation relationship that expresses an existence dependency: If a composite is deleted, its parts are deleted as well. When you model real-world elements (for example, an organization structure of departments and teams expressed as business actors), this dependency applies to these elements themselves. When you model exemplars or categories — as is common in Enterprise Architecture — this dependency may be interpreted as applying to their real-world instances. For example, a specific kind of server can be modeled as a node composed of a device and system software; this implies an existence dependency between individual servers of that kind and the individual devices and system software instances of which they consist.
+A composition relationship is allowed in exactly the same cases where an aggregation relationship would be allowed. It follows the same semantics as aggregation relationships. See also Section 5.1.5, “Semantics of Structural Relationships”.'''@en ;
 .
 
 :qualifiedComposition
@@ -1020,7 +1048,7 @@ resource.'''@en ;
 :aggregates
     a                   owl:ObjectProperty ;
     skos:prefLabel      "Aggregates"@en ;
-    skos:definition     '''Indicates that an element combines one or more other elements.'''@en ;
+    skos:definition     '''Indicates that an element combines one or more other concepts.'''@en ;
     arch:domainIncludes arch:Element ;
     arch:rangeIncludes  arch:Element ;
 .
@@ -1035,12 +1063,11 @@ resource.'''@en ;
     prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship> ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Aggregation-Relationship>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Aggregation-Relationship> ;
-    skos:definition      '''A composition relationship represents that an element combines one or more other concepts, where the existence of those concepts depends on that of the element.'''@en ;
+    skos:definition      '''An aggregation relationship represents that an element combines one or more other concepts.'''@en ;
     skos:scopeNote       '''The aggregation relationship has been inspired by the aggregation relationship in UML class diagrams.
 An aggregation relationship is always allowed between two elements of the same type.
 In addition to this, the metamodel explicitly defines other source and target elements that may be connected by an aggregation relationship.
-The interpretation of an aggregation relationship is that the whole or part of the source element aggregates the whole of the target concept. See also Section 5.1.5, “Semantics of Structural Relationships”.
-'''@en ;
+The interpretation of an aggregation relationship is that the whole or part of the source element aggregates the whole of the target concept. See also Section 5.1.5, “Semantics of Structural Relationships”.'''@en ;
 .
 
 :qualifiedAggregation
@@ -1060,8 +1087,8 @@ resource.'''@en ;
     skos:prefLabel      "Assigned To"@en ;
     skos:definition     '''Indicates the allocation of responsibility, performance of behavior, storage, or
 execution.'''@en ;
-    arch:domainIncludes :ActiveStructureElement, :PassiveStructureElement ;
-    arch:rangeIncludes  :BehaviorElement ;
+    arch:domainIncludes :ActiveStructureElement, :Resource ;
+    arch:rangeIncludes  :BehaviorElement, :ActiveStructureElement, :PassiveStructureElement, :Stakeholder ;
 .
 
 :Assignment
@@ -1078,15 +1105,14 @@ execution.'''@en ;
     skos:scopeNote       '''The assignment relationship links active structure elements with units of behavior that are performed by them, internal active structure elements (e.g., business actors) with roles fulfilled by them, and active structure elements with passive structure elements from the same domain. It can, for example, relate an internal active structure element with an internal behavior element, an interface with a service, or a node, device, and system software with an artifact. The full set of permitted relationships is listed in Appendix B, Relationships (Normative).
 In the ArchiMate language described in Section 3.2, “The ArchiMate Language”, it always points from active structure to behavior, from behavior to passive structure, and from active to passive structure.
 As with all structural relationships, an assignment relationship can also be expressed by nesting the model elements. The direction mentioned above is also the direction of nesting; for example, a role inside the business actor performing that role, a function inside an application component executing that function, or an artifact inside a node that stores it.
-The interpretation of an assignment relationship is that the whole or part of the source element is assigned the whole of the target element (see also Section 5.1, “Structural Relationships”). This means that if, for example, two active structure elements are assigned to the same behavior element, either of them can perform the complete behavior. If both active structure elements are needed to perform the behavior, the grouping element or a junction (see Section 5.5, “Junctions”) can be used, and if the combination of these elements has a more substantive and independent character, a collaboration would be the right way to express this.
- The “Finance” application component is assigned to the “Transaction Processing” function, and the “Payment Interface” is assigned to the “Payment Service”.'''@en ;
+The interpretation of an assignment relationship is that the whole or part of the source element is assigned the whole of the target element (see also Section 5.1, “Structural Relationships”). This means that if, for example, two active structure elements are assigned to the same behavior element, either of them can perform the complete behavior. If both active structure elements are needed to perform the behavior, the grouping element or a junction (see Section 5.5, “Junctions”) can be used, and if the combination of these elements has a more substantive and independent character, a collaboration would be the right way to express this.'''@en ;
 .
 
 :qualifiedAssignment
     a                    owl:ObjectProperty ;
     rdfs:range           :Assignment ;
     arch:unqualifiedForm :assignedTo ;
-    arch:domainIncludes  :ActiveStructureElement, :PassiveStructureElement ;
+    arch:domainIncludes  :ActiveStructureElement, :Resource ;
     skos:prefLabel       "qualified Assignment"@en ;
     skos:definition      '''Navigates from a source element to an Assignment qualified relationship
 resource.'''@en ;
@@ -1097,10 +1123,10 @@ resource.'''@en ;
 :realizes
     a                   owl:ObjectProperty ;
     skos:prefLabel      "Realizes"@en ;
-    skos:definition     '''Indicates that an entity plays a critical role in the creation, achievement, sustenance,
-or operation of a more abstract entity.'''@en ;
+    skos:definition     '''Indicates that an element plays a critical role in the creation, achievement, sustenance,
+or operation of a more abstract element.'''@en ;
     arch:domainIncludes :ActiveStructureElement, :BehaviorElement, :PassiveStructureElement, :StrategyElement,
-                        :ImplementationAndMigrationElement ;
+                        :ImplementationAndMigrationDomainElement ;
     arch:rangeIncludes  :ActiveStructureElement, :BehaviorElement, :PassiveStructureElement, :StrategyElement,
                         :MotivationElement ;
 .
@@ -1117,9 +1143,8 @@ or operation of a more abstract entity.'''@en ;
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Realization-Relationship> ;
     skos:definition      '''A realization relationship represents that an element plays a critical role in the creation, achievement, sustenance, or operation of a more abstract element.'''@en ;
     skos:scopeNote       '''A realization relationship indicates that more abstract elements (“what” or “logical”) are realized by means of more tangible elements (“how” or “physical”). The realization relationship is used to model run-time realization; for example, that a process realizes a service, and that a data object realizes a business object, an artifact realizes an application component, or a core element realizes a motivation element.
-The interpretation of a realization relationship is that the whole or part of the source element realizes the whole of the target element (see also Section 5.1, “Structural Relationships”). For example, this means that if two internal behavior elements have a realization relationship to the same service, either of them can realize the complete service. If both internal behavior elements are needed to realize, the grouping element or an And-junction (see :Junction) can be used. For weaker types of effects on the realization of a motivation element, the influence relationship (see Section 5.2.3, “Influence Relationship”) should be used.
-For realization, nesting as a notation is allowed in both directions of the relationship. For instance, a service can be nested in an application component to express that it is realized by that application component, and a process nested in a capability may express that this process realizes the capability. Since this can lead to ambiguity, it is advisable to use it only in one direction in the same view and add an explanation to any view in which such ambiguity may arise.
- A “Transaction Processing” function realizes a “Billing Service”; the “Invoice” business object is realized by the data object “Billing Data”.'''@en ;
+The interpretation of a realization relationship is that the whole or part of the source element realizes the whole of the target element (see also Section 5.1, “Structural Relationships”). For example, this means that if two internal behavior elements have a realization relationship to the same service, either of them can realize the complete service. If both internal behavior elements are needed to realize, the grouping element or an And-junction (see :AndJunction) can be used. For weaker types of effects on the realization of a motivation element, the influence relationship (see :Influence) should be used.
+For realization, nesting as a notation is allowed in both directions of the relationship. For instance, a service can be nested in an application component to express that it is realized by that application component, and a process nested in a capability may express that this process realizes the capability. Since this can lead to ambiguity, it is advisable to use it only in one direction in the same view and add an explanation to any view in which such ambiguity may arise.'''@en ;
     skos:changeNote      "4.0: Cross-layer realization between services of different domains replaced by specialization (from realizing service to realized service) or aggregation (from realized service to realizing service)."@en ;
 .
 
@@ -1128,7 +1153,7 @@ For realization, nesting as a notation is allowed in both directions of the rela
     rdfs:range           :Realization ;
     arch:unqualifiedForm :realizes ;
     arch:domainIncludes  :ActiveStructureElement, :BehaviorElement, :PassiveStructureElement, :StrategyElement,
-                         :ImplementationAndMigrationElement ;
+                         :ImplementationAndMigrationDomainElement ;
     skos:prefLabel       "qualified Realization"@en ;
     skos:definition      '''Navigates from a source element to a Realization qualified relationship
 resource.'''@en ;
@@ -1160,8 +1185,7 @@ resource.'''@en ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Serving-Relationship>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Serving-Relationship> ;
     skos:definition      '''A serving relationship represents that an element provides its functionality to another element.'''@en ;
-    skos:scopeNote       '''A serving relationship describes how the services or interfaces offered by a behavior or active structure element serve entities in their environment. This relationship is applied to both the behavior aspect and the active structure aspect.
- The “Payment Interface” serves the “Customer”, while the “Payment Service” serves the “Pay Invoices” process of that customer.'''@en ;
+    skos:scopeNote       '''A serving relationship describes how the services or interfaces offered by a behavior or active structure element serve entities in their environment. This relationship is applied to both the behavior aspect and the active structure aspect.'''@en ;
 .
 
 :qualifiedServing
@@ -1179,7 +1203,8 @@ resource.'''@en ;
 :accesses
     a                   owl:ObjectProperty ;
     skos:prefLabel      "Accesses"@en ;
-    skos:definition     '''Indicates that a behavior element may access a business or data object.'''@en ;
+    skos:definition     '''Indicates the ability of behavior and active structure elements to observe or act upon
+passive structure elements.'''@en ;
     arch:domainIncludes :BehaviorElement, :ActiveStructureElement ;
     arch:rangeIncludes  :PassiveStructureElement ;
 .
@@ -1195,11 +1220,13 @@ resource.'''@en ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Access-Relationship>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Access-Relationship> ;
     skos:definition      '''An access relationship represents the ability of behavior and active structure elements to observe or act upon passive structure elements.'''@en ;
-    skos:scopeNote       '''An access relationship indicates that a process, function, service, or event “does something” with a passive structure element; e.g., create, read, modify or delete a business or data object or an artifact; or produce, consume, move, transform, or destroy material. The relationship can also be used to indicate that the passive structure element . The relationship can also be used to indicate that the object is just associated with the behavior; e.g., it models the information that comes with an event, or the information that is made available as part of a service.
+    skos:scopeNote       '''An access relationship indicates that a process, function, service, or event “does something” with a passive structure element; e.g., create, read, modify or delete a business or data object or an artifact; or produce, consume, move, transform, or destroy material. The relationship can also be used to indicate that the object is just associated with the behavior; e.g., it models the information that comes with an event, or the information that is made available as part of a service.
 The arrowhead, if present, indicates the creation, change, or usage of passive structure elements. The access relationship should not be confused with the UML dependency relationship, which uses a similar notation.
 Note that, at the metamodel level, the direction of the relationship is always from an active structure element or a behavior element to a passive structure element, although the notation may point in the other direction to denote “read” or “usage” access, and in both directions to denote “read-write” or “change” access. Care must be taken when using access with derived relationships because the arrow on the relationship has no bearing to its directionality.
-Alternatively, an access relationship can be expressed by nesting the passive structure element inside the behavior or active structure element that accesses it; for example, nesting a data object inside an application component.
- The “Create Invoice” process writes/creates the “Invoice” business object; the “Send Invoice” process reads that object.'''@en ;
+Alternatively, an access relationship can be expressed by nesting the passive structure element inside the behavior or active structure element that accesses it; for example, nesting a data object inside an application component.'''@en ;
+    skos:editorialNote   '''The specification follows the first sentence of the scope note with an unfinished one,
+“The relationship can also be used to indicate that the passive structure element .”, which the scope
+note leaves out.'''@en ;
 .
 
 :ReadAccess
@@ -1267,12 +1294,17 @@ element.'''@en ;
     arch:unqualifiedForm :influences ;
     skos:prefLabel       "Influence"@en ;
     skos:notation        "n" ;
-    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship> ;
-    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship> ;
-    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Influence-Relationship>,
-                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Influence-Relationship> ;
+    dcterms:source       <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#Influence_Relationship> ;
+    prov:wasQuotedFrom   <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#Influence_Relationship> ;
+    rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#Influence_Relationship>,
+                         <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#Influence_Relationship> ;
     skos:definition      '''An influence relationship represents that an element affects the implementation or achievement of some motivation element.'''@en ;
-    skos:scopeNote       '''The influence relationship is used to describe that some architectural element influences the achievement of a motivation element, such as a goal or principle. In general, a motivation element is realized to a certain degree. An influence relationship can be used to indicate that an element has a positive or negative influence on the realization of a motivation element.'''@en ;
+    skos:scopeNote       '''An influence relationship is used to describe some architectural elements that influence the achievement or implementation of a motivation element, such as a goal or a principle. In general, a motivation element is realized to a certain degree. For example, consistently satisfying the principle “serve customers wherever they are”, will help to make the goal “increase market share” come true. In other words, the principle contributes to the goal. In turn, to implement the principle “serve customers wherever they are”, it may be useful to impose a requirement of “24x7 web availability” on some customer-facing application component. This can be modeled as a requirement that has an influence on that principle and as an application component that in turn influences the requirement. Consistently modeling these dependencies with an influence relationship yields a traceable motivational path that explains why, in this example, a certain application component contributes to the corporate goal to “increase market share”. This kind of traceability supports measuring the results of Enterprise Architecture and provides valuable information to, for example, change impact assessments.
+Additional to this “vertical” use of contribution, from core elements upwards to requirements and goals, the relationship can also be used to model “horizontal” contributions between motivation elements. The influence relationship in that case describes that some motivation element may influence (the achievement or implementation of) another motivation element. In general, a motivation element is achieved to a certain degree. An influence by some other element may affect this depending on the degree to which the other element is satisfied itself. For example, the degree to which a goal to increase customer satisfaction is realized, may be represented by the percentage of satisfied customers that participate in a market interview. This percentage may be influenced by, for example, the goal to improve the reputation of the company; i.e., a higher degree of improvement results in a higher increase in customer satisfaction. On the other hand, the goal to lay off employees may influence the company reputation negatively; i.e., more lay-offs could result in a lower increase (or even decrease) in the company reputation. Thus (indirectly), the goal to increase customer satisfaction may also be influenced negatively.
+The realization relationship should be used to represent relationships that are critical to the existence or realization of the target. The influence relationship should be used to represent relationships that are not critical to the target element’s existence or realization. For example, a business actor representing a construction crew may realize the goal of constructing a building, and a requirement to add additional (skilled) workers to an already adequate crew may influence the goal of constructing the building. However, the business actor also realizes an additional goal of opening the building by a particular date. An influence relationship can be used to model either:
+The fact that an element positively contributes to the achievement or implementation of some motivation element
+The fact that an element negatively influences — i.e., prevents or counteracts — such achievement
+Attributes can be used to indicate the sign and/or strength of the influence. The choice of possible attribute values is left to the modeler; e.g., {++, +, 0, -, --} or [0..10]. By default, the influence relationship models a contribution with unspecified sign and strength.'''@en ;
 .
 
 :qualifiedInfluence
@@ -1312,8 +1344,7 @@ resource. The Influence resource carries the influenceStrength (+, ++, -, --).''
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Triggering-Relationship>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Triggering-Relationship> ;
     skos:definition      '''The triggering relationship represents a temporal or causal relationship between elements.'''@en ;
-    skos:scopeNote       '''The triggering relationship is used to model the temporal or causal precedence of behavior elements in a process. The interpretation of a triggering relationship is that some part of the source element should be completed before the target element can start (see also Section 5.3.3, “Semantics of Dynamic Relationships”). Note that this does not necessarily mean that one behavior element actively starts another; in a hypothetical daily process, the “Have Lunch” activity follows (is triggered by) the “Have Breakfast” activity, even though there is no active signal between the two.
-'''@en ;
+    skos:scopeNote       '''The triggering relationship is used to model the temporal or causal precedence of behavior elements in a process. The interpretation of a triggering relationship is that some part of the source element should be completed before the target element can start (see also Section 5.3.3, “Semantics of Dynamic Relationships”). Note that this does not necessarily mean that one behavior element actively starts another; in a hypothetical daily process, the “Have Lunch” activity follows (is triggered by) the “Have Breakfast” activity, even though there is no active signal between the two.'''@en ;
 .
 
 :qualifiedTriggering
@@ -1347,8 +1378,7 @@ resource.'''@en ;
     rdfs:seeAlso         <https://pubs.opengroup.org/architecture/archimate4-doc/chap05.html#sec-Flow-Relationship>,
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Flow-Relationship> ;
     skos:definition      '''The flow relationship represents transfer from one element to another.'''@en ;
-    skos:scopeNote       '''The flow relationship is used to model the flow of, for example, information, goods, or money between behavior elements. A flow relationship does not imply a causal relationship.
- In order to determine the order in which the claims should be assessed, “Claim Assessment” makes use of schedule information received from the “Scheduling” function.'''@en ;
+    skos:scopeNote       '''The flow relationship is used to model the flow of, for example, information, goods, or money between behavior elements. A flow relationship does not imply a causal relationship.'''@en ;
 .
 
 :qualifiedFlow
@@ -1389,8 +1419,7 @@ resource.'''@en ;
     skos:definition      '''The specialization relationship represents that an element is a particular kind of another element.'''@en ;
     skos:scopeNote       '''The specialization relationship has been inspired by the generalization relationship in UML class diagrams but is applicable to specialize a wider range of concepts.
 A specialization relationship is always allowed between two elements of the same type.
-Alternatively, a specialization relationship can be expressed by nesting the specialized element inside the generic element.
- In this case, the “Take Out Travel Insurance” and “Take Out Luggage Insurance” processes are a specialization of a more generic “Take Out Insurance” process.'''@en ;
+Alternatively, a specialization relationship can be expressed by nesting the specialized element inside the generic element.'''@en ;
 .
 
 :qualifiedSpecialization
@@ -1426,8 +1455,7 @@ ArchiMate relationship.'''@en ;
                          <https://pubs.opengroup.org/architecture/archimate4-doc.singlepage/#sec-Association-Relationship> ;
     skos:definition      '''An association relationship represents an unspecified relationship, or one that is not represented by another ArchiMate relationship.'''@en ;
     skos:scopeNote       '''An association relationship is always allowed between two elements, or between a relationship and an element.
-The association relationship can be used when drawing a first high-level model where relationships are initially denoted in a generic way, and later refined to show more specific relationship types. In the metamodel pictures, some specific uses of the association relationship are explicitly shown. An association is undirected or directed. See also Section 5.2.5, “Semantics of Dependency Relationships”.
- It also shows an association between a flow relationship and this “Insurance Policy”, to indicate that the business object is transferred from “Policy Creation” to “Policy Management”.'''@en ;
+The association relationship can be used when drawing a first high-level model where relationships are initially denoted in a generic way, and later refined to show more specific relationship types. In the metamodel pictures, some specific uses of the association relationship are explicitly shown. An association is undirected or directed. See also Section 5.2.5, “Semantics of Dependency Relationships”.'''@en ;
 .
 
 :DirectedAssociation

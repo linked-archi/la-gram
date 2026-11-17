@@ -343,6 +343,10 @@ layout as meta.linked.archi's published tree, files starting with `.` left out. 
 offline and first ([`assets`](../reference/url-parameters.md#assets)), and what
 [Bundled metamodels and icons](assets.md) refreshes.
 
+Every build replaces the generated asset copy. In la-gram-git's package, `assets/` is beside `dist/`,
+so the build cleans that generated folder explicitly before copying; a semantic file removed from
+the source snapshot must also disappear from the package.
+
 ```console
 $ ls dist/web/assets
 archimate3	catalog.ttl

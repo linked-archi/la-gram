@@ -11,6 +11,11 @@ la-gram-git use it alone ([`assets`](../reference/url-parameters.md#assets)), an
 as it is ([Building](building.md#bundled-assets)). Everything in it is meta.linked.archi's: do not edit
 it by hand.
 
+LeanIX and other languages outside this snapshot load from meta.linked.archi when selected. Their
+documents are fetched with HTTP revalidation and kept in memory for that session. After publishing
+new resources, reopen la-gram to load them again. Listing a language in the bundled catalogue does
+not mean its semantic documents are bundled for offline use.
+
 ## `npm run sync-assets` {#npm-run-sync-assets}
 
 Refreshes `assets/` from a checkout of `linked-archi-meta`, the repository meta.linked.archi is published
@@ -25,6 +30,11 @@ stand-in for the published site, then refreshes each bundled file from its publi
 - the catalogue from the checkout's last generated site, `.onto-docs/catalog.ttl`, because generating it
   takes minutes. Run `.scripts/docgen/generate-docs.sh` there first for a current one. Without it, the
   bundled catalogue stays, and the run says so.
+
+A successful `--check` compares the existing snapshot with those inputs. It does not prove that the
+generated catalogue reflects the current source checkout, and it does not discover new Turtle
+dependencies. Generate the full catalogue from the same revision before syncing. Builds copy the
+snapshot as it stands; they do not run the sync command automatically.
 
 | Option | Values | Default |
 |---|---|---|
@@ -42,7 +52,7 @@ After an update, rebuild (`npm run build`) to ship it: each build's `?v=` digest
 with it, so browsers load the new files ([Building](building.md#assets-version)).
 `LINKED_ARCHI_META` and exit code 2 are not in the README; they are in the script.
 
-What a check says today (the checkout's path shortened):
+Example check output (the checkout's path shortened):
 
 ```console
 $ npm run sync-assets -- --check

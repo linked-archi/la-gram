@@ -400,6 +400,22 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-17 — semantic snapshot audit and refresh
+
+- Refreshed the bundled ArchiMate 4 ontology and catalogue from current meta sources. The catalogue
+  is generated with meta's official full documentation pipeline in an isolated directory, preserving
+  the upload output. Confirmed that LeanIX is resolved remotely and its current local resources load
+  as 43 element types and 21 relationship types, with the new endpoint pairs available and deprecated
+  types omitted from the palette. All 267 bundled files and all three rebuilt copies match exactly,
+  with snapshot digest `ffc89179257d`. Fixed the CLI package retaining an obsolete semantic file:
+  webpack now cleans its generated `dist/`, `assets/`, `ci/` and licence together, preserving package
+  sources and other siblings. An isolated real webpack regression checks initial and repeat builds.
+  Documented that sync checks existing bundled files, depends on a current generated
+  catalogue, and is explicit before building; publishing does not refresh documents already loaded
+  in an app session. The local meta checkout's old `.onto-docs/catalog.ttl` is untouched; regenerate
+  it before a future default sync, which would otherwise copy the old catalogue back. (Req 1.8–1.9)
+  — *bundled-assets.test, asset-sources.test, catalogue.test, cli-build-assets.test*.
+
 ### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
 - **Element icons drawn where none loads** (Req 2.26): with LeanIX loaded, almost no element type had an icon in the palette, though each was drawn on the canvas: its notation names a badge glyph for each type under `meta.linked.archi/leanix/icons/glyphs/`, and none is published (404) — nor BPMN's, BPMN Lite's, UML's or Backstage's. The palette showed a broken or empty image for each, and a type with no notation a colour swatch at best. An element type with no icon, or one that does not load, is now shown with its figure as the canvas draws it — shape, inner lines, fill and line colour (`elementIconDataUri`, `withElementIcons`) — in the palette and the append, nest and change-type menus. *notation-shapes.test, palette-panel.test, mount-ui.test*

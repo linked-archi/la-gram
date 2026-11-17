@@ -300,12 +300,16 @@ export default (_env, argv) => {
     entry: './src/cli/bin.ts',
     experiments: { outputModule: true },
     output: {
-      filename: 'la-gram-git.js',
-      path: path.join(laGramGitRoot, 'dist'),
+      filename: 'dist/la-gram-git.js',
+      chunkFilename: 'dist/[name].js',
+      path: laGramGitRoot,
       module: true,
       chunkFormat: 'module',
       library: { type: 'module' },
-      clean: true,
+      // The generated assets and CI templates are siblings of dist/, so they
+      // must be inside webpack's clean boundary too. Keep the package's source
+      // files (README, package.json, smoke models, etc.) outside that boundary.
+      clean: { keep: (asset) => !/^(?:(?:dist|assets|ci)(?:\/|$)|LICENSE$)/.test(asset) },
     },
     externalsType: 'module',
     externals: [
@@ -323,10 +327,10 @@ export default (_env, argv) => {
       buildFlags(),
       new CopyWebpackPlugin({
         patterns: [
-          { from: path.resolve(__dirname, 'assets'), to: path.join(laGramGitRoot, 'assets'), globOptions: { ignore: ['**/.*'] } },
-          { from: path.resolve(__dirname, 'ci'), to: path.join(laGramGitRoot, 'ci') },
+          { from: path.resolve(__dirname, 'assets'), to: 'assets', globOptions: { ignore: ['**/.*'] } },
+          { from: path.resolve(__dirname, 'ci'), to: 'ci' },
           // A file: a destination without an extension is taken for a folder (LICENSE/LICENSE).
-          { from: path.resolve(__dirname, 'LICENSE'), to: path.join(laGramGitRoot, 'LICENSE'), toType: 'file' },
+          { from: path.resolve(__dirname, 'LICENSE'), to: 'LICENSE', toType: 'file' },
         ],
       }),
     ],

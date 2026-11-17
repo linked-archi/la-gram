@@ -438,6 +438,15 @@ A published catalogue that is missing or unreadable leaves the bundled list.
 `npm run sync-assets` takes the catalogue from the meta checkout's last
 generated site (`.onto-docs/catalog.ttl`).
 
+Snapshot freshness is a release preparation step: the sync command compares the files already
+bundled, using the meta checkout's generated catalogue as an input. It does not regenerate that
+catalogue or add other languages' Turtle documents, and webpack copies the snapshot without syncing
+it. A catalogue-only entry such as LeanIX resolves remotely. Documents already loaded into the
+session's store stay there until the app is reopened; HTTP revalidation applies to a new fetch.
+The CLI package's generated `assets/` sits beside webpack's `dist/` output and outside its normal
+cleanup. Its build therefore cleans the copied asset folder explicitly, so obsolete semantic
+documents cannot survive a rebuild. Package metadata and other sibling folders are preserved.
+
 ### Editing on the canvas — recorded changes
 
 diagram-js owns *when* things happen (its command stack, rules, tools);

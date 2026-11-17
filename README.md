@@ -159,6 +159,12 @@ comes from the checkout's last generated site (`.onto-docs/catalog.ttl`; run
 meta.linked.archi's. Asset fetches always revalidate, so after a rebuild a plain reload loads the
 new files.
 
+The check compares the files already bundled; it does not add other published languages or
+regenerate the catalogue. LeanIX is loaded from meta.linked.archi. After a publication, reopen
+la-gram to refresh metamodel documents already loaded in the session. A build copies `assets/`
+as it stands, so sync before building when meta's sources change. Each build replaces its generated
+asset copy, including the CLI package's, so removed semantic files are removed from the output too.
+
 ### Icons
 
 The favicon is `src/icons/favicon.svg`: the Linked.Archi mark, simplified to stay legible at 16 px.
