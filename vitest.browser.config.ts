@@ -29,9 +29,11 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 120_000,
     // One browser at a time: the suite shares a single page across files and
-    // parallel Chrome instances only add flakiness.
+    // parallel Chrome instances only add flakiness. One fork, its modules kept
+    // from file to file (`isolate: false`), so the files share that page.
     fileParallelism: false,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    isolate: false,
   },
 });

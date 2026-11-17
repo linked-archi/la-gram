@@ -1070,7 +1070,7 @@ describe('the workbench', () => {
     ui.diagramCanvas.selectIris([]);
     ui.selectConcept(undefined);
     els.deleteElement(a);
-  });
+  }, 60_000);
 
   it('sets every look for one presentation or for all: the Appearance, Figure and Image tabs, notes and lines, the format painter, the tree', async () => {
     const els = app.components.elementManager;
@@ -1208,7 +1208,7 @@ describe('the workbench', () => {
     ui.selectConcept(undefined);
     views.removeElementFromView(view, note);
     for (const iri of [a!, b!]) els.deleteElement(iri);
-  });
+  }, 60_000);
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {
     const els = app.components.elementManager;

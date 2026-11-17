@@ -43,7 +43,10 @@ those. Two variants:
 | `npm run test:coverage` | Vitest once, with V8 coverage of `src/**/*.ts`: a table in the terminal and an HTML report in `coverage/` |
 
 The suite includes benchmark tests (`*-bench.test.ts`, `bench-*.test.ts`), which time the machine they
-run on; CI leaves them out with `--exclude`.
+run on. `npm test` runs them last and on their own — Vitest's *timing* project, after the *unit* project's
+files, which run side by side — so they time the code and not the other tests; CI leaves them out with
+`--exclude`. `npm test -- --project unit` runs the rest alone, `npm test -- --project timing` only the
+benchmarks.
 
 ```console
 $ npm test -- src/__tests__/config.test.ts
