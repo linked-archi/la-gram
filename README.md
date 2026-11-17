@@ -143,27 +143,28 @@ It is read once at startup, from the app's own address only. A file that fails t
 ArchiMate 4.0 and 3.2, Basic, the core vocabularies and their icons and markers ship in `assets/`, a
 snapshot of what meta.linked.archi serves, used first (`?assets=bundled-first`), with
 meta.linked.archi's catalogue (`assets/catalog.ttl`) — the metamodels the Metamodels menu offers,
-complete offline; unless offline, the published catalogue replaces it when it arrives. To refresh it
-from a `linked-archi-meta` checkout (by default `../../../linked-archi-meta`):
+complete offline; unless offline, the published catalogue replaces it when it arrives.
+`sync-assets` refreshes this snapshot from **https://meta.linked.archi/ by default**:
 
 ```bash
-npm run sync-assets -- --check   # what differs (exit 1 if anything does)
-npm run sync-assets              # update assets/, then: npm run build
-npm run sync-assets -- --meta ~/src/linked-archi-meta
+npm run sync-assets -- --check   # compare with the published site; exit 1 if anything differs
+npm run sync-assets              # update assets/ from the published site
+npm run build                    # build from that snapshot
+npm run sync-assets -- --meta ../../../linked-archi-meta  # use a local checkout explicitly
 ```
 
-It runs linked-archi-meta's own publishing scripts into a temporary folder and refreshes each
-bundled file from its published path, so it maps files exactly as the site does. The catalogue
-comes from the checkout's last generated site (`.onto-docs/catalog.ttl`; run
-`.scripts/docgen/generate-docs.sh` there for a current one). Everything bundled is
-meta.linked.archi's. Asset fetches always revalidate, so after a rebuild a plain reload loads the
-new files.
+`LINKED_ARCHI_META=<path>` also selects a local checkout; `--meta` takes precedence over it.
+`--online` selects the published site even when that environment variable is set. The online sync
+fetches the catalogue, bundled Turtle documents and icons, and stages the downloads before writing:
+a failed request fails the sync and keeps the existing snapshot. It does not fall back to a local
+checkout. Local mode runs that checkout's publishing scripts and takes its last generated catalogue
+from `.onto-docs/catalog.ttl`; generate that catalogue from the same revision before a local sync.
 
-The check compares the files already bundled; it does not add other published languages or
-regenerate the catalogue. LeanIX is loaded from meta.linked.archi. After a publication, reopen
-la-gram to refresh metamodel documents already loaded in the session. A build copies `assets/`
-as it stands, so sync before building when meta's sources change. Each build replaces its generated
-asset copy, including the CLI package's, so removed semantic files are removed from the output too.
+The sync refreshes the languages already bundled. Other catalogue entries, including LeanIX, load
+from meta.linked.archi when selected. Reopen la-gram after a publication to refresh documents already
+loaded in the session. Builds copy `assets/` as it stands and do not sync automatically. Each build
+replaces its generated asset copy, including the CLI package's, so removed semantic files disappear
+from the output too.
 
 ### Icons
 

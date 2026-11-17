@@ -13,6 +13,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Parse the manifest; follow `arch:*` asset properties and `owl:imports` — *metamodel-loader.test*
 - [x] Load a level of references in parallel, `Accept: text/turtle` only — *asset-sources.test*
 - [x] Asset source chain: uploaded → bundled → remote; `?assets=` modes — *asset-sources.test*
+- [x] Snapshot sync defaults to the published site; explicit local checkout and forced online modes, read-only check and staging before writes (Req 1.9) — *sync-assets.test*
 - [x] Native bulk load into Oxigraph (13× faster on the relationship shapes)
 - [x] Per-document status (loaded / already-loaded / skipped / unavailable / error, origin, triples); "Show loaded assets"
 - [x] Skip documents the editor cannot use (derivation rules, templates, reference models); load reference data
@@ -399,6 +400,17 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-17 — sync published assets by default
+
+- `npm run sync-assets` refreshes the bundled snapshot from `https://meta.linked.archi/` by default,
+  including its published `catalog.ttl`. `--meta <path>` or `LINKED_ARCHI_META` selects a local
+  checkout, and `--online` selects the site over the environment override. Local mode retains the
+  checkout's publishing scripts and generated catalogue as inputs. Online requests are staged before
+  writing; a required download failure leaves the snapshot intact and fails without local fallback.
+  `--check` is read-only. Builds continue to copy the prepared snapshot explicitly. README, the
+  development guide and requirements describe both source modes and the exit codes. (Req 1.9;
+  key design decision 25) — *sync-assets.test*.
 
 ### 2026-11-17 — semantic snapshot audit and refresh
 

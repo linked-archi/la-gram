@@ -228,8 +228,9 @@ pictures are loaded by the browser as images, which no fetch option reaches:
 the files' names and contents), so a build with other assets gives them other
 addresses and the same ones keep theirs; the servers, and the desktop app's
 `app://` handler, read the path alone. `assets/` is
-refreshed from a linked-archi-meta checkout with `npm run sync-assets`, which
-uses that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
+refreshed from the published meta.linked.archi site by default with `npm run sync-assets`.
+A local `linked-archi-meta` checkout can be selected explicitly (`--meta` or `LINKED_ARCHI_META`),
+using that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
@@ -435,14 +436,18 @@ then — unless offline — the published one, read from meta.linked.archi
 whatever the asset mode: under `bundled-first` the chain would always answer
 from the bundle, and a newly published metamodel would wait for a new la-gram.
 A published catalogue that is missing or unreadable leaves the bundled list.
-`npm run sync-assets` takes the catalogue from the meta checkout's last
-generated site (`.onto-docs/catalog.ttl`).
+`npm run sync-assets` takes the published `catalog.ttl` by default. Explicit local mode uses
+the meta checkout's last generated site (`.onto-docs/catalog.ttl`).
 
-Snapshot freshness is a release preparation step: the sync command compares the files already
-bundled, using the meta checkout's generated catalogue as an input. It does not regenerate that
-catalogue or add other languages' Turtle documents, and webpack copies the snapshot without syncing
-it. A catalogue-only entry such as LeanIX resolves remotely. Documents already loaded into the
-session's store stay there until the app is reopened; HTTP revalidation applies to a new fetch.
+Snapshot freshness is a release preparation step (key design decision 25). The sync command compares
+the files already bundled with the selected source. Online mode fetches Turtle by namespace path,
+icons by their relative paths and the published catalogue; downloads are staged before writing,
+with a failed required request failing the run and preserving the snapshot. It does not silently
+fall back to local files. `--meta` or `LINKED_ARCHI_META` selects local mode; `--online` overrides the
+environment selection. Local mode does not regenerate its catalogue. Neither mode adds other
+languages' Turtle documents, and webpack copies the snapshot without syncing it. A catalogue-only
+entry such as LeanIX resolves remotely. Documents already loaded into the session's store stay
+there until the app is reopened; HTTP revalidation applies to a new fetch.
 The CLI package's generated `assets/` sits beside webpack's `dist/` output and outside its normal
 cleanup. Its build therefore cleans the copied asset folder explicitly, so obsolete semantic
 documents cannot survive a rebuild. Package metadata and other sibling folders are preserved.
@@ -3303,6 +3308,15 @@ dialog; the modules' section).
     at the target, none where its predicate is `owl:SymmetricProperty` — so the canvas, the menus and the icons
     all draw the same thing without knowing why. Not done by loading Basic silently: that would add a metamodel
     to the model the modeller did not choose.
+
+25. **Sync published assets by default; local checkout as an explicit source** (Req 1.9;
+    `scripts/sync-assets.mjs`). The default build preparation must reflect what meta.linked.archi
+    publishes, including its catalogue, without requiring a developer's local checkout or generated
+    documentation tree. `--meta` or `LINKED_ARCHI_META` opts into unpublished local resources;
+    `--online` selects the published site over the environment. Required online downloads are staged
+    before writing and failures do not fall back to another source, so a failed sync cannot report
+    an older or partially updated snapshot as current. Builds remain explicit consumers of the
+    snapshot, keeping builds from adding an implicit network operation.
 
 ---
 

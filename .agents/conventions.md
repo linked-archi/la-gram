@@ -97,8 +97,9 @@ docs/                     broader tool specification
 
 - Specs are living documents, not gates: a change and the documents that describe
   it go in together.
-- Keep the bundled assets byte-identical to `linked-archi-meta`; refresh them by
-  copying (`npm run sync-assets -- --meta <checkout>`), never by editing here.
+- Keep the bundled assets byte-identical to their meta source; refresh them with
+  `npm run sync-assets` from the published site by default, or explicitly use a
+  local checkout (`npm run sync-assets -- --meta <checkout>`). Never edit the copies here.
 - A piece of work another person or agent may have to continue gets a folder,
   `.agents/tasks/<name>/`, written before the work: its README (goal, what was
   decided), `requirements.md`, `design.md` and `tasks.md` (a checklist, ticked as
@@ -125,8 +126,8 @@ A change is finished when each of these says what la-gram does now:
    *Writing the documentation* says (`docs-site/developing/documentation.md`): UI
    labels exactly as la-gram shows them, each option with its values, its default
    in bold and an example. A new page goes into `mkdocs.yml`'s `nav`.
-7. **Bundled assets**, when the change needs meta's: refreshed from a checkout of
-   `linked-archi-meta` (`docs-site/developing/assets.md`).
+7. **Bundled assets**, when the change needs meta's: refreshed from the published site by default,
+   or explicitly from a `linked-archi-meta` checkout (`docs-site/developing/assets.md`).
 8. **Build.** `npm run build`, then `npm run docs:build` — strict, a warning fails
    it — after the app's build, which empties `dist/web/`, where the site is built.
 
