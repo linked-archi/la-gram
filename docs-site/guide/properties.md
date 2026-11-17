@@ -46,15 +46,16 @@ picture for every presentation is the element's `arch:prefVisNotation`.
 
 ## Properties tab {#properties-tab}
 
-*Properties* lists what has been added to the concept, then, folded under *Relationships* (**folded** by
-default, remembered), the direct statements its relationships make, such as `am4:realizes`. Each value
-has a × to remove it.
+*Properties* lists what describes the concept: its data properties — text, numbers, dates — and its links
+to what is no element or relationship of the model: a value of the metamodel's reference data, such as a
+lifecycle stage, a document, an address outside the model. Its links to other elements and relationships
+are on the [Analysis tab](#analysis-tab). Each value has a × to remove it.
 
 The row at the bottom adds one: *Add a property…*, a value, and *Add*.
 
 | What | Offers |
 |---|---|
-| *Add a property…* | what applies to its type (by the vocabularies' `rdfs:domain` and the SHACL shapes) — its links among them, `ad:hasDecisionGoal` for a decision, but not those drawn as relationships on the canvas — what the model already uses, and documentation properties; or any name, prefixed name or IRI typed |
+| *Add a property…* | what applies to its type (by the vocabularies' `rdfs:domain` and the SHACL shapes) — its links among them, `ad:hasDecisionGoal` for a decision, but not a link to another element or relationship, nor one drawn as a relationship on the canvas — what the model already uses, and documentation properties; or any name, prefixed name or IRI typed |
 | the value | a choice when the property's shape lists its values (`sh:in`); *true* or *false* for a boolean; for a link, the model's concepts by name (*Search the model, or type an address or text*); else text (*Value*) |
 
 1. Select "Web shop", and open *Properties*.
@@ -70,9 +71,17 @@ m:web-shop dcterms:creator "Acme platform team" .
 
 ## Analysis tab {#analysis-tab}
 
-*Analysis* lists the element's relationships, each with its direction (→ from it, ← to it), its type and
-the element at the other end; both are links that select them. For a relationship, it shows its two ends
-first. The count on the tab is the number of relationships.
+*Analysis* lists the element's links to and from other elements and relationships of the model, each with
+its direction (→ from it, ← to it):
+
+| Listed | Shows |
+|---|---|
+| its relationships, first | the relationship's type and the element at the other end; both select them |
+| then the links no relationship stands for | the link's name (its predicate, `ad:relatedDecision` as *Related decision*) and the element at the other end, which selects it |
+
+A link the model states both ways round — `ap:hasActivity` from the process, `ap:activityOfProcess` from the
+activity — is listed once, as the selected element states it; the triple a relationship stands for is not
+listed again. For a relationship, it shows its two ends first. The count on the tab is of everything listed.
 
 1. Select "Web shop", and open *Analysis*.
 2. It reads → **Realization** "Online ordering", ← **Association** "Shop team" and ← **Serving** "Card

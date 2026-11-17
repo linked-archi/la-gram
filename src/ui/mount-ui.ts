@@ -36,6 +36,7 @@ import type { ViewKind } from '../model-manager/interfaces.js';
 import { VersionHistory } from '../model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
 import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
+import { conceptLinks, modelConceptTest } from '../model-manager/concept-links.js';
 import { contextNameChange, contextNameOf } from '../model-manager/context-names.js';
 import { pictureChange, pictureOf } from '../model-manager/element-pictures.js';
 import type { AppearanceChanges } from '../model-manager/appearance.js';
@@ -486,6 +487,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   propertyPanel.rdfStore = store;
   propertyPanel.nameOf = (iri) => (hasLabel(store, iri) ? labelOf(store, iri) : undefined);
   propertyPanel.shapesGraph = app.shapesGraph();
+  // A link to another concept of the model is listed on the Analysis tab, not as a property.
+  propertyPanel.conceptTest = () => modelConceptTest(store);
   // The value of a link added there is picked from the model's concepts, by name.
   propertyPanel.concepts = () => {
     const contents = modelContents();
@@ -747,10 +750,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       iri: v,
       label: viewManager.getView?.(v)?.label ?? v,
     }));
+    // The links to and from other concepts no relationship stands for, by their predicates' names.
+    const links = conceptLinks(store, iri).map((l) => ({
+      predicateIri: l.predicateIri,
+      direction: l.direction,
+      typeLabel: labelOf(store, l.predicateIri),
+      otherIri: l.otherIri,
+      otherLabel: labelOf(store, l.otherIri),
+    }));
     const rel = relationshipManager.getRelationship?.(iri);
     if (rel) {
       return {
         relationships: [],
+        links,
         views,
         ends: {
           sourceIri: rel.sourceIri,
@@ -771,7 +783,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         otherLabel: labelOf(store, other),
       };
     });
-    return { relationships, views };
+    return { relationships, links, views };
   };
 
   const headingFor = (iri: string): PropertyHeading => {

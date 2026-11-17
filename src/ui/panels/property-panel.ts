@@ -102,11 +102,12 @@ export interface PropertyEntry {
   /** Listed after the leading fields (type, inModel, prefLabel): a property the modeller added. */
   custom?: boolean;
   /**
-   * A relationship's direct statement (`am4:serves` to the element served): its
-   * predicate is a relationship type's `arch:unqualifiedForm`. Folded together
-   * under the Properties tab's "Relationships" — the Analysis tab lists them.
+   * A link to another concept of the model — a relationship's direct statement
+   * (`am4:serves` to the element served), or any other link whose value is an
+   * element or a relationship of the model. Not listed on the Properties tab:
+   * the Analysis tab lists the concept's links to and from other concepts.
    */
-  relationship?: boolean;
+  concept?: boolean;
   /** The values the SHACL shape allows (`sh:in`): shown as a choice. */
   choices?: PropertyChoice[];
 }
@@ -148,6 +149,18 @@ export interface PropertyChangeDetail {
 
 /** What the analysis section lists about the selected concept. */
 export interface PropertyAnalysis {
+  /**
+   * Links to and from other concepts of the model that no relationship stands
+   * for (`ad:relatedDecision`), each by its predicate: listed after the
+   * relationships (`model-manager/concept-links.ts`).
+   */
+  links?: Array<{
+    predicateIri: string;
+    direction: 'out' | 'in';
+    typeLabel: string;
+    otherIri: string;
+    otherLabel: string;
+  }>;
   /** Relationships with the concept at one end. */
   relationships: Array<{
     iri: string;
@@ -601,17 +614,6 @@ export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appea
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
 
-/** localStorage key of whether the Properties tab's "Relationships" group is open (folded by default). */
-const RELATIONSHIPS_OPEN_KEY = 'la-gram:property-panel-relationships-open';
-
-function storedRelationshipsOpen(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(RELATIONSHIPS_OPEN_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
 const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'label', 'figure', 'image'];
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
@@ -934,6 +936,11 @@ export class PropertyPanel extends LitElement {
     .dir {
       color: #80868b;
       width: 12px;
+    }
+
+    /* A link no relationship stands for: its predicate, not a resource to select. */
+    .link-type {
+      color: #3c4043;
     }
 
     .derivation {
@@ -1417,32 +1424,6 @@ export class PropertyPanel extends LitElement {
       font-style: italic;
     }
 
-    /* The relationships' direct statements, folded under a header. */
-    .relationship-group {
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .group-toggle {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-      padding: 6px 12px;
-      border: 0;
-      background: none;
-      font: inherit;
-      font-size: 12px;
-      font-weight: 500;
-      color: #3c4043;
-      text-align: left;
-      cursor: pointer;
-    }
-    .group-toggle:hover {
-      background: #f8f9fa;
-    }
-    .group-toggle .chevron {
-      color: #5f6368;
-      width: 10px;
-    }
   `;
 
   /** IRI of the currently selected element or relationship. */
@@ -1480,6 +1461,13 @@ export class PropertyPanel extends LitElement {
     /** Whether a property's values are resources: its value is then picked from {@link concepts}. */
     takesLinks?(iri: string): boolean;
   };
+
+  /**
+   * A test of whether an IRI is a concept of the model (an element or a relationship), built once per
+   * listing; supplied by the host (`modelConceptTest`). A link to one is the Analysis tab's, not a property.
+   */
+  @property({ attribute: false })
+  conceptTest?: () => (iri: string) => boolean;
 
   /** The model's concepts, by name, for the value of a link added; supplied by the host. */
   @property({ attribute: false })
@@ -1524,8 +1512,6 @@ export class PropertyPanel extends LitElement {
   /** The property chosen in the add row, so its value field can follow its shape. */
   @state() private _pickedPredicate = '';
 
-  /** Whether the Properties tab's "Relationships" group is open; remembered per browser. */
-  @state() private _relationshipsOpen = storedRelationshipsOpen();
 
   /** The rows whose IRIs are showing ({@link rowKey}); none, for another selection. */
   @state() private _shownIris: ReadonlySet<string> = new Set();
@@ -1613,8 +1599,9 @@ export class PropertyPanel extends LitElement {
       }
       return relationshipPredicates.get(predicate)!;
     };
+    const isConcept = this.conceptTest?.() ?? (() => false);
     this._entries = buildPropertyEntries(quads, shaclShapes, this.nameOf).map((entry) =>
-      entry.custom && entry.isIri && isRelationship(entry.predicate) ? { ...entry, relationship: true } : entry,
+      entry.custom && entry.isIri && (isRelationship(entry.predicate) || isConcept(entry.value)) ? { ...entry, concept: true } : entry,
     );
   }
 
@@ -1847,41 +1834,12 @@ export class PropertyPanel extends LitElement {
     );
   }
 
-  /** Open or fold the Properties tab's "Relationships" group; remembered per browser. */
-  private _toggleRelationships(): void {
-    this._relationshipsOpen = !this._relationshipsOpen;
-    try {
-      globalThis.localStorage?.setItem(RELATIONSHIPS_OPEN_KEY, String(this._relationshipsOpen));
-    } catch {
-      /* not remembered: fine */
-    }
-  }
-
-  /**
-   * The relationships' direct statements, folded together — by default — under
-   * a header with their count, so the concept's other properties stand out.
-   */
-  private _renderRelationshipGroup(related: PropertyEntry[]) {
-    if (related.length === 0) return nothing;
-    const open = this._relationshipsOpen === true;
-    return html`<div class="relationship-group">
-      <button
-        class="group-toggle"
-        aria-expanded=${open ? 'true' : 'false'}
-        title="The direct statements of this concept's relationships — the Analysis tab lists the relationships"
-        @click=${() => this._toggleRelationships()}
-      >
-        <span class="chevron">${open ? '▾' : '▸'}</span> Relationships <span class="count">${related.length}</span>
-      </button>
-      ${open ? html`<ul class="property-list">${related.map((entry) => this._renderEntry(entry))}</ul>` : nothing}
-    </div>`;
-  }
-
-  /** The relationships (or, for a relationship, its ends). */
+  /** The relationships (or, for a relationship, its ends), then the other links to and from concepts. */
   private _renderRelationships() {
     const a = this.analysis;
     if (!a) return nothing;
     const go = (iri: string) => this._emit('panel-navigate', { iri });
+    const links = a.links ?? [];
     return html`
       ${a.ends
         ? html`<div class="analysis-row">
@@ -1890,13 +1848,20 @@ export class PropertyPanel extends LitElement {
             <a href="#" @click=${(e: Event) => { e.preventDefault(); go(a.ends!.targetIri); }}>${a.ends.targetLabel}</a>
           </div>`
         : nothing}
-      ${a.relationships.length > 0
+      ${a.relationships.length + links.length > 0
         ? html`<ul class="analysis-list">
             ${a.relationships.map(
               (r) => html`<li>
                 <span class="dir">${r.direction === 'out' ? '→' : '←'}</span>
                 <a href="#" title=${r.iri} @click=${(e: Event) => { e.preventDefault(); go(r.iri); }}>${r.typeLabel}</a>
                 <a href="#" title=${r.otherIri} @click=${(e: Event) => { e.preventDefault(); go(r.otherIri); }}>${r.otherLabel}</a>
+              </li>`,
+            )}
+            ${links.map(
+              (l) => html`<li class="link">
+                <span class="dir">${l.direction === 'out' ? '→' : '←'}</span>
+                <span class="link-type" title=${l.predicateIri}>${l.typeLabel}</span>
+                <a href="#" title=${l.otherIri} @click=${(e: Event) => { e.preventDefault(); go(l.otherIri); }}>${l.otherLabel}</a>
               </li>`,
             )}
           </ul>`
@@ -2982,8 +2947,7 @@ export class PropertyPanel extends LitElement {
     }
     const entries = this._entries ?? [];
     const leading = entries.filter((e) => !e.custom);
-    const added = entries.filter((e) => e.custom && !e.relationship);
-    const related = entries.filter((e) => e.relationship);
+    const added = entries.filter((e) => e.custom && !e.concept);
     const a = this.analysis;
     const kind = this.heading?.kind ?? 'Element';
     // A figure, or a line from one, is drawing: its information and its look — nothing of the model's.
@@ -2997,7 +2961,7 @@ export class PropertyPanel extends LitElement {
             { id: 'properties' as const, title: 'Properties', count: added.length },
             ...(a
               ? [
-                  { id: 'analysis' as const, title: 'Analysis', count: a.relationships.length },
+                  { id: 'analysis' as const, title: 'Analysis', count: a.relationships.length + (a.links?.length ?? 0) },
                   { id: 'views' as const, title: 'Appears in views', count: a.views.length },
                 ]
               : []),
@@ -3057,10 +3021,8 @@ export class PropertyPanel extends LitElement {
             : active === 'properties'
               ? html`${added.length > 0
                   ? html`<ul class="property-list">${added.map((entry) => this._renderEntry(entry))}</ul>`
-                  : related.length === 0
-                    ? html`<div class="muted">No properties yet — add one below.</div>`
-                    : nothing}
-                ${this._renderRelationshipGroup(related)} ${this._renderAdd()}`
+                  : html`<div class="muted">No properties yet — add one below.</div>`}
+                ${this._renderAdd()}`
               : active === 'analysis'
                 ? this._renderRelationships()
                 : this._renderViews()}

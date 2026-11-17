@@ -449,25 +449,32 @@ describe('PropertyPanel', () => {
       expect(views).not.toContain('>Cost<');
     });
 
-    it('folds the relationships\u2019 direct statements under a count of their own, opened on a click', () => {
+    it('lists a link to another concept on the Analysis tab, not as a property', () => {
       const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const AD = 'https://meta.linked.archi/arch-decision#';
       const entries: PropertyEntry[] = [
         ...TABBED,
-        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, relationship: true },
-        { predicate: AM4 + 'flowsTo', label: 'Flows to', value: 'urn:e3', valueLabel: 'Till', readonly: true, isIri: true, custom: true, relationship: true },
+        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, concept: true },
+        { predicate: AD + 'relatedDecision', label: 'Related decision', value: 'urn:d2', valueLabel: 'Hosting', isIri: true, custom: true, concept: true },
       ];
-      const ctx = makeCtx({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis: ANALYSIS });
-      const render = () => flat((PropertyPanel.prototype as any).render.call(ctx));
-      const folded = render();
-      // The tab counts the other properties; the group, the relationships.
-      expect(folded).toMatch(/Properties<\/span>\s*<span class="count">2</);
-      expect(folded).toMatch(/Relationships <span class="count">2</);
-      expect(folded).toContain('>Cost<');
-      expect(folded).not.toContain('>Clerk</button>');
-      ctx._relationshipsOpen = true;
-      const open = render();
-      expect(open).toContain('>Clerk</button>');
-      expect(open).toContain('>Till</button>');
+      const analysis = {
+        relationships: [{ iri: 'urn:r1', direction: 'out' as const, typeLabel: 'Serving', otherIri: 'urn:e2', otherLabel: 'Clerk' }],
+        links: [{ predicateIri: AD + 'relatedDecision', direction: 'out' as const, typeLabel: 'Related decision', otherIri: 'urn:d2', otherLabel: 'Hosting' }],
+        views: [],
+      };
+      const properties = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis });
+      // The tab counts the properties alone, and lists neither link.
+      expect(properties).toMatch(/Properties<\/span>\s*<span class="count">2</);
+      expect(properties).toContain('>Cost<');
+      expect(properties).not.toContain('>Clerk</button>');
+      expect(properties).not.toContain('Hosting');
+      expect(properties).not.toContain('Relationships <span');
+      // Analysis: the relationship, then the link by its predicate's name; the count is both.
+      const listed = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'analysis', analysis });
+      expect(listed).toMatch(/Analysis<\/span>\s*<span class="count">2</);
+      expect(listed.indexOf('Serving')).toBeLessThan(listed.indexOf('Related decision'));
+      expect(listed).toMatch(/<span class="link-type" title=[^>]*relatedDecision[^>]*>Related decision<\/span>/);
+      expect(listed).toContain('>Hosting</a>');
     });
 
     it('falls back to the information tab when the remembered one does not apply', () => {
@@ -648,8 +655,8 @@ describe('PropertyPanel', () => {
       (PropertyPanel.prototype as any)._loadProperties.call(ctx);
       const byPredicate = new Map<string, PropertyEntry>(ctx._entries.map((e: PropertyEntry) => [e.predicate, e]));
       expect(byPredicate.has(AM3 + 'qualifiedAggregates')).toBe(false);
-      expect(byPredicate.get(AM3 + 'serves')?.relationship).toBe(true);
-      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.relationship).toBeUndefined();
+      expect(byPredicate.get(AM3 + 'serves')?.concept).toBe(true);
+      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.concept).toBeUndefined();
     });
 
     it('clears entries when no selectedIri', () => {

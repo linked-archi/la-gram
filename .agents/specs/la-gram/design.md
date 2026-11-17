@@ -1178,18 +1178,30 @@ The panel (the bottom panel's Properties tab) has vertical tabs on the left,
 under the heading (kind and type), each with a count where one applies:
 **‹Kind› information** — ID, type, model, name, definition, always in that
 order; **Properties** — everything else on the concept, then the add field;
-**Analysis** — the relationships (or a relationship's ends); **Appears in
+**Analysis** — the links to and from other concepts (or a relationship's ends); **Appears in
 views**. Only the open tab's pane is rendered; its fields sit side by side where
 there is room, a text area taking the whole row. Up/Down move between the tabs.
 The open tab is kept in `localStorage` (`la-gram:property-panel-tab`), so it
 holds from one selection to the next and across reloads; a concept without that
 tab (a model has no analysis) shows its information instead.
 
-The Properties tab leads with the concept's own properties; its relationships'
-direct statements (`am4:serves` to the element served — a predicate a
-relationship type declares as its `arch:unqualifiedForm`) are folded together
-under "Relationships" with their count, opened on a click and remembered per
-browser; the tab's count is of the others. The way in to each relationship it is
+**Properties, and links between concepts** (key design decision 26). A
+concept's links to other concepts of the model are on the Analysis tab, beside
+its relationships; the Properties tab keeps its data properties and its links to
+anything else — a reference data value (`ap:Active`), a document, an address
+outside the model. What a concept is comes from `modelConceptTest`
+(`concept-links.ts`): typed in the model's data as an element, a relationship,
+or with a type no loaded metamodel classifies — not a view, the model, drawing,
+or a resource the model does not type. So the Properties tab leaves out a link
+whose value is a concept (the panel's `conceptTest`, from the host) — a
+relationship's direct statement among them — and `conceptLinks` gives the
+Analysis tab the links no relationship stands for, out and in, by predicate:
+not a triple a relationship reifies, nor the declared inverse of one, nor a
+qualified predicate, nor `arch:source`, `arch:target`, `arch:inModel`,
+`arch:inView`, `rdf:type`, nor a derivation's provenance; one stated both ways
+round through a declared inverse once, as the selected concept states it. The
+property picker leaves out a link whose range is a kind of model concept for the
+same reason. The way in to each relationship it is
 the source of is left out — known by name (`isQualifiedPredicate`) and by what it
 links (a relationship whose `arch:source` the concept is), so a converter's or a
 mapping's own name for it is left out too.
@@ -3357,6 +3369,14 @@ dialog; the modules' section).
 | Build | webpack 5 (web, electron-main, electron-preload, electron-renderer — the web build again), TypeScript 5 (strict) |
 | Tests | Vitest (unit, jsdom) + Playwright (browser suite against the production build) |
 | Desktop | Electron 44 — sandboxed renderer without Node, `app://la-gram/`, Content-Security-Policy, preload bridge for files |
+
+26. **A link to another concept is analysis, not a property** (Req 11.4, 3.6; 2026-11-17). The Analysis
+    tab lists a concept's links to and from other concepts of the model — its relationships, then the
+    links no relationship stands for, by predicate — and the Properties tab its data properties and links
+    to anything else. Decided so on 2026-11-17: what the concept is related to is read together, whichever
+    way the data states it, and the properties stay what describes the concept itself. The alternative,
+    listing incoming links under the properties (L3 of meta's decision task), would have split a concept's
+    relations over two tabs.
 
 ## Running
 
