@@ -105,7 +105,10 @@ describe('a governance process, drawn', () => {
 @prefix :     <https://model.example.com/governance#> .
 
 :model a arch:Model ; skos:prefLabel "Governance"@en ; arch:modelConformsToMetamodel <${PROCESSES}> .
-:Chief a ap:ProcessRole ; skos:prefLabel "Chief Architect"@en .
+:Chief a ap:ProcessRole ; skos:prefLabel "Chief Architect"@en ;
+    ap:responsibleFor :Review .
+:Findings a ap:ProcessDeliverable ; skos:prefLabel "Review findings"@en ;
+    ap:producedBy :Review .
 :Review a ap:ArchitectureProcess ; skos:prefLabel "Architecture review"@en ;
     ap:hasActivity :Submit .
 :Submit a ap:ProcessActivity ; skos:prefLabel "Submit"@en ;
@@ -125,9 +128,11 @@ describe('a governance process, drawn', () => {
     );
     const g = 'https://model.example.com/governance#';
     // Has Activity twice (one only as activityOfProcess), Has Task twice (one only as taskOfActivity),
-    // Precedes once (stated both ways), Performed By once.
-    expect(qualified).toBe(6);
-    expect(linksFrom(app, g + 'Review')).toEqual(['HasActivity → Submit', 'HasActivity → Triage']);
+    // Precedes once (stated both ways), Performed By once, Responsible For once, and an Output stated only
+    // as ap:producedBy, its declared inverse.
+    expect(qualified).toBe(8);
+    expect(linksFrom(app, g + 'Review')).toEqual(['HasActivity → Submit', 'HasActivity → Triage', 'Output → Findings']);
+    expect(linksFrom(app, g + 'Chief')).toEqual(['ResponsibleFor → Review']);
     expect(linksFrom(app, g + 'Submit')).toEqual(['HasTask → Prepare', 'Precedes → Triage']);
     expect(linksFrom(app, g + 'Triage')).toEqual(['HasTask → Record', 'PerformedBy → Chief']);
     // Read the other way, the link states its drawn direction too.

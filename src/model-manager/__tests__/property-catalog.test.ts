@@ -205,8 +205,9 @@ describe('PropertyCatalog.suggest — links', () => {
     // Links for a decision, typed rather than drawn.
     expect(offered.get(AD + 'hasDecisionGoal')).toBe('type');
     expect(offered.get(AD + 'pertainsTo')).toBe('type');
-    // To another decision: a link to a concept is a property too, unless a relationship class draws it.
-    expect(offered.get(AD + 'relatedDecision')).toBe('type');
+    // To another decision: drawn, as Related Decision, so not a property.
+    expect(offered.has(AD + 'relatedDecision')).toBe(false);
+    expect(offered.has(AD + 'supersededBy')).toBe(false);
     // Drawn: the form of a relationship class, and its qualified predicate.
     expect(offered.has(AD + 'hasSelectedOption')).toBe(false);
     expect(offered.has(AD + 'qualifiedHasSelectedOption')).toBe(false);

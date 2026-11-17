@@ -52,13 +52,13 @@ tasks, and their inputs/outputs — governance infrastructure that acts upon
 architecture elements, not constituents of the architecture itself.'''@en ;
     dcterms:created               "2020-07-27"^^xsd:date ;
     dcterms:issued                "2020-07-27"^^xsd:date ;
-    dcterms:modified              "2026-11-16"^^xsd:date ;
+    dcterms:modified              "2026-11-17"^^xsd:date ;
     dcterms:publisher                  <https://linked.archi>,
                                   "Linked.Archi"@en ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/arch-processes/0.3.0#> ;
-    owl:versionInfo               "0.3.0"@en ;
-    owl:priorVersion              <https://meta.linked.archi/arch-processes/0.2.0#> ;
+    owl:versionIRI                <https://meta.linked.archi/arch-processes/0.4.0#> ;
+    owl:versionInfo               "0.4.0"@en ;
+    owl:priorVersion              <https://meta.linked.archi/arch-processes/0.3.0#> ;
     schema:citation               "Linked.Archi Architecture Processes Extension" ;
     prov:wasDerivedFrom           "ISO/IEC/IEEE 42020:2019",
                                   "ISO/IEC/IEEE 12207:2017",
@@ -345,6 +345,7 @@ execution.'''@en ;
 
 :producedBy
     a                owl:ObjectProperty ;
+    owl:inverseOf    :output ;
     skos:prefLabel   "produced by"@en ;
     skos:definition  "Links a ProcessDeliverable to the ArchitectureProcess that produces it."@en ;
     rdfs:domain      :ProcessDeliverable ;
@@ -353,6 +354,7 @@ execution.'''@en ;
 
 :consumedBy
     a                owl:ObjectProperty ;
+    owl:inverseOf    :input ;
     skos:prefLabel   "consumed by"@en ;
     skos:definition  "Links an element to the ArchitectureProcess that consumes it as input."@en ;
     rdfs:range       :ArchitectureProcess ;
@@ -417,7 +419,7 @@ a change in the architecture.'''@en ;
 .
 
 :relatedProcess
-    a                owl:ObjectProperty ;
+    a                owl:ObjectProperty, owl:SymmetricProperty ;
     skos:prefLabel   "related process"@en ;
     skos:definition  "Links an ArchitectureProcess to another related process."@en ;
     rdfs:domain      :ArchitectureProcess ;
@@ -828,6 +830,54 @@ resources are reclaimed.'''@en ;
     arch:unqualifiedForm :governs ;
 .
 
+:ResponsibleFor
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :responsibleFor ;
+    skos:prefLabel       "Responsible For"@en ;
+    skos:definition      "A drawn link from a Process Role or Stakeholder to the Architecture Process they are responsible for executing or governing."@en ;
+.
+
+:qualifiedResponsibleFor
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified responsible For"@en ;
+    skos:definition      "Links the source of a drawn Responsible For link to its relationship resource."@en ;
+    rdfs:range           :ResponsibleFor ;
+    arch:unqualifiedForm :responsibleFor ;
+.
+
+:RelatedProcess
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :relatedProcess ;
+    skos:prefLabel       "Related Process"@en ;
+    skos:definition      "A drawn link between two Architecture Processes related to each other."@en ;
+.
+
+:qualifiedRelatedProcess
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified related Process"@en ;
+    skos:definition      "Links the source of a drawn Related Process link to its relationship resource."@en ;
+    rdfs:range           :RelatedProcess ;
+    arch:unqualifiedForm :relatedProcess ;
+.
+
+:TriggeredBy
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :triggeredBy ;
+    skos:prefLabel       "Triggered By"@en ;
+    skos:definition      "A drawn link from an Architecture Process to the event or condition that triggers it: a milestone, a decision, an event or a change in the architecture."@en ;
+.
+
+:qualifiedTriggeredBy
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified triggered By"@en ;
+    skos:definition      "Links the source of a drawn Triggered By link to its relationship resource."@en ;
+    rdfs:range           :TriggeredBy ;
+    arch:unqualifiedForm :triggeredBy ;
+.
+
 #################################################################
 # Typical ends of the predicates drawn
 #
@@ -885,4 +935,19 @@ resources are reclaimed.'''@en ;
 :governs
     arch:domainIncludes  :ArchitectureProcess ;
     arch:rangeIncludes   arch:Element ;
+.
+
+:responsibleFor
+    arch:domainIncludes  :ProcessRole, arch:Stakeholder ;
+    arch:rangeIncludes   :ArchitectureProcess ;
+.
+
+:relatedProcess
+    arch:domainIncludes  :ArchitectureProcess ;
+    arch:rangeIncludes   :ArchitectureProcess ;
+.
+
+:triggeredBy
+    arch:domainIncludes  :ArchitectureProcess ;
+    arch:rangeIncludes   :ProcessMilestone, ad:Decision, arch:Element ;
 .

@@ -26,7 +26,7 @@
     dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
     dcterms:title                 "Linked.Archi Architecture Processes Taxonomy"@en ;
     dcterms:created               "2026-11-16"^^xsd:date ;
-    dcterms:modified              "2026-11-16"^^xsd:date ;
+    dcterms:modified              "2026-11-17"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionInfo               "0.1.0"@en ;
@@ -96,27 +96,27 @@
     a                 skos:Concept ;
     skos:broader      :RelationshipKind ;
     skos:prefLabel    "Structure Links"@en ;
-    skos:definition   "How a process is put together: its activities, their tasks, its sub-processes and its milestones."@en ;
+    skos:definition   "How a process is put together: its activities, their tasks, its sub-processes and its milestones; and the processes related to it."@en ;
     skos:inScheme     <https://meta.linked.archi/arch-processes/tax#> ;
-    skos:narrower     ap:HasActivity, ap:HasTask, ap:HasSubProcess, ap:MilestoneOfProcess ;
+    skos:narrower     ap:HasActivity, ap:HasTask, ap:HasSubProcess, ap:MilestoneOfProcess, ap:RelatedProcess ;
 .
 
 :FlowLinks
     a                 skos:Concept ;
     skos:broader      :RelationshipKind ;
     skos:prefLabel    "Flow Links"@en ;
-    skos:definition   "What follows what, and what a process takes in and produces."@en ;
+    skos:definition   "What follows what, what triggers a process, and what a process takes in and produces."@en ;
     skos:inScheme     <https://meta.linked.archi/arch-processes/tax#> ;
-    skos:narrower     ap:Precedes, ap:Input, ap:Output ;
+    skos:narrower     ap:Precedes, ap:TriggeredBy, ap:Input, ap:Output ;
 .
 
 :ResponsibilityLinks
     a                 skos:Concept ;
     skos:broader      :RelationshipKind ;
     skos:prefLabel    "Responsibility Links"@en ;
-    skos:definition   "Who performs an activity or a task, and who approves a deliverable or a milestone."@en ;
+    skos:definition   "Who is responsible for a process, who performs an activity or a task, and who approves a deliverable or a milestone."@en ;
     skos:inScheme     <https://meta.linked.archi/arch-processes/tax#> ;
-    skos:narrower     ap:PerformedBy, ap:ApprovedBy ;
+    skos:narrower     ap:ResponsibleFor, ap:PerformedBy, ap:ApprovedBy ;
 .
 
 :GovernanceLinks

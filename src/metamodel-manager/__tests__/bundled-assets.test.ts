@@ -251,6 +251,15 @@ describe('the bundled Architecture Decisions extension', () => {
     expect(relationship(`${AD}ModifiesConcept`)).toMatchObject({ label: 'Modifies', unqualifiedPredicateIri: `${AD}modifiesConcept` });
     // Each metamodel's relationship types keep their own categories.
     expect(relationship(`${AD}ModifiesConcept`)?.category).toBe('Change Links');
+    expect(relationship(`${AD}DependsOn`)?.category).toBe('Decision Map Links');
+    expect(relationship(`${AD}IssueOwner`)?.category).toBe('Stakeholder Links');
+    expect(relationship(`${AD}AppliedInOption`)?.category).toBe('Issue and Design Links');
+    expect(relationship(`${AD}OpposingForce`)?.category).toBe('Force Links');
+    // Conflicting decisions, opposing and complementary forces: no direction, a plain line.
+    for (const symmetric of ['ConflictsWith', 'OpposingForce', 'ComplementaryForce']) {
+      expect(relationship(`${AD}${symmetric}`)?.relationshipStyle, symmetric).toBeUndefined();
+    }
+    expect(relationship(`${AD}SupersededBy`)?.relationshipStyle?.targetDecor).toBe('OpenArrowhead');
     expect(relationship('https://meta.linked.archi/archimate4/onto#Composition')?.category).toBe('Structural Relationship');
     // An influence is drawn as one of its two kinds, each reached by Force Influence's qualified property.
     expect(relationship(`${AD}ForceInfluence`)).toBeUndefined();
@@ -259,7 +268,7 @@ describe('the bundled Architecture Decisions extension', () => {
     expect(qualifiedFormOf(store, `${AD}ModifiesConcept`)).toBe(`${AD}qualifiedModifiesConcept`);
   }, 60_000);
 
-  it('loads the bundled processes extension with no network: its three groups and ten relationship types in their categories', async () => {
+  it('loads the bundled processes extension with no network: its three groups and thirteen relationship types in their categories', async () => {
     const { OxigraphRdfStore } = await import('../../rdf-engine/rdf-store.js');
     const { N3TtlParser } = await import('../../rdf-engine/ttl-parser.js');
     const { N3MetamodelLoader } = await import('../metamodel-loader.js');
@@ -282,7 +291,11 @@ describe('the bundled Architecture Decisions extension', () => {
     expect(own.map((r) => r.iri.replace('https://meta.linked.archi/arch-processes#', 'ap:')).sort()).toEqual([
       'ap:ApprovedBy', 'ap:Governs', 'ap:HasActivity', 'ap:HasSubProcess', 'ap:HasTask',
       'ap:Input', 'ap:MilestoneOfProcess', 'ap:Output', 'ap:PerformedBy', 'ap:Precedes',
+      'ap:RelatedProcess', 'ap:ResponsibleFor', 'ap:TriggeredBy',
     ]);
+    // A related process has no direction: a plain line. The others lead somewhere.
+    expect(own.find((r) => r.iri.endsWith('#RelatedProcess'))?.relationshipStyle).toBeUndefined();
+    expect(own.find((r) => r.iri.endsWith('#ResponsibleFor'))?.relationshipStyle?.targetDecor).toBe('OpenArrowhead');
     expect(new Set(own.map((r) => r.category))).toEqual(
       new Set(['Structure Links', 'Flow Links', 'Responsibility Links', 'Governance Links']),
     );

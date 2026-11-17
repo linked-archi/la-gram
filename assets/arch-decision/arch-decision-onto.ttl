@@ -39,13 +39,13 @@ iterative decision processes.'''@en ;
                                   <https://github.com/adr/madr> ;
     dcterms:created               "2020-07-27"^^xsd:date ;
     dcterms:issued                "2020-07-27"^^xsd:date ;
-    dcterms:modified              "2026-11-16"^^xsd:date ;
+    dcterms:modified              "2026-11-17"^^xsd:date ;
     dcterms:publisher                  <https://linked.archi>,
                                   "Linked.Archi"@en ;
     bibo:status                   "draft" ;
-    owl:versionIRI                <https://meta.linked.archi/arch-decision/0.0.8#> ;
-    owl:priorVersion              <https://meta.linked.archi/arch-decision/0.0.7#> ;
-    owl:versionInfo               "0.0.8"@en ;
+    owl:versionIRI                <https://meta.linked.archi/arch-decision/0.0.9#> ;
+    owl:priorVersion              <https://meta.linked.archi/arch-decision/0.0.8#> ;
+    owl:versionInfo               "0.0.9"@en ;
     schema:citation               "Linked.Archi Architecture Decision Ontology" ;
     rdfs:seeAlso                  <http://dx.doi.org/10.1109/WICSA.2014.32>,
                                   <http://dx.doi.org/10.1007/978-3-540-87879-7_14>,
@@ -733,7 +733,7 @@ if the Option is selected.'''@en ;
 .
 
 :opposingForce
-    a                owl:ObjectProperty ;
+    a                owl:ObjectProperty, owl:SymmetricProperty ;
     skos:prefLabel   "opposing force"@en ;
     skos:definition  "Links a Force to another Force that opposes or conflicts with it."@en ;
     rdfs:domain      :Force ;
@@ -742,7 +742,7 @@ if the Option is selected.'''@en ;
 .
 
 :complementaryForce
-    a                owl:ObjectProperty ;
+    a                owl:ObjectProperty, owl:SymmetricProperty ;
     skos:prefLabel   "complementary force"@en ;
     skos:definition  "Links a Force to another Force that complements or reinforces it."@en ;
     rdfs:domain      :Force ;
@@ -942,7 +942,7 @@ status and the replacement link are separate assertions.'''@en ;
 .
 
 :conflictsWith
-    a                  owl:ObjectProperty ;
+    a                  owl:ObjectProperty, owl:SymmetricProperty ;
     rdfs:subPropertyOf :relatedDecision ;
     skos:prefLabel     "conflicts with"@en ;
     skos:definition    "Links a Decision to another Decision that it conflicts with."@en ;
@@ -1157,6 +1157,262 @@ Decision Option in which it is applied.'''@en ;
     arch:unqualifiedForm :addressesForce ;
 .
 
+:RelatedDecision
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :relatedDecision ;
+    skos:prefLabel       "Related Decision"@en ;
+    skos:definition      "A drawn link from a Decision to another Decision related to it."@en ;
+.
+
+:qualifiedRelatedDecision
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified related Decision"@en ;
+    skos:definition      "Links the source of a drawn Related Decision link to its relationship resource."@en ;
+    rdfs:range           :RelatedDecision ;
+    arch:unqualifiedForm :relatedDecision ;
+.
+
+:DependsOn
+    a                    owl:Class ;
+    rdfs:subClassOf      :RelatedDecision ;
+    arch:unqualifiedForm :dependsOn ;
+    skos:prefLabel       "Depends On"@en ;
+    skos:definition      "A drawn link from a Decision to another Decision it depends on or requires as a prerequisite."@en ;
+.
+
+:qualifiedDependsOn
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified depends On"@en ;
+    skos:definition      "Links the source of a drawn Depends On link to its relationship resource."@en ;
+    rdfs:range           :DependsOn ;
+    arch:unqualifiedForm :dependsOn ;
+.
+
+:ConflictsWith
+    a                    owl:Class ;
+    rdfs:subClassOf      :RelatedDecision ;
+    arch:unqualifiedForm :conflictsWith ;
+    skos:prefLabel       "Conflicts With"@en ;
+    skos:definition      "A drawn link between two Decisions that conflict with each other."@en ;
+.
+
+:qualifiedConflictsWith
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified conflicts With"@en ;
+    skos:definition      "Links the source of a drawn Conflicts With link to its relationship resource."@en ;
+    rdfs:range           :ConflictsWith ;
+    arch:unqualifiedForm :conflictsWith ;
+.
+
+:CausedBy
+    a                    owl:Class ;
+    rdfs:subClassOf      :RelatedDecision ;
+    arch:unqualifiedForm :causedBy ;
+    skos:prefLabel       "Caused By"@en ;
+    skos:definition      "A drawn link from a Decision to another Decision that caused or triggered it."@en ;
+.
+
+:qualifiedCausedBy
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified caused By"@en ;
+    skos:definition      "Links the source of a drawn Caused By link to its relationship resource."@en ;
+    rdfs:range           :CausedBy ;
+    arch:unqualifiedForm :causedBy ;
+.
+
+:SupersededBy
+    a                    owl:Class ;
+    rdfs:subClassOf      :RelatedDecision ;
+    arch:unqualifiedForm :supersededBy ;
+    skos:prefLabel       "Superseded By"@en ;
+    skos:definition      "A drawn link from a Decision to the later Decision that replaces it."@en ;
+.
+
+:qualifiedSupersededBy
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified superseded By"@en ;
+    skos:definition      "Links the source of a drawn Superseded By link to its relationship resource."@en ;
+    rdfs:range           :SupersededBy ;
+    arch:unqualifiedForm :supersededBy ;
+.
+
+:OpposingForce
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :opposingForce ;
+    skos:prefLabel       "Opposing Force"@en ;
+    skos:definition      "A drawn link between two Forces that oppose or conflict with each other."@en ;
+.
+
+:qualifiedOpposingForce
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified opposing Force"@en ;
+    skos:definition      "Links the source of a drawn Opposing Force link to its relationship resource."@en ;
+    rdfs:range           :OpposingForce ;
+    arch:unqualifiedForm :opposingForce ;
+.
+
+:ComplementaryForce
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :complementaryForce ;
+    skos:prefLabel       "Complementary Force"@en ;
+    skos:definition      "A drawn link between two Forces that complement or reinforce each other."@en ;
+.
+
+:qualifiedComplementaryForce
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified complementary Force"@en ;
+    skos:definition      "Links the source of a drawn Complementary Force link to its relationship resource."@en ;
+    rdfs:range           :ComplementaryForce ;
+    arch:unqualifiedForm :complementaryForce ;
+.
+
+:InfluencingForce
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :influencingForce ;
+    skos:prefLabel       "Influencing Force"@en ;
+    skos:definition      "A drawn link from an Issue to a Force that potentially influences it."@en ;
+.
+
+:qualifiedInfluencingForce
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified influencing Force"@en ;
+    skos:definition      "Links the source of a drawn Influencing Force link to its relationship resource."@en ;
+    rdfs:range           :InfluencingForce ;
+    arch:unqualifiedForm :influencingForce ;
+.
+
+:IssueOwner
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :issueOwner ;
+    skos:prefLabel       "Issue Owner"@en ;
+    skos:definition      "A drawn link from an Issue to the Stakeholder responsible for resolving it."@en ;
+.
+
+:qualifiedIssueOwner
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified issue Owner"@en ;
+    skos:definition      "Links the source of a drawn Issue Owner link to its relationship resource."@en ;
+    rdfs:range           :IssueOwner ;
+    arch:unqualifiedForm :issueOwner ;
+.
+
+:IssueReportedBy
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :issueReportedBy ;
+    skos:prefLabel       "Issue Reported By"@en ;
+    skos:definition      "A drawn link from an Issue to the element that reported it."@en ;
+.
+
+:qualifiedIssueReportedBy
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified issue Reported By"@en ;
+    skos:definition      "Links the source of a drawn Issue Reported By link to its relationship resource."@en ;
+    rdfs:range           :IssueReportedBy ;
+    arch:unqualifiedForm :issueReportedBy ;
+.
+
+:SupportedByStakeholder
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :supportedByStakeholder ;
+    skos:prefLabel       "Supported By"@en ;
+    skos:definition      "A drawn link from a Force to the Stakeholder who supports or champions it."@en ;
+.
+
+:qualifiedSupportedByStakeholder
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified supported By"@en ;
+    skos:definition      "Links the source of a drawn Supported By link to its relationship resource."@en ;
+    rdfs:range           :SupportedByStakeholder ;
+    arch:unqualifiedForm :supportedByStakeholder ;
+.
+
+:RequestedByStakeholder
+    a                    owl:Class ;
+    rdfs:subClassOf      :SupportedByStakeholder ;
+    arch:unqualifiedForm :requestedByStakeholder ;
+    skos:prefLabel       "Requested By"@en ;
+    skos:definition      "A drawn link from a Requirement to the Stakeholder who requested it."@en ;
+.
+
+:qualifiedRequestedByStakeholder
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified requested By"@en ;
+    skos:definition      "Links the source of a drawn Requested By link to its relationship resource."@en ;
+    rdfs:range           :RequestedByStakeholder ;
+    arch:unqualifiedForm :requestedByStakeholder ;
+.
+
+:IssueCausedBy
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :issueCausedBy ;
+    skos:prefLabel       "Issue Caused By"@en ;
+    skos:definition      "A drawn link from an Issue to the element that caused it: another Issue, a Decision, or any internal or external element."@en ;
+.
+
+:qualifiedIssueCausedBy
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified issue Caused By"@en ;
+    skos:definition      "Links the source of a drawn Issue Caused By link to its relationship resource."@en ;
+    rdfs:range           :IssueCausedBy ;
+    arch:unqualifiedForm :issueCausedBy ;
+.
+
+:AssociatedIssue
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :associatedIssue ;
+    skos:prefLabel       "Associated Issue"@en ;
+    skos:definition      "A drawn link from a model concept to an Issue that needs to be addressed about it."@en ;
+.
+
+:qualifiedAssociatedIssue
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified associated Issue"@en ;
+    skos:definition      "Links the source of a drawn Associated Issue link to its relationship resource."@en ;
+    rdfs:range           :AssociatedIssue ;
+    arch:unqualifiedForm :associatedIssue ;
+.
+
+:AppliedInOption
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :appliedInOption ;
+    skos:prefLabel       "Applied In Option"@en ;
+    skos:definition      "A drawn link from a Tactic, Pattern or Reference Architecture to an Option that applies it."@en ;
+.
+
+:qualifiedAppliedInOption
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified applied In Option"@en ;
+    skos:definition      "Links the source of a drawn Applied In Option link to its relationship resource."@en ;
+    rdfs:range           :AppliedInOption ;
+    arch:unqualifiedForm :appliedInOption ;
+.
+
+:RealizeRequirement
+    a                    owl:Class ;
+    rdfs:subClassOf      arch:QualifiedRelationship ;
+    arch:unqualifiedForm :realizeRequirement ;
+    skos:prefLabel       "Realizes Requirement"@en ;
+    skos:definition      "A drawn link from an element to a Requirement it realizes or fulfils."@en ;
+.
+
+:qualifiedRealizeRequirement
+    a                    owl:ObjectProperty ;
+    skos:prefLabel       "qualified realizes Requirement"@en ;
+    skos:definition      "Links the source of a drawn Realizes Requirement link to its relationship resource."@en ;
+    rdfs:range           :RealizeRequirement ;
+    arch:unqualifiedForm :realizeRequirement ;
+.
+
 #################################################################
 # Typical ends of the predicates drawn
 #
@@ -1224,4 +1480,84 @@ Decision Option in which it is applied.'''@en ;
 :influencedByForce
     arch:domainIncludes  :Decision ;
     arch:rangeIncludes   :Force ;
+.
+
+:relatedDecision
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Decision ;
+.
+
+:dependsOn
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Decision ;
+.
+
+:conflictsWith
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Decision ;
+.
+
+:causedBy
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Decision ;
+.
+
+:supersededBy
+    arch:domainIncludes  :Decision ;
+    arch:rangeIncludes   :Decision ;
+.
+
+:opposingForce
+    arch:domainIncludes  :Force ;
+    arch:rangeIncludes   :Force ;
+.
+
+:complementaryForce
+    arch:domainIncludes  :Force ;
+    arch:rangeIncludes   :Force ;
+.
+
+:influencingForce
+    arch:domainIncludes  :Issue ;
+    arch:rangeIncludes   :Force ;
+.
+
+:issueOwner
+    arch:domainIncludes  :Issue ;
+    arch:rangeIncludes   arch:Stakeholder ;
+.
+
+:issueReportedBy
+    arch:domainIncludes  :Issue ;
+    arch:rangeIncludes   arch:Element ;
+.
+
+:supportedByStakeholder
+    arch:domainIncludes  :Force ;
+    arch:rangeIncludes   arch:Stakeholder ;
+.
+
+:requestedByStakeholder
+    arch:domainIncludes  :Requirement ;
+    arch:rangeIncludes   arch:Stakeholder ;
+.
+
+:issueCausedBy
+    arch:domainIncludes  :Issue ;
+    arch:rangeIncludes   :Issue, :Decision, arch:Element ;
+.
+
+:associatedIssue
+    arch:domainIncludes  arch:ModelConcept ;
+    arch:rangeIncludes   :Issue ;
+.
+
+:appliedInOption
+    arch:domainIncludes  refa:Tactic, refa:Pattern, refa:ReferenceArchitecture ;
+    arch:rangeIncludes   :Option ;
+.
+
+:realizeRequirement
+    arch:domainIncludes  arch:Element ;
+    arch:rangeIncludes   :Requirement ;
 .
