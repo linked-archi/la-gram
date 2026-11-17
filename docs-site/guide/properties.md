@@ -25,7 +25,7 @@ The first tab is named after what is selected: *Element information*, *Relations
 | Field | What it is |
 |---|---|
 | *ID* | its local name (`web-shop`); click *ID* for the full IRI |
-| *Type* | its type: for an element, a choice of every element type ([Change type](#change-type)) |
+| *Type* | its type: for an element, a choice of every element type ([Change type](#change-type)); the *IRI* button beside the field shows or hides the current type's full IRI without opening the choice |
 | *Model* | the model it is in |
 | *Name* | its name, `skos:prefLabel`, in English |
 | *Definition* | its definition, `skos:definition` (*Add a definition…* while empty) |
@@ -95,6 +95,8 @@ An element's type changes in place: it keeps its identity, its name, its propert
 - In *Element information*, the *Type* field searches every element type of the loaded metamodels by
   name, grouped as in the palette. Types that share a name show their IRIs; *Show IRIs* shows every
   one's, a switch remembered for every such list.
+- To inspect the current type, click *IRI* beside the field. Its full IRI appears below, selectable
+  for copying; click *IRI* again to hide it. The type stays the same.
 - On the canvas, right-click › *Change type…* opens *Change element type*, a searchable menu of the same.
 
 Relationships the new type does not permit are named before the change, in *Change Web shop to

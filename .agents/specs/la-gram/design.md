@@ -1222,7 +1222,10 @@ is and its IRI. IRIs are behind the list's **Show IRIs** switch — remembered p
 browser, for every picker that has one — except where entries share a name
 (ArchiMate 3's Business Actor and ArchiMate 4's), which show theirs anyway. The
 type field shows the current type's name and goes back to it when left without
-a pick, or when the change is not made after all. A property takes a link when
+a pick, or when the change is not made after all. Its adjacent **IRI** button
+toggles the row's existing `_shownIris` disclosure, as its label and read-only
+types do; it does not focus the picker or emit `property-retype` (Req 3.11).
+A property takes a link when
 its shape says so (`sh:class`, a `sh:nodeKind` that admits IRIs) or its
 vocabulary does (an object property, a range that is a class), and for
 `rdfs:seeAlso`, `prov:wasDerivedFrom` and `dcterms:source` / `relation` /
@@ -3379,6 +3382,12 @@ dialog; the modules' section).
     keeps that endpoint. This lets the blue connect preview follow the pointer
     before entering a target and after leaving one, while actual shapes retain
     centre-to-centre routing cropped to their outlines.
+
+28. **Inspect the current type beside its editor** (Req 3.11; 2026-11-17).
+    A separate, keyboard-operable **IRI** button beside the direct type's picker
+    reveals its current IRI through the same disclosure used for read-only types.
+    Keeping the button outside the picker lets a modeller inspect or copy the
+    IRI without opening the choices or changing the type.
 
 ## Running
 

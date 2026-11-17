@@ -52,6 +52,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] UUID IRIs; `rdf:type`, `skos:prefLabel`@en, `arch:inModel`; node in the open view — *element-manager.test*
 - [x] Undo/redo restores the same IRI — *view-canvas.test*
 - [x] Property panel: kind, type, IRI, SHACL-derived fields, add/remove values
+- [x] IRI button beside the editable direct Type reveals its current IRI without opening the picker or retyping; mouse and keyboard, including after a type change (Req 3.11) — *workbench.spec*
 - [x] Field order: ID, type, `inModel`, `prefLabel`, `definition` (name and definition always listed), then the rest (added properties); no `inView` rows
 - [x] Vertical tabs: information, properties (+ add field), analysis, appears in views; counts; Up/Down; open tab remembered — *property-panel.test, workbench.test, workbench.spec*
 - [x] Property picker: grouped by applicability (domain / shapes), used in model, documentation, More (folded); no geometry / styling / authoring terms; name first, CURIE second; custom names in the model namespace — *property-catalog.test, property-picker.test, workbench.test, workbench.spec*
@@ -405,6 +406,14 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-17 — inspect the direct type beside its picker
+
+- An **IRI** button beside the direct Type reveals the current type's full IRI
+  in the same disclosure as read-only types. The control works by mouse and
+  keyboard without opening the type chooser or changing the element; after a
+  type change it reveals the new type (Req 3.11; key design decision 28)
+  — *workbench.spec*.
 
 ### 2026-11-17 — restore the connect preview over empty canvas
 

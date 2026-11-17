@@ -1722,6 +1722,17 @@ describe('changing an element’s type', () => {
     const typeField = page.locator('property-panel named-picker.type-picker input[type="text"]');
     await typeField.waitFor({ state: 'visible' });
     expect(await typeField.inputValue()).toBe('Business Object');
+    const typeRow = page.locator('property-panel .property-row').filter({ has: page.locator('named-picker.type-picker') });
+    const typeIri = typeRow.getByRole('button', { name: 'Show the type IRI', exact: true });
+    await typeIri.click();
+    expect(await typeRow.locator('.iris').innerText()).toContain(AM4 + 'BusinessObject');
+    expect(await typeField.getAttribute('aria-expanded')).toBe('false');
+    expect((await facts()).types).toEqual([AM4 + 'BusinessObject']);
+    await session.screenshot('workbench-type-iri');
+    // The same disclosure works from the keyboard without entering the type chooser.
+    await typeIri.press('Enter');
+    expect(await typeRow.locator('.iris').count()).toBe(0);
+    expect(await typeField.getAttribute('aria-expanded')).toBe('false');
     // Searched by name; the list's switch shows the IRIs, and is put back as it was.
     await typeField.click();
     await typeField.fill('Product');
@@ -1737,6 +1748,10 @@ describe('changing an element’s type', () => {
     await dialog.locator('.la-button.primary').click();
     await until(async () => (await facts()).types.includes(AM4 + 'Product'), 'the product');
     expect(await typeField.inputValue()).toBe('Product');
+    await typeIri.click();
+    expect(await typeRow.locator('.iris').innerText()).toContain(AM4 + 'Product');
+    expect(await typeRow.locator('.iris').innerText()).not.toContain(AM4 + 'BusinessObject');
+    expect(await typeField.getAttribute('aria-expanded')).toBe('false');
     findings.push('change element type: right-click menu and property panel (search, current marked), default name follows, undo, not-permitted relationships named and kept: ok');
   }, 90_000);
 

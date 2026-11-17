@@ -773,6 +773,34 @@ export class PropertyPanel extends LitElement {
       cursor: pointer;
     }
 
+    .type-field {
+      display: flex;
+      gap: 4px;
+    }
+
+    .type-field named-picker {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .type-iri {
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      padding: 0 6px;
+      background: #fff;
+      color: #5f6368;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .type-iri:hover,
+    .type-iri[aria-expanded='true'] {
+      border-color: #aecbfa;
+      color: #1a73e8;
+      background: #e8f0fe;
+    }
+
     textarea.property-value {
       resize: vertical;
       min-height: 48px;
@@ -1888,14 +1916,24 @@ export class PropertyPanel extends LitElement {
     return html`
       <li class="property-row">
         ${this._renderLabel(entry)}
-        <named-picker
-          class="type-picker"
-          label="Type"
-          iris="toggle"
-          .options=${() => options}
-          .selected=${current}
-          @named-picked=${onPicked}
-        ></named-picker>
+        <div class="type-field">
+          <named-picker
+            class="type-picker"
+            label="Type"
+            iris="toggle"
+            .options=${() => options}
+            .selected=${current}
+            @named-picked=${onPicked}
+          ></named-picker>
+          <button
+            type="button"
+            class="type-iri"
+            title="Show the type IRI"
+            aria-label="Show the type IRI"
+            aria-expanded=${this._irisShown(rowKey(entry)) ? 'true' : 'false'}
+            @click=${() => this._toggleIris(rowKey(entry))}
+          >IRI</button>
+        </div>
         ${this._renderIris(entry)}
       </li>
     `;
