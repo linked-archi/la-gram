@@ -22,10 +22,6 @@
  * (`ap:taskOfActivity`, of the drawn `ap:hasTask`), and a qualified predicate,
  * which leads to a relationship resource. Those are made on the canvas, where a
  * link is a line with a resource behind it, not a value typed here. Nor is a link
- * whose range is a kind of model concept (`ad:relatedDecision`, to a decision):
- * a link to another concept is listed on the Analysis tab, beside the
- * relationships, and the Properties tab keeps the data properties and the links
- * to anything else — reference data, a document, an address. Nor is a link
  * whose domain is any element (`arch:Element`, `arch:ModelConcept`, `owl:Thing`):
  * core's are metamodel authoring and notation (`arch:templateResource`,
  * `arch:prefVisNotation`), and the rest can be typed.
@@ -188,16 +184,8 @@ export class PropertyCatalog {
       else if (drawn.has(q.subject.value)) drawn.add(q.object.value);
     }
     const anyElement = new Set([IRI.Element, IRI.ModelConcept, NAMESPACES.owl + 'Thing']);
-    const conceptClasses = new Set([IRI.Element, IRI.ModelConcept, IRI.QualifiedRelationship]);
-    const toConcepts = (iri: string): boolean => {
-      const ranges = [
-        ...store.getQuads(nn(iri), nn(NAMESPACES.rdfs + 'range')),
-        ...store.getQuads(nn(iri), nn(NAMESPACES.arch + 'rangeIncludes')),
-      ].map((r) => r.object.value);
-      return ranges.length > 0 && ranges.every((r) => closure(r).some((c) => conceptClasses.has(c)));
-    };
     for (const iri of objectProperties) {
-      if (drawn.has(iri) || toConcepts(iri)) continue;
+      if (drawn.has(iri)) continue;
       const domains = [
         ...store.getQuads(nn(iri), nn(NAMESPACES.rdfs + 'domain')),
         ...store.getQuads(nn(iri), nn(NAMESPACES.arch + 'domainIncludes')),

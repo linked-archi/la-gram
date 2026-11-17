@@ -62,6 +62,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 
 ### Task 4: Relationships (Req 4)
 - [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
+- [x] Blue connect preview follows the pointer over empty canvas before and after hovering a target; completing or cancelling removes it (Req 4.1) — *connect-interaction.test, smoke.spec*
 - [x] Permitted relationships from the metamodel's relationship shapes (the matrix), superclass shapes applied; hints only where no shape covers — also in the pad's and the append menu's prefilters — *relationship-table.test, relationship-resolution.test*
 - [x] Append: element + relationship in one command
 - [x] Append menu: type icons; asks which relationship when several specific ones are permitted (Association last), else creates it directly — *rdf-append-menu-provider.test, append-interaction.test, workbench.spec*
@@ -381,7 +382,7 @@ Agreed order; relationship visuals come first.
 - [x] **The camera sentence of *Keyboard and mouse › Graph tab*** — done (2026-11-15): `docs-site/reference/keyboard.md` names the *Forces* among what frames the graph again (Req 17.11).
 - [x] **The glyphs the notations name, published** — done in meta (2026-11-17), published with its next deploy: the 58 badge glyphs LeanIX's, BPMN's, BPMN Lite's, UML's and Backstage's notations name are drawn beside each notation (`modelingLanguages/<language>/icons/glyphs/`) and copied to the site by `.scripts/copy-icon-assets.sh`. Nothing changes in la-gram: once they load, the palette shows them in place of the drawn figure and the canvas draws the badge. None of the five languages is bundled.
 
-- [x] **Incoming links** — done (2026-11-17), as links between concepts on the Analysis tab (see the change log), not in the property panel's Properties tab: decided so on 2026-11-17, relationships and links to and from model concepts being the Analysis tab's.
+- [x] **Incoming links in the property panel** — not to be done: decided on 2026-11-17 that a concept's relationships, to and from it, are the Analysis tab's, and its Properties tab every other property (key design decision 26).
 ---
 
 ## Known limitations
@@ -404,6 +405,15 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-17 — restore the connect preview over empty canvas
+
+- The centering of new connections treated the hovered diagram root as a shape,
+  replacing the pointer with an invalid centre. Only shapes with finite bounds
+  now replace the gesture's hints; docking leaves an end without bounds at the
+  pointer. The blue preview stays visible before and after hovering a target,
+  and completed connections keep their outline docking (Req 4.1, 4.6; key design
+  decision 27) — *connect-interaction.test, connection-docking.test, smoke.spec*.
 
 ### 2026-11-17 — sync published assets by default
 
@@ -434,7 +444,7 @@ Agreed order; relationship visuals come first.
 
 ### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
-- **Links between concepts on the Analysis tab; the Properties tab keeps the rest** (Req 11.4, 3.6; key design decision 26): the Properties tab listed a concept's relationships' direct statements, folded under *Relationships*, and any other link to a concept among its properties — `ad:relatedDecision` to another decision — while the Analysis tab listed the relationships alone. Now the Analysis tab lists every link to and from another concept of the model: its relationships, then the links no relationship stands for, by their predicate, either way round, one stated both ways once; a relationship's triple and its declared inverse are not listed again. The Properties tab keeps the data properties and the links to what is no concept of the model — a reference data value, a document, an address — and its picker no longer offers a link whose range is a kind of concept. *concept-links.test, property-panel.test, property-catalog.test*
+- **A drawn relationship is not a property; a link's value filtered by kind** (Req 11.4, 3.6; key design decision 26): the Properties tab listed a concept's relationships' direct statements, folded under *Relationships*, beside its properties — the same relationships the Analysis tab lists. They are left out now: the Properties tab lists every other property, a link to another concept included, and the Analysis tab the relationships. The value of a link added is picked from the model's elements, relationships and views by name and, now, by kind: a switch for each — *Elements*, *Relationships*, *Views* — beside the search. *property-panel.test, named-picker.test, property-catalog.test*
 - **Links stated as triples open as relationships; processes bundled; links in the property picker** (Req 4.22, 1.14, 3.6; meta's `processes-as-elements` G2–G4 and `decision-modelling-layer` L1, L2, L4, L6): a file that states its links only as triples — `decisions-example.ttl`'s `ad:hasSelectedOption`, the processes example's `ap:hasTask`, an ArchiMate file of bare `am4:serves` — opened with no relationship for any of them: nothing under Relationships, no line between elements placed together. Opening it now makes each one a relationship resource, named as meta's rules name it (`relationship-` + SHA-1 of the triple, so a second window or a collaboration room makes no second one), and a triple stated the undrawn way round — `ap:taskOfActivity`, the declared inverse of `ap:hasTask` — is read as its drawn direction. The Architecture Processes extension is bundled beside Architecture Decisions, so it works offline, and LeanIX and EA on a Page load its vocabulary from the bundle. The property picker offers a type's links (`rdfs:domain`, `arch:domainIncludes`) — `ad:hasDecisionGoal` for a decision — and none a relationship class draws. A drawn governance process and a drawn decision link pass the shapes; with no notation of their own, both extensions draw as the default figure, their links with an arrowhead. *model-session.test, short-hash.test, property-catalog.test, bundled-assets.test, drawn-extensions.test*
 - **Element icons drawn where none loads** (Req 2.26): with LeanIX loaded, almost no element type had an icon in the palette, though each was drawn on the canvas: its notation names a badge glyph for each type under `meta.linked.archi/leanix/icons/glyphs/`, and none is published (404) — nor BPMN's, BPMN Lite's, UML's or Backstage's. The palette showed a broken or empty image for each, and a type with no notation a colour swatch at best. An element type with no icon, or one that does not load, is now shown with its figure as the canvas draws it — shape, inner lines, fill and line colour (`elementIconDataUri`, `withElementIcons`) — in the palette and the append, nest and change-type menus. *notation-shapes.test, palette-panel.test, mount-ui.test*
 - **Each metamodel's relationship types in their own categories** (Req 2.22, 2.24): after meta deployed, LeanIX v4 said "16 of its 16 relationship types are in no category". la-gram took the relationship categories from one dimension only — the one listing the most types — so with the processes extension's relationship types loaded beside LeanIX's, LeanIX's lost theirs; and LeanIX lists its types by a concept each (`rdfs:seeAlso`), which was not read. Now every dimension that lists relationship types gives its own their categories, by class or by the concept that stands for one, the dimension that lists the most first, and the notice counts a type as categorised by the category it was given. With meta's relationship groups added the same day (ML-Enabled Systems, UAF, BPMN's six), no catalogue metamodel, alone or beside ArchiMate 4.0, has a relationship type in no category. *palette-generator.test, metamodel-completeness.test, bundled-assets.test*

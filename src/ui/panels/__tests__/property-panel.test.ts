@@ -449,32 +449,27 @@ describe('PropertyPanel', () => {
       expect(views).not.toContain('>Cost<');
     });
 
-    it('lists a link to another concept on the Analysis tab, not as a property', () => {
+    it('leaves a drawn relationship\u2019s direct statement to the Analysis tab, and lists any other link as a property', () => {
       const AM4 = 'https://meta.linked.archi/archimate4/onto#';
       const AD = 'https://meta.linked.archi/arch-decision#';
       const entries: PropertyEntry[] = [
         ...TABBED,
-        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, concept: true },
-        { predicate: AD + 'relatedDecision', label: 'Related decision', value: 'urn:d2', valueLabel: 'Hosting', isIri: true, custom: true, concept: true },
+        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, drawn: true },
+        // To another concept, but drawn by no relationship class: a property.
+        { predicate: AD + 'relatedDecision', label: 'Related decision', value: 'urn:d2', valueLabel: 'Hosting', isIri: true, custom: true },
       ];
       const analysis = {
         relationships: [{ iri: 'urn:r1', direction: 'out' as const, typeLabel: 'Serving', otherIri: 'urn:e2', otherLabel: 'Clerk' }],
-        links: [{ predicateIri: AD + 'relatedDecision', direction: 'out' as const, typeLabel: 'Related decision', otherIri: 'urn:d2', otherLabel: 'Hosting' }],
         views: [],
       };
       const properties = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis });
-      // The tab counts the properties alone, and lists neither link.
-      expect(properties).toMatch(/Properties<\/span>\s*<span class="count">2</);
-      expect(properties).toContain('>Cost<');
+      expect(properties).toMatch(/Properties<\/span>\s*<span class="count">3</);
+      expect(properties).toContain('>Related decision<');
       expect(properties).not.toContain('>Clerk</button>');
-      expect(properties).not.toContain('Hosting');
       expect(properties).not.toContain('Relationships <span');
-      // Analysis: the relationship, then the link by its predicate's name; the count is both.
       const listed = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'analysis', analysis });
-      expect(listed).toMatch(/Analysis<\/span>\s*<span class="count">2</);
-      expect(listed.indexOf('Serving')).toBeLessThan(listed.indexOf('Related decision'));
-      expect(listed).toMatch(/<span class="link-type" title=[^>]*relatedDecision[^>]*>Related decision<\/span>/);
-      expect(listed).toContain('>Hosting</a>');
+      expect(listed).toMatch(/Analysis<\/span>\s*<span class="count">1</);
+      expect(listed).toContain('>Serving</a>');
     });
 
     it('falls back to the information tab when the remembered one does not apply', () => {
@@ -655,8 +650,8 @@ describe('PropertyPanel', () => {
       (PropertyPanel.prototype as any)._loadProperties.call(ctx);
       const byPredicate = new Map<string, PropertyEntry>(ctx._entries.map((e: PropertyEntry) => [e.predicate, e]));
       expect(byPredicate.has(AM3 + 'qualifiedAggregates')).toBe(false);
-      expect(byPredicate.get(AM3 + 'serves')?.concept).toBe(true);
-      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.concept).toBeUndefined();
+      expect(byPredicate.get(AM3 + 'serves')?.drawn).toBe(true);
+      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.drawn).toBeUndefined();
     });
 
     it('clears entries when no selectedIri', () => {

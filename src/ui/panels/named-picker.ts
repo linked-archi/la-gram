@@ -94,15 +94,39 @@ export class NamedPicker extends LitElement {
       border-radius: 4px;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
     }
-    .iri-switch {
+    .bar {
       position: sticky;
       top: 0;
+      z-index: 1;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e8eaed;
+    }
+    .kinds {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px 10px 0;
+    }
+    .kind {
+      padding: 1px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 10px;
+      background: #fff;
+      font: inherit;
+      font-size: 11px;
+      color: #80868b;
+      cursor: pointer;
+    }
+    .kind[aria-pressed='true'] {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+      color: #1a73e8;
+    }
+    .iri-switch {
       display: flex;
       align-items: center;
       gap: 4px;
       padding: 4px 10px;
-      background: #f8f9fa;
-      border-bottom: 1px solid #e8eaed;
       font-size: 11px;
       color: #5f6368;
       cursor: pointer;
@@ -177,6 +201,15 @@ export class NamedPicker extends LitElement {
   /** The entry the field is a choice of: shown, and gone back to when the field is left without a pick. */
   @property({ attribute: false }) selected?: NamedOption;
 
+  /**
+   * Filter by kind as well as by name: a switch for each group the options come in (Elements,
+   * Relationships, Views), all on at first; a group switched off is left out of the list.
+   */
+  @property({ type: Boolean, attribute: 'group-filter' }) groupFilter = false;
+
+  /** The groups switched off, by label; kept while the picker lives. */
+  @state() private _hiddenGroups = new Set<string>();
+
   @state() private _text = '';
   @state() private _open = false;
   @state() private _active = 0;
@@ -235,7 +268,8 @@ export class NamedPicker extends LitElement {
   private _rows(): { rows: Array<NamedOption | TypedOption>; moreCount: number; beyond: number } {
     const q = this._query();
     const matches = (o: NamedOption) => !q || [o.label, o.detail, o.iriText, o.iri].some((s) => s?.toLowerCase().includes(q));
-    const found = this._options.filter(matches);
+    const shown = (o: NamedOption) => !o.groupLabel || !this._hiddenGroups.has(o.groupLabel);
+    const found = this._options.filter((o) => shown(o) && matches(o));
     // "More" stays folded until asked for — or searched, when everything is fair game.
     const showMore = this._showMore || q !== '';
     const listed = found.filter((o) => !o.more || showMore);
@@ -246,6 +280,19 @@ export class NamedPicker extends LitElement {
       if (typed && !this._options.some((o) => o.iri === typed.iri)) rows.push(typed);
     }
     return { rows, moreCount, beyond: listed.length - Math.min(listed.length, this.limit) };
+  }
+
+  /** The groups the options come in, in the order they first appear. */
+  private _groups(): string[] {
+    return [...new Set(this._options.flatMap((o) => (o.groupLabel ? [o.groupLabel] : [])))];
+  }
+
+  private _toggleGroup(group: string): void {
+    const hidden = new Set(this._hiddenGroups);
+    if (hidden.has(group)) hidden.delete(group);
+    else hidden.add(group);
+    this._hiddenGroups = hidden;
+    this._active = 0;
   }
 
   private _openList(): void {
@@ -388,14 +435,32 @@ export class NamedPicker extends LitElement {
       ${chosen && !this._open ? html`<div class="chosen" title=${chosen.iri}>${chosen.iriText ?? chosen.iri}</div>` : nothing}
       ${this._open
         ? html`<div class="list" role="listbox" style=${this._listStyle} @mousedown=${(e: Event) => e.preventDefault()}>
-            ${this.iris === 'toggle'
-              ? html`<label class="iri-switch"
-                  ><input
-                    type="checkbox"
-                    .checked=${this._showIris}
-                    @change=${(e: Event) => this._setShowIris((e.target as HTMLInputElement).checked)}
-                  />Show IRIs</label
-                >`
+            ${this.iris === 'toggle' || (this.groupFilter && this._groups().length > 1)
+              ? html`<div class="bar">
+                  ${this.groupFilter && this._groups().length > 1
+                    ? html`<div class="kinds" role="group" aria-label="Show">
+                        ${this._groups().map(
+                          (group) => html`<button
+                            type="button"
+                            class="kind"
+                            aria-pressed=${this._hiddenGroups.has(group) ? 'false' : 'true'}
+                            @click=${() => this._toggleGroup(group)}
+                          >
+                            ${group}
+                          </button>`,
+                        )}
+                      </div>`
+                    : nothing}
+                  ${this.iris === 'toggle'
+                    ? html`<label class="iri-switch"
+                        ><input
+                          type="checkbox"
+                          .checked=${this._showIris}
+                          @change=${(e: Event) => this._setShowIris((e.target as HTMLInputElement).checked)}
+                        />Show IRIs</label
+                      >`
+                    : nothing}
+                </div>`
               : nothing}
             ${rows.map((row, i) => {
               const typed = Boolean((row as TypedOption).prefix);

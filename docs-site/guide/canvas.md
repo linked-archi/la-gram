@@ -59,8 +59,10 @@ font, where it is drawn.
 ## Connecting {#connecting}
 
 Select an element: its context pad, beside it, has *Connect*. Drag from it to the target, or click it and
-then the target. Only the targets the metamodel permits accept the line, and the relationship drawn is
-the type it ranks first for the two; *Change relationship type* changes it after. A relationship type
+then the target. A blue preview line follows the pointer across empty canvas, including when you move
+away from a target. It meets the target's outline when hovered; completing the connection or pressing
+++esc++ removes the preview. Only the targets the metamodel permits accept the line, and the relationship
+drawn is the type it ranks first for the two; *Change relationship type* changes it after. A relationship type
 chosen in the palette first is drawn instead, when permitted. A line that is not permitted is refused, and
 the message says which types are: *Realization is not permitted from Application Component to Application
 Component. Permitted: Aggregation, …*

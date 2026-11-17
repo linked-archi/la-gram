@@ -181,10 +181,15 @@ export class CroppingLayouter extends BaseLayouterBase {
       // An end on a relationship keeps its point — where on the line it was dropped is the choice — and so
       // does a line from an element to itself, which centre to centre would not show.
       const centred: LayoutHints = { ...layoutHints };
-      const isLine = (end: unknown) => Boolean((end as { waypoints?: unknown } | undefined)?.waypoints);
+      const isShape = (end: unknown) => {
+        const shape = end as { x?: number; y?: number; width?: number; height?: number; waypoints?: unknown };
+        return !shape.waypoints && [shape.x, shape.y, shape.width, shape.height].every(Number.isFinite);
+      };
       if (source && target && source !== target) {
-        if (!isLine(source)) delete centred.connectionStart;
-        if (!isLine(target)) delete centred.connectionEnd;
+        // During a connect drag, empty canvas is the diagram root: it has no
+        // bounds. Keep the pointer hint there instead of taking an invalid centre.
+        if (isShape(source)) delete centred.connectionStart;
+        if (isShape(target)) delete centred.connectionEnd;
       }
       waypoints = super.layoutConnection(connection, centred);
       // Nothing to crop against while an end is still unattached — which is the

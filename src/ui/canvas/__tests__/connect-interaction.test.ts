@@ -257,8 +257,10 @@ interface Dragging {
   setOptions(options: Record<string, unknown>): void;
   context(): { prefix?: string } | null;
   hover(event: { element: unknown; gfx: unknown }): void;
+  out(event: { element: unknown; gfx: unknown }): void;
   move(event: unknown): void;
   end(event?: unknown): void;
+  cancel(): void;
 }
 
 /** Build the kind of event diagram-js's own drag tests use. */
@@ -357,6 +359,48 @@ describe('context pad Connect entry', () => {
 });
 
 describe('the connect tool', () => {
+  it('keeps the preview at the pointer over empty canvas, including after leaving a target', () => {
+    const { canvas, container, relationshipManager } = fixture();
+    const dragging = service<Dragging>(canvas, 'dragging');
+    dragging.setOptions({ manual: true });
+    const registry = service<{ get(id: string): unknown; getGraphics(element: unknown): unknown }>(canvas, 'elementRegistry');
+    const root = service<{ getRootElement(): unknown }>(canvas, 'canvas').getRootElement();
+    const target = registry.get(TGT);
+    const hover = (element: unknown) => ({ element, gfx: registry.getGraphics(element) });
+    const points = () => {
+      const line = container.querySelector('.djs-dragger polyline, .djs-dragger path');
+      expect(line).not.toBeNull();
+      const geometry = line!.getAttribute('points') ?? line!.getAttribute('d')!;
+      const coordinates = geometry.replace(/[ML]/g, ' ').trim().split(/[\s,]+/).map(Number);
+      expect(coordinates.every(Number.isFinite)).toBe(true);
+      return coordinates;
+    };
+
+    canvas.startConnect(SRC, canvasEvent(canvas, 60, 27, 'dragstart'), false);
+    dragging.move(canvasEvent(canvas, 240, 170));
+    dragging.move(canvasEvent(canvas, 250, 180));
+    expect(points().slice(-2)).toEqual([250, 180]);
+
+    // The empty canvas is a hovered diagram root, not an absent target.
+    dragging.hover(hover(root));
+    dragging.move(canvasEvent(canvas, 280, 190));
+    expect(points().slice(-2)).toEqual([280, 190]);
+
+    dragging.out(hover(root));
+    dragging.hover(hover(target));
+    dragging.move(canvasEvent(canvas, 430, 25));
+    expect(points().slice(-2)).toEqual([400, 28]);
+
+    dragging.out(hover(target));
+    dragging.hover(hover(root));
+    dragging.move(canvasEvent(canvas, 300, 200));
+    expect(points().slice(-2)).toEqual([300, 200]);
+
+    dragging.cancel();
+    expect(container.querySelector('.djs-dragger')).toBeNull();
+    expect(relationshipManager.createRelationship).not.toHaveBeenCalled();
+  });
+
   it('activating it starts the diagram-js global-connect tool', () => {
     const { canvas } = fixture();
     const dragging = service<Dragging>(canvas, 'dragging');
