@@ -165,9 +165,10 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] One resource, many placements; drop from the tree; draws relationships to placed elements — *view-canvas.test*
 
 ### Task 19: Git storage (Req 18) — an optional module
+- [x] **Optional automatic commits** (2026-11-18): destination settings, idle/interval scheduler, pause/resume, remote reconciliation, immutable snapshots and durable uncertain-response recovery (Req 18.26) — *git-auto-commit.test, settings-section.test, git-merge.spec*.
 - [x] **Regular remote checks and optional clean-only automatic pull** (2026-11-18): manual Check and the Git status tab, personal settings, one active owner per destination, separate operation locks, pause/backoff and obsolete-result guards (Req 18.25) — *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
 In three parts, each reviewed before the next.
-- [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Automatic commits remain in [git-sync Stage 3](../../tasks/git-sync/tasks.md).
+- [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Automatic commits are specified in Req 18.26.
 - [x] **1. Document** (2026-10-19): Req 18; design — *Git storage (optional module)*
 - [x] **2. Save to Git** (2026-10-19)
   - [x] The switch: `LA_GRAM_GIT` in the build (the module's own chunk, not emitted when off); a setting on this machine, on by default (*File › Modules…*); `?git=off` — `src/modules.ts` — *modules.test, module-boundary.test, workbench.spec*
@@ -377,7 +378,7 @@ Agreed order; relationship visuals come first.
   Planned from `docs/git-collaboration-spec.md`, with its corrections; the plan is in `.agents/tasks/git-collaboration/tasks.md`.
 - [x] **Git synchronization Stage 1: manual Pull from Git** — implemented (2026-11-17), Req 18.24: current-branch pull without committing, preserving local edits with the existing merge/conflict flow. [Plan and remaining stages](../../tasks/git-sync/README.md); *git-pull.test, git-module.test, git-merge.test, git-merge.spec*.
 - [x] **Git synchronization Stage 2: regular checks and clean-only automatic pull** — complete (2026-11-18), (Req 18.25): Git status tab, manual Check, Off/1/2/5/10-minute settings and auto-pull Off by default; per-destination ownership, operation locks, lifecycle guards, pause/backoff and snapshot caching. *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
-- [ ] **Git synchronization Stage 3: optional auto-commit** — recorded (2026-11-17), not started: per-destination idle/interval commits, remote reconciliation first and pause on conflicts. Manual commits remain the default. Shared rooms remain in Git collaboration Phase 4. [Checklist](../../tasks/git-sync/tasks.md).
+- [x] **Git synchronization Stage 3: optional auto-commit** — complete (2026-11-18), (Req 18.26): destination opt-in, idle/interval, reconciliation, persistent pause/resume, immutable writes and uncertain-response recovery. Shared-room Phase 4 stays pending. [Checklist](../../tasks/git-sync/tasks.md).
 - [x] **The History tab shows the Git history too** (Task 21) — done (2026-11-05), with Phase 2 of the Git collaboration plan: for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes by element and *Open this version*.
 - [x] **Configuration** (Task 20, Req 19) — done (2026-10-19): the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). See the change log.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
@@ -395,7 +396,9 @@ Agreed order; relationship visuals come first.
 
 - Git synchronization is available outside shared rooms; unresolved conflicts and pending branch
   merges pause it. Regular checks need browser tab coordination and run while visible/online.
-  Automatic commits remain pending.
+  Auto-commit is destination opt-in, requires durable local storage, and stays paused after uncertain
+  writes until remote confirmation and an explicit Resume or manual Save. Recovery reads at most one
+  file-history page; older or unprovable writes require manual reconciliation.
 
 1. ~~**One placement per element per view.**~~ An element may be placed more than once since 2026-11-06 (Req 3.14), and a relationship drawn more than once; Exchange imports draw them so.
 2. ~~**Visual groups and free-standing labels** are not drawn~~ — drawn since 2026-11-06 as figures (Req 3.13): groups, notes, and the core-vis shapes from the toolbar; an Exchange file's `Container` and `Label` import as a group and a note, and lines from them (since 2026-11-06) as lines standing for no relationship; `archimate2linkedarchi` writes them so since 2026-11-07 (core-vis 0.7).
@@ -415,6 +418,24 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-18 — optional automatic Git commits
+
+- Explicit per-model/destination settings offer Off, After idle and At interval. The Git tab exposes
+  Pause/Resume, next attempt and last commit without taking focus (Req 18.26; design decision 31).
+- Reuses the providers' immutable-text commit primitive after remote reconciliation; skips identical
+  content, bounds version-conflict retries and preserves edits made during requests. Conflicts pause
+  persistently and choosing values alone does not publish. Checks and writes share owner/operation
+  locks, including with checks Off; internal merges do not reset the idle deadline.
+- A durable fingerprint journal prevents blind retries after uncertain responses. Confirmation uses
+  pinned content and bounded history; editor epochs keep late writes from rebinding reloaded models.
+- Tests: *git-auto-commit.test*, *git-sync.test*, *settings-section.test*, *git-module.test*,
+  *git-merge.spec*: both providers, no-ops, conflict/resume, remote races, edits during writes,
+  lost acknowledgements, reloads, timers, ownership, storage/credential restrictions and browser controls.
+- Verified: type checking, all 2,642 unit tests, all 92 browser tests, web/desktop/CLI build, strict docs
+  build and `git diff --check` pass. The Git status screenshot was inspected. Storage-full and
+  denied-storage cases pause automation without breaking manual saves; lifecycle roundtrips cannot
+  revive sent writes. Shared-room Phase 4 remains pending; no real repository writes.
 
 ### 2026-11-18 — regular Git checks with optional clean-only pull
 

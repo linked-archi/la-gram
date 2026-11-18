@@ -20,6 +20,7 @@ import { saveToGit, type GitSaveContext } from './git-save.js';
 import { updateFromBranch } from './git-merge.js';
 import { pullFromGit } from './git-pull.js';
 import { GitSync } from './git-sync.js';
+import { AutoCommitStore, AUTO_COMMIT_PREFIX } from './auto-commit-settings.js';
 import { GitLocks, type GitLockResult } from './git-locks.js';
 import { destinationKey } from './git-observation.js';
 import './sync-panel.js';
@@ -80,6 +81,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   const bindings = new GitBindings();
   const hostKinds = new HostKinds();
   const settings = new PersonalSettings();
+  const autoCommits = new AutoCommitStore();
   const personal = (): PersonalGitSettings => settings.get<PersonalGitSettings>('git');
   // The user's "Remember starts ticked", where tokens may be remembered at all.
   const mine = personal().rememberByDefault;
@@ -90,7 +92,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   let running = false;
   let sync: GitSync | undefined;
   const locks = new GitLocks();
-  const onLoaded = () => { generation++; sync?.refresh(true); };
+  const onLoaded = () => { generation++; sync?.modelLoaded(); };
   eventBus.on('model-loaded', onLoaded);
 
   const openContext: GitOpenContext = {
@@ -111,7 +113,10 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
 
   const merging = startMerging(app, ui);
   const context: GitSaveContext = {
-    merge: merging.support,
+    merge: { ...merging.support, replace: (snapshot) => {
+      if (sync) sync.internalChange(() => merging.support.replace(snapshot));
+      else merging.support.replace(snapshot);
+    } },
     isDirty: () => app.isDirty(),
     words: { typeName: (iri) => ui.typeName(iri), propertyName: (p) => ui.propertyName(p) },
     review: (target) => openMergeRequest(context, target),
@@ -132,7 +137,10 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
 
   // File › Settings…: the defaults, the tokens kept, the host kinds learned.
   const removeSettings = ui.addSettingsSection(
-    gitSettingsSection({ config, personal: settings, tokens, hostKinds, report: (message) => ui.report(message), changed: () => sync?.refresh(true) }),
+    gitSettingsSection({ config, personal: settings, tokens, hostKinds, autoCommits,
+      target: () => { const modelIri = context.modelIri(); const binding = modelIri ? bindings.get(modelIri) : undefined;
+        return modelIri && binding ? { modelIri, binding } : undefined; },
+      report: (message) => ui.report(message), changed: () => sync?.refresh(true) }),
   );
 
   // Shared by manual flows and scheduled checks; the owner lock never blocks manual work.
@@ -149,17 +157,21 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     if (stopped) return;
     if (id === 'check') { syncTab?.show(); await sync?.check(); return; }
     if (id === 'settings') { await ui.runCommand({ command: 'settings', value: 'git' }); return; }
+    if (id === 'pause') { sync?.pause(); return; }
+    if (id === 'resume') { sync?.resume(); return; }
     const started = generation;
     const result = await exclusive(async () => {
       if (stopped || generation !== started) return;
       if (id === 'open') await openFromGit(openContext, address);
-      else if (id === 'save') await saveToGit(context);
-      else if (id === 'save-as') await saveToGit(context, true);
+      else if (id === 'save' || id === 'save-as') {
+        const saved = await saveToGit(context, id === 'save-as');
+        if (saved && !stopped && generation === started) sync?.manualCommitted();
+      }
       else if (id === 'pull') await pullFromGit({
         ...context,
         current: () => !stopped && generation === started,
         room: () => app.collaborationRoom,
-        changed: () => eventBus.emit('model-changed', { origin: 'git' }),
+        changed: () => sync?.internalChange(() => eventBus.emit('model-changed', { origin: 'git' })),
         pulled: (observed, dirty) => sync?.incorporated(observed, dirty),
       });
       else if (id === 'update') await updateFromBranch(context);
@@ -172,15 +184,15 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   let syncTab: BottomTabHandle | undefined;
   sync = new GitSync({
     context: { ...context, current: () => !stopped, room: () => app.collaborationRoom,
-      changed: () => eventBus.emit('model-changed', { origin: 'git' }) },
-    settings: personal, locks, run: exclusive, busy: () => running,
+      changed: () => sync?.internalChange(() => eventBus.emit('model-changed', { origin: 'git' })) },
+    settings: personal, autoCommits, locks, run: exclusive, busy: () => running,
     visible: () => !document.hidden, online: () => navigator.onLine,
     publish: (status) => {
       syncPanel.status = status;
       if (status.where) {
         syncTab ??= ui.addBottomTab({ id: 'git-sync', label: 'Git', element: syncPanel });
-        syncTab.setBadge(['error', 'conflicts'].includes(status.phase) ? '!' : status.phase === 'checking' ? '…'
-          : status.phase === 'paused' && status.intervalMinutes ? 'Paused' : status.incoming ? 'New' : undefined);
+        syncTab.setBadge(['error', 'conflicts'].includes(status.phase) ? '!' : ['checking', 'committing'].includes(status.phase) ? '…'
+          : status.phase === 'paused' && (status.intervalMinutes || status.autoCommit?.mode !== 'off') ? 'Paused' : status.incoming ? 'New' : undefined);
       } else { syncTab?.remove(); syncTab = undefined; }
     },
   });
@@ -188,7 +200,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   syncPanel.addEventListener('git-sync-action', onSyncAction);
   const onEnvironment = () => sync?.refresh();
   const onSettingsStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === 'la-gram:settings' || event.key === 'la-gram:git-tokens') sync?.refresh(true);
+    if (event.key === null || event.key === 'la-gram:settings' || event.key === 'la-gram:git-tokens' || event.key.startsWith(AUTO_COMMIT_PREFIX)) sync?.refresh(true);
   };
   const onSaved = () => { queueMicrotask(() => sync?.refresh()); };
   const onChange = () => sync?.modelChanged();

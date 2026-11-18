@@ -83,11 +83,11 @@ export function startMerging(app: App, ui: MountedUi): { support: MergeSupport; 
       const { added, removed } = diffSnapshots(snapshotOf(modelQuads(store)), snapshot);
       change(removed, added);
     },
-    conflicts: (conflicts, against) => {
+    conflicts: (conflicts, against, activate = true) => {
       shown = { modelIri: app.session.modelIri, entries: conflicts.map((conflict) => ({ conflict, current: conflict.held })), against };
       tab ??= ui.addBottomTab({ id: CONFLICTS_TAB, label: 'Conflicts', element: panel });
       render();
-      tab.show();
+      if (activate) tab.show();
     },
     unresolved: () => (shown && shown.modelIri === app.session.modelIri ? open() : 0),
     clear: () => {

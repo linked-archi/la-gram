@@ -282,7 +282,7 @@ The plan as first written:
 
 ## Follow-up: Git synchronization for an individual editor
 
-Recorded 2026-11-17; manual pull and Stage 2 remote checks implemented; Stage 3 not started. The user agreed to [manual pull, periodic remote checks and optional
+Recorded 2026-11-17; Stages 1–3 complete (2026-11-18). The user agreed to [manual pull, periodic remote checks and optional
 auto-commit](../git-sync/README.md), documented before implementation. Requirements, design and the
 staged checklist are in that folder; this follow-up reuses Phases 1–3 without waiting for room integration.
 
@@ -290,7 +290,7 @@ staged checklist are in that folder; this follow-up reuses Phases 1–3 without 
   conflicts, without committing (git-sync Stage 1).
 - [x] **Remote checks**: configurable polling of the bound model file, visible status and optional
   automatic pull only when unchanged locally; History remains demand-loaded (git-sync Stage 2).
-- [ ] **Optional auto-commit**: explicit per-destination opt-in, idle/interval modes, remote reconciliation
+- [x] **Optional auto-commit**: explicit per-destination opt-in, idle/interval modes, remote reconciliation
   first, no identical-content commits, paused on conflicts or a required manual decision (git-sync Stage 3).
 
 The new pull and automation are inactive in a shared room until Phase 4 supplies its committer and

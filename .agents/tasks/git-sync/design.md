@@ -1,6 +1,6 @@
 # Design
 
-Recorded 2026-11-17. **Stages 1–2 implemented; automatic commits remain planned.** This builds on `src/git/`; it does not introduce another
+Recorded 2026-11-17. **Stages 1–3 implemented and verified.** This builds on `src/git/`; it does not introduce another
 storage layer or replace the existing model merge engine.
 
 ## GS-DD-1: distinguish observing a remote version from incorporating it
@@ -49,9 +49,9 @@ Manual pull captures model identity, full binding, incorporated base and model-l
 After each read (including failures), verify the destination/lifecycle and room state. Capture the
 working snapshot only after all reads, then merge/apply with no await: in-flight edits are included
 without a revision retry loop. Stopping the module invalidates pending reads. Automatic commit writes
-will additionally need snapshot revision tracking across their asynchronous work.
+track the revision captured with their immutable snapshot across asynchronous work.
 
-The planned auto-commit stage must serialize a particular snapshot. If more edits arrive during the write, update the successful
+Auto-commit serializes a particular snapshot. If more edits arrive during the write, update the successful
 binding to the returned commit but keep those edits dirty; the current `saved()` callback must not
 unconditionally clear them. A result for a model no longer open may record the successful commit for
 its original binding, but must not replace, rebind or mark clean the newly open model. Report a completed
@@ -64,7 +64,7 @@ short operation lock coordinate manual flows and scheduled checks. Use a complet
 not overlapping interval callbacks. The clock, visibility, connectivity, locks and providers are injected
 for tests. Effective store mutations debounce local status independently of the app dirty marker.
 
-Use browser-profile ownership keyed by host/repository/branch/path to elect the one automatic checker (and, in Stage 3, writer),
+Use browser-profile ownership keyed by host/repository/branch/path to elect the one automatic checker and writer,
 and a separate short-lived operation lock shared by manual and automatic mutations. A long-held
 ownership lock must not prevent a manual save in another tab. Prefer Web Locks when available; when
 ownership cannot be established, pause automation with a visible reason rather than allowing duplicate
@@ -85,8 +85,8 @@ to the model and complete destination, persisted locally alongside bindings/sett
 switching to a new branch/file does not inherit enablement. Use the existing credential store without
 prompts in background work and existing `commitMessage`/serialization code.
 
-Extract a commit primitive that accepts a prepared snapshot and message without opening dialogs;
-manual save wraps it with the existing prompts. Background operations cannot select overwrite, create
+Reuse the existing provider `commitFile` primitive: it already accepts immutable text and a message
+without dialogs; manual save wraps it with the existing prompts. Background operations cannot select overwrite, create
 a branch, skip a blank-node warning or save unresolved conflicts. Auto-commit checks the remote even
 when scheduled read-only checks are off. It can merge non-conflicting local and remote changes; the
 clean-only restriction belongs to automatic pull, not to this pre-commit reconciliation.
@@ -101,13 +101,29 @@ Manual pull reports progress and results through existing notifications and the 
 The Git bottom tab shows destination, local/incoming changes, last successful check, next scheduled
 check, current settings and a pause/error reason. Its badge indicates New, Paused, checking or errors.
 It offers **Check for remote changes**, **Pull from Git** and **Git settings…**; File also exposes Check.
-Background updates never open the tab or a dialog. Last-commit timing and auto-commit pause/resume are
-for Stage 3. Settings are Off/1/2/5/10-minute checks and clean-only automatic pull Off/On, both Off by
+Background updates never open the tab or a dialog. Auto-commit adds last-commit and next-attempt
+timing, plus keyboard-operable Pause/Resume controls. Settings are Off/1/2/5/10-minute checks and clean-only automatic pull Off/On, both Off by
 default; turning checks off cancels/invalidate pending scheduled work.
 
-Keep `HistoryGitSource` lazy: no periodic commit-history requests. Pull/commit updates its source key as
+Keep `HistoryGitSource` lazy: no periodic commit-history requests. Uncertain-write recovery may read
+one page of file history to prove a submitted snapshot was committed. Pull/commit updates its source key as
 existing Git operations do. Checks leave `binding.commit` unchanged and therefore do not pretend a
 new remote version has been incorporated.
+
+## GS-DD-7: a durable receipt before another automatic write
+
+`AutoCommitStore` keeps opt-in and pause settings separately from a pending-write record, scoped by
+model IRI and full destination. The latter is persisted and read back before sending; unavailable/full
+storage stops the write and retains the pause in memory even if it cannot persist it. It holds only
+source binding, editor epoch, SHA-256 of canonical submitted content and any known receipt.
+
+A network/server/unknown response retains this record and pauses. Recovery compares pinned remote
+content, then at most one history page, checking source-base ancestry and reachability from the current
+head. A confirmed older write is the next baseline so later remote deletions remain mergeable changes.
+A different editor lifecycle must already have incorporated the confirmed write before the record can
+clear. Recovery itself does not publish: confirmation leaves Pause in place until explicit Resume.
+Manual successful Git Save can acknowledge the pending record too. The Git tab explains the next step;
+no background token prompt, model snapshot persistence or server-side automation is introduced.
 
 ## Integration and deferred work
 

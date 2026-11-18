@@ -193,6 +193,57 @@ changes and leaves them for manual pull instead.
     pending branch merges pause synchronization until finished. If the browser cannot coordinate tabs,
     regular checks pause with an explanation; manual Check and Pull remain available.
 
+## Optional auto-commit {#auto-commit}
+
+*Auto-commit* saves changed model content to the bound repository, branch and file using your token
+and the *Commit message* template. It is **Off** until you enable it for that exact model and
+destination in *File › Settings… › Git storage*. *Destination* shows the model IRI, host, repository,
+branch and file. A different model, branch or file starts Off; returning to a previously enabled
+model and destination restores its setting.
+
+| Setting | Values and default | Effect |
+|---|---|---|
+| *Auto-commit* | **Off**, After idle, At interval | saves only changed content; for example, After idle waits until you stop editing |
+| *Idle time* | 1 minute, **2 minutes**, 5 minutes, 10 minutes | after the last local model edit; pulls and status updates do not restart it |
+| *Commit interval* | 5 minutes, **10 minutes**, 15 minutes, 30 minutes | checks again after the previous attempt completes; unchanged content creates no commit |
+
+1. Open or save a model from Git. Use *Save to Git* once to supply a token with write access if the
+   current session has none.
+2. Open *Git settings…* in the *Git* tab. Check *Destination*, choose *After idle* and an *Idle time*,
+   then *Apply*. For example, *2 minutes* saves two minutes after your last model edit.
+3. Continue editing. The Git tab shows *Next commit check* and *Last committed*. Use
+   *Pause auto-commit* to stop future automatic writes and *Resume auto-commit* when ready.
+
+Before each write, la-gram reads the remote version and merges disjoint changes into your model as an
+undoable change. It does this even with regular checks Off. It commits only content different from
+the incorporated Git base, so undoing back to that base creates no commit. Saving to a local file does
+not hide changes from Git. Edits made while a commit is being sent remain unsaved local changes after
+it completes. Manual *Save to Git* and its message prompt remain available.
+
+!!! note "Conflicts and pauses"
+
+    Conflicts appear in the *Conflicts* tab without switching your active tab. Auto-commit stays paused
+    after you choose the values: use *Save to Git* or *Resume auto-commit* to publish when ready. Changing
+    the timing alone does not resume it. A pending branch merge, blank nodes, missing credentials or
+    denied access also need attention. Pauses are remembered across reloads.
+
+Auto-commit runs only while this app is visible and online, outside shared rooms. One tab/window at the
+same app address and browser profile owns automatic work for a destination. Other clients still use
+Git's file-version check; a changing remote is reread and merged up to three times. The app never
+creates a branch or review request automatically and never chooses overwrite. Network and rate-limit
+failures before a write delay retries. Closing the app stops scheduling; an already-sent write can
+still complete. Exact timing depends on the browser and connection.
+
+!!! note "Interrupted writes"
+
+    Before sending, la-gram records the destination and a fingerprint of the submitted model in local
+    storage. If the response is lost, it checks the remote file and, if needed, one page of file history
+    to confirm the write. It pauses instead of blindly retrying. *Resume auto-commit* checks a pending
+    write again; once confirmed, resume once more when ready. After reopening the editor, *Pull from Git*
+    or *Open from Git…* may be needed to incorporate that commit first. *Save to Git* can also resolve
+    the situation manually. No model text or token is kept in this pending-write record. Without usable
+    local storage or browser tab coordination, use manual saving.
+
 ## When the file changed {#when-the-file-changed}
 
 A save never overwrites a change it has not seen. When the file moved on in the repository since it was

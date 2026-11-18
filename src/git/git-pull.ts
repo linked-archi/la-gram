@@ -17,7 +17,7 @@ export interface GitPullContext extends GitSaveContext {
 export type PullOutcome = 'unchanged' | 'pulled' | 'merged' | 'conflicts' | 'stopped' | 'obsolete';
 
 /** Apply a checked version, with a final synchronous clean-only guard for automation. */
-export function applyGitObservation(ctx: GitPullContext, observed: GitObservation, cleanOnly = false) {
+export function applyGitObservation(ctx: GitPullContext, observed: GitObservation, cleanOnly = false, activateConflicts = true) {
   const { modelIri, binding, head, version, base, remote } = observed;
   const merge = ctx.merge;
   if (!ctx.current() || ctx.room() || ctx.modelIri() !== modelIri || bindingKey(ctx.bindings.get(modelIri)) !== bindingKey(binding)
@@ -29,7 +29,7 @@ export function applyGitObservation(ctx: GitPullContext, observed: GitObservatio
   if (cleanOnly && !sameLines(ours, base)) return { applied: false, changed: false, conflicts: [], dirty: true };
   const { conflicts, changed } = reconcile(merge, base, ours, remote);
   ctx.bindings.set(modelIri, { ...binding, commit: head, version });
-  if (conflicts.length) merge.conflicts(conflicts, { branch: binding.branch, commit: head });
+  if (conflicts.length) merge.conflicts(conflicts, { branch: binding.branch, commit: head }, activateConflicts);
   else merge.clear();
   const dirty = conflicts.length > 0 || !sameLines(snapshotOfText(ctx.serialize(format), binding.path), remote);
   if (dirty) ctx.changed();

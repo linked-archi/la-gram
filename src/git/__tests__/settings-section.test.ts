@@ -11,6 +11,8 @@ import { WebTokenStore } from '../credentials.js';
 import { PersonalSettings } from '../../settings.js';
 import type { GitConfig } from '../../config.js';
 import type { FormValues } from '../../ui/dialogs.js';
+import { AutoCommitStore, autoCommitKey } from '../auto-commit-settings.js';
+import type { GitBinding } from '../bindings.js';
 import { MemoryStorage } from './memory-storage.js';
 
 const DEPLOYMENT: GitConfig = {
@@ -150,4 +152,41 @@ describe('host kinds learned (Req 18.16)', () => {
     kinds.set('code.example.org', 'github');
     expect(readLink('https://code.example.org/acme/arch', 'gitlab', undefined, kinds).provider).toBe('gitlab');
   });
+});
+
+
+it('auto-commit names the full destination, defaults Off, preserves pauses and refuses a changed target', async () => {
+  const autoCommits = new AutoCommitStore(storage);
+  const binding: GitBinding = { host: 'github.com', provider: 'github', apiBase: 'https://api.github.com', repository: 'acme/arch',
+    webUrl: 'https://github.com/acme/arch', branch: 'main', path: 'models/shop.ttl', commit: 'base', version: 'blob' };
+  let target = { modelIri: 'https://example.org/shop', binding };
+  const key = autoCommitKey(target.modelIri, binding);
+  const settings = gitSettingsSection({ config: undefined, personal, tokens, hostKinds: kinds, autoCommits,
+    target: () => target, report: () => undefined });
+  const fields = await settings.fields();
+  const values = Object.fromEntries(fields.map((f) => [f.name, f.value ?? ''])) as FormValues;
+  expect(values.autoCommitMode).toBe('off');
+  expect(values.autoCommitIdle).toBe('2');
+  expect(values.autoCommitInterval).toBe('10');
+  expect(values.autoCommitDestination).toContain('https://example.org/shop · github.com · acme/arch · main · models/shop.ttl');
+  values.autoCommitMode = 'idle';
+  expect(settings.validate!(values)).toBeNull();
+  await settings.apply(values);
+  autoCommits.pause(key, 'Choose conflicts');
+  values.autoCommitIdle = '5';
+  await settings.apply(values);
+  expect(new AutoCommitStore(storage).get(key)).toMatchObject({ mode: 'idle', idleMinutes: 5, paused: 'Choose conflicts' });
+  target = { ...target, binding: { ...binding, commit: 'new-base' } };
+  expect(settings.validate!(values)).toBeNull();
+  target = { ...target, binding: { ...binding, branch: 'other' } };
+  expect(settings.validate!(values)).toContain('destination changed');
+  await settings.apply(values);
+  expect(autoCommits.get(autoCommitKey(target.modelIri, target.binding)).mode).toBe('off');
+});
+
+it('auto-commit is disabled until a model has a Git destination', async () => {
+  const settings = gitSettingsSection({ config: undefined, personal, tokens, hostKinds: kinds,
+    autoCommits: new AutoCommitStore(storage), target: () => undefined, report: () => undefined });
+  const fields = await settings.fields();
+  expect(fields.find((f) => f.name === 'autoCommitMode')).toMatchObject({ disabled: true, value: 'off' });
 });

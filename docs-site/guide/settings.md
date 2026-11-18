@@ -74,6 +74,10 @@ field's hint says what an empty one means.
 | *New branch names start with* | text | **`la-gram/`** |
 | *Check for remote changes* | **Off**, Every 1 minute, Every 2 minutes, Every 5 minutes, Every 10 minutes | **Off**; for example, Every 2 minutes checks the bound file while the app is visible and online |
 | *Pull automatically when unchanged locally* | **Off**, On | **Off**; with regular checks enabled, incorporates incoming versions only while there are no local Git changes |
+| *Destination* | read only: the model IRI, host, repository, branch and file for auto-commit | open or save a model from Git first |
+| *Auto-commit* | **Off**, After idle, At interval | **Off** for each model and destination; for example, After idle saves after you stop editing |
+| *Idle time* | 1 minute, **2 minutes**, 5 minutes, 10 minutes | **2 minutes**; applies to After idle |
+| *Commit interval* | 5 minutes, **10 minutes**, 15 minutes, 30 minutes | **10 minutes**; applies to At interval, and skips unchanged content |
 | *Remember tokens* | read only, when the deployment says `never`: *Never: a token is kept for the session only* | — |
 | *Offer to remember a new token, ticked* | a checkbox: whether the access token dialog's *Remember* starts ticked | **off** in the web app, **on** in the desktop app |
 | *Forget the token for* a host | a checkbox for each host with a token kept: ticked, *Apply* forgets it, in memory and remembered | — |
@@ -90,9 +94,11 @@ host the deployment does not allow), a branch name Git would refuse, a folder th
 3. Choose *Apply*. The next *Save to Git…* proposes `architecture/models/acme-online-shop.ttl`, and the
    message "Add Acme online shop on main".
 
-The synchronization options apply to the open bound model, outside shared rooms. They never commit.
+The synchronization options apply to the open bound model, outside shared rooms. Checks and automatic
+pull never commit; *Auto-commit* needs a separate opt-in for the named destination.
 The *Git* tab shows results and pause reasons; its *Git settings…* button opens this settings tab.
-See [Git status and regular checks](git.md#regular-checks) for timing, multiple tabs and private access.
+See [Git status and regular checks](git.md#regular-checks) for timing, multiple tabs and private access,
+and [Optional auto-commit](git.md#auto-commit) for examples and persistent pause/resume behaviour.
 
 What a deployment sets shows here as it is. With this deployment configuration, *Git hosts allowed*
 lists the two hosts, *Remember tokens* says *Never*, and *Folder for new files* is `architecture/models`

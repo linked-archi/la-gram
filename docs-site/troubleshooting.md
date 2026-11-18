@@ -86,10 +86,11 @@ forgets it, and the next Git action asks again. That is on purpose.
 1. Choose *Save to Git…* and give your token, with *Remember on this browser* ticked.
 2. Reload: the next *Save to Git…* does not ask for it.
 
-## Changes were lost: there is no autosave {#no-autosave}
+## Changes were lost: no automatic local recovery copy {#no-autosave}
 
-la-gram does not save on its own, and keeps no copy of the model you are working on. An unsaved model is
-lost when the tab reloads or closes; la-gram asks first, with the browser's *Leave site?* question, or
+la-gram keeps no automatic local recovery copy of the model you are working on. Optional
+[auto-commit](guide/git.md#auto-commit) saves to Git only when enabled for that destination, and may be
+paused or still waiting. Unsaved edits are lost when the tab reloads or closes; la-gram asks first, with the browser's *Leave site?* question, or
 the desktop app's *Close without saving* / *Cancel*.
 
 - **Save** to a file (*File › Save*) or to Git (*Save to Git…*).

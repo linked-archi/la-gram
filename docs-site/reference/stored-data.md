@@ -100,6 +100,8 @@ Each is off until you switch it on.
 |---|---|
 | `la-gram:git-bindings` | for each model, by its IRI, the Git file it was opened from, saved to or pulled from: repository, branch, path and the incorporated version; checking alone does not advance it |
 | `la-gram:git-last-repository` | the repository used last, which *Save to Git…* proposes when nothing else does |
+| `la-gram:git-auto-commit:<model/destination>` | explicit mode, idle/interval timing and pause reason, scoped to a model IRI and full Git destination; defaults Off |
+| `la-gram:git-auto-commit:pending:<model/destination>` | an uncertain or in-flight write's source binding, editor identity, SHA-256 snapshot fingerprint and any returned commit receipt; no model text or token; removed when confirmed or after a successful manual Git save |
 | `la-gram:git-hosts` | the kinds learned for self-hosted hosts: `github` or `gitlab`, per host |
 
 *File › Settings…* › *Git storage* forgets the learned host kinds (*Forget the host kinds learned*).
@@ -147,9 +149,10 @@ in the same folder, as a browser would keep it.
 
 These are **not kept** between visits, on purpose or for now:
 
-- **The model you are working on.** la-gram has no autosave: an unsaved model is lost when the tab
+- **The model you are working on.** la-gram keeps no automatic local recovery copy: unsaved edits are lost when the tab
   reloads or closes, and la-gram asks first ([no autosave](../troubleshooting.md#no-autosave)). Save it to
-  a file or to Git, or save a checkpoint in History, which is kept.
+  a file or to Git, or save a checkpoint in History, which is kept. Optional [auto-commit](../guide/git.md#auto-commit)
+  saves to Git only after explicit enablement, and can pause or have edits still waiting.
 - **Whether the model tree, the palette and the RDF panel are shown.** Each starts as la-gram starts it:
   tree and palette shown, RDF panel closed unless the address has [`rdf=1`](url-parameters.md#rdf).
   Their sizes are kept.
@@ -157,5 +160,5 @@ These are **not kept** between visits, on purpose or for now:
 - **The presentation** chosen in the toolbar: each visit starts with *Default notation*.
 - **Recent folders** of *Move to folder…*: for the session only.
 - **A Git token** not remembered, as above.
-- **Git check status and cached versions.** Last-check times, observed remote snapshots and tab
+- **Git status and cached versions.** Last-check/last-commit times, observed remote snapshots and tab
   ownership are kept only for this session. Regular-check preferences remain in personal settings.

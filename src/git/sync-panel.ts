@@ -38,11 +38,18 @@ export class GitSyncPanel extends LitElement {
         <dt>Regular checks</dt><dd>${s.intervalMinutes ? `Every ${s.intervalMinutes} ${s.intervalMinutes === 1 ? 'minute' : 'minutes'}` : 'Off'}</dd>
         <dt>Next check</dt><dd>${time(s.nextCheck)}</dd>
         <dt>Automatic pull</dt><dd>${s.autoPull ? 'Only when unchanged locally' : 'Off'}</dd>
+        <dt>Auto-commit</dt><dd>${!s.autoCommit || s.autoCommit.mode === 'off' ? 'Off'
+          : s.autoCommit.mode === 'idle' ? `After ${s.autoCommit.idleMinutes} ${s.autoCommit.idleMinutes === 1 ? 'minute' : 'minutes'} idle` : `Every ${s.autoCommit.intervalMinutes} minutes`}</dd>
+        <dt>Next commit check</dt><dd>${time(s.nextCommit)}</dd>
+        <dt>Last committed</dt><dd>${time(s.lastCommit)}</dd>
       </dl>
       <div class="actions">
         <button @click=${() => this.action('check')} ?disabled=${!s.canCheck}>Check for remote changes</button>
         <button @click=${() => this.action('pull')} ?disabled=${!s.canPull}>Pull from Git</button>
         <button @click=${() => this.action('settings')}>Git settings…</button>
+        ${s.autoCommit && s.autoCommit.mode !== 'off' ? s.autoCommit.paused
+          ? html`<button @click=${() => this.action('resume')} ?disabled=${!s.canResume}>Resume auto-commit</button>`
+          : html`<button @click=${() => this.action('pause')}>Pause auto-commit</button>` : nothing}
       </div>`;
   }
 }

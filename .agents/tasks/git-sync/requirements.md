@@ -1,6 +1,6 @@
 # Requirements
 
-Recorded 2026-11-17. **Manual pull is Req 18.24; regular checks and clean-only pull are Req 18.25; auto-commit remains planned.** GS numbers belong to this task. When stages land, add their
+Recorded 2026-11-17. **Manual pull is Req 18.24; regular checks and clean-only pull are Req 18.25; auto-commit is Req 18.26.** GS numbers belong to this task. When stages land, add their
 acceptance criteria to Req 18 and Req 19 without renumbering existing criteria.
 
 ## Manual pull
@@ -42,7 +42,7 @@ acceptance criteria to Req 18 and Req 19 without renumbering existing criteria.
 ## Optional automatic commits
 
 - **GS-12.** Auto-commit is off by default and enabled explicitly for a particular model and Git
-  destination. It supports idle and interval modes with the proposed settings in [README.md](README.md).
+  destination. It supports idle and interval modes with the settings in [README.md](README.md).
   Manual Save to Git and its message prompt remain available.
 - **GS-13.** Only model content different from the incorporated Git baseline is committed. Undoing
   changes back to that baseline, or saving the same model repeatedly, produces no automatic commit.
@@ -70,7 +70,7 @@ acceptance criteria to Req 18 and Req 19 without renumbering existing criteria.
   perform at most one due check before proceeding; exact background timing is not guaranteed. Network
   failures and rate limits use bounded backoff and any retry information available from the host.
 - **GS-21.** A transport failure after sending a commit is an uncertain result: reconcile with the remote
-  before retrying. Do not blindly duplicate a commit. Failed requests never mark the model saved.
+  before retrying. Do not blindly duplicate a commit. Unconfirmed writes never mark the model saved; a remotely confirmed successful commit may do so only when the working model still equals its submitted snapshot.
 - **GS-22.** Settings and status are available in both web and desktop, with keyboard-operable controls.
   No token, status or scheduler configuration is written into model RDF or shared with a room.
 - **GS-23.** Deterministic tests cover merges, conflicts, no-op saves, in-flight edits, stale requests,

@@ -1,6 +1,6 @@
 # Git synchronization: pull, remote checks and optional auto-commit
 
-Recorded 2026-11-17. **Stages 1–2 complete; Stage 3 not started.** The user agreed to these three
+Recorded 2026-11-17. **Stages 1–3 complete.** The user agreed to these three
 increments and asked that they be documented beside the existing pending Git work before coding.
 
 ## Goal
@@ -35,15 +35,15 @@ Existing manual Git operations keep their present room behaviour.
 These are client operations using the existing GitHub/GitLab providers and the user's credentials.
 There is no new vocabulary, Git clone, server-held token or background service running after the app closes.
 
-## Settings and remaining proposals
+## Settings
 
-Regular checks and clean-only automatic pull are implemented. Auto-commit and its timing values remain proposals for Stage 3.
+Regular checks, clean-only automatic pull and destination-scoped auto-commit are implemented.
 
 | Setting | Values and default | Scope |
 |---|---|---|
 | Check for remote changes | **Off**, every 1, 2, 5 or 10 minutes | Personal default; only the active bound model |
 | Pull automatically when unchanged locally | **Off**, On | Only when regular checks are enabled |
-| Auto-commit | **Off**, after idle, at an interval | Explicit opt-in for one repository, branch and file |
+| Auto-commit | **Off**, after idle, at an interval | Explicit opt-in for one model, host, repository, branch and file |
 | Idle period | 1, **2**, 5 or 10 minutes without model edits | When after-idle mode is selected |
 | Commit interval | 5, **10**, 15 or 30 minutes | When interval mode is selected; only if changed |
 
@@ -59,5 +59,7 @@ working branch is the recommended destination. The commit message uses the exist
 
 Manual pull is implemented in `src/git/git-pull.ts` and the File menu, with the existing merge and
 Conflicts tab. Stage 2 adds `git-observation.ts`, `git-sync.ts`, `git-locks.ts` and the Git status tab.
-The next stage is optional auto-commit; its write-specific safeguards remain pending.
-Promote each stage into the main specs and user docs as it lands.
+Stage 3 adds `auto-commit-settings.ts` and `git-auto-commit.ts`: explicit idle/interval settings, persistent
+pause/resume, remote reconciliation and an immutable write with a durable fingerprint journal.
+Uncertain responses pause for bounded remote confirmation and explicit Resume. The implementation
+is Req 18.26 and key design decision 31. Shared-room Phase 4 remains pending.

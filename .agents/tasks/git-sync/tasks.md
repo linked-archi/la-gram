@@ -1,6 +1,6 @@
 # Git synchronization checklist
 
-Recorded 2026-11-17. **Stages 1–2 complete; Stage 3 not started.** Criteria refer to
+Recorded 2026-11-17. **Stages 1–3 complete.** Criteria refer to
 [requirements.md](requirements.md); the integration choices are in [design.md](design.md).
 
 ## Documentation before implementation
@@ -31,17 +31,35 @@ Recorded 2026-11-17. **Stages 1–2 complete; Stage 3 not started.** Criteria re
 
 ## Stage 3: optional auto-commit
 
-- [ ] Add per-destination opt-in, idle/interval modes and explicit pause/resume (GS-12, GS-15, GS-22).
-- [ ] Reuse commit primitives without dialogs; reconcile remote changes and skip identical content (GS-13–16).
-- [ ] Preserve edits made during a commit; reconcile uncertain write responses before retries (GS-17, GS-21).
-- [ ] Test conflict pause, manual resume, missing tokens, blank-node/pending-merge decisions, concurrent remote
+- [x] Add per-destination opt-in, idle/interval modes and explicit pause/resume (GS-12, GS-15, GS-22).
+- [x] Reuse commit primitives without dialogs; reconcile remote changes and skip identical content (GS-13–16).
+- [x] Preserve edits made during a commit; reconcile uncertain write responses before retries (GS-17, GS-21).
+- [x] Test conflict pause, manual resume, missing tokens, blank-node/pending-merge decisions, concurrent remote
       saves, snapshot changes during writes, no-op/undo and destination changes (GS-23).
-- [ ] Browser-test settings, status, manual operations alongside automation, and keyboard access using fake
+- [x] Browser-test settings, status, manual operations alongside automation, and keyboard access using fake
       Git hosts; check web and desktop wiring (GS-22–23).
-- [ ] Run type checking, unit and browser suites, app build and strict docs build; update all user docs,
+- [x] Run type checking, unit and browser suites, app build and strict docs build; update all user docs,
       task statuses and limitations. Leave shared-room Phase 4 pending (GS-24).
 
 ## Where it stopped
+
+2026-11-18: Stage 3 is complete. Per-model/destination opt-in supports idle and interval modes, with
+persistent Pause/Resume. Automatic commits reconcile first, skip unchanged content, preserve edits
+during writes and pause on conflicts. A verified fingerprint journal prevents blind retries after
+uncertain responses; the editor lifecycle rejects results after reload, room or destination transitions.
+Storage failures pause safely without breaking manual saves. Internal merges do not restart idle timing.
+
+Verification: type checking, all 2,642 unit tests, all 92 browser tests, the web/desktop/CLI build,
+strict docs build and `git diff --check` pass. Browser tests cover explicit destination settings,
+keyboard Pause/Resume, automatic reconciliation, focus retention and conflict choices that do not publish
+until resumed. The final Git status screenshot was inspected. Logs: `/tmp/la-gram-auto-unit-final.log`,
+`/tmp/la-gram-auto-browser-final.log`, `/tmp/la-gram-auto-typecheck.log`, `/tmp/la-gram-auto-build.log`,
+`/tmp/la-gram-auto-docs.log`.
+
+All three synchronization stages are complete. Shared-room Phase 4 remains pending. No staging,
+commits, pushes or real repository writes were performed.
+
+### Stage 2 completion
 
 2026-11-18: Stage 2 is complete. The Git tab reports
 local/incoming changes and check timing, and File offers a manual Check action. Settings are Off / 1 / 2 /
@@ -62,3 +80,23 @@ Check, automatic clean-only pull, local-file saves and two actual tabs with hand
 status screenshot was inspected. Stage 3 optional auto-commit is next; its write-specific concurrency and
 failure safeguards are still pending. Shared-room Phase 4 is also pending. No staging, commits,
 pushes or real repository writes were performed.
+
+## Stage 3 implementation note — 2026-11-18
+
+Per-model/destination settings: Off, after idle (1/2/5/10 minutes, default 2), or interval
+(5/10/15/30 minutes, default 10). The settings dialog names the exact destination and defaults Off;
+Git status exposes Pause/Resume. Pauses survive reload and are not cleared by merely choosing a
+conflict or changing an interval. A successful manual save or explicit Resume can clear them.
+
+Use the existing provider commitFile primitive with captured immutable text, expected version and
+the current message template. Reconcile before every write, retry bounded version conflicts, skip
+unchanged content and preserve edits during writes. Never open background prompts, branches or PRs.
+Use the existing owner/operation locks for both checks and commits, including when regular checks
+are off. Internal pulls/merges do not restart the idle timer.
+
+Before sending, persist a small write journal containing the destination, source binding, editor
+lifecycle, and SHA-256 of the canonical submitted snapshot, without model text or credentials. If
+the response is uncertain, compare immutable remote snapshots (and bounded file history if needed)
+to confirm that snapshot before another automatic write. Unconfirmed writes pause persistently;
+lifecycle changes must never rebind or mark a newly opened model saved. Missing durable journal
+storage or write credentials pauses automation. Tests use fake repositories/tokens only.

@@ -43,7 +43,7 @@ export interface MergeSupport {
   /** Make the model this snapshot, as one undoable step. */
   replace(snapshot: string[]): void;
   /** Show the conflicts left by merging `against` (the branch, at a commit). */
-  conflicts(conflicts: MergeConflict[], against: { branch: string; commit: string }): void;
+  conflicts(conflicts: MergeConflict[], against: { branch: string; commit: string }, activate?: boolean): void;
   /** How many of the conflicts shown are not chosen yet. */
   unresolved(): number;
   /** The conflicts are done with: the model was committed. */

@@ -3401,7 +3401,7 @@ dialog; the modules' section).
     determines the dirty marker, and conflicts keep it dirty. Model-loaded generations,
     the full binding and room state reject obsolete reads; module stop invalidates them.
     A module-owned busy guard prevents overlapping manual Git menu flows. Pull cannot run
-    in shared rooms or with an unfinished cross-branch merge. Periodic checks are described in key design decision 30; auto-commit remains pending,
+    in shared rooms or with an unfinished cross-branch merge. Periodic checks are described in key design decision 30; auto-commit is described in key design decision 31,
     and History stays demand-loaded.
 
 30. **Observe first, incorporate only when explicitly allowed** (Req 18.25; 2026-11-18).
@@ -3421,6 +3421,30 @@ dialog; the modules' section).
     header requires it. Other failures pause for a manual retry/settings change. Reads in flight
     may finish after cancellation but cannot apply obsolete results. No background prompts,
     repository writes or history polling are introduced.
+
+31. **Automatic writes require a destination opt-in and a recoverable result** (Req 18.26; 2026-11-18).
+    `auto-commit-settings.ts` stores personal settings and persistent pauses per model IRI and complete
+    destination (excluding baseline versions). Separate journal keys prevent a settings update from
+    erasing a pending write. `git-sync.ts` schedules checks and commits through the same owner and
+    operation locks, including when checks are Off. Idle deadlines follow effective local edits;
+    synchronous internal merge/pull mutations are excluded. Interval attempts schedule from completion.
+    Conflicts/required decisions persist a pause; resolving choices alone never publishes.
+    `git-auto-commit.ts` reuses `observeGit`, undoable reconciliation and the provider's existing
+    immutable-text `commitFile` primitive. A full binding guard is advanced synchronously after its
+    own merge. It names the expected file version, retries at most three explicit version conflicts,
+    and never calls prompting, branch creation, overwrite or review flows. After success, it compares
+    the current snapshot with the submitted snapshot before marking clean. A separate editor epoch
+    allows sent writes to settle after Pause/Off but prevents old results rebinding a reloaded model.
+    Before sending, a verified local-storage journal records the source binding, editor epoch and
+    SHA-256 of canonical submitted content, with no text/token. Network/server/unknown write failures
+    retain that journal and pause. Confirmation checks pinned remote content and at most one history
+    page, requiring ancestry from the submitted base and reachability from the current head. Finding
+    an older confirmed write adopts that commit, not a later head, so subsequent remote deletions
+    remain changes for the next merge. A new editor must already incorporate the confirmed commit
+    before clearing the journal; manual Save can also acknowledge it. Confirmation leaves an explicit
+    pause so newer edits are published only after Resume. Unconfirmed results never lead to a blind
+    automatic retry. This conservative recovery avoids needing to persist private model snapshots.
+    Web and Electron use the same settings/status/module wiring; all tests use fake hosts and tokens.
 
 ## Running
 
