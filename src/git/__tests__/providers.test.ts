@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GitHubProvider } from '../providers/github.js';
 import { GitLabProvider } from '../providers/gitlab.js';
-import { fromBase64, toBase64 } from '../providers/provider.js';
+import { fromBase64, toBase64, retryTime } from '../providers/provider.js';
 import { GitError, setDesktop } from '../errors.js';
 import { parseRepositoryLink } from '../link.js';
 import { fakeHost, unreachable } from './fake-host.js';
@@ -34,6 +34,25 @@ describe('base64, as the hosts send and take it', () => {
     expect(fromBase64(toBase64(TEXT))).toBe(TEXT);
     const broken = toBase64(TEXT).replace(/(.{20})/g, '$1\n');
     expect(fromBase64(broken)).toBe(TEXT);
+  });
+});
+
+describe('retry timing for scheduled reads', () => {
+  it('retains retry headers on a provider error without exposing the host’s body', async () => {
+    const host = fakeHost([{ method: 'GET', url: `${GH}/branches/main`, status: 429,
+      headers: { 'retry-after': '120' }, text: `secret ${TOKEN}` }]);
+    const before = Date.now();
+    const error = await failure(new GitHubProvider(github, TOKEN, host.fetch).branchHead('main'));
+    expect(error.retryAt).toBeGreaterThanOrEqual(before + 120_000);
+    expect(error.kind).toBe('rate-limit');
+    expect(error.message).not.toContain(TOKEN);
+  });
+
+  it('accepts HTTP dates and rate-limit reset times, and ignores malformed or past values', () => {
+    const now = Date.parse('2026-11-18T12:00:00Z');
+    expect(retryTime(new Headers({ 'retry-after': 'Wed, 18 Nov 2026 12:02:00 GMT' }), now)).toBe(now + 120_000);
+    expect(retryTime(new Headers({ 'retry-after': '30', 'x-ratelimit-reset': String(now / 1000 + 90) }), now)).toBe(now + 90_000);
+    expect(retryTime(new Headers({ 'retry-after': 'unknown', 'x-ratelimit-reset': '0' }), now)).toBeUndefined();
   });
 });
 

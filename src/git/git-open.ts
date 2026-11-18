@@ -89,7 +89,7 @@ export class Access {
       return await read(this.provider);
     } catch (err: unknown) {
       if (!(err instanceof GitError) || this.token !== undefined || !NEEDS_TOKEN.has(err.kind)) throw err;
-      if (!ask) throw new GitError(err.kind, `${err.message} A token may be needed to read it.`, err.status);
+      if (!ask) throw new GitError(err.kind, `${err.message} A token may be needed to read it.`, err.status, err.retryAt);
       const token = await tokenFor(this.ctx, this.link, 'open');
       if (token === null) return null;
       this.token = token;

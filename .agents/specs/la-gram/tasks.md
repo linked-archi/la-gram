@@ -165,8 +165,9 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] One resource, many placements; drop from the tree; draws relationships to placed elements — *view-canvas.test*
 
 ### Task 19: Git storage (Req 18) — an optional module
+- [x] **Regular remote checks and optional clean-only automatic pull** (2026-11-18): manual Check and the Git status tab, personal settings, one active owner per destination, separate operation locks, pause/backoff and obsolete-result guards (Req 18.25) — *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
 In three parts, each reviewed before the next.
-- [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Periodic checks and auto-commit remain in [git-sync Stages 2–3](../../tasks/git-sync/tasks.md).
+- [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Automatic commits remain in [git-sync Stage 3](../../tasks/git-sync/tasks.md).
 - [x] **1. Document** (2026-10-19): Req 18; design — *Git storage (optional module)*
 - [x] **2. Save to Git** (2026-10-19)
   - [x] The switch: `LA_GRAM_GIT` in the build (the module's own chunk, not emitted when off); a setting on this machine, on by default (*File › Modules…*); `?git=off` — `src/modules.ts` — *modules.test, module-boundary.test, workbench.spec*
@@ -375,7 +376,8 @@ Agreed order; relationship visuals come first.
 
   Planned from `docs/git-collaboration-spec.md`, with its corrections; the plan is in `.agents/tasks/git-collaboration/tasks.md`.
 - [x] **Git synchronization Stage 1: manual Pull from Git** — implemented (2026-11-17), Req 18.24: current-branch pull without committing, preserving local edits with the existing merge/conflict flow. [Plan and remaining stages](../../tasks/git-sync/README.md); *git-pull.test, git-module.test, git-merge.test, git-merge.spec*.
-- [ ] **Git synchronization Stages 2–3: regular checks and optional auto-commit** — recorded (2026-11-17), not started: configurable remote checks and optional clean-only pull; then per-destination idle/interval commits, remote reconciliation first and pause on conflicts. Manual commits remain the default. History stays demand-loaded. Shared rooms and their committer remain in Git collaboration Phase 4. [Checklist](../../tasks/git-sync/tasks.md).
+- [x] **Git synchronization Stage 2: regular checks and clean-only automatic pull** — complete (2026-11-18), (Req 18.25): Git status tab, manual Check, Off/1/2/5/10-minute settings and auto-pull Off by default; per-destination ownership, operation locks, lifecycle guards, pause/backoff and snapshot caching. *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
+- [ ] **Git synchronization Stage 3: optional auto-commit** — recorded (2026-11-17), not started: per-destination idle/interval commits, remote reconciliation first and pause on conflicts. Manual commits remain the default. Shared rooms remain in Git collaboration Phase 4. [Checklist](../../tasks/git-sync/tasks.md).
 - [x] **The History tab shows the Git history too** (Task 21) — done (2026-11-05), with Phase 2 of the Git collaboration plan: for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes by element and *Open this version*.
 - [x] **Configuration** (Task 20, Req 19) — done (2026-10-19): the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). See the change log.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
@@ -391,8 +393,9 @@ Agreed order; relationship visuals come first.
 
 ## Known limitations
 
-- Git synchronization is manual. Pull is available outside shared rooms, and waits for unresolved
-  conflicts or pending branch merges to be finished. Periodic checks and automatic commits are pending.
+- Git synchronization is available outside shared rooms; unresolved conflicts and pending branch
+  merges pause it. Regular checks need browser tab coordination and run while visible/online.
+  Automatic commits remain pending.
 
 1. ~~**One placement per element per view.**~~ An element may be placed more than once since 2026-11-06 (Req 3.14), and a relationship drawn more than once; Exchange imports draw them so.
 2. ~~**Visual groups and free-standing labels** are not drawn~~ — drawn since 2026-11-06 as figures (Req 3.13): groups, notes, and the core-vis shapes from the toolbar; an Exchange file's `Container` and `Label` import as a group and a note, and lines from them (since 2026-11-06) as lines standing for no relationship; `archimate2linkedarchi` writes them so since 2026-11-07 (core-vis 0.7).
@@ -412,6 +415,27 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-18 — regular Git checks with optional clean-only pull
+
+- File’s *Check for remote changes* observes without applying; the Git tab shows the destination,
+  local/incoming changes, last/next check and pause/error reasons (Req 18.25; key design decision 30).
+  Personal settings offer Off/1/2/5/10-minute checks and optional clean-only auto-pull, both Off by default.
+- Immutable base/remote snapshots are cached separately from the incorporated binding. Local edits,
+  including local-file saves and edits during reads, prevent automatic pull. The final check and apply
+  are synchronous; accepted changes use the existing undo command. No commits or history polling.
+- A queued owner lock elects one visible/online editor per destination; a separate operation lock lets
+  other tabs act manually without overlapping work. Lifecycle/settings/environment changes invalidate
+  pending reads; transient failures back off with exposed retry headers, while access/invalid-file
+  failures pause for manual attention. Missing/denied lock support pauses automation, preserving manual
+  actions. The Git tab never opens itself for a background update.
+- Tests: *git-sync.test* (fake time, both providers, cached reads, in-flight edits, stale results,
+  ownership/handover, lock fallback, pause/resume and backoff); *git-module.test* (File/status wiring);
+  *settings-section.test*, *providers.test*; *git-merge.spec* (settings, keyboard Check, automatic pull,
+  local-file saves and two real browser tabs).
+- Verified: type checking, 2,595 unit tests, 90 browser tests, web/desktop/CLI build, strict docs build
+  and `git diff --check` pass. The Git status screenshot was inspected.
+- Stage 3 auto-commit and shared-room Phase 4 remain pending. No real repository writes in tests.
 
 ### 2026-11-17 — pull the bound branch without committing
 

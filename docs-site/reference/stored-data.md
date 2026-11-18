@@ -39,7 +39,7 @@ tab is opened, or a panel folded or resized.
 | Part | Holds |
 |---|---|
 | `metamodels` | `hidden`: the catalogue entries unticked in *Metamodels*, by IRI |
-| `git` | the *Git storage* tab's fields: `repository`, `branch`, `folder`, `message`, `branchPrefix`, and `rememberByDefault` |
+| `git` | the *Git storage* tab's fields: `repository`, `branch`, `folder`, `message`, `branchPrefix`, `rememberByDefault`, `checkIntervalMinutes` and `autoPull` |
 
 An empty field is not kept: the deployment's value, or la-gram's, applies. If the browser refuses
 storage, settings hold for the session only.
@@ -98,7 +98,7 @@ Each is off until you switch it on.
 
 | Key | Holds |
 |---|---|
-| `la-gram:git-bindings` | for each model, by its IRI, the Git file it was opened from or saved to: repository, branch, path and the version last seen |
+| `la-gram:git-bindings` | for each model, by its IRI, the Git file it was opened from, saved to or pulled from: repository, branch, path and the incorporated version; checking alone does not advance it |
 | `la-gram:git-last-repository` | the repository used last, which *Save to Git…* proposes when nothing else does |
 | `la-gram:git-hosts` | the kinds learned for self-hosted hosts: `github` or `gitlab`, per host |
 
@@ -157,3 +157,5 @@ These are **not kept** between visits, on purpose or for now:
 - **The presentation** chosen in the toolbar: each visit starts with *Default notation*.
 - **Recent folders** of *Move to folder…*: for the session only.
 - **A Git token** not remembered, as above.
+- **Git check status and cached versions.** Last-check times, observed remote snapshots and tab
+  ownership are kept only for this session. Regular-check preferences remain in personal settings.

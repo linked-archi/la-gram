@@ -27,6 +27,8 @@ class FakeGitHub {
   readonly pulls: Array<{ number: number; title: string; body: string; head: string; base: string }> = [];
   refusals = 0;
   branchesMade = 0;
+  readonly reads = { heads: 0, files: 0, history: 0 };
+  readonly headReaders = new Map<Page, number>();
   private n = 0;
 
   /** main's head. */
@@ -76,10 +78,14 @@ class FakeGitHub {
     const body = () => JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
     if (method === 'GET' && at === '') return reply(200, { default_branch: 'main' });
     if (method === 'GET' && at.startsWith('/branches/')) {
+      this.reads.heads++;
+      const page = request.frame().page();
+      this.headReaders.set(page, (this.headReaders.get(page) ?? 0) + 1);
       const head = this.branches.get(at.slice('/branches/'.length));
       return head ? reply(200, { commit: { sha: head } }) : reply(404, { message: 'Branch not found' });
     }
     if (at === `/contents/${PATH}` && method === 'GET') {
+      this.reads.files++;
       const ref = url.searchParams.get('ref') ?? 'main';
       const text = this.commits.get(this.branches.get(ref) ?? ref)?.text;
       if (text === undefined) return reply(404, { message: 'Not Found' });
@@ -106,6 +112,7 @@ class FakeGitHub {
       return reply(201, { ref, object: { sha } });
     }
     if (at === '/commits' && method === 'GET') {
+      this.reads.history++;
       const changed = this.ancestors(url.searchParams.get('sha') ?? 'main').filter((c) => {
         const { text, parent } = this.commits.get(c)!;
         return !parent || this.commits.get(parent)!.text !== text;
@@ -403,5 +410,92 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     expect(github.file()).toContain('Portal (local pull)');
     expect(github.branchesMade).toBe(branches);
     await panel.waitFor({ state: 'detached' });
+  }, 60_000);
+
+  it('Check for remote changes is keyboard-accessible and reports incoming changes without pulling or reading history', async () => {
+    github.push(github.file().replace('Billing (pulled again)', 'Billing (checked)'));
+    const commits = github.commits.size;
+    const historyReads = github.reads.history;
+    await c.locator('app-toolbar button[data-menu="file"]').click();
+    const check = c.locator('app-toolbar button[data-value="git:check"]');
+    await check.focus();
+    await check.press('Enter');
+    const status = c.locator('git-sync-status');
+    await status.locator('.status[data-phase="incoming"]').waitFor({ state: 'visible' });
+    expect(await status.locator('.destination').innerText()).toContain('acme/arch · main · models/shop.ttl');
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled again)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(github.reads.history).toBe(historyReads);
+    expect(github.commits.size).toBe(commits);
+    expect(await c.locator('app-shell .tab[data-tab="git-sync"]').innerText()).toContain('New');
+  }, 60_000);
+
+  it('settings keep checks and auto-pull off by default; scheduled check-only mode reports without applying', async () => {
+    await c.clock.install({ time: new Date('2026-11-18T12:00:00Z') });
+    await c.locator('git-sync-status button', { hasText: 'Git settings…' }).click();
+    const dialog = c.locator('.la-dialog[aria-label="Settings"]');
+    expect(await dialog.locator('[name="git.checkIntervalMinutes"]').inputValue()).toBe('0');
+    expect(await dialog.locator('[name="git.autoPull"]').isChecked()).toBe(false);
+    await dialog.locator('[name="git.checkIntervalMinutes"]').selectOption('1');
+    await dialog.locator('.la-button.primary').click();
+    await until(() => c.evaluate(() => (document.querySelector('git-sync-status') as any).status.nextCheck !== undefined), 'scheduled check');
+    const reads = github.reads.heads;
+    const commits = github.commits.size;
+    await c.clock.fastForward(60_000);
+    await until(async () => github.reads.heads > reads && await c.evaluate(() => (document.querySelector('git-sync-status') as any).status.phase === 'incoming'), 'scheduled observation');
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled again)']);
+    expect(github.commits.size).toBe(commits);
+    await sessions.at(-1)!.screenshot('git-sync-incoming');
+  }, 60_000);
+
+  it('opt-in automatic pull updates a clean model without changing tabs, but preserves edits saved only to disk', async () => {
+    await c.locator('git-sync-status button', { hasText: 'Git settings…' }).click();
+    const dialog = c.locator('.la-dialog[aria-label="Settings"]');
+    await dialog.locator('[name="git.autoPull"]').check();
+    await dialog.locator('.la-button.primary').click();
+    await c.locator('app-shell .tab[data-tab="properties"]').click();
+    const commits = github.commits.size;
+    await c.clock.fastForward(60_000);
+    await until(async () => (await nameOf(c, billing)).includes('Billing (checked)'), 'automatic pull');
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_UI__.shell.bottomTab)).toBe('properties');
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(github.commits.size).toBe(commits);
+    await rename(c, portal, 'Portal (local automatic)');
+    await c.evaluate(() => (window as any).__LA_GRAM_APP__.components.eventBus.emit('model-saved', { fileName: 'local.ttl' }));
+    github.push(github.file().replace('Billing (checked)', 'Billing (next remote)'));
+    const reads = github.reads.heads;
+    await c.clock.fastForward(60_000);
+    await until(async () => github.reads.heads > reads && await c.evaluate(() => (document.querySelector('git-sync-status') as any).status.incoming), 'incoming changes while locally edited');
+    expect(await nameOf(c, billing)).toEqual(['Billing (checked)']);
+    expect(await nameOf(c, portal)).toEqual(['Portal (local automatic)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(await c.locator('.la-dialog').count()).toBe(0);
+    await c.locator('app-shell .tab[data-tab="git-sync"]').click();
+    expect(await c.locator('git-sync-status .status').innerText()).toContain('local changes are kept for manual pull');
+    await sessions.at(-1)!.screenshot('git-sync-local-changes');
+  }, 60_000);
+
+  it('two tabs share one automatic owner, manual checks still work, and closing the owner hands over', async () => {
+    const d = await c.context().newPage();
+    await d.clock.install({ time: new Date('2026-11-18T12:03:00Z') });
+    await d.goto(`${server.baseUrl}/index.html?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`, { waitUntil: 'load' });
+    await waitForAppReady(d);
+    await until(async () => (await nameOf(d, billing)).includes('Billing (next remote)'), 'another tab to open main');
+    await d.locator('app-shell .tab[data-tab="git-sync"]').click();
+    await d.locator('git-sync-status .status', { hasText: 'Another tab is checking this file' }).waitFor({ state: 'visible' });
+    const heads = github.reads.heads;
+    const waitingHeads = github.headReaders.get(d) ?? 0;
+    await d.clock.fastForward(60_000);
+    // Playwright's clock advances the whole context: C checks, D must remain waiting.
+    await until(async () => github.reads.heads > heads && await c.evaluate(() => (document.querySelector('git-sync-status') as any).status.canCheck), 'only the owner to check');
+    expect(github.headReaders.get(d) ?? 0).toBe(waitingHeads);
+    await d.locator('git-sync-status button', { hasText: 'Check for remote changes' }).click();
+    await until(() => d.evaluate(() => (document.querySelector('git-sync-status') as any).status.lastChecked !== undefined), 'manual check in waiting tab');
+    expect(github.headReaders.get(d)).toBe(waitingHeads + 1);
+    await c.close();
+    await until(() => d.evaluate(() => (document.querySelector('git-sync-status') as any).status.nextCheck !== undefined), 'ownership transfer');
+    await d.clock.fastForward(60_000);
+    await until(async () => github.headReaders.get(d) === waitingHeads + 2, 'new owner to check');
+    await d.close();
   }, 60_000);
 });

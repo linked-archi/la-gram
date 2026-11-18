@@ -3401,8 +3401,26 @@ dialog; the modules' section).
     determines the dirty marker, and conflicts keep it dirty. Model-loaded generations,
     the full binding and room state reject obsolete reads; module stop invalidates them.
     A module-owned busy guard prevents overlapping manual Git menu flows. Pull cannot run
-    in shared rooms or with an unfinished cross-branch merge. Periodic checks and auto-commit
-    remain separate pending stages; History stays demand-loaded.
+    in shared rooms or with an unfinished cross-branch merge. Periodic checks are described in key design decision 30; auto-commit remains pending,
+    and History stays demand-loaded.
+
+30. **Observe first, incorporate only when explicitly allowed** (Req 18.25; 2026-11-18).
+    `git-observation.ts` reads pinned immutable versions and caches the base and observed remote
+    snapshot separately. Checking never advances the incorporated binding. `git-sync.ts` schedules
+    one completion-based timeout, captures the latest local snapshot after I/O, and calls
+    `applyGitObservation` only for an opted-in scheduled check; that helper checks the clean-only
+    precondition again synchronously before the existing undoable store change. Local status is
+    debounced from effective model changes, independently of the app's local-file dirty marker.
+    The Git tab reports status without opening itself; File provides the manual check action.
+    Personal defaults are Off, with intervals 1/2/5/10 minutes and clean-only auto-pull Off.
+    A queued Web Lock selects the visible, online owner per destination; a different short lock
+    coordinates Git operations, allowing a waiting editor to act manually. Lifecycle/environment
+    changes invalidate pending reads and release ownership; no lock support means no automation.
+    Hidden/offline time yields at most one due check on return. Network/server/rate-limit errors
+    back off exponentially up to ten minutes, waiting longer when Retry-After or an exposed reset
+    header requires it. Other failures pause for a manual retry/settings change. Reads in flight
+    may finish after cancellation but cannot apply obsolete results. No background prompts,
+    repository writes or history polling are introduced.
 
 ## Running
 

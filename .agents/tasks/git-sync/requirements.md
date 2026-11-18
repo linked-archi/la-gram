@@ -1,6 +1,6 @@
 # Requirements
 
-Recorded 2026-11-17. **Manual pull implemented as Req 18.24; automation remains planned.** GS numbers belong to this task. When stages land, add their
+Recorded 2026-11-17. **Manual pull is Req 18.24; regular checks and clean-only pull are Req 18.25; auto-commit remains planned.** GS numbers belong to this task. When stages land, add their
 acceptance criteria to Req 18 and Req 19 without renumbering existing criteria.
 
 ## Manual pull

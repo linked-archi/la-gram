@@ -22,6 +22,7 @@ export interface GitSettingsDeps {
   tokens: TokenStore;
   hostKinds: HostKinds;
   report(message: string): void;
+  changed?(): void;
 }
 
 /** The kind's name, as people know it. */
@@ -33,7 +34,7 @@ export function gitSettingsSection(deps: GitSettingsDeps): SettingsSection {
   return {
     id: 'git',
     title: 'Git storage',
-    detail: 'Where Save to Git and Open from Git start, for a model not bound to a file. Empty: the default the hint names.',
+    detail: 'Defaults for new files, regular remote checks and tokens. Empty: the default the hint names.',
 
     async fields(): Promise<FormField[]> {
       const mine = own();
@@ -81,6 +82,15 @@ export function gitSettingsSection(deps: GitSettingsDeps): SettingsSection {
           hint: `Empty: ${fallback.branchPrefix}`,
         },
       );
+      fields.push(
+        { name: 'sync', label: 'Synchronization', type: 'group' },
+        { name: 'checkIntervalMinutes', label: 'Check for remote changes', type: 'select',
+          value: String(mine.checkIntervalMinutes ?? 0),
+          options: [0, 1, 2, 5, 10].map((minutes) => ({ value: String(minutes), label: minutes ? `Every ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}` : 'Off' })),
+          hint: 'For the open model while this app is visible and online. One tab checks each destination.' },
+        { name: 'autoPull', label: 'Pull automatically when unchanged locally', type: 'checkbox', value: mine.autoPull === true,
+          hint: 'Requires regular checks. Local changes are kept for manual Pull from Git. Nothing is committed.' },
+      );
       if (config?.rememberTokens === 'never') {
         fields.push({
           name: 'remember',
@@ -114,6 +124,7 @@ export function gitSettingsSection(deps: GitSettingsDeps): SettingsSection {
 
     validate(values: FormValues): string | null {
       const text = (name: string) => String(values[name] ?? '').trim();
+      if (![0, 1, 2, 5, 10].includes(Number(text('checkIntervalMinutes')))) return 'Choose Off, or a check every 1, 2, 5 or 10 minutes.';
       if (text('repository')) {
         try {
           readLink(text('repository'), undefined, config, hostKinds);
@@ -145,6 +156,8 @@ export function gitSettingsSection(deps: GitSettingsDeps): SettingsSection {
         message: text('message'),
         branchPrefix: text('branchPrefix'),
         rememberByDefault: remember,
+        checkIntervalMinutes: Number(text('checkIntervalMinutes')) || undefined,
+        autoPull: values['autoPull'] === true ? true : undefined,
       });
       if (remember !== undefined) tokens.rememberByDefault = remember;
       for (const [name, value] of Object.entries(values)) {
@@ -155,6 +168,7 @@ export function gitSettingsSection(deps: GitSettingsDeps): SettingsSection {
         }
       }
       if (values['forgetKinds'] === true) hostKinds.clear();
+      deps.changed?.();
     },
   };
 }

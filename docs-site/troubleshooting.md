@@ -159,6 +159,8 @@ These are not available in la-gram today. Some are planned; none is promised for
 - **Shared checkpoints.** History checkpoints are on your machine only.
 - **A file with several models.** A file holds one model.
 - **A collaboration room bound to a Git branch.**
+- **Automatic Git commits.** Regular checks and optional automatic pull are available; use
+  *Save to Git* to commit local changes.
 
 ### Pasting does nothing {#copy-and-paste}
 

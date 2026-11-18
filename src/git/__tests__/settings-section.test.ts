@@ -68,6 +68,8 @@ describe('the section’s fields', () => {
     expect(fields.find((f) => f.name === 'hosts')).toBeUndefined();
     expect(fields.find((f) => f.name === 'folder')?.hint).toMatch(/^Empty: models\./);
     expect(fields.find((f) => f.name === 'remember')).toMatchObject({ type: 'checkbox', value: false });
+    expect(fields.find((f) => f.name === 'checkIntervalMinutes')).toMatchObject({ type: 'select', value: '0' });
+    expect(fields.find((f) => f.name === 'autoPull')).toMatchObject({ type: 'checkbox', value: false });
   });
 
   it('the tokens kept and the host kinds learned, to forget', async () => {
@@ -81,6 +83,17 @@ describe('the section’s fields', () => {
 
 describe('checking and applying', () => {
   const values = (v: FormValues): FormValues => ({ repository: '', branch: '', folder: '', message: '', branchPrefix: '', ...v });
+
+  it('accepts only the offered intervals, keeps the clean-only opt-in, and can turn them off', async () => {
+    const s = section(undefined);
+    expect(s.validate!(values({ checkIntervalMinutes: '3' }))).toContain('1, 2, 5 or 10');
+    for (const minutes of ['0', '1', '2', '5', '10']) expect(s.validate!(values({ checkIntervalMinutes: minutes }))).toBeNull();
+    await s.apply(values({ checkIntervalMinutes: '2', autoPull: true }));
+    expect(personal.get('git')).toEqual({ checkIntervalMinutes: 2, autoPull: true });
+    expect((await s.fields()).find((f) => f.name === 'checkIntervalMinutes')?.value).toBe('2');
+    await s.apply(values({ checkIntervalMinutes: '0', autoPull: false }));
+    expect(personal.get('git')).toEqual({});
+  });
 
   it('refuses a repository on a host the deployment does not allow, a folder from the top, a bad prefix', () => {
     const s = section(DEPLOYMENT);

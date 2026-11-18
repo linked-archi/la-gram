@@ -9,7 +9,7 @@
  * away and forgets the session's tokens.
  */
 import type { App } from '../app.js';
-import type { MountedUi } from '../ui/mount-ui.js';
+import type { MountedUi, BottomTabHandle } from '../ui/mount-ui.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import { desktopBridge } from '../platform/desktop-bridge.js';
 import { GitBindings } from './bindings.js';
@@ -19,6 +19,10 @@ import type { GitConfig } from '../config.js';
 import { saveToGit, type GitSaveContext } from './git-save.js';
 import { updateFromBranch } from './git-merge.js';
 import { pullFromGit } from './git-pull.js';
+import { GitSync } from './git-sync.js';
+import { GitLocks, type GitLockResult } from './git-locks.js';
+import { destinationKey } from './git-observation.js';
+import './sync-panel.js';
 import { openMergeRequest } from './git-review.js';
 import { gitHistorySource, historyKey } from './git-history.js';
 import type { HistoryGitSource } from '../ui/panels/history-panel.js';
@@ -53,6 +57,7 @@ export interface GitStorage {
   readonly context: GitSaveContext;
   /** The Open flow's context. */
   readonly openContext: GitOpenContext;
+  readonly sync: GitSync;
 }
 
 /** Options for {@link startGitStorage}. */
@@ -83,7 +88,9 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   let generation = 0;
   let stopped = false;
   let running = false;
-  const onLoaded = () => { generation++; };
+  let sync: GitSync | undefined;
+  const locks = new GitLocks();
+  const onLoaded = () => { generation++; sync?.refresh(true); };
   eventBus.on('model-loaded', onLoaded);
 
   const openContext: GitOpenContext = {
@@ -125,19 +132,26 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
 
   // File › Settings…: the defaults, the tokens kept, the host kinds learned.
   const removeSettings = ui.addSettingsSection(
-    gitSettingsSection({ config, personal: settings, tokens, hostKinds, report: (message) => ui.report(message) }),
+    gitSettingsSection({ config, personal: settings, tokens, hostKinds, report: (message) => ui.report(message), changed: () => sync?.refresh(true) }),
   );
 
-  // One manual Git flow per editor: a late pull must not race a save or reopen.
+  // Shared by manual flows and scheduled checks; the owner lock never blocks manual work.
+  const exclusive = async (operation: () => Promise<void>, automatic: boolean): Promise<GitLockResult<void>> => {
+    if (running || stopped) return { ran: false, reason: 'busy' };
+    running = true;
+    const model = context.modelIri();
+    const binding = model ? bindings.get(model) : undefined;
+    try { return await locks.run(binding ? destinationKey(binding) : undefined, automatic, operation); }
+    finally { running = false; sync?.refresh(); }
+  };
+
   const run = async (id: string, address?: string): Promise<void> => {
     if (stopped) return;
-    if (running) {
-      ui.report('A Git operation is in progress. Wait for it to finish.', 'warning');
-      return;
-    }
-    running = true;
+    if (id === 'check') { syncTab?.show(); await sync?.check(); return; }
+    if (id === 'settings') { await ui.runCommand({ command: 'settings', value: 'git' }); return; }
     const started = generation;
-    try {
+    const result = await exclusive(async () => {
+      if (stopped || generation !== started) return;
       if (id === 'open') await openFromGit(openContext, address);
       else if (id === 'save') await saveToGit(context);
       else if (id === 'save-as') await saveToGit(context, true);
@@ -146,13 +160,48 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
         current: () => !stopped && generation === started,
         room: () => app.collaborationRoom,
         changed: () => eventBus.emit('model-changed', { origin: 'git' }),
+        pulled: (observed, dirty) => sync?.incorporated(observed, dirty),
       });
       else if (id === 'update') await updateFromBranch(context);
       else if (id === 'review') await openMergeRequest(context);
-    } finally {
-      running = false;
-    }
+    }, false);
+    if (!result.ran) ui.report('A Git operation is in progress. Wait for it to finish.', 'warning');
   };
+
+  const syncPanel = document.createElement('git-sync-status');
+  let syncTab: BottomTabHandle | undefined;
+  sync = new GitSync({
+    context: { ...context, current: () => !stopped, room: () => app.collaborationRoom,
+      changed: () => eventBus.emit('model-changed', { origin: 'git' }) },
+    settings: personal, locks, run: exclusive, busy: () => running,
+    visible: () => !document.hidden, online: () => navigator.onLine,
+    publish: (status) => {
+      syncPanel.status = status;
+      if (status.where) {
+        syncTab ??= ui.addBottomTab({ id: 'git-sync', label: 'Git', element: syncPanel });
+        syncTab.setBadge(['error', 'conflicts'].includes(status.phase) ? '!' : status.phase === 'checking' ? '…'
+          : status.phase === 'paused' && status.intervalMinutes ? 'Paused' : status.incoming ? 'New' : undefined);
+      } else { syncTab?.remove(); syncTab = undefined; }
+    },
+  });
+  const onSyncAction = (event: Event) => { void run((event as CustomEvent<{ action: string }>).detail.action); };
+  syncPanel.addEventListener('git-sync-action', onSyncAction);
+  const onEnvironment = () => sync?.refresh();
+  const onSettingsStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === 'la-gram:settings' || event.key === 'la-gram:git-tokens') sync?.refresh(true);
+  };
+  const onSaved = () => { queueMicrotask(() => sync?.refresh()); };
+  const onChange = () => sync?.modelChanged();
+  eventBus.on('model-saved', onSaved);
+  eventBus.on('collab-status', onEnvironment);
+  eventBus.on('model-changed', onChange);
+  const store = app.components.store as { subscribe?: (listener: () => void) => () => void };
+  const unsubscribe = store.subscribe?.(onChange);
+  document.addEventListener('visibilitychange', onEnvironment);
+  window.addEventListener('online', onEnvironment);
+  window.addEventListener('offline', onEnvironment);
+  window.addEventListener('storage', onSettingsStorage);
+  sync.refresh();
 
   const removeMenu = ui.addFileMenu(
     'git',
@@ -166,6 +215,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
           : { id: 'save', section: 'save' as const, label: 'Save to Git…', hint: 'GitHub, GitLab' },
         ...(binding ? [{ id: 'save-as', section: 'save' as const, label: 'Save to Git as…', hint: 'another branch or file' }] : []),
         ...(binding && !app.collaborationRoom ? [{ id: 'pull', section: 'save' as const, label: 'Pull from Git', hint: `${binding.repository} · ${binding.branch}` }] : []),
+        ...(binding && !app.collaborationRoom ? [{ id: 'check', section: 'save' as const, label: 'Check for remote changes', hint: 'read without changing the model' }] : []),
         ...(binding ? [{ id: 'update', section: 'save' as const, label: 'Update from main…', hint: `merge another branch into ${binding.branch}` }] : []),
         ...(binding
           ? [{ id: 'review', section: 'save' as const, label: 'Open merge request…', hint: `${binding.provider === 'github' ? 'a pull request ' : ''}from ${binding.branch}` }]
@@ -199,8 +249,20 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   return {
     context,
     openContext,
+    sync,
     stop() {
       stopped = true;
+      sync?.stop();
+      syncTab?.remove();
+      syncPanel.removeEventListener('git-sync-action', onSyncAction);
+      unsubscribe?.();
+      eventBus.off('model-saved', onSaved);
+      eventBus.off('collab-status', onEnvironment);
+      eventBus.off('model-changed', onChange);
+      document.removeEventListener('visibilitychange', onEnvironment);
+      window.removeEventListener('online', onEnvironment);
+      window.removeEventListener('offline', onEnvironment);
+      window.removeEventListener('storage', onSettingsStorage);
       eventBus.off('model-loaded', onLoaded);
       removeMenu();
       removeSettings();

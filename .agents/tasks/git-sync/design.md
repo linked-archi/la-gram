@@ -1,6 +1,6 @@
 # Design
 
-Recorded 2026-11-17. **Stage 1 implemented; scheduling and automatic commits remain planned.** This builds on `src/git/`; it does not introduce another
+Recorded 2026-11-17. **Stages 1–2 implemented; automatic commits remain planned.** This builds on `src/git/`; it does not introduce another
 storage layer or replace the existing model merge engine.
 
 ## GS-DD-1: distinguish observing a remote version from incorporating it
@@ -14,7 +14,7 @@ Keep three separate notions:
 | Current working model | Canonical model snapshot from the RDF store, including local edits |
 
 Never advance the incorporated base during a check-only request. Otherwise the next merge could treat
-remote changes not present locally as local deletions. Manual pull reads the base at the bound commit on each invocation; scheduled work may cache it. Read a moved head's file at that immutable commit, not via a branch name again.
+remote changes not present locally as local deletions. Manual pull reads the base at the bound commit; `git-observation.ts` caches that immutable snapshot and the last observed head/file for scheduled checks. Read a moved head's file at that immutable commit, not via a branch name again.
 An unrelated commit may move the head while leaving the model file unchanged: report no incoming
 model changes. Ignore serialization-only ordering differences when comparing canonical snapshots.
 Each open editor keeps its own incorporated base: another tab's persisted binding update must not
@@ -22,14 +22,16 @@ silently advance this editor's base while its working model still holds the earl
 
 Use Git-specific snapshot comparison, not just `app.isDirty()`: a local file save can clear the app's
 unsaved marker without committing to Git. Manual pull captures the current snapshot after all I/O and merges/applies synchronously. Scheduled
-work may track revisions and cache snapshots; do not serialize the entire model on every pointer movement.
+checks also capture the latest snapshot after I/O. Local-status updates debounce effective store changes
+by 150 ms; do not serialize the entire model on every pointer movement.
 
 ## GS-DD-2: separate reconciliation from committing
 
 `git-merge.ts` exports `reconcile`, shared by Save’s merge-with-newer path and manual pull. It
 merges and applies without committing. `git-pull.ts` handles pinned reads, validation, lifecycle checks,
 binding updates and result messages; `Access` supplies the existing public/private read flow.
-`updateFromBranch` keeps its existing behaviour. A future `git-sync.ts` may own scheduling/status.
+`updateFromBranch` keeps its existing behaviour. `git-sync.ts` owns scheduling/status, while
+`applyGitObservation` shares the final synchronous application and an extra clean-only guard.
 
 Return explicit outcomes: unchanged, remote incorporated, merged with local changes, conflicts, needs
 attention, or obsolete request. Applying a result uses `MergeSupport.replace`, the existing recorded
@@ -46,7 +48,7 @@ existing cross-branch merge flow so its parentage/branch handling is not lost.
 Manual pull captures model identity, full binding, incorporated base and model-loaded generation.
 After each read (including failures), verify the destination/lifecycle and room state. Capture the
 working snapshot only after all reads, then merge/apply with no await: in-flight edits are included
-without a revision retry loop. Stopping the module invalidates pending reads. Scheduling and writes
+without a revision retry loop. Stopping the module invalidates pending reads. Automatic commit writes
 will additionally need snapshot revision tracking across their asynchronous work.
 
 The planned auto-commit stage must serialize a particular snapshot. If more edits arrive during the write, update the successful
@@ -57,11 +59,12 @@ write even if the operation was stopped locally: an HTTP request already sent ca
 
 ## GS-DD-4: one scheduler, one operation, one automation owner
 
-Own the controller in `git/module.ts` and dispose it through `stop()`. Serialize the mutating manual
-flows and automatic work through one coordinator. Use a completion-scheduled timeout, not overlapping
-interval callbacks. Inject clock, visibility, connectivity, revision source and provider for tests.
+The controller is owned by `git/module.ts` and disposed through `stop()`. A common local gate and
+short operation lock coordinate manual flows and scheduled checks. Use a completion-scheduled timeout,
+not overlapping interval callbacks. The clock, visibility, connectivity, locks and providers are injected
+for tests. Effective store mutations debounce local status independently of the app dirty marker.
 
-Use browser-profile ownership keyed by host/repository/branch/path to elect the one automated writer,
+Use browser-profile ownership keyed by host/repository/branch/path to elect the one automatic checker (and, in Stage 3, writer),
 and a separate short-lived operation lock shared by manual and automatic mutations. A long-held
 ownership lock must not prevent a manual save in another tab. Prefer Web Locks when available; when
 ownership cannot be established, pause automation with a visible reason rather than allowing duplicate
@@ -95,11 +98,12 @@ and remote checks do not reset the idle timer or trigger commits of their own.
 ## GS-DD-6: status is visible and independent of history
 
 Manual pull reports progress and results through existing notifications and the Conflicts tab.
-The scheduling stage will expose one synchronization status through the Git module's UI contribution, with destination, local/
-incoming changes, last successful check/commit and a concise pause/error reason. The proposed actions
-are **Check for remote changes**, **Pull from Git**, and pause/resume for enabled automation. Use the
-existing File menu and Git settings conventions; choose the compact status placement during the UI
-implementation. A status update must not interrupt typing or open a background dialog.
+The Git bottom tab shows destination, local/incoming changes, last successful check, next scheduled
+check, current settings and a pause/error reason. Its badge indicates New, Paused, checking or errors.
+It offers **Check for remote changes**, **Pull from Git** and **Git settings…**; File also exposes Check.
+Background updates never open the tab or a dialog. Last-commit timing and auto-commit pause/resume are
+for Stage 3. Settings are Off/1/2/5/10-minute checks and clean-only automatic pull Off/On, both Off by
+default; turning checks off cancels/invalidate pending scheduled work.
 
 Keep `HistoryGitSource` lazy: no periodic commit-history requests. Pull/commit updates its source key as
 existing Git operations do. Checks leave `binding.commit` unchanged and therefore do not pretend a

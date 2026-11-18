@@ -61,8 +61,8 @@ https://app.linked.archi/la-gram/?git=off
 
 ## Git storage tab {#git-storage-tab}
 
-*Where Save to Git and Open from Git start, for a model not bound to a file. Empty: the default the hint
-names.* Each field's hint says what an empty one means.
+*Defaults for new files, regular remote checks and tokens. Empty: the default the hint names.* Each
+field's hint says what an empty one means.
 
 | Field | Values | Empty means |
 |---|---|---|
@@ -72,6 +72,8 @@ names.* Each field's hint says what an empty one means.
 | *Folder for new files* | a folder in the repository, `models` or `arch/models`; `.` for its top | the deployment's, else **`models`** |
 | *Commit message* | a template: `{action}` (Add, Update), `{model}`, `{path}`, `{branch}` | **`{action} {model}`** |
 | *New branch names start with* | text | **`la-gram/`** |
+| *Check for remote changes* | **Off**, Every 1 minute, Every 2 minutes, Every 5 minutes, Every 10 minutes | **Off**; for example, Every 2 minutes checks the bound file while the app is visible and online |
+| *Pull automatically when unchanged locally* | **Off**, On | **Off**; with regular checks enabled, incorporates incoming versions only while there are no local Git changes |
 | *Remember tokens* | read only, when the deployment says `never`: *Never: a token is kept for the session only* | — |
 | *Offer to remember a new token, ticked* | a checkbox: whether the access token dialog's *Remember* starts ticked | **off** in the web app, **on** in the desktop app |
 | *Forget the token for* a host | a checkbox for each host with a token kept: ticked, *Apply* forgets it, in memory and remembered | — |
@@ -87,6 +89,10 @@ host the deployment does not allow), a branch name Git would refuse, a folder th
    *Commit message*, `{action} {model} on {branch}`.
 3. Choose *Apply*. The next *Save to Git…* proposes `architecture/models/acme-online-shop.ttl`, and the
    message "Add Acme online shop on main".
+
+The synchronization options apply to the open bound model, outside shared rooms. They never commit.
+The *Git* tab shows results and pause reasons; its *Git settings…* button opens this settings tab.
+See [Git status and regular checks](git.md#regular-checks) for timing, multiple tabs and private access.
 
 What a deployment sets shows here as it is. With this deployment configuration, *Git hosts allowed*
 lists the two hosts, *Remember tokens* says *Never*, and *Folder for new files* is `architecture/models`

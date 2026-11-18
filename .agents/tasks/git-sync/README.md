@@ -1,6 +1,6 @@
 # Git synchronization: pull, remote checks and optional auto-commit
 
-Recorded 2026-11-17. **Stage 1 complete; stages 2–3 not started.** The user agreed to these three
+Recorded 2026-11-17. **Stages 1–2 complete; Stage 3 not started.** The user agreed to these three
 increments and asked that they be documented beside the existing pending Git work before coding.
 
 ## Goal
@@ -35,11 +35,11 @@ Existing manual Git operations keep their present room behaviour.
 These are client operations using the existing GitHub/GitLab providers and the user's credentials.
 There is no new vocabulary, Git clone, server-held token or background service running after the app closes.
 
-## Proposed settings for implementation
+## Settings and remaining proposals
 
-These values are design proposals, not settings that exist today.
+Regular checks and clean-only automatic pull are implemented. Auto-commit and its timing values remain proposals for Stage 3.
 
-| Setting | Proposed values and default | Scope |
+| Setting | Values and default | Scope |
 |---|---|---|
 | Check for remote changes | **Off**, every 1, 2, 5 or 10 minutes | Personal default; only the active bound model |
 | Pull automatically when unchanged locally | **Off**, On | Only when regular checks are enabled |
@@ -58,5 +58,6 @@ working branch is the recommended destination. The commit message uses the exist
 - [tasks.md](tasks.md): staged checklist and dated hand-off.
 
 Manual pull is implemented in `src/git/git-pull.ts` and the File menu, with the existing merge and
-Conflicts tab. Stage 2, periodic checks and optional clean-only pull, is next. Stage 3 remains pending.
+Conflicts tab. Stage 2 adds `git-observation.ts`, `git-sync.ts`, `git-locks.ts` and the Git status tab.
+The next stage is optional auto-commit; its write-specific safeguards remain pending.
 Promote each stage into the main specs and user docs as it lands.

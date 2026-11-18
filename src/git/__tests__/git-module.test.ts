@@ -122,6 +122,7 @@ describe('the Git module in the File menu', () => {
       'git:save Save to Git [acme/arch · main]',
       'git:save-as Save to Git as… [another branch or file]',
       'git:pull Pull from Git [acme/arch · main]',
+      'git:check Check for remote changes [read without changing the model]',
       'git:update Update from main… [merge another branch into main]',
       'git:review Open merge request… [a pull request from main]',
     ]);
@@ -155,6 +156,24 @@ describe('the Git module in the File menu', () => {
     app.collaborationRoom = 'shared';
     expect(entries().some((entry) => entry.startsWith('git:pull'))).toBe(false);
     app.collaborationRoom = undefined;
+  });
+
+  it('Check opens the Git status tab, leaves the model and binding intact, and does not read history', async () => {
+    const binding = git.context.bindings.get(app.session.modelIri!);
+    const before = git.context.serialize('turtle');
+    const historyReads = host.calls.filter((call) => call.url.includes('/commits?')).length;
+    await ui.runCommand({ command: 'module', value: 'git:check' });
+    expect(ui.shell.bottomTab).toBe('git-sync');
+    const panel = ui.shell.querySelector('git-sync-status')!;
+    await panel.updateComplete;
+    expect(panel.shadowRoot?.textContent).toContain('No local or incoming model changes.');
+    expect(panel.shadowRoot?.textContent).toContain('acme/arch · main · models/shop-floor.ttl');
+    expect(git.context.serialize('turtle')).toBe(before);
+    expect(git.context.bindings.get(app.session.modelIri!)).toEqual(binding);
+    expect(host.calls.filter((call) => call.url.includes('/commits?'))).toHaveLength(historyReads);
+    expect(panel.status?.lastChecked).toBeTypeOf('number');
+    expect(panel.status?.intervalMinutes).toBe(0);
+    ui.shell.showTab('properties');
   });
 
   it('rejects overlapping Git actions and discards a pull after reloading the same model', async () => {
@@ -224,7 +243,7 @@ describe('the Git module in the File menu', () => {
       [{ kind: 'value', subjects: [model], predicate: 'http://www.w3.org/2004/02/skos/core#prefLabel', language: 'en', held, options: { ours: held, theirs: [name('Shop Floor (theirs)')] } }],
       { branch: 'main', commit: 'abc1234def' },
     );
-    expect(ui.shell.moduleTabs).toEqual([{ id: 'conflicts', label: 'Conflicts' }]);
+    expect(ui.shell.moduleTabs).toEqual([{ id: 'git-sync', label: 'Git' }, { id: 'conflicts', label: 'Conflicts' }]);
     expect(ui.shell.bottomTab).toBe('conflicts');
     expect(ui.shell.tabBadges['conflicts']).toBe('1');
     expect(merge.unresolved()).toBe(1);
@@ -241,7 +260,7 @@ describe('the Git module in the File menu', () => {
     expect(app.session.modelLabel()).toBe('Shop Floor');
 
     merge.clear();
-    expect(ui.shell.moduleTabs).toEqual([]);
+    expect(ui.shell.moduleTabs).toEqual([{ id: 'git-sync', label: 'Git' }]);
     expect(ui.shell.querySelector('git-conflicts')).toBeNull();
     expect(ui.shell.bottomTab).toBe('properties');
   });

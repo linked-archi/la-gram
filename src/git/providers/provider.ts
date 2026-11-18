@@ -221,6 +221,7 @@ export abstract class RestProvider implements GitHostProvider {
       throw responseError(response.status, what, {
         rateLimited: response.headers.get('x-ratelimit-remaining') === '0',
         hint,
+        retryAt: retryTime(response.headers),
       });
     }
     if (options.text) return (await response.text()) as T;
@@ -231,6 +232,17 @@ export abstract class RestProvider implements GitHostProvider {
       throw new GitError('server', `The host answered for ${what} with something that is not JSON.`, response.status);
     }
   }
+}
+
+/** Retry-After (seconds or HTTP date) and a rate-limit reset, when CORS exposes them. */
+export function retryTime(headers: Headers, now = Date.now()): number | undefined {
+  const after = headers.get('retry-after');
+  const reset = headers.get('x-ratelimit-reset');
+  const times = [
+    after === null ? NaN : /^\d+(\.\d+)?$/.test(after) ? now + Number(after) * 1000 : Date.parse(after),
+    reset === null ? NaN : Number(reset) * 1000,
+  ].filter((time) => Number.isFinite(time) && time > now);
+  return times.length ? Math.max(...times) : undefined;
 }
 
 /** A path's segments, each URL-encoded: `models/a b.ttl` → `models/a%20b.ttl`. */

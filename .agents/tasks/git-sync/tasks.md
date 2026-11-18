@@ -1,6 +1,6 @@
 # Git synchronization checklist
 
-Recorded 2026-11-17. **Stage 1 complete; stages 2–3 not started.** Criteria refer to
+Recorded 2026-11-17. **Stages 1–2 complete; Stage 3 not started.** Criteria refer to
 [requirements.md](requirements.md); the integration choices are in [design.md](design.md).
 
 ## Documentation before implementation
@@ -22,12 +22,12 @@ Recorded 2026-11-17. **Stage 1 complete; stages 2–3 not started.** Criteria re
 
 ## Stage 2: periodic checks and optional clean-only pull
 
-- [ ] Add settings, check-only status and the manual check action (GS-7–9, GS-22).
-- [ ] Add single-owner scheduling, cancellation, visibility/connectivity handling and backoff (GS-11, GS-18–20).
-- [ ] Add automatic pull only for an unchanged working model, checked again immediately before applying (GS-10).
-- [ ] Test due times with a fake clock, unchanged files on moved heads, dirty models, duplicate clients,
+- [x] Add settings, check-only status and the manual check action (GS-7–9, GS-22).
+- [x] Add single-owner scheduling, cancellation, visibility/connectivity handling and backoff (GS-11, GS-18–20).
+- [x] Add automatic pull only for an unchanged working model, checked again immediately before applying (GS-10).
+- [x] Test due times with a fake clock, unchanged files on moved heads, dirty models, duplicate clients,
       credentials, policy restrictions, rate limits, stop/resume and late replies; no history polling (GS-23).
-- [ ] Run the required checks; document the actual defaults and active-client timing limits (GS-24).
+- [x] Run the required checks; document the actual defaults and active-client timing limits (GS-24).
 
 ## Stage 3: optional auto-commit
 
@@ -43,15 +43,22 @@ Recorded 2026-11-17. **Stage 1 complete; stages 2–3 not started.** Criteria re
 
 ## Where it stopped
 
-2026-11-17: Stage 1 is implemented. `git-pull.ts` uses the shared reconciliation path, pinned reads,
-per-editor bindings and model-loaded lifecycle guards. It captures the latest snapshot after I/O;
-there is no await between capture and application, so a revision retry loop is unnecessary for manual
-pull. Tests cover GitHub and GitLab, local-file saves, no-op/undo, conflicts and a later explicit save,
-in-flight edits, missing/invalid versions, private access, reload, stop and concurrent menu actions.
+2026-11-18: Stage 2 is complete. The Git tab reports
+local/incoming changes and check timing, and File offers a manual Check action. Settings are Off / 1 / 2 /
+5 / 10 minutes, with clean-only automatic pull Off by default. `git-observation.ts` caches immutable
+base/remote snapshots independently of the binding; `git-sync.ts` captures the latest working model
+and rechecks the clean-only condition synchronously before applying. Model status updates debounce
+effective store changes by 150 ms. Automatic work never commits or opens a credential dialog.
 
-Verification complete: type checking, all 2,559 unit tests, all 86 browser tests, the web/desktop/CLI
-build and strict docs build pass; `git diff --check` is clean. The existing review browser test now
-waits for the editor’s completed response before its next Git action, as the operation guard requires.
-The pull-conflict screenshot was inspected. No staging, commits, pushes or real remote writes were
-performed. Stage 2 is next; its proposed settings still need implementation. Stage 3 and shared-room
-Phase 4 remain pending.
+`git-locks.ts` uses a queued owner lock per destination plus a separate short operation lock for manual
+and automatic flows. The owner releases when hidden, offline, stopped, in a room or blocked by a
+manual decision; waiting editors retain independent Git bases. Unsupported/denied lock APIs pause
+automation and preserve manual actions. Lifecycle/settings transitions invalidate in-flight reads;
+network/server/rate-limit failures back off up to ten minutes or the host's later retry time.
+
+Verification: type checking, all 2,595 unit tests, all 90 browser tests, the web/desktop/CLI build,
+strict docs build and `git diff --check` pass. The eleven Git browser tests include settings, keyboard
+Check, automatic clean-only pull, local-file saves and two actual tabs with handover on close. The Git
+status screenshot was inspected. Stage 3 optional auto-commit is next; its write-specific concurrency and
+failure safeguards are still pending. Shared-room Phase 4 is also pending. No staging, commits,
+pushes or real repository writes were performed.

@@ -1,6 +1,6 @@
 ---
 title: Git storage
-description: Open, pull and save models with GitHub or GitLab, preserve local changes, resolve conflicts and open merge requests in la-gram.
+description: Open, pull and save models with GitHub or GitLab, check for remote changes regularly, preserve local edits and resolve conflicts in la-gram.
 ---
 # Git storage
 
@@ -29,6 +29,7 @@ without diagram geometry*:
 | *Save to Git* | the model is bound, its repository and branch beside it | commits it to its file, asking for a message |
 | *Save to Git as…* | bound | commits it to another branch or file |
 | *Pull from Git* | bound, outside a shared room | incorporates the current branch's newer model, preserving local changes, without committing |
+| *Check for remote changes* | bound, outside a shared room | checks the bound file and opens the Git status tab, without changing the model |
 | *Update from main…* | bound | merges another branch into the bound one |
 | *Open merge request…* | bound | proposes the bound branch for merging (*a pull request from* the branch, on GitHub) |
 
@@ -146,8 +147,51 @@ A missing file, branch or previous version, a file containing a different model,
 nodes that cannot be matched between versions stops the pull and leaves the model unchanged. Switching
 or reloading the model while a pull is reading discards that pull's result.
 
-Pull and Save are manual actions. Periodic remote checks, automatic pull and automatic commits are
-not available. *History › Read again* refreshes the commit list; it does not pull changes into the model.
+*Save to Git* commits when you choose. *History › Read again* refreshes the commit list; it does not
+pull changes into the model.
+
+## Git status and regular checks {#regular-checks}
+
+The *Git* tab appears for a bound model. It shows the repository, branch and file; local and incoming
+changes; the last successful check; the next scheduled check; and why checks are paused or failed.
+The tab's badge says *New* when incoming changes are available, *Paused* when regular checks are
+paused, or *!* when a failure or conflict needs attention. Background updates leave your current tab
+and editing focus in place.
+
+Choose *File › Check for remote changes*, or the button in the *Git* tab, to check now. It observes the
+repository without pulling, even when automatic pull is enabled. A commit affecting another file, or
+only the model's serialization order, does not count as an incoming model change.
+
+In *File › Settings… › Git storage*, under *Synchronization*:
+
+| Setting | Values and default | Effect |
+|---|---|---|
+| *Check for remote changes* | **Off**, Every 1 minute, Every 2 minutes, Every 5 minutes, Every 10 minutes | checks the open model's bound file; for example, Every 2 minutes checks again two minutes after the previous check finishes |
+| *Pull automatically when unchanged locally* | **Off**, On | with regular checks enabled, incorporates incoming changes only when the local model still equals its Git baseline immediately before applying |
+
+1. Open a model from Git, then open the *Git* tab.
+2. Choose *Git settings…*, set *Check for remote changes* to *Every 2 minutes*, and choose *Apply*.
+3. After a colleague commits, *New* appears on the Git tab at the next check. Choose *Pull from Git*
+   when ready to incorporate it.
+4. To incorporate changes automatically while your model is unchanged locally, also tick
+   *Pull automatically when unchanged locally* and choose *Apply*.
+
+Regular checks start after the chosen interval. They run while the app is visible and online, outside
+a shared room. One tab or window at the same app address, in the same browser profile, checks a
+destination; another takes over when that owner hides, closes or stops checking. A waiting tab can still check or pull manually.
+Returning after a pause performs at most one overdue check. Network and rate-limit failures delay
+retries, respecting any retry time the host supplies. Closing the app stops checks.
+
+Automatic pull is one undoable model change and never creates a Git commit. Local edits, including
+edits saved only to a local file or made during the check, prevent it. The Git tab reports incoming
+changes and leaves them for manual pull instead.
+
+!!! note "Checks that need attention"
+
+    Background checks never ask for a token. A private repository without usable credentials pauses
+    checking; choose *Check for remote changes* to give read access and retry. Unresolved conflicts and
+    pending branch merges pause synchronization until finished. If the browser cannot coordinate tabs,
+    regular checks pause with an explanation; manual Check and Pull remain available.
 
 ## When the file changed {#when-the-file-changed}
 
