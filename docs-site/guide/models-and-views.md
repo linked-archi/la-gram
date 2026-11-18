@@ -17,7 +17,7 @@ fields:
 | Field | Default | What it is |
 |---|---|---|
 | *Name* | **Untitled model** | the model's name, its `skos:prefLabel` |
-| *Namespace* | **`{base}{notation}/{uuid}/`**, for example `https://example.org/archimate/e6d8f280-…/` | where every IRI of the model is minted; an absolute IRI, with no spaces or `<>"{}|\^` characters |
+| *Namespace* | **`{base}{notation}/{uuid}/`**, for example `https://example.org/archimate/e6d8f280-…/` | where every IRI of the model is minted; an `https:` or `http:` IRI with no `#` or `?`, spaces or `<>"{}|\^` characters |
 
 `{base}` is `https://example.org/` unless [`?base=`](../reference/url-parameters.md) says otherwise,
 `{notation}` comes from the first metamodel loaded (`archimate` for ArchiMate 3.2 and 4.0), and the
@@ -28,7 +28,9 @@ one diagram view, *Default View*, with no viewpoint.
 2. In *Name*, type "Acme online shop".
 3. Choose *Create*.
 
-The model's elements are minted in the namespace, as `m:element-…`, its views as `m:view-…`.
+The model's elements are minted in the namespace as `element/…`, its views as `view/…`, and a diagram's
+nodes and lines in their view: `view/…#node/…`. A saved model writes them `me:…`, `mv:…` and
+`mv3ef7da72:node\/…` ([File formats and vocabulary](../reference/file-formats.md#formats)).
 
 ## Model settings {#model-settings}
 
@@ -39,8 +41,8 @@ settings*; so do *File › Model settings…* and *Model settings…* on the mod
 |---|---|---|
 | *Name* | the model's name | the model's name |
 | *Namespace* | the model's namespace | where new IRIs are minted |
-| *Prefix* | **`m`** | the prefix that stands for the namespace in Turtle (`m:element-…`): starts with a letter, then letters, digits, `-` and `_`; not one that already stands for another namespace, such as `am4` or `skos` |
-| *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one, those in the triple a relationship reifies (`rdf:reifies`) too; off, only IRIs minted from now on use it |
+| *Prefix* | **`m`** | the prefix that stands for the namespace in Turtle (`m:model`), and begins the prefix of each kind (`me:` for elements, `mv:` for views): starts with a letter, then letters, digits, `-` and `_`; not one that already stands for another namespace, such as `am4` or `skos` |
+| *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one, keeping the rest of its name, those in the triple a relationship reifies (`rdf:reifies`) too; off, only IRIs minted from now on use it |
 
 *Apply* makes the change, as one step that undo takes back, and a message says how many IRIs moved. In a
 collaboration room, moving the namespace asks first: it renames the IRIs for everyone in the room.

@@ -184,12 +184,12 @@ describe("the ArchiMate converter's groups, notes and the lines from them", () =
 
     views.setFigureColours!(VIEW, NOTE, { lineColor: '#7a0019' });
     // Its own style, with the colour the converter gave it and the one given now; the blank one gone.
-    expect(styleOf().map((s) => s.value)).toEqual([`${NOTE}-style`]);
+    expect(styleOf().map((s) => s.value)).toEqual([`${NOTE}/style`]);
     expect(views.getNode(VIEW, NOTE)?.figure).toMatchObject({ fillColor: '#ffd6e0', lineColor: '#7a0019' });
     expect(store.getQuads(converted as never, null, null)).toEqual([]);
 
     views.removeElementFromView(VIEW, NOTE);
-    expect(store.getQuads(namedNode(`${NOTE}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(namedNode(`${NOTE}/style`), null, null)).toEqual([]);
     expect(views.getLinks(VIEW)).toEqual([]);
   }, 60_000);
 });

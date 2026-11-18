@@ -265,7 +265,11 @@ export interface ViewManager {
    * `setNodeParent`, `removeElementFromView`, `collectNodeQuads`), a node's IRI
    * does too, and names that one placement.
    */
-  addElementToView(viewIri: string, elementIri: string, bounds?: Bounds, options?: { another?: boolean }): string;
+  /**
+   * Place an element in a view. `another` places it again beside a placement it has; `iri` names the node,
+   * where an import keeps its source's names — otherwise it is minted in the view's IRI, `{view}#node/{uuid}`.
+   */
+  addElementToView(viewIri: string, elementIri: string, bounds?: Bounds, options?: { another?: boolean; iri?: string }): string;
   /**
    * Remove the element's nodes, their links, and its `arch:inView` for this
    * view — or, given a node, that placement alone (`arch:inView` with its last).
@@ -344,7 +348,7 @@ export interface ViewManager {
     relationshipIri: string,
     waypoints?: Point[],
     ends?: { sourceNodeIri?: string; targetNodeIri?: string },
-    options?: { another?: boolean },
+    options?: { another?: boolean; iri?: string },
   ): string | undefined;
   removeRelationshipFromView(viewIri: string, relationshipIri: string): void;
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[];

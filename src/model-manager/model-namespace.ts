@@ -66,10 +66,20 @@ export function modelNamespace(store: RdfStore, modelIri: string | undefined): s
   return modelIri ? readModelNamespace(store, modelIri).namespace : DEFAULT_MODEL_BASE;
 }
 
-/** Where to mint geometry for a view: its model's namespace, else the view's own. */
+/** Where to mint geometry for a view, when it is not minted in the view's IRI: the view's model's namespace. */
 export function viewNamespace(store: RdfStore, viewIri: string): string {
-  const model = store.getQuads(nn(viewIri), T.inModel).find((q) => q.graph.termType === 'DefaultGraph')?.object.value;
-  return model ? modelNamespace(store, model) : namespaceOfIri(viewIri);
+  return conceptNamespace(store, viewIri);
+}
+
+/**
+ * Where to mint beside a concept or a view: its model's namespace, by its `arch:inModel`; without one, the
+ * namespace its IRI is in, short of the kind (DD-41): `{ns}element/{uuid}` is in `{ns}`, not `{ns}element/`.
+ */
+export function conceptNamespace(store: RdfStore, iri: string): string {
+  const model = store.getQuads(nn(iri), T.inModel).find((q) => q.graph.termType === 'DefaultGraph')?.object.value;
+  if (model) return modelNamespace(store, model);
+  const own = namespaceOfIri(iri);
+  return own.replace(/\/(?:element|relationship|view|folder|decision|documentation)\/$/, '/');
 }
 
 /** The VANN statements declaring a model's namespace. */
@@ -106,9 +116,10 @@ export interface NamespaceChangePlan {
  * What moving a model from one namespace to another rewrites.
  *
  * Every IRI in the model data that starts with `from` moves to `to`, keeping
- * its local name — with any `/` in it turned into `-`, so IRIs minted by
- * earlier versions (`…/element/{uuid}`) become prefixable names
- * (`element-{uuid}`). The model resource itself becomes `{to}model`.
+ * its local name exactly — `element/{uuid}`, `view/{v}#node/{n}`, and the flat
+ * `element-{uuid}` la-gram minted before DD-41 alike: a tool never rewrites the
+ * local part of an IRI, so a shape moves with its view. The model resource
+ * itself becomes `{to}model`.
  *
  * IRIs a loaded vocabulary defines are left alone even when they happen to sit
  * under `from`: the model uses those terms, it does not own them. The model's
@@ -139,19 +150,11 @@ export function planNamespaceChange(store: RdfStore, modelIri: string, from: str
     }
   }
 
-  const taken = new Set<string>();
-  const assign = (iri: string, next: string) => {
-    mapping.set(iri, next);
-    taken.add(next);
-  };
-  assign(modelIri, `${target}${MODEL_LOCAL_NAME}`);
+  mapping.set(modelIri, `${target}${MODEL_LOCAL_NAME}`);
   for (const iri of candidates.sort()) {
     if (definedByVocabulary(store, iri)) continue;
-    const local = iri.slice(source.length);
-    const flat = `${target}${local.replace(/\//g, '-')}`;
-    // Flattening can in theory collide (`a/b` and `a-b`); keep the path then.
-    const next = !taken.has(flat) && (!present.has(flat) || flat === iri) ? flat : `${target}${local}`;
-    if (next !== iri) assign(iri, next);
+    const next = `${target}${iri.slice(source.length)}`;
+    if (next !== iri) mapping.set(iri, next);
   }
   if (mapping.get(modelIri) === modelIri) mapping.delete(modelIri);
   if (mapping.size === 0) return { mapping, remove: [], add: [] };

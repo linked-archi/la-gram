@@ -358,7 +358,7 @@ describe('the RDF panel', () => {
     findings.push('RDF panel: hidden by default, toggle, live refresh, block → selection: ok');
   });
 
-  it('writes the model as m: prefixed names; Model settings moves it into another namespace', async () => {
+  it('writes the model by its prefixes, one per kind (DD-41); Model settings moves it into another namespace', async () => {
     const panel = page.locator('rdf-panel');
     await page.locator('app-toolbar button[data-command="toggle-rdf"]').click();
     await panel.waitFor({ state: 'visible' });
@@ -367,7 +367,7 @@ describe('the RDF panel', () => {
     await panel.locator('select.scope').selectOption('model');
     await until(async () => /^m:model a arch:Model;/m.test(await code.innerText()), 'm:model in the Turtle');
     expect(await code.innerText()).toMatch(/@prefix m: <https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/>\./);
-    expect(await code.innerText()).toMatch(/^m:element-[0-9a-f-]{36} a am4:BusinessActor;/m);
+    expect(await code.innerText()).toMatch(/^me:[0-9a-f-]{36} a am4:BusinessActor;/m);
 
     // The model name opens Model settings: name, namespace, prefix, and whether to move.
     await page.locator('app-toolbar button.model-name').click();
@@ -387,14 +387,14 @@ describe('the RDF panel', () => {
     await until(async () => (await code.innerText()).includes('@prefix crm: <https://acme.com/ea/crm/>.'), 'the new prefix');
     const text = await code.innerText();
     expect(text).toMatch(/^crm:model a arch:Model;/m);
-    expect(text).toMatch(/^crm:element-[0-9a-f-]{36} a am4:BusinessActor;/m);
+    expect(text).toMatch(/^crme:[0-9a-f-]{36} a am4:BusinessActor;/m);
     expect(text).not.toContain('example.org');
     // The same view is open, under its new IRI, with its shape.
     const state = await page.evaluate(() => {
       const app = (window as any).__LA_GRAM_APP__;
       return { view: app.session.activeViewIri as string, nodes: app.components.viewManager.getNodes(app.session.activeViewIri).length };
     });
-    expect(state.view).toMatch(/^https:\/\/acme\.com\/ea\/crm\/view-/);
+    expect(state.view).toMatch(/^https:\/\/acme\.com\/ea\/crm\/view\//);
     expect(state.nodes).toBe(1);
     expect((await model(page)).actors).toHaveLength(1);
     await session.screenshot('workbench-model-namespace');
@@ -884,7 +884,7 @@ describe('appending from the context pad', () => {
     const [ttl] = await Promise.all([page.waitForEvent('download'), panel.locator('[data-export="turtle"]').click()]);
     const turtle = await readFile((await ttl.path())!, 'utf8');
     expect(turtle).toMatch(/^@prefix /);
-    expect(turtle).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Serving;/);
+    expect(turtle).toMatch(/mr:[0-9a-f-]{36} a am4:Serving;/);
 
     // The graph becomes a view, laid out as drawn: two elements and their link, side by side or stacked.
     const drawnAt = (await graphTab(page)).model;
@@ -931,7 +931,7 @@ describe('appending from the context pad', () => {
     const editor = page.locator('sparql-editor');
     await editor.waitFor({ state: 'visible' });
     await until(async () => (await editor.locator('tbody tr').count()) === 1, 'the result table');
-    expect(await editor.locator('tbody tr').innerText()).toMatch(/m:element-[\s\S]*Business Actor[\s\S]*am4:Serving[\s\S]*Application Component/);
+    expect(await editor.locator('tbody tr').innerText()).toMatch(/me:[\s\S]*Business Actor[\s\S]*am4:Serving[\s\S]*Application Component/);
     await session.screenshot('workbench-graph-select');
     // … and as a CONSTRUCT: the triples.
     await page.locator('app-shell .tab[data-tab="graph"]').click();

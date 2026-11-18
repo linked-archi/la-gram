@@ -11,6 +11,7 @@ import { ModelSession } from '../../model-manager/model-session.js';
 import { modelQuads } from '../../model-manager/model-queries.js';
 import { readModelNamespace } from '../../model-manager/model-namespace.js';
 import { ModelIO, MODEL_FORMATS, partitionGraphs, partitionModel } from '../model-io.js';
+import { sha256Hex } from '../../model-manager/short-hash.js';
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 
@@ -66,15 +67,18 @@ describe('ModelIO', () => {
     expect(ttl).not.toContain('@prefix sh:');
   });
 
-  it('writes the model IRIs as m: prefixed names, and names the namespace on the model', () => {
+  it('writes the model IRIs as prefixed names, a prefix per kind and per view, and names the namespace on the model', () => {
     const ttl = ctx.io.serialize(ctx.modelIri, { format: 'turtle' });
     expect(ttl).toContain(`@prefix m: <${ctx.namespace}>.`);
+    expect(ttl).toContain(`@prefix me: <${ctx.namespace}element/>.`);
     expect(ttl).toMatch(/^m:model a arch:Model;/m);
-    expect(ttl).toMatch(/^m:element-[0-9a-f-]{36} a am4:ApplicationComponent;/m);
-    expect(ttl).toMatch(/^m:link-[0-9a-f-]{36}-points-0 rdf:first m:link-[0-9a-f-]{36}-p0;/m);
+    expect(ttl).toMatch(/^me:[0-9a-f-]{36} a am4:ApplicationComponent;/m);
+    expect(ttl).toMatch(/^mv[0-9a-f]{8}:link\\\/[0-9a-f-]{36}\\\/points\\\/0 rdf:first mv[0-9a-f]{8}:link\\\/[0-9a-f-]{36}\\\/point\\\/0;/m);
     expect(ttl).toContain(`vann:preferredNamespaceUri "${ctx.namespace}"`);
-    // Nothing of the model is left as a full IRI: the namespace is written once, in @prefix.
-    expect(ttl.split(`<${ctx.namespace}`)).toHaveLength(2);
+    // Nothing of the model is left as a full IRI, nor needs one relative to @base: the namespace is only in @prefix.
+    const statements = ttl.split('\n').filter((line) => !line.startsWith('@')).join('\n');
+    expect(statements).not.toContain(`<${ctx.namespace}`);
+    expect(ttl).not.toContain('@base');
   });
 
   it('writes the vocabularies\' prefixes in the same order whatever order the metamodels were loaded in (Req 9.12)', () => {
@@ -137,8 +141,9 @@ describe('ModelIO', () => {
     const byGraph = (g: string) => quads.filter((q) => q.graph.value === g);
     expect(byGraph(graphs.model).every((q) => q.subject.value === ctx.modelIri)).toBe(true);
     expect(byGraph(graphs.views).length).toBeGreaterThan(0);
+    // Every subject there is a shape named in its view (DD-41), or a part of one.
     expect(
-      byGraph(graphs.views).every((q) => /^(node|link)-/.test(q.subject.value.slice(ctx.namespace.length))),
+      byGraph(graphs.views).every((q) => /^view\/[^#/]+#(?:node|link)\//.test(q.subject.value.slice(ctx.namespace.length))),
     ).toBe(true);
     // The arch:View resource is a model concept: semantic, not views.
     expect(byGraph(graphs.semantic).some((q) => q.subject.value === ctx.viewIri)).toBe(true);
@@ -179,5 +184,60 @@ describe('ModelIO', () => {
     const rdfFirst = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#first';
     expect(partition.semantic.some((q) => q.predicate.value === rdfFirst)).toBe(false);
     expect(partition.views.some((q) => q.predicate.value === rdfFirst)).toBe(true);
+  });
+});
+
+describe('ModelIO, the IRI layout (DD-41)', () => {
+  const VIS = NAMESPACES['arch-vis'];
+  const RDF_TYPE = NAMESPACES.rdf + 'type';
+
+  /** The model of {@link buildModel} with a view drawn in the layout, a compound id and a converter's nested node. */
+  function withLayout() {
+    const ctx = buildModel();
+    const ns = ctx.namespace;
+    const view = `${ns}view/v1`;
+    const node = `${view}#node/n1`;
+    const { namedNode: iri, quad: q } = DataFactory;
+    const added = [
+      q(iri(view), iri(RDF_TYPE), iri(NAMESPACES.arch + 'Diagram')),
+      q(iri(view), iri(NAMESPACES.arch + 'inModel'), iri(ctx.modelIri)),
+      q(iri(node), iri(RDF_TYPE), iri(VIS + 'ArchNode')),
+      q(iri(node), iri(VIS + 'view'), iri(view)),
+      q(iri(node), iri(VIS + 'style'), iri(`${node}/style`)),
+      q(iri(`${node}/style`), iri(RDF_TYPE), iri(VIS + 'Style')),
+      q(iri(`${ns}element/component/default/payments`), iri(RDF_TYPE), iri(AM4 + 'ApplicationComponent')),
+      q(iri(`${ns}view/id-v77/node/id-n42`), iri(RDF_TYPE), iri(VIS + 'ArchNode')),
+    ];
+    ctx.store.addQuads(added as never);
+    return { ...ctx, view, prefix: `mv${sha256Hex(view).slice(0, 8)}` };
+  }
+
+  it('writes a shape by its view, and what no prefix fits relative to @base', () => {
+    const ctx = withLayout();
+    const ttl = ctx.io.serialize(ctx.modelIri, { format: 'turtle' });
+    expect(ttl.startsWith(`@base <${ctx.namespace}>.\n`)).toBe(true);
+    expect(ttl).toContain(`@prefix ${ctx.prefix}: <${ctx.view}#>.`);
+    expect(ttl).toContain(`${ctx.prefix}:node\\/n1 a arch-vis:ArchNode`);
+    expect(ttl).toContain(`${ctx.prefix}:node\\/n1\\/style a arch-vis:Style`);
+    expect(ttl).toContain('<element/component/default/payments> a am4:ApplicationComponent');
+    expect(ttl).toContain('<view/id-v77/node/id-n42> a arch-vis:ArchNode');
+    // What la-gram minted: an element by the kind's prefix.
+    expect(ttl).toMatch(/me:[0-9a-f-]{36} a am4:ApplicationComponent/);
+  });
+
+  it('writes the DD-15 graphs by their prefix in TriG', () => {
+    const ctx = withLayout();
+    const trig = ctx.io.serialize(ctx.modelIri, { format: 'trig' });
+    expect(trig).toContain(`@prefix mg: <${ctx.namespace}graph/>.`);
+    for (const graph of ['model', 'semantic', 'views']) expect(trig).toContain(`mg:${graph} {`);
+  });
+
+  it.each(['turtle', 'trig'] as const)('reads back what it wrote in %s', (format) => {
+    const ctx = withLayout();
+    const before = modelQuads(ctx.store).map((q) => `${q.subject.value} ${q.predicate.value} ${q.object.value}`).sort();
+    const text = ctx.io.serialize(ctx.modelIri, { format });
+    ctx.io.load(text, format === 'turtle' ? 'model.ttl' : 'model.trig');
+    expect(modelQuads(ctx.store).map((q) => `${q.subject.value} ${q.predicate.value} ${q.object.value}`).sort()).toEqual(before);
+    expect(ctx.io.serialize(ctx.modelIri, { format })).toBe(text);
   });
 });

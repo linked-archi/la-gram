@@ -221,14 +221,26 @@ export function sentenceCase(words: string): string {
   return lowered.charAt(0).toUpperCase() + lowered.slice(1);
 }
 
+/** A quad as a string, equal for equal quads: its terms, an object's language and datatype, its graph. */
+export function quadKey(q: Quad): string {
+  return `${q.subject.value}\u0000${q.predicate.value}\u0000${q.object.termType}:${q.object.value}\u0000${
+    (q.object as { language?: string }).language ?? ''
+  }\u0000${(q.object as { datatype?: { value: string } }).datatype?.value ?? ''}\u0000${q.graph.value}`;
+}
+
+/** A change with what it would remove and add again left out of both: only what differs. */
+export function netChange(change: { remove: Quad[]; add: Quad[] }): { remove: Quad[]; add: Quad[] } {
+  const added = new Set(change.add.map(quadKey));
+  const removed = new Set(change.remove.map(quadKey));
+  return { remove: change.remove.filter((q) => !added.has(quadKey(q))), add: change.add.filter((q) => !removed.has(quadKey(q))) };
+}
+
 /** Drop duplicate quads (a quad reachable along two paths is removed once). */
 export function dedupe(quads: Quad[]): Quad[] {
   const seen = new Set<string>();
   const out: Quad[] = [];
   for (const q of quads) {
-    const key = `${q.subject.value}\u0000${q.predicate.value}\u0000${q.object.termType}:${q.object.value}\u0000${
-      (q.object as { language?: string }).language ?? ''
-    }\u0000${(q.object as { datatype?: { value: string } }).datatype?.value ?? ''}\u0000${q.graph.value}`;
+    const key = quadKey(q);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(q);

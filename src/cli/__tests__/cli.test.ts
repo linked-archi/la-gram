@@ -104,13 +104,13 @@ describe('la-gram-git check', () => {
     // deleting it and another keeping the relationship to it would leave the file.
     const lines = versions['base']!.split('\n');
     const local = portal.split('/').pop()!;
-    const start = lines.findIndex((l) => l.startsWith(`m:${local} `));
+    const start = lines.findIndex((l) => l.startsWith(`me:${local} `));
     const end = lines.findIndex((l, i) => i >= start && l.trimEnd().endsWith('.'));
     expect(start).toBeGreaterThan(0);
     write('models/shop.ttl', [...lines.slice(0, start), ...lines.slice(end + 1)].join('\n'));
     const { code, out } = await run('check', 'models/shop.ttl');
     expect(code).toBe(1);
-    expect(out).toMatch(/Its target is not in the model: .*element-/);
+    expect(out).toMatch(/Its target is not in the model: .*element\//);
     write('models/shop.ttl', versions['base']!);
   }, 60_000);
 

@@ -47,7 +47,7 @@ describe('folders made in la-gram', () => {
     const actors = newFolder(store, modelIri, 'Actors', business.iri);
     apply(actors.change);
 
-    expect(business.iri).toMatch(/\/folder-[0-9a-f-]{36}$/);
+    expect(business.iri).toMatch(/\/folder\/[0-9a-f-]{36}$/);
     expect(folders()).toEqual([
       { name: 'Actors', in: 'Business', holds: [] },
       { name: 'Business', in: undefined, holds: [] },

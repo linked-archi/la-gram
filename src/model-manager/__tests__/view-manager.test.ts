@@ -42,7 +42,7 @@ describe('OxigraphViewManager', () => {
         modelIri,
         label: 'Layered',
       });
-      expect(view.value).toMatch(/^https:\/\/example\.org\/view-[0-9a-f-]{36}$/);
+      expect(view.value).toMatch(/^https:\/\/example\.org\/view\/[0-9a-f-]{36}$/);
       expect(objects(store, view.value, RDF_TYPE).sort()).toEqual([ARCH + 'Diagram', ARCH + 'View'].sort());
       expect(objects(store, view.value, ARCH + 'inModel')).toEqual([modelIri]);
       expect(objects(store, view.value, ARCH + 'viewConformsToViewpoint')).toEqual([
@@ -111,7 +111,8 @@ describe('OxigraphViewManager', () => {
       const v = views.createView('Diagram', undefined, { modelIri }).value;
       const nodeIri = views.addElementToView(v, a.value, { x: 10, y: 20, width: 130, height: 60 });
 
-      expect(nodeIri).toMatch(/^https:\/\/example\.org\/node-[0-9a-f-]{36}$/);
+      // Named in its view's IRI (DD-41).
+      expect(nodeIri).toMatch(new RegExp(`^${v}#node/[0-9a-f-]{36}$`));
       expect(objects(store, nodeIri, RDF_TYPE)).toEqual([VIS + 'ArchNode']);
       expect(objects(store, nodeIri, VIS + 'view')).toEqual([v]);
       expect(objects(store, nodeIri, VIS + 'archElement')).toEqual([a.value]);
@@ -314,7 +315,7 @@ describe('OxigraphViewManager', () => {
         expect(views.getLinks(v)[0].label).toBeUndefined();
 
         views.setLinkLabel(v, relIri, box);
-        const label = `${linkIri}-label`;
+        const label = `${linkIri}/label`;
         expect(objects(store, linkIri, VIS + 'label')).toEqual([label]);
         expect(objects(store, label, RDF_TYPE)).toEqual([VIS + 'LabelNode']);
         expect(objects(store, label, VIS + 'view')).toEqual([v]);
@@ -597,7 +598,7 @@ describe('figures: groups, shapes and notes, standing for no model element', () 
     const before = store.getQuads(null, null, null).length;
     views.removeElementFromView(view, box);
     expect(store.getQuads(nn(box), null, null)).toEqual([]);
-    expect(store.getQuads(nn(`${box}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${box}/style`), null, null)).toEqual([]);
     expect(store.getQuads(null, null, null).length).toBeLessThan(before);
     expect(views.getNodes(view).map((n) => n.elementIri).sort()).toEqual([element, group].sort());
   });
@@ -754,7 +755,7 @@ describe('a figure’s colours', () => {
     const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
     views.setFigureColours(view, note, { fillColor: '#ffd6e0', fontColor: '#7a0019' });
     expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n', fillColor: '#ffd6e0', fontColor: '#7a0019' });
-    expect(objects(store, `${note}-style`, VIS_NS + 'fillColor')).toEqual(['#ffd6e0']);
+    expect(objects(store, `${note}/style`, VIS_NS + 'fillColor')).toEqual(['#ffd6e0']);
 
     views.setFigureColours(view, note, { fontColor: null, lineColor: '#333333' });
     expect(views.getNode(view, note)?.figure).toEqual({ kind: 'note', text: 'n', fillColor: '#ffd6e0', lineColor: '#333333' });
@@ -762,7 +763,7 @@ describe('a figure’s colours', () => {
     const copy = views.duplicateView(view).value;
     expect(views.getNodes(copy)[0]?.figure).toMatchObject({ fillColor: '#ffd6e0', lineColor: '#333333' });
     views.removeElementFromView(view, note);
-    expect(store.getQuads(nn(`${note}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${note}/style`), null, null)).toEqual([]);
   });
 });
 
@@ -802,15 +803,15 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
       fontSize: 9,
     });
     expect(views.getNode(view, second)?.appearance).toBeUndefined();
-    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}-style`]);
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}/style`]);
     // As core-vis 0.7 writes them: a member of the enumeration, a typed integer.
-    expect(objects(store, `${first}-style`, VIS_NS + 'textAlignment')).toEqual([VIS_NS + 'AlignLeft']);
-    expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'lineWidth'))[0]?.object).toMatchObject({ value: '2', datatype: { value: XSD + 'integer' } });
+    expect(objects(store, `${first}/style`, VIS_NS + 'textAlignment')).toEqual([VIS_NS + 'AlignLeft']);
+    expect(store.getQuads(nn(`${first}/style`), nn(VIS_NS + 'lineWidth'))[0]?.object).toMatchObject({ value: '2', datatype: { value: XSD + 'integer' } });
   });
 
   it('a placement’s figure — the Figure tab’s — as core-vis’s rendering mode', () => {
     views.setAppearance(view, first, { renderingMode: 'IconCentric' });
-    expect(objects(store, `${first}-style`, VIS_NS + 'renderingMode')).toEqual([VIS_NS + 'IconCentric']);
+    expect(objects(store, `${first}/style`, VIS_NS + 'renderingMode')).toEqual([VIS_NS + 'IconCentric']);
     expect(views.getNode(view, first)?.appearance).toEqual({ renderingMode: 'IconCentric' });
   });
 
@@ -820,7 +821,7 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     expect(views.getNode(view, first)?.appearance).toEqual({ lineColor: '#7a0019' });
     views.setAppearance(view, first, { lineColor: null });
     expect(views.getNode(view, first)?.appearance).toBeUndefined();
-    expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${first}/style`), null, null)).toEqual([]);
     expect(objects(store, first, VIS_NS + 'style')).toEqual([]);
   });
 
@@ -842,7 +843,7 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     views.setAppearance(view, link, { lineColor: '#1a73e8', lineWidth: 3 });
     expect(views.getLinks(view)[0]?.appearance).toEqual({ lineColor: '#1a73e8', lineWidth: 3 });
     views.removeRelationshipFromView(view, link);
-    expect(store.getQuads(nn(`${link}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${link}/style`), null, null)).toEqual([]);
   });
 
   it('is copied with its view, placement by placement and line by line; nothing outside the view is written', () => {
@@ -867,11 +868,11 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     views.setAppearance(view, second, { image: 'https://example.org/logo.png' });
     const note = views.addFigure(view, { kind: 'note', text: 'n', bounds: { x: 0, y: 0, width: 185, height: 80 } });
     views.setAppearance(view, note, { image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
-    expect(store.getQuads(nn(`${first}-style`), nn(VIS_NS + 'image'))[0]?.object).toMatchObject({
+    expect(store.getQuads(nn(`${first}/style`), nn(VIS_NS + 'image'))[0]?.object).toMatchObject({
       value: 'https://example.org/logo.png',
       datatype: { value: XSD + 'anyURI' },
     });
-    expect(objects(store, `${first}-style`, VIS_NS + 'imagePosition')).toEqual([VIS_NS + 'BottomRight']);
+    expect(objects(store, `${first}/style`, VIS_NS + 'imagePosition')).toEqual([VIS_NS + 'BottomRight']);
     expect(views.getNode(view, first)?.appearance).toEqual({ image: 'https://example.org/logo.png', imagePosition: 'BottomRight' });
     expect(views.getNode(view, note)?.figure).toMatchObject({ image: 'data:image/png;base64,iVBORw0KGgo=', imagePosition: 'Fill' });
     expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png']);
@@ -882,7 +883,7 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
       DataFactory.quad(notationStyle, nn(VIS_NS + 'iconSymbol') as never, DataFactory.literal('https://meta.linked.archi/archimate4/icons/glyphs/actor.svg', nn(XSD + 'anyURI') as never)),
     ] as never);
     expect(views.usedImages()).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.org/logo.png', 'https://example.org/own.png']);
-    expect(store.getQuads(nn(`${second}-style`), nn(VIS_NS + 'iconSymbol'))[0]?.object).toMatchObject({ datatype: { value: XSD + 'anyURI' } });
+    expect(store.getQuads(nn(`${second}/style`), nn(VIS_NS + 'iconSymbol'))[0]?.object).toMatchObject({ datatype: { value: XSD + 'anyURI' } });
     views.setAppearance(view, second, { iconSymbol: null, renderingMode: null });
     // A picture's address that is none is not written — and takes nothing away.
     views.setAppearance(view, second, { image: 'javascript:alert(1)' as never });
@@ -896,7 +897,7 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     views.setAppearance(view, link, { lineWidth: 2 });
     expect(views.getLinks(view)[0]?.label).toEqual(moved);
     views.setAppearance(view, link, { labelAnchor: 'target' });
-    expect(objects(store, `${link}-style`, VIS_NS + 'labelAnchor')).toEqual([VIS_NS + 'AnchorTarget']);
+    expect(objects(store, `${link}/style`, VIS_NS + 'labelAnchor')).toEqual([VIS_NS + 'AnchorTarget']);
     expect(views.getLinks(view)[0]).toMatchObject({ appearance: { lineWidth: 2, labelAnchor: 'target' } });
     expect(views.getLinks(view)[0]?.label).toBeUndefined();
     // The same anchor again — a format painter's — leaves a name moved since where it is.
@@ -914,8 +915,8 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
       { expression: '{name}' },
     ]);
     // As core-vis 0.7 writes it: on the placement's own style, named after it.
-    const scoped = objects(store, `${first}-style`, VIS_NS + 'labelExpression').find((iri) => iri !== `${first}-label-expression`)!;
-    expect(scoped).toMatch(new RegExp(`^${first}-label-expression-[0-9a-f]{8}$`));
+    const scoped = objects(store, `${first}/style`, VIS_NS + 'labelExpression').find((iri) => iri !== `${first}/label-expression`)!;
+    expect(scoped).toMatch(new RegExp(`^${first}/label-expression/[0-9a-f]{8}$`));
     expect(objects(store, scoped, RDF_TYPE)).toEqual([VIS_NS + 'LabelExpression']);
     expect(objects(store, scoped, NAMESPACES.arch + 'inPresentationContext')).toEqual([DEVELOPER]);
     // Replaced for its set; the other placement of the element says nothing of its own.
@@ -929,12 +930,12 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     views.setLabelExpression(view, first, DEVELOPER, null);
     views.setLabelExpression(view, first, undefined, '');
     expect(views.getNode(view, first)?.labelExpressions).toBeUndefined();
-    expect(store.getQuads(nn(`${first}-style`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${first}/style`), null, null)).toEqual([]);
     expect(store.getQuads(nn(scoped), null, null)).toEqual([]);
     // Gone with the placement.
     views.setLabelExpression(view, second, undefined, '{name}');
     views.removeElementFromView(view, second);
-    expect(store.getQuads(nn(`${second}-label-expression`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${second}/label-expression`), null, null)).toEqual([]);
   });
 
   it('a look for one presentation context: a style of its own for it, beside the one for every context — copied, emptied, gone with it', () => {
@@ -947,8 +948,8 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     // As core-vis 0.7 writes it: a second arch-vis:style, typed, for its context, named after the node.
     const styles = objects(store, first, VIS_NS + 'style');
     expect(styles).toHaveLength(2);
-    const forExecutives = styles.find((s) => s !== `${first}-style`)!;
-    expect(forExecutives).toMatch(new RegExp(`^${first}-style-[0-9a-f]{8}$`));
+    const forExecutives = styles.find((s) => s !== `${first}/style`)!;
+    expect(forExecutives).toMatch(new RegExp(`^${first}/style/[0-9a-f]{8}$`));
     expect(objects(store, forExecutives, NAMESPACES.arch + 'inPresentationContext')).toEqual([EXECUTIVE]);
     expect(objects(store, forExecutives, RDF_TYPE)).toEqual([VIS_NS + 'Style']);
     // The one for every context is written as before — a converter's copied into it, the context's left alone.
@@ -964,7 +965,7 @@ describe('how a placement or a line looks: its own style (the Appearance tab)', 
     views.setAppearance(view, first, { renderingMode: null, image: null }, EXECUTIVE);
     expect(views.getNode(view, first)?.contextAppearances).toBeUndefined();
     expect(store.getQuads(nn(forExecutives), null, null)).toEqual([]);
-    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}-style`]);
+    expect(objects(store, first, VIS_NS + 'style')).toEqual([`${first}/style`]);
     // Gone with its placement.
     views.setAppearance(view, second, { image: 'https://example.org/logo.png' }, EXECUTIVE);
     const secondStyle = objects(store, second, VIS_NS + 'style')[0]!;
@@ -1064,7 +1065,7 @@ describe('a line from a note: a link standing for no relationship', () => {
     views.removeElementFromView(view, note);
     expect(views.getLinks(view)).toEqual([]);
     expect(store.getQuads(nn(again), null, null)).toEqual([]);
-    expect(store.getQuads(nn(`${again}-p0`), null, null)).toEqual([]);
+    expect(store.getQuads(nn(`${again}/point/0`), null, null)).toEqual([]);
   });
 
   it('is copied with its view, between the copies of its ends', () => {

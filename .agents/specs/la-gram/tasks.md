@@ -93,8 +93,10 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] "Without diagram geometry" profile
 - [x] SVG / PNG of the open view (Req 14)
 - [x] RDF panel (Req 5.7): hidden by default, toolbar toggle / `?rdf=1`, six formats, geometry toggle, counts, copy, download, highlighting, selection ⇄ statements, no work while hidden, resizable — *rdf-panel.test, workbench.test, workbench.spec*
-- [x] HTTP URIs in a per-model namespace (Req 9.7a): `{base}{notation}/{uuid}/`, base `https://example.org/` or `?base=`; flat local names so Turtle writes `m:…` throughout; namespace + prefix stated with `vann:` on the model; DD-15 graphs under the namespace — *model-namespace.test, model-io.test*
-- [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (legacy `…/element/…` flattened) or only new ones; prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
+- [x] HTTP URIs in a per-model namespace (Req 9.7a): `{base}{notation}/{uuid}/`, base `https://example.org/` or `?base=`; namespace + prefix stated with `vann:` on the model; DD-15 graphs under the namespace — *model-namespace.test, model-io.test*
+- [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (every local part kept) or only new ones; an `https:` or `http:` namespace with no `#` or `?` (DD-41); prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
+- [x] The Linked.Archi IRI layout minted (Req 9.7c; DD-41; design decision 33): `{ns}{kind}/{uuid}`, shapes in their view's IRI, parts with `/`; names minted before and a converter's kept and edited in place — own styles, routes (only what differs written), moved names, label expressions, names and pictures for a presentation context; relationships in the model's namespace; the Exchange import named as the converter names it — *iri-layout.test, model-namespace.test, archimate-importer.test, view-manager.test, clipboard.test, workbench.spec*
+- [x] IRIs of the Linked.Archi layout written short in Turtle and TriG (Req 5.13; DD-41): a prefix per kind, a prefix per view with the fragment escaped, then relative to `@base`; prefix clashes left to the vocabularies and to the first view; the copy as Turtle too; n3 pinned for the override (design decision 32) — *turtle-writer.test, model-io.test, short-hash.test*
 
 ### Task 6: Validation (Req 6)
 - [x] Shapes: every loaded metamodel's `shapes` graphs + core + core-vis shapes (previously the app validated against an empty graph)
@@ -324,6 +326,7 @@ when it starts; what is already recorded elsewhere is named, not repeated.
 
 Agreed order; relationship visuals come first.
 
+- [ ] **The Linked.Archi IRI layout, part 4** (DD-41) — recorded (2026-11-18), not started: the namespace change in `la-gram-git merge` and the layout in `la-gram-git check`. Parts 1–3 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
 - [x] **Nesting / containers** — done (2026-10-11), see the change log. Visual groups (`arch-vis:ContainerNode`, an Exchange file's `Container`) are still not drawn.
 - [x] **EDGY artwork — licence** — done (2026-10-17), see the change log.
@@ -394,6 +397,10 @@ Agreed order; relationship visuals come first.
 
 ## Known limitations
 
+- The Linked.Archi IRI layout (Req 9.7c): the relationships la-gram derives on opening a model keep
+  `{ns}relationship-{sha1}`, the name meta's derivation rules give them, until the rules move to the layout;
+  `la-gram-git check` does not yet report a name outside the layout (part 4 of `.agents/tasks/iri-layout/`);
+  deleting a view leaves its placements' own styles, as before (`converted-styles-and-routes`, Open 1).
 - Git synchronization is available outside shared rooms; unresolved conflicts and pending branch
   merges pause it. Regular checks need browser tab coordination and run while visible/online.
   Auto-commit is destination opt-in, requires durable local storage, and stays paused after uncertain
@@ -418,6 +425,47 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-18 — the Linked.Archi IRI layout minted and read (DD-41, parts 2–3)
+
+- What la-gram mints follows the layout every Linked.Archi tool shares (Req 9.7c; design decision 33):
+  `{ns}element/{uuid}` and the other kinds, a node or a line in its view's IRI (`{view}#node/{uuid}`), its
+  parts under it with `/` (`{node}/style`, `{link}/points/{i}`, `{link}/point/{i}`, `{link}/label`, …).
+  Relationships are minted in their model's namespace. A new model's namespace, or a changed one, is an
+  `https:` or `http:` IRI with no `#` or `?` (Req 9.7b).
+- Nothing is renamed. A model saved before keeps its names and is edited in place, as a converted model is:
+  a placement's own style written on (`{node}-style`, a converter's `{node}/style`), a moved bend only its
+  point's coordinates, in the route's own names; removed and copied with the placement. A converter's style
+  is no longer copied into a new one, nor left behind when its placement goes, and a converted line pasted
+  keeps its bends. A moved name, a label expression, a name or a picture for a presentation context keep
+  their names when they change. A namespace change keeps every local part.
+- An Exchange import is named as the ArchiMate converter names it: `element/{id}`, `view/{id}`,
+  `{view}#node/{id}`, `{view}#link/{id}`. In a view whose IRI already holds a `#`, a new shape is minted flat.
+- Tests: *iri-layout.test* (a model saved before and a converted one, edited: look, removal, bends moved,
+  added and removed, moved name, copy and paste; names and pictures kept; what is minted; the `#` view; a
+  blank route), *model-namespace.test*, *archimate-importer.test*, *model-io.test*, *view-manager.test*,
+  *workbench.test*, *workbench.spec* and the others whose expected names changed. Verified: type checking,
+  all 2,686 unit tests and all 92 browser tests pass.
+
+### 2026-11-18 — the Linked.Archi IRI layout written short (DD-41, part 1)
+
+- Turtle and TriG write an IRI of the model in the layout every Linked.Archi tool shares with the first
+  of: a prefix per kind (`me:{id}`, `mg:views`), a prefix per view for a shape and its parts with the
+  fragment escaped (`mv3ef7da72:node\/{id}`), a reference relative to `@base <{ns}>`, the full IRI
+  (Req 5.13; design decision 32). A converted model's nested names and Backstage's compound ids come out
+  relative rather than in full. The copy as Turtle is written the same way.
+- Through `rdf-engine/turtle-writer.ts`, N3's writer with its own `_encodeIriOrBlank`; n3 pinned to
+  2.13.12 in la-gram's and la-gram-git's `package.json`, and a test fails on another version. SHA-256
+  for the view prefixes, beside SHA-1 in `short-hash.ts`.
+- A Turtle file of a model la-gram made is written as before. A TriG file, whose graphs are now
+  `mg:model {` rather than written in full, and a converted model saved in la-gram are written
+  differently: `la-gram-git check` fails them until `la-gram-git fix` rewrites them.
+- Parts 2–4 — minting the layout, reading both forms, Git — are in `.agents/tasks/iri-layout/`.
+- Tests: *turtle-writer.test* (the order, clashes, `@base`, escaping, round trips with N3.js and
+  Oxigraph, the n3 version, the override reached for every position), *model-io.test* (a model with the
+  layout saved as Turtle and TriG and read back), *short-hash.test* (SHA-256 vectors, the guide's view
+  prefixes). Verified: type checking and all 2,666 unit tests pass; a 1,443-triple model written in both
+  formats reads back the same with rdflib 7.6.
 
 ### 2026-11-18 — optional automatic Git commits
 

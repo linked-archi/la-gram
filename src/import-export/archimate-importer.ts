@@ -48,7 +48,7 @@ import { DataFactory } from 'n3';
 import type { Term } from '@rdfjs/types';
 import type { ElementManager, Point, RelationshipManager, ViewManager } from '../model-manager/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { ensureNamespace } from '../rdf-engine/iri.js';
+import { ensureNamespace, pathSegment } from '../rdf-engine/iri.js';
 import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '../model-manager/appearance.js';
 import { derivedNamespace } from '../model-manager/model-namespace.js';
 
@@ -414,9 +414,9 @@ export interface ImportReport {
   figureCount: number;
 }
 
-/** An IRI-safe local part from an exchange identifier. */
+/** An exchange identifier as one path segment, encoded as the converters encode it (`pathSegment`). */
 function safeId(id: string): string {
-  return encodeURIComponent(id.trim() || 'unnamed').replace(/%/g, '_');
+  return pathSegment(id.trim() || 'unnamed');
 }
 
 /** A property-name slug. */
@@ -462,8 +462,13 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
   };
   const unrecognized = new Set<string>();
   const iriOf = new Map<string, string>();
-  // Exchange identifiers are kept — a re-import names the same concepts alike.
+  // Exchange identifiers are kept — a re-import names the same concepts alike — and named as the ArchiMate
+  // converter names them (DD-41): `element/{id}`, `relationship/{id}`, `view/{id}`, and a view's nodes and
+  // lines in the view's IRI, `{view}#node/{id}` and `{view}#link/{id}`, so an import and a conversion of one
+  // file give the same local names.
   const base = ensureNamespace(deps.modelNamespace ?? derivedNamespace(deps.modelIri));
+  const shapeIri = (viewIri: string, kind: 'node' | 'link', id: string) =>
+    viewIri.includes('#') ? undefined : `${viewIri}#${kind}/${safeId(id)}`;
   const literal = (value: string, lang?: string) =>
     DataFactory.literal(value, lang ?? model.lang ?? 'en') as unknown as Term;
 
@@ -483,7 +488,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       continue;
     }
     const iri = deps.elements.createElement(typeIri, deps.modelIri, {
-      iri: `${base}element-${safeId(el.id)}`,
+      iri: `${base}element/${safeId(el.id)}`,
       label: el.name ?? el.type,
       ...(el.lang ?? model.lang ? { language: el.lang ?? model.lang } : {}),
     }).value;
@@ -511,7 +516,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
         i += 1;
         continue;
       }
-      const iri = `${base}relationship-${safeId(rel.id)}`;
+      const iri = `${base}relationship/${safeId(rel.id)}`;
       if (deps.relationships.createQualifiedRelationship) {
         deps.relationships.createQualifiedRelationship({
           typeIri,
@@ -532,7 +537,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
 
   for (const view of model.views) {
     const viewIri = deps.views.createView('Diagram', view.viewpoint ? deps.viewpointFor?.(view.viewpoint) : undefined, {
-      iri: `${base}view-${safeId(view.id)}`,
+      iri: `${base}view/${safeId(view.id)}`,
       label: view.name ?? 'View',
       modelIri: deps.modelIri,
     }).value;
@@ -546,7 +551,10 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       // A visual group, or a note: drawing with no element behind it.
       const figure = node.kind === 'Container' ? 'group' : node.kind === 'Label' ? 'note' : undefined;
       if (figure && deps.views.addFigure) {
-        nodeElement.set(node.id, deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }));
+        nodeElement.set(
+          node.id,
+          deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }, shapeIri(viewIri, 'node', node.id)),
+        );
         report.figureCount += 1;
         continue;
       }
@@ -556,7 +564,8 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
         continue;
       }
       // Placed again when the file places it again: each node a placement of its own.
-      const placed = deps.views.addElementToView(viewIri, elementIri, bounds, { another: true });
+      const nodeIri = shapeIri(viewIri, 'node', node.id);
+      const placed = deps.views.addElementToView(viewIri, elementIri, bounds, { another: true, ...(nodeIri ? { iri: nodeIri } : {}) });
       nodeElement.set(node.id, placed);
       // Looking as it did in the tool that wrote the file.
       if (node.style) deps.views.setAppearance?.(viewIri, placed, node.style);
@@ -592,7 +601,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           const first = conn.bendpoints[0];
           const last = conn.bendpoints[conn.bendpoints.length - 1];
           const route = first && last ? [clipToRect(src, first), ...conn.bendpoints, clipToRect(tgt, last)] : undefined;
-          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route);
+          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route, shapeIri(viewIri, 'link', conn.id));
           if (line) {
             report.connectionCount += 1;
             if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
@@ -616,7 +625,11 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           ...(nodeElement.get(conn.source) ? { sourceNodeIri: nodeElement.get(conn.source) } : {}),
           ...(nodeElement.get(conn.target) ? { targetNodeIri: nodeElement.get(conn.target) } : {}),
         };
-        const line = deps.views.addRelationshipToView(viewIri, relIri, route, ends, { another: drawnRelationships.has(relIri) });
+        const linkIri = shapeIri(viewIri, 'link', conn.id);
+        const line = deps.views.addRelationshipToView(viewIri, relIri, route, ends, {
+          another: drawnRelationships.has(relIri),
+          ...(linkIri ? { iri: linkIri } : {}),
+        });
         if (line) {
           if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
           report.connectionCount += 1;

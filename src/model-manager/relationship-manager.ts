@@ -88,8 +88,8 @@ import type {
 } from './interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scope.js';
-import { mintIri, namespaceOfIri } from '../rdf-engine/iri.js';
-import { modelNamespace } from './model-namespace.js';
+import { mintIri } from '../rdf-engine/iri.js';
+import { conceptNamespace, modelNamespace } from './model-namespace.js';
 import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
 import { readDirectPermissions, readDrawnPermissions, type TablePermissions } from './direct-permissions.js';
 import { compareProposals, isProposed, readProposalOrders, type ProposalOrders, type Proposal } from './proposal-order.js';
@@ -617,7 +617,8 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     // Qualified relationship resource. Random, not counted: a counter restarts
     // with the process and would reuse an IRI already in a loaded model.
     qrCounter += 1;
-    const qrIri = mintIri(namespaceOfIri(sourceIri), 'relationship');
+    // In the source's model's namespace: `{ns}relationship/{uuid}`, never beside the source's own IRI.
+    const qrIri = mintIri(conceptNamespace(this.store, sourceIri), 'relationship');
     const qrNode = namedNode(qrIri) as unknown as NamedNode;
 
     const quads: Quad[] = [
@@ -715,7 +716,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
 
     const iri =
       request.iri ??
-      mintIri(request.modelIri ? modelNamespace(this.store, request.modelIri) : namespaceOfIri(sourceIri), 'relationship');
+      mintIri(request.modelIri ? modelNamespace(this.store, request.modelIri) : conceptNamespace(this.store, sourceIri), 'relationship');
     const rel = nn(iri);
     const quads: Quad[] = [
       triple(rel, T.rdfType, nn(classIri)),

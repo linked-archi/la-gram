@@ -112,8 +112,9 @@ describe('the workbench', () => {
     expect(ui.appToolbar.rdfOpen).toBe(true);
     // The open view, by default: the view itself, not the whole model.
     expect(ui.rdfPanel.scope).toBe('view');
-    const viewName = app.session.activeViewIri!.slice(app.session.namespace()!.namespace.length);
-    expect(ui.rdfPanel.text).toMatch(new RegExp(`^m:${viewName} a `, 'm'));
+    // The view, `{ns}view/{uuid}`, by the views' prefix (DD-41).
+    const viewName = app.session.activeViewIri!.slice(`${app.session.namespace()!.namespace}view/`.length);
+    expect(ui.rdfPanel.text).toMatch(new RegExp(`^mv:${viewName} a `, 'm'));
     expect(ui.rdfPanel.text).not.toMatch(/^m:model a arch:Model;/m);
     // The whole model, as Save writes it.
     ui.rdfPanel.scope = 'model';
@@ -1265,7 +1266,7 @@ describe('the workbench', () => {
     expect([...editor.querySelectorAll('th')].map((th) => th.textContent)).toEqual([
       'source', 'sourceName', 'relationship', 'relationshipType', 'relationshipName', 'target', 'targetName',
     ]);
-    expect(editor.querySelector('tbody tr')!.textContent).toMatch(/m:element-.*Clerk.*m:relationship-.*am4:Assignment.*m:element-.*Cashier/s);
+    expect(editor.querySelector('tbody tr')!.textContent).toMatch(/me:.*Clerk.*mr:.*am4:Assignment.*me:.*Cashier/s);
 
     // … and its rows become a view.
     script.answers.push('Clerk and role');
@@ -1309,7 +1310,7 @@ describe('the workbench', () => {
     button('turtle').click();
     const turtle = saved.at(-1)!;
     expect(turtle.fileName).toBe('Clerk-graph.ttl');
-    expect(turtle.content as string).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Assignment;/);
+    expect(turtle.content as string).toMatch(/mr:[0-9a-f-]{36} a am4:Assignment;/);
     expect(turtle.content as string).not.toContain('Till'); // depth 1
 
     ui.graphPanel.setDepth(2);
@@ -2131,17 +2132,20 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'model-settings' });
 
     expect(app.session.modelIri).toBe('https://acme.com/ea/shop/model');
-    expect(app.session.activeViewIri).toBe('https://acme.com/ea/shop/view-v');
-    expect(ui.appToolbar.activeViewIri).toBe('https://acme.com/ea/shop/view-v');
+    // The imported names keep their local parts (DD-41): `view/v`, `element/a`.
+    expect(app.session.activeViewIri).toBe('https://acme.com/ea/shop/view/v');
+    expect(ui.appToolbar.activeViewIri).toBe('https://acme.com/ea/shop/view/v');
     const web = contents().elements.find((e) => e.label === 'Web')!;
-    expect(web.iri).toBe('https://acme.com/ea/shop/element-a');
+    expect(web.iri).toBe('https://acme.com/ea/shop/element/a');
     expect(ui.diagramCanvas.getElement(web.iri)?.bounds).toMatchObject({ x: 10, y: 10 });
     expect(ui.diagramCanvas.getRelationships().size).toBe(1);
 
     const ttl = app.saveModel('turtle').text;
     expect(ttl).toContain('@prefix shop: <https://acme.com/ea/shop/>.');
-    expect(ttl).toMatch(/^shop:element-a a am:ApplicationComponent;/m);
-    expect(ttl.split('<https://acme.com/ea/shop/')).toHaveLength(2);
+    expect(ttl).toContain('@prefix shope: <https://acme.com/ea/shop/element/>.');
+    expect(ttl).toMatch(/^shope:a a am:ApplicationComponent;/m);
+    // The namespace is only in the prefixes: no model IRI is written in full.
+    expect(ttl.split('\n').filter((line) => !line.startsWith('@')).join('\n')).not.toContain('<https://acme.com/ea/shop/');
     expect(app.isDirty()).toBe(true);
 
     // A prefix another vocabulary already stands for is refused.

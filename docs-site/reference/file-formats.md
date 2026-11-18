@@ -30,6 +30,40 @@ file is opened, and by you when it is saved ([Files, import and export](../guide
   so a text diff of two saves shows only what changed. The prefixes are the standard ones, then the
   metamodels' in order of their names (`am4:`, `am4mm:`, `am4vp:`), then the model's own (`m:`). `la-gram-git check` holds model files in Git to that form, and
   `la-gram-git fix` rewrites them into it ([la-gram-git](la-gram-git.md#fix)).
+- **IRIs in the Linked.Archi layout**, as the converters write them — `{ns}element/{id}`, a shape
+  `{view}#node/{id}` in its view's IRI, a part under its owner with `/` — are written in Turtle and TriG
+  with the first of these that fits:
+    1. a prefix per kind: the model's prefix and `e`, `r`, `v`, `f`, `d`, `doc` or `g`, for
+       `element/`, `relationship/`, `view/`, `folder/`, `decision/`, `documentation/` and `graph/`
+       (`me:5`, and in TriG the graphs `mg:model`, `mg:semantic`, `mg:views`);
+    2. a prefix per view, for a shape and its parts: the model's prefix, `v` and the first 8 hex characters
+       of the SHA-256 of the view's IRI, with each `/` after the `#` written `\/`
+       (`mve7282c35:node\/5`). A view keeps its prefix as other views come and go;
+    3. relative to the model's namespace, which the file then names with `@base`
+       (`<view/SystemContext/node/5>`, a converter's older name for a shape);
+    4. the whole IRI.
+
+    A C4 model, converted, saved from la-gram:
+
+    ```turtle
+    @base <https://example.org/c4/bigbank/>.
+    …
+    @prefix me: <https://example.org/c4/bigbank/element/>.
+    @prefix mv: <https://example.org/c4/bigbank/view/>.
+    @prefix mve7282c35: <https://example.org/c4/bigbank/view/Containers#>.
+    me:5 a c4:Container.
+    mv:Containers a arch:Diagram.
+    mve7282c35:node\/5 a arch-vis:ArchNode;
+        arch-vis:archElement me:5;
+        arch-vis:style mve7282c35:node\/5\/style;
+        arch-vis:view mv:Containers.
+    <view/SystemContext/node/5> a arch-vis:ArchNode;
+        arch-vis:archElement me:5.
+    ```
+
+    Where a loaded vocabulary already uses one of these prefixes for something else, it keeps it, and those
+    IRIs are written by the next rule. The layout is meta's
+    [IRI Minting](https://meta.linked.archi/docs/guide/iri-minting/) guide.
 - **Comments** in a Turtle file are not kept: la-gram reads the triples and writes them anew.
 
 The example model saved in each format, from the same session (`app.saveModel` in the built app):
@@ -142,8 +176,10 @@ from the metamodel (here ArchiMate 4.0, `am4:`):
 **Every relationship is written twice**: as the plain triple (`m:card-payment am4:serves m:web-shop`),
 which any RDF tool can query, and as a relationship resource with its type, its ends and its own
 properties. `rdf:reifies` links the two, and the element points to the resource
-(`am4:qualifiedServing`). Every IRI la-gram makes is a flat local name in the model's namespace, so the
-Turtle reads `m:element-…`, `m:view-…`, `m:node-…`. Opening a file keeps the two in step: a relationship
+(`am4:qualifiedServing`). Every IRI la-gram makes is in the model's namespace, in the Linked.Archi layout —
+`element/…`, `view/…`, a node `view/…#node/…` in its view — so the Turtle reads `me:…`, `mv:…`,
+`mv3ef7da72:node\/…`; a model saved before keeps its names (`m:element-…`, `m:node-…`) and is written as it
+was. Opening a file keeps the two in step: a relationship
 without `rdf:reifies` is given the triple its type's predicate names, and one whose triple names other ends
 than its `arch:source` and `arch:target` is made to name its own, its predicate kept.
 

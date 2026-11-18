@@ -18,7 +18,7 @@ The desktop app always loads its own page with no address of yours, so none of t
 | [`ws`](#ws) | a WebSocket address | **`ws://localhost:1234`** |
 | [`user`](#user) | a display name | **`Guest NNN`** |
 | [`rdf`](#rdf) | `1` | **closed** |
-| [`base`](#base) | an absolute IRI | **`https://example.org/`** |
+| [`base`](#base) | an `https:` or `http:` IRI | **`https://example.org/`** |
 | [`git`](#git) | a link to a model file in Git, or `off` | **none** |
 | [`<module-id>=off`](#module-off) | `off` | **on** |
 
@@ -189,8 +189,8 @@ each model.
 - **Default:** `https://example.org/`.
 - **A base without a trailing `/`** gets one: `https://example.org/acme` gives
   `https://example.org/acme/archimate/…/`.
-- **A value that is not an absolute IRI** (`not an iri`, say) is ignored, and the default applies, with
-  no message.
+- **A value that is not an `https:` or `http:` IRI, or holds a `#` or a `?`** (`not an iri`,
+  `urn:acme:`, say) is ignored, and the default applies, with no message.
 - Models you open keep their own namespace. *File › Model settings…* changes it afterwards.
 
 ```text

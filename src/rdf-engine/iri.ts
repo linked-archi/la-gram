@@ -10,22 +10,23 @@
  *
  * ## Shape
  *
- * A model owns a namespace, `{base}{notation}/{modelId}/` — the published
- * layout (DD-15/DD-29 in the Linked.Archi design decisions) — and everything
- * minted for it is a flat name in that namespace:
+ * A model owns a namespace, `{base}{notation}/{modelId}/` (DD-15/DD-29 in the
+ * Linked.Archi design decisions), and what is minted for it follows the layout
+ * every Linked.Archi tool shares (DD-41):
  *
  * ```
- * {ns}model                            the arch:Model
- * {ns}element-{uuid}                   an element
- * {ns}relationship-{uuid}              a qualified relationship
- * {ns}view-{uuid}                      a view
- * {ns}node-{uuid}   {ns}link-{uuid}    diagram geometry
- * {link}-points-{i}   {link}-p{i}      a link's route (list cells, points)
- * {ns}graph/model|semantic|views       the DD-15 graphs, at rest only
+ * {ns}model                              the arch:Model
+ * {ns}{kind}/{uuid}                      an element, relationship, view or folder
+ * {view}#node/{uuid}  {view}#link/{uuid} a shape drawn in a view, named in the view's IRI
+ * {owner}/{part}[/{key}]                 a part: {node}/style, {link}/points/{i}, {link}/point/{i}, …
+ * {ns}graph/model|semantic|views         the DD-15 graphs, at rest only
  * ```
  *
- * Flat, because a Turtle prefixed name cannot contain `/`: with the namespace
- * bound to `m:` every minted IRI is written `m:element-…`, `m:view-…`.
+ * What la-gram minted before DD-41 keeps its name — `{ns}element-{uuid}`,
+ * `{ns}node-{uuid}`, `{node}-style`, `{link}-points-{i}`, `{link}-p{i}` — and
+ * is read as before: a tool never rewrites the local part of an IRI. Turtle
+ * writes the layout short (`rdf-engine/turtle-writer.ts`): `me:{uuid}`,
+ * `mv3ef7da72:node\/{uuid}`.
  *
  * `base` is `https://example.org/` unless configured — a placeholder domain,
  * reserved for exactly this. A team publishing its models sets its own, and a
@@ -62,21 +63,75 @@ export function uuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** Kinds of resource minted in a model's namespace. */
-export type MintKind = 'element' | 'relationship' | 'view' | 'node' | 'link' | 'folder';
+/** Kinds of resource minted in a model's namespace, `{ns}{kind}/{uuid}`. A shape is minted in its view: {@link mintShapeIri}. */
+export type MintKind = 'element' | 'relationship' | 'view' | 'folder';
+
+/** Kinds of shape drawn in a view. */
+export type ShapeKind = 'node' | 'link';
 
 /**
  * A namespace IRI ends in `/`, `#` or `:`, so a local name can follow it
- * directly; anything else gets a `/`.
+ * directly; anything else gets a `/`. A saved model's namespace is read so,
+ * whatever its form; a new one also passes {@link namespaceProblem}.
  */
 export function ensureNamespace(namespace: string): string {
   const ns = namespace.trim();
   return /[/#:]$/.test(ns) ? ns : `${ns}/`;
 }
 
-/** A new IRI of the given kind in a model's namespace. */
+/** A new IRI of the given kind in a model's namespace: `{ns}{kind}/{uuid}` (DD-41). */
 export function mintIri(namespace: string, kind: MintKind): string {
-  return `${ensureNamespace(namespace)}${kind}-${uuid()}`;
+  return `${ensureNamespace(namespace)}${kind}/${uuid()}`;
+}
+
+/**
+ * A new node's or link's IRI, named in its view's (DD-41): `{view}#node/{uuid}`,
+ * `{view}#link/{uuid}`. An IRI holds one `#`, so in a view whose IRI already
+ * holds one — a model saved with a namespace ending in `#` — the shape is minted
+ * flat in the model's namespace, `{ns}node-{uuid}`, as la-gram minted every
+ * shape before.
+ */
+export function mintShapeIri(viewIri: string, kind: ShapeKind, modelNamespace: () => string): string {
+  return viewIri.includes('#') ? `${ensureNamespace(modelNamespace())}${kind}-${uuid()}` : `${viewIri}#${kind}/${uuid()}`;
+}
+
+/** A part of `owner`, named under it with `/` (DD-41): `{owner}/{part}[/{key}]`. */
+export function partIri(owner: string, ...segments: string[]): string {
+  return [owner, ...segments].join('/');
+}
+
+/**
+ * Whether `iri` is the part `part` of `owner`, named either way la-gram has named
+ * it: `{owner}/{part}`, as from DD-41 on, or `{owner}-{part}`, as before — with
+ * `/{key}` or `-{key}` after it when `key` matches.
+ */
+export function isPartNamed(owner: string, iri: string, part: string, key?: RegExp): boolean {
+  if (!iri.startsWith(owner)) return false;
+  const rest = iri.slice(owner.length);
+  for (const joiner of ['/', '-']) {
+    const name = `${joiner}${part}`;
+    if (rest === name) return true;
+    if (key && rest.startsWith(`${name}${joiner}`) && new RegExp(`^(?:${key.source})$`).test(rest.slice(name.length + 1))) return true;
+  }
+  return false;
+}
+
+/**
+ * An identifier as one path segment, as the Linked.Archi converters encode it
+ * (Java's `URLEncoder`, a space as `%20`): so an Exchange file imported here and
+ * converted there gives the same local names.
+ */
+export function pathSegment(id: string): string {
+  return encodeURIComponent(id).replace(/[!'()~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/**
+ * Whether `namespace` takes a reference relative to it: an `https:` or `http:`
+ * IRI ending in `/`, with no `#` or `?` — DD-41's rule for a model's namespace.
+ * A URN has no path to resolve against, and a `#` in it would give every shape two.
+ */
+export function isPathNamespace(namespace: string): boolean {
+  return /^https?:\/\/[^/?#\s]+\/(?:[^?#\s]*\/)?$/.test(namespace);
 }
 
 /**
@@ -120,6 +175,9 @@ export function namespaceProblem(namespace: string): string | null {
   if (!ns) return 'The namespace is empty.';
   if (/[\s<>"{}|\\^`]/.test(ns)) return 'The namespace contains characters an IRI cannot.';
   if (!/^[A-Za-z][A-Za-z0-9+.-]*:./.test(ns)) return 'The namespace must be an absolute IRI, such as https://example.org/models/payments/.';
+  // DD-41: a diagram's shapes are named in their view's IRI after a `#`, and an IRI holds one.
+  if (/[#?]/.test(ns)) return 'The namespace cannot hold a # or a ?, such as https://example.org/models/payments/.';
+  if (!isPathNamespace(ensureNamespace(ns))) return 'The namespace must be an https: or http: IRI, such as https://example.org/models/payments/.';
   return null;
 }
 

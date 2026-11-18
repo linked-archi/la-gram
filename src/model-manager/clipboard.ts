@@ -179,11 +179,13 @@ function conceptQuads(store: RdfStore, iri: string, modelIri: string): Quad[] {
 
 /**
  * A placement's triples and everything that hangs off it: followed through objects that are blank nodes or
- * named under the placement (`{node}-style`, `{link}-points-0`, `{link}-label`), and through its style, its
- * label expressions, its moved name and its route, which may be named otherwise (another tool's, or shared).
+ * named under the placement — `{node}/style`, `{link}/points/0`, `{link}/label` (DD-41), or `{node}-style`,
+ * `{link}-points-0`, `{link}-label` as la-gram named them before — and through its style, its label
+ * expressions, its moved name and its route's cells and points, which may be named otherwise (another
+ * tool's, or shared).
  */
 function placementQuads(store: RdfStore, placementIri: string): Quad[] {
-  const FOLLOWED = new Set([IRI.visStyle, IRI.labelExpression, IRI.visLabel, IRI.points]);
+  const FOLLOWED = new Set([IRI.visStyle, IRI.labelExpression, IRI.visLabel, IRI.points, IRI.rdfFirst, IRI.rdfRest]);
   const quads: Quad[] = [];
   const seen = new Set<string>();
   const queue: Term[] = [nn(placementIri)];
@@ -197,7 +199,9 @@ function placementQuads(store: RdfStore, placementIri: string): Quad[] {
       const o = q.object;
       const owned =
         o.termType === 'BlankNode' ||
-        (o.termType === 'NamedNode' && (o.value.startsWith(`${placementIri}-`) || FOLLOWED.has(q.predicate.value)));
+        (o.termType === 'NamedNode' &&
+          o.value !== IRI.rdfNil &&
+          (o.value.startsWith(`${placementIri}/`) || o.value.startsWith(`${placementIri}-`) || FOLLOWED.has(q.predicate.value)));
       if (owned) queue.push(o);
     }
   }
@@ -301,9 +305,14 @@ export function readFragment(text: string): ClipboardFragment | undefined {
   }
 }
 
-/** A copy as Turtle, for pasting into a text editor (R4). */
+/**
+ * A copy as Turtle, for pasting into a text editor (R4): the model it was copied from written as a saved
+ * model is, with the prefixes per kind and per view (DD-41), when `prefixes` names its namespace.
+ */
 export function fragmentTurtle(fragment: ClipboardFragment, prefixes: PrefixMap): string {
-  return new N3TtlSerializer().serialize(fragment.quads, prefixes);
+  const namespace = fragment.source.namespace;
+  const prefix = namespace ? Object.keys(prefixes).find((label) => prefixes[label] === namespace) : undefined;
+  return new N3TtlSerializer().serialize(fragment.quads, prefixes, namespace && prefix ? { namespace, prefix } : undefined);
 }
 
 // ── Pasting ─────────────────────────────────────────────────────────────

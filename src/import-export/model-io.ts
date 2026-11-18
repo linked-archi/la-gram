@@ -15,8 +15,10 @@
  *
  * `{ns}` is the model's namespace, `{base}{notation}/{modelId}/`, so the graph
  * IRIs are exactly DD-15's. The same namespace is written as the `m:` prefix
- * (or whatever prefix the model declares), and every IRI minted in it is a
- * flat local name, so the Turtle reads `m:element-…` rather than full IRIs.
+ * (or whatever prefix the model declares), with a prefix per kind and per view
+ * derived from it, and what no prefix fits relative to `@base` (DD-41,
+ * `rdf-engine/turtle-writer.ts`): the Turtle reads `m:element-…`, `me:…` and
+ * `mv…:node\/…` rather than full IRIs.
  *
  * TriG, N-Quads and JSON-LD get that partition. Turtle, N-Triples and RDF/XML
  * cannot name graphs, so they get the union; `arch:inModel` on every concept is
@@ -37,7 +39,7 @@
  */
 
 import { Writer as N3Writer, DataFactory, Parser as N3Parser } from 'n3';
-import type { NamedNode, Quad } from '@rdfjs/types';
+import type { Quad } from '@rdfjs/types';
 import * as oxigraph from 'oxigraph';
 import type { PrefixMap, RdfStore } from '../rdf-engine/interfaces.js';
 import { NAMESPACES, PREFIXES } from '../rdf-engine/namespaces.js';
@@ -45,6 +47,7 @@ import { detectFormat, parseRdf, type AssetFormat } from '../metamodel-manager/a
 import { modelQuads } from '../model-manager/model-queries.js';
 import { readModelNamespace } from '../model-manager/model-namespace.js';
 import { ensureNamespace } from '../rdf-engine/iri.js';
+import { KIND_PREFIXES, writeTurtle } from '../rdf-engine/turtle-writer.js';
 import { IRI, nn } from '../model-manager/vocabulary.js';
 
 /** File formats a model can be saved in. */
@@ -188,6 +191,14 @@ export class ModelIO {
       // One prefix per namespace: drop another name bound to the same IRI.
       for (const [name, uri] of Object.entries(prefixes)) if (uri === own.namespace) delete prefixes[name];
       prefixes[own.prefix] = own.namespace;
+      // A prefix per kind (DD-41) — `me:` for `{ns}element/` — so that the SPARQL tab, the history and the
+      // graph show the model's IRIs short as a saved file does; not one a vocabulary holds for something else.
+      const bound = new Set(Object.values(prefixes));
+      for (const [suffix, segment] of KIND_PREFIXES) {
+        const label = own.prefix + suffix;
+        const uri = own.namespace + segment;
+        if (!(label in prefixes) && !bound.has(uri)) prefixes[label] = uri;
+      }
     }
     return { ...prefixes, ...extra };
   }
@@ -247,14 +258,15 @@ export class ModelIO {
   private write(quads: Quad[], format: ModelFormatInfo, modelIri: string | undefined, extra?: PrefixMap): string {
     const sorted = [...quads].sort(compareQuads);
     if (format.id === 'turtle' || format.id === 'trig') {
-      const prefixes = usedPrefixes(this.collectPrefixes(modelIri, extra), sorted);
-      const writer = new N3Writer({ prefixes, format: format.id === 'trig' ? 'application/trig' : 'text/turtle' });
-      for (const q of sorted) writer.addQuad(q as never);
-      let output = '';
-      writer.end((_err: Error | null, result: string) => {
-        output = result ?? '';
+      // The model's IRIs written short as DD-41 says — a prefix per kind and per view, then relative to
+      // `@base` — and every other prefix only where an IRI uses it.
+      const own = modelIri ? readModelNamespace(this.store, modelIri) : undefined;
+      return writeTurtle(sorted, {
+        prefixes: this.collectPrefixes(modelIri, extra),
+        onlyUsed: true,
+        ...(own ? { model: { namespace: own.namespace, prefix: own.prefix } } : {}),
+        format: format.id === 'trig' ? 'application/trig' : 'text/turtle',
       });
-      return output;
     }
     // The rest through Oxigraph's serializers, which cover JSON-LD and RDF/XML.
     // JSON-LD has no RDF 1.2 triple terms: the `rdf:reifies` a qualified
@@ -286,30 +298,6 @@ export function formatOfPath(path: string): ModelFormat | undefined {
 export function parseModelText(text: string, format: AssetFormat): Quad[] {
   if (format === 'application/ld+json' || format === 'application/rdf+xml') return parseRdf(text, format);
   return new N3Parser({ format }).parse(text) as unknown as Quad[];
-}
-
-/** Keep only prefixes some IRI in the output actually uses. */
-function usedPrefixes(prefixes: PrefixMap, quads: Quad[]): PrefixMap {
-  const iris = new Set<string>();
-  for (const q of quads) {
-    for (const term of [q.subject, q.predicate, q.object, q.graph]) {
-      if (term.termType === 'NamedNode') iris.add(term.value);
-      if (term.termType === 'Literal') {
-        const datatype = (term as { datatype?: NamedNode }).datatype?.value;
-        if (datatype) iris.add(datatype);
-      }
-    }
-  }
-  const used: PrefixMap = {};
-  for (const [prefix, uri] of Object.entries(prefixes)) {
-    for (const iri of iris) {
-      if (iri.startsWith(uri) && iri.length > uri.length) {
-        used[prefix] = uri;
-        break;
-      }
-    }
-  }
-  return used;
 }
 
 /** Graph, then subject, then `rdf:type` before other predicates, then object — deterministic output (Req 9.12). */

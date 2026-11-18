@@ -47,10 +47,13 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.agents/specs/la-gra
 - Model data lives in the store's **default graph**; each metamodel document in a
   named graph keyed by its ontology IRI. Never write model data to a named graph
   at runtime; never read "all quads" when you mean the model (`modelQuads`).
-- IRIs are minted with `rdf-engine/iri.ts` — flat names in the model's namespace
-  (`{ns}element-{uuid}`, so Turtle writes them as `m:…`), never counters, never
-  with a `/` in the local part. Mint through the managers, which look the
-  namespace up (`model-manager/model-namespace.ts`); never hard-code a base.
+- IRIs are minted with `rdf-engine/iri.ts` in the layout every Linked.Archi tool
+  shares (DD-41): `{ns}{kind}/{uuid}`, a node or a line in its view's IRI
+  (`{view}#node/{uuid}`), a part under its owner with `/` (`partIri`); never
+  counters. Names minted before keep theirs (`{ns}element-{uuid}`, `{node}-style`)
+  and are read either way (`isPartNamed`); never rename a part. Mint through the
+  managers, which look the namespace up (`model-manager/model-namespace.ts`);
+  never hard-code a base.
 - Labels and other human text are language-tagged (`@en` by default) — the
   Linked.Archi shapes reject plain strings.
 - RDF terms for the model layer come from `model-manager/vocabulary.ts` (`IRI`,

@@ -42,7 +42,11 @@ let a: string, b: string, c: string, r1: string, r2: string, v1: string, v2: str
 const objects = (s: string, p: string) => store.getQuads(nn(s), nn(p), null).map((q) => q.object.value);
 const source = (viewIri: string, modelIri = MODEL) => ({ modelIri, viewIri, metamodelIris: [], version: 'test' });
 const nodeOf = (view: string, element: string) => deps.views.getNodes(view).find((n) => n.elementIri === element)!.nodeIri;
-const modelElements = () => store.getQuads(null, T.inModel, nn(MODEL)).map((q) => q.subject.value).filter((s) => !s.includes('/view-'));
+const modelElements = () =>
+  store
+    .getQuads(null, T.inModel, nn(MODEL))
+    .map((q) => q.subject.value)
+    .filter((s) => store.getQuads(nn(s), T.rdfType, T.View).length === 0);
 
 beforeEach(() => {
   store = new ObservableRdfStore(new OxigraphRdfStore());
