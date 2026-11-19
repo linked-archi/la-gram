@@ -105,6 +105,19 @@ describe('a model’s IRIs against the layout (DD-41)', () => {
     expect({ ...iris, legacy: [] }).toEqual(none);
   });
 
+  it('as meta’s derivation rules named one before it: the derivation, its activity and the association are legacy', () => {
+    const sha1 = '11fbc7f19f5dde599bb4af7c59942ea8eeb82883';
+    const PROV = 'http://www.w3.org/ns/prov#';
+    const quads = [
+      ...model(dd41),
+      quad(`${NS}derivation-${sha1}`, `${PROV}wasGeneratedBy`, `${NS}derivation-activity-${sha1}`),
+      quad(`${NS}derivation-activity-${sha1}`, `${PROV}qualifiedAssociation`, `${NS}derivation-activity-${sha1}-association`),
+    ];
+    const { iris } = layoutReport(quads)!;
+    expect(local(iris.legacy)).toEqual([`derivation-${sha1}`, `derivation-activity-${sha1}`, `derivation-activity-${sha1}-association`]);
+    expect({ ...iris, legacy: [] }).toEqual(none);
+  });
+
   it('as a converter named one before it: the shapes nested under their view are legacy, their parts under them are not', () => {
     const { iris } = layoutReport(model(convertedBefore))!;
     expect(local(iris.legacy)).toEqual(['view/v1/connection/c1', 'view/v1/node/a', 'view/v1/node/b']);
@@ -139,7 +152,7 @@ describe('a model’s IRIs against the layout (DD-41)', () => {
     expect(local(iris.characters)).toEqual(['element/a b']);
   });
 
-  it('a view that is not view/…, a compound identity, a documentation section by its file: in it', () => {
+  it('a view that is not view/…, a compound identity, a documentation section by its file, a derivation and its parts: in it', () => {
     const quads = [
       ...model(dd41),
       quad(`${NS}element/Process_1#link/Flow_1`, `${VIS}view`, `${NS}element/Process_1`),
@@ -147,6 +160,9 @@ describe('a model’s IRIs against the layout (DD-41)', () => {
       quad(`${NS}element/component/default/payments`, TYPE, 'https://example.org/backstage#Component'),
       quad(`${NS}documentation/5/README.md`, TYPE, 'https://example.org/c4#Section'),
       quad(`${NS}graph/views`, TYPE, 'https://example.org/vocab#Graph'),
+      // A derivation of meta's ArchiMate rules, its activity and the association under it.
+      quad(`${NS}relationship/11fbc7f19f5dde599bb4`, 'http://www.w3.org/ns/prov#wasGeneratedBy', `${NS}relationship/11fbc7f19f5dde599bb4/activity`),
+      quad(`${NS}relationship/11fbc7f19f5dde599bb4/activity`, 'http://www.w3.org/ns/prov#qualifiedAssociation', `${NS}relationship/11fbc7f19f5dde599bb4/activity/association`),
     ];
     expect(layoutReport(quads)!.iris).toEqual(none);
   });

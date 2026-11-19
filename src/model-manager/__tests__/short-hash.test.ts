@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { sha1Hex, sha256Hex, shortHash } from '../short-hash.js';
+import { keyDigest, sha256Hex, shortHash } from '../short-hash.js';
 
-describe('sha1Hex', () => {
-  it('is SHA-1 of the UTF-8 bytes, as SPARQL’s SHA1() gives it', () => {
-    expect(sha1Hex('abc')).toBe('a9993e364706816aba3e25717850c26c9cd0d89d');
-    expect(sha1Hex('')).toBe('da39a3ee5e6b4b0d3255bfef95601890afd80709');
-    // Each padding boundary, and text beyond ASCII.
-    for (const text of ['a'.repeat(55), 'a'.repeat(56), 'a'.repeat(64), 'a'.repeat(119), 'Serving → ✓ ü '.repeat(30)]) {
-      expect(sha1Hex(text)).toBe(createHash('sha1').update(text, 'utf8').digest('hex'));
-    }
-  });
-
-  it('leaves shortHash as it was', () => {
+describe('shortHash', () => {
+  it('is 8 hex characters', () => {
     expect(shortHash('abc')).toMatch(/^[0-9a-f]{8}$/);
+  });
+});
+
+describe('keyDigest', () => {
+  it('is the first 20 hex characters of the SHA-256, as DD-41, the converters and SPARQL’s SUBSTR(SHA256(…), 1, 20) give it', () => {
+    expect(keyDigest('abc')).toBe('ba7816bf8f01cfea4141');
+    for (const text of ['', 'Serving → ✓ ü 🙂', 'urn:bare:a https://meta.linked.archi/archimate4/onto#serves urn:bare:b']) {
+      expect(keyDigest(text)).toBe(createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 20));
+    }
   });
 });
 

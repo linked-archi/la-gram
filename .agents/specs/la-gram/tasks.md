@@ -401,9 +401,7 @@ Agreed order; relationship visuals come first.
 
 ## Known limitations
 
-- The Linked.Archi IRI layout (Req 9.7c): the relationships la-gram derives on opening a model keep
-  `{ns}relationship-{sha1}`, the name meta's derivation rules give them, until the rules move to the layout,
-  so `la-gram-git check` counts them as legacy; deleting a view leaves its placements' own styles, as before
+- The Linked.Archi IRI layout (Req 9.7c): deleting a view leaves its placements' own styles, as before
   (`converted-styles-and-routes`, Open 1).
 - A namespace move (Req 18.27–18.28): la-gram merges other versions into a model moved here, but does not
   follow a move made on the other side — *Pull from Git*, *Merge with the newer version*, *Update from
@@ -434,6 +432,24 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-19 — relationships made for bare triples named in the layout (DD-41)
+
+- The relationship la-gram makes for a link a file states only as a triple is `{ns}relationship/{digest}`:
+  the first 20 hex characters of the SHA-256 of "subject predicate object", the digest DD-41 and the
+  converters use, and the name meta's ArchiMate derivation rules now give the same triple (Req 4.22; design
+  decision 36). Before, it was `relationship-` and the SHA-1, which `la-gram-git check` counted as legacy.
+  One made before keeps its name, and opening the file again makes no second one. `keyDigest` replaces
+  `sha1Hex` in `short-hash.ts`.
+- `la-gram-git check` counts the derivation rules' former names as legacy too — `derivation-{sha1}`,
+  `derivation-activity-{sha1}` and its `-association` — where it listed them as outside the layout (Req 20.2).
+- Tests: *model-session.test* (the name, which RDF4J gives the same triple in meta's rules), *short-hash.test*
+  (`keyDigest`), *iri-conformance.test* (a derivation and its parts in the layout; the rules' former names
+  legacy). Verified: type checking and all 2,724 unit tests pass.
+- Documentation brought up to date with the layout: *File formats* › *RDF from other tools* shows what saving
+  an adopted file writes — the view and its shapes in the layout, and the link the file states as a triple a
+  relationship, drawn — taken from opening and saving the example in la-gram; the tool specification's §8.1
+  (`docs/linked-archi-tool-spec.md`) names what la-gram mints as DD-41 does.
 
 ### 2026-11-18 — a namespace move in Git, and the IRI layout checked (DD-41, part 4)
 

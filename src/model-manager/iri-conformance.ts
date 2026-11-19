@@ -19,7 +19,8 @@
  *
  * — unless it is named as before the layout, which makes it `legacy` instead:
  * la-gram's `{kind}-{id}` and `{owner}-{part}`, a converter's
- * `{ns}view/{v}/node/{id}`.
+ * `{ns}view/{v}/node/{id}`, meta's derivation rules' `{ns}derivation-{sha1}`
+ * and `{ns}derivation-activity-{sha1}[-association]`.
  */
 
 import type { Quad, Term } from '@rdfjs/types';
@@ -50,8 +51,12 @@ export interface LayoutReport {
 /** The kinds of resource with an identity of their own: `{ns}{kind}/{id}`. */
 const KINDS = 'element|relationship|view|folder|decision|documentation';
 const IN_LAYOUT = new RegExp(`^(?:model(?:/.*)?|graph/[^/#]+|(?:${KINDS})/[^/#].*)$`);
-/** What la-gram minted before DD-41: `{ns}element-{uuid}`, `{ns}node-{uuid}`, and their parts, `{node}-style`. */
-const LEGACY = /^(?:element|relationship|view|folder|node|link)-./;
+/**
+ * What la-gram minted before DD-41: `{ns}element-{uuid}`, `{ns}node-{uuid}`, and their parts, `{node}-style`;
+ * and meta's ArchiMate derivation rules: `{ns}relationship-{sha1}` for a triple they qualified,
+ * `{ns}derivation-{sha1}` for a derivation, `{ns}derivation-activity-{sha1}` and its `-association`.
+ */
+const LEGACY = /^(?:element|relationship|view|folder|node|link|derivation)-./;
 /** A converter's shapes before DD-41: `{ns}view/{v}/node/{id}`. */
 const LEGACY_SHAPE = /^view\/[^/#]+\/(?:node|link|connection)\/[^/#]+$/;
 /** A path's characters (RFC 3987 `ipchar` and `/`), and a fragment's (`?` too, and `#`, which `hashes` counts). */

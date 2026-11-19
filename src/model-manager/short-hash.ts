@@ -9,55 +9,13 @@ export function shortHash(text: string): string {
 }
 
 /**
- * SHA-1 of a string's UTF-8 bytes, in lower-case hex — what SPARQL's `SHA1()` gives, so an IRI la-gram mints
- * from a key is the one meta's rules mint from it (`relationship-` + SHA1 of "s p o", the ArchiMate derivation
- * rules' `:QualifyRelationships`). Synchronous, unlike Web Crypto's, as the model's repairs on opening are.
+ * DD-41's digest of a key: the first 20 hex characters of the SHA-256 of its UTF-8 bytes, as the
+ * converters' `IriSegment.digest` gives it, and SPARQL's `SUBSTR(SHA256(key), 1, 20)` in meta's derivation
+ * rules. So the IRI la-gram mints from a key is the one the rules mint from it: `relationship/` + the digest
+ * of "s p o" for a direct triple (`:QualifyRelationships`).
  */
-export function sha1Hex(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  const bitLength = bytes.length * 8;
-  const blocks = Math.ceil((bytes.length + 9) / 64);
-  const message = new Uint8Array(blocks * 64);
-  message.set(bytes);
-  message[bytes.length] = 0x80;
-  const view = new DataView(message.buffer);
-  view.setUint32(message.length - 8, Math.floor(bitLength / 0x100000000));
-  view.setUint32(message.length - 4, bitLength >>> 0);
-  let h0 = 0x67452301;
-  let h1 = 0xefcdab89;
-  let h2 = 0x98badcfe;
-  let h3 = 0x10325476;
-  let h4 = 0xc3d2e1f0;
-  const w = new Uint32Array(80);
-  const rotl = (x: number, n: number): number => ((x << n) | (x >>> (32 - n))) >>> 0;
-  for (let block = 0; block < blocks; block += 1) {
-    for (let i = 0; i < 16; i += 1) w[i] = view.getUint32(block * 64 + i * 4);
-    for (let i = 16; i < 80; i += 1) w[i] = rotl(w[i - 3]! ^ w[i - 8]! ^ w[i - 14]! ^ w[i - 16]!, 1);
-    let a = h0;
-    let b = h1;
-    let c = h2;
-    let d = h3;
-    let e = h4;
-    for (let i = 0; i < 80; i += 1) {
-      const [f, k] =
-        i < 20 ? [(b & c) | (~b & d), 0x5a827999]
-        : i < 40 ? [b ^ c ^ d, 0x6ed9eba1]
-        : i < 60 ? [(b & c) | (b & d) | (c & d), 0x8f1bbcdc]
-        : [b ^ c ^ d, 0xca62c1d6];
-      const temp = (rotl(a, 5) + (f >>> 0) + e + k + w[i]!) >>> 0;
-      e = d;
-      d = c;
-      c = rotl(b, 30);
-      b = a;
-      a = temp;
-    }
-    h0 = (h0 + a) >>> 0;
-    h1 = (h1 + b) >>> 0;
-    h2 = (h2 + c) >>> 0;
-    h3 = (h3 + d) >>> 0;
-    h4 = (h4 + e) >>> 0;
-  }
-  return [h0, h1, h2, h3, h4].map((h) => h.toString(16).padStart(8, '0')).join('');
+export function keyDigest(key: string): string {
+  return sha256Hex(key).slice(0, 20);
 }
 
 /** SHA-256's round constants: the first 32 bits of the fractional parts of the cube roots of the first 64 primes. */
@@ -74,8 +32,9 @@ const SHA256_K = new Uint32Array([
 
 /**
  * SHA-256 of a string's UTF-8 bytes, in lower-case hex. A view's Turtle prefix is named by the first 8
- * characters of its IRI's (DD-41), the hash the converters name it by too. Synchronous, unlike Web Crypto's,
- * because a save does not wait.
+ * characters of its IRI's (DD-41), the hash the converters name it by too, and a key's digest by the first
+ * 20 ({@link keyDigest}). Synchronous, unlike Web Crypto's, because a save does not wait, nor do the model's
+ * repairs on opening.
  */
 export function sha256Hex(text: string): string {
   const bytes = new TextEncoder().encode(text);

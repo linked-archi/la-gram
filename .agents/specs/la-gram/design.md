@@ -292,10 +292,11 @@ membership, `rdf:reifies`, qualified pointers — and `ensureRelationshipResourc
 the third: for each predicate some relationship class names as its `arch:unqualifiedForm`, the most general
 such class (a bare triple says no more), and for each `owl:inverseOf` of one, the drawn predicate read the
 other way; every model triple of those, both ends concepts of the model and not yet reified, gets a resource.
-Its IRI is `{namespace}relationship-{SHA-1 of "s p o"}` — the IRI meta's ArchiMate derivation rules give the
-same triple (`:QualifyRelationships`) — so the repair is idempotent and two clients adopting one room's data
-make one resource, not two: a random IRI, as a drawn link gets, would have made both. SHA-1 is computed
-synchronously (`sha1Hex`, `short-hash.ts`), as the repairs are; Web Crypto's is asynchronous. Making them on
+Its IRI is `{namespace}relationship/{digest of "s p o"}` — the IRI meta's ArchiMate derivation rules give the
+same triple (`:QualifyRelationships`), key decision 36 — so the repair is idempotent and two clients adopting
+one room's data make one resource, not two: a random IRI, as a drawn link gets, would have made both. The
+digest is computed synchronously (`keyDigest`, `short-hash.ts`), as the repairs are; Web Crypto's is
+asynchronous. A resource made before, `{namespace}relationship-{SHA-1}`, keeps its name. Making them on
 opening rather than when a link is placed on a view (decision D6 of meta's decision task) is what lists them
 under Relationships and lets a view draw them: the model changes on the next save, as the other repairs
 change it.
@@ -3526,8 +3527,8 @@ dialog; the modules' section).
     written relative. A writer of la-gram's own would have changed every file's text, grouping and
     literals included, which `la-gram-git check` compares byte for byte, so the override was chosen; the
     method is internal, so `package.json` and la-gram-git's pin n3 exactly, and `turtle-writer.test.ts`
-    fails when another version is installed. View prefixes are named by SHA-256 (`sha256Hex`, synchronous
-    beside `sha1Hex`), as DD-41 names them, so that a converter writing the same view gives the same
+    fails when another version is installed. View prefixes are named by SHA-256 (`sha256Hex`, synchronous),
+    as DD-41 names them, so that a converter writing the same view gives the same
     prefix. The derived prefixes are checked against every known prefix, not only those a file uses, so a
     file does not swap a prefix for relative IRIs when it starts using a vocabulary's term.
 
@@ -3547,8 +3548,8 @@ dialog; the modules' section).
     an IRI holds one `#`, and asking for a namespace change before the first shape would rename the whole
     model. An Exchange import names what it makes as the ArchiMate converter does (`pathSegment`, Java's
     `URLEncoder`), so an import and a conversion of one file give the same local names. A namespace change
-    keeps every local part; the derived relationships keep `relationship-{sha1}`, the name meta's derivation
-    rules give them, until those rules change.
+    keeps every local part. A relationship made for a bare triple is named as meta's rules name it
+    (decision 36).
 
 34. **A merge follows a namespace move; la-gram follows only its own** (Req 18.27–18.28, 20.5; DD-41's
     scenario S7; 2026-11-18). Moving a model renames every IRI in it, so a move on one side and an edit on
@@ -3576,6 +3577,18 @@ dialog; the modules' section).
     rest. It reads the file's triples rather than the opened model, so that what opening adds is not
     counted, and finds a shape, a part and its owner from the triples, as the guide's *Reading IRIs* says to,
     never from the name.
+36. **A relationship made for a bare triple is named as meta's derivation rules name it** (Req 4.22; DD-41;
+    2026-11-19). `ensureRelationshipResources` and the rules' `:QualifyRelationships` both mint
+    `{ns}relationship/{digest}`, the digest DD-41's and the converters' — the first 20 hex characters of the
+    SHA-256 (`keyDigest`) — of the triple's three IRIs joined by spaces, so a file opened in la-gram and run
+    through the rules gets one resource, not two. The rules build the key in SPARQL, and the key is joined by
+    spaces rather than length-prefixed as the converters' `PartIri.encode` does: SPARQL's `STRLEN` counts
+    characters where JavaScript counts UTF-16 code units, so the two would build different keys for an IRI
+    outside the Basic Multilingual Plane, and no IRI holds a space. A resource made before, named
+    `relationship-` and the SHA-1, keeps its name, and `la-gram-git check` counts it as legacy, with the
+    rules' own former names, `derivation-{sha1}` and `derivation-activity-{sha1}[-association]`. Neither
+    the rules nor `ensureRelationshipResources` makes a second resource beside it: both look for one that
+    is there, whatever its name. `sha1Hex` went with the SHA-1.
 
 ## Running
 

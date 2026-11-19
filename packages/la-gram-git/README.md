@@ -55,7 +55,8 @@ Also listed, never failed: the model's IRIs that are outside the layout every Li
 ([IRI Minting](https://meta.linked.archi/docs/guide/iri-minting/)) — a name not `{kind}/{id}`, a shape not named in
 its view, a part not under its owner, a second `#`, a character a path cannot hold — and a namespace the model
 does not state, or one that is not an `https:` or `http:` IRI ending in `/`. Names given before the layout,
-la-gram's `element-…` and the converters' `view/…/node/…`, are counted as legacy: no tool renames them.
+la-gram's `element-…`, the converters' `view/…/node/…` and the Linked.Archi derivation rules' `derivation-…`, are
+counted as legacy: no tool renames them.
 
 `--shapes <folder>` adds the shapes (`.ttl`) of a folder — your repository's, or your organisation's — to the
 metamodels'. Each file is a shapes document, as la-gram loads one: it names its graph with an

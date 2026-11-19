@@ -185,9 +185,10 @@ than its `arch:source` and `arch:target` is made to name its own, its predicate 
 
 **A link written only as a triple** is a relationship once the file is open. A tool or a hand-written file
 may state `m:card-payment am4:serves m:web-shop` and nothing more; la-gram gives it the resource, of the most
-general type whose predicate it is (`am4:Serving`), named `relationship-` and the SHA-1 of the triple's three
-IRIs, space-separated — the name the Linked.Archi derivation rules give it, so opening the file again, or in
-another window of a shared room, makes no second one. A triple of the inverse a vocabulary declares of a drawn
+general type whose predicate it is (`am4:Serving`), named `relationship/` and the first 20 hex characters of
+the SHA-256 of the triple's three IRIs, space-separated — the name the Linked.Archi derivation rules give it,
+so opening the file again, or in another window of a shared room, makes no second one. A resource made for a
+triple before, named `relationship-` and 40 hex characters, keeps its name. A triple of the inverse a vocabulary declares of a drawn
 predicate (`ap:taskOfActivity`, of `ap:hasTask`) is the same link read the other way: its resource, and its
 drawn triple, run the drawn way. A triple between something that is no concept of the model, or of a predicate
 two unrelated types share, is left as it is. The file changes on the next save.
@@ -221,6 +222,7 @@ A file with no `arch:Model` in it, written by another tool or by hand, opens too
 - it makes a model resource in a new namespace under the [`base`](url-parameters.md#base), named after
   the file (`inventory.ttl` gives the model "inventory"), conforming to the metamodels loaded;
 - it makes every element and view a member of the model (`arch:inModel`);
+- it makes each link the file states only as a triple a relationship ([The vocabulary](#vocabulary));
 - it gives the model a diagram view, *Default View*, when it has none;
 - when no view has any geometry, it places every element in that view in a grid, by type, six columns
   wide, and draws the relationships among them;
@@ -237,7 +239,8 @@ ex:warehouse a am4:ApplicationComponent; skos:prefLabel "Warehouse"@en.
 ```
 
 Opened as `inventory.ttl`, la-gram says *Opened inventory.ttl: 5 triples, 2 elements laid out.* Saved
-again, the file has these new statements (the namespace's UUID shortened to `…`):
+again, the file has these new statements (the UUIDs, and the view's prefix, which is named after its IRI,
+shortened to `…`):
 
 ```text
 m:model a arch:Model;
@@ -245,13 +248,19 @@ m:model a arch:Model;
     vann:preferredNamespaceUri "https://example.org/archimate/…/";
     skos:prefLabel "inventory"@en;
     arch:modelConformsToMetamodel am4mm:ArchiMate4.
-<https://example.org/acme/inventory/web-shop> … arch:inModel m:model; arch:inView m:view-….
-m:view-… a arch:Diagram, arch:View; skos:prefLabel "Default View"@en; arch:inModel m:model.
-m:node-… a arch-vis:ArchNode; arch-vis:archElement <https://example.org/acme/inventory/web-shop>; …
+<https://example.org/acme/inventory/web-shop> … am4:qualifiedServing mr:e26428537a5663f1d196;
+    arch:inModel m:model; arch:inView mv:….
+mr:e26428537a5663f1d196 a am4:Serving;
+    rdf:reifies <<(<https://example.org/acme/inventory/web-shop> am4:serves <https://example.org/acme/inventory/warehouse>)>>;
+    arch:inModel m:model; arch:inView mv:…;
+    arch:source <https://example.org/acme/inventory/web-shop>; arch:target <https://example.org/acme/inventory/warehouse>.
+mv:… a arch:Diagram, arch:View; skos:prefLabel "Default View"@en; arch:inModel m:model.
+mv…:node\/… a arch-vis:ArchNode; arch-vis:archElement <https://example.org/acme/inventory/web-shop>; …
+mv…:link\/… a arch-vis:Link; arch-vis:archRelationship mr:e26428537a5663f1d196; …
 ```
 
-The elements keep their own IRIs. A relationship given only as a plain triple (`am4:serves` here) stays
-a triple: la-gram draws relationships that have a relationship resource.
+The elements keep their own IRIs, and the `am4:serves` triple gets a relationship,
+`mr:e26428537a5663f1d196`, drawn between the two.
 
 ## Older la-gram files {#older-models}
 

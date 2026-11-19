@@ -294,7 +294,9 @@ describe('ModelSession', () => {
     expect(qualified).toBe(2);
 
     const namespace = session.namespace()!.namespace;
-    const serving = `${namespace}relationship-${createHash('sha1').update(`urn:bare:a ${AM4}serves urn:bare:b`).digest('hex')}`;
+    // DD-41's digest of "s p o": what meta's :QualifyRelationships names the same triple, run with RDF4J (2026-11-19).
+    expect(createHash('sha256').update(`urn:bare:a ${AM4}serves urn:bare:b`).digest('hex').slice(0, 20)).toBe('2fcfd79e430870899c4e');
+    const serving = `${namespace}relationship/2fcfd79e430870899c4e`;
     const of = (rel: string, p: string) => store.getQuads(nn(rel), nn(p)).map((q) => q.object.value);
     expect(of(serving, RDF_TYPE)).toEqual([AM4 + 'Serving']);
     expect([of(serving, ARCH + 'source'), of(serving, ARCH + 'target')]).toEqual([['urn:bare:a'], ['urn:bare:b']]);

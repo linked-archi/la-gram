@@ -45,7 +45,7 @@ const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedN
 import { isQualifiedPredicate, qualifiedFormOf, relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 import { certaintyNamed, isCertaintyPredicate, isLedTo } from './derivations.js';
 import { AUTO_LAYOUT } from './grid.js';
-import { sha1Hex } from './short-hash.js';
+import { keyDigest } from './short-hash.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -569,9 +569,10 @@ export class ModelSession {
    * both ends are concepts of the model, and no resource reifies it. The resource is what meta's rules make of
    * it (the ArchiMate derivation rules' `:QualifyRelationships`): the most general class of that form (a bare
    * triple says no more than that), `arch:source` and `arch:target`, `rdf:reifies` the triple, and the IRI
-   * `relationship-` + the SHA-1 of "s p o" in the model's namespace. So two windows opening the same file in
-   * one collaboration room, or a run of the rules, make the same resource, not two. It gets `arch:inModel`, and
-   * {@link ensureQualifiedPointers}, after it, the qualified predicate from its source.
+   * `{ns}relationship/{digest}` of "s p o" in the model's namespace (DD-41; {@link keyDigest}). So two windows
+   * opening the same file in one collaboration room, or a run of the rules, make the same resource, not two. It
+   * gets `arch:inModel`, and {@link ensureQualifiedPointers}, after it, the qualified predicate from its source.
+   * One made before, named `relationship-{sha1}`, keeps its name: a tool never renames.
    *
    * A triple of a predicate declared the `owl:inverseOf` of a drawn one (`?task ap:taskOfActivity ?activity`,
    * of `ap:hasTask`) is the same link read the other way: the resource is made for the drawn direction, and
@@ -636,7 +637,7 @@ export class ModelSession {
       if (reified.has(key) || !isConcept(source) || !isConcept(target)) return;
       reified.add(key);
       made += 1;
-      const rel = nn(`${namespace}relationship-${sha1Hex(key)}`);
+      const rel = nn(`${namespace}relationship/${keyDigest(key)}`);
       add.push(
         triple(rel, T.rdfType, nn(classOf.get(predicate)!)),
         triple(rel, T.source, nn(source)),

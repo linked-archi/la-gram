@@ -61,7 +61,7 @@ first three, relative to the namespace:
 | *shapes not named {view}#node/{id} or {view}#link/{id}* | a node or a line not named in the view its `arch-vis:view` names |
 | *parts not named under their owner* | a style, a route's cells and points, a label, not named `{owner}/…` |
 | *outside it, not model, graph/… or {kind}/{id}* | any other name in the namespace, and a model not named `{ns}model` |
-| *named before it (legacy)* | la-gram's names from before the layout, `element-…`, `node-…-style`, and the converters' `view/…/node/…` |
+| *named before it (legacy)* | la-gram's names from before the layout, `element-…`, `node-…-style`, the converters' `view/…/node/…`, and the Linked.Archi derivation rules' `derivation-…` and `derivation-activity-…` |
 
 No tool renames an IRI, so legacy names stay, counted rather than wrong. A model made in la-gram now has
 none of these lines; the example model's names are written by hand, `m:card-payment` say, so it has them.
