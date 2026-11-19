@@ -49,9 +49,10 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.agents/specs/la-gra
   at runtime; never read "all quads" when you mean the model (`modelQuads`).
 - IRIs are minted with `rdf-engine/iri.ts` in the layout every Linked.Archi tool
   shares (DD-41): `{ns}{kind}/{uuid}`, a node or a line in its view's IRI
-  (`{view}#node/{uuid}`), a part under its owner with `/` (`partIri`); never
-  counters. Names minted before keep theirs (`{ns}element-{uuid}`, `{node}-style`)
-  and are read either way (`isPartNamed`); never rename a part. Mint through the
+  (`{view}#node-{uuid}`), a part under its owner (`partIri`: `{node}-style` after
+  a `#`, `{element}/name/{hash}` elsewhere); never counters. Names minted before
+  keep theirs (`{ns}element-{uuid}`, `{ns}node-{uuid}-style`) and are read either
+  way (`isPartNamed`); never rename a part. Mint through the
   managers, which look the namespace up (`model-manager/model-namespace.ts`);
   never hard-code a base.
 - Labels and other human text are language-tagged (`@en` by default) — the

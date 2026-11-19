@@ -17,16 +17,21 @@
  * ```
  * {ns}model                              the arch:Model
  * {ns}{kind}/{uuid}                      an element, relationship, view or folder
- * {view}#node/{uuid}  {view}#link/{uuid} a shape drawn in a view, named in the view's IRI
- * {owner}/{part}[/{key}]                 a part: {node}/style, {link}/points/{i}, {link}/point/{i}, …
+ * {view}#node-{uuid}  {view}#link-{uuid} a shape drawn in a view, named in the view's IRI
+ * {owner}/{part}[/{key}]                 a part: {concept}/name/{context}, {folder}/item/{digest}, …
+ * {shape}-{part}[-{key}]                 a shape's part: {node}-style, {link}-points-{i}, {link}-point-{i}, …
  * {ns}graph/model|semantic|views         the DD-15 graphs, at rest only
  * ```
+ *
+ * After a `#` everything is joined with `-`, which a Turtle prefixed name holds
+ * as it is. Which shape a part belongs to is read from the triples, not from its
+ * name.
  *
  * What la-gram minted before DD-41 keeps its name — `{ns}element-{uuid}`,
  * `{ns}node-{uuid}`, `{node}-style`, `{link}-points-{i}`, `{link}-p{i}` — and
  * is read as before: a tool never rewrites the local part of an IRI. Turtle
  * writes the layout short (`rdf-engine/turtle-writer.ts`): `me:{uuid}`,
- * `mv3ef7da72:node\/{uuid}`.
+ * `mv3ef7da72:node-{uuid}`.
  *
  * `base` is `https://example.org/` unless configured — a placeholder domain,
  * reserved for exactly this. A team publishing its models sets its own, and a
@@ -85,25 +90,29 @@ export function mintIri(namespace: string, kind: MintKind): string {
 }
 
 /**
- * A new node's or link's IRI, named in its view's (DD-41): `{view}#node/{uuid}`,
- * `{view}#link/{uuid}`. An IRI holds one `#`, so in a view whose IRI already
+ * A new node's or link's IRI, named in its view's (DD-41): `{view}#node-{uuid}`,
+ * `{view}#link-{uuid}`. An IRI holds one `#`, so in a view whose IRI already
  * holds one — a model saved with a namespace ending in `#` — the shape is minted
  * flat in the model's namespace, `{ns}node-{uuid}`, as la-gram minted every
  * shape before.
  */
 export function mintShapeIri(viewIri: string, kind: ShapeKind, modelNamespace: () => string): string {
-  return viewIri.includes('#') ? `${ensureNamespace(modelNamespace())}${kind}-${uuid()}` : `${viewIri}#${kind}/${uuid()}`;
-}
-
-/** A part of `owner`, named under it with `/` (DD-41): `{owner}/{part}[/{key}]`. */
-export function partIri(owner: string, ...segments: string[]): string {
-  return [owner, ...segments].join('/');
+  return viewIri.includes('#') ? `${ensureNamespace(modelNamespace())}${kind}-${uuid()}` : `${viewIri}#${kind}-${uuid()}`;
 }
 
 /**
- * Whether `iri` is the part `part` of `owner`, named either way la-gram has named
- * it: `{owner}/{part}`, as from DD-41 on, or `{owner}-{part}`, as before — with
- * `/{key}` or `-{key}` after it when `key` matches.
+ * A part of `owner`, named under it (DD-41): `{owner}/{part}[/{key}]`, or, when
+ * `owner` is named in a fragment — a shape, `{view}#node-{uuid}` —
+ * `{owner}-{part}[-{key}]`, since after a `#` everything is joined with `-`.
+ */
+export function partIri(owner: string, ...segments: string[]): string {
+  return [owner, ...segments].join(owner.includes('#') ? '-' : '/');
+}
+
+/**
+ * Whether `iri` is the part `part` of `owner`, named either way la-gram names
+ * parts — `{owner}/{part}`, or `{owner}-{part}`, as in a fragment and as before
+ * DD-41 — with `/{key}` or `-{key}` after it when `key` matches.
  */
 export function isPartNamed(owner: string, iri: string, part: string, key?: RegExp): boolean {
   if (!iri.startsWith(owner)) return false;

@@ -267,7 +267,7 @@ export interface ViewManager {
    */
   /**
    * Place an element in a view. `another` places it again beside a placement it has; `iri` names the node,
-   * where an import keeps its source's names — otherwise it is minted in the view's IRI, `{view}#node/{uuid}`.
+   * where an import keeps its source's names — otherwise it is minted in the view's IRI, `{view}#node-{uuid}`.
    */
   addElementToView(viewIri: string, elementIri: string, bounds?: Bounds, options?: { another?: boolean; iri?: string }): string;
   /**

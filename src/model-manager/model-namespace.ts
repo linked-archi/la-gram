@@ -116,7 +116,7 @@ export interface NamespaceChangePlan {
  * What moving a model from one namespace to another rewrites.
  *
  * Every IRI in the model data that starts with `from` moves to `to`, keeping
- * its local name exactly — `element/{uuid}`, `view/{v}#node/{n}`, and the flat
+ * its local name exactly — `element/{uuid}`, `view/{v}#node-{n}`, and the flat
  * `element-{uuid}` la-gram minted before DD-41 alike: a tool never rewrites the
  * local part of an IRI, so a shape moves with its view. The model resource
  * itself becomes `{to}model`.

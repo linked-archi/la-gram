@@ -594,7 +594,7 @@ The engine **MUST** provide SPARQL 1.1, SHACL validation, and SHACL rules. Concr
 
 The table is illustrative, for a multi-workspace server. IRIs **MUST NOT** encode mutable data (labels, positions). Once minted, an element IRI is permanent for the lifetime of the workspace — changed only by an explicit namespace move (below).
 
-**Model namespace.** Each model **MUST** have a namespace, stated on the model resource with `vann:preferredNamespaceUri` and `vann:preferredNamespacePrefix` — the convention the Linked.Archi ontologies use for their own — and every IRI minted for the model **MUST** be in it. The namespace **SHOULD** follow the published layout `{base}{notation}/{modelId}/` (Linked.Archi DD-15/DD-29). The base **MUST** be configurable and **SHOULD** default to a placeholder such as `https://example.org/`, never to a domain the tool does not own. A new model's namespace **MUST** be an `https:` or `http:` IRI ending in `/`, with no `#` or `?`. IRIs **SHOULD** follow the layout every Linked.Archi tool mints (DD-41): a resource with an identity of its own is `{ns}{kind}/{id}`, a node or a link `{view}#node/{id}` or `{view}#link/{id}` in the view that draws it, and a part `{owner}/{part}`. A writer binds a prefix per kind and one per view, so the model still serializes as short names:
+**Model namespace.** Each model **MUST** have a namespace, stated on the model resource with `vann:preferredNamespaceUri` and `vann:preferredNamespacePrefix` — the convention the Linked.Archi ontologies use for their own — and every IRI minted for the model **MUST** be in it. The namespace **SHOULD** follow the published layout `{base}{notation}/{modelId}/` (Linked.Archi DD-15/DD-29). The base **MUST** be configurable and **SHOULD** default to a placeholder such as `https://example.org/`, never to a domain the tool does not own. A new model's namespace **MUST** be an `https:` or `http:` IRI ending in `/`, with no `#` or `?`. IRIs **SHOULD** follow the layout every Linked.Archi tool mints (DD-41): a resource with an identity of its own is `{ns}{kind}/{id}`, a node or a link `{view}#node-{id}` or `{view}#link-{id}` in the view that draws it, and a part `{owner}-{part}` when its owner's IRI holds a `#` (`{node}-style`), else `{owner}/{part}` (`{element}/name/{hash}`). A writer binds a prefix per kind and one per view, so the model still serializes as short names:
 
 | Resource | IRI (la-gram) | Written as |
 |---|---|---|
@@ -602,8 +602,9 @@ The table is illustrative, for a multi-workspace server. IRIs **MUST NOT** encod
 | Element | `{ns}element/{uuid}` | `me:…` |
 | Relationship (qualified form) | `{ns}relationship/{uuid}` | `mr:…` |
 | View | `{ns}view/{uuid}` | `mv:…` |
-| Diagram node / link | `{view}#node/{uuid}` / `{view}#link/{uuid}` | `mv{hash}:node\/…` / `mv{hash}:link\/…` |
-| Route (list cells, points) | `{link}/points/{i}` / `{link}/point/{i}` | `mv{hash}:link\/…\/point\/0` |
+| Diagram node / link | `{view}#node-{uuid}` / `{view}#link-{uuid}` | `mv{hash}:node-…` / `mv{hash}:link-…` |
+| Style of a node | `{node}-style` | `mv{hash}:node-…-style` |
+| Route (list cells, points) | `{link}-points-{i}` / `{link}-point-{i}` | `mv{hash}:link-…-point-0` |
 
 `{hash}` is the first 8 hex characters of the SHA-256 of the view's IRI. A relationship made for a link a file states only as a triple is `{ns}relationship/{digest}`, the first 20 hex characters of the SHA-256 of the triple, as the Linked.Archi derivation rules name it. Names minted before the layout keep their form (`{ns}element-{uuid}`, `{ns}node-{uuid}`, `{link}-p{i}`).
 

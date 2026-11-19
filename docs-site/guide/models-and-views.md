@@ -29,8 +29,8 @@ one diagram view, *Default View*, with no viewpoint.
 3. Choose *Create*.
 
 The model's elements are minted in the namespace as `element/…`, its views as `view/…`, and a diagram's
-nodes and lines in their view: `view/…#node/…`. A saved model writes them `me:…`, `mv:…` and
-`mv3ef7da72:node\/…` ([File formats and vocabulary](../reference/file-formats.md#formats)).
+nodes and lines in their view: `view/…#node-…`, `view/…#link-…`. A saved model writes them `me:…`, `mv:…`
+and `mv3ef7da72:node-…` ([File formats and vocabulary](../reference/file-formats.md#formats)).
 
 ## Model settings {#model-settings}
 

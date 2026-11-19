@@ -95,8 +95,8 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] RDF panel (Req 5.7): hidden by default, toolbar toggle / `?rdf=1`, six formats, geometry toggle, counts, copy, download, highlighting, selection ⇄ statements, no work while hidden, resizable — *rdf-panel.test, workbench.test, workbench.spec*
 - [x] HTTP URIs in a per-model namespace (Req 9.7a): `{base}{notation}/{uuid}/`, base `https://example.org/` or `?base=`; namespace + prefix stated with `vann:` on the model; DD-15 graphs under the namespace — *model-namespace.test, model-io.test*
 - [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (every local part kept) or only new ones; an `https:` or `http:` namespace with no `#` or `?` (DD-41); prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
-- [x] The Linked.Archi IRI layout minted (Req 9.7c; DD-41; design decision 33): `{ns}{kind}/{uuid}`, shapes in their view's IRI, parts with `/`; names minted before and a converter's kept and edited in place — own styles, routes (only what differs written), moved names, label expressions, names and pictures for a presentation context; relationships in the model's namespace; the Exchange import named as the converter names it — *iri-layout.test, model-namespace.test, archimate-importer.test, view-manager.test, clipboard.test, workbench.spec*
-- [x] IRIs of the Linked.Archi layout written short in Turtle and TriG (Req 5.13; DD-41): a prefix per kind, a prefix per view with the fragment escaped, then relative to `@base`; prefix clashes left to the vocabularies and to the first view; the copy as Turtle too; n3 pinned for the override (design decision 32) — *turtle-writer.test, model-io.test, short-hash.test*
+- [x] The Linked.Archi IRI layout minted (Req 9.7c; DD-41; design decision 33): `{ns}{kind}/{uuid}`, shapes in their view's IRI (`{view}#node-{uuid}`), parts joined with `-` after a `#` and with `/` elsewhere; names minted before and a converter's kept and edited in place — own styles, routes (only what differs written), moved names, label expressions, names and pictures for a presentation context; relationships in the model's namespace; the Exchange import named as the converter names it, a shape whose id would name another's part given a UUID — *iri-layout.test, model-namespace.test, archimate-importer.test, view-manager.test, element-manager.test, clipboard.test, workbench.spec*
+- [x] IRIs of the Linked.Archi layout written short in Turtle and TriG (Req 5.13; DD-41): a prefix per kind, a prefix per view (escaping what a local name cannot hold, which a shape and its parts never need), then relative to `@base`; prefix clashes left to the vocabularies and to the first view; the copy as Turtle too; n3 pinned for the override (design decision 32) — *turtle-writer.test, model-io.test, short-hash.test*
 - [x] The IRI layout checked by `la-gram-git check` (Req 20.2; DD-41; design decision 35): the namespace, then characters, `#`s, shapes, parts and other names outside the layout, and legacy names, counted and named, never failed; from the file's own triples — *iri-conformance.test, cli.test*
 - [x] A move made on the other side of a merge followed (Req 18.27–18.28; DD-41; design decision 34): *Pull from Git*, *Merge with the newer version* and *Update from main…* move the open model to the IRI the other version has it under, its binding with it (`movedFrom` until committed), the canvas on the same view; *Open this version* after *Open and move*; automatic checks and auto-commit stop; another model in the file is not merged — *git-pull.test, git-merge.test, git-history.test, model-namespace.test, git-merge.spec*
 - [x] A stakeholder is a kind of its own, `{ns}stakeholder/{id}`, as DD-41's kinds table now has it: in the layout for `la-gram-git check` (Req 20.2), and written with the prefix `{p}s:` (Req 5.13) — *iri-conformance.test, turtle-writer.test*
@@ -433,6 +433,32 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-19 — after a view's `#`, names joined with `-` (DD-41)
+
+- A node or a line is minted `{view}#node-{uuid}` or `{view}#link-{uuid}`, and its parts are joined to it
+  with `-`: `{node}-style`, `{node}-style-{hash}`, `{link}-points-{i}`, `{link}-point-{i}`, `{link}-label`,
+  `{node}-label-expression[-{hash}]` (Req 9.7c; design decision 33). Turtle writes a `/` in a prefixed name
+  only escaped, so a saved model's shapes now read `mv3ef7da72:node-{id}-style` where they read
+  `mv3ef7da72:node\/{id}\/style` (Req 5.13). A part of anything else is still joined with `/`
+  (`{element}/name/{hash}`, `{element}/picture`). `partIri` joins with `-` to an owner whose IRI holds a
+  `#`, so a part made for a shape minted flat in a `#` namespace is named as la-gram named one before DD-41
+  (`{ns}node-{uuid}-style`).
+- What a part belongs to is read from the triples, as before; the name decides nothing. A `-` lets a part
+  take the name of a shape beside its owner (`{link}-point-0` of line `c1` is line `c1-point-0`'s IRI):
+  la-gram's own shapes are UUIDs, and an Exchange import gives a UUID to a node or a connection whose id is
+  another's of its kind in the view followed by a part's name, where the ArchiMate converter refuses the
+  file. An Exchange import otherwise names shapes as the converter does, `{view}#node-{id}` and
+  `{view}#link-{id}`.
+- `la-gram-git check` reads a shape as in the layout when it is named `{view}#node-{id}` or
+  `{view}#link-{id}`, and a part when it is joined to its owner with `-` after a `#`, `/` elsewhere; a part
+  joined the other way is counted as legacy (Req 20.2; design decision 35).
+- Tests whose expected names changed: *iri-layout.test*, *model-namespace.test*, *iri-conformance.test*,
+  *archimate-importer.test*, *model-io.test*, *turtle-writer.test*, *view-manager.test*,
+  *element-manager.test*, *model-merge.test*, *view-canvas.test*. The import's UUID for a shape whose id
+  would name another's part has no test of its own. Docs: *Models and views*, *File formats*,
+  *la-gram-git*; README; `docs/linked-archi-tool-spec.md`. Verified: type checking, all 2,734 unit tests
+  and all 94 browser tests pass; `npm run build`, `npm run docs:build`.
 
 ### 2026-11-19 — a move made on the other side of a merge followed (DD-41)
 

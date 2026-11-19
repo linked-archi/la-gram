@@ -222,12 +222,12 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
 
     // Named as the ArchiMate converter names them (DD-41): every node and line in its view's IRI, by its id.
     expect(views.getNodes(viewIri).map((n) => n.nodeIri).sort()).toEqual(
-      ['n-api', 'n-api2', 'n-group', 'n-note', 'n-web'].map((id) => `${viewIri}#node/${id}`),
+      ['n-api', 'n-api2', 'n-group', 'n-note', 'n-web'].map((id) => `${viewIri}#node-${id}`),
     );
-    expect(link.linkIri).toBe(`${viewIri}#link/c1`);
-    expect(line.linkIri).toBe(`${viewIri}#link/c2`);
+    expect(link.linkIri).toBe(`${viewIri}#link-c1`);
+    expect(line.linkIri).toBe(`${viewIri}#link-c2`);
     expect(store.getQuads(nn(link.linkIri), nn(NAMESPACES['arch-vis'] + 'points')).map((x) => x.object.value)).toEqual([
-      `${viewIri}#link/c1/points/0`,
+      `${viewIri}#link-c1-points-0`,
     ]);
 
     // No retired vocabulary.

@@ -1,6 +1,6 @@
 /**
  * The Linked.Archi IRI layout (DD-41) in la-gram: what it mints — resources `{ns}{kind}/{uuid}`, shapes in their
- * view's IRI, parts under their owner with `/` — and what it reads and edits in place: its own names from before
+ * view's IRI, parts under their owner with `/`, or with `-` after the view's `#` — and what it reads and edits in place: its own names from before
  * the layout (`-style`, `-points-{i}`, `-p{i}`, `-label`, `-name-…`, `-picture`) and the converters' (`/style`,
  * `/points/{i}`, `/point/{i}`). A tool never renames a part (`.agents/tasks/iri-layout/requirements.md`, R11–R16).
  */
@@ -228,26 +228,26 @@ describe('what la-gram mints (R11, R12)', () => {
 
     const node = deps.views.addElementToView(view, a, { x: 0, y: 0, width: 120, height: 55 });
     deps.views.addElementToView(view, b, { x: 300, y: 0, width: 120, height: 55 });
-    expect(node).toMatch(new RegExp(`^${view}#node/${UUID}$`));
+    expect(node).toMatch(new RegExp(`^${view}#node-${UUID}$`));
     const link = deps.views.addRelationshipToView(view, r, [{ x: 200, y: 27 }, { x: 250, y: 27 }])!;
-    expect(link).toMatch(new RegExp(`^${view}#link/${UUID}$`));
-    expect(objects(link, IRI.points)).toEqual([`${link}/points/0`]);
-    expect(objects(`${link}/points/0`, IRI.rdfFirst)).toEqual([`${link}/point/0`]);
-    expect(objects(`${link}/points/0`, IRI.rdfRest)).toEqual([`${link}/points/1`]);
+    expect(link).toMatch(new RegExp(`^${view}#link-${UUID}$`));
+    expect(objects(link, IRI.points)).toEqual([`${link}-points-0`]);
+    expect(objects(`${link}-points-0`, IRI.rdfFirst)).toEqual([`${link}-point-0`]);
+    expect(objects(`${link}-points-0`, IRI.rdfRest)).toEqual([`${link}-points-1`]);
 
     deps.views.setAppearance(view, node, { fillColor: '#ff0000' });
-    expect(objects(node, IRI.visStyle)).toEqual([`${node}/style`]);
+    expect(objects(node, IRI.visStyle)).toEqual([`${node}-style`]);
     deps.views.setAppearance(view, node, { fillColor: '#00ff00' }, CONTEXT);
-    expect(objects(node, IRI.visStyle).find((s) => s !== `${node}/style`)).toMatch(new RegExp(`^${node}/style/[0-9a-f]{8}$`));
+    expect(objects(node, IRI.visStyle).find((s) => s !== `${node}-style`)).toMatch(new RegExp(`^${node}-style-[0-9a-f]{8}$`));
     deps.views.setLabelExpression(view, node, undefined, '{name}');
-    expect(objects(`${node}/style`, IRI.labelExpression)).toEqual([`${node}/label-expression`]);
+    expect(objects(`${node}-style`, IRI.labelExpression)).toEqual([`${node}-label-expression`]);
     deps.views.setLinkLabel!(view, r, { x: 10, y: 10, width: 60, height: 13 });
-    expect(objects(link, IRI.visLabel)).toEqual([`${link}/label`]);
+    expect(objects(link, IRI.visLabel)).toEqual([`${link}-label`]);
 
-    // Every IRI has at most one `#`, and a shape's parts stay in its fragment.
+    // Every IRI has at most one `#`, and a shape's parts stay in its fragment, joined with `-`.
     const all = [...subjects()];
     expect(all.filter((s) => s.split('#').length > 2)).toEqual([]);
-    expect(all.filter((s) => s.startsWith(`${view}#`)).every((s) => /#(?:node|link)\//.test(s))).toBe(true);
+    expect(all.filter((s) => s.startsWith(`${view}#`)).every((s) => /#(?:node|link)-[^/]+$/.test(s))).toBe(true);
   });
 
   it('mints a relationship drawn with no model named in its source’s model’s namespace', () => {
@@ -269,19 +269,19 @@ describe('what la-gram mints (R11, R12)', () => {
 
   it('writes a route another tool wrote with blank nodes anew, under its own names', () => {
     const view = 'https://model.example.com/other/view/v1';
-    const link = `${view}#link/l1`;
+    const link = `${view}#link-l1`;
     load(`
       @prefix arch: <https://meta.linked.archi/core#>.
       @prefix arch-vis: <https://meta.linked.archi/core-vis#>.
       @prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
       <${view}> a arch:View, arch:Diagram.
-      <${view}#node/a> a arch-vis:ContainerNode; arch-vis:view <${view}>.
-      <${view}#node/b> a arch-vis:ContainerNode; arch-vis:view <${view}>.
-      <${link}> a arch-vis:Link; arch-vis:view <${view}>; arch-vis:source <${view}#node/a>; arch-vis:target <${view}#node/b>;
+      <${view}#node-a> a arch-vis:ContainerNode; arch-vis:view <${view}>.
+      <${view}#node-b> a arch-vis:ContainerNode; arch-vis:view <${view}>.
+      <${link}> a arch-vis:Link; arch-vis:view <${view}>; arch-vis:source <${view}#node-a>; arch-vis:target <${view}#node-b>;
         arch-vis:points ([ a arch-vis:Point; arch-vis:point-x "1"^^xsd:double; arch-vis:point-y "2"^^xsd:double ]).
     `);
     deps.views.updateLinkWaypoints(view, link, [{ x: 5, y: 6 }]);
-    expect(objects(link, IRI.points)).toEqual([`${link}/points/0`]);
+    expect(objects(link, IRI.points)).toEqual([`${link}-points-0`]);
     expect(store.getQuads(null, null, null).some((q) => q.subject.termType === 'BlankNode')).toBe(false);
   });
 });

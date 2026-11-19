@@ -105,10 +105,14 @@ key design decision 33), written short in Turtle (key design decision 32):
 {ns}relationship/{uuid}            relationship  mr:…
 {ns}view/{uuid}                    view          mv:…
 {ns}folder/{uuid}                  folder        mf:…
-{view}#node/{uuid}                 ArchNode      mv{hash}:node\/…
-{view}#link/{uuid}                 Link          mv{hash}:link\/…   route: {link}/points/{i} (cells), {link}/point/{i} (points)
-{owner}/style, {owner}/style/{h}   own styles    and {link}/label, {node}/label-expression[/{h}], {element}/name/{h}[/{lang}], {element}/picture[/{h}]
+{view}#node-{uuid}                 ArchNode      mv{hash}:node-…
+{view}#link-{uuid}                 Link          mv{hash}:link-…    route: {link}-points-{i} (cells), {link}-point-{i} (points)
+{shape}-style, {shape}-style-{h}   own styles    and {link}-label, {node}-label-expression[-{h}]
+{element}/name/{h}[/{lang}]        names         and {element}/picture[/{h}]
 ```
+
+After a view's `#`, names are joined with `-` and need no escape in Turtle; elsewhere a part is joined to
+its owner with `/` (`partIri`).
 
 A model la-gram saved before DD-41 keeps its names, which are read as before:
 `{ns}element-{uuid}`, `{ns}node-{uuid}`, `{owner}-style[-{h}]`,
@@ -711,7 +715,7 @@ else on the line the bendpoints take it as before. The name follows the pointer
 (redrawn through `graphicsFactory.update`, no command); let go, it is moved by
 `rdf.link.label.move`, a recorded store change whose writer
 (`ViewManager.setLinkLabel`) keeps the link's `arch-vis:LabelNode` —
-`{link}/label` (or `{link}-label` as la-gram named it before DD-41, kept), typed, in the view, with bounds — or, moved to nowhere (*Move
+`{link}-label` (`partIri`; the one a link already has keeps its name), typed, in the view, with bounds — or, moved to nowhere (*Move
 name back to the middle*), drops it. On the line the name is an offset from the
 route's middle (`RdfBusinessObject.labelOffset`): read from the kept bounds'
 centre when the line is drawn (`labelOffsetOf`, `addRelationship`) and when the
@@ -1976,7 +1980,7 @@ no second one.
 Req 3.13. Drawing with no model element behind it: a group, a sticky note, a
 core-vis shape. In the view they are core-vis nodes (`OxigraphViewManager.addFigure`):
 a group an `arch-vis:ContainerNode`; a shape a `ContainerNode` whose own
-`arch-vis:style` (`{node}/style`, removed with it) gives an `arch-vis:shapeType`;
+`arch-vis:style` (`{node}-style`, removed with it) gives an `arch-vis:shapeType`;
 a note an `arch-vis:LabelNode` that no element's `arch-vis:label` points at — a
 relationship's moved name, which is one, is not read as a note. Their text is
 `skos:prefLabel`, language-tagged: core-vis names no text property for a node
@@ -2071,8 +2075,8 @@ converter now.
 **Store.** `ViewManager.setAppearance(viewIri, iri, changes)` takes a node's or
 a link's IRI — of the view, else nothing is written — and sets each value
 given, `null` taking one back. The style it writes on is the node's or link's
-own, `{iri}/style`, or `{iri}-style` as la-gram named it before DD-41 (`ownStyle`, generalised from the
-figures' `ownFigureStyle`; `isOwnStyle` matches either name exactly): written on in place, made when there is none; a style another tool wrote — a converter's blank node,
+own, `partIri(iri, 'style')` — `{iri}-style` for a shape in its view's IRI — or the one it has under the
+other joiner (`ownStyle`, generalised from the figures' `ownFigureStyle`; `isOwnStyle` matches either name exactly): written on in place, made when there is none; a style another tool wrote — a converter's blank node,
 or one others share — copied into it first, so the change is to this one alone
 and keeps what the old one said (a shape type, a font). A style left with
 nothing to say is removed, with the node's `arch-vis:style` to it.
@@ -2153,8 +2157,8 @@ change). Expressions are scoped to a presentation context (core 0.5.0's
 share (DD-34 in meta's design decisions). Where one is said: a placement's own
 style (`ViewManager.setLabelExpression(view, node, context, text)`, read into
 `NodeInfo.labelExpressions` — `{ context?, expression }` — named
-`{node}/label-expression`, or `…/label-expression/{hash of the context}` for
-one context, so the merge can match it — one named `-label-expression…` before DD-41 keeps its name when replaced; removed with the node, copied by
+`{node}-label-expression`, or `…-label-expression-{hash of the context}` for
+one context, so the merge can match it — one named under the other joiner keeps its name when replaced; removed with the node, copied by
 `duplicateView`); a type's notation (`buildVisualNotations` puts every
 expression of the notation and its default style on the style,
 `VisualStyle.labelExpressions`, so the notation lookup — superclasses included
@@ -2202,9 +2206,9 @@ Label tab and names.
 **Looks and pictures per presentation.** A placement may have one style for
 every presentation context and one for each (core-vis 0.7; meta's DD-35):
 `ViewManager.setAppearance(view, iri, changes, context?)` writes the style for
-`context` — `{node}/style/{shortHash(context)}`, typed `arch-vis:Style`, with
+`context` — `{node}-style-{shortHash(context)}`, typed `arch-vis:Style`, with
 `arch:inPresentationContext`, made on demand and removed when it says nothing
-else — or, without, `{node}/style` (`ownStyle` copies another tool's blank node or
+else — or, without, `{node}-style` (`ownStyle` copies another tool's blank node or
 a shared style, ignoring context styles). `styleOf(subject, context?)` is the
 one read of a style: the figure, the look, the label expressions all read the
 style for every context; `contextAppearancesOf` reads the others into
@@ -3202,7 +3206,7 @@ dialog; the modules' section).
     route, would have meant a change to the published core-vis and a term to
     name. A tool that moves the line without writing the bounds again leaves the
     name where it was, as bounds say. The label node is named after its link
-    (`{link}/label`), as the route's cells are (`{link}/points/0`), so it has an
+    (`{link}-label`), as the route's cells are (`{link}-points-0`), so it has an
     identity collaborators share; a press on the name drags the name — the
     line's handles keep the rest of it — rather than a separate diagram-js
     label element, which would put a second element per line in every place
@@ -3532,13 +3536,20 @@ dialog; the modules' section).
     prefix. The derived prefixes are checked against every known prefix, not only those a file uses, so a
     file does not swap a prefix for relative IRIs when it starts using a vocabulary's term.
 
-33. **la-gram mints the Linked.Archi layout and renames nothing it finds** (Req 9.7c; DD-41; 2026-11-18).
-    `mintIri` mints `{ns}{kind}/{uuid}`; `mintShapeIri` a node or a line in its view's IRI,
-    `{view}#node/{uuid}`, so that a shape's IRI opens its view's page, and parts are `partIri(owner, …)`,
-    joined with `/` — the converters' form, which keeps a part from taking the name of a resource beside its
-    owner (`{link}-p0` of link `c1` is link `c1-p0`'s IRI). Every name la-gram or a converter wrote before is
-    kept: `isPartNamed` reads a part named with `/` or with `-`, exactly (`{owner}-style-x` of another node is
-    not its), and what replaces a part takes its name — a placement's own style is written on in place, a
+33. **la-gram mints the Linked.Archi layout and renames nothing it finds** (Req 9.7c; DD-41; 2026-11-18,
+    `-` after a view's `#` 2026-11-19). `mintIri` mints `{ns}{kind}/{uuid}`; `mintShapeIri` a node or a
+    line in its view's IRI, `{view}#node-{uuid}`, so that a shape's IRI opens its view's page; and parts are
+    `partIri(owner, …)`, joined with `-` to an owner whose IRI holds a `#` (`{node}-style`,
+    `{link}-points-0`) and with `/` to any other (`{element}/name/{h}`). A `-` after the `#` because Turtle
+    writes a `/` in a prefixed name only escaped (`mv{hash}:node\/…`), and a view's shapes and their parts
+    are most of a saved model's names. What a part belongs to is read from the triples (`arch-vis:style`,
+    `arch-vis:points` and its list, `arch-vis:label`), not from its name. The cost of the `-` is that a
+    part can take the name of a shape beside its owner: `{link}-point-0` of line `c1` is line `c1-point-0`'s
+    IRI. la-gram's own shapes are UUIDs, which never end in a part's name; an Exchange import gives a UUID
+    instead to a shape whose id is another's of its kind in the view followed by a part's name (`-style`,
+    `-label`, `-points-{i}`, …; `shapeIri`), where the converters refuse the file. Every name la-gram or a
+    converter wrote before is kept: `isPartNamed` reads a part named with `/` or with `-`, exactly
+    (`{owner}-style-x` of another node is not its), and what replaces a part takes its name — a placement's own style is written on in place, a
     route keeps its pattern and only what differs is written (`rewritePoints`), a moved name, a label
     expression, a name or a picture for a presentation context keep theirs. A route in another form (blank
     nodes, another tool's names) is written anew under la-gram's. A relationship is minted in its source's

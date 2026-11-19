@@ -419,6 +419,9 @@ function safeId(id: string): string {
   return pathSegment(id.trim() || 'unnamed');
 }
 
+/** A shape id that is another id followed by a shape part's name (`-style`, `-point-0`), and that other id. */
+const SHAPE_PART = /^(.*)-(?:(?:style|label-expression)(?:-[0-9a-f]{8})?|label|points-\d+|point-\d+)$/;
+
 /** A property-name slug. */
 function slug(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'property';
@@ -464,11 +467,17 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
   const iriOf = new Map<string, string>();
   // Exchange identifiers are kept — a re-import names the same concepts alike — and named as the ArchiMate
   // converter names them (DD-41): `element/{id}`, `relationship/{id}`, `view/{id}`, and a view's nodes and
-  // lines in the view's IRI, `{view}#node/{id}` and `{view}#link/{id}`, so an import and a conversion of one
+  // lines in the view's IRI, `{view}#node-{id}` and `{view}#link-{id}`, so an import and a conversion of one
   // file give the same local names.
+  //
+  // A shape's parts are joined to it with `-` (`{node}-style`, `{link}-point-0`), so an id that is another
+  // shape's id followed by a part's name — `n1-style` beside `n1` in one view — would name that shape's part.
+  // Such a shape gets a UUID instead; the converter fails the conversion.
   const base = ensureNamespace(deps.modelNamespace ?? derivedNamespace(deps.modelIri));
-  const shapeIri = (viewIri: string, kind: 'node' | 'link', id: string) =>
-    viewIri.includes('#') ? undefined : `${viewIri}#${kind}/${safeId(id)}`;
+  const shapeIri = (viewIri: string, kind: 'node' | 'link', id: string, ids: ReadonlySet<string>) => {
+    const owner = SHAPE_PART.exec(id)?.[1];
+    return viewIri.includes('#') || (owner !== undefined && ids.has(owner)) ? undefined : `${viewIri}#${kind}-${safeId(id)}`;
+  };
   const literal = (value: string, lang?: string) =>
     DataFactory.literal(value, lang ?? model.lang ?? 'en') as unknown as Term;
 
@@ -546,6 +555,8 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     const nodeRect = new Map<string, ExchangeNode>();
     /** Each node drawn, by its id: the view's node for it — a placement of its element, or a figure. */
     const nodeElement = new Map<string, string>();
+    const nodeIds = new Set(view.nodes.map((node) => node.id));
+    const linkIds = new Set(view.connections.map((conn) => conn.id));
     for (const node of view.nodes) {
       const bounds = { x: node.x, y: node.y, width: node.w || 120, height: node.h || 55 };
       // A visual group, or a note: drawing with no element behind it.
@@ -553,7 +564,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       if (figure && deps.views.addFigure) {
         nodeElement.set(
           node.id,
-          deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }, shapeIri(viewIri, 'node', node.id)),
+          deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }, shapeIri(viewIri, 'node', node.id, nodeIds)),
         );
         report.figureCount += 1;
         continue;
@@ -564,7 +575,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
         continue;
       }
       // Placed again when the file places it again: each node a placement of its own.
-      const nodeIri = shapeIri(viewIri, 'node', node.id);
+      const nodeIri = shapeIri(viewIri, 'node', node.id, nodeIds);
       const placed = deps.views.addElementToView(viewIri, elementIri, bounds, { another: true, ...(nodeIri ? { iri: nodeIri } : {}) });
       nodeElement.set(node.id, placed);
       // Looking as it did in the tool that wrote the file.
@@ -601,7 +612,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           const first = conn.bendpoints[0];
           const last = conn.bendpoints[conn.bendpoints.length - 1];
           const route = first && last ? [clipToRect(src, first), ...conn.bendpoints, clipToRect(tgt, last)] : undefined;
-          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route, shapeIri(viewIri, 'link', conn.id));
+          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route, shapeIri(viewIri, 'link', conn.id, linkIds));
           if (line) {
             report.connectionCount += 1;
             if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
@@ -625,7 +636,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           ...(nodeElement.get(conn.source) ? { sourceNodeIri: nodeElement.get(conn.source) } : {}),
           ...(nodeElement.get(conn.target) ? { targetNodeIri: nodeElement.get(conn.target) } : {}),
         };
-        const linkIri = shapeIri(viewIri, 'link', conn.id);
+        const linkIri = shapeIri(viewIri, 'link', conn.id, linkIds);
         const line = deps.views.addRelationshipToView(viewIri, relIri, route, ends, {
           another: drawnRelationships.has(relIri),
           ...(linkIri ? { iri: linkIri } : {}),

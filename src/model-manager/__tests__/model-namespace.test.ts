@@ -41,15 +41,16 @@ describe('IRI minting', () => {
 
   it('mints a shape in its view’s IRI, and flat in the model’s namespace where the view already holds a #', () => {
     const ns = () => 'https://acme.com/ea#';
-    expect(mintShapeIri('https://acme.com/ea/view/v1', 'node', ns)).toMatch(new RegExp(`^https://acme\\.com/ea/view/v1#node/${UUID}$`));
-    expect(mintShapeIri('https://acme.com/ea/view/v1', 'link', ns)).toMatch(new RegExp(`^https://acme\\.com/ea/view/v1#link/${UUID}$`));
+    expect(mintShapeIri('https://acme.com/ea/view/v1', 'node', ns)).toMatch(new RegExp(`^https://acme\\.com/ea/view/v1#node-${UUID}$`));
+    expect(mintShapeIri('https://acme.com/ea/view/v1', 'link', ns)).toMatch(new RegExp(`^https://acme\\.com/ea/view/v1#link-${UUID}$`));
     expect(mintShapeIri('https://acme.com/ea#view-1', 'node', ns)).toMatch(new RegExp(`^https://acme\\.com/ea#node-${UUID}$`));
   });
 
-  it('names a part under its owner with /, and knows a part named either way', () => {
-    const node = 'https://acme.com/ea/view/v1#node/n1';
-    expect(partIri(node, 'style')).toBe(`${node}/style`);
-    expect(partIri(node, 'style', '0a1b2c3d')).toBe(`${node}/style/0a1b2c3d`);
+  it('names a part under its owner, with - after a #, and knows a part named either way', () => {
+    const node = 'https://acme.com/ea/view/v1#node-n1';
+    expect(partIri(node, 'style')).toBe(`${node}-style`);
+    expect(partIri(node, 'style', '0a1b2c3d')).toBe(`${node}-style-0a1b2c3d`);
+    expect(partIri('https://acme.com/ea/element/e1', 'name', '0a1b2c3d')).toBe('https://acme.com/ea/element/e1/name/0a1b2c3d');
     const key = /[0-9a-f]{8}/;
     for (const own of [`${node}/style`, `${node}/style/0a1b2c3d`, `${node}-style`, `${node}-style-0a1b2c3d`]) {
       expect(isPartNamed(node, own, 'style', key)).toBe(true);
@@ -164,13 +165,13 @@ describe('the model namespace', () => {
     expect(a).toMatch(new RegExp(`^${ns}element/${UUID}$`));
     expect(rel).toMatch(new RegExp(`^${ns}relationship/${UUID}$`));
     const [node] = views.getNodes(viewIri);
-    expect(node.nodeIri).toMatch(new RegExp(`^${viewIri}#node/${UUID}$`));
+    expect(node.nodeIri).toMatch(new RegExp(`^${viewIri}#node-${UUID}$`));
     const [link] = views.getLinks(viewIri);
-    expect(link.linkIri).toMatch(new RegExp(`^${viewIri}#link/${UUID}$`));
-    expect(subjects()).toContain(`${link.linkIri}/points/0`);
-    expect(subjects()).toContain(`${link.linkIri}/point/1`);
-    // Every subject is in the namespace, in the layout (DD-41): the model, {kind}/{id}, a shape in its view, a part under either.
-    const layout = /^(?:model|(?:element|relationship|view|folder)\/[\w-]+(?:#(?:node|link)\/[\w-]+)?(?:\/[\w-]+)*)$/;
+    expect(link.linkIri).toMatch(new RegExp(`^${viewIri}#link-${UUID}$`));
+    expect(subjects()).toContain(`${link.linkIri}-points-0`);
+    expect(subjects()).toContain(`${link.linkIri}-point-1`);
+    // Every subject is in the namespace, in the layout (DD-41): the model, {kind}/{id} and its parts, a shape in its view and its parts.
+    const layout = /^(?:model|(?:element|relationship|view|folder)\/[\w-]+(?:#(?:node|link)-[\w-]+|(?:\/[\w-]+)*))$/;
     expect(subjects().filter((s) => !s.startsWith(ns) || !layout.test(s.slice(ns.length)))).toEqual([]);
   });
 
@@ -250,7 +251,7 @@ describe('the model namespace', () => {
       [`${legacy}/view/v1`, NAMESPACES.rdf + 'type', NAMESPACES.arch + 'View'],
       [`${legacy}/view/v1`, NAMESPACES.arch + 'inModel', legacy],
       [`${legacy}/view/v1/node/n1`, NAMESPACES['arch-vis'] + 'view', `${legacy}/view/v1`],
-      [`${legacy}/view/v1#node/n2`, NAMESPACES['arch-vis'] + 'view', `${legacy}/view/v1`],
+      [`${legacy}/view/v1#node-n2`, NAMESPACES['arch-vis'] + 'view', `${legacy}/view/v1`],
     ].map(([s, p, o]) => DataFactory.quad(nn(s), nn(p), nn(o)) as unknown as Quad);
     store.addQuads(quads);
     session.adopt({ emit: false });
@@ -262,7 +263,7 @@ describe('the model namespace', () => {
     expect(mapping.get(`${legacy}/element/e1`)).toBe(`${target}element/e1`);
     expect(mapping.get(`${legacy}/element-e2`)).toBe(`${target}element-e2`);
     expect(mapping.get(`${legacy}/view/v1/node/n1`)).toBe(`${target}view/v1/node/n1`);
-    expect(mapping.get(`${legacy}/view/v1#node/n2`)).toBe(`${target}view/v1#node/n2`);
+    expect(mapping.get(`${legacy}/view/v1#node-n2`)).toBe(`${target}view/v1#node-n2`);
     expect(store.getQuads(nn(`${target}element/e1`), nn(NAMESPACES.arch + 'inModel')).map((q) => q.object.value)).toEqual([
       `${target}model`,
     ]);

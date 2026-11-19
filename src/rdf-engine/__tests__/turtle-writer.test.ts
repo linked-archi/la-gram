@@ -30,8 +30,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const NS = 'https://example.org/archimate/2d441909-2be6-4dfe-aaa5-c7ee59edbc4c/';
 const VIEW = `${NS}view/4b7e0c12-9d3a-4f61-8e2b-1c5d7a9e3f40`;
 const ELEMENT = `${NS}element/6ad3ed74-f0b2-41aa-9e0c-adafbf5320d4`;
-const NODE = `${VIEW}#node/e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b`;
-const LINK = `${VIEW}#link/9c3e5a71-2b4d-4f60-9a8b-7c6d5e4f3a21`;
+const NODE = `${VIEW}#node-e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b`;
+const LINK = `${VIEW}#link-9c3e5a71-2b4d-4f60-9a8b-7c6d5e4f3a21`;
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 const ARCH = PREFIXES['arch']!;
 const VIS = PREFIXES['arch-vis']!;
@@ -80,11 +80,11 @@ function layoutModel(): Quad[] {
     t(NODE, `${RDF}type`, `${VIS}ArchNode`),
     t(NODE, `${VIS}view`, VIEW),
     t(NODE, `${VIS}archElement`, ELEMENT),
-    t(NODE, `${VIS}style`, `${NODE}/style`),
+    t(NODE, `${VIS}style`, `${NODE}-style`),
     t(LINK, `${RDF}type`, `${VIS}Link`),
-    t(LINK, `${VIS}points`, `${LINK}/points/0`),
-    t(`${LINK}/points/0`, `${RDF}first`, `${LINK}/point/0`),
-    t(`${LINK}/points/0`, `${RDF}rest`, `${RDF}nil`),
+    t(LINK, `${VIS}points`, `${LINK}-points-0`),
+    t(`${LINK}-points-0`, `${RDF}first`, `${LINK}-point-0`),
+    t(`${LINK}-points-0`, `${RDF}rest`, `${RDF}nil`),
     t(`${NS}view/id-v77/node/id-n42`, `${RDF}type`, `${VIS}ArchNode`),
     t(`${NS}element-0d8f2c64-7b1e-4a93-b5d0-3e9c1a7f6b28`, `${AM4}serves`, 'https://example.org/archimate/other/element/x'),
   ];
@@ -98,11 +98,11 @@ describe('writeTurtle', () => {
     expect(ttl).toContain('me:6ad3ed74-f0b2-41aa-9e0c-adafbf5320d4 a am4:ApplicationComponent');
     expect(ttl).toContain('m:element-0d8f2c64-7b1e-4a93-b5d0-3e9c1a7f6b28 a am4:ApplicationComponent');
     expect(ttl).toContain('mv:4b7e0c12-9d3a-4f61-8e2b-1c5d7a9e3f40 a arch:Diagram');
-    // 2. the view's prefix, each `/` of the fragment escaped
-    expect(ttl).toContain('mv3ef7da72:node\\/e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b a arch-vis:ArchNode');
-    expect(ttl).toContain('arch-vis:style mv3ef7da72:node\\/e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b\\/style');
-    expect(ttl).toContain('mv3ef7da72:link\\/9c3e5a71-2b4d-4f60-9a8b-7c6d5e4f3a21\\/points\\/0');
-    expect(ttl).toContain('rdf:first mv3ef7da72:link\\/9c3e5a71-2b4d-4f60-9a8b-7c6d5e4f3a21\\/point\\/0');
+    // 2. the view's prefix: its shapes and their parts, joined with `-`, with nothing to escape
+    expect(ttl).toContain('mv3ef7da72:node-e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b a arch-vis:ArchNode');
+    expect(ttl).toContain('arch-vis:style mv3ef7da72:node-e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b-style');
+    expect(ttl).toContain('mv3ef7da72:link-9c3e5a71-2b4d-4f60-9a8b-7c6d5e4f3a21-points-0');
+    expect(ttl).toContain('rdf:first mv3ef7da72:link-9c3e5a71-2b4d-4f60-9a8b-7c6d5e4f3a21-point-0');
     // 3. relative to @base: a compound id, a part of an element, a converter's nested shape
     expect(ttl.startsWith(`@base <${NS}>.\n`)).toBe(true);
     expect(ttl).toContain('<element/component/default/payments-service> a am4:ApplicationComponent');
@@ -177,11 +177,11 @@ describe('writeTurtle', () => {
   });
 
   it('gives a view its prefix whatever other views the file has (R3)', () => {
-    const other = `${NS}view/another#node/n1`;
+    const other = `${NS}view/another#node-n1`;
     const alone = writeTurtle([t(NODE, `${VIS}view`, VIEW)], { prefixes: KNOWN, model: MODEL });
     const withOther = writeTurtle([t(NODE, `${VIS}view`, VIEW), t(other, `${VIS}view`, `${NS}view/another`)], { prefixes: KNOWN, model: MODEL });
-    expect(alone).toContain('mv3ef7da72:node\\/');
-    expect(withOther).toContain('mv3ef7da72:node\\/');
+    expect(alone).toContain('mv3ef7da72:node-e1f2');
+    expect(withOther).toContain('mv3ef7da72:node-e1f2');
     expect(viewPrefixLabel('m', VIEW)).toBe('mv3ef7da72');
     expect(viewPrefixLabel('shop', VIEW)).toBe('shopv3ef7da72');
   });
@@ -191,11 +191,11 @@ describe('writeTurtle', () => {
     const first = `${NS}view/v33085`;
     const second = `${NS}view/v36327`;
     expect(viewPrefixLabel('m', first)).toBe(viewPrefixLabel('m', second));
-    const quads = [t(`${second}#node/n1`, `${VIS}view`, second), t(`${first}#node/n1`, `${VIS}view`, first)];
+    const quads = [t(`${second}#node-n1`, `${VIS}view`, second), t(`${first}#node-n1`, `${VIS}view`, first)];
     const ttl = writeTurtle(quads, { prefixes: KNOWN, model: MODEL });
     expect(ttl).toContain(`@prefix mv0c4b780c: <${first}#>.`);
-    expect(ttl).toContain('mv0c4b780c:node\\/n1 arch-vis:view mv:v33085');
-    expect(ttl).toContain('<view/v36327#node/n1> arch-vis:view mv:v36327');
+    expect(ttl).toContain('mv0c4b780c:node-n1 arch-vis:view mv:v33085');
+    expect(ttl).toContain('<view/v36327#node-n1> arch-vis:view mv:v36327');
     expect(readByOxigraph(ttl, 'text/turtle')).toEqual(canonical(quads));
   });
 
@@ -270,7 +270,7 @@ describe('a copy as Turtle (R10)', () => {
     const quads = [t(NODE, `${VIS}view`, VIEW), t(NODE, `${VIS}archElement`, ELEMENT)];
     const fragment = { source: { modelIri: `${NS}model`, namespace: NS, metamodelIris: [] }, concepts: [], nodes: [NODE], links: [], quads };
     const text = fragmentTurtle(fragment, KNOWN);
-    expect(text).toContain('mv3ef7da72:node\\/e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b');
+    expect(text).toContain('mv3ef7da72:node-e1f2a3b4-5c6d-4e7f-8a9b-0c1d2e3f4a5b');
     expect(text).toContain('me:6ad3ed74-f0b2-41aa-9e0c-adafbf5320d4');
     expect(readByN3(text)).toEqual(canonical(quads));
   });
@@ -294,6 +294,7 @@ describe('the n3 version the writer overrides', () => {
   });
 
   it('calls the override for subjects, predicates, objects, graphs and datatypes', () => {
+    // Each name holds a `/`, which n3's own writer leaves as a full IRI: only the override writes it prefixed.
     const view = `${NS}view/v1`;
     const shape = `${view}#node/n1`;
     const quads = [

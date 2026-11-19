@@ -1,14 +1,14 @@
 /**
  * Turtle and TriG with the IRIs of the Linked.Archi layout written short (DD-41, meta's *IRI Minting*, Turtle).
  *
- * A model's IRIs are `{ns}{kind}/{id}`, `{view}#{node|link}/{id}` for the shapes drawn in a view, and parts
- * under their owner, joined with `/`. A prefixed name holds a `/` or a `#` only escaped, so an IRI of the
- * model a file is about is written with the first of these that applies:
+ * A model's IRIs are `{ns}{kind}/{id}`, `{view}#{node|link}-{id}` for the shapes drawn in a view, and parts
+ * under their owner, joined with `/`, or with `-` after a view's `#`. A prefixed name holds a `/` or a `#` only
+ * escaped, so an IRI of the model a file is about is written with the first of these that applies:
  *
  * 1. a prefix, where the rest is a plain local name: `m:model`, `me:{id}`, and la-gram's earlier flat names,
  *    `m:element-{uuid}`;
- * 2. a prefix per view, for a shape and its parts, with each `/` of the fragment escaped:
- *    `mv3ef7da72:node\/{id}`;
+ * 2. a prefix per view, for a shape and its parts, its fragment escaped where it must be (it need not when
+ *    it is la-gram's or a converter's): `mv3ef7da72:node-{id}`, `mv3ef7da72:link-{id}-point-0`;
  * 3. a reference relative to `@base <{ns}>`: `<element/component/default/payments>`;
  * 4. the full IRI.
  *

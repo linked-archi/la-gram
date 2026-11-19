@@ -179,8 +179,8 @@ function conceptQuads(store: RdfStore, iri: string, modelIri: string): Quad[] {
 
 /**
  * A placement's triples and everything that hangs off it: followed through objects that are blank nodes or
- * named under the placement — `{node}/style`, `{link}/points/0`, `{link}/label` (DD-41), or `{node}-style`,
- * `{link}-points-0`, `{link}-label` as la-gram named them before — and through its style, its label
+ * named under the placement — `{node}-style`, `{link}-points-0`, `{link}-label` (DD-41, and as la-gram named
+ * them before), or `{node}/style`, `{link}/points/0`, `{link}/label` — and through its style, its label
  * expressions, its moved name and its route's cells and points, which may be named otherwise (another
  * tool's, or shared).
  */

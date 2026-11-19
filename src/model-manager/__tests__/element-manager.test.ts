@@ -119,7 +119,7 @@ describe('OxigraphElementManager', () => {
       views.setAppearance(view, placed, { renderingMode: 'IconCentric' }, DEVELOPER);
       const subjects = () => new Set(store.getQuads(null, null, null).map((q) => q.subject.value));
       const owned = [...subjects()].filter(
-        (s) => s.startsWith(`${placed}/`) || s.startsWith(`${line}/`) || s.startsWith(`${a.value}/name`) || s.startsWith(`${a.value}/picture`) || s.startsWith(`${rel}/name`),
+        (s) => s.startsWith(`${placed}-`) || s.startsWith(`${line}-`) || s.startsWith(`${a.value}/name`) || s.startsWith(`${a.value}/picture`) || s.startsWith(`${rel}/name`),
       );
       // The placement's styles (for every context and for developers) and its label expression, the line's style,
       // the element's and the relationship's names, the element's two pictures.

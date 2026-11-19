@@ -13,8 +13,8 @@
  * |--------------|---------|
  * | `characters` | holds a character a path segment cannot, such as a space |
  * | `hashes`     | holds more than one `#` |
- * | `shape`      | is a shape not named `{view}#node/{id}` or `{view}#link/{id}`, for the view its `arch-vis:view` names |
- * | `part`       | is a part not named under its owner, `{owner}/…` |
+ * | `shape`      | is a shape not named `{view}#node-{id}` or `{view}#link-{id}`, for the view its `arch-vis:view` names |
+ * | `part`       | is a part not named under its owner, `{owner}/…`, or `{owner}-…` when its owner is a shape |
  * | `outside`    | is none of these, and its local part is not `model`, `graph/…` or `{kind}/{id}` |
  *
  * — unless it is named as before the layout, which makes it `legacy` instead:
@@ -64,7 +64,7 @@ const PATH = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/]|%[0-9A-Fa-f]{2}|[^\x00-\x7F])*$
 const FRAGMENT = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?#]|%[0-9A-Fa-f]{2}|[^\x00-\x7F])*$/;
 
 const VANN_URI = NAMESPACES.vann + 'preferredNamespaceUri';
-/** What names a part from its owner (DD-41's table): `{owner}/style`, `{owner}/label`, `{concept}/name/…`, `{folder}/item/…`. */
+/** What names a part from its owner (DD-41's table): `{shape}-style`, `{shape}-label`, `{concept}/name/…`, `{folder}/item/…`. */
 const PART_OF = new Set<string>([
   IRI.visStyle,
   IRI.visLabel,
@@ -75,8 +75,8 @@ const PART_OF = new Set<string>([
   ...SCHEMA_ITEM_LIST_ELEMENT.map((t) => t.value),
 ]);
 const NODE_TYPES = new Set<string>([IRI.ArchNode, IRI.ContainerNode, IRI.LabelNode]);
-/** A shape's fragment in its view: a line's `link/{id}`, a node's `node/{id}`, either for a shape of no known type. */
-const SHAPE_NAME = { link: /^link\/[^/#]+$/, node: /^node\/[^/#]+$/, either: /^(?:node|link)\/[^/#]+$/ };
+/** A shape's fragment in its view: a line's `link-{id}`, a node's `node-{id}`, either for a shape of no known type. */
+const SHAPE_NAME = { link: /^link-[^/#]+$/, node: /^node-[^/#]+$/, either: /^(?:node|link)-[^/#]+$/ };
 
 /** The layout report of a model's triples; `undefined` when they have no `arch:Model`. */
 export function layoutReport(quads: readonly Quad[]): LayoutReport | undefined {
@@ -146,8 +146,10 @@ export function layoutReport(quads: readonly Quad[]): LayoutReport | undefined {
     const owner = owners.get(iri);
     if (owner?.size === 1) {
       const [of] = [...owner];
-      if (iri.startsWith(`${of}/`)) return undefined;
-      return iri.startsWith(`${of}-`) ? 'legacy' : 'part';
+      // After a `#` a part is joined to its owner with `-`, elsewhere with `/`; joined the other way, it is legacy.
+      const [joined, other] = of.includes('#') ? ['-', '/'] : ['/', '-'];
+      if (iri.startsWith(`${of}${joined}`)) return undefined;
+      return iri.startsWith(`${of}${other}`) ? 'legacy' : 'part';
     }
     if (IN_LAYOUT.test(local)) return undefined;
     return LEGACY.test(local) ? 'legacy' : 'outside';

@@ -1139,7 +1139,7 @@ describe('figures: groups, shapes and notes', () => {
     const f = mount();
     const shape = drawFigure(f, { kind: 'shape', shapeType: VIS_NS + 'Diamond' }, { x: 300, y: 200 });
     const iri = shape.id;
-    expect(iri).toMatch(/#node\//);
+    expect(iri).toMatch(/#node-/);
     expect(f.views.getNodes(f.viewIri).map((n) => [n.elementIri, n.figure?.shapeType])).toEqual([[iri, VIS_NS + 'Diamond']]);
     expect(f.views.getNode(f.viewIri, iri)?.bounds).toEqual({ x: 200, y: 140, width: 200, height: 120 });
     f.commandStack.undo();
@@ -1249,7 +1249,7 @@ describe('lines from a note: drawing, no relationship', () => {
     const before = f.relationships.getRelationshipsOf?.(api)?.length ?? 0;
     const line = draw(f, registryOf(f).get(note)!, registryOf(f).get(api)!)!;
     expect(line.businessObject?.kind).toBe('connector');
-    expect(line.id).toMatch(/#link\//);
+    expect(line.id).toMatch(/#link-/);
     const [link] = f.views.getLinks(f.viewIri);
     expect(link).toMatchObject({ linkIri: line.id, relationshipIri: line.id, connector: true, sourceNodeIri: note, targetElementIri: api });
     // Its route is written as a relationship's is.

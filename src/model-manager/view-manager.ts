@@ -15,27 +15,28 @@
  *
  * me:{e}  arch:inView mv:{v} .                        # membership, survives geometry loss
  *
- * mv{hash}:node\/{n}  a arch-vis:ArchNode ;           # geometry: {view}#node/{n}
+ * mv{hash}:node-{n}  a arch-vis:ArchNode ;            # geometry: {view}#node-{n}
  *         arch-vis:view mv:{v} ;
  *         arch-vis:archElement me:{e} ;
  *         arch-vis:bounds-x 40.0 ; … bounds-y, bounds-w, bounds-h .
  *
- * mv{hash}:link\/{l}  a arch-vis:Link ;               # {view}#link/{l}
+ * mv{hash}:link-{l}  a arch-vis:Link ;                # {view}#link-{l}
  *         arch-vis:view mv:{v} ;
  *         arch-vis:archRelationship mr:{r} ;
- *         arch-vis:source mv{hash}:node\/{n} ; arch-vis:target … ;
- *         arch-vis:points mv{hash}:link\/{l}\/points\/0 ;  # optional route: …\/point\/0, …\/point\/1 …
- *         arch-vis:label mv{hash}:link\/{l}\/label .        # optional: where its name was moved to
+ *         arch-vis:source mv{hash}:node-{n} ; arch-vis:target … ;
+ *         arch-vis:points mv{hash}:link-{l}-points-0 ;  # optional route: …-point-0, …-point-1 …
+ *         arch-vis:label mv{hash}:link-{l}-label .       # optional: where its name was moved to
  *
- * mv{hash}:link\/{l}\/label  a arch-vis:LabelNode ;
+ * mv{hash}:link-{l}-label  a arch-vis:LabelNode ;
  *         arch-vis:view mv:{v} ;
  *         arch-vis:bounds-x 210.0 ; … bounds-y, bounds-w, bounds-h .
  * ```
  *
- * A node or a link is named in its view's IRI, and its parts under it with `/`
- * (DD-41). A model la-gram saved before keeps its names — `m:node-…`,
- * `m:link-…-points-0`, `m:link-…-p0`, `m:node-…-style` — and they are read, and
- * written on in place, as the placement's own: a tool never renames a part.
+ * A node or a link is named in its view's IRI, and its parts under it with `-`,
+ * as everything after a `#` is (DD-41). A model la-gram saved before keeps its
+ * names — `m:node-…`, `m:link-…-points-0`, `m:link-…-p0`, `m:node-…-style` — and
+ * they are read, and written on in place, as the placement's own: a tool never
+ * renames a part.
  *
  * A link's `arch-vis:LabelNode` keeps where the relationship's name was moved
  * to, in the diagram's coordinates, as core-vis gives a node's bounds; without
@@ -46,7 +47,7 @@
  * that relationship's link: the end is the link, not a node (core-vis 0.6). A
  * link therefore needs the links it ends on drawn first, and goes with them.
  *
- * Nodes and links are minted in their view's IRI, `{view}#node/{uuid}`
+ * Nodes and links are minted in their view's IRI, `{view}#node-{uuid}`
  * (`rdf-engine/iri.ts`, `mintShapeIri`).
  *
  * `arch:inView` is written with the node and removed with the last node of that
@@ -118,9 +119,10 @@ const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedN
 const CONTEXT_KEY = /[0-9a-f]{8}/;
 
 /**
- * How a route's cells and points are named: from DD-41 on, as the converters name them, `{link}/points/{i}`
- * and `{link}/point/{i}`; before it, `{link}-points-{i}` and `{link}-p{i}`. A new route is named the first way;
- * a route named either way keeps its names when it changes.
+ * How a route's cells and points are named: from DD-41 on, as the converters name them, `{link}-points-{i}`
+ * and `{link}-point-{i}` ({@link partIri}: with `/` under a link not named in a view's fragment); before it,
+ * `{link}-points-{i}` and `{link}-p{i}`. A new route is named the first way; a route named either way keeps
+ * its names when it changes.
  */
 const ROUTE_NAMES = [
   { cell: (link: string, i: number) => partIri(link, 'points', String(i)), point: (link: string, i: number) => partIri(link, 'point', String(i)) },
@@ -574,7 +576,7 @@ export class OxigraphViewManager implements ViewManager {
     const [linkIri] = this.linkIrisFor(viewIri, relationshipIri);
     if (!linkIri) return;
     const link = nn(linkIri);
-    // Its own label keeps its name — `{link}/label`, or `{link}-label` as la-gram named it before DD-41.
+    // Its own label keeps its name — `{link}-label`, or `{link}/label` under a link not named in a fragment.
     const own = this.objectTerms(link, T.visLabel).find((l) => l.termType === 'NamedNode' && isPartNamed(linkIri, l.value, 'label'));
     this.remove(this.labelNodeQuads(link));
     if (!bounds) return;
@@ -972,9 +974,10 @@ export class OxigraphViewManager implements ViewManager {
   }
 
   /**
-   * Whether `style` is `owner`'s own by its name, matched exactly: `{owner}/style` — la-gram's from DD-41 on,
-   * and the converters' — or `{owner}/style/{hash}` for a presentation context; `{owner}-style` and
-   * `{owner}-style-{hash}`, as la-gram named them before. Not a prefix: `{owner}-style-x` of another node is not.
+   * Whether `style` is `owner`'s own by its name, matched exactly: `{owner}-style` — la-gram's and the
+   * converters' for a shape named in its view — or `{owner}-style-{hash}` for a presentation context; or the
+   * same joined with `/`, as under a shape not named in a fragment. Not a prefix: `{owner}-style-x` of another
+   * node is not.
    */
   private isOwnStyle(owner: string, style: Term): boolean {
     return style.termType === 'NamedNode' && isPartNamed(owner, style.value, 'style', CONTEXT_KEY);
@@ -982,7 +985,7 @@ export class OxigraphViewManager implements ViewManager {
 
   /**
    * A placement's own label expression, named after it — and the context it is for, when it is for one — so it
-   * goes with it: `{node}/label-expression`, `{node}/label-expression/{hash}`.
+   * goes with it: `{node}-label-expression`, `{node}-label-expression-{hash}`.
    */
   private labelExpressionIriOf(nodeIri: string, context: string | undefined): string {
     return context ? partIri(nodeIri, 'label-expression', shortHash(context)) : partIri(nodeIri, 'label-expression');
@@ -1024,7 +1027,7 @@ export class OxigraphViewManager implements ViewManager {
     return appearance as Appearance;
   }
 
-  /** A node's or a link's own style — a figure's shape type, a placement's colours — named after it, so it goes with it: `{iri}/style`. */
+  /** A node's or a link's own style — a figure's shape type, a placement's colours — named after it, so it goes with it: `{iri}-style`. */
   private styleIriOf(iri: string): string {
     return partIri(iri, 'style');
   }
@@ -1082,12 +1085,12 @@ export class OxigraphViewManager implements ViewManager {
       .map((link) => link.value);
   }
 
-  /** A new node's or link's IRI, in its view's: `{view}#node/{uuid}` (`mintShapeIri`). */
+  /** A new node's or link's IRI, in its view's: `{view}#node-{uuid}` (`mintShapeIri`). */
   private mintShape(viewIri: string, kind: ShapeKind): string {
     return mintShapeIri(viewIri, kind, () => viewNamespace(this.store, viewIri));
   }
 
-  /** Write `waypoints` as an IRI-celled `rdf:List` of `arch-vis:Point`s, named `{link}/points/{i}` and `{link}/point/{i}`. */
+  /** Write `waypoints` as an IRI-celled `rdf:List` of `arch-vis:Point`s, named `{link}-points-{i}` and `{link}-point-{i}`. */
   private writePoints(link: NamedNode, waypoints: Point[]): void {
     this.store.addQuads(this.routeQuads(link, waypoints, ROUTE_NAMES[0]));
   }

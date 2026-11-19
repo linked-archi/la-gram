@@ -18,7 +18,7 @@
  * (or whatever prefix the model declares), with a prefix per kind and per view
  * derived from it, and what no prefix fits relative to `@base` (DD-41,
  * `rdf-engine/turtle-writer.ts`): the Turtle reads `m:element-…`, `me:…` and
- * `mv…:node\/…` rather than full IRIs.
+ * `mv…:node-…` rather than full IRIs.
  *
  * TriG, N-Quads and JSON-LD get that partition. Turtle, N-Triples and RDF/XML
  * cannot name graphs, so they get the union; `arch:inModel` on every concept is

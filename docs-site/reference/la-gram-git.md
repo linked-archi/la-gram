@@ -58,8 +58,8 @@ first three, relative to the namespace:
 |---|---|
 | *holding a character a path segment cannot* | an IRI with a space in it, say |
 | *with more than one #* | an IRI with a second `#` |
-| *shapes not named {view}#node/{id} or {view}#link/{id}* | a node or a line not named in the view its `arch-vis:view` names |
-| *parts not named under their owner* | a style, a route's cells and points, a label, not named `{owner}/…` |
+| *shapes not named {view}#node-{id} or {view}#link-{id}* | a node or a line not named in the view its `arch-vis:view` names |
+| *parts not named under their owner* | a style, a route's cells and points, a label, not named `{owner}-…` when its owner's IRI holds a `#`, or `{owner}/…` when it does not |
 | *outside it, not model, graph/… or {kind}/{id}* | any other name in the namespace, and a model not named `{ns}model` |
 | *named before it (legacy)* | la-gram's names from before the layout, `element-…`, `node-…-style`, the converters' `view/…/node/…`, and the Linked.Archi derivation rules' `derivation-…` and `derivation-activity-…` |
 

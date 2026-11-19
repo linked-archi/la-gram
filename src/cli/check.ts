@@ -154,7 +154,7 @@ const LAYOUT_EXAMPLES = 3;
 const LAYOUT_WORDS: Record<LayoutCategory, string> = {
   characters: 'holding a character a path segment cannot',
   hashes: 'with more than one #',
-  shape: 'shapes not named {view}#node/{id} or {view}#link/{id}',
+  shape: 'shapes not named {view}#node-{id} or {view}#link-{id}',
   part: 'parts not named under their owner',
   outside: 'outside it, not model, graph/… or {kind}/{id}',
   legacy: 'named before it (legacy)',

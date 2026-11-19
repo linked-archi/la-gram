@@ -73,7 +73,7 @@ describe('ModelIO', () => {
     expect(ttl).toContain(`@prefix me: <${ctx.namespace}element/>.`);
     expect(ttl).toMatch(/^m:model a arch:Model;/m);
     expect(ttl).toMatch(/^me:[0-9a-f-]{36} a am4:ApplicationComponent;/m);
-    expect(ttl).toMatch(/^mv[0-9a-f]{8}:link\\\/[0-9a-f-]{36}\\\/points\\\/0 rdf:first mv[0-9a-f]{8}:link\\\/[0-9a-f-]{36}\\\/point\\\/0;/m);
+    expect(ttl).toMatch(/^mv[0-9a-f]{8}:link-[0-9a-f-]{36}-points-0 rdf:first mv[0-9a-f]{8}:link-[0-9a-f-]{36}-point-0;/m);
     expect(ttl).toContain(`vann:preferredNamespaceUri "${ctx.namespace}"`);
     // Nothing of the model is left as a full IRI, nor needs one relative to @base: the namespace is only in @prefix.
     const statements = ttl.split('\n').filter((line) => !line.startsWith('@')).join('\n');
@@ -143,7 +143,7 @@ describe('ModelIO', () => {
     expect(byGraph(graphs.views).length).toBeGreaterThan(0);
     // Every subject there is a shape named in its view (DD-41), or a part of one.
     expect(
-      byGraph(graphs.views).every((q) => /^view\/[^#/]+#(?:node|link)\//.test(q.subject.value.slice(ctx.namespace.length))),
+      byGraph(graphs.views).every((q) => /^view\/[^#/]+#(?:node|link)-/.test(q.subject.value.slice(ctx.namespace.length))),
     ).toBe(true);
     // The arch:View resource is a model concept: semantic, not views.
     expect(byGraph(graphs.semantic).some((q) => q.subject.value === ctx.viewIri)).toBe(true);
@@ -196,15 +196,15 @@ describe('ModelIO, the IRI layout (DD-41)', () => {
     const ctx = buildModel();
     const ns = ctx.namespace;
     const view = `${ns}view/v1`;
-    const node = `${view}#node/n1`;
+    const node = `${view}#node-n1`;
     const { namedNode: iri, quad: q } = DataFactory;
     const added = [
       q(iri(view), iri(RDF_TYPE), iri(NAMESPACES.arch + 'Diagram')),
       q(iri(view), iri(NAMESPACES.arch + 'inModel'), iri(ctx.modelIri)),
       q(iri(node), iri(RDF_TYPE), iri(VIS + 'ArchNode')),
       q(iri(node), iri(VIS + 'view'), iri(view)),
-      q(iri(node), iri(VIS + 'style'), iri(`${node}/style`)),
-      q(iri(`${node}/style`), iri(RDF_TYPE), iri(VIS + 'Style')),
+      q(iri(node), iri(VIS + 'style'), iri(`${node}-style`)),
+      q(iri(`${node}-style`), iri(RDF_TYPE), iri(VIS + 'Style')),
       q(iri(`${ns}element/component/default/payments`), iri(RDF_TYPE), iri(AM4 + 'ApplicationComponent')),
       q(iri(`${ns}view/id-v77/node/id-n42`), iri(RDF_TYPE), iri(VIS + 'ArchNode')),
     ];
@@ -217,8 +217,8 @@ describe('ModelIO, the IRI layout (DD-41)', () => {
     const ttl = ctx.io.serialize(ctx.modelIri, { format: 'turtle' });
     expect(ttl.startsWith(`@base <${ctx.namespace}>.\n`)).toBe(true);
     expect(ttl).toContain(`@prefix ${ctx.prefix}: <${ctx.view}#>.`);
-    expect(ttl).toContain(`${ctx.prefix}:node\\/n1 a arch-vis:ArchNode`);
-    expect(ttl).toContain(`${ctx.prefix}:node\\/n1\\/style a arch-vis:Style`);
+    expect(ttl).toContain(`${ctx.prefix}:node-n1 a arch-vis:ArchNode`);
+    expect(ttl).toContain(`${ctx.prefix}:node-n1-style a arch-vis:Style`);
     expect(ttl).toContain('<element/component/default/payments> a am4:ApplicationComponent');
     expect(ttl).toContain('<view/id-v77/node/id-n42> a arch-vis:ArchNode');
     // What la-gram minted: an element by the kind's prefix.

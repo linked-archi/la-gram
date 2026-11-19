@@ -376,7 +376,7 @@ describe('a model moved to another namespace on one side (DD-41, scenario S7)', 
   it('what the other side added and removed is moved too: an element related and drawn, triple term and all; a deletion', () => {
     const search = `${M}element/search`;
     const serving = `${M}relationship/search-serves-portal`;
-    const node = `${M}view#node/search`;
+    const node = `${M}view#node-search`;
     const crm = MODEL.filter((l) => l.startsWith(`<${M}crm> `) || l.endsWith(` <${M}crm> .`));
     const theirs = edited(MODEL, crm, [
       `<${search}> <${RDF}type> <${AM4}ApplicationComponent> .`,
@@ -395,7 +395,7 @@ describe('a model moved to another namespace on one side (DD-41, scenario S7)', 
     expect(conflicts).toEqual([]);
     expect(merged).toEqual(movedTo(theirs, NEW));
     expect(merged).toContain(`<${NEW}relationship/search-serves-portal> <${RDF}reifies> <<( <${NEW}element/search> <${AM4}serves> <${NEW}portal> )>> .`);
-    expect(merged).toContain(`<${NEW}view#node/search> <${VIS}view> <${NEW}view> .`);
+    expect(merged).toContain(`<${NEW}view#node-search> <${VIS}view> <${NEW}view> .`);
     expect(merged.some((l) => l.includes(`<${NEW}crm>`))).toBe(false);
     expect(inOld(merged)).toEqual([]);
   });

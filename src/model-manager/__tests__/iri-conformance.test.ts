@@ -56,11 +56,11 @@ function model(n: Names, declared = true): Quad[] {
 
 const dd41 = ((): Names => {
   const view = `${NS}view/v1`;
-  const link = `${view}#link/l1`;
+  const link = `${view}#link-l1`;
   return {
     ns: NS, view, link, relationship: `${NS}relationship/r1`,
-    element: (id) => `${NS}element/${id}`, node: (id) => `${view}#node/${id}`,
-    part: (owner, part) => `${owner}/${part}`, cell: (i) => `${link}/points/${i}`, point: (i) => `${link}/point/${i}`,
+    element: (id) => `${NS}element/${id}`, node: (id) => `${view}#node-${id}`,
+    part: (owner, part) => `${owner}-${part}`, cell: (i) => `${link}-points-${i}`, point: (i) => `${link}-point-${i}`,
   };
 })();
 const laGramBefore = ((): Names => {
@@ -128,35 +128,35 @@ describe('a model’s IRIs against the layout (DD-41)', () => {
     const view = `${NS}view/v1`;
     const quads = [
       ...model(dd41),
-      // An element named by hand; a shape named in another view; one not node/… or link/…; a line named as a node.
+      // An element named by hand; a shape named in another view; one not node-… or link-…; a line named as a node.
       quad(`${NS}card-payment`, TYPE, 'https://meta.linked.archi/archimate4/onto#Service'),
-      quad(`${NS}view/v2#node/n1`, `${VIS}view`, view),
-      quad(`${view}#box/n2`, `${VIS}view`, view),
-      quad(`${view}#node/l2`, TYPE, `${VIS}Link`),
-      quad(`${view}#node/l2`, `${VIS}view`, view),
-      // A style not under its node; one named as la-gram named a style before.
-      quad(`${view}#node/n3`, `${VIS}view`, view),
-      quad(`${view}#node/n3`, `${VIS}style`, `${NS}element/style-1`),
-      quad(`${view}#node/n4`, `${VIS}view`, view),
-      quad(`${view}#node/n4`, `${VIS}style`, `${view}#node/n4-style`),
+      quad(`${NS}view/v2#node-n1`, `${VIS}view`, view),
+      quad(`${view}#box-n2`, `${VIS}view`, view),
+      quad(`${view}#node-l2`, TYPE, `${VIS}Link`),
+      quad(`${view}#node-l2`, `${VIS}view`, view),
+      // A style not under its node; one under it but joined with the other joiner, `/` after the `#`.
+      quad(`${view}#node-n3`, `${VIS}view`, view),
+      quad(`${view}#node-n3`, `${VIS}style`, `${NS}element/style-1`),
+      quad(`${view}#node-n4`, `${VIS}view`, view),
+      quad(`${view}#node-n4`, `${VIS}style`, `${view}#node-n4/style`),
       // Two #; a space.
-      quad(`${NS}element/a`, 'https://example.org/vocab#sameAs', `${view}#node/a#again`),
+      quad(`${NS}element/a`, 'https://example.org/vocab#sameAs', `${view}#node-a#again`),
       quad(`${NS}element/a b`, TYPE, 'https://meta.linked.archi/archimate4/onto#Service'),
     ];
     const { iris } = layoutReport(quads)!;
     expect(local(iris.outside)).toEqual(['card-payment']);
-    expect(local(iris.shape)).toEqual(['view/v1#box/n2', 'view/v1#node/l2', 'view/v2#node/n1']);
+    expect(local(iris.shape)).toEqual(['view/v1#box-n2', 'view/v1#node-l2', 'view/v2#node-n1']);
     expect(local(iris.part)).toEqual(['element/style-1']);
-    expect(local(iris.legacy)).toEqual(['view/v1#node/n4-style']);
-    expect(local(iris.hashes)).toEqual(['view/v1#node/a#again']);
+    expect(local(iris.legacy)).toEqual(['view/v1#node-n4/style']);
+    expect(local(iris.hashes)).toEqual(['view/v1#node-a#again']);
     expect(local(iris.characters)).toEqual(['element/a b']);
   });
 
   it('a view that is not view/…, a compound identity, a documentation section by its file, a stakeholder, a derivation and its parts: in it', () => {
     const quads = [
       ...model(dd41),
-      quad(`${NS}element/Process_1#link/Flow_1`, `${VIS}view`, `${NS}element/Process_1`),
-      quad(`${NS}element/Process_1#link/Flow_1`, TYPE, `${VIS}Link`),
+      quad(`${NS}element/Process_1#link-Flow_1`, `${VIS}view`, `${NS}element/Process_1`),
+      quad(`${NS}element/Process_1#link-Flow_1`, TYPE, `${VIS}Link`),
       quad(`${NS}element/component/default/payments`, TYPE, 'https://example.org/backstage#Component'),
       quad(`${NS}documentation/5/README.md`, TYPE, 'https://example.org/c4#Section'),
       quad(`${NS}stakeholder/owner-example.org`, TYPE, 'https://meta.linked.archi/core#Stakeholder'),

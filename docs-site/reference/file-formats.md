@@ -31,35 +31,46 @@ file is opened, and by you when it is saved ([Files, import and export](../guide
   metamodels' in order of their names (`am4:`, `am4mm:`, `am4vp:`), then the model's own (`m:`). `la-gram-git check` holds model files in Git to that form, and
   `la-gram-git fix` rewrites them into it ([la-gram-git](la-gram-git.md#fix)).
 - **IRIs in the Linked.Archi layout**, as the converters write them — `{ns}element/{id}`, a shape
-  `{view}#node/{id}` in its view's IRI, a part under its owner with `/` — are written in Turtle and TriG
-  with the first of these that fits:
+  `{view}#node-{id}` in its view's IRI, a part under its owner (a shape's `{view}#node-{id}-style`, an
+  element's `{ns}element/{id}/name/…`) — are written in Turtle and TriG with the first of these that fits:
     1. a prefix per kind: the model's prefix and `e`, `r`, `v`, `f`, `d`, `doc`, `s` or `g`, for
        `element/`, `relationship/`, `view/`, `folder/`, `decision/`, `documentation/`, `stakeholder/`
        and `graph/`
        (`me:5`, and in TriG the graphs `mg:model`, `mg:semantic`, `mg:views`);
     2. a prefix per view, for a shape and its parts: the model's prefix, `v` and the first 8 hex characters
-       of the SHA-256 of the view's IRI, with each `/` after the `#` written `\/`
-       (`mve7282c35:node\/5`). A view keeps its prefix as other views come and go;
+       of the SHA-256 of the view's IRI (`mve7282c35:node-5`, `mve7282c35:node-5-style`). What a local
+       name cannot hold is escaped, a `/` as `\/`; a shape's name and its parts' have nothing to escape. A
+       view keeps its prefix as other views come and go;
     3. relative to the model's namespace, which the file then names with `@base`
-       (`<view/SystemContext/node/5>`, a converter's older name for a shape);
+       (`<folder/Elements/item/5305a111ce38b42cb7c9>`, an item of a folder; `<view/SystemContext/node/5>`,
+       a converter's older name for a shape);
     4. the whole IRI.
 
-    A C4 model, converted, saved from la-gram:
+    A C4 model converted by `structurizr2linkedarchi`, given a fill colour in la-gram and saved:
 
     ```turtle
     @base <https://example.org/c4/bigbank/>.
     …
     @prefix me: <https://example.org/c4/bigbank/element/>.
+    …
     @prefix mv: <https://example.org/c4/bigbank/view/>.
+    @prefix mf: <https://example.org/c4/bigbank/folder/>.
+    …
     @prefix mve7282c35: <https://example.org/c4/bigbank/view/Containers#>.
-    me:5 a c4:Container.
-    mv:Containers a arch:Diagram.
-    mve7282c35:node\/5 a arch-vis:ArchNode;
+    …
+    me:5 a c4:Container, arch:Element, arch:ModelConcept;
+        dcterms:isPartOf mf:Elements;
+    …
+    <folder/Elements/item/5305a111ce38b42cb7c9> a <https://schema.org/ListItem>;
+        <https://schema.org/item> me:5;
+        <https://schema.org/position> 8.
+    …
+    mve7282c35:node-5 a arch-vis:ArchNode;
         arch-vis:archElement me:5;
-        arch-vis:style mve7282c35:node\/5\/style;
+        arch-vis:style mve7282c35:node-5-style;
         arch-vis:view mv:Containers.
-    <view/SystemContext/node/5> a arch-vis:ArchNode;
-        arch-vis:archElement me:5.
+    mve7282c35:node-5-style a arch-vis:Style;
+        arch-vis:fillColor "#dae8fc".
     ```
 
     Where a loaded vocabulary already uses one of these prefixes for something else, it keeps it, and those
@@ -178,8 +189,8 @@ from the metamodel (here ArchiMate 4.0, `am4:`):
 which any RDF tool can query, and as a relationship resource with its type, its ends and its own
 properties. `rdf:reifies` links the two, and the element points to the resource
 (`am4:qualifiedServing`). Every IRI la-gram makes is in the model's namespace, in the Linked.Archi layout —
-`element/…`, `view/…`, a node `view/…#node/…` in its view — so the Turtle reads `me:…`, `mv:…`,
-`mv3ef7da72:node\/…`; a model saved before keeps its names (`m:element-…`, `m:node-…`) and is written as it
+`element/…`, `view/…`, a node `view/…#node-…` in its view — so the Turtle reads `me:…`, `mv:…`,
+`mv3ef7da72:node-…`; a model saved before keeps its names (`m:element-…`, `m:node-…`) and is written as it
 was. Opening a file keeps the two in step: a relationship
 without `rdf:reifies` is given the triple its type's predicate names, and one whose triple names other ends
 than its `arch:source` and `arch:target` is made to name its own, its predicate kept.
@@ -256,8 +267,8 @@ mr:e26428537a5663f1d196 a am4:Serving;
     arch:inModel m:model; arch:inView mv:…;
     arch:source <https://example.org/acme/inventory/web-shop>; arch:target <https://example.org/acme/inventory/warehouse>.
 mv:… a arch:Diagram, arch:View; skos:prefLabel "Default View"@en; arch:inModel m:model.
-mv…:node\/… a arch-vis:ArchNode; arch-vis:archElement <https://example.org/acme/inventory/web-shop>; …
-mv…:link\/… a arch-vis:Link; arch-vis:archRelationship mr:e26428537a5663f1d196; …
+mv…:node-… a arch-vis:ArchNode; arch-vis:archElement <https://example.org/acme/inventory/web-shop>; …
+mv…:link-… a arch-vis:Link; arch-vis:archRelationship mr:e26428537a5663f1d196; …
 ```
 
 The elements keep their own IRIs, and the `am4:serves` triple gets a relationship,
