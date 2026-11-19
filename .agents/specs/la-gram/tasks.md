@@ -98,6 +98,8 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] The Linked.Archi IRI layout minted (Req 9.7c; DD-41; design decision 33): `{ns}{kind}/{uuid}`, shapes in their view's IRI, parts with `/`; names minted before and a converter's kept and edited in place — own styles, routes (only what differs written), moved names, label expressions, names and pictures for a presentation context; relationships in the model's namespace; the Exchange import named as the converter names it — *iri-layout.test, model-namespace.test, archimate-importer.test, view-manager.test, clipboard.test, workbench.spec*
 - [x] IRIs of the Linked.Archi layout written short in Turtle and TriG (Req 5.13; DD-41): a prefix per kind, a prefix per view with the fragment escaped, then relative to `@base`; prefix clashes left to the vocabularies and to the first view; the copy as Turtle too; n3 pinned for the override (design decision 32) — *turtle-writer.test, model-io.test, short-hash.test*
 - [x] The IRI layout checked by `la-gram-git check` (Req 20.2; DD-41; design decision 35): the namespace, then characters, `#`s, shapes, parts and other names outside the layout, and legacy names, counted and named, never failed; from the file's own triples — *iri-conformance.test, cli.test*
+- [x] A move made on the other side of a merge followed (Req 18.27–18.28; DD-41; design decision 34): *Pull from Git*, *Merge with the newer version* and *Update from main…* move the open model to the IRI the other version has it under, its binding with it (`movedFrom` until committed), the canvas on the same view; *Open this version* after *Open and move*; automatic checks and auto-commit stop; another model in the file is not merged — *git-pull.test, git-merge.test, git-history.test, model-namespace.test, git-merge.spec*
+- [x] A stakeholder is a kind of its own, `{ns}stakeholder/{id}`, as DD-41's kinds table now has it: in the layout for `la-gram-git check` (Req 20.2), and written with the prefix `{p}s:` (Req 5.13) — *iri-conformance.test, turtle-writer.test*
 - [x] A model moved to another namespace, in Git and in a merge (Req 18.27–18.28, 20.5; design decision 34): see Task 19 — *model-merge.test, git-merge.test, git-module.test*
 
 ### Task 6: Validation (Req 6)
@@ -330,7 +332,7 @@ when it starts; what is already recorded elsewhere is named, not repeated.
 Agreed order; relationship visuals come first.
 
 - [x] **The Linked.Archi IRI layout, part 4** (DD-41) — done (2026-11-18): a merge follows a namespace move, la-gram asks before moving a model saved to Git and keeps it bound, `la-gram-git check` reports the layout. Parts 1–4 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
-- [ ] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), not started: today *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* refuse a version that has the model under another IRI (Req 18.28; key design decision 34), and the user merges from the moved branch instead. Following it means renaming the open model under its session (`ModelSession.resync`), its binding (`GitBindings.move`), the History tab, its auto-commit setting and the room, mid-operation, with the operation's own checks (`ctx.modelIri() === modelIri`) re-read for the new IRI.
+- [x] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), done (2026-11-19): *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* (after a second question) move the open model to the IRI the other version has it under, its session, binding and History tab with it; automatic checks and auto-commit stop and say that Pull follows (Req 18.28; key design decision 34). See the change log.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
 - [x] **Nesting / containers** — done (2026-10-11), see the change log. Visual groups (`arch-vis:ContainerNode`, an Exchange file's `Container`) are still not drawn.
 - [x] **EDGY artwork — licence** — done (2026-10-17), see the change log.
@@ -403,11 +405,10 @@ Agreed order; relationship visuals come first.
 
 - The Linked.Archi IRI layout (Req 9.7c): deleting a view leaves its placements' own styles, as before
   (`converted-styles-and-routes`, Open 1).
-- A namespace move (Req 18.27–18.28): la-gram merges other versions into a model moved here, but does not
-  follow a move made on the other side — *Pull from Git*, *Merge with the newer version*, *Update from
-  main…* and *Open this version* refuse it, and the merge is made from the moved branch (Queued next).
-  Auto-commit is off for a moved model until turned on again: its setting is kept by model IRI. The local
-  checkpoints of the History tab stay with the model's former IRI.
+- A namespace move (Req 18.27–18.28): automatic checks and auto-commit do not follow a move made on the
+  other side — *Pull from Git* does. Undo does not take a move back, made here or followed. Auto-commit is
+  off for a moved model until turned on again: its setting is kept by model IRI. The local checkpoints of
+  the History tab stay with the model's former IRI.
 - Git synchronization is available outside shared rooms; unresolved conflicts and pending branch
   merges pause it. Regular checks need browser tab coordination and run while visible/online.
   Auto-commit is destination opt-in, requires durable local storage, and stays paused after uncertain
@@ -432,6 +433,41 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-19 — a move made on the other side of a merge followed (DD-41)
+
+- When the other version of a merge has the model in another namespace, *Pull from Git*, *Merge with the
+  newer version* and *Update from main…* move the open model there, where they stopped before and said to
+  merge from the moved branch (Req 18.28; design decision 34). The merged model replaces the open one as
+  one change, and `MergeSupport.replace` has the session follow it: `ModelSession.resync({ moved: true })`
+  re-points the session and its view and emits `model-loaded` with `previousModelIri`, so the Git module
+  moves the binding as for a move made here. The flows re-read the model's IRI after applying —
+  `mergeHere`'s `followed`, and `keptAs` for the binding, which notes the IRI the bound file still has the
+  model under until a commit from here (*Update from main…* on a branch the move is not on). A message
+  says so. Undo does not take the move back: the view opened under its new IRI starts a fresh history.
+- *Open this version* of a commit that has the model under another IRI asks a second time, *Open and move*,
+  and then moves the open model there with it, where it did not open it before.
+- Automatic checks and auto-commit do not move the model: they stop at such a version and say that *Pull
+  from Git* follows it. A version with another model — the same namespace, or an IRI not named
+  `{namespace}model` — is not merged into the open one, and says so.
+- Tests: *git-pull.test* (followed with a local change, the binding under the new IRI; an automatic pull
+  refused; another model refused), *git-merge.test* (*Merge with the newer version* followed and committed;
+  *Update from main…* followed and committed, and with a conflict, `movedFrom` kept; another model refused),
+  *git-history.test* (*Open and move*, declined and accepted), *model-namespace.test* (`resync` with
+  `moved`), *git-merge.spec* (a colleague's move pulled in the browser, the view under its new IRI, the
+  change committed). Docs: *Git* (*Moving the model to another namespace*), *History*.
+
+### 2026-11-19 — a stakeholder has a kind of its own (DD-41)
+
+- `stakeholder` is in DD-41's kinds table: a stakeholder a source identifies by an email address, such as a
+  LeanIX subscriber the converter names `{ns}stakeholder/{key}`. Like a decision, it is an `arch:Element`
+  with a kind of its own, so that its id, an address, does not share `element/` with ids from another id
+  space. `la-gram-git check` counts `{ns}stakeholder/…` as in the layout, where it listed it as outside it
+  (Req 20.2), and la-gram writes it with the kind's prefix, `{p}s:`, where it wrote it relative to `@base`
+  (Req 5.13). A stakeholder made in la-gram is still `{ns}element/{uuid}`: its id is la-gram's, not an
+  address.
+- Tests: *iri-conformance.test* (a stakeholder in the layout), *turtle-writer.test* (`ms:` bound and used, and
+  the file read back as written). Docs: *File formats*.
 
 ### 2026-11-19 — relationships made for bare triples named in the layout (DD-41)
 

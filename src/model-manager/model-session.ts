@@ -282,14 +282,20 @@ export class ModelSession {
   }
 
   /**
-   * Follow a change made elsewhere (a collaborator) that replaced the model
-   * resource — a namespace change, or a new model. Re-points the session at the
-   * model now in the store and at the same view under its new IRI when there is
-   * one, then emits `model-loaded`.
+   * Follow a change that replaced the model resource in the store — a namespace
+   * change, or a new model — made elsewhere: by a collaborator, or (`moved`) by
+   * a merge or a version from Git that has the model under another IRI.
+   * Re-points the session at the model now in the store and at the same view
+   * under its new IRI when there is one, then emits `model-loaded`.
+   *
+   * The event carries the IRI the model had, `previousModelIri`, when it is the
+   * same model moved: for a collaborator's change when its view is there under
+   * the same local part, and always for a `moved` one — the merge or the
+   * version is of the same file, which the model stays bound to (DD-41).
    *
    * @returns Whether anything was re-pointed.
    */
-  resync(): boolean {
+  resync(options: { moved?: boolean } = {}): boolean {
     const modelIri = this.currentModel;
     if (!modelIri) return false;
     const stillThere = this.store
@@ -313,9 +319,9 @@ export class ModelSession {
     this.events?.emit('model-loaded', {
       modelIri: next,
       viewIri: this.currentView,
-      remote: true,
+      ...(options.moved ? { renamed: true } : { remote: true }),
       // The same model moved, its view there under the same local part — not another model started in the room.
-      ...(view ? { previousModelIri: modelIri } : {}),
+      ...(view || options.moved ? { previousModelIri: modelIri } : {}),
     });
     return true;
   }

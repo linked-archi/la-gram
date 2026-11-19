@@ -325,20 +325,35 @@ repository, branch and file; *Move* moves it, *Cancel* leaves the model as it wa
   each IRI keeping the rest of its name: a colleague's rename, made in the old namespace, lands on the
   moved element. [`la-gram-git merge`](../reference/la-gram-git.md#merge) does the same with `git merge`,
   whichever side moved.
-- **The open model does not follow a move made elsewhere.** When the other version has the model in
-  another namespace, moved there or replaced, *Pull from Git*, *Merge with the newer version* and *Update
-  from main…* stop without changing the model, and say what to do: open the moved branch from Git, and to
-  keep what changed here, first save it to a new branch with *Save to Git as…*, then merge that branch
-  into the moved one from there with *Update from main…*. *Open this version*, in the History tab, does
-  not open a commit from before the move.
+- **The open model follows a move made elsewhere.** When the other version has the model in another
+  namespace, *Pull from Git*, *Merge with the newer version* and *Update from main…* move the open model
+  there: what changed here lands under the new IRIs, each keeping the rest of its name, the canvas shows
+  the same view under its new IRI, and the model stays bound to its file. A message says so: *main has the
+  model in another namespace, as https://example.org/acme/store/model: the open model moved there too, and
+  stays bound to its file.* Undo does not take the move back.
+- **Automatic checks and auto-commit do not move the open model.** A scheduled pull, with *Pull
+  automatically when unchanged locally* on, and an automatic commit stop at a version that has the model in
+  another namespace, and the *Git* tab says that *Pull from Git* follows it.
+- **Another model in the file** — the same namespace, or an IRI not named `{namespace}model` — is not
+  merged into the open one: open it from Git.
 - **Moved on both sides, to two namespaces:** not merged. Move one to the other's namespace first.
-- **Auto-commit** is off for the moved model, until it is turned on again
+- **Auto-commit** is off for the moved model, moved here or followed, until it is turned on again
   ([Optional auto-commit](#auto-commit)).
+- **In the History tab**, *Open this version* of a commit that has the model in another namespace asks a
+  second time, *Open and move*, and then moves the open model there with it.
+
+To move the model:
 
 1. Open the model from Git, and click its name in the toolbar.
 2. In *Namespace*, type `https://example.org/acme/store/`, and choose *Apply*.
 3. *Model saved to Git* names the file: choose *Move*.
 4. Choose *File › Save to Git*: the move is committed to the same file.
+
+To follow a colleague who moved it on `main`:
+
+1. Choose *File › Pull from Git*: the model is in the colleague's namespace, with your changes, and the
+   message names the new IRI.
+2. Choose *File › Save to Git* to commit your changes to the moved file.
 
 ## Merge requests {#merge-requests}
 

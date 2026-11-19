@@ -273,7 +273,10 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     }
     ctx.merge?.clear();
 
-    ctx.bindings.set(modelIri, {
+    // Merged with the newer version, the model may have followed a move made there to another IRI (DD-41).
+    const committed = ctx.modelIri() ?? modelIri;
+    if (committed !== modelIri) ctx.bindings.forget(modelIri);
+    ctx.bindings.set(committed, {
       host: target.link.host,
       provider: target.link.provider,
       apiBase: target.link.apiBase,

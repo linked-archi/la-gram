@@ -610,4 +610,42 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     expect(await nameOf(f, movedBilling)).toEqual(['Billing (colleague)']);
     await f.close();
   }, 90_000);
+
+  it('a colleague moves the model to another namespace on main; Pull from Git follows it here, with the change made here and the binding (DD-41)', async () => {
+    const NEW = 'https://acme.com/ea/shop/';
+    const NEWER = 'https://acme.com/ea/store/';
+    const old = billing.slice(0, billing.indexOf('element/'));
+    const at = (ns: string, iri: string) => `${ns}${iri.slice(old.length)}`;
+    const g = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(g, at(NEW, portal))).length === 1, 'G to open main');
+
+    // G changes Portal; meanwhile a colleague moves the model on main.
+    await rename(g, at(NEW, portal), 'Portal (G)');
+    github.push(github.file().split(NEW).join(NEWER));
+    const commits = github.commits.size;
+
+    await g.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    await until(async () => (await nameOf(g, at(NEWER, portal))).length === 1, 'the open model to follow the move');
+    expect(await nameOf(g, at(NEWER, portal))).toEqual(['Portal (G)']);
+    expect(await nameOf(g, at(NEW, portal))).toEqual([]);
+    const { modelIri, viewIri } = await g.evaluate(() => {
+      const { session } = (window as any).__LA_GRAM_APP__;
+      return { modelIri: session.modelIri, viewIri: session.activeViewIri };
+    });
+    expect(modelIri).toBe(`${NEWER}model`);
+    // The canvas on the same view, under its new IRI; still bound to the file; nothing committed.
+    expect(viewIri.startsWith(NEWER)).toBe(true);
+    const entries = await g.evaluate(() => (window as any).__LA_GRAM_UI__.appToolbar.fileMenuItems().map((i: any) => `${i.label} [${i.hint ?? ''}]`));
+    expect(entries).toContain('Save to Git [acme/arch · main]');
+    expect(github.commits.size).toBe(commits);
+
+    // Save to Git commits the change made here into the moved file.
+    await run(g, 'save');
+    await answer(g); // the commit message
+    await answer(g, { token: TOKEN });
+    await until(async () => github.file().includes('Portal (G)'), 'G’s commit');
+    expect(github.file()).toContain(`<${NEWER}>`);
+    expect(github.file()).not.toContain(NEW);
+    await g.close();
+  }, 90_000);
 });

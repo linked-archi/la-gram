@@ -82,6 +82,12 @@ export function startMerging(app: App, ui: MountedUi): { support: MergeSupport; 
     replace: (snapshot) => {
       const { added, removed } = diffSnapshots(snapshotOf(modelQuads(store)), snapshot);
       change(removed, added);
+      // The model under another IRI: moved to another namespace on the other side, or replaced
+      // there (DD-41). The session follows it, and with it the binding to its file (`model-loaded`'s
+      // `previousModelIri`), the History tab and the canvas. The view opened under its new IRI starts
+      // a fresh undo history, so undo does not take the move back, as after a move in Model settings;
+      // opening the model clears the dirty mark, which the change sets again.
+      if (app.session.resync({ moved: true })) eventBus.emit('model-changed', { origin: 'git' });
     },
     conflicts: (conflicts, against, activate = true) => {
       shown = { modelIri: app.session.modelIri, entries: conflicts.map((conflict) => ({ conflict, current: conflict.held })), against };

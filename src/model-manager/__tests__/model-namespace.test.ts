@@ -313,4 +313,21 @@ describe('the model namespace', () => {
     expect(detail).toMatchObject({ remote: true });
     expect(detail).not.toHaveProperty('previousModelIri');
   });
+
+  it('follows a move a merge found (moved): the same model renamed, whether or not its view is there', () => {
+    const { modelIri, viewIri } = session.newModel({ label: 'Shop' });
+    populate(modelIri, viewIri);
+    // Moved elsewhere, and the open view deleted there: still the same model, which keeps its binding.
+    const peer = new ModelSession(store, elements, views);
+    peer.adopt({ emit: false });
+    peer.setNamespace('https://acme.com/ea/shop/');
+    views.deleteView(`https://acme.com/ea/shop/${viewIri.slice(session.namespace()!.namespace.length)}`);
+    emit.mockClear();
+
+    expect(session.resync({ moved: true })).toBe(true);
+    expect(session.modelIri).toBe('https://acme.com/ea/shop/model');
+    const [, detail] = emit.mock.calls.find(([type]) => type === 'model-loaded')!;
+    expect(detail).toMatchObject({ renamed: true, previousModelIri: modelIri });
+    expect(detail).not.toHaveProperty('remote');
+  });
 });

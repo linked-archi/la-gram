@@ -48,8 +48,8 @@ export interface LayoutReport {
   iris: Record<LayoutCategory, string[]>;
 }
 
-/** The kinds of resource with an identity of their own: `{ns}{kind}/{id}`. */
-const KINDS = 'element|relationship|view|folder|decision|documentation';
+/** The kinds of resource with an identity of their own: `{ns}{kind}/{id}` (the guide's kinds table). */
+const KINDS = 'element|relationship|view|folder|decision|documentation|stakeholder';
 const IN_LAYOUT = new RegExp(`^(?:model(?:/.*)?|graph/[^/#]+|(?:${KINDS})/[^/#].*)$`);
 /**
  * What la-gram minted before DD-41: `{ns}element-{uuid}`, `{ns}node-{uuid}`, and their parts, `{node}-style`;

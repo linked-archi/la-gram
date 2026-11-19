@@ -118,7 +118,16 @@ describe('writeTurtle', () => {
     expect(ttl).toContain(`@prefix me: <${NS}element/>.`);
     expect(ttl).toContain(`@prefix mv: <${NS}view/>.`);
     expect(ttl).toContain(`@prefix mv3ef7da72: <${VIEW}#>.`);
-    for (const unused of ['mr', 'mf', 'md', 'mdoc', 'mg']) expect(ttl).not.toContain(`@prefix ${unused}:`);
+    for (const unused of ['mr', 'mf', 'md', 'mdoc', 'ms', 'mg']) expect(ttl).not.toContain(`@prefix ${unused}:`);
+  });
+
+  it('writes a stakeholder with its kind’s prefix, as the guide’s kinds table has it (R2)', () => {
+    const stakeholder = `${NS}stakeholder/owner-example.org`;
+    const quads = [...layoutModel(), t(stakeholder, `${RDF}type`, `${ARCH}Stakeholder`)];
+    const ttl = writeTurtle(quads, { prefixes: KNOWN, onlyUsed: true, model: MODEL });
+    expect(ttl).toContain(`@prefix ms: <${NS}stakeholder/>.`);
+    expect(ttl).toContain('ms:owner-example.org a arch:Stakeholder');
+    expect(readByN3(ttl)).toEqual(canonical(quads));
   });
 
   it('is read back as written, by N3.js and by Oxigraph (R8)', () => {

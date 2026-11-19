@@ -65,8 +65,10 @@ They are read when the tab opens, and again on *Read again*; *Older commits…* 
 changes are shown as a checkpoint's, against the commit before it or the model now.
 
 *Open this version* makes the model the file at that commit, after asking, undoably, and still bound to
-its branch: the next save commits to the branch as usual. A commit from before the model was moved to
-another namespace is not opened: the message says so ([Moving the model to another namespace](git.md#namespace)).
+its branch: the next save commits to the branch as usual. A commit that has the model in another
+namespace, from before or after a move, asks a second time, *Open and move*: the open model moves there with
+it, still bound to its file, and undo does not take the move back
+([Moving the model to another namespace](git.md#namespace)).
 Bound to a branch other than the default, the first entry is
 the branch against the default (*Branch*, *What merging it into main would bring*).
 

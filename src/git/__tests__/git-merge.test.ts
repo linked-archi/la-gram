@@ -6,12 +6,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { saveToGit, type GitSaveContext } from '../git-save.js';
-import { updateFromBranch, type MergeSupport } from '../git-merge.js';
+import { anotherModel, followedMove, updateFromBranch, type MergeSupport } from '../git-merge.js';
 import { GitBindings, type GitBinding } from '../bindings.js';
 import { WebTokenStore } from '../credentials.js';
 import { GitError } from '../errors.js';
 import type { Dialogs, FormField, FormValues } from '../../ui/dialogs.js';
-import { applyChoice, type MergeConflict } from '../../model-manager/model-merge.js';
+import { applyChoice, snapshotModel, type MergeConflict } from '../../model-manager/model-merge.js';
 import { MemoryStorage } from './memory-storage.js';
 import { Repository } from './memory-repository.js';
 
@@ -355,6 +355,18 @@ describe.each(['github', 'gitlab'] as const)('a model moved to another namespace
     repo = new Repository(kind, PATH, text(version(OLD, { e1: 'One', e2: 'Two' })));
     open = `${OLD}model`;
     ctx.modelIri = () => open;
+    // As la-gram's replace does: a snapshot with the model under another IRI moves the open model there.
+    ctx.merge = {
+      ...ctx.merge!,
+      replace: (snapshot) => {
+        model = [...snapshot];
+        const moved = snapshotModel(snapshot)?.model;
+        if (moved && moved !== open) {
+          bindings.move(open, moved);
+          open = moved;
+        }
+      },
+    };
     const head = repo.branches.get('main')!;
     const binding: GitBinding = {
       host: kind === 'github' ? 'github.com' : 'gitlab.com', provider: kind, apiBase: 'https://api', repository: 'acme/arch',
@@ -400,19 +412,34 @@ describe.each(['github', 'gitlab'] as const)('a model moved to another namespace
     expect(bindings.get(`${NEW}model`)?.movedFrom).toBeUndefined();
   });
 
-  it('moved there: not merged into the open model, which stays as it is, and it says what to do', async () => {
+  it('moved there, the save refused: the open model moves there, merged, and is committed to the same file', async () => {
     await bindAndMove(undefined, { e1: 'One (mine)', e2: 'Two' });
-    repo.push('main', version(NEW, { e1: 'One', e2: 'Two' }));
+    repo.push('main', version(NEW, { e1: 'One', e2: 'Two (theirs)' }));
+    chooses.push('merge');
+    const result = await saveToGit(ctx);
+
+    expect(result?.branch).toBe('main');
+    expect(open).toBe(`${NEW}model`);
+    expect(fileLines('main')).toEqual(version(NEW, { e1: 'One (mine)', e2: 'Two (theirs)' }));
+    expect(model).toEqual(fileLines('main'));
+    expect(reports).toContain(followedMove('main', `${NEW}model`));
+    // Bound under its new IRI, the file as it is now; nothing left under the old one.
+    expect(bindings.get(`${OLD}model`)).toBeUndefined();
+    expect(bindings.get(`${NEW}model`)).toMatchObject({ commit: repo.branches.get('main'), path: PATH });
+    expect(bindings.get(`${NEW}model`)?.movedFrom).toBeUndefined();
+  });
+
+  it('another model there, in the same namespace: not merged into the open model, and it says what to do', async () => {
+    await bindAndMove(undefined, { e1: 'One (mine)', e2: 'Two' });
+    repo.push('main', version(OLD, { e1: 'One', e2: 'Two' }).map((l) => l.replace(`<${OLD}model>`, `<${OLD}other>`)));
     chooses.push('merge');
     const before = [...model];
     expect(await saveToGit(ctx)).toBeUndefined();
 
     expect(model).toEqual(before);
+    expect(open).toBe(`${OLD}model`);
     expect(repo.made).toEqual([]);
-    expect(reports.at(-1)).toBe(
-      `main has the model as ${NEW}model now: moved to another namespace, or replaced. A merge here does not move the open model there. ` +
-        'Open main from Git to go on with it; to keep what changed here, first save it to a new branch (Save to Git as…), then merge that branch into main from there (Update from main…).',
-    );
+    expect(reports.at(-1)).toBe(anotherModel('main', `${OLD}other`));
   });
 
   it('moved here and there, to two namespaces: not merged', async () => {
@@ -442,21 +469,45 @@ describe.each(['github', 'gitlab'] as const)('a model moved to another namespace
     expect(fileLines(result!.branch)).toEqual(version(NEW, { e1: 'One (feature)', e2: 'Two' }));
   });
 
-  it('Update from main… on a branch started before main moved the model: refused, the model as it was', async () => {
+  it('Update from main… on a branch started before main moved the model: the model moves there, and the update is committed', async () => {
     const binding = await bindAndMove();
     const fork = repo.branches.get('main')!;
     repo.commit('feature', [fork], new Map(repo.commits.get(fork)!.files));
     const featureHead = repo.push('feature', version(OLD, { e1: 'One (feature)', e2: 'Two' }));
-    repo.push('main', version(NEW, { e1: 'One', e2: 'Two' }));
+    const mainHead = repo.push('main', version(NEW, { e1: 'One', e2: 'Two (main)' }));
     bindings.set(open, { ...binding, branch: 'feature', commit: featureHead, version: (await repo.readFile(featureHead, PATH))!.version });
     model = fileLines('feature');
-    const before = [...model];
+
+    chooses.push('main');
+    // Asked for the update's commit message, and on GitLab for the new branch's name.
+    const result = await updateFromBranch(ctx);
+    expect(open).toBe(`${NEW}model`);
+    expect(reports).toContain(followedMove('main', `${NEW}model`));
+    expect(bindings.get(`${OLD}model`)).toBeUndefined();
+    // On GitHub a merge commit on feature; on GitLab a new branch started from main's head.
+    expect(result?.branch).toEqual(kind === 'github' ? 'feature' : expect.stringMatching(/^la-gram\//));
+    expect(fileLines(result!.branch)).toEqual(version(NEW, { e1: 'One (feature)', e2: 'Two (main)' }));
+    expect(bindings.get(`${NEW}model`)).toMatchObject({ branch: result!.branch, commit: result!.commit });
+    expect(bindings.get(`${NEW}model`)?.movedFrom).toBeUndefined();
+    expect(bindings.get(`${NEW}model`)?.update).toBeUndefined();
+    if (kind === 'github') expect(repo.commits.get(result!.commit)?.parents).toEqual([featureHead, mainHead]);
+  });
+
+  it('Update from main… on a branch started before main moved the model, with a conflict: the model moves, and the move is noted until committed', async () => {
+    const binding = await bindAndMove();
+    const fork = repo.branches.get('main')!;
+    repo.commit('feature', [fork], new Map(repo.commits.get(fork)!.files));
+    const featureHead = repo.push('feature', version(OLD, { e1: 'One (feature)', e2: 'Two' }));
+    repo.push('main', version(NEW, { e1: 'One (main)', e2: 'Two' }));
+    bindings.set(open, { ...binding, branch: 'feature', commit: featureHead, version: (await repo.readFile(featureHead, PATH))!.version });
+    model = fileLines('feature');
 
     chooses.push('main');
     expect(await updateFromBranch(ctx)).toBeUndefined();
-    expect(model).toEqual(before);
+    expect(open).toBe(`${NEW}model`);
+    expect(shown?.conflicts).toHaveLength(1);
+    // The file on feature still has the model in the old namespace, until the update is committed.
+    expect(bindings.get(`${NEW}model`)).toMatchObject({ branch: 'feature', commit: featureHead, movedFrom: `${OLD}model`, update: { branch: 'main' } });
     expect(repo.made).toEqual([]);
-    expect(bindings.get(open)?.update).toBeUndefined();
-    expect(reports.at(-1)).toMatch(new RegExp(`^main has the model as ${NEW.replace(/[./]/g, '\\$&')}model now`));
   });
 });

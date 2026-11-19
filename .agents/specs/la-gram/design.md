@@ -3551,23 +3551,37 @@ dialog; the modules' section).
     keeps every local part. A relationship made for a bare triple is named as meta's rules name it
     (decision 36).
 
-34. **A merge follows a namespace move; la-gram follows only its own** (Req 18.27–18.28, 20.5; DD-41's
-    scenario S7; 2026-11-18). Moving a model renames every IRI in it, so a move on one side and an edit on
-    the other merged as they are read as everything deleted on one side — the one scenario DD-41 found to
-    break every layout. `mergeSnapshots` therefore moves base and the other side after the mover first,
-    keeping local parts as `planNamespaceChange` does; it is in the merge, not in a caller, so that the
-    driver, *Pull*, *Merge with the newer version* and *Update from main…* all have it. A move is told by
-    the model's IRI, which a move always changes (`{to}model`); a namespace set without moving the IRIs is
-    not taken for one, so the IRIs the other side added are not renamed behind the user's back. An IRI the
-    mover still has stays, as its move left it. Two moves to two namespaces have no namespace to merge into:
-    refused, not guessed. In la-gram the merged model replaces the open one, which its session, its Git
-    binding, the History tab, its auto-commit setting and its room know by its IRI, so only a move made here
-    is merged into; following one made elsewhere would rename the open model under all of those, and is not
-    done (*Known limitations*): such a merge stops before anything changes, and says to open the moved branch
-    and merge the changes made here into it, from there, where the move is the model's own. For the same
-    reason the binding moves with the model when it is moved here, so that *Save to Git* commits the move
-    to the same file, naming the version it replaces, instead of asking where and replacing the file
-    unmerged; `movedFrom` lets Pull and the checks read that file until the move is committed.
+34. **A merge follows a namespace move, and so does the open model** (Req 18.27–18.28, 20.5; DD-41's
+    scenario S7; 2026-11-18, the open model following a move made elsewhere 2026-11-19). Moving a model
+    renames every IRI in it, so a move on one side and an edit on the other merged as they are read as
+    everything deleted on one side — the one scenario DD-41 found to break every layout. `mergeSnapshots`
+    therefore moves base and the other side after the mover first, keeping local parts as
+    `planNamespaceChange` does; it is in the merge, not in a caller, so that the driver, *Pull*, *Merge with
+    the newer version* and *Update from main…* all have it. A move is told by the model's IRI, which a move
+    always changes (`{to}model`); a namespace set without moving the IRIs is not taken for one, so the IRIs
+    the other side added are not renamed behind the user's back. An IRI the mover still has stays, as its
+    move left it. Two moves to two namespaces have no namespace to merge into: refused, not guessed.
+
+    The binding moves with the model when it is moved here, so that *Save to Git* commits the move to the
+    same file, naming the version it replaces, instead of asking where and replacing the file unmerged;
+    `movedFrom` lets Pull and the checks read that file until the move is committed. A move made elsewhere
+    is followed the same way, from the one place every merge and *Open this version* go through: the merged
+    model replaces the open one (`MergeSupport.replace`), and when it has the model under another IRI,
+    `ModelSession.resync({ moved: true })` re-points the session at it and its view, and emits `model-loaded`
+    with `previousModelIri`, by which the Git module moves the binding, as for a move made here; the History
+    tab and the canvas read the model's new IRI from the session. The flows themselves only re-read the
+    IRI after applying (`mergeHere`'s `followed`, `keptAs` for the binding), so none of them carries its
+    own copy of the rename. The canvas opens the view under its new IRI, which starts a fresh undo
+    history: undo does not take the move back, as after a move in Model settings, rather than restoring
+    the old IRIs under a session that names the new ones.
+
+    Only a merge someone asked for follows. A version with the model in another namespace is a move of the
+    whole model, so an automatic pull or commit (Req 18.25–18.26) stops at it and says that *Pull from Git*
+    follows it, rather than rename the model while nobody is looking; its checks still read and report the
+    version. A move is a change of namespace to `{namespace}model`: a version with another model IRI in the
+    same namespace, or one not named so, holds another model, and is not merged into this one. Auto-commit
+    stays keyed by model IRI, so it is off for a model moved either way until turned on again: a namespace
+    change is the moment to look at what it would commit.
 
 35. **The IRI layout is reported, never failed, from the file's own triples** (Req 20.2; DD-41;
     2026-11-18). No tool renames an IRI (DD-41), so a check that failed on names given before the layout

@@ -156,17 +156,27 @@ describe('the History tab’s Git history', () => {
     expect(historyKey(b)).toBe(history.key);
   });
 
-  it('Open this version of a commit from before the model was moved to another namespace: not opened, and says why', async () => {
+  it('Open this version of a commit from before the model was moved to another namespace: asks again, then opens it, the model moving back', async () => {
     const typed = (ns: string) => `<${ns}model> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://meta.linked.archi/core#Model> .`;
-    const old = repo.push('main', [typed('https://example.org/m/'), ...V3].sort(), 'Name the model');
+    const before = [typed('https://example.org/m/'), ...V3].sort();
+    const old = repo.push('main', before, 'Name the model');
     repo.push('main', [typed('https://acme.com/ea/shop/'), ...V3.map((l) => l.replace('https://example.org/m/', 'https://acme.com/ea/shop/'))].sort(), 'Move it');
     const history = gitHistorySource(ctx, binding(), { replace: (snapshot) => replaced.push(snapshot), model: () => 'https://acme.com/ea/shop/model' });
     const commit = (await history.commits(1, false)).commits.find((c) => c.commit === old)!;
+
+    // Declined the second time: nothing changes.
+    confirms.push(true, false);
     await history.openVersion(commit);
-    expect(replaced).toEqual([]);
-    expect(reports.at(-1)).toBe(
-      `Commit ${old.slice(0, 8)} has the model as https://example.org/m/model, in another namespace: it was moved since, and opening that version would rename the open model.`,
+    expect(asked).toEqual(['confirm:Open this version', 'confirm:Open this version']);
+    expect(vi.mocked(ctx.dialogs.confirm).mock.calls[1]?.[1]).toBe(
+      `Commit ${old.slice(0, 8)} has the model as https://example.org/m/model, in another namespace. Opened, the open model moves there with it, ` +
+        `and stays bound to ${PATH} on main; undo does not take the move back.`,
     );
+    expect(replaced).toEqual([]);
+
+    await history.openVersion(commit);
+    expect(replaced).toEqual([before]);
+    expect(reports.at(-1)).toBe(`The model is ${PATH} as at ${old.slice(0, 8)}, as https://example.org/m/model. Save to Git commits it to main.`);
   });
 
   it('Open this version, declined: nothing changes; at a commit without the file: says so', async () => {

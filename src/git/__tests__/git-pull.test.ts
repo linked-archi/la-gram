@@ -1,11 +1,13 @@
 /** Same-branch pulls against both hosts, without any repository writes. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyChoice, type MergeConflict } from '../../model-manager/model-merge.js';
+import { applyChoice, snapshotModel, type MergeConflict } from '../../model-manager/model-merge.js';
 import { IRI } from '../../model-manager/vocabulary.js';
 import { GitBindings, type GitBinding } from '../bindings.js';
 import { WebTokenStore } from '../credentials.js';
 import { GitError } from '../errors.js';
-import { pullFromGit, type GitPullContext } from '../git-pull.js';
+import { applyGitObservation, pullFromGit, type GitPullContext } from '../git-pull.js';
+import { anotherModel, followedMove, movedElsewhere } from '../git-merge.js';
+import { observeGit } from '../git-observation.js';
 import { saveToGit } from '../git-save.js';
 import { MemoryStorage } from './memory-storage.js';
 import { Repository } from './memory-repository.js';
@@ -211,12 +213,55 @@ describe.each(['github', 'gitlab'] as const)('Pull from %s', (kind) => {
       expect(repo.made).toEqual([]);
     });
 
-    it('moved on the branch: not pulled into the open model, and it says what to do', async () => {
+    /** As la-gram's replace does: a snapshot with the model under another IRI moves the open model there. */
+    const following = () => {
+      vi.mocked(ctx.merge!.replace).mockImplementation((snapshot: string[]) => {
+        undo.push(model);
+        model = snapshot;
+        const from = ctx.modelIri()!;
+        const to = snapshotModel(snapshot)?.model;
+        if (to && to !== from) {
+          ctx.bindings.move(from, to);
+          ctx.modelIri = () => to;
+        }
+      });
+    };
+
+    it('moved on the branch: Pull moves the open model there, its changes with it, still bound to the file', async () => {
+      following();
+      model = rename(BASE, 'a', 'Local');
+      const head = repo.push('main', moved(BASE));
+      expect(await pullFromGit(ctx)).toBe('merged');
+      expect(ctx.modelIri()).toBe(`${NEW}model`);
+      expect(model).toEqual(moved(rename(BASE, 'a', 'Local')));
+      expect(ctx.bindings.get(MODEL)).toBeUndefined();
+      // The file has the model as it is now: nothing to note.
+      expect(ctx.bindings.get(`${NEW}model`)).toEqual({ ...bound, commit: head, version: (await repo.readFile(head, PATH))!.version });
+      expect(vi.mocked(ctx.report).mock.calls.map((c) => c[0])).toContain(followedMove('main', `${NEW}model`));
+      expect(dirty).toBe(true);
+      expect(repo.made).toEqual([]);
+    });
+
+    it('moved on the branch: an automatic pull does not move the open model, and says that Pull does', async () => {
+      following();
       repo.push('main', moved(BASE));
+      const observed = await observeGit(ctx, bound, () => true, false);
+      expect(observed?.incoming).toBe(true);
+      expect(() => applyGitObservation(ctx, observed!, true)).toThrow(movedElsewhere('main', `${NEW}model`));
+      expect(model).toEqual(BASE);
+      expect(ctx.modelIri()).toBe(MODEL);
+      expect(ctx.bindings.get(MODEL)).toEqual(bound);
+    });
+
+    it('another model on the branch, in the same namespace: not pulled, and it says so', async () => {
+      following();
+      const other = 'https://example.org/m/other';
+      repo.push('main', BASE.map((l) => l.replace(`<${MODEL}>`, `<${other}>`)));
       expect(await pullFromGit(ctx)).toBe('stopped');
       expect(model).toEqual(BASE);
+      expect(ctx.modelIri()).toBe(MODEL);
       expect(ctx.bindings.get(MODEL)).toEqual(bound);
-      expect(vi.mocked(ctx.report).mock.calls.at(-1)?.[0]).toMatch(/^Pull from Git failed: main has the model as https:\/\/acme\.com\/ea\/shop\/model now: moved to another namespace, or replaced\./);
+      expect(vi.mocked(ctx.report).mock.calls.at(-1)?.[0]).toBe(`Pull from Git failed: ${anotherModel('main', other)}`);
     });
   });
 

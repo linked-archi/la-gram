@@ -33,8 +33,9 @@ file is opened, and by you when it is saved ([Files, import and export](../guide
 - **IRIs in the Linked.Archi layout**, as the converters write them — `{ns}element/{id}`, a shape
   `{view}#node/{id}` in its view's IRI, a part under its owner with `/` — are written in Turtle and TriG
   with the first of these that fits:
-    1. a prefix per kind: the model's prefix and `e`, `r`, `v`, `f`, `d`, `doc` or `g`, for
-       `element/`, `relationship/`, `view/`, `folder/`, `decision/`, `documentation/` and `graph/`
+    1. a prefix per kind: the model's prefix and `e`, `r`, `v`, `f`, `d`, `doc`, `s` or `g`, for
+       `element/`, `relationship/`, `view/`, `folder/`, `decision/`, `documentation/`, `stakeholder/`
+       and `graph/`
        (`me:5`, and in TriG the graphs `mg:model`, `mg:semantic`, `mg:views`);
     2. a prefix per view, for a shape and its parts: the model's prefix, `v` and the first 8 hex characters
        of the SHA-256 of the view's IRI, with each `/` after the `#` written `\/`

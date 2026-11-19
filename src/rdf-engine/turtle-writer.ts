@@ -59,6 +59,7 @@ export const KIND_PREFIXES: ReadonlyArray<readonly [suffix: string, segment: str
   ['f', 'folder/'],
   ['d', 'decision/'],
   ['doc', 'documentation/'],
+  ['s', 'stakeholder/'],
   ['g', 'graph/'],
 ];
 

@@ -152,13 +152,14 @@ describe('a model’s IRIs against the layout (DD-41)', () => {
     expect(local(iris.characters)).toEqual(['element/a b']);
   });
 
-  it('a view that is not view/…, a compound identity, a documentation section by its file, a derivation and its parts: in it', () => {
+  it('a view that is not view/…, a compound identity, a documentation section by its file, a stakeholder, a derivation and its parts: in it', () => {
     const quads = [
       ...model(dd41),
       quad(`${NS}element/Process_1#link/Flow_1`, `${VIS}view`, `${NS}element/Process_1`),
       quad(`${NS}element/Process_1#link/Flow_1`, TYPE, `${VIS}Link`),
       quad(`${NS}element/component/default/payments`, TYPE, 'https://example.org/backstage#Component'),
       quad(`${NS}documentation/5/README.md`, TYPE, 'https://example.org/c4#Section'),
+      quad(`${NS}stakeholder/owner-example.org`, TYPE, 'https://meta.linked.archi/core#Stakeholder'),
       quad(`${NS}graph/views`, TYPE, 'https://example.org/vocab#Graph'),
       // A derivation of meta's ArchiMate rules, its activity and the association under it.
       quad(`${NS}relationship/11fbc7f19f5dde599bb4`, 'http://www.w3.org/ns/prov#wasGeneratedBy', `${NS}relationship/11fbc7f19f5dde599bb4/activity`),
