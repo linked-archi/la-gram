@@ -195,6 +195,31 @@ describe.each(['github', 'gitlab'] as const)('Pull from %s', (kind) => {
     expect(ctx.dialogs.form).not.toHaveBeenCalled();
   });
 
+  describe('a model moved to another namespace (DD-41)', () => {
+    const NEW = 'https://acme.com/ea/shop/';
+    const moved = (lines: string[]) =>
+      [...lines.map((l) => l.split('https://example.org/m/').join(NEW)), `<${NEW}model> <http://purl.org/vocab/vann/preferredNamespaceUri> "${NEW}" .`].sort();
+
+    it('moved here, not committed yet: the file, still in the old namespace, is pulled into the moved model', async () => {
+      model = moved(BASE);
+      ctx.bindings.move(MODEL, `${NEW}model`);
+      ctx.modelIri = () => `${NEW}model`;
+      const head = repo.push('main', rename(BASE, 'b', 'Remote'));
+      expect(await pullFromGit(ctx)).toBe('merged');
+      expect(model).toEqual(moved(rename(BASE, 'b', 'Remote')));
+      expect(ctx.bindings.get(`${NEW}model`)).toMatchObject({ commit: head, movedFrom: MODEL });
+      expect(repo.made).toEqual([]);
+    });
+
+    it('moved on the branch: not pulled into the open model, and it says what to do', async () => {
+      repo.push('main', moved(BASE));
+      expect(await pullFromGit(ctx)).toBe('stopped');
+      expect(model).toEqual(BASE);
+      expect(ctx.bindings.get(MODEL)).toEqual(bound);
+      expect(vi.mocked(ctx.report).mock.calls.at(-1)?.[0]).toMatch(/^Pull from Git failed: main has the model as https:\/\/acme\.com\/ea\/shop\/model now: moved to another namespace, or replaced\./);
+    });
+  });
+
   it('reports a rejected saved token and leaves the model intact', async () => {
     await ctx.tokens.set(bound.host, 'FAKE_EXPIRED', false);
     vi.spyOn(repo, 'branchHead').mockRejectedValue(new GitError('auth', 'Token refused'));

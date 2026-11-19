@@ -310,6 +310,36 @@ first.
 2. Pick **main**.
 3. On GitHub, the merge is committed to the bound branch.
 
+## Moving the model to another namespace {#namespace}
+
+[Model settings](models-and-views.md#model-settings) can move the model to another namespace, which
+renames every IRI in it. For a model saved to Git it asks first, in *Model saved to Git*, naming the
+repository, branch and file; *Move* moves it, *Cancel* leaves the model as it was.
+
+- **The model stays bound to its file.** *Save to Git* commits the move there, as any other change.
+  Commit it right after, on the branch the others start from, so that the move is a commit of its own,
+  as the [IRI Minting](https://meta.linked.archi/docs/guide/iri-minting/#changing-a-models-namespace)
+  guide asks.
+- **What changed elsewhere follows the move.** A merge into the moved model, *Merge with the newer
+  version*, *Pull from Git* or *Update from main…*, first moves the other version into the new namespace,
+  each IRI keeping the rest of its name: a colleague's rename, made in the old namespace, lands on the
+  moved element. [`la-gram-git merge`](../reference/la-gram-git.md#merge) does the same with `git merge`,
+  whichever side moved.
+- **The open model does not follow a move made elsewhere.** When the other version has the model in
+  another namespace, moved there or replaced, *Pull from Git*, *Merge with the newer version* and *Update
+  from main…* stop without changing the model, and say what to do: open the moved branch from Git, and to
+  keep what changed here, first save it to a new branch with *Save to Git as…*, then merge that branch
+  into the moved one from there with *Update from main…*. *Open this version*, in the History tab, does
+  not open a commit from before the move.
+- **Moved on both sides, to two namespaces:** not merged. Move one to the other's namespace first.
+- **Auto-commit** is off for the moved model, until it is turned on again
+  ([Optional auto-commit](#auto-commit)).
+
+1. Open the model from Git, and click its name in the toolbar.
+2. In *Namespace*, type `https://example.org/acme/store/`, and choose *Apply*.
+3. *Model saved to Git* names the file: choose *Move*.
+4. Choose *File › Save to Git*: the move is committed to the same file.
+
 ## Merge requests {#merge-requests}
 
 *File › Open merge request…* proposes the bound branch for merging into the default one: a pull request

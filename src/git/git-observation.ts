@@ -1,10 +1,10 @@
 /** Observe immutable versions without advancing the editor's incorporated base. */
-import { quadsOfSnapshot, snapshotOfText } from '../model-manager/model-merge.js';
+import { quadsOfSnapshot, snapshotModel, snapshotOfText } from '../model-manager/model-merge.js';
 import { IRI } from '../model-manager/vocabulary.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import { Access } from './git-open.js';
-import { sameLines } from './git-merge.js';
+import { movedElsewhere, sameLines } from './git-merge.js';
 import { bindingLink, type GitSaveContext } from './git-save.js';
 
 export interface GitObservation {
@@ -28,11 +28,18 @@ export function destinationKey(b: GitBinding): string {
   return JSON.stringify([b.host, b.provider, b.apiBase, b.repository, b.branch, b.path]);
 }
 
-export function checkSnapshot(snapshot: string[], modelIri: string): void {
+/**
+ * A version of the bound file holds the open model, and no blank node. The file
+ * may still have the model under the IRI it had before it was moved here
+ * (`binding.movedFrom`): the merge moves that version after it.
+ */
+export function checkSnapshot(snapshot: string[], modelIri: string, binding?: Pick<GitBinding, 'branch' | 'movedFrom'>): void {
   const quads = quadsOfSnapshot(snapshot);
   const models = quads.filter((q) => q.predicate.value === IRI.rdfType && q.object.value === IRI.Model);
-  if (models.length !== 1 || models[0]!.subject.value !== modelIri) {
-    throw new GitError('invalid', 'The file does not contain the same model. Open from Git to open it separately.');
+  const model = models.length === 1 ? models[0]!.subject.value : undefined;
+  if (model !== modelIri && (model === undefined || model !== binding?.movedFrom)) {
+    const there = model !== undefined && binding ? snapshotModel(snapshot) : undefined;
+    throw new GitError('invalid', there ? movedElsewhere(binding!.branch, there.model) : 'The file does not contain the same model. Open from Git to open it separately.');
   }
   if (quads.some((q) => q.subject.termType === 'BlankNode' || q.object.termType === 'BlankNode')) {
     throw new GitError('invalid', 'Pull cannot safely match blank nodes between versions. Use IRI-named model data before pulling.');
@@ -70,7 +77,7 @@ export async function observeGit(
       if (!file) throw new GitError('invalid', 'The previously incorporated version cannot be read. It is needed to preserve local changes.');
       base = snapshotOfText(file.text, binding.path);
       baseVersion = file.version;
-      checkSnapshot(base, modelIri);
+      checkSnapshot(base, modelIri, binding);
     }
     let remote: string[];
     let version: string;
@@ -85,7 +92,7 @@ export async function observeGit(
       if (!file) throw new GitError('invalid', `${binding.path} is no longer on ${binding.branch}. The model is unchanged.`);
       remote = snapshotOfText(file.text, binding.path);
       version = file.version;
-      checkSnapshot(remote, modelIri);
+      checkSnapshot(remote, modelIri, binding);
     }
     check();
     return { modelIri, binding: { ...binding }, head, version, base, remote, incoming: !sameLines(base, remote) };

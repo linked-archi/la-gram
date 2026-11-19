@@ -275,6 +275,13 @@ export interface MountedUi {
   /** A part's own section of File › Settings…. Returns what takes it away. */
   addSettingsSection(section: SettingsSection): () => void;
   /**
+   * Asked before Model settings moves the model's IRIs into another namespace,
+   * after the room's own question: a module says what the move means to it —
+   * Git, of a model saved to a repository. `false` from any keeps the model as
+   * it is. Returns what takes it away.
+   */
+  addNamespaceCheck(check: (move: NamespaceMoveRequest) => Promise<boolean>): () => void;
+  /**
    * A module's tab in the bottom panel, after la-gram's own: `element` is shown
    * in it. Returns what shows it, sets its badge, and takes it away.
    */
@@ -294,6 +301,16 @@ export interface MountedUi {
   refresh(): void;
   /** Detach listeners and remove the shell from the document. */
   dispose(): void;
+}
+
+/** A move Model settings is about to make ({@link MountedUi.addNamespaceCheck}). */
+export interface NamespaceMoveRequest {
+  /** The model, by its IRI before the move. */
+  modelIri: string;
+  /** Its namespace now. */
+  from: string;
+  /** The namespace its IRIs move into. */
+  to: string;
 }
 
 /** A module's tab of the bottom panel ({@link MountedUi.addBottomTab}). */
@@ -2621,6 +2638,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     };
   };
 
+  const namespaceChecks = new Set<(move: NamespaceMoveRequest) => Promise<boolean>>();
+  const addNamespaceCheck = (check: (move: NamespaceMoveRequest) => Promise<boolean>): (() => void) => {
+    namespaceChecks.add(check);
+    return () => {
+      namespaceChecks.delete(check);
+    };
+  };
+
   const addSettingsSection = (section: SettingsSection): (() => void) => {
     settingsSections.set(section.id, section);
     updateSettingsMenu();
@@ -2798,7 +2823,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           value: current.namespace,
           hint: 'Where the model\'s IRIs are minted, e.g. https://acme.com/ea/payments/',
         },
-        { name: 'prefix', label: 'Prefix', value: current.prefix, hint: 'Stands for the namespace in Turtle: m:element-…' },
+        { name: 'prefix', label: 'Prefix', value: current.prefix, hint: 'Stands for the namespace in Turtle, m:model, and begins each kind’s prefix: me: for elements, mv: for views' },
         {
           name: 'rename',
           type: 'checkbox',
@@ -2820,9 +2845,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const rename = values['rename'] === true;
     if (label !== session.modelLabel()) session.renameModel(label);
     if (namespace !== current.namespace || prefix !== current.prefix || !current.declared) {
+      const moving = rename && namespace !== current.namespace;
       if (
-        rename &&
-        namespace !== current.namespace &&
+        moving &&
         app.collaborationRoom &&
         !(await dialogs.confirm(
           'Shared model',
@@ -2832,6 +2857,16 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       ) {
         refreshToolbar();
         return;
+      }
+      // What the move means to a module: Git, of a model saved to a repository (DD-41).
+      const modelIri = session.modelIri;
+      if (moving && modelIri) {
+        for (const check of [...namespaceChecks]) {
+          if (!(await check({ modelIri, from: current.namespace, to: namespace }))) {
+            refreshToolbar();
+            return;
+          }
+        }
       }
       const moved = app.setModelNamespace(namespace, { prefix, rename });
       report(moved > 0 ? `Moved ${moved} IRIs to ${namespace}.` : `Namespace set to ${namespace}.`);
@@ -3417,6 +3452,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     addFileMenu,
     setModuleSwitches,
     addSettingsSection,
+    addNamespaceCheck,
     addBottomTab,
     describeConcept: (iri) => validationPanel.describe?.(iri) ?? { name: labelOf(store, iri) },
     propertyName: (predicate) => fieldName(predicate, undefined, propertyPanel.nameOf),

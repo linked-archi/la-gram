@@ -65,7 +65,9 @@ They are read when the tab opens, and again on *Read again*; *Older commits…* 
 changes are shown as a checkpoint's, against the commit before it or the model now.
 
 *Open this version* makes the model the file at that commit, after asking, undoably, and still bound to
-its branch: the next save commits to the branch as usual. Bound to a branch other than the default, the first entry is
+its branch: the next save commits to the branch as usual. A commit from before the model was moved to
+another namespace is not opened: the message says so ([Moving the model to another namespace](git.md#namespace)).
+Bound to a branch other than the default, the first entry is
 the branch against the default (*Branch*, *What merging it into main would bring*).
 
 1. Open a model from Git ([Open from Git](git.md#open-from-git)), and the *History* tab.

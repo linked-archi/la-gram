@@ -73,7 +73,9 @@ export async function autoCommit(deps: AutoCommitContext): Promise<number> {
   if (!format) throw new GitError('invalid', 'This file format cannot be committed automatically.');
   const snapshot = () => snapshotOfText(ctx.serialize(format), binding.path);
   const accept = (result: CommitResult, lines: string[]) => {
-    binding = { ...binding, commit: result.commit, version: result.version };
+    // Committed from here: the file has the model as it is now, moved or not.
+    const { movedFrom: _committed, ...rest } = binding;
+    binding = { ...rest, commit: result.commit, version: result.version };
     ctx.bindings.set(modelIri, binding);
     expected = bindingKey(binding);
     deps.observed({ modelIri, binding, head: result.commit, version: result.version, base: lines, remote: lines, incoming: false }, true);

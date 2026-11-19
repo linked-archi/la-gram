@@ -47,6 +47,25 @@ is given none. A file **fails** when it:
 rules (ArchiMate's principles, viewpoint conformance and the like), which are advisory for now. Each
 finding names its shape's IRI, which on meta.linked.archi opens the shape's documentation.
 
+**The IRI layout, listed too, never failed.** Under *IRI layout (DD-41), advisory*, `check` lists the
+model's IRIs that are outside the layout every Linked.Archi tool mints
+([IRI Minting](https://meta.linked.archi/docs/guide/iri-minting/)). First the namespace, when the model
+does not state it (`vann:preferredNamespaceUri`), or states one that is not an `https:` or `http:` IRI
+ending in `/`, with no `#` or `?`. Then a line for each kind of name below, with how many there are and the
+first three, relative to the namespace:
+
+| Line | Lists |
+|---|---|
+| *holding a character a path segment cannot* | an IRI with a space in it, say |
+| *with more than one #* | an IRI with a second `#` |
+| *shapes not named {view}#node/{id} or {view}#link/{id}* | a node or a line not named in the view its `arch-vis:view` names |
+| *parts not named under their owner* | a style, a route's cells and points, a label, not named `{owner}/…` |
+| *outside it, not model, graph/… or {kind}/{id}* | any other name in the namespace, and a model not named `{ns}model` |
+| *named before it (legacy)* | la-gram's names from before the layout, `element-…`, `node-…-style`, and the converters' `view/…/node/…` |
+
+No tool renames an IRI, so legacy names stay, counted rather than wrong. A model made in la-gram now has
+none of these lines; the example model's names are written by hand, `m:card-payment` say, so it has them.
+
 The example model, from inside its folder, with no path given:
 
 ```console
@@ -56,6 +75,10 @@ $ cd docs-site/examples && la-gram-git check
   ·   warning: Gift wrapping (Service) · Service Gift wrapping is not realized by anything. (https://meta.linked.archi/archimate4/principle-shapes#ServiceWithoutRealizationShape)
   ·   info: Online ordering (Service) · Service Online ordering is realized by only one application component (Web shop). Consider redundancy for critical services. (https://meta.linked.archi/archimate4/principle-shapes#SinglePointOfFailureShape)
   ·   info: Card payment (Service) · Service Card payment is realized by only one application component (Payments). Consider redundancy for critical services. (https://meta.linked.archi/archimate4/principle-shapes#SinglePointOfFailureShape)
+  · IRI layout (DD-41), advisory:
+  ·   the model does not state its namespace (vann:preferredNamespaceUri), read as https://example.org/acme/shop/
+  ·   16 outside it, not model, graph/… or {kind}/{id}: card-payment, card-payment-serves-web-shop, customer, … and 13 more
+  ·   18 named before it (legacy): link-card-payment-serves-web-shop, link-customer-assigned-to-place-order, link-gift-wrapping-serves-customer, … and 15 more
 
 1 model file checked: all well.
 ```
@@ -295,6 +318,25 @@ la-gram-git: models/shop.ttl: 1 change made on both sides to the same thing:
 Where two changes met, the file holds the version before either. Edit it — or open it in la-gram — or take one side whole with `git checkout --ours` / `--theirs`, then `git add` it.
 ```
 
+**A model moved to another namespace** on one side, which renames every IRI in it
+([Model settings](../guide/models-and-views.md#model-settings)): the common version and the other side are
+moved after it first, each IRI keeping its local part, so that the other side's changes land in the new
+namespace, and the driver says so on the standard error. Moved alike on both sides, the two merge as
+one. Moved to two namespaces, the file is not merged: it is left as yours, with exit code 1.
+
+Ours is the example model moved to `https://example.org/acme/store/` in la-gram; theirs renames *Card
+payment*. Then ours and theirs each moved, to two namespaces (exit codes 0 and 1):
+
+```console
+$ la-gram-git merge base.ttl ours.ttl theirs.ttl models/shop.ttl
+la-gram-git: models/shop.ttl: ours moved the model to https://example.org/acme/store/; theirs, from https://example.org/acme/shop/, was moved after it, then merged.
+$ grep 'prefLabel "Card pay\|^@prefix m' ours.ttl
+@prefix m: <https://example.org/acme/store/>.
+    skos:prefLabel "Card payments"@en;
+$ la-gram-git merge base.ttl ours2.ttl theirs2.ttl models/shop.ttl
+la-gram-git: models/shop.ttl was not merged: Both sides moved the model, ours to https://example.org/acme/store/ and theirs to https://example.org/acme/webshop/: move one to the other's namespace, then merge again. It is left as your version.
+```
+
 A shapes file, which is not a model, changed differently on both sides:
 
 ```console
@@ -385,7 +427,8 @@ la-gram-git — la-gram's models in Git: checked, rewritten, compared, merged.
       nothing it lacks, and breaks no shape. With --base, a violation fails
       only when the change adds it (the file as it was where the branch left
       <branch> is checked too). The shapes' SPARQL-based rules are reported,
-      not failed. --shapes adds a folder's shapes (.ttl) to the metamodels'.
+      not failed, and so are IRIs outside the Linked.Archi layout. --shapes
+      adds a folder's shapes (.ttl) to the metamodels'.
 
   la-gram-git fix [paths…]
       Rewrite model files exactly as la-gram writes them.
@@ -396,7 +439,9 @@ la-gram-git — la-gram's models in Git: checked, rewritten, compared, merged.
       request the CI job runs for, or updated there.
 
   la-gram-git merge <base> <ours> <theirs> <path>
-      Git's merge driver (%O %A %B %P): the model merged by element.
+      Git's merge driver (%O %A %B %P): the model merged by element. When
+      one side moved the model to another namespace, the other side is
+      moved after it first.
 
   la-gram-git init github|gitlab|merge-driver
       Set this repository up: the CI file for GitHub or GitLab, or the merge

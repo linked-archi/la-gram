@@ -45,6 +45,18 @@
  * stays as valid as base was, and the result is the same whichever side is
  * "ours".
  *
+ * ## A model moved to another namespace
+ *
+ * Moving a model renames every IRI in it, so merged as they are, a move on one
+ * side and an edit on the other read as "everything deleted on one side". A
+ * merge therefore first looks for a move — the model under another IRI than
+ * base's, `{to}model` — and moves base and the other side after it into the
+ * mover's namespace (`vann:preferredNamespaceUri`, else derived from the
+ * model's IRI), keeping every local part, as moving it in la-gram does
+ * (`planNamespaceChange`; DD-41, scenario S7). Both sides moved it alike: base
+ * is moved. Each to a namespace of its own: {@link NamespaceConflict}, not
+ * merged.
+ *
  * Then, on the merged model:
  *
  * - **Two placements**: both sides placed the same element (or drew the same
@@ -77,13 +89,15 @@
 import { DataFactory, Parser as N3Parser, Store as N3Store } from 'n3';
 import type { Quad, Term } from '@rdfjs/types';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
+import { ensureNamespace } from '../rdf-engine/iri.js';
 import { SingleValued } from '../rdf-engine/single-valued.js';
 import type { RdfShaclValidator } from '../rdf-engine/shacl-validator.js';
 import { detectFormat } from '../metamodel-manager/asset-sources.js';
 import { parseModelText } from '../import-export/model-io.js';
+import { derivedNamespace } from './model-namespace.js';
 import { diffSnapshots, snapshotOf } from './version-history.js';
 import { BOUNDS_PREDICATES, IRI } from './vocabulary.js';
-import { iriOf, parseLine, predicateOf, subjectOf, type Line } from './snapshot-lines.js';
+import { iriOf, literalValue, parseLine, predicateOf, subjectOf, type Line } from './snapshot-lines.js';
 
 /** One of the two versions merged into base. */
 export type MergeSide = 'ours' | 'theirs';
@@ -118,6 +132,47 @@ export interface MergeConflict {
 export interface MergeResult {
   merged: string[];
   conflicts: MergeConflict[];
+  /**
+   * The model was moved to another namespace — on one side, or alike on both —
+   * and base and the other side were moved after it before merging. Absent when
+   * nothing had to be moved, a side left as base included.
+   */
+  moved?: NamespaceMove;
+}
+
+/** A model's IRI and namespace, as a snapshot has them. */
+export interface SnapshotModel {
+  /** The `arch:Model`. */
+  model: string;
+  /** Its `vann:preferredNamespaceUri`, else the namespace derived from its IRI (`model-namespace.ts`). */
+  namespace: string;
+}
+
+/** A move of the model to another namespace, found by a merge. */
+export interface NamespaceMove {
+  /** Base's namespace. */
+  from: string;
+  /** The namespace it was moved to. */
+  to: string;
+  /** Who moved it: one side, or both alike. */
+  by: MergeSide | 'both';
+}
+
+/**
+ * Both sides moved the model, each to a namespace of its own (each renamed it
+ * otherwise): there is no one namespace to merge into, so the versions are not
+ * merged until one side follows the other.
+ */
+export class NamespaceConflict extends Error {
+  constructor(
+    readonly base: SnapshotModel,
+    readonly ours: SnapshotModel,
+    readonly theirs: SnapshotModel,
+  ) {
+    const name = (m: SnapshotModel) => (ours.namespace !== theirs.namespace ? m.namespace : m.model);
+    super(`Both sides moved the model, ours to ${name(ours)} and theirs to ${name(theirs)}: move one to the other's namespace, then merge again`);
+    this.name = 'NamespaceConflict';
+  }
 }
 
 /** A count limit a snapshot breaks at a node. */
@@ -175,6 +230,8 @@ const COUNT_COMPONENTS = new Set(
 /**
  * Merge `ours` and `theirs`, both made from `base`. All three are snapshots
  * ({@link snapshotOf}); so is the result.
+ *
+ * @throws NamespaceConflict when the sides moved the model to different namespaces.
  */
 export function mergeSnapshots(
   base: readonly string[],
@@ -188,6 +245,8 @@ export function mergeSnapshots(
   const b = new Set(base);
   if (sameSet(b, o)) return { merged: sortedOf(t), conflicts: [] };
   if (sameSet(b, t)) return { merged: sortedOf(o), conflicts: [] };
+  const aligned = alignNamespaces(base, ours, theirs);
+  if (aligned) return { ...mergeSnapshots(aligned.base, aligned.ours, aligned.theirs, options), moved: aligned.moved };
   return new ThreeWay(b, o, t, options).run();
 }
 
@@ -247,6 +306,105 @@ export function shaclCountCheck(validator: RdfShaclValidator, shapes: Quad[], co
     }
     return findings;
   };
+}
+
+// ── A model moved to another namespace ────────────────────────────────────
+
+const MODEL_TYPE = `<${IRI.Model}>`;
+const VANN_URI = NAMESPACES.vann + 'preferredNamespaceUri';
+
+/** The model a snapshot is of, and its namespace; `undefined` without exactly one `arch:Model`. */
+export function snapshotModel(lines: readonly string[]): SnapshotModel | undefined {
+  const models: string[] = [];
+  const declared = new Map<string, string>();
+  for (const line of lines) {
+    const p = predicateOf(line);
+    if (p === RDF_TYPE) {
+      if (line.endsWith(` ${MODEL_TYPE} .`)) models.push(subjectOf(line));
+    } else if (p === VANN_URI) {
+      const s = subjectOf(line);
+      const value = literalValue(parseLine(line).o)?.trim();
+      // The first, as lines sort, when a model states more than one.
+      if (value && !declared.has(s)) declared.set(s, value);
+    }
+  }
+  if (models.length !== 1 || !models[0]!.startsWith('<')) return undefined;
+  const model = iriOf(models[0]!);
+  const uri = declared.get(models[0]!);
+  return { model, namespace: uri ? ensureNamespace(uri) : derivedNamespace(model) };
+}
+
+/** Base and the sides, moved after the side that moved the model; `undefined` when neither did. */
+function alignNamespaces(
+  base: readonly string[],
+  ours: readonly string[],
+  theirs: readonly string[],
+): { base: string[]; ours: string[]; theirs: string[]; moved: NamespaceMove } | undefined {
+  const b = snapshotModel(base);
+  const o = snapshotModel(ours);
+  const t = snapshotModel(theirs);
+  if (!b || !o || !t) return undefined;
+  // A move renames the model (`{to}model`). A namespace set without moving the IRIs only
+  // changes where new ones are minted: its statement merges as any other value.
+  const moved: Record<MergeSide, boolean> = { ours: o.model !== b.model, theirs: t.model !== b.model };
+  if (!moved.ours && !moved.theirs) return undefined;
+  if (moved.ours && moved.theirs && o.model !== t.model) throw new NamespaceConflict(b, o, t);
+  const to = moved.ours ? o : t;
+  const movers = SIDES.filter((side) => moved[side]).map((side) => (side === 'ours' ? ours : theirs));
+  // What a mover still has, its move left alone: a vocabulary's term in the old namespace.
+  const kept = new Set<string>();
+  for (const lines of movers) {
+    for (const line of lines) {
+      const { s, p, refs } = parseLine(line);
+      kept.add(iriOf(s));
+      kept.add(p);
+      for (const ref of refs) kept.add(iriOf(ref));
+    }
+  }
+  const declaration = movers[0]!.filter((line) => predicateOf(line) === VANN_URI && subjectOf(line) === `<${to.model}>`);
+  const move = (lines: readonly string[]) => moveLines(lines, b, to, kept, declaration);
+  return {
+    base: move(base),
+    ours: moved.ours ? [...ours] : move(ours),
+    theirs: moved.theirs ? [...theirs] : move(theirs),
+    moved: { from: b.namespace, to: to.namespace, by: moved.ours && moved.theirs ? 'both' : moved.ours ? 'ours' : 'theirs' },
+  };
+}
+
+/**
+ * Lines moved from one model's namespace to another's, as moving the model in
+ * la-gram moves them (`planNamespaceChange`): the model to its new IRI, every
+ * other IRI under the old namespace — inside a triple term too — to the same
+ * local part under the new one, unless it is `kept`; the model's
+ * `vann:preferredNamespaceUri` replaced by `declaration`.
+ */
+function moveLines(
+  lines: readonly string[],
+  from: SnapshotModel,
+  to: SnapshotModel,
+  kept: ReadonlySet<string>,
+  declaration: readonly string[],
+): string[] {
+  const renamed = (iri: string): string => {
+    if (iri === from.model) return to.model;
+    if (kept.has(iri) || !iri.startsWith(from.namespace) || iri.length === from.namespace.length) return iri;
+    return `${to.namespace}${iri.slice(from.namespace.length)}`;
+  };
+  const term = (t: Term): Term => {
+    if (t.termType === 'NamedNode') {
+      const next = renamed(t.value);
+      return next === t.value ? t : (DataFactory.namedNode(next) as unknown as Term);
+    }
+    if (t.termType === 'Quad') {
+      const inner = t as unknown as Quad;
+      return DataFactory.quad(term(inner.subject) as never, term(inner.predicate) as never, term(inner.object) as never) as unknown as Term;
+    }
+    return t;
+  };
+  const quads = quadsOfSnapshot(lines)
+    .map((q) => DataFactory.quad(term(q.subject) as never, term(q.predicate) as never, term(q.object) as never) as unknown as Quad)
+    .filter((q) => !(q.subject.value === to.model && q.predicate.value === VANN_URI));
+  return sortedOf(new Set([...snapshotOf(quads), ...declaration]));
 }
 
 // ── The merge ─────────────────────────────────────────────────────────────

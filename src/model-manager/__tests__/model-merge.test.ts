@@ -6,18 +6,24 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { Parser } from 'n3';
+import { DataFactory, Parser } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { snapshotOf } from '../version-history.js';
 import {
+  NamespaceConflict,
   applyChoice,
   mergeSnapshots,
+  quadsOfSnapshot,
   shaclCountCheck,
+  snapshotModel,
   snapshotOfText,
   type MergeConflict,
   type MergeResult,
 } from '../model-merge.js';
 import { RdfShaclValidator } from '../../rdf-engine/shacl-validator.js';
+import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
+import { modelQuads } from '../model-queries.js';
+import { namespaceQuads, planNamespaceChange } from '../model-namespace.js';
 
 const M = 'https://example.org/m/';
 const SKOS = 'http://www.w3.org/2004/02/skos/core#';
@@ -315,5 +321,146 @@ describe('files', () => {
     const theirs = snapshotOfText(text('Billing'), 'theirs.ttl').concat(`<${M}crm> <${M}name> "CRM" .`).sort();
     const { merged } = mergeSnapshots(base, ours, theirs);
     expect(merged.filter((l) => l.includes('"Ghent"'))).toHaveLength(2);
+  });
+});
+
+describe('a model moved to another namespace on one side (DD-41, scenario S7)', () => {
+  const NEW = 'https://acme.com/ea/shop/';
+  const OTHER = 'https://acme.com/ea/store/';
+  const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+  const VIS = 'https://meta.linked.archi/core-vis#';
+  const VANN = 'http://purl.org/vocab/vann/';
+  const name = (iri: string, text: string) => `<${iri}> <${SKOS}prefLabel> "${text}"@en .`;
+  /** `lines` with `remove` taken out — each must be there — and `add` put in. */
+  const edited = (lines: readonly string[], remove: readonly string[], add: readonly string[] = []): string[] => {
+    const out = new Set(lines);
+    for (const line of remove) if (!out.delete(line)) throw new Error(`not there: ${line}`);
+    for (const line of add) out.add(line);
+    return [...out].sort();
+  };
+  /** A version moved into `to` as Model settings moves a model (`ModelSession.setNamespace`), beside a vocabulary. */
+  const movedTo = (lines: readonly string[], to: string, vocabulary: readonly Quad[] = []): string[] => {
+    const store = new OxigraphRdfStore();
+    try {
+      store.addQuads([...quadsOfSnapshot(lines), ...vocabulary]);
+      const plan = planNamespaceChange(store, `${M}model`, M, to);
+      store.removeQuads(plan.remove);
+      store.addQuads([...plan.add, ...namespaceQuads(`${to}model`, to)]);
+      return snapshotOf(modelQuads(store));
+    } finally {
+      store.dispose();
+    }
+  };
+  const inOld = (lines: readonly string[]) => lines.filter((l) => l.includes(`<${M}`));
+  const renamed = (lines: readonly string[], ns: string, iri: string, from: string, to: string) =>
+    edited(lines, [name(`${ns}${iri}`, from)], [name(`${ns}${iri}`, to)]);
+
+  it('reads the model and its namespace off a snapshot: stated, or derived from the model’s IRI', () => {
+    expect(snapshotModel(MODEL)).toEqual({ model: `${M}model`, namespace: M });
+    expect(snapshotModel(movedTo(MODEL, NEW))).toEqual({ model: `${NEW}model`, namespace: NEW });
+    expect(snapshotModel(MODEL.filter((l) => !l.endsWith(`<${ARCH}Model> .`)))).toBeUndefined();
+  });
+
+  it('a rename on the other side lands in the new namespace, whichever side moved it', () => {
+    const moved = movedTo(MODEL, NEW);
+    const theirs = renamed(MODEL, M, 'billing', 'Billing', 'Invoicing');
+    const expected = movedTo(theirs, NEW);
+
+    const result = mergeSnapshots(MODEL, moved, theirs);
+    expect(result).toEqual({ merged: expected, conflicts: [], moved: { from: M, to: NEW, by: 'ours' } });
+    expect(result.merged).toContain(name(`${NEW}billing`, 'Invoicing'));
+    expect(inOld(result.merged)).toEqual([]);
+    expect(mergeSnapshots(MODEL, theirs, moved)).toEqual({ merged: expected, conflicts: [], moved: { from: M, to: NEW, by: 'theirs' } });
+  });
+
+  it('what the other side added and removed is moved too: an element related and drawn, triple term and all; a deletion', () => {
+    const search = `${M}element/search`;
+    const serving = `${M}relationship/search-serves-portal`;
+    const node = `${M}view#node/search`;
+    const crm = MODEL.filter((l) => l.startsWith(`<${M}crm> `) || l.endsWith(` <${M}crm> .`));
+    const theirs = edited(MODEL, crm, [
+      `<${search}> <${RDF}type> <${AM4}ApplicationComponent> .`,
+      name(search, 'Search'),
+      `<${search}> <${ARCH}inModel> <${M}model> .`,
+      `<${search}> <${AM4}serves> <${M}portal> .`,
+      `<${serving}> <${RDF}type> <${AM4}Serving> .`,
+      `<${serving}> <${ARCH}source> <${search}> .`,
+      `<${serving}> <${ARCH}target> <${M}portal> .`,
+      `<${serving}> <${RDF}reifies> <<( <${search}> <${AM4}serves> <${M}portal> )>> .`,
+      `<${node}> <${VIS}view> <${M}view> .`,
+      `<${node}> <${VIS}archElement> <${search}> .`,
+    ]);
+
+    const { merged, conflicts } = mergeSnapshots(MODEL, movedTo(MODEL, NEW), theirs);
+    expect(conflicts).toEqual([]);
+    expect(merged).toEqual(movedTo(theirs, NEW));
+    expect(merged).toContain(`<${NEW}relationship/search-serves-portal> <${RDF}reifies> <<( <${NEW}element/search> <${AM4}serves> <${NEW}portal> )>> .`);
+    expect(merged).toContain(`<${NEW}view#node/search> <${VIS}view> <${NEW}view> .`);
+    expect(merged.some((l) => l.includes(`<${NEW}crm>`))).toBe(false);
+    expect(inOld(merged)).toEqual([]);
+  });
+
+  it('changes that met still conflict, held as base had them, in the new namespace', () => {
+    const ours = renamed(movedTo(MODEL, NEW), NEW, 'billing', 'Billing', 'Invoicing');
+    const theirs = renamed(MODEL, M, 'billing', 'Billing', 'Accounts');
+    const { merged, conflicts } = mergeSnapshots(MODEL, ours, theirs);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({
+      kind: 'value',
+      subjects: [`${NEW}billing`],
+      predicate: `${SKOS}prefLabel`,
+      held: [name(`${NEW}billing`, 'Billing')],
+      options: { ours: [name(`${NEW}billing`, 'Invoicing')], theirs: [name(`${NEW}billing`, 'Accounts')] },
+    });
+    expect(merged).toContain(name(`${NEW}billing`, 'Billing'));
+    expect(inOld(merged)).toEqual([]);
+  });
+
+  it('a concept deleted after the move and renamed on the other side: the deletion conflict, in the new namespace', () => {
+    const moved = movedTo(MODEL, NEW);
+    const ours = edited(moved, moved.filter((l) => l.startsWith(`<${NEW}crm> `)));
+    const theirs = renamed(MODEL, M, 'crm', 'CRM', 'Customers');
+    const { conflicts } = mergeSnapshots(MODEL, ours, theirs);
+    expect(conflicts.map((c) => [c.kind, c.subjects, c.deletedBy])).toEqual([['deleted', [`${NEW}crm`], 'ours']]);
+  });
+
+  it('moved alike on both sides: base is moved, and each side’s other change merges', () => {
+    const ours = renamed(movedTo(MODEL, NEW), NEW, 'billing', 'Billing', 'Invoicing');
+    const theirs = renamed(movedTo(MODEL, NEW), NEW, 'portal', 'Portal', 'Web portal');
+    const result = mergeSnapshots(MODEL, ours, theirs);
+    expect(result.conflicts).toEqual([]);
+    expect(result.moved).toEqual({ from: M, to: NEW, by: 'both' });
+    expect(result.merged).toEqual(movedTo(renamed(renamed(MODEL, M, 'billing', 'Billing', 'Invoicing'), M, 'portal', 'Portal', 'Web portal'), NEW));
+  });
+
+  it('moved to a namespace of its own on each side: not merged', () => {
+    const ours = movedTo(MODEL, NEW);
+    const theirs = renamed(movedTo(MODEL, OTHER), OTHER, 'billing', 'Billing', 'Accounts');
+    expect(() => mergeSnapshots(MODEL, ours, theirs)).toThrow(NamespaceConflict);
+    expect(() => mergeSnapshots(MODEL, ours, theirs)).toThrow(`ours to ${NEW} and theirs to ${OTHER}`);
+  });
+
+  it('a vocabulary’s term in the old namespace, which the move left alone, stays as it is on the other side', () => {
+    const ownedBy = `${M}ownedBy`;
+    const vocabulary = [
+      DataFactory.quad(DataFactory.namedNode(ownedBy), DataFactory.namedNode(`${RDF}type`), DataFactory.namedNode('http://www.w3.org/2002/07/owl#ObjectProperty'), DataFactory.namedNode('urn:vocab')),
+    ] as unknown as Quad[];
+    const base = edited(MODEL, [], [`<${M}billing> <${ownedBy}> <${M}crm> .`]);
+    const ours = movedTo(base, NEW, vocabulary);
+    expect(ours).toContain(`<${NEW}billing> <${ownedBy}> <${NEW}crm> .`);
+    const theirs = edited(base, [], [`<${M}portal> <${ownedBy}> <${M}crm> .`]);
+    const { merged, conflicts } = mergeSnapshots(base, ours, theirs);
+    expect(conflicts).toEqual([]);
+    expect(merged).toContain(`<${NEW}portal> <${ownedBy}> <${NEW}crm> .`);
+    expect(inOld(merged).every((l) => l.includes(`<${ownedBy}>`))).toBe(true);
+  });
+
+  it('a namespace set without moving the IRIs is merged as the statement it is: nothing is moved', () => {
+    const declared = [`<${M}model> <${VANN}preferredNamespacePrefix> "m" .`, `<${M}model> <${VANN}preferredNamespaceUri> "${NEW}" .`];
+    const ours = edited(MODEL, [], declared);
+    const theirs = renamed(MODEL, M, 'billing', 'Billing', 'Invoicing');
+    const result = mergeSnapshots(MODEL, ours, theirs);
+    expect(result.moved).toBeUndefined();
+    expect(result.merged).toEqual(edited(theirs, [], declared));
   });
 });

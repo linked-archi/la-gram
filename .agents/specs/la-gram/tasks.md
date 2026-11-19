@@ -97,6 +97,8 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (every local part kept) or only new ones; an `https:` or `http:` namespace with no `#` or `?` (DD-41); prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
 - [x] The Linked.Archi IRI layout minted (Req 9.7c; DD-41; design decision 33): `{ns}{kind}/{uuid}`, shapes in their view's IRI, parts with `/`; names minted before and a converter's kept and edited in place — own styles, routes (only what differs written), moved names, label expressions, names and pictures for a presentation context; relationships in the model's namespace; the Exchange import named as the converter names it — *iri-layout.test, model-namespace.test, archimate-importer.test, view-manager.test, clipboard.test, workbench.spec*
 - [x] IRIs of the Linked.Archi layout written short in Turtle and TriG (Req 5.13; DD-41): a prefix per kind, a prefix per view with the fragment escaped, then relative to `@base`; prefix clashes left to the vocabularies and to the first view; the copy as Turtle too; n3 pinned for the override (design decision 32) — *turtle-writer.test, model-io.test, short-hash.test*
+- [x] The IRI layout checked by `la-gram-git check` (Req 20.2; DD-41; design decision 35): the namespace, then characters, `#`s, shapes, parts and other names outside the layout, and legacy names, counted and named, never failed; from the file's own triples — *iri-conformance.test, cli.test*
+- [x] A model moved to another namespace, in Git and in a merge (Req 18.27–18.28, 20.5; design decision 34): see Task 19 — *model-merge.test, git-merge.test, git-module.test*
 
 ### Task 6: Validation (Req 6)
 - [x] Shapes: every loaded metamodel's `shapes` graphs + core + core-vis shapes (previously the app validated against an empty graph)
@@ -167,6 +169,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] One resource, many placements; drop from the tree; draws relationships to placed elements — *view-canvas.test*
 
 ### Task 19: Git storage (Req 18) — an optional module
+- [x] **A model moved to another namespace, in Git** (2026-11-18; DD-41): Model settings asks first for a model saved to Git, naming its file, and the binding follows the model (`movedFrom` until the move is committed) (Req 18.27) — *git-module.test, git-merge.test, git-pull.test, model-namespace.test, git-merge.spec*; a merge moves the other versions after the side that moved it, and la-gram refuses a merge or *Open this version* that would move the open model (Req 18.28, 20.5) — *model-merge.test, git-merge.test, git-pull.test, git-history.test, cli.test*.
 - [x] **Optional automatic commits** (2026-11-18): destination settings, idle/interval scheduler, pause/resume, remote reconciliation, immutable snapshots and durable uncertain-response recovery (Req 18.26) — *git-auto-commit.test, settings-section.test, git-merge.spec*.
 - [x] **Regular remote checks and optional clean-only automatic pull** (2026-11-18): manual Check and the Git status tab, personal settings, one active owner per destination, separate operation locks, pause/backoff and obsolete-result guards (Req 18.25) — *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
 In three parts, each reviewed before the next.
@@ -326,7 +329,8 @@ when it starts; what is already recorded elsewhere is named, not repeated.
 
 Agreed order; relationship visuals come first.
 
-- [ ] **The Linked.Archi IRI layout, part 4** (DD-41) — recorded (2026-11-18), not started: the namespace change in `la-gram-git merge` and the layout in `la-gram-git check`. Parts 1–3 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
+- [x] **The Linked.Archi IRI layout, part 4** (DD-41) — done (2026-11-18): a merge follows a namespace move, la-gram asks before moving a model saved to Git and keeps it bound, `la-gram-git check` reports the layout. Parts 1–4 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
+- [ ] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), not started: today *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* refuse a version that has the model under another IRI (Req 18.28; key design decision 34), and the user merges from the moved branch instead. Following it means renaming the open model under its session (`ModelSession.resync`), its binding (`GitBindings.move`), the History tab, its auto-commit setting and the room, mid-operation, with the operation's own checks (`ctx.modelIri() === modelIri`) re-read for the new IRI.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
 - [x] **Nesting / containers** — done (2026-10-11), see the change log. Visual groups (`arch-vis:ContainerNode`, an Exchange file's `Container`) are still not drawn.
 - [x] **EDGY artwork — licence** — done (2026-10-17), see the change log.
@@ -398,9 +402,14 @@ Agreed order; relationship visuals come first.
 ## Known limitations
 
 - The Linked.Archi IRI layout (Req 9.7c): the relationships la-gram derives on opening a model keep
-  `{ns}relationship-{sha1}`, the name meta's derivation rules give them, until the rules move to the layout;
-  `la-gram-git check` does not yet report a name outside the layout (part 4 of `.agents/tasks/iri-layout/`);
-  deleting a view leaves its placements' own styles, as before (`converted-styles-and-routes`, Open 1).
+  `{ns}relationship-{sha1}`, the name meta's derivation rules give them, until the rules move to the layout,
+  so `la-gram-git check` counts them as legacy; deleting a view leaves its placements' own styles, as before
+  (`converted-styles-and-routes`, Open 1).
+- A namespace move (Req 18.27–18.28): la-gram merges other versions into a model moved here, but does not
+  follow a move made on the other side — *Pull from Git*, *Merge with the newer version*, *Update from
+  main…* and *Open this version* refuse it, and the merge is made from the moved branch (Queued next).
+  Auto-commit is off for a moved model until turned on again: its setting is kept by model IRI. The local
+  checkpoints of the History tab stay with the model's former IRI.
 - Git synchronization is available outside shared rooms; unresolved conflicts and pending branch
   merges pause it. Regular checks need browser tab coordination and run while visible/online.
   Auto-commit is destination opt-in, requires durable local storage, and stays paused after uncertain
@@ -425,6 +434,32 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-18 — a namespace move in Git, and the IRI layout checked (DD-41, part 4)
+
+- A merge in which one side moved the model to another namespace moves the common version and the other
+  side after it first, each IRI keeping its local part, then merges (Req 18.28; design decision 34): a
+  rename made before the move lands on the moved element instead of meeting a deletion of everything. It
+  is in the merge itself, so `la-gram-git merge`, *Pull from Git*, *Merge with the newer version* and
+  *Update from main…* all follow a move. Moved alike on both sides: merged as one; to two namespaces: not
+  merged. The merge driver says what it moved (Req 20.5).
+- Model settings asks before it moves the IRIs of a model saved to Git (*Model saved to Git*, naming the
+  file), and the model stays bound to its file, so *Save to Git* commits the move there instead of asking
+  where and replacing the file; Pull and the checks read the file under the model's former IRI until then
+  (Req 18.27). Before, a move left the model unbound. A collaborator's move carries the binding too.
+- la-gram does not follow a move made on the other side: a merge whose result would rename the open model,
+  and *Open this version* of a commit from before a move, stop and say what to do (Req 18.28).
+- `la-gram-git check` lists, never failing, the IRIs outside the layout every Linked.Archi tool mints, and
+  a namespace the model does not state or that breaks the rule; names given before the layout are counted
+  as legacy (Req 20.2; design decision 35). A model la-gram makes has none.
+- Model settings' *Prefix* hint names the prefixes Turtle writes now (`m:model`, `me:`, `mv:`); following a
+  collaborator's move looks for the view under the same local part only, as a move keeps it.
+- Tests: *model-merge.test* (a move against a rename, additions with a triple term, a deletion, a value both
+  changed, a deletion after the move, moved alike, moved apart, a vocabulary term, a namespace without a
+  move), *iri-conformance.test*, *cli.test* (the driver both ways and moved apart; the check's notes),
+  *git-merge.test*, *git-pull.test*, *git-history.test*, *git-module.test*, *model-namespace.test*,
+  *git-merge.spec* (a move asked for, then a refused save merged into the new namespace). Verified: type
+  checking, all 2,723 unit tests and all 93 browser tests pass; `npm run build`, `npm run docs:build`.
 
 ### 2026-11-18 — the Linked.Archi IRI layout minted and read (DD-41, parts 2–3)
 

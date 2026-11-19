@@ -11,6 +11,10 @@
  * markers, which no RDF tool could read. The conflicts are listed on the
  * standard error.
  *
+ * A side that moved the model to another namespace has the other side moved
+ * after it first (DD-41), and the driver says so; sides that moved it to two
+ * namespaces are not merged, and the file is left as ours.
+ *
  * `.gitattributes` routes files by extension, so an ontology or a shapes file
  * comes here too. A file that is not a la-gram model on both sides — or does
  * not parse — is merged as Git merges text without the driver (`git
@@ -24,7 +28,7 @@ import type { NamedNode } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 import { RdfShaclValidator } from '../rdf-engine/shacl-validator.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { mergeSnapshots, shaclCountCheck, snapshotOfText, type MergeConflict } from '../model-manager/model-merge.js';
+import { mergeSnapshots, shaclCountCheck, snapshotOfText, type MergeConflict, type NamespaceMove } from '../model-manager/model-merge.js';
 import { literalValue, parseLine } from '../model-manager/snapshot-lines.js';
 import { asLaGramWrites, describe, isModel, openModel, wordsOf, type OpenModel } from './models.js';
 
@@ -34,6 +38,8 @@ export interface MergeOutcome {
   text: string;
   /** The conflicts, in words; none when it merged cleanly. */
   conflicts: string[];
+  /** The model was moved to another namespace, and the other side's changes were moved after it (DD-41). */
+  moved?: NamespaceMove;
 }
 
 /** Merge the three versions of the model file at `path`. */
@@ -55,7 +61,7 @@ export async function mergeFiles(base: string, ours: string, theirs: string, pat
   const text = await asLaGramWrites(merged, path, `${name}.nt`);
   // Named as the merged model names them.
   const named = await openModel(merged, `${name}.nt`);
-  return { text, conflicts: result.conflicts.map((c) => conflictText(named, c)) };
+  return { text, conflicts: result.conflicts.map((c) => conflictText(named, c)), ...(result.moved ? { moved: result.moved } : {}) };
 }
 
 /** Git's merge driver: read %O %A %B, write %A; 0 when merged cleanly, 1 with conflicts. */
@@ -72,6 +78,7 @@ export async function runMergeDriver(basePath: string, oursPath: string, theirsP
     return 1;
   }
   writeFileSync(oursPath, outcome.text);
+  if (outcome.moved) log(`la-gram-git: ${path}: ${movedText(outcome.moved)}`);
   if (outcome.conflicts.length === 0) return 0;
   log(`la-gram-git: ${path}: ${outcome.conflicts.length} change${outcome.conflicts.length === 1 ? '' : 's'} made on both sides to the same thing:`);
   for (const line of outcome.conflicts) log(`  ${line}`);
@@ -109,6 +116,12 @@ function mergeAsText(basePath: string, oursPath: string, theirsPath: string, pat
     log(`la-gram-git: ${path} was not merged: ${stderr?.toString().trim() || (err instanceof Error ? err.message : String(err))}. It is left as your version.`);
     return 1;
   }
+}
+
+/** A move the merge followed, in words. */
+function movedText(moved: NamespaceMove): string {
+  if (moved.by === 'both') return `both sides moved the model to ${moved.to}; the common version was moved after them, then merged.`;
+  return `${moved.by} moved the model to ${moved.to}; ${moved.by === 'ours' ? 'theirs' : 'ours'}, from ${moved.from}, was moved after it, then merged.`;
 }
 
 const KINDS: Record<MergeConflict['kind'], string> = {

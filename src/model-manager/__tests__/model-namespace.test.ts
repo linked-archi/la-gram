@@ -208,7 +208,8 @@ describe('the model namespace', () => {
     expect(reified(mapping.get(rel)!)).toEqual([[mapping.get(a), SERVES, mapping.get(b)]]);
     expect(views.getNodes(session.activeViewIri!)).toHaveLength(2);
     expect(views.getLinks(session.activeViewIri!)[0].waypoints).toEqual([{ x: 100, y: 25 }, { x: 200, y: 25 }]);
-    expect(emit).toHaveBeenCalledWith('model-loaded', expect.objectContaining({ renamed: true }));
+    // Saying which model it was, for what is kept by its IRI (a Git binding).
+    expect(emit).toHaveBeenCalledWith('model-loaded', expect.objectContaining({ renamed: true, modelIri: `${target}model`, previousModelIri: modelIri }));
   });
 
   it('is one store change, so a collaborator receives it as one update', () => {
@@ -295,8 +296,21 @@ describe('the model namespace', () => {
     expect(session.resync()).toBe(true);
     expect(session.modelIri).toBe(peer.modelIri);
     expect(session.activeViewIri).toBe(peer.activeViewIri);
-    expect(emit).toHaveBeenCalledWith('model-loaded', expect.objectContaining({ remote: true }));
+    expect(emit).toHaveBeenCalledWith('model-loaded', expect.objectContaining({ remote: true, previousModelIri: modelIri }));
     // Nothing to follow the second time.
     expect(session.resync()).toBe(false);
+  });
+
+  it('follows a collaborator’s new model without taking it for the old one moved', () => {
+    session.newModel({ label: 'Shop' });
+    const peer = new ModelSession(store, elements, views);
+    peer.newModel({ label: 'Another' });
+    emit.mockClear();
+
+    expect(session.resync()).toBe(true);
+    expect(session.modelIri).toBe(peer.modelIri);
+    const [, detail] = emit.mock.calls.find(([type]) => type === 'model-loaded')!;
+    expect(detail).toMatchObject({ remote: true });
+    expect(detail).not.toHaveProperty('previousModelIri');
   });
 });

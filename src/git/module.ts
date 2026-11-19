@@ -17,7 +17,7 @@ import { DesktopTokenStore, WebTokenStore, type TokenStore } from './credentials
 import { GitError, setDesktop } from './errors.js';
 import type { GitConfig } from '../config.js';
 import { saveToGit, type GitSaveContext } from './git-save.js';
-import { updateFromBranch } from './git-merge.js';
+import { namespaceMoveMessage, updateFromBranch } from './git-merge.js';
 import { pullFromGit } from './git-pull.js';
 import { GitSync } from './git-sync.js';
 import { AutoCommitStore, AUTO_COMMIT_PREFIX } from './auto-commit-settings.js';
@@ -92,7 +92,13 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   let running = false;
   let sync: GitSync | undefined;
   const locks = new GitLocks();
-  const onLoaded = () => { generation++; sync?.modelLoaded(); };
+  const onLoaded = (event: { detail?: Record<string, unknown> }) => {
+    // The same model moved to another namespace, here or by a collaborator (DD-41): it stays bound to its file.
+    const { modelIri, previousModelIri } = event.detail ?? {};
+    if (typeof modelIri === 'string' && typeof previousModelIri === 'string') bindings.move(previousModelIri, modelIri);
+    generation++;
+    sync?.modelLoaded();
+  };
   eventBus.on('model-loaded', onLoaded);
 
   const openContext: GitOpenContext = {
@@ -134,6 +140,13 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     personal,
     hostKinds,
   };
+
+  // Model settings, before it moves a model saved to Git: the move renames every IRI in the file.
+  const removeNamespaceCheck = ui.addNamespaceCheck(async ({ modelIri, to }) => {
+    const binding = bindings.get(modelIri);
+    if (!binding) return true;
+    return ui.dialogs.confirm('Model saved to Git', namespaceMoveMessage(binding, to), { confirmLabel: 'Move' });
+  });
 
   // File › Settings…: the defaults, the tokens kept, the host kinds learned.
   const removeSettings = ui.addSettingsSection(
@@ -250,6 +263,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
           replace: (snapshot) => merging.support.replace(snapshot),
           clearConflicts: () => merging.support.clear(),
           room: () => app.collaborationRoom,
+          model: () => app.session.modelIri,
         }),
       };
     }
@@ -277,6 +291,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
       window.removeEventListener('storage', onSettingsStorage);
       eventBus.off('model-loaded', onLoaded);
       removeMenu();
+      removeNamespaceCheck();
       removeSettings();
       removeHistory();
       merging.stop();

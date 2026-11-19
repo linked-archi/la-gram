@@ -45,7 +45,9 @@ settings*; so do *File › Model settings…* and *Model settings…* on the mod
 | *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one, keeping the rest of its name, those in the triple a relationship reifies (`rdf:reifies`) too; off, only IRIs minted from now on use it |
 
 *Apply* makes the change, as one step that undo takes back, and a message says how many IRIs moved. In a
-collaboration room, moving the namespace asks first: it renames the IRIs for everyone in the room.
+collaboration room, moving the namespace asks first: it renames the IRIs for everyone in the room. For a
+model saved to Git, it asks too, in *Model saved to Git*: the model stays bound to its file, and *Save to
+Git* commits the move there ([Moving the model to another namespace](git.md#namespace)).
 
 1. Click the model's name in the toolbar.
 2. In *Namespace*, type `https://example.org/acme/models/shop/`; in *Prefix*, `shop`.

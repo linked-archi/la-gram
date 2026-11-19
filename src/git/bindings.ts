@@ -25,6 +25,12 @@ export interface GitBinding {
   /** The incorporated commit — a new branch starts there; undo does not rewind it. */
   commit: string;
   /**
+   * The model's IRI in the file at {@link commit}, when the model was moved to
+   * another namespace here since (DD-41) and the move is not committed yet: the
+   * file still has the model under it. A commit from here writes the moved model.
+   */
+  movedFrom?: string;
+  /**
    * Another branch merged into the model (*Update from main*), not yet
    * committed: the next save records it as merged — a merge commit on GitHub, a
    * new branch from it on GitLab.
@@ -69,6 +75,23 @@ export class GitBindings {
     const all = this.all();
     delete all[modelIri];
     this.write(all);
+  }
+
+  /**
+   * The model moved to another namespace, and so to another IRI: its binding
+   * goes with it, noting the IRI the bound file still has it under — so that
+   * *Save to Git* commits the move to the same file, naming the version it
+   * replaces. It takes the place of a binding the new IRI had: that was another
+   * model's, under the same IRI, and the moved model is not to be committed to
+   * that model's file.
+   */
+  move(from: string, to: string): void {
+    const binding = this.get(from);
+    if (!binding || from === to) return;
+    const { movedFrom, ...rest } = binding;
+    const inFile = movedFrom ?? from;
+    this.set(to, inFile === to ? rest : { ...rest, movedFrom: inFile });
+    this.forget(from);
   }
 
   /** The repository last committed to, to offer for a model that has none. */

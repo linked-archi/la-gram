@@ -24,7 +24,8 @@ export const USAGE = `la-gram-git — la-gram's models in Git: checked, rewritte
       nothing it lacks, and breaks no shape. With --base, a violation fails
       only when the change adds it (the file as it was where the branch left
       <branch> is checked too). The shapes' SPARQL-based rules are reported,
-      not failed. --shapes adds a folder's shapes (.ttl) to the metamodels'.
+      not failed, and so are IRIs outside the Linked.Archi layout. --shapes
+      adds a folder's shapes (.ttl) to the metamodels'.
 
   la-gram-git fix [paths…]
       Rewrite model files exactly as la-gram writes them.
@@ -35,7 +36,9 @@ export const USAGE = `la-gram-git — la-gram's models in Git: checked, rewritte
       request the CI job runs for, or updated there.
 
   la-gram-git merge <base> <ours> <theirs> <path>
-      Git's merge driver (%O %A %B %P): the model merged by element.
+      Git's merge driver (%O %A %B %P): the model merged by element. When
+      one side moved the model to another namespace, the other side is
+      moved after it first.
 
   la-gram-git init github|gitlab|merge-driver
       Set this repository up: the CI file for GitHub or GitLab, or the merge

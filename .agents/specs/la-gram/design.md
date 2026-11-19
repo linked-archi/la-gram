@@ -2656,6 +2656,27 @@ Blank nodes do not match between versions (their labels are not kept), so both
 sides' copies end up in the merged model; la-gram makes none, and a Git save asks
 first for an imported model that has them.
 
+**A model moved to another namespace** (Req 18.28; DD-41's scenario S7; key
+design decision 34). After the quick answers (a side unchanged, the sides
+alike), `snapshotModel` reads each version's `arch:Model` and its namespace —
+`vann:preferredNamespaceUri`, else derived from the model's IRI. A side whose
+model has another IRI than base's moved it (a move makes it `{to}model`); a
+namespace set without moving the IRIs keeps the model's IRI and merges as the
+value it is. One side moved: base and the other side are moved after it
+(`moveLines`, through quads so that a moved line is the canonical one), each
+IRI under the old namespace to the same local part under the new one, inside
+triple terms too, unless the mover still has it (a vocabulary's term, which
+`planNamespaceChange` leaves alone), the model to the mover's IRI and its
+`vann:preferredNamespaceUri` lines to the mover's; then the moved versions are
+merged as any, and the result carries `moved: { from, to, by }`. Moved alike on
+both sides: base is moved. To two namespaces: `NamespaceConflict`, nothing
+merged.
+
+```
+mergeSnapshots(…) → { merged, conflicts, moved? }   // moved: { from, to, by: 'ours' | 'theirs' | 'both' }
+snapshotModel(snapshot) → { model, namespace } | undefined
+```
+
 **In the editor** (`src/git/git-merge.ts`, Req 18.18–18.21). The three versions
 are read alike — the model through its own serialization, `snapshotOfText` —
 so a difference of form is never a change.
@@ -2685,6 +2706,20 @@ so a difference of form is never a change.
   *Take theirs*, *Keep it* / *Delete it* for a deletion. A choice swaps the
   lines that stand for the conflict for the chosen side's, as one undoable step;
   it can be changed.
+- A namespace move (Req 18.27–18.28). Every merge here goes through `mergeHere`:
+  a `NamespaceConflict` becomes a message, and a result whose model is not the
+  open model's — the other version moved it, or holds another model — is refused
+  before `replace`, saying what to do (`movedElsewhere`); *Open this version*
+  refuses such a commit too. Model settings asks the module first
+  (`MountedUi.addNamespaceCheck`: *Model saved to Git*, `namespaceMoveMessage`).
+  The binding is kept by model IRI, so it moves with the model: the session's
+  `model-loaded` says which IRI a move renamed (`previousModelIri`, after Model
+  settings, and after a collaborator's move when the open view is found under
+  the same local part — not a new model started in the room), and
+  `GitBindings.move` carries the binding over, noting `movedFrom`, the IRI the
+  bound file still has. `checkSnapshot` accepts that IRI in the file;
+  `advanced` keeps it while the file read still has it, and a commit from here
+  drops it.
 
 **Measured** (*model-merge-bench.test*): 350 000 triples, a few hundred renames,
 moves and deletions on each side — reading one version from Turtle 0.5–0.6 s,
@@ -2697,7 +2732,10 @@ each side's additions and removals on one base model): changes that combine;
 a name per language; a retype; a retarget kept whole; a concept deleted against
 a rename, a new relationship, a placement, a folder entry, and deletions that
 agree; bounds; a route; two placements; count limits; TriG read whole; blank
-nodes. *model-merge.property.test* (fast-check, on models la-gram's managers
+nodes; a model moved to another namespace on one side against a rename, an
+addition with its triple term and a deletion, a value both changed, a deletion
+after the move, moved alike, moved apart, a vocabulary term the move left, a
+namespace set without a move. *model-merge.property.test* (fast-check, on models la-gram's managers
 build and edit): the result does not depend on which side is ours; a version
 merged with itself or an unchanged base comes back; edits on disjoint halves
 never conflict and are all kept (`MERGE_RUNS` for a longer search).
@@ -2706,7 +2744,13 @@ never conflict and are all kept (`MERGE_RUNS` for a longer search).
 GitHub and as GitLab): the merge committed to the same branch; again when the
 branch moves on; conflicts listed, then committed after choosing; asked before
 saving with conflicts or blank nodes; *Update from main* as a merge commit and
-as a new branch, with conflicts, after catching up, up to date. *providers.test*:
+as a new branch, with conflicts, after catching up, up to date; a model moved
+here merged with a colleague's change and committed to the same file, the
+binding moved with it; one moved there refused; moved apart refused; a branch
+started before the move merged into it, and *Update from main…* on that branch
+refused. *git-pull.test*: pulled into a model
+moved here; refused when the branch moved it. *git-history.test*: a commit from
+before the move not opened. *providers.test*:
 the merge base and GitHub's merge commit, recorded. *conflicts-panel.test*,
 *git-module.test* (the tab in the mounted UI). *git-merge.spec* (Chrome, two
 browser contexts, a fake GitHub): the second save merged on the same branch,
@@ -2759,7 +2803,25 @@ The merge driver merges a file la-gram's way only when both sides are la-gram
 models: `.gitattributes` routes files by extension, so ontologies and shapes
 files come to it too, and those — and a side that does not parse — go to Git's
 own text merge (`git merge-file`, labelled ours/base/theirs), as without the
-driver.
+driver. A namespace move is followed in either direction, as *Merging versions*
+says, and told on the standard error; a `NamespaceConflict` is a file not
+merged, left as ours (exit 1).
+
+**The IRI layout** (Req 20.2; DD-41; key design decision 35).
+`model-manager/iri-conformance.ts`, `layoutReport(quads)`, takes the file's own
+triples (`parseModelText`), not the opened model, which adds a default view and
+a layout. The model is the first `arch:Model`, its namespace stated or derived;
+a shape is a subject with `arch-vis:view` that is not a node's or a line's label;
+a part is the object of `arch-vis:style`, `label`, `labelExpression`,
+`skosxl:altLabel`, `arch:prefVisNotation`, `arch:altVisNotation` or
+`schema:itemListElement` from exactly one owner, and a route's cells and points
+are the line's. Each IRI of the namespace, and the model's, goes into the first
+category that applies — `characters`, `hashes`, `shape`, `part`, `outside` — or
+`legacy` when it is named as before the layout (`{kind}-…`, `{owner}-…`, a
+converter's `{ns}view/{v}/node/{id}`). `check.ts`'s `layoutNotes` writes them
+under *IRI layout (DD-41), advisory*, after the SPARQL-based rules, each counted
+with its first three names relative to the namespace; a model all in the layout
+gets no line.
 
 **Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
 tag `la-gram-git-v<version>`, and for merge requests and the default branch
@@ -3487,6 +3549,33 @@ dialog; the modules' section).
     `URLEncoder`), so an import and a conversion of one file give the same local names. A namespace change
     keeps every local part; the derived relationships keep `relationship-{sha1}`, the name meta's derivation
     rules give them, until those rules change.
+
+34. **A merge follows a namespace move; la-gram follows only its own** (Req 18.27–18.28, 20.5; DD-41's
+    scenario S7; 2026-11-18). Moving a model renames every IRI in it, so a move on one side and an edit on
+    the other merged as they are read as everything deleted on one side — the one scenario DD-41 found to
+    break every layout. `mergeSnapshots` therefore moves base and the other side after the mover first,
+    keeping local parts as `planNamespaceChange` does; it is in the merge, not in a caller, so that the
+    driver, *Pull*, *Merge with the newer version* and *Update from main…* all have it. A move is told by
+    the model's IRI, which a move always changes (`{to}model`); a namespace set without moving the IRIs is
+    not taken for one, so the IRIs the other side added are not renamed behind the user's back. An IRI the
+    mover still has stays, as its move left it. Two moves to two namespaces have no namespace to merge into:
+    refused, not guessed. In la-gram the merged model replaces the open one, which its session, its Git
+    binding, the History tab, its auto-commit setting and its room know by its IRI, so only a move made here
+    is merged into; following one made elsewhere would rename the open model under all of those, and is not
+    done (*Known limitations*): such a merge stops before anything changes, and says to open the moved branch
+    and merge the changes made here into it, from there, where the move is the model's own. For the same
+    reason the binding moves with the model when it is moved here, so that *Save to Git* commits the move
+    to the same file, naming the version it replaces, instead of asking where and replacing the file
+    unmerged; `movedFrom` lets Pull and the checks read that file until the move is committed.
+
+35. **The IRI layout is reported, never failed, from the file's own triples** (Req 20.2; DD-41;
+    2026-11-18). No tool renames an IRI (DD-41), so a check that failed on names given before the layout
+    would fail a repository's models for good, and one that failed on names outside it would fail the hand-
+    written example model and every converted model from before. `la-gram-git check` lists them, as it lists
+    the SPARQL-based rules, under *IRI layout (DD-41), advisory*, with legacy names counted apart from the
+    rest. It reads the file's triples rather than the opened model, so that what opening adds is not
+    counted, and finds a shape, a part and its owner from the triples, as the guide's *Reading IRIs* says to,
+    never from the name.
 
 ## Running
 

@@ -571,4 +571,43 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     await e.close();
   }, 90_000);
 
+  it('moving the model to another namespace asks first; the refused save merges a colleague’s change into it (DD-41, S7)', async () => {
+    const f = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(f, billing)).length === 1, 'F to open main');
+    const NEW = 'https://acme.com/ea/shop/';
+    const old = billing.slice(0, billing.indexOf('element/'));
+    const movedBilling = `${NEW}${billing.slice(old.length)}`;
+
+    // Model settings: the new namespace; then the Git module's question, naming the file.
+    await f.evaluate(() => { void (window as any).__LA_GRAM_UI__.runCommand({ command: 'model-settings' }); });
+    await answer(f, { namespace: NEW });
+    const warning = f.locator('.la-dialog[aria-label="Model saved to Git"]');
+    await warning.waitFor({ state: 'visible' });
+    expect((await warning.innerText()).replace(/\s+/g, ' ')).toContain(`This model is saved to Git: acme/arch · main · ${PATH}. Moving it to ${NEW} renames every IRI in it`);
+    await warning.locator('.la-button.primary').click();
+    await warning.waitFor({ state: 'detached' });
+    await until(async () => (await nameOf(f, movedBilling)).length === 1, 'the move');
+    // Still bound to its file.
+    const entries = await f.evaluate(() => (window as any).__LA_GRAM_UI__.appToolbar.fileMenuItems().map((i: any) => `${i.label} [${i.hint ?? ''}]`));
+    expect(entries).toContain('Save to Git [acme/arch · main]');
+
+    // A colleague renames Billing on main, in the old namespace; F's save is refused, and merged.
+    const [label] = await nameOf(f, movedBilling);
+    const branches = github.branchesMade;
+    github.push(github.file().replace(`"${label}"@en`, '"Billing (colleague)"@en'));
+    await run(f, 'save');
+    await answer(f); // the commit message
+    await answer(f, { token: TOKEN });
+    const chooser = f.locator('.la-dialog .la-choice-list');
+    await chooser.waitFor({ state: 'visible' });
+    await chooser.locator('.la-choice[data-value="merge"]').click();
+    await f.locator('.la-dialog .la-button.primary').click();
+
+    await until(async () => github.file().includes(`<${NEW}>`), 'the merged commit');
+    expect(github.file()).toContain('"Billing (colleague)"@en');
+    expect(github.file()).not.toContain(old);
+    expect(github.branchesMade).toBe(branches);
+    expect(await nameOf(f, movedBilling)).toEqual(['Billing (colleague)']);
+    await f.close();
+  }, 90_000);
 });

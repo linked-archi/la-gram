@@ -268,8 +268,14 @@ export class ModelSession {
     if (nextView) this.currentView = nextView;
 
     if (plan.mapping.size > 0) {
-      // Every IRI on the canvas may have changed: re-open the view.
-      this.events?.emit('model-loaded', { modelIri: nextModel, viewIri: this.currentView, renamed: true });
+      // Every IRI on the canvas may have changed: re-open the view. The model's old IRI goes
+      // with it, for what is kept by it (the Git module's binding to a file).
+      this.events?.emit('model-loaded', {
+        modelIri: nextModel,
+        viewIri: this.currentView,
+        renamed: true,
+        ...(nextModel !== modelIri ? { previousModelIri: modelIri } : {}),
+      });
     }
     this.events?.emit('model-changed', { namespace: target });
     return plan.mapping;
@@ -297,13 +303,20 @@ export class ModelSession {
     const previous = this.currentNamespace;
     let view: string | undefined;
     if (this.currentView && previous && this.currentView.startsWith(previous)) {
-      const local = this.currentView.slice(previous.length);
-      view = [`${namespace}${local.replace(/\//g, '-')}`, `${namespace}${local}`].find((iri) => this.views.getView(iri));
+      // A move keeps the local part (DD-41).
+      const moved = `${namespace}${this.currentView.slice(previous.length)}`;
+      if (this.views.getView(moved)) view = moved;
     }
     this.currentModel = next;
     this.currentNamespace = namespace;
     this.currentView = view ?? this.views.getViews().find((v) => v.type === 'Diagram')?.iri ?? this.views.getViews()[0]?.iri;
-    this.events?.emit('model-loaded', { modelIri: next, viewIri: this.currentView, remote: true });
+    this.events?.emit('model-loaded', {
+      modelIri: next,
+      viewIri: this.currentView,
+      remote: true,
+      // The same model moved, its view there under the same local part — not another model started in the room.
+      ...(view ? { previousModelIri: modelIri } : {}),
+    });
     return true;
   }
 

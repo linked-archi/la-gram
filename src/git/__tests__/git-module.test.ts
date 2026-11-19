@@ -176,6 +176,37 @@ describe('the Git module in the File menu', () => {
     ui.shell.showTab('properties');
   });
 
+  it('Model settings asks before moving a model saved to Git; moved, the model stays bound to its file', async () => {
+    const model = app.session.modelIri!;
+    const binding = git.context.bindings.get(model)!;
+    const confirm = vi.mocked(ui.dialogs.confirm);
+    const target = 'https://acme.com/ea/shop-floor/';
+
+    // Asked, naming the file; answered no, nothing moves.
+    confirm.mockResolvedValueOnce(false);
+    forms.push({ namespace: target });
+    await ui.runCommand({ command: 'model-settings' });
+    const [title, message, options] = confirm.mock.calls.at(-1)!;
+    expect([title, options]).toEqual(['Model saved to Git', { confirmLabel: 'Move' }]);
+    expect(message).toContain('This model is saved to Git: acme/arch · main · models/shop-floor.ttl. Moving it to https://acme.com/ea/shop-floor/ renames every IRI in it');
+    expect(app.session.modelIri).toBe(model);
+
+    // Moved: bound to the same file, which still has the model under its old IRI.
+    forms.push({ namespace: target });
+    await ui.runCommand({ command: 'model-settings' });
+    expect(app.session.modelIri).toBe(`${target}model`);
+    expect(git.context.bindings.get(model)).toBeUndefined();
+    expect(git.context.bindings.get(`${target}model`)).toEqual({ ...binding, movedFrom: model });
+    expect(entries()).toContain('git:save Save to Git [acme/arch · main]');
+
+    // Moved back, as it was: what the file has.
+    const namespace = model.slice(0, -'model'.length);
+    forms.push({ namespace });
+    await ui.runCommand({ command: 'model-settings' });
+    expect(app.session.modelIri).toBe(model);
+    expect(git.context.bindings.get(model)).toEqual(binding);
+  });
+
   it('rejects overlapping Git actions and discards a pull after reloading the same model', async () => {
     const snapshot = git.context.serialize('turtle');
     const model = app.session.modelIri;

@@ -1,7 +1,7 @@
 /** Manual same-branch synchronization, with no repository writes (Req 18.24). */
 import { snapshotOfText } from '../model-manager/model-merge.js';
 import { GitError } from './errors.js';
-import { reconcile, sameLines } from './git-merge.js';
+import { advanced, reconcile, sameLines } from './git-merge.js';
 import { formatOfPath, type GitSaveContext } from './git-save.js';
 import { bindingKey, checkSnapshot, observeGit, ObsoleteGitRead, type GitObservation } from './git-observation.js';
 
@@ -27,8 +27,8 @@ export function applyGitObservation(ctx: GitPullContext, observed: GitObservatio
   const ours = snapshotOfText(ctx.serialize(format), binding.path);
   checkSnapshot(ours, modelIri);
   if (cleanOnly && !sameLines(ours, base)) return { applied: false, changed: false, conflicts: [], dirty: true };
-  const { conflicts, changed } = reconcile(merge, base, ours, remote);
-  ctx.bindings.set(modelIri, { ...binding, commit: head, version });
+  const { conflicts, changed } = reconcile(merge, base, ours, remote, binding.branch);
+  ctx.bindings.set(modelIri, advanced(binding, { commit: head, version }, remote));
   if (conflicts.length) merge.conflicts(conflicts, { branch: binding.branch, commit: head }, activateConflicts);
   else merge.clear();
   const dirty = conflicts.length > 0 || !sameLines(snapshotOfText(ctx.serialize(format), binding.path), remote);

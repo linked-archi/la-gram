@@ -10,6 +10,11 @@ export type ModelEventType =
   | 'relationship-created'
   | 'relationship-deleted'
   | 'selection-changed'
+  /**
+   * Another model is open, or the same one under new IRIs (`{ modelIri, viewIri }`): `fresh` for a new
+   * model; `renamed` when Model settings moved it to another namespace, `remote` when a collaborator
+   * replaced it — `previousModelIri`, the IRI it had, when it is the same model moved.
+   */
   | 'model-loaded'
   | 'model-saved'
   | 'metamodel-loaded'

@@ -11,10 +11,12 @@
  * *Open this version* makes the model the file at that commit, as one undoable
  * step, and leaves the binding as it was: the next Save to Git names the version
  * it last saw, so it commits the old version as a change on top — or, if the
- * branch moved on, offers the conflict's choices.
+ * branch moved on, offers the conflict's choices. A version that has the model
+ * under another IRI — from before it was moved to another namespace — is not
+ * opened.
  */
 import type { HistoryGitCommit, HistoryGitSource } from '../ui/panels/history-panel.js';
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { snapshotModel, snapshotOfText } from '../model-manager/model-merge.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import { Access, type GitOpenContext } from './git-open.js';
@@ -29,6 +31,8 @@ export interface GitHistoryOptions {
   clearConflicts?(): void;
   /** The room the model is shared in, if it is. */
   room?(): string | undefined;
+  /** The open model's IRI: a version that has the model under another — moved since — is not opened. */
+  model?(): string | undefined;
 }
 
 /** Files read, kept per commit for the comparisons. */
@@ -84,6 +88,14 @@ export function gitHistorySource(ctx: GitOpenContext, binding: GitBinding, optio
       const snapshot = await snapshotAt(commit.commit);
       if (snapshot.length === 0) {
         ctx.report(`${binding.path} was not there at ${short}: nothing to open.`, 'warning');
+        return;
+      }
+      // The model under another IRI: moved to another namespace since (DD-41). Opened, it would
+      // rename the open model, which its session, its binding and its room know by its IRI.
+      const open = options.model?.();
+      const there = snapshotModel(snapshot)?.model;
+      if (open && there && there !== open) {
+        ctx.report(`Commit ${short} has the model as ${there}, in another namespace: it was moved since, and opening that version would rename the open model.`, 'warning');
         return;
       }
       options.clearConflicts?.();
