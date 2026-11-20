@@ -252,7 +252,7 @@ export interface ViewManager {
   getView(viewIri: string): ViewInfo | undefined;
   renameView(viewIri: string, label: string): void;
   setViewpoint(viewIri: string, viewpointIri: string | undefined): void;
-  /** Delete the view and its geometry; the concepts it showed stay in the model. */
+  /** Delete the view, its geometry and its placements' and lines' own styles; the concepts it showed stay in the model. */
   deleteView(viewIri: string): void;
   collectViewQuads(viewIri: string): Quad[];
   duplicateView(viewIri: string, label?: string): NamedNode;

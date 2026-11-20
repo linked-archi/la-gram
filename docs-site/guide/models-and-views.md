@@ -159,7 +159,8 @@ Every rename is undoable.
 ## Delete a view {#delete-a-view}
 
 Deleting a view keeps what it shows: its elements and relationships stay in the model, and in every other
-view. *Delete view (keeps its elements)* in the model tree, or *Delete view…* in the canvas's right-click
+view. What the view drew goes with it: its boxes and lines, their routes, and the looks given to them in it
+(colours, fonts, pictures, label expressions), for every presentation and for each. *Delete view (keeps its elements)* in the model tree, or *Delete view…* in the canvas's right-click
 menu, asks first: *Delete the view "Who is who"? The elements and relationships it shows stay in the
 model.*
 

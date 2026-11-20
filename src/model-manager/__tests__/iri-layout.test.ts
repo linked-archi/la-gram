@@ -134,6 +134,17 @@ describe.each([
     expect(subjects().has(style)).toBe(false);
   });
 
+  it('deleting the view removes its placements’ own styles with it, and nothing it drew is left', () => {
+    const m = model(names);
+    deps.views.deleteView(m.view);
+    const left = subjects();
+    for (const iri of [m.view, m.node('a'), m.part(m.node('a'), 'style'), m.node('b'), m.link, m.cell(0), m.point(1), m.part(m.link, 'label')]) {
+      expect(left.has(iri)).toBe(false);
+    }
+    // The concepts stay.
+    for (const iri of [m.a, m.r]) expect(left.has(iri)).toBe(true);
+  });
+
   it('moving a bend changes only its coordinates; one added is named in the route’s pattern', () => {
     const m = model(names);
     const moved = changeOf(() => deps.views.updateLinkWaypoints(m.view, m.r, [{ x: 200, y: 27 }, { x: 260, y: 40 }]));

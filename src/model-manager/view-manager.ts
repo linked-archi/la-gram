@@ -286,6 +286,9 @@ export class OxigraphViewManager implements ViewManager {
       quads.push(...this.pointListQuads(node.subject));
       // A label node another tool wrote without a view of its own goes with what it labels.
       quads.push(...this.labelNodeQuads(node.subject));
+      // …and its own styles, with the label expressions they give, as when it is removed alone.
+      quads.push(...this.ownStylesQuads(node.subject));
+      quads.push(...this.blankStyleQuads(node.subject));
     }
     // …and every membership statement naming it. The concepts themselves stay.
     quads.push(...this.read(null, T.inView, view));

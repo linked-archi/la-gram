@@ -156,6 +156,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ### Task 16: Model tree — done
 - [x] Model → Views / Elements by type / Relationships by type / Unclassified; placed markers — *model-explorer.test*
 - [x] Context menus per kind; filter; reveal on canvas selection; drag to place — *workbench.spec*
+- [x] A view deleted with everything it drew, its placements' and lines' own styles and label expressions included; its concepts stay (Req 10.8) — *view-manager.test, iri-layout.test*
 - [x] A model's own folders (`arch:Folder`, made here or brought over by the converters) in the three groups, each kind its own: a group's folders first — nested, folded, by name, with their counts — then what none holds, by type; a top *Elements*/*Relationships*/*Views* folder is its group, any other folder under the groups of what it holds (no tool's folder names known); a converter's folder for the model itself left out; filter and reveal reach into folded folders (Req 10.10, 10.12) — *model-explorer.test, converter-models.test*
 - [x] Folders kept in step by `ModelContentsIndex`, read again only after a change that touches one (Req 10.10) — *model-contents-index.test*
 - [x] Folders | Types switch in the tree's header, remembered per browser; on a model without folders, *Folders* greyed out and the tree by type (Req 10.11) — *model-explorer.test*
@@ -403,8 +404,6 @@ Agreed order; relationship visuals come first.
 
 ## Known limitations
 
-- The Linked.Archi IRI layout (Req 9.7c): deleting a view leaves its placements' own styles, as before
-  (`converted-styles-and-routes`, Open 1).
 - A namespace move (Req 18.27–18.28): automatic checks and auto-commit do not follow a move made on the
   other side — *Pull from Git* does. Undo does not take a move back, made here or followed. Auto-commit is
   off for a moved model until turned on again: its setting is kept by model IRI. The local checkpoints of
@@ -433,6 +432,22 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-20 — a deleted view takes its placements' own styles with it; the converter fixture in the layout
+
+- Deleting a view removes the placements' and lines' own styles — for every presentation context and for each
+  — with the label expressions they give, and a converter's blank-node style one placement alone uses, as
+  removing a placement already did (Req 10.8; `collectViewQuads`). They were left behind, unreachable from
+  anything (`converted-styles-and-routes`, Open 1); this was the IRI layout's known limitation.
+- `src/__tests__/fixtures/converters/archimate-payment-platform.trig` is the converters' output at `1e3e315`
+  (1.3.0-SNAPSHOT), in the DD-41 layout: the model `{ns}model` in the namespace it states, its former IRI an
+  alias in the provenance graph, named folder entries, no blank node. It opens as before, and its IRIs are all
+  in the layout `la-gram-git check` reads. `archimate-figures.trig` stays as output from before DD-41.
+- Tests: *view-manager.test* (a view deleted with its placements' and line's styles, a context's, a label
+  expression and a converter's blank-node style), *iri-layout.test* (a view deleted from a model saved before
+  DD-41 and from a converted one), *converter-models.test* (the model IRI, the namespace, the layout report);
+  the first two fail without the change. Docs: *Models and views* (*Delete a view*). Verified: type checking,
+  all 2,737 unit tests and all 94 browser tests pass; `npm run build`, `npm run docs:build`.
 
 ### 2026-11-19 — after a view's `#`, names joined with `-` (DD-41)
 

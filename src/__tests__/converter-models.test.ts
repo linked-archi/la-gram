@@ -2,10 +2,13 @@
  * Models made by the Linked.Archi converters open as models.
  *
  * The fixture is archimate2linkedarchi's output for its payment-platform
- * example (TriG: a model, a semantic, a views and a provenance graph). Besides
- * the model, a converter records the conversion itself — the run, the agent,
- * the source file and the named graphs, typed with PROV-O and schema.org.
- * Those describe the model; they are not in it.
+ * example (TriG: a model, a semantic and a provenance graph; the example draws
+ * no diagram), from the converters at `1e3e315` (1.3.0-SNAPSHOT), in the IRI
+ * layout of DD-41. Besides the model, a converter records the conversion
+ * itself — the run, the agent, the source file and the named graphs, typed
+ * with PROV-O and schema.org. Those describe the model; they are not in it.
+ * `archimate-figures.trig` is older output, from before DD-41: shapes nested
+ * under their view, parts as blank nodes.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -18,6 +21,9 @@ import { relationshipClassOf } from '../model-manager/cascade.js';
 import { buildModelTree, type TreeNode } from '../ui/panels/model-explorer.js';
 import { hexColour } from '../ui/figure-bar.js';
 import { nn as namedNode } from '../model-manager/vocabulary.js';
+import { layoutReport } from '../model-manager/iri-conformance.js';
+import { Parser } from 'n3';
+import type { Quad } from '@rdfjs/types';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'converters', name), 'utf8');
 
@@ -120,6 +126,12 @@ describe('a model from the ArchiMate converter', () => {
     expect(app.loadedMetamodels().map((m) => m.metamodelIri)).toContain(
       'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2',
     );
+    // As the converters name a model since DD-41: `{ns}model`, in the namespace it states, every IRI of the file
+    // in the layout la-gram-git checks — the model's former IRI, an alias in the provenance graph, is outside it.
+    expect(opened.modelIri).toBe('https://example.org/la/model/payment-platform/model');
+    expect(app.session.namespace()?.namespace).toBe('https://example.org/la/model/payment-platform/');
+    const file = new Parser({ format: 'application/trig' }).parse(fixture('archimate-payment-platform.trig')) as unknown as Quad[];
+    expect(Object.values(layoutReport(file)!.iris).flat()).toEqual([]);
     const contents = readModelContents(app.components.store, app.components.viewManager.getViews());
     expect(contents.elements).toHaveLength(11);
     expect(contents.relationships).toHaveLength(10);

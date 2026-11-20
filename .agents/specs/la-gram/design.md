@@ -2212,8 +2212,10 @@ else — or, without, `{node}-style` (`ownStyle` copies another tool's blank nod
 a shared style, ignoring context styles). `styleOf(subject, context?)` is the
 one read of a style: the figure, the look, the label expressions all read the
 style for every context; `contextAppearancesOf` reads the others into
-`NodeInfo.contextAppearances`; `ownStylesQuads` removes them all with the node;
-`duplicateView` copies them. The canvas draws a placement with
+`NodeInfo.contextAppearances`; `ownStylesQuads` removes them all with the node,
+and with its view (`collectViewQuads`, so that deleting a view leaves no style of
+what it drew, nor the label expressions on them, a converter's blank-node styles
+included); `duplicateView` copies them. The canvas draws a placement with
 `lookFor(node)` — its style for every context, the context's laid over it —
 in `syncFromStore` and in `refreshLabelTexts`, which runs on every presentation
 switch. An element's own pictures (core 0.5.0) are read and written by

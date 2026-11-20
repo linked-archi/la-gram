@@ -86,6 +86,38 @@ describe('OxigraphViewManager', () => {
       expect(objects(store, a.value, RDF_TYPE)).toEqual([typeIri]);
     });
 
+    it('deletes with a view its placements’ and lines’ own styles, for every presentation and for one, and their label expressions', () => {
+      const EXECUTIVE = 'https://example.org/contexts#Executive';
+      const a = elements.createElement(typeIri, modelIri);
+      const b = elements.createElement(typeIri, modelIri);
+      const rel = rels.createQualifiedRelationship({ typeIri: 'https://example.org/lang#Serving', sourceIri: a.value, targetIri: b.value }).iri;
+      const v = views.createView('Diagram', undefined, { modelIri }).value;
+      const node = views.addElementToView(v, a.value);
+      const other = views.addElementToView(v, b.value, { x: 300, y: 0, width: 120, height: 55 });
+      const line = views.addRelationshipToView(v, rel)!;
+      views.setAppearance(v, node, { fillColor: '#ffd6e0' });
+      views.setAppearance(v, node, { fillColor: '#1a73e8' }, EXECUTIVE);
+      views.setLabelExpression(v, node, undefined, '{name}');
+      views.setAppearance(v, line, { lineWidth: 3 });
+      // A converter's style as it wrote them before DD-41: a blank node only this placement uses.
+      const blank = DataFactory.blankNode();
+      store.addQuads([
+        DataFactory.quad(nn(other), nn(VIS + 'style'), blank),
+        DataFactory.quad(blank, nn(RDF_TYPE), nn(VIS + 'Style')),
+        DataFactory.quad(blank, nn(VIS + 'fillColor'), DataFactory.literal('#ffffff')),
+      ] as never);
+      const styles = [node, line].flatMap((iri) => objects(store, iri, VIS + 'style'));
+      const labelExpressions = styles.flatMap((style) => objects(store, style, VIS + 'labelExpression'));
+      expect([styles.length, labelExpressions.length]).toEqual([3, 1]);
+
+      views.deleteView(v);
+      for (const iri of [...styles, ...labelExpressions]) expect(store.getQuads(nn(iri), null, null)).toEqual([]);
+      expect(store.getQuads(blank as never, null, null)).toEqual([]);
+      expect(store.getQuads(null, nn(VIS + 'style'))).toEqual([]);
+      // The concepts stay.
+      for (const iri of [a.value, b.value, rel]) expect(objects(store, iri, RDF_TYPE).length).toBeGreaterThan(0);
+    });
+
     it('duplicates a view with its placements and links', () => {
       const a = elements.createElement(typeIri, modelIri);
       const b = elements.createElement(typeIri, modelIri);
