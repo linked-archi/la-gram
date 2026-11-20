@@ -1656,7 +1656,7 @@ describe('the workbench', () => {
     const onView = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(canvasRoot) as Record<string, { action: () => void }>;
     expect(Object.keys(onView)).toEqual([
       'rename-view', 'set-viewpoint', 'duplicate-view', 'arrange-view', 'arrange-relationships', 'align-to-grid', 'sizes', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
-      'export-svg', 'export-png', 'delete-view',
+      'copy-png', 'copy-svg', 'export-svg', 'export-png', 'delete-view',
     ]);
     onView['properties']!.action();
     expect([ui.propertyPanel.selectedIri, ui.propertyPanel.heading?.kind]).toEqual([view, 'View']);
@@ -1895,7 +1895,105 @@ describe('the workbench', () => {
     expect(ui.appToolbar.activeViewIri).toBe(view!.iri);
   });
 
-  it('saves only the model, as Turtle, and marks it clean', async () => {
+  it('File: sections with icons, the formats under Save as, a module under its submenu, the view under Export view', async () => {
+    const bar = ui.appToolbar.shadowRoot!;
+    const GIT = { id: 'git', label: 'Git', icon: 'git' as const };
+    const removeGit = ui.addFileMenu(
+      'git',
+      () => [
+        { id: 'open', section: 'open', label: 'Open from Git…', submenu: GIT },
+        { id: 'save', section: 'save', label: 'Save to Git', submenu: GIT },
+        { id: 'pull', section: 'save', label: 'Pull from Git', submenu: GIT },
+      ],
+      async () => {},
+    );
+    const update = () => ui.appToolbar.updateComplete;
+    const name = (b: Element) => b.getAttribute('data-command') ?? `${b.getAttribute('data-submenu')} ▸`;
+    const submenu = (id: string) => [...bar.querySelectorAll(`.sub-wrap[data-sub="${id}"] .submenu button`)];
+    try {
+      bar.querySelector<HTMLButtonElement>('button[data-menu="file"]')!.click();
+      await update();
+      const top = [...bar.querySelectorAll('.dropdown.file > button.item, .dropdown.file > .sub-wrap > button.item')];
+      expect(top.map(name)).toEqual([
+        'new-model', 'open-model', 'import-archimate', 'save', 'save-as ▸', 'module-git ▸', 'export ▸', 'model-settings',
+        ...(ui.appToolbar.settingsMenu ? ['settings'] : []),
+      ]);
+      // Each with its icon; Open and Save with their keys; Save says what it saves as.
+      expect(top.every((b) => b.querySelector('.icon svg'))).toBe(true);
+      const save = bar.querySelector('.dropdown.file [data-command="save"]')!;
+      expect([save.querySelector('.hint')!.textContent, save.querySelector('kbd')!.textContent]).toEqual(['TriG', 'Ctrl+S']);
+      expect(bar.querySelector('.dropdown.file [data-command="open-model"] kbd')!.textContent).toBe('Ctrl+O');
+      expect(bar.querySelector('.submenu')).toBeNull();
+
+      // Save as ▸, by a click: each format, then the model without its geometry.
+      bar.querySelector<HTMLButtonElement>('[data-submenu="save-as"]')!.click();
+      await update();
+      expect(submenu('save-as').map((b) => b.getAttribute('data-value') ?? b.getAttribute('data-command'))).toEqual([
+        'turtle', 'trig', 'json-ld', 'n-quads', 'n-triples', 'rdf-xml', 'save-no-geometry',
+      ]);
+
+      // Git ▸, by the pointer — after a moment, since another is open: its open entries, a line, its save entries.
+      bar.querySelector('[data-submenu="module-git"]')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }));
+      await vi.waitFor(() => expect(submenu('module-git').map((b) => b.getAttribute('data-value'))).toEqual(['git:open', 'git:save', 'git:pull']));
+      expect(bar.querySelectorAll('.sub-wrap[data-sub="module-git"] .submenu hr')).toHaveLength(1);
+      expect(submenu('save-as')).toEqual([]);
+
+      // Export view ▸, by the keyboard: → opens it at its first entry, Esc closes it back to its entry.
+      const exportEntry = bar.querySelector<HTMLButtonElement>('[data-submenu="export"]')!;
+      exportEntry.focus();
+      exportEntry.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, composed: true }));
+      await vi.waitFor(() => expect(bar.activeElement?.getAttribute('data-command')).toBe('export-svg'));
+      expect(submenu('export').map(name)).toEqual(['export-svg', 'export-png', 'copy-png', 'copy-svg']);
+      bar.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+      await update();
+      expect(submenu('export')).toEqual([]);
+      expect(bar.activeElement).toBe(exportEntry);
+
+      // An entry runs and closes the menu.
+      bar.querySelector<HTMLButtonElement>('[data-submenu="save-as"]')!.click();
+      await update();
+      const count = saved.length;
+      bar.querySelector<HTMLButtonElement>('.submenu [data-command="save-as"][data-value="turtle"]')!.click();
+      await vi.waitFor(() => expect(saved).toHaveLength(count + 1));
+      expect(saved.at(-1)!.fileName).toMatch(/\.ttl$/);
+      await update();
+      expect(bar.querySelector('.dropdown')).toBeNull();
+    } finally {
+      removeGit();
+    }
+  });
+
+  it('Ctrl+S saves as TriG and Ctrl+O opens, in place of the browser, not under a dialog', async () => {
+    const press = (key: string) => {
+      const event = new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true, cancelable: true });
+      globalThis.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const count = saved.length;
+    expect(press('s')).toBe(true);
+    await vi.waitFor(() => expect(saved).toHaveLength(count + 1));
+    expect([saved.at(-1)!.mediaType, saved.at(-1)!.fileName.endsWith('.trig')]).toEqual(['application/trig', true]);
+
+    // Ctrl+O asks for a file; none is picked here.
+    const pick = vi.spyOn(files, 'shift').mockReturnValue(undefined);
+    try {
+      expect(press('o')).toBe(true);
+      await vi.waitFor(() => expect(pick).toHaveBeenCalledTimes(1));
+
+      // Under a dialog, the keys are the dialog's.
+      const dialog = document.createElement('div');
+      dialog.className = 'la-dialog';
+      document.body.append(dialog);
+      expect([press('s'), press('o')]).toEqual([false, false]);
+      dialog.remove();
+      expect(saved).toHaveLength(count + 1);
+      expect(pick).toHaveBeenCalledTimes(1);
+    } finally {
+      pick.mockRestore();
+    }
+  });
+
+  it('saves only the model, as TriG, and marks it clean', async () => {
     ui.diagramCanvas.placeExisting; // canvas is ready
     const store = app.components.store;
     const el = app.components.elementManager.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, {
@@ -1911,8 +2009,8 @@ describe('the workbench', () => {
     expect(document.title).toBe(`${app.session.modelLabel()} — la-gram`);
 
     const file = saved.at(-1)!;
-    expect(file.mediaType).toBe('text/turtle');
-    expect(file.fileName).toMatch(/\.ttl$/);
+    expect(file.mediaType).toBe('application/trig');
+    expect(file.fileName).toMatch(/\.trig$/);
     expect(file.content as string).toContain('Web Shop');
     expect(file.content as string).not.toContain('owl:Ontology');
     expect(app.isDirty()).toBe(false);
@@ -1938,7 +2036,7 @@ describe('the workbench', () => {
   });
 
   it('opens a saved model again: same elements, views and geometry', async () => {
-    const turtle = saved.at(-1)!.content as string;
+    const trig = saved.at(-1)!.content as string;
     const before = modelQuads(app.components.store).length;
     const modelBefore = app.session.modelIri;
     script.forms.push(null);
@@ -1951,7 +2049,7 @@ describe('the workbench', () => {
     // The suggested namespace: a fresh one under example.org.
     expect(app.session.namespace()?.namespace).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/$/);
 
-    files.push({ name: 'shop.ttl', text: turtle });
+    files.push({ name: 'shop.trig', text: trig });
     await ui.runCommand({ command: 'open-model' });
 
     expect(modelQuads(app.components.store).length).toBe(before);

@@ -208,7 +208,7 @@ describe('views: one model, many views', () => {
     findings.push('delete from view / from model / undo: ok');
   });
 
-  it('saves a Turtle file with the model only', async () => {
+  it('saves a TriG file with the model only', async () => {
     await dropActor(page, 200, 120);
     await until(async () => (await model(page)).actors.length === 1, 'a new actor');
     const download = page.waitForEvent('download');
@@ -216,7 +216,9 @@ describe('views: one model, many views', () => {
     await page.locator('app-toolbar button[data-command="save"]').click();
     const file = await download;
     const text = await readFile((await file.path())!, 'utf8');
-    expect(file.suggestedFilename()).toMatch(/\.ttl$/);
+    expect(file.suggestedFilename()).toMatch(/\.trig$/);
+    // In its graphs: the geometry in the views graph (`{p}g:views`).
+    expect(text).toMatch(/g:views \{/);
     expect(text).toContain('arch-vis:ArchNode');
     expect(text).toContain('arch:inView');
     expect(text).not.toContain('owl:Ontology');
@@ -1805,7 +1807,7 @@ describe('changing an element’s type', () => {
     await menu.waitFor({ state: 'visible' });
     expect(await entries()).toEqual([
       'Rename view…', 'Set viewpoint…', 'Duplicate view', 'Arrange view…', 'Arrange relationships…', 'Align to grid…', 'Sizes…', 'Select all', 'Zoom to fit', 'View properties', 'Show in model tree',
-      'Copy IRI', 'Export view as SVG', 'Export view as PNG', 'Delete view…',
+      'Copy IRI', 'Copy view as PNG', 'Copy view as SVG', 'Export view as SVG', 'Export view as PNG', 'Delete view…',
     ]);
     // Export from it: the pictures — the notation's glyphs — in the file, and a PNG drawn with them, at twice the size.
     const exported: Record<string, Buffer> = {};
@@ -1848,6 +1850,49 @@ describe('changing an element’s type', () => {
       })(),
     });
     expect(inked).toBeGreaterThan(20);
+
+    // Copied rather than saved: on the clipboard, the PNG as a picture at the size of the file, the SVG as vector
+    // and as its markup, with its pictures in it.
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(page.url()).origin });
+    const clipboard = async (id: string) => {
+      if (!(await menu.isVisible())) {
+        await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
+        await menu.waitFor({ state: 'visible' });
+      }
+      await page.evaluate(() => navigator.clipboard.writeText(''));
+      await menu.locator(`.entry[data-id="${id}"]`).click();
+      // Read until the copy has written: the picture is drawn after the click.
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const read = await page.evaluate(async () => {
+          const [item] = await navigator.clipboard.read();
+          if (!item || item.types.length === 0) return null;
+          if (item.types.length === 1 && item.types[0] === 'text/plain' && !(await (await item.getType('text/plain')).text())) return null;
+          const types: Record<string, string> = {};
+          for (const type of item.types) {
+            const blob = await item.getType(type);
+            types[type] = type === 'image/png'
+              ? await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+                  reader.readAsDataURL(blob);
+                })
+              : await blob.text();
+          }
+          return types;
+        });
+        if (read) return read;
+        await page.waitForTimeout(250);
+      }
+      throw new Error(`nothing on the clipboard after ${id}`);
+    };
+    const copiedPng = await clipboard('copy-png');
+    expect(Object.keys(copiedPng)).toEqual(['image/png']);
+    const pngCopy = Buffer.from(copiedPng['image/png']!, 'base64');
+    expect([pngCopy.readUInt32BE(16), pngCopy.readUInt32BE(20)]).toEqual([svgWidth! * 2, svgHeight! * 2]);
+    const copiedSvg = await clipboard('copy-svg');
+    expect(Object.keys(copiedSvg).sort()).toEqual(['image/svg+xml', 'text/plain']);
+    expect(copiedSvg['text/plain']).toMatch(/^<svg\b/);
+    expect([...copiedSvg['text/plain']!.matchAll(/<image\b[^>]*\bhref="([^"]*)"/g)].every((m) => m[1]!.startsWith('data:image/'))).toBe(true);
     if (await menu.isVisible()) await page.keyboard.press('Escape');
     await page.mouse.click(host.x + host.width - 80, host.y + host.height - 80, { button: 'right' });
     await menu.waitFor({ state: 'visible' });
@@ -2411,9 +2456,10 @@ describe('the model tree makes elements and views in a folder (Req 10.16)', () =
 });
 
 describe('Git storage, a switchable module (Req 18.1)', () => {
-  it('on: File offers Save to Git… and Settings…; the dialog asks for the token unseen', async () => {
+  it('on: File › Git offers Save to Git…, and File Settings…; the dialog asks for the token unseen', async () => {
     const { page, session } = await openPage();
     await page.locator('app-toolbar button[data-menu="file"]').click();
+    await page.locator('app-toolbar button[data-submenu="module-git"]').click();
     const save = page.locator('app-toolbar button[data-command="module"][data-value="git:save"]');
     await save.waitFor({ state: 'visible' });
     expect(await save.innerText()).toContain('Save to Git…');
@@ -2438,9 +2484,10 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     findings.push('git: Save to Git… → the address → the token, typed unseen: ok');
   });
 
-  it('on: File offers Open from Git… beside Open; a link to a repository asks for the branch it lists', async () => {
+  it('on: File › Git offers Open from Git…, first; a link to a repository asks for the branch it lists', async () => {
     const { page } = await openPage();
     await page.locator('app-toolbar button[data-menu="file"]').click();
+    await page.locator('app-toolbar button[data-submenu="module-git"]').click();
     const open = page.locator('app-toolbar button[data-command="module"][data-value="git:open"]');
     await open.waitFor({ state: 'visible' });
     expect(await open.innerText()).toContain('Open from Git…');
@@ -2470,6 +2517,7 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     const { page } = await openConfigured(JSON.stringify({ modules: { git: 'unavailable' } }));
     await page.locator('app-toolbar button[data-menu="file"]').click();
     await page.locator('app-toolbar button[data-command="save"]').waitFor({ state: 'visible' });
+    expect(await page.locator('app-toolbar button[data-submenu="module-git"]').count()).toBe(0);
     expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
     // Settings has la-gram's own (Metamodels), but no Git section and no switch to turn Git on.
     await page.locator('app-toolbar button[data-command="settings"]').click();
@@ -2486,6 +2534,7 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     await page.locator('.la-toast.error').first().waitFor({ state: 'visible' });
     expect(await page.locator('.la-toast.error').first().innerText()).toMatch(/rememberTokens must be "ask" or "never".*Git storage is off/);
     await page.locator('app-toolbar button[data-menu="file"]').click();
+    expect(await page.locator('app-toolbar button[data-submenu="module-git"]').count()).toBe(0);
     expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
     findings.push('config: a failed check → said, Git off: ok');
   });
@@ -2495,6 +2544,7 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
       JSON.stringify({ git: { hosts: [{ host: 'git.acme.example', kind: 'gitlab' }], defaults: { folder: 'architecture' } } }),
     );
     await page.locator('app-toolbar button[data-menu="file"]').click();
+    await page.locator('app-toolbar button[data-submenu="module-git"]').click();
     const save = page.locator('app-toolbar button[data-command="module"][data-value="git:save"]');
     await save.waitFor({ state: 'visible' });
     await save.click();
@@ -2519,7 +2569,7 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     const settings = page.locator('app-toolbar button[data-command="settings"]');
     await settings.waitFor({ state: 'visible' });
     // The Git section is there once the module has started.
-    await page.locator('app-toolbar button[data-command="module"][data-value="git:save"]').waitFor({ state: 'visible' });
+    await page.locator('app-toolbar button[data-submenu="module-git"]').waitFor({ state: 'visible' });
     await settings.click();
     const dialog = page.locator('.la-dialog');
     await dialog.waitFor({ state: 'visible' });
@@ -2544,6 +2594,7 @@ describe('Git storage, a switchable module (Req 18.1)', () => {
     const { page } = await openPage('?git=off');
     await page.locator('app-toolbar button[data-menu="file"]').click();
     await page.locator('app-toolbar button[data-command="settings"]').waitFor({ state: 'visible' });
+    expect(await page.locator('app-toolbar button[data-submenu="module-git"]').count()).toBe(0);
     expect(await page.locator('app-toolbar button[data-command="module"]').count()).toBe(0);
     const fetched = await page.evaluate(() =>
       performance

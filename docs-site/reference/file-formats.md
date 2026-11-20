@@ -15,17 +15,17 @@ file is opened, and by you when it is saved ([Files, import and export](../guide
 
 | Format | Extension | Media type | Named graphs |
 |---|---|---|---|
-| **Turtle** (the default) | `.ttl` | `text/turtle` | no: one graph |
-| TriG | `.trig` | `application/trig` | yes: a graph per layer |
+| Turtle | `.ttl` | `text/turtle` | no: one graph |
+| **TriG** (the default) | `.trig` | `application/trig` | yes: a graph per layer |
 | JSON-LD | `.jsonld` | `application/ld+json` | yes |
 | N-Quads | `.nq` | `application/n-quads` | yes |
 | N-Triples | `.nt` | `application/n-triples` | no |
 | RDF/XML | `.rdf` | `application/rdf+xml` | no |
 
-- **Default:** Turtle. *File › Save* writes Turtle; the *File* menu's *Save as …* entries, such as
-  *Save as TriG (graph per layer)*, write the others.
+- **Default:** TriG. *File › Save* (++ctrl+s++) writes TriG, the model in its [graphs](#graphs); *File ›
+  Save as ▸* writes it in any of the six, Turtle among them.
 - **The file name** is the model's name with every run of characters other than letters, digits, `.`,
-  `_` and `-` turned into `-`: "Acme online shop" is saved as `Acme-online-shop.ttl`.
+  `_` and `-` turned into `-`: "Acme online shop" is saved as `Acme-online-shop.trig`.
 - **Turtle as la-gram writes it** has the same order, prefixes and layout every time, on any machine,
   so a text diff of two saves shows only what changed. The prefixes are the standard ones, then the
   metamodels' in order of their names (`am4:`, `am4mm:`, `am4vp:`), then the model's own (`m:`). `la-gram-git check` holds model files in Git to that form, and
@@ -99,13 +99,13 @@ What part of the model a save writes.
 | no-geometry | the model and its views, without geometry: each view keeps the concepts it shows (`arch:inView`), only the coordinates go | `<name>.no-geometry.<ext>` |
 
 - **Default:** full.
-- *File › Save without diagram geometry* writes the no-geometry profile, in Turtle: the file to hand to a
+- *File › Save as › Turtle without diagram geometry* writes the no-geometry profile, in Turtle: the file to hand to a
   pipeline that reasons over the architecture and has no use for layout.
 - **Opening a file without geometry** lays the diagram out in a grid, by type, six columns wide.
 
 With the example model:
 
-1. Open the example model, and choose *File › Save without diagram geometry*: the browser saves
+1. Open the example model, and choose *File › Save as › Turtle without diagram geometry*: the browser saves
    `Acme-online-shop.no-geometry.ttl`, which has `arch:inView` lines and no `arch-vis:ArchNode`.
 2. Open that file with *File › Open…*: la-gram says *Opened Acme-online-shop.no-geometry.ttl: 112
    triples, 8 elements laid out.*

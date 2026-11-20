@@ -355,6 +355,7 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     const head = github.push(github.file().replace('Billing (A2)', 'Billing (pulled)'));
     const commits = github.commits.size;
     await c.locator('app-toolbar button[data-menu="file"]').click();
+    await c.locator('app-toolbar button[data-submenu="module-git"]').click();
     const pull = c.locator('app-toolbar button[data-value="git:pull"]');
     expect(await pull.innerText()).toContain('Pull from Git');
     await pull.focus();
@@ -417,6 +418,7 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     const commits = github.commits.size;
     const historyReads = github.reads.history;
     await c.locator('app-toolbar button[data-menu="file"]').click();
+    await c.locator('app-toolbar button[data-submenu="module-git"]').click();
     const check = c.locator('app-toolbar button[data-value="git:check"]');
     await check.focus();
     await check.press('Enter');

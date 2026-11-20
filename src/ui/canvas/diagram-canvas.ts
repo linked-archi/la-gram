@@ -368,7 +368,9 @@ export type CanvasContextAction =
   | 'sizes'
   | 'delete-view'
   | 'export-svg'
-  | 'export-png';
+  | 'export-png'
+  | 'copy-svg'
+  | 'copy-png';
 
 /** What {@link DiagramCanvasOptions.confirmRetypeElement} is asked about. */
 export interface RetypeElementRequest {
@@ -3338,6 +3340,9 @@ export class DiagramCanvas {
         { id: 'properties', label: 'View properties', section: 'show', run: host('properties') },
         { id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') },
         { id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: host('copy-iri') },
+        // The picture, to paste into a document or a slide (Req 14.4).
+        { id: 'copy-png', label: 'Copy view as PNG', section: 'copy', run: host('copy-png') },
+        { id: 'copy-svg', label: 'Copy view as SVG', section: 'copy', run: host('copy-svg') },
         { id: 'export-svg', label: 'Export view as SVG', section: 'export', run: host('export-svg') },
         { id: 'export-png', label: 'Export view as PNG', section: 'export', run: host('export-png') },
         { id: 'delete-view', label: 'Delete view…', section: 'delete', run: host('delete-view') },

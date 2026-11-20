@@ -3616,6 +3616,23 @@ dialog; the modules' section).
     rules' own former names, `derivation-{sha1}` and `derivation-activity-{sha1}[-association]`. Neither
     the rules nor `ensureRelationshipResources` makes a second resource beside it: both look for one that
     is there, whatever its name. `sha1Hex` went with the SHA-1.
+37. **Save writes TriG; the File menu groups by what an entry does** (Req 9.8, 11.10, 11.12; 2026-11-20).
+    TriG keeps the model in its DD-15 graphs, which Turtle flattens, at the same size (the example model:
+    9 400 characters against 9 287), so *Save* writes it and Turtle is one entry of *Save as ▸*. The menu
+    had thirteen entries in a column with a module's mixed into it — Git's *Open from Git…* under *Open…*,
+    its six others after the formats — so the formats are one submenu and a module's entries another
+    (`ModuleMenuItem.submenu`), placed after *Save*; the toolbar draws a submenu beside its entry inside the
+    menu, which therefore does not scroll. A submenu replaced on the pointer waits 250 ms, so a diagonal move
+    to an open one does not close it on the way. Ctrl/⌘+O and +S are taken on `window`, not by the canvas's
+    keyboard, so they work from a panel too; they leave the focused field first, through the shadow roots, so
+    a name being typed is committed before it is saved.
+38. **A picture goes to the clipboard as the click's own** (Req 14.4; 2026-11-20). Safari writes to the
+    clipboard only within the user's gesture, and drawing a PNG takes longer than that may last, so the
+    `ClipboardItem` is made in the click's handler with a promise per type (`import-export/image-clipboard.ts`),
+    as Chrome and Firefox accept too. A PNG is `image/png` alone: an application that finds text beside a
+    picture may paste the text. An SVG is its markup as `text/plain` always, and `image/svg+xml` where
+    `ClipboardItem.supports` says the browser writes it; with no `ClipboardItem`, the markup by `writeText`.
+    The desktop app uses the same API: its window is a secure context, and Electron grants the write.
 
 ## Running
 

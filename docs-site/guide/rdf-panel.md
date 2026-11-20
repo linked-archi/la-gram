@@ -39,8 +39,8 @@ as* last wrote.
 ## Geometry {#geometry}
 
 *geometry*, ticked by default, includes the diagram geometry: the `arch-vis:` nodes, links, bounds and
-routes of the views. Unticked, the panel shows the model's semantics alone, as *File › Save without
-diagram geometry* writes it. It is this panel's own setting, for the session.
+routes of the views. Unticked, the panel shows the model's semantics alone, as *File › Save as › Turtle
+without diagram geometry* writes it. It is this panel's own setting, for the session.
 
 1. Tick off *geometry*.
 2. The `arch-vis:ArchNode` and `arch-vis:Link` blocks go; the elements and relationships stay.

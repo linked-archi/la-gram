@@ -39,8 +39,10 @@ describe('the keyboard shortcuts', () => {
   it('by where they work, each a key and what it does', () => {
     const blocks = shortcutBlocks(false);
     const headings = blocks.filter((b) => b.kind === 'heading').map((b) => (b as { text: string }).text);
-    expect(headings).toEqual(['On the canvas', 'Views', 'Model tree', 'SPARQL', 'Dialogs and lists']);
+    expect(headings).toEqual(['Files', 'On the canvas', 'Views', 'Model tree', 'SPARQL', 'Dialogs and lists']);
     const rows = blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []));
+    expect(rows).toContainEqual(['Ctrl+O', 'Open a model file (File › Open…)']);
+    expect(rows).toContainEqual(['Ctrl+S', 'Save the model as TriG (File › Save)']);
     expect(rows).toContainEqual(['Ctrl+Y / Ctrl+Shift+Z', 'Redo']);
     expect(rows).toContainEqual(['F2 / Double-click', 'Rename the selected element or relationship']);
     expect(rows).toContainEqual(['Alt+← / Alt+→', 'The view before, the view after']);

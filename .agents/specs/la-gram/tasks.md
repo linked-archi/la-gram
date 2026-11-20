@@ -131,6 +131,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Layout: model tree left (full height), hideable ("☰ Model") and resizable by its right edge; palette right, hideable ("▦ Palette") and resizable; bottom tabs Properties / Validation (violation count) / SPARQL Query / Graph, resizable by the top edge, folding to the tabs, maximizing over the workspace (⤢; Esc restores); sizes, tab and folding remembered — *app-shell.test, mount-ui.test, workbench.test, workbench.spec, smoke.spec*
 - [x] Hideable / resizable model tree
 - [x] Right-click canvas menu — see Phase 5 (Req 11.9)
+- [x] The File menu in sections with icons; *Save as ▸*, a module's submenu (*Git ▸*), *Export view ▸*; a submenu by pointer, click or keyboard (Req 11.12; 2026-11-20) — *workbench.test, git-merge.spec*
 
 ---
 
@@ -148,6 +149,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ### Task 14: Working-state persistence
 - [x] Collaboration server persists rooms continuously (debounced, atomic writes)
 - [x] Files: open/save in six formats; unsaved-changes indicator and guard
+- [x] Save writes TriG; Ctrl/⌘+O and Ctrl/⌘+S (Req 9.8, 11.10; 2026-11-20) — *workbench.test, help.test, workbench.spec*
 
 ### Task 15: Checkpoints & version history — done
 - [x] An explicit checkpoint of the working state (called a commit until 2026-10-23); history list; diff (added/removed triples); restore — *version-history.test, workbench.test, workbench.spec*
@@ -273,6 +275,7 @@ In parts, each reviewed before the next.
 - [x] Viewpoint greying
 - [x] Change an element's type (Req 3.11), from the property panel and the right-click menu — *rdf-element-retype.test, workbench.test, workbench.spec*
 - [x] Right-click menu on the canvas (Req 11.9) — *rdf-element-retype.test, workbench.test, workbench.spec*
+- [x] The open view copied to the clipboard as PNG or SVG, from *File › Export view ▸* and the empty canvas's right-click menu (Req 14.4; 2026-11-20) — *image-clipboard.test, workbench.test, workbench.spec*
 - [x] Rename on the canvas (Req 3.3): in-place editing of an element's name, undoable — *rdf-label-editing.test, workbench.spec*
 - [x] Relationship names on the canvas (Req 4.17, 11.2, 11.9) (2026-11-05): a relationship's name at the middle of its line, behind the canvas toolbar's *Relationship names* switch (off by default, remembered per browser); named on its line as an element in its box — double-click, F2, the right-click menu's Rename — emptied, removed; undoable; the line follows a rename made elsewhere; the export's crop takes the names in — *rdf-renderer.test, rdf-label-editing.test, view-canvas.test, canvas-toolbar.test, workbench.spec*
 - [x] Moving a relationship's name (Req 4.18) (2026-11-05): dragged off the middle of its line — the name, not the line; kept in the view as an `arch-vis:LabelNode` on the link (removed, restored and copied with it); following the line as it moves, in the same undoable step; *Move name back to the middle* — *view-manager.test, rdf-renderer.test, view-canvas.test, workbench.spec*
@@ -432,6 +435,36 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-20 — Save writes TriG; Ctrl/⌘+O and +S; the File menu in sections and submenus; a view copied to the clipboard
+
+- *File › Save* writes **TriG**, the model in its graphs (`{ns}graph/model`, `semantic`, `views`), which Turtle
+  flattens, at about the same size; Turtle is an entry of *Save as ▸* (Req 9.8; design decision 37).
+- **Ctrl+O** and **Ctrl+S** (⌘O, ⌘S on a Mac) are *File › Open…* and *File › Save*, anywhere but under a dialog,
+  in place of the browser's own; a field being typed in is left first, so what it holds is saved (Req 11.10).
+  *Keyboard shortcuts* lists them under *Files*.
+- **The File menu** is in sections, each entry with an icon drawn for la-gram (`ui/panels/menu-icons.ts`):
+  opening; saving — *Save* with its keys and format, *Save as ▸* with the six formats and *Turtle without
+  diagram geometry*, a module's entries in a submenu of its own; the open view, *Export view ▸*; the settings.
+  Git storage's seven entries, which were split between *Open…* and the formats, are under *Git ▸*, opening
+  first (`ModuleMenuItem.submenu`). A submenu opens on the pointer — replacing an open one after 250 ms, so a
+  diagonal move to it does not close it — on a click, or with → / Enter at its first entry; ← / Esc closes it
+  (Req 11.12; design decision 37).
+- **A view to the clipboard**: *File › Export view › Copy as PNG* and *Copy as SVG*, and *Copy view as PNG* and
+  *Copy view as SVG* on the empty canvas, draw the view as the export does and put it on the clipboard, to paste
+  straight into a document, a slide, a chat or a drawing — a PNG as a picture, an SVG as vector where the
+  browser writes it and as its markup. The clipboard item is made in the click's own handler, with the picture
+  still being drawn, so the click counts as the permission (Req 14.4; design decision 38;
+  `import-export/image-clipboard.ts`).
+- Tests: *image-clipboard.test* (the item made before the picture, each type, the fall-backs, why it cannot);
+  *workbench.test* (the menu's sections, icons and keys, each submenu by click, pointer and keyboard; Ctrl+S
+  and Ctrl+O, not under a dialog; Save as TriG and opened again; the canvas menu's entries); *help.test*;
+  *workbench.spec* (TriG saved; both copies read back from Chrome's clipboard, the PNG at the exported size,
+  the SVG with its pictures in it); *git-merge.spec* (Pull and the check from *Git ▸*). Docs: *Files, import
+  and export* (*The File menu*, *Save*, *Save as*, *Copy view to the clipboard*), *File formats and
+  vocabulary*, *Keyboard and mouse* (*Files*), *Git storage*, *The canvas*, *The RDF panel*,
+  *Troubleshooting*. Verified: type checking, all 2,743 unit tests and all 94 browser tests pass; `npm run
+  build`, `npm run docs:build`.
 
 ### 2026-11-20 — a deleted view takes its placements' own styles with it; the converter fixture in the layout
 

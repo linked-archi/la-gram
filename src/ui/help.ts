@@ -200,6 +200,10 @@ export function shortcutBlocks(mac: boolean, appBase?: string): DetailBlock[] {
     { kind: 'rows', keys: true, rows },
   ];
   return [
+    ...section('Files', [
+      [keys('Mod+O'), 'Open a model file (File › Open…)'],
+      [keys('Mod+S'), 'Save the model as TriG (File › Save)'],
+    ]),
     ...section('On the canvas', [
       [keys('Mod+Z'), 'Undo'],
       [keys('Mod+Y', 'Mod+Shift+Z'), 'Redo'],

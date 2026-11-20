@@ -19,8 +19,8 @@ https://app.linked.archi/la-gram/?git=off
 
 ## File menu {#file-menu}
 
-Git storage adds its entries to the *File* menu, after *Import ArchiMate exchange…* and after *Save
-without diagram geometry*:
+Git storage adds its entries to the *File* menu, together in one submenu, *File › Git ▸*, after *Save
+as ▸*: opening first, then saving and the rest.
 
 | Entry | Shown | Does |
 |---|---|---|
@@ -33,12 +33,12 @@ without diagram geometry*:
 | *Update from main…* | bound | merges another branch into the bound one |
 | *Open merge request…* | bound | proposes the bound branch for merging (*a pull request from* the branch, on GitHub) |
 
-1. Open *File*: with Git storage on, *Open from Git…* is under *Import ArchiMate exchange…*.
+1. Open *File*, and point at *Git*: with Git storage on, *Open from Git…* is first.
 2. Save the model to Git once: *Save to Git…* becomes *Save to Git*, with its repository and branch.
 
 ## Open from Git {#open-from-git}
 
-*File › Open from Git…* asks for:
+*File › Git › Open from Git…* asks for:
 
 | Field | Default | What it is |
 |---|---|---|
@@ -51,7 +51,7 @@ from, with *Another branch…* to list another branch's. Opening replaces the op
 it has unsaved changes. A public repository opens without a token; a private one asks for one ([Access
 tokens](#access-tokens)).
 
-1. Choose *File › Open from Git…*.
+1. Choose *File › Git › Open from Git…*.
 2. In *Address*, paste the repository's link, `https://github.com/acme/architecture`.
 3. Choose *Open*, then the model file in the list.
 
@@ -92,7 +92,7 @@ git@github.com:acme/architecture.git
 
 ## Save to Git {#save-to-git}
 
-*File › Save to Git…*, for a model not bound to a file, asks where:
+*File › Git › Save to Git…*, for a model not bound to a file, asks where:
 
 | Field | Default | What it is |
 |---|---|---|
@@ -105,31 +105,31 @@ git@github.com:acme/architecture.git
 
 The message template knows `{action}` (*Add* for a new file, *Update* for one there), `{model}`,
 `{path}` and `{branch}`; [Settings](settings.md#git-storage-tab) changes it. *Commit* saves. From then
-on, the model is bound to that file: *File › Save to Git* asks for the commit message only. A save to a
+on, the model is bound to that file: *File › Git › Save to Git* asks for the commit message only. A save to a
 new branch offers to open its merge request at once.
 
-1. Choose *File › Save to Git…*.
+1. Choose *File › Git › Save to Git…*.
 2. In *Repository*, paste `https://github.com/acme/architecture`; leave *Branch* empty.
 3. In *New branch*, type `la-gram/shop`, and choose *Commit*.
-4. Change the model, then choose *File › Save to Git*: only the message is asked.
+4. Change the model, then choose *File › Git › Save to Git*: only the message is asked.
 
 ## Save to Git as {#save-to-git-as}
 
-*File › Save to Git as…*, for a bound model, asks the same as an unbound save, starting from the bound
+*File › Git › Save to Git as…*, for a bound model, asks the same as an unbound save, starting from the bound
 file: to commit it to another branch, a new one, or another file. The model is then bound to where it
 went.
 
-1. Choose *File › Save to Git as…*.
+1. Choose *File › Git › Save to Git as…*.
 2. In *New branch*, type `la-gram/shop-payments`, and choose *Commit*.
 
 ## Pull from Git {#pull-from-git}
 
-*File › Pull from Git* reads the bound file's latest version on its current branch and combines it
+*File › Git › Pull from Git* reads the bound file's latest version on its current branch and combines it
 with your local model. It makes no commit and creates no branch. Public repositories need no token;
 private repositories use the same read access as *Open from Git…*.
 
 1. Open a model with *Open from Git…*, or save it with *Save to Git…*.
-2. After a colleague commits a change, choose *File › Pull from Git*.
+2. After a colleague commits a change, choose *File › Git › Pull from Git*.
 3. Review the updated model. If the *Conflicts* tab opens, choose which changes to keep.
 4. Choose *Save to Git* when you want to commit your local changes and conflict choices.
 
@@ -158,7 +158,7 @@ The tab's badge says *New* when incoming changes are available, *Paused* when re
 paused, or *!* when a failure or conflict needs attention. Background updates leave your current tab
 and editing focus in place.
 
-Choose *File › Check for remote changes*, or the button in the *Git* tab, to check now. It observes the
+Choose *File › Git › Check for remote changes*, or the button in the *Git* tab, to check now. It observes the
 repository without pulling, even when automatic pull is enabled. A commit affecting another file, or
 only the model's serialization order, does not count as an incoming model change.
 
@@ -297,7 +297,7 @@ step. A click on what a conflict is about shows it.
 
 ## Update from main {#update-from-main}
 
-*File › Update from main…* merges another branch, the default first in the list (*Update la-gram/shop
+*File › Git › Update from main…* merges another branch, the default first in the list (*Update la-gram/shop
 from…*), into the bound one, so that its merge request merges cleanly. Conflicts go to the Conflicts tab
 first.
 
@@ -306,7 +306,7 @@ first.
 | GitHub | committed to the bound branch as a merge commit |
 | GitLab | committed to a new branch started from the other one, as GitLab's API cannot record a merge: *Commit to a new branch* asks its name. Open that branch's merge request, and close the old one |
 
-1. Choose *File › Update from main…*.
+1. Choose *File › Git › Update from main…*.
 2. Pick **main**.
 3. On GitHub, the merge is committed to the bound branch.
 
@@ -347,23 +347,23 @@ To move the model:
 1. Open the model from Git, and click its name in the toolbar.
 2. In *Namespace*, type `https://example.org/acme/store/`, and choose *Apply*.
 3. *Model saved to Git* names the file: choose *Move*.
-4. Choose *File › Save to Git*: the move is committed to the same file.
+4. Choose *File › Git › Save to Git*: the move is committed to the same file.
 
 To follow a colleague who moved it on `main`:
 
-1. Choose *File › Pull from Git*: the model is in the colleague's namespace, with your changes, and the
+1. Choose *File › Git › Pull from Git*: the model is in the colleague's namespace, with your changes, and the
    message names the new IRI.
-2. Choose *File › Save to Git* to commit your changes to the moved file.
+2. Choose *File › Git › Save to Git* to commit your changes to the moved file.
 
 ## Merge requests {#merge-requests}
 
-*File › Open merge request…* proposes the bound branch for merging into the default one: a pull request
+*File › Git › Open merge request…* proposes the bound branch for merging into the default one: a pull request
 on GitHub, a merge request on GitLab. It asks for a *Title*, the branch's last commit's message, and a
 *Description* in Markdown, the branch's changes by element; *Open* opens it. A request already open from
 the branch is named, with its link, not opened again. A model on the default branch is told to commit to
 a branch of its own first, with *Save to Git as…*.
 
-1. Choose *File › Open merge request…*.
+1. Choose *File › Git › Open merge request…*.
 2. Read the description, and choose *Open*. The message gives its link.
 
 ## Access tokens {#access-tokens}

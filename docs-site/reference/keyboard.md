@@ -15,6 +15,28 @@ there too.
 The examples use the example model:
 [open it](https://app.linked.archi/la-gram/?model=docs/examples/shop.ttl) in a second tab.
 
+## Files {#files}
+
+These work anywhere in la-gram, except under a dialog, in place of the browser's own *Open* and *Save
+page*. A field you are typing in is left first, so what it holds is saved.
+
+=== "Windows and Linux"
+
+    | Keys | Does |
+    |---|---|
+    | ++ctrl+o++ | *File › Open…*: open a model file |
+    | ++ctrl+s++ | *File › Save*: save the model as TriG |
+
+=== "macOS"
+
+    | Keys | Does |
+    |---|---|
+    | ++cmd+o++ | *File › Open…*: open a model file |
+    | ++cmd+s++ | *File › Save*: save the model as TriG |
+
+1. Change the model: the ● after its name says it has unsaved changes.
+2. Press ++ctrl+s++ (++cmd+s++ on a Mac): `Acme-online-shop.trig` is saved, and the ● goes.
+
 ## On the canvas {#canvas}
 
 The canvas takes these keys when it has the focus: click an empty part of it first.

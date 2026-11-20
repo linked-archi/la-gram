@@ -526,7 +526,7 @@ Right-click on the canvas for what applies to what is under the pointer.
 | an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and its other entries |
-| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
+| the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Copy view as PNG*, *Copy view as SVG*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
 | one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
 
 What the entries do beyond the canvas:
@@ -539,7 +539,8 @@ What the entries do beyond the canvas:
 | *Ask about this element…* | opens the SPARQL tab's Questions menu with the questions about it |
 | *Copy IRI* | copies its IRI, and says *IRI copied* |
 | *Show source*, *Show target* | selects the relationship's end, opening a view that shows it if this one does not |
-| *Export view as SVG*, *Export view as PNG* | as [File › Export](files.md#export-svg-png) |
+| *Copy view as PNG*, *Copy view as SVG* | puts the diagram on the clipboard, to paste into a document, a slide or a drawing, as [File › Export view › Copy as PNG](files.md#copy-view) |
+| *Export view as SVG*, *Export view as PNG* | as [File › Export view](files.md#export-svg-png) |
 
 1. Right-click "Gift wrapping", and choose *Ask about this element…*.
 2. The SPARQL tab opens, with the questions about "Gift wrapping".

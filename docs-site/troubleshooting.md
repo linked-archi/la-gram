@@ -28,7 +28,7 @@ host's API and needs no CORS from you.
 
 ## Git storage is off {#git-storage-is-off}
 
-The *File* menu has no *Open from Git…* or *Save to Git…*. One of these switched Git storage off; the
+The *File* menu has no *Git ▸* submenu, with *Open from Git…* and *Save to Git…*. One of these switched Git storage off; the
 first that applies wins ([which source wins](reference/configuration.md#precedence)):
 
 1. **The build** left it out (`LA_GRAM_GIT=off`). Nothing turns it on but another build.

@@ -95,6 +95,7 @@ import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type Seria
 import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
+import { copyPicture } from '../import-export/image-clipboard.js';
 import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from './help.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
@@ -120,7 +121,7 @@ import './panels/history-panel.js';
 import './panels/type-guide-panel.js';
 
 import type { AppShell, BottomTab } from './app-shell.js';
-import type { AppToolbar, FileMenuItem, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
+import type { AppToolbar, FileMenuItem, FileSubmenu, LabelledIri, ToolbarCommandDetail } from './panels/app-toolbar.js';
 import type { ModuleSwitch } from '../modules.js';
 import type {
   PalettePanel,
@@ -347,6 +348,8 @@ export interface ModuleMenuItem {
   hint?: string;
   /** Beside Open or beside Save. */
   section: 'open' | 'save';
+  /** The module's submenu after Save, which holds it instead (*Git ▸*). */
+  submenu?: FileSubmenu;
 }
 
 /** Options for {@link mountUi}. */
@@ -393,6 +396,13 @@ function defaultSaveFile(content: string | Blob, fileName: string, mediaType: st
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** The element that has the focus, through the shadow roots it is in. */
+function deepActiveElement(): HTMLElement | undefined {
+  let active: Element | null = globalThis.document?.activeElement ?? null;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : undefined;
 }
 
 /** Most specific type of a resource: the one whose closure is largest, never the core's generic relationship types. */
@@ -1001,6 +1011,34 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }
   };
 
+  /**
+   * Puts the open diagram on the clipboard (Req 14.4), drawn as *Export view* draws it: a PNG at twice its
+   * size, to paste as a picture; an SVG, as vector where the browser writes it and as its markup. Runs in the
+   * click's own handler — the clipboard item is made before the picture is drawn — so the click still counts.
+   */
+  const copyView = (format: 'svg' | 'png'): void => {
+    if (activeKind !== 'diagram') {
+      dialogs.toast('Open a diagram view to copy it.', 'warning');
+      return;
+    }
+    const drawn = inlineImages(exportSvg(diagramCanvas.toSvg()), { dropMissing: format === 'png' });
+    const picture = drawn.then<string | Blob>(({ svg }) => (format === 'svg' ? svg : exportPng(svg, undefined, undefined, 2)));
+    void copyPicture(format, picture).then(
+      async () => {
+        const { missing } = await drawn;
+        const name = format === 'svg' ? 'SVG' : 'PNG';
+        if (missing.length === 0) {
+          dialogs.toast(`Copied the view as ${name}: paste it where you want it.`, 'info');
+          return;
+        }
+        const [what, it] = missing.length === 1 ? ['a picture', 'it'] : [`${missing.length} pictures`, 'them'];
+        const instead = format === 'svg' ? `the SVG links to ${it} instead` : `the PNG leaves ${it} out`;
+        dialogs.toast(`Copied the view as ${name}, but could not read ${what}, so ${instead}: ${missing.join(', ')}`, 'warning');
+      },
+      (error: unknown) => dialogs.toast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, 'error'),
+    );
+  };
+
   // ── The canvas's right-click menu: what the rest of the app does ─────
   const onCanvasContextAction = (action: CanvasContextAction, iri: string): void => {
     switch (action) {
@@ -1009,6 +1047,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         void exportView(action === 'export-svg' ? 'svg' : 'png').catch((error: unknown) =>
           dialogs.toast(`Export failed: ${error instanceof Error ? error.message : String(error)}`, 'error'),
         );
+        return;
+      case 'copy-svg':
+      case 'copy-png':
+        copyView(action === 'copy-svg' ? 'svg' : 'png');
         return;
       case 'properties':
         selectConcept(iri, { fromCanvas: true });
@@ -2599,6 +2641,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         label: item.label,
         section: item.section,
         ...(item.hint ? { hint: item.hint } : {}),
+        ...(item.submenu ? { submenu: item.submenu } : {}),
       })),
     );
   const addFileMenu = (moduleId: string, items: () => ModuleMenuItem[], run: (itemId: string) => Promise<void>): (() => void) => {
@@ -2930,7 +2973,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           return;
         }
         case 'save':
-          save('turtle');
+          // TriG: the model in its graphs (DD-15), which a Turtle file flattens.
+          save('trig');
           return;
         case 'save-as':
           save((value as ModelFormat) ?? 'turtle');
@@ -2943,6 +2987,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           return;
         case 'export-png':
           await exportView('png');
+          return;
+        case 'copy-svg':
+        case 'copy-png':
+          copyView(command === 'copy-svg' ? 'svg' : 'png');
           return;
         case 'rename-model': {
           const name = await dialogs.prompt('Rename model', 'Model name', session.modelLabel());
@@ -3168,6 +3216,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   };
   globalThis.addEventListener?.('keydown', onHistoryKey);
 
+  // Ctrl+O and Ctrl+S (⌘O, ⌘S on a Mac): File › Open… and File › Save, in place of the browser's own — not under
+  // a dialog. A field being typed in is left first, so that what it holds is in the model before it is saved.
+  const onFileKey = (e: KeyboardEvent): void => {
+    const mod = isMacPlatform() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+    const key = e.key.toLowerCase();
+    if (!mod || e.altKey || e.shiftKey || (key !== 'o' && key !== 's')) return;
+    if (document.querySelector('.la-dialog')) return;
+    e.preventDefault();
+    deepActiveElement()?.blur();
+    void runCommand({ command: key === 'o' ? 'open-model' : 'save' });
+  };
+  globalThis.addEventListener?.('keydown', onFileKey);
+
   const onModelLoaded: ModelEventHandler = () => {
     viewHistory.clear();
     shownViewIri = undefined;
@@ -3360,6 +3421,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     shell.removeEventListener('guide-panel-changed', onGuidePanelChanged);
     shell.removeEventListener('rdf-panel-changed', onRdfPanelChanged);
     globalThis.removeEventListener?.('keydown', onHistoryKey);
+    globalThis.removeEventListener?.('keydown', onFileKey);
     propertyPanel.removeEventListener('property-retype', onPropertyRetype);
     sparqlEditor.removeEventListener('results-view-request', onResultsViewRequest);
     sparqlEditor.removeEventListener('sparql-select', onSparqlSelect);

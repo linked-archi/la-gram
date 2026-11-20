@@ -206,7 +206,7 @@ With either, *File › New model* proposes a namespace such as
 The Git storage module ([Git storage](../guide/git.md)) reads this parameter.
 
 - **A link to a model file** in a GitHub or GitLab repository: la-gram opens that file from Git when the
-  module starts, as *File › Open from Git…* would. A link to a private repository asks for an access
+  module starts, as *File › Git › Open from Git…* would. A link to a private repository asks for an access
   token first. A link on a host the [deployment](configuration.md#git-hosts) does not allow is refused.
   The link is used once: switching the module off and on does not open it again.
 - **`off`**: Git storage is off for this session. See [`<module-id>=off`](#module-off).

@@ -11,7 +11,7 @@ and the model now.
 ## Checkpoints {#checkpoints}
 
 A checkpoint is a copy of the model at a moment, with a message, kept in this browser (IndexedDB), per
-model. It is not a Git commit, and is not shared: *File › Save to Git…* makes commits. Type what changed
+model. It is not a Git commit, and is not shared: *File › Git › Save to Git…* makes commits. Type what changed
 in *What changed*, then *Save checkpoint* or ++enter++. Under it, the tab says what changed since the
 last one: *Since the last checkpoint: +1 −1 triples.*, or *No changes since the last checkpoint.*
 

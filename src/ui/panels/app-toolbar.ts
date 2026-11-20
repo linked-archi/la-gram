@@ -8,6 +8,11 @@
  * guides and la-gram's pages.
  * ```
  *
+ * The File menu is in sections, each entry with its icon: opening; saving, with
+ * *Save as ▸* holding the formats and a module's entries in its own submenu
+ * (*Git ▸*); exporting the open view, to a file or to the clipboard; the settings.
+ * A submenu opens on hover, on a click, or with → / Enter, and ← / Esc closes it.
+ *
  * Purely presentational: every pick is a `toolbar-command` event
  * (`{ command, value? }`) that `mount-ui` executes. The state it shows is set
  * as properties by `mount-ui` whenever the model, the views or the loaded
@@ -23,6 +28,8 @@ import {
 } from '../../metamodel-manager/catalogue.js';
 import { MODEL_FORMATS } from '../../import-export/model-io.js';
 import { HELP_LINKS, helpHref, type HelpLink } from '../../help-links.js';
+import { isMacPlatform, keyCombo } from '../help.js';
+import { menuIcon, type MenuIconName } from './menu-icons.js';
 
 /** Commands the toolbar can issue. */
 export type ToolbarCommand =
@@ -34,6 +41,9 @@ export type ToolbarCommand =
   | 'import-archimate'
   | 'export-svg'
   | 'export-png'
+  /** The open view on the clipboard, as an SVG or a PNG (Req 14.4). */
+  | 'copy-svg'
+  | 'copy-png'
   | 'rename-model'
   | 'model-settings'
   | 'open-view'
@@ -81,6 +91,15 @@ export interface FileMenuItem {
   hint?: string;
   /** Beside Open (`open`) or beside Save (`save`). */
   section: 'open' | 'save';
+  /** The submenu it is in, after Save; with none, it is in its section. */
+  submenu?: FileSubmenu;
+}
+
+/** A module's submenu of the File menu: its entries, `open` ones first. */
+export interface FileSubmenu {
+  id: string;
+  label: string;
+  icon?: MenuIconName;
 }
 
 /** A labelled IRI for a selector. */
@@ -269,6 +288,60 @@ export class AppToolbar extends LitElement {
       color: #80868b;
       font-size: 11px;
     }
+    /* The File menu: an icon, the entry, its hint and its keys; submenus beside it, so it does not scroll. */
+    .dropdown.file {
+      overflow: visible;
+      max-height: none;
+      min-width: 270px;
+    }
+    .dropdown button.item {
+      justify-content: flex-start;
+      align-items: center;
+      gap: 10px;
+    }
+    .item .icon,
+    .item .chevron {
+      flex: none;
+      display: inline-flex;
+      width: 16px;
+      height: 16px;
+      color: #5f6368;
+    }
+    .item .chevron {
+      color: #9aa0a6;
+      margin-left: auto;
+    }
+    .item .label {
+      flex: 1 1 auto;
+      white-space: nowrap;
+    }
+    .item .hint,
+    .item kbd {
+      flex: none;
+    }
+    .item kbd {
+      font: inherit;
+      font-size: 11px;
+      color: #5f6368;
+      min-width: 40px;
+      text-align: right;
+    }
+    .dropdown button.item:hover .icon,
+    .dropdown button.item.open .icon {
+      color: #1a73e8;
+    }
+    .dropdown button.item.open {
+      background: #eef3fd;
+    }
+    .sub-wrap {
+      position: relative;
+    }
+    .dropdown.submenu {
+      top: -5px;
+      left: 100%;
+      margin: 0 0 0 2px;
+      min-width: 230px;
+    }
     label.field {
       display: flex;
       align-items: center;
@@ -406,6 +479,9 @@ export class AppToolbar extends LitElement {
   @property({ type: String }) appBase = '';
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | 'app' | null = null;
+  /** The File menu's open submenu, by id. */
+  @state() private _sub: string | null = null;
+  private _subTimer: ReturnType<typeof setTimeout> | undefined;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -415,6 +491,7 @@ export class AppToolbar extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener('mousedown', this._onOutside, true);
+    clearTimeout(this._subTimer);
   }
 
   /**
@@ -436,10 +513,13 @@ export class AppToolbar extends LitElement {
     if (!this._open) return;
     if (e.composedPath().includes(this)) return;
     this._open = null;
+    this._sub = null;
   };
 
   private _cmd(command: ToolbarCommand, value?: string): void {
     this._open = null;
+    this._sub = null;
+    clearTimeout(this._subTimer);
     this.dispatchEvent(
       new CustomEvent<ToolbarCommandDetail>('toolbar-command', {
         detail: { command, ...(value !== undefined ? { value } : {}) },
@@ -451,51 +531,165 @@ export class AppToolbar extends LitElement {
 
   private _toggle(menu: 'file' | 'metamodels' | 'new-view' | 'app'): void {
     this._open = this._open === menu ? null : menu;
+    this._sub = null;
+    clearTimeout(this._subTimer);
   }
 
-  private _moduleItems(items: FileMenuItem[], section: FileMenuItem['section']) {
-    return items
-      .filter((i) => i.section === section)
-      .map(
-        (i) => html`<button data-command="module" data-value=${i.command} @click=${() => this._cmd('module', i.command)}>
-          ${i.label}${i.hint ? html` <span class="hint">${i.hint}</span>` : nothing}
-        </button>`,
-      );
+  /** An entry of the File menu: its icon, its name, then what it saves as or its keys. */
+  private _item(
+    command: ToolbarCommand,
+    icon: MenuIconName | undefined,
+    label: string,
+    options: { value?: string; hint?: string; keys?: string } = {},
+  ) {
+    return html`<button
+      class="item"
+      role="menuitem"
+      data-command=${command}
+      data-value=${options.value ?? nothing}
+      @click=${() => this._cmd(command, options.value)}
+    >
+      <span class="icon">${icon ? menuIcon(icon) : nothing}</span><span class="label">${label}</span>${options.hint
+        ? html`<span class="hint">${options.hint}</span>`
+        : nothing}${options.keys ? html`<kbd>${options.keys}</kbd>` : nothing}
+    </button>`;
   }
+
+  /** A module's entry: its command is `<module>:<entry>`. */
+  private _moduleItem(i: FileMenuItem, icon?: MenuIconName) {
+    return html`<button
+      class="item"
+      role="menuitem"
+      data-command="module"
+      data-value=${i.command}
+      @click=${() => this._cmd('module', i.command)}
+    >
+      <span class="icon">${icon ? menuIcon(icon) : nothing}</span><span class="label">${i.label}</span>${i.hint
+        ? html`<span class="hint">${i.hint}</span>`
+        : nothing}
+    </button>`;
+  }
+
+  /** An entry that opens a submenu beside it. */
+  private _submenu(id: string, icon: MenuIconName | undefined, label: string, content: unknown) {
+    const open = this._sub === id;
+    return html`<div class="sub-wrap" data-sub=${id}>
+      <button
+        class="item has-sub ${open ? 'open' : ''}"
+        role="menuitem"
+        data-submenu=${id}
+        aria-haspopup="menu"
+        aria-expanded=${open ? 'true' : 'false'}
+        @click=${() => this._openSub(id)}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          void this._openSub(id, true);
+        }}
+      >
+        <span class="icon">${icon ? menuIcon(icon) : nothing}</span><span class="label">${label}</span
+        ><span class="chevron">${menuIcon('chevron')}</span>
+      </button>
+      ${open
+        ? html`<div class="dropdown submenu" role="menu" @keydown=${(e: KeyboardEvent) => this._subKey(e, id)}>${content}</div>`
+        : nothing}
+    </div>`;
+  }
+
+  /** Open a submenu; from the keyboard, with its first entry focused. */
+  private async _openSub(id: string, focus = false): Promise<void> {
+    clearTimeout(this._subTimer);
+    this._sub = id;
+    if (!focus) return;
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLElement>(`.sub-wrap[data-sub="${id}"] .submenu button:not(:disabled)`)?.focus();
+  }
+
+  /** ← or Esc in a submenu: closed, its entry focused again. */
+  private _subKey(e: KeyboardEvent, id: string): void {
+    if (e.key !== 'ArrowLeft' && e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._sub = null;
+    this.renderRoot.querySelector<HTMLElement>(`button[data-submenu="${id}"]`)?.focus();
+  }
+
+  /**
+   * The pointer over the File menu: the submenu of the entry under it opens at once when none is open; another
+   * replaces it, or none closes it, after a moment, so that crossing an entry on the way to an open submenu
+   * leaves it open.
+   */
+  private _onMenuHover = (e: MouseEvent): void => {
+    const wrap = e
+      .composedPath()
+      .find((n): n is HTMLElement => n instanceof HTMLElement && n.classList.contains('sub-wrap'));
+    const id = wrap?.dataset['sub'] ?? null;
+    clearTimeout(this._subTimer);
+    if (id === this._sub) return;
+    if (this._sub === null) {
+      this._sub = id;
+      return;
+    }
+    this._subTimer = setTimeout(() => (this._sub = id), 250);
+  };
 
   private _fileMenu() {
     const items = this.fileMenuItems();
-    return html`<div class="dropdown" role="menu">
-      <button data-command="new-model" @click=${() => this._cmd('new-model')}>New model</button>
-      <button data-command="open-model" @click=${() => this._cmd('open-model')}>
-        Open… <span class="hint">.ttl .trig .jsonld .nq .nt .rdf</span>
-      </button>
-      <button data-command="import-archimate" @click=${() => this._cmd('import-archimate')}>
-        Import ArchiMate exchange… <span class="hint">.xml</span>
-      </button>
-      ${this._moduleItems(items, 'open')}
-      <button data-command="model-settings" @click=${() => this._cmd('model-settings')}>
-        Model settings… <span class="hint">name, namespace</span>
-      </button>
-      ${this.settingsMenu
-        ? html`<button data-command="settings" @click=${() => this._cmd('settings')}>
-            Settings… <span class="hint">modules, defaults</span>
-          </button>`
-        : nothing}
+    const keys = (combo: string) => keyCombo(combo, isMacPlatform());
+    const loose = (section: FileMenuItem['section']) =>
+      items.filter((i) => !i.submenu && i.section === section).map((i) => this._moduleItem(i));
+    // The modules' submenus, in the order their first entries come, each with its open entries first.
+    const submenus = new Map<string, { menu: FileSubmenu; entries: FileMenuItem[] }>();
+    for (const i of items) {
+      if (!i.submenu) continue;
+      const sub = submenus.get(i.submenu.id) ?? { menu: i.submenu, entries: [] };
+      sub.entries.push(i);
+      submenus.set(i.submenu.id, sub);
+    }
+    const moduleSubmenu = ({ menu, entries }: { menu: FileSubmenu; entries: FileMenuItem[] }) => {
+      const opening = entries.filter((i) => i.section === 'open');
+      const saving = entries.filter((i) => i.section === 'save');
+      return this._submenu(
+        `module-${menu.id}`,
+        menu.icon,
+        menu.label,
+        html`${opening.map((i) => this._moduleItem(i, 'open'))}${opening.length > 0 && saving.length > 0
+          ? html`<hr />`
+          : nothing}${saving.map((i) => this._moduleItem(i))}`,
+      );
+    };
+    return html`<div class="dropdown file" role="menu" @mouseover=${this._onMenuHover}>
+      ${this._item('new-model', 'new', 'New model')}
+      ${this._item('open-model', 'open', 'Open…', { keys: keys('Mod+O') })}
+      ${this._item('import-archimate', 'import', 'Import ArchiMate exchange…', { hint: '.xml' })}
+      ${loose('open')}
       <hr />
-      <button data-command="save" @click=${() => this._cmd('save')}>Save <span class="hint">Turtle</span></button>
-      ${MODEL_FORMATS.filter((f) => f.id !== 'turtle').map(
-        (f) => html`<button data-command="save-as" data-value=${f.id} @click=${() => this._cmd('save-as', f.id)}>
-          Save as ${f.label} <span class="hint">.${f.extension}</span>
-        </button>`,
+      ${this._item('save', 'save', 'Save', { hint: 'TriG', keys: keys('Mod+S') })}
+      ${this._submenu(
+        'save-as',
+        'save-as',
+        'Save as',
+        html`${MODEL_FORMATS.map((f) =>
+            this._item('save-as', undefined, f.label, { value: f.id, hint: `.${f.extension}` }),
+          )}
+          <hr />
+          ${this._item('save-no-geometry', undefined, 'Turtle without diagram geometry', { hint: '.ttl' })}`,
       )}
-      <button data-command="save-no-geometry" @click=${() => this._cmd('save-no-geometry')}>
-        Save without diagram geometry <span class="hint">.ttl</span>
-      </button>
-      ${this._moduleItems(items, 'save')}
+      ${loose('save')} ${[...submenus.values()].map(moduleSubmenu)}
       <hr />
-      <button data-command="export-svg" @click=${() => this._cmd('export-svg')}>Export view as SVG</button>
-      <button data-command="export-png" @click=${() => this._cmd('export-png')}>Export view as PNG</button>
+      ${this._submenu(
+        'export',
+        'image',
+        'Export view',
+        html`${this._item('export-svg', 'save-as', 'Save as SVG…', { hint: '.svg' })}
+          ${this._item('export-png', 'save-as', 'Save as PNG…', { hint: '.png' })}
+          <hr />
+          ${this._item('copy-png', 'copy', 'Copy as PNG', { hint: 'paste as a picture' })}
+          ${this._item('copy-svg', 'copy', 'Copy as SVG', { hint: 'vector, or its markup' })}`,
+      )}
+      <hr />
+      ${this._item('model-settings', 'model', 'Model settings…', { hint: 'name, namespace' })}
+      ${this.settingsMenu ? this._item('settings', 'settings', 'Settings…', { hint: 'modules, defaults' }) : nothing}
     </div>`;
   }
 

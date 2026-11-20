@@ -9,7 +9,8 @@
  * away and forgets the session's tokens.
  */
 import type { App } from '../app.js';
-import type { MountedUi, BottomTabHandle } from '../ui/mount-ui.js';
+import type { MountedUi, BottomTabHandle, ModuleMenuItem } from '../ui/mount-ui.js';
+import type { FileSubmenu } from '../ui/panels/app-toolbar.js';
 import { isElectronEnvironment } from '../platform/platform-factory.js';
 import { desktopBridge } from '../platform/desktop-bridge.js';
 import { GitBindings } from './bindings.js';
@@ -37,6 +38,9 @@ import type { PersonalGitSettings } from './git-save.js';
 import { GitHubProvider } from './providers/github.js';
 import { GitLabProvider } from './providers/gitlab.js';
 import type { GitHostProvider } from './providers/provider.js';
+
+/** File › Git ▸: every Git entry of the File menu. */
+const GIT_SUBMENU: FileSubmenu = { id: 'git', label: 'Git', icon: 'git' };
 
 /**
  * A provider for a repository — only on a host the deployment allows, when it
@@ -233,11 +237,11 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     () => {
       const modelIri = app.session.modelIri;
       const binding = modelIri ? bindings.get(modelIri) : undefined;
-      return [
-        { id: 'open', section: 'open' as const, label: 'Open from Git…', hint: 'GitHub, GitLab' },
+      const entries: Array<Omit<ModuleMenuItem, 'submenu'>> = [
+        { id: 'open', section: 'open', label: 'Open from Git…', hint: 'GitHub, GitLab' },
         binding
-          ? { id: 'save', section: 'save' as const, label: 'Save to Git', hint: `${binding.repository} · ${binding.branch}` }
-          : { id: 'save', section: 'save' as const, label: 'Save to Git…', hint: 'GitHub, GitLab' },
+          ? { id: 'save', section: 'save', label: 'Save to Git', hint: `${binding.repository} · ${binding.branch}` }
+          : { id: 'save', section: 'save', label: 'Save to Git…', hint: 'GitHub, GitLab' },
         ...(binding ? [{ id: 'save-as', section: 'save' as const, label: 'Save to Git as…', hint: 'another branch or file' }] : []),
         ...(binding && !app.collaborationRoom ? [{ id: 'pull', section: 'save' as const, label: 'Pull from Git', hint: `${binding.repository} · ${binding.branch}` }] : []),
         ...(binding && !app.collaborationRoom ? [{ id: 'check', section: 'save' as const, label: 'Check for remote changes', hint: 'read without changing the model' }] : []),
@@ -246,6 +250,8 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
           ? [{ id: 'review', section: 'save' as const, label: 'Open merge request…', hint: `${binding.provider === 'github' ? 'a pull request ' : ''}from ${binding.branch}` }]
           : []),
       ];
+      // Every entry in one submenu, File › Git ▸, rather than beside Open and beside Save.
+      return entries.map((entry) => ({ ...entry, submenu: GIT_SUBMENU }));
     },
     run,
   );
