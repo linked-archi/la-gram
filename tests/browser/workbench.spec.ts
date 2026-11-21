@@ -1340,6 +1340,50 @@ describe('nesting', () => {
     expect(related).toEqual(['Aggregation']);
     findings.push(`nesting: offered ${labels.join(', ')}`);
   }, 60_000);
+
+  it('drags a view’s row from the tree into an element’s box: a reference to it, drawn and kept inside, which opens it (Req 3.23)', async () => {
+    const { page, session } = await openPage();
+    await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
+    const { team, payments, holder } = await page.evaluate(() => {
+      const app = (window as any).__LA_GRAM_APP__;
+      const holder = app.session.activeViewIri as string;
+      const payments = app.session.createView('Diagram', { label: 'Payments', open: false }) as string;
+      const team = app.components.elementManager
+        .createElement('https://meta.linked.archi/archimate4/onto#Collaboration', app.session.modelIri, { label: 'Sales team' }).value as string;
+      app.components.viewManager.addElementToView(holder, team, { x: 150, y: 100, width: 400, height: 250 });
+      app.components.eventBus.emit('model-changed', { origin: 'test' });
+      return { team, payments, holder };
+    });
+    const row = page.locator(`model-explorer .row[data-iri="${payments}"]`);
+    await row.waitFor({ state: 'visible' });
+    const from = (await row.boundingBox())!;
+    const box = (await page.locator(`.djs-element[data-element-id="${team}"]`).boundingBox())!;
+    await page.mouse.move(from.x + 40, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 60, from.y + from.height / 2, { steps: 4 });
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 20, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+
+    const references = () =>
+      page.evaluate((view) => {
+        const app = (window as any).__LA_GRAM_APP__;
+        return (app.components.viewManager.getNodes(view) as any[])
+          .filter((n) => n.figure?.kind === 'reference')
+          .map((n) => ({ node: n.nodeIri as string, opens: n.figure.view as string, inside: n.parentElementIri as string | undefined }));
+      }, holder);
+    await until(async () => (await references()).length === 1, 'the reference');
+    const [reference] = await references();
+    expect(reference).toMatchObject({ opens: payments, inside: team });
+    const drawn = page.locator(`.djs-element[data-element-id="${reference!.node}"]`);
+    await expect(drawn.locator('[data-view-reference]').count()).resolves.toBe(1);
+    await expect(drawn.textContent()).resolves.toContain('Payments');
+    await session.screenshot('workbench-view-reference');
+
+    // Double-clicked, it opens the view it references.
+    await drawn.dblclick();
+    await until(async () => (await model(page)).activeView === payments, 'the referenced view');
+  }, 60_000);
 });
 
 describe('renaming on the canvas', () => {

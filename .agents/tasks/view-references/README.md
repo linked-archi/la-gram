@@ -1,7 +1,7 @@
 # View references (VR)
 
-Recorded 2026-11-21. **Ready to start**: direction confirmed and decisions taken (2026-11-21). Files here: `requirements.md` (VR-n), `design.md` (VR-DD-n) and `tasks.md`,
-the checklist.
+Recorded 2026-11-21. **Done** (2026-11-21): see `tasks.md` for what was made and its notes. Files here:
+`requirements.md` (VR-n), `design.md` (VR-DD-n) and `tasks.md`, the checklist.
 
 ## Goal
 

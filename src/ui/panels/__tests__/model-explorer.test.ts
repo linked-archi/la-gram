@@ -262,6 +262,17 @@ describe('actionsFor', () => {
     );
   });
 
+  it('offers to reference a view in the open diagram — another view, with a diagram open (VR-2)', () => {
+    const view = (iri: string): TreeNode => ({ id: iri, iri, kind: 'view', label: iri, children: [] });
+    expect(actionsFor(view('v'), { openDiagram: 'd' }).slice(0, 2)).toEqual([
+      { action: 'open-view', label: 'Open' },
+      { action: 'reference-in-view', label: 'Reference in the open view' },
+    ]);
+    // Its own row, or with no diagram open — a catalog or a matrix, or nothing — no.
+    expect(actionsFor(view('d'), { openDiagram: 'd' }).map((a) => a.action)).not.toContain('reference-in-view');
+    expect(actionsFor(view('v')).map((a) => a.action)).not.toContain('reference-in-view');
+  });
+
   it('makes a folder in a group and in a folder of the model; moves a concept only when there are folders', () => {
     const actions = (n: TreeNode, folders = false) => actionsFor(n, { folders }).map((a) => a.action);
     expect(actions({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] })).not.toContain('new-folder');
@@ -392,6 +403,40 @@ describe('<model-explorer>', () => {
     expect(drags).toHaveLength(0);
     document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
     expect(drags.map((d) => d.iri)).toEqual([`${M}/element/c`]);
+  });
+
+  it('drags a view’s row onto the canvas too, saying it is a view’s: a reference to it is made there (VR-1)', async () => {
+    const el = await mount();
+    const drags: ExplorerDragDetail[] = [];
+    el.addEventListener('explorer-drag-start', (e) => drags.push((e as CustomEvent<ExplorerDragDetail>).detail));
+    row(el, `${M}/view/2`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 10, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: 30, clientY: 10 }));
+    row(el, `${M}/element/c`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 10, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
+    expect(drags.map((d) => [d.iri, d.kind])).toEqual([
+      [`${M}/view/2`, 'view'],
+      [`${M}/element/c`, 'element'],
+    ]);
+  });
+
+  it('offers Reference in the open view on another view’s row while a diagram is open, and reports it', async () => {
+    const el = await mount();
+    const actions: ExplorerActionDetail[] = [];
+    el.addEventListener('explorer-action', (e) => actions.push((e as CustomEvent<ExplorerActionDetail>).detail));
+    const menuOf = async (iri: string) => {
+      row(el, iri).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
+      await el.updateComplete;
+      return el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="reference-in-view"]');
+    };
+    // The open view, Main, is a diagram: its own row has no such entry; the catalog's has.
+    expect(await menuOf(`${M}/view/1`)).toBeNull();
+    (await menuOf(`${M}/view/2`))!.click();
+    expect(actions).toEqual([{ action: 'reference-in-view', iri: `${M}/view/2`, kind: 'view' }]);
+    // With the catalog open, nothing is referenced in it.
+    el.activeViewIri = `${M}/view/2`;
+    await el.updateComplete;
+    expect(await menuOf(`${M}/view/1`)).toBeNull();
   });
 
   it('refreshes when the model changes — once for the events of one task', async () => {

@@ -98,6 +98,14 @@ export interface FigureInfo extends Appearance {
   text?: string;
 }
 
+/** A reference to a view (an `arch-vis:ViewReferenceNode` naming it by `arch-vis:referencesView`), and its holder. */
+export interface ViewReferenceInfo {
+  /** The reference's node. */
+  nodeIri: string;
+  /** The view it is drawn in (`arch-vis:view`): its holder. */
+  holderIri: string;
+}
+
 /** A figure's colours (`#rrggbb`), on its own core-vis style; absent, the figure's default. */
 export interface FigureColours {
   fillColor?: string;
@@ -295,6 +303,20 @@ export interface ViewManager {
   addFigure?(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string;
   /** A figure's text (`skos:prefLabel`), or none. */
   setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
+  /**
+   * The references to a view — the nodes that open it (`arch-vis:referencesView`) — in every view, each with the
+   * view it is drawn in; by holder, then by node.
+   */
+  referencesTo?(viewIri: string): ViewReferenceInfo[];
+  /**
+   * Point a reference drawn in `holderIri` at another view (`arch-vis:referencesView`). The view it opened leaves
+   * the holder (`arch:inView`) with its last reference there, and `viewIri` is presented there unless it is the
+   * holder — the rule {@link addFigure} and {@link collectNodeQuads} follow. Its text of its own stays. Nothing
+   * changes for a node that is not a reference of the holder, or a `viewIri` that is not a view.
+   */
+  setReferenceView?(holderIri: string, nodeIri: string, viewIri: string): void;
+  /** The quads {@link setReferenceView} removes and adds, read before anything changes. */
+  setReferenceViewQuads?(holderIri: string, nodeIri: string, viewIri: string): { removed: Quad[]; added: Quad[] };
   /** A connector's text (its `skos:prefLabel`); none removes it. */
   setConnectorText?(viewIri: string, linkIri: string, text: string | undefined): void;
   /** Set a figure's colours on its own style — `null` takes one back to the default. */

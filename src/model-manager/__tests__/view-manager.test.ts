@@ -725,6 +725,60 @@ describe('a reference to another view (core-vis 0.9): a figure standing for the 
     copyPlacements(views, index, other, target);
     expect(other.getNodes(target).map((n) => n.figure)).toEqual([{ kind: 'note', text: 'Detail' }]);
   });
+
+  it('is found from the view it opens, in every view, with the view it is drawn in (VR-4, VR-10)', () => {
+    const third = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'Third' }).value;
+    const inIndex = views.addFigure(index, { kind: 'reference', view: detail, bounds });
+    const inThird = views.addFigure(third, { kind: 'reference', view: detail, bounds });
+    views.addFigure(index, { kind: 'reference', view: third, bounds: { ...bounds, y: 100 } });
+    views.addFigure(index, { kind: 'note', text: 'Detail', bounds: { ...bounds, y: 200 } });
+    const expected = [
+      { nodeIri: inIndex, holderIri: index },
+      { nodeIri: inThird, holderIri: third },
+    ].sort((a, b) => a.holderIri.localeCompare(b.holderIri));
+    expect(views.referencesTo(detail)).toEqual(expected);
+    expect(views.referencesTo(index)).toEqual([]);
+    views.removeElementFromView(third, inThird);
+    expect(views.referencesTo(detail)).toEqual([{ nodeIri: inIndex, holderIri: index }]);
+  });
+
+  it('is pointed at another view in one change, its text kept; the presence moves with it, and comes back undone (VR-8)', () => {
+    const third = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'Third' }).value;
+    const reference = views.addFigure(index, { kind: 'reference', view: detail, text: 'See also', bounds });
+    const { removed, added } = views.setReferenceViewQuads(index, reference, third);
+    views.setReferenceView(index, reference, third);
+    expect(objects(store, reference, VIS_NS + 'referencesView')).toEqual([third]);
+    expect(objects(store, detail, IN_VIEW)).toEqual([]);
+    expect(objects(store, third, IN_VIEW)).toEqual([index]);
+    expect(views.getNode(index, reference)?.figure).toEqual({ kind: 'reference', view: third, text: 'See also' });
+    // Undone as the canvas undoes a recorded change: what was added taken away, what was removed put back.
+    store.removeQuads(added);
+    store.addQuads(removed);
+    expect(objects(store, reference, VIS_NS + 'referencesView')).toEqual([detail]);
+    expect(objects(store, detail, IN_VIEW)).toEqual([index]);
+    expect(objects(store, third, IN_VIEW)).toEqual([]);
+  });
+
+  it('keeps a view presented while another reference there opens it, and presents none for its own view', () => {
+    const first = views.addFigure(index, { kind: 'reference', view: detail, bounds });
+    views.addFigure(index, { kind: 'reference', view: detail, bounds: { ...bounds, y: 100 } });
+    views.setReferenceView(index, first, index);
+    expect(objects(store, first, VIS_NS + 'referencesView')).toEqual([index]);
+    expect(objects(store, detail, IN_VIEW)).toEqual([index]);
+    expect(objects(store, index, IN_VIEW)).toEqual([]);
+  });
+
+  it('is not pointed anywhere from another view, at what is no view, or at the view it opens already; a note is not', () => {
+    const reference = views.addFigure(index, { kind: 'reference', view: detail, bounds });
+    const note = views.addFigure(index, { kind: 'note', text: 'n', bounds });
+    const none = { removed: [], added: [] };
+    expect(views.setReferenceViewQuads(detail, reference, index)).toEqual(none);
+    expect(views.setReferenceViewQuads(index, note, detail)).toEqual(none);
+    expect(views.setReferenceViewQuads(index, reference, 'https://example.org/nowhere')).toEqual(none);
+    expect(views.setReferenceViewQuads(index, reference, detail)).toEqual(none);
+    views.setReferenceView(index, note, detail);
+    expect(views.getNode(index, note)?.figure).toEqual({ kind: 'note', text: 'n' });
+  });
 });
 
 describe('an element placed more than once in a view', () => {

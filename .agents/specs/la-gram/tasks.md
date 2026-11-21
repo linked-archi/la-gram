@@ -61,6 +61,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Inline label editing on the canvas (double-click, F2) — see Phase 5, Rename on the canvas
 - [x] The property picker offers a type's links by domain, none a relationship class draws (Req 3.6) — *property-catalog.test*
 - [x] A reference to another view (core-vis 0.9 `arch-vis:ViewReferenceNode`) is a figure: drawn with a small view, named *View reference* with the view it opens; its view's `arch:inView` follows its first and last reference; deleting the view deletes it; copied and pasted, a note where the target model lacks its view; imported from an Exchange `Label` with a `<viewRef>` (Req 3.23, 13.4) — *view-manager.test, archimate-importer.test, appearance-render.test*
+- [x] A view reference made, nested, linked, opened and changed: a view's row dragged from the tree onto the diagram or into an element, a group or a shape, or *Reference in the open view*; the open view's own row refused, said why; its view's name drawn until it has text of its own (F2, the panel's *Text*), emptied back to it; double-click, pad and menu *Open view*, a missing view said; *Opens* with *Open* and *Change…*; lines from and to it; deleting a view counts the references going with it, undoably; a view's *Referenced from*; the canvas's right-click menu on figures (Req 3.23, 11.9, 10.5) — *view-manager.test, view-canvas.test, model-explorer.test, property-panel.test, rdf-label-editing.test, rdf-rule-provider.test, workbench.test, workbench.spec*
 
 ### Task 4: Relationships (Req 4)
 - [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
@@ -410,13 +411,14 @@ Agreed order; relationship visuals come first.
 - [x] **The glyphs the notations name, published** — done in meta (2026-11-17), published with its next deploy: the 58 badge glyphs LeanIX's, BPMN's, BPMN Lite's, UML's and Backstage's notations name are drawn beside each notation (`modelingLanguages/<language>/icons/glyphs/`) and copied to the site by `.scripts/copy-icon-assets.sh`. Nothing changes in la-gram: once they load, the palette shows them in place of the drawn figure and the canvas draws the badge. None of the five languages is bundled.
 
 - [x] **Incoming links in the property panel** — not to be done: decided on 2026-11-17 that a concept's relationships, to and from it, are the Analysis tab's, and its Properties tab every other property (key design decision 26).
-- [ ] **View references: make, nest, link, open and change them** (Req 3.23) — recorded (2026-11-21), not started:
-  documented in `.agents/tasks/view-references/` (VR-1–12, VR-DD-1–8); direction confirmed and decisions taken (2026-11-21).
+- [x] **View references: make, nest, link, open and change them** (Req 3.23) — done (2026-11-21): see the change log.
+  `.agents/tasks/view-references/` (VR-1–12, VR-DD-1–8).
 ---
 
 ## Known limitations
-- A reference to another view (Req 3.23) comes only with a file: la-gram cannot make one, and double-clicking
-  one edits its text rather than opening the view it references.
+- View references (Req 3.23): deleting a view is undone, with the references that went with it, only while another
+  diagram stays open. Deleting the open view opens another, whose undo history starts afresh (known limitation 3):
+  the view and its references come back by restoring a checkpoint or a Git version (the History tab).
 
 - A namespace move (Req 18.27–18.28): automatic checks and auto-commit do not follow a move made on the
   other side — *Pull from Git* does. Undo does not take a move back, made here or followed. Auto-commit is
@@ -446,6 +448,39 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-21 — View references: made from the tree, opened, re-pointed, named after their view
+
+- **Making one** (Req 3.23; `.agents/tasks/view-references/`, VR-1–3): a view's row dragged from the model tree
+  onto the open diagram makes a reference to that view where it is let go — on the diagram, or inside the element's
+  box, the group or the shape under the pointer — one undoable step, selected; the tree's *Reference in the open
+  view* makes one at the centre. It is made as any figure is (`addFigure`, in the figure-create command), 120 × 55
+  with no text of its own, so undo, collaboration and nesting come as for a note. Only a diagram takes one; the open
+  view's own row makes nothing on its own diagram and, let go there, a toast says why. `explorer-drag-start`
+  carries the row's kind; `DiagramCanvas.startCreateReference`, `placeReference`.
+- **Its text** (VR-4): with none of its own it shows the name of the view it opens, as that name is now — a name
+  written on a view redraws the references to it in the open diagram (`ViewManager.referencesTo`, from the store's
+  changes), so a rename in the tree, the panel or by a collaborator shows at once. F2 or the panel's *Text* gives it
+  text of its own; emptied, the view's name again; the panel shows the view's name greyed while it has none.
+- **Opening and changing its view** (VR-7, VR-8): double-click, *Open view* on its pad and in its right-click menu,
+  and the panel's *Open* open the view it opens (`open-referenced-view`); a double-click no longer edits its text,
+  F2 does. One whose view is not in the model says so. The panel's *Opens* — the view's name, *Open* and *Change…*,
+  the model's other views by kind — points it at another view in one undoable step, `ViewManager.setReferenceView`,
+  its quads read first (`setReferenceViewQuads`): the view it opened leaves the holder with its last reference there.
+- **Deleting a view others reference** (VR-10): the confirmation says what goes with it — "3 references to it, in 2
+  other views, are deleted with it." With another diagram open, the deletion is now a step on its undo stack, and
+  undo brings the view back with its references; the open diagram drops the references to it at once, where it
+  kept drawing them until it was next redrawn, and the toolbar's *View* list follows an undone or redone deletion.
+- **Referenced from** (VR-11): a view's information tab lists the views holding a reference to it, from its
+  `arch:inView`, each opening that view.
+- **Nesting and lines** (VR-5, VR-6): the figure rules, unchanged, now held to a reference by tests — it goes inside
+  an element, a group or a shape and holds nothing; lines from and to it stand for no relationship.
+- **The right-click menu on figures**: right-clicking a group, a note, a shape or a reference opens la-gram's menu, as
+  the guide said it did; it had opened the browser's. A reference's starts with *Open view*; drawing gets none of the
+  model's entries — *Move to folder…*, *Show in model tree*, *Delete from model…*.
+- The model-manager part (`interfaces.ts`, `view-manager.ts`, its test) is the kernel's too, file for file (VR-DD-6).
+  *view-manager.test, view-canvas.test, model-explorer.test, property-panel.test, rdf-label-editing.test,
+  rdf-rule-provider.test, workbench.test, workbench.spec*
 
 ### 2026-11-21 — A reference to another view: drawn, imported, kept with its view
 

@@ -24,6 +24,11 @@ export type ModelEventType =
   | 'validation-updated'
   /** The canvas switched to another view (`{ viewIri }`). */
   | 'view-opened'
+  /**
+   * A view reference asked to open the view it references (`{ viewIri?, nodeIri }`): double-clicked, or its pad's
+   * or its menu's *Open view* (Req 3.23). No `viewIri` when it names none.
+   */
+  | 'open-referenced-view'
   /** The format painter started, picked a look, or stopped (`{ state: 'pick' | 'paint' | 'off' }`). */
   | 'format-painter-changed'
   /** A view was created, renamed, re-pointed or deleted (`{ viewIri? }`). */

@@ -146,6 +146,7 @@ export class RdfContextPadProvider {
   private onStartConnect?: StartConnectRequest;
   private onDelete?: (element: ContextPadElement) => void;
   private onDeleteFromModel?: (element: ContextPadElement) => void;
+  private onOpenView?: (element: ContextPadElement) => void;
   private classClosure: ClassClosure;
   private replaceSupport?: PadMenuSupport;
   private appendSupport?: PadMenuSupport;
@@ -179,7 +180,8 @@ export class RdfContextPadProvider {
     const entries: Record<string, ContextPadEntry> = {};
 
     // A figure, or a line drawn from one, is drawing, in no model: it can only
-    // be taken off the view — and a line drawn from a figure to what it is about.
+    // be taken off the view — and a line drawn from a figure to what it is about,
+    // and a reference to another view opens that view.
     if (element.kind === 'figure' || element.kind === 'connector') {
       entries['delete'] = {
         group: 'edit',
@@ -197,6 +199,16 @@ export class RdfContextPadProvider {
           className: 'context-pad-connect',
           action: { click: startConnect, dragstart: startConnect },
         };
+        // A reference to another view opens it, as a double-click does (Req 3.23).
+        const figure = (element.diagramElement as DiagramTarget | undefined)?.businessObject?.figure;
+        if (figure?.kind === 'reference' && this.onOpenView) {
+          entries['open-view'] = {
+            group: 'edit',
+            title: 'Open view',
+            className: 'context-pad-open-view',
+            action: () => this.onOpenView?.(element),
+          };
+        }
       }
       return entries;
     }
@@ -328,6 +340,11 @@ export class RdfContextPadProvider {
 
   setDeleteHandler(onDelete: ((element: ContextPadElement) => void) | undefined): void {
     this.onDelete = onDelete;
+  }
+
+  /** What a view reference's *Open view* does: the canvas opens the view it references. */
+  setOpenViewHandler(onOpenView: ((element: ContextPadElement) => void) | undefined): void {
+    this.onOpenView = onOpenView;
   }
 
   /** Point connect at the diagram's `connect` service. */

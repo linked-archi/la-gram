@@ -25,7 +25,7 @@ import { live } from 'lit/directives/live.js';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
-import type { ElementManager, FigureColours, FigureKind } from '../../model-manager/interfaces.js';
+import type { ElementManager, FigureColours, FigureKind, ViewKind } from '../../model-manager/interfaces.js';
 import {
   colourAlpha,
   fontStyleOf,
@@ -110,6 +110,16 @@ export interface PropertyEntry {
   drawn?: boolean;
   /** The values the SHACL shape allows (`sh:in`): shown as a choice. */
   choices?: PropertyChoice[];
+  /** Shown greyed in the field while it is empty, in place of its default prompt: a view reference's view's name. */
+  placeholder?: string;
+  /** Emptied, the value is removed, as the definition's is: a view reference's text, which then shows its view's name. */
+  emptiable?: boolean;
+}
+
+/** `reference-view-change`: the view reference `nodeIri`, in the open view, opens `viewIri` now (Req 3.23). */
+export interface ReferenceViewChangeDetail {
+  nodeIri: string;
+  viewIri: string;
 }
 
 /** One allowed value of a property (`sh:in`). */
@@ -171,6 +181,17 @@ export interface PropertyHeading {
   figure?: FigureColours & { kind: FigureKind };
   /** A line drawn from a figure — a note's to what it is about: no relationship, nothing to edit. */
   line?: { from: string; to: string };
+  /**
+   * A reference to another view (Req 3.23): the view it opens — its name when the model has it — and the model's
+   * views it can be pointed at instead, every one but the view it is drawn in.
+   */
+  reference?: {
+    viewIri?: string;
+    viewLabel?: string;
+    views: Array<{ iri: string; label: string; kind: ViewKind }>;
+  };
+  /** A view: the views holding a reference to it, by name (*Referenced from*); absent with none. */
+  referencedFrom?: Array<{ iri: string; label: string }>;
   typeLabel?: string;
   typeIri?: string;
   /** For a relationship a rule derived: how surely, by which rule, from what, and whether it is confirmed. */
@@ -974,6 +995,29 @@ export class PropertyPanel extends LitElement {
       color: var(--la-text-muted, #5f6368);
     }
 
+    /* A view reference's *Opens*: the view's name, then Open and Change…; the list of views under them. */
+    .opens {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .opens-view {
+      flex: 1 1 auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .opens-view.muted {
+      padding: 0;
+    }
+    .opens-row named-picker {
+      margin-top: 4px;
+    }
+    .referenced-from .analysis-list {
+      padding: 0;
+    }
+
     /* The Appearance tab: two columns of fields; one when narrow. */
     .appearance {
       display: grid;
@@ -1524,6 +1568,9 @@ export class PropertyPanel extends LitElement {
   /** The rows whose IRIs are showing ({@link rowKey}); none, for another selection. */
   @state() private _shownIris: ReadonlySet<string> = new Set();
 
+  /** Whether a view reference's *Change…* lists the views it can open; closed for another selection. */
+  @state() private _changingReference = false;
+
   /** The selected concept's SHACL property shapes, by path. */
   private _shapes = new Map<string, ShaclPropertyShape>();
 
@@ -1540,7 +1587,10 @@ export class PropertyPanel extends LitElement {
   private _provenance: ConceptProvenance = { other: [] };
 
   override willUpdate(changedProperties: Map<string, unknown>): void {
-    if (changedProperties.has('selectedIri')) this._shownIris = new Set();
+    if (changedProperties.has('selectedIri')) {
+      this._shownIris = new Set();
+      this._changingReference = false;
+    }
     // Another selection, or another presentation: the Label and Image tabs edit what is in force for it, not the last
     // one's choice.
     if (changedProperties.has('appearance')) {
@@ -1624,9 +1674,9 @@ export class PropertyPanel extends LitElement {
     if (entry.readonly || !this.selectedIri) return;
 
     if (newValue.trim() === '' && DEFAULT_FIELDS.includes(entry.predicate)) {
-      // Emptying the definition removes it; a name cannot be emptied, and the
-      // field shows the name again (the value bindings are `live`).
-      if (entry.predicate === SKOS_DEFINITION && entry.value !== '') this._remove(entry);
+      // Emptying the definition removes it — and a view reference's text, which then shows its view's name; a name
+      // cannot be emptied, and the field shows the name again (the value bindings are `live`).
+      if ((entry.predicate === SKOS_DEFINITION || entry.emptiable) && entry.value !== '') this._remove(entry);
       else this.requestUpdate();
       return;
     }
@@ -2054,6 +2104,8 @@ export class PropertyPanel extends LitElement {
    * element.
    */
   private _renderFigureText() {
+    // A reference with no text of its own shows its view's name: greyed here, and again once its text is emptied.
+    const reference = this.heading?.reference;
     const text: PropertyEntry = {
       ...(this._entries.find((e) => e.predicate === SKOS_PREF_LABEL) ?? {
         predicate: SKOS_PREF_LABEL,
@@ -2061,8 +2113,81 @@ export class PropertyPanel extends LitElement {
         readonly: false,
       }),
       label: 'Text',
+      ...(reference ? { placeholder: reference.viewLabel ?? '', emptiable: true } : {}),
     } as PropertyEntry;
-    return html`<ul class="property-list">${this._renderEntry(text)}</ul>`;
+    return html`<ul class="property-list">${this._renderEntry(text)}${reference ? this._renderOpens(reference) : nothing}</ul>`;
+  }
+
+  /**
+   * A view reference's *Opens* (Req 3.23): the view's name, *Open* — which says
+   * so when the view is not in the model — and *Change…*, a filterable list of
+   * the model's other views; the one picked is the view it opens.
+   */
+  private _renderOpens(reference: NonNullable<PropertyHeading['reference']>) {
+    const groups: Record<ViewKind, string> = { Diagram: 'Diagrams', Catalog: 'Catalogs', Matrix: 'Matrices' };
+    const options: NamedOption[] = reference.views.map((view) => ({ iri: view.iri, label: view.label, groupLabel: groups[view.kind] }));
+    const onPicked = (e: CustomEvent<NamedOption>) => {
+      this._changingReference = false;
+      const viewIri = e.detail.iri;
+      if (viewIri === reference.viewIri) return;
+      this._emit<ReferenceViewChangeDetail>('reference-view-change', { nodeIri: this.selectedIri, viewIri });
+    };
+    return html`
+      <li class="property-row opens-row">
+        <div class="property-label"><span class="field-name">Opens</span></div>
+        <div class="opens">
+          <span class="opens-view ${reference.viewLabel === undefined ? 'muted' : ''}" title=${reference.viewIri ?? ''}
+            >${reference.viewLabel ?? 'A view not in the model'}</span
+          >
+          <button type="button" class="open-view" @click=${() => this._emit('reference-open', { viewIri: reference.viewIri })}>Open</button>
+          <button
+            type="button"
+            class="change-view"
+            aria-expanded=${this._changingReference ? 'true' : 'false'}
+            @click=${() => {
+              this._changingReference = !this._changingReference;
+              if (this._changingReference) void this.updateComplete.then(() => this.renderRoot.querySelector<NamedPicker>('named-picker.reference-view')?.focus());
+            }}
+          >Change…</button>
+        </div>
+        ${this._changingReference
+          ? html`<named-picker
+              class="reference-view"
+              label="The view it opens"
+              placeholder="Search the model's views…"
+              group-filter
+              .options=${() => options}
+              @named-picked=${onPicked}
+            ></named-picker>`
+          : nothing}
+      </li>
+    `;
+  }
+
+  /** A view's *Referenced from* (Req 3.23): the views holding a reference to it, each opening that view; none, nothing. */
+  private _renderReferencedFrom() {
+    const holders = this.heading?.referencedFrom;
+    if (!holders || holders.length === 0) return nothing;
+    return html`
+      <li class="property-row wide referenced-from">
+        <div class="property-label"><span class="field-name">Referenced from</span></div>
+        <ul class="analysis-list">
+          ${holders.map(
+            (view) => html`<li>
+              <a
+                href="#"
+                title=${view.iri}
+                @click=${(e: Event) => {
+                  e.preventDefault();
+                  this._emit('panel-open-view', { viewIri: view.iri });
+                }}
+                >${view.label}</a
+              >
+            </li>`,
+          )}
+        </ul>
+      </li>
+    `;
   }
 
   /**
@@ -2960,7 +3085,7 @@ export class PropertyPanel extends LitElement {
           <textarea
             class="property-value"
             .value=${live(entry.value)}
-            placeholder=${entry.value ? '' : (DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
+            placeholder=${entry.value ? '' : (entry.placeholder ?? DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
             ?readonly=${entry.readonly}
             @change=${(e: Event) =>
               this._onPropertyChange(entry, (e.target as HTMLTextAreaElement).value)}
@@ -2977,7 +3102,7 @@ export class PropertyPanel extends LitElement {
           class="property-value"
           type=${this._inputType(entry)}
           .value=${live(entry.value)}
-          placeholder=${entry.value ? '' : (DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
+          placeholder=${entry.value ? '' : (entry.placeholder ?? DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
           ?readonly=${entry.readonly}
           @change=${(e: Event) =>
             this._onPropertyChange(entry, (e.target as HTMLInputElement).value)}
@@ -3062,7 +3187,7 @@ export class PropertyPanel extends LitElement {
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
-                ${this._renderContextNames()} ${this._renderContextPictures()} ${this._renderProvenance()}
+                ${this._renderReferencedFrom()} ${this._renderContextNames()} ${this._renderContextPictures()} ${this._renderProvenance()}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0

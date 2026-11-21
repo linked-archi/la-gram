@@ -98,6 +98,7 @@ import type {
   ViewInfo,
   ViewKind,
   ViewManager,
+  ViewReferenceInfo,
 } from './interfaces.js';
 import {
   BOUNDS_PREDICATES,
@@ -385,6 +386,49 @@ export class OxigraphViewManager implements ViewManager {
     const node = nn(nodeIri);
     this.remove(this.read(node, T.prefLabel));
     if (text) this.store.addQuads([triple(node, T.prefLabel, langLiteral(text))]);
+  }
+
+  // ── References to other views (core-vis 0.9, Req 3.23) ─────────────────
+
+  referencesTo(viewIri: string): ViewReferenceInfo[] {
+    const references: ViewReferenceInfo[] = [];
+    for (const q of this.read(null, T.referencesView, nn(viewIri))) {
+      if (!this.objects(q.subject, T.rdfType).includes(IRI.ViewReferenceNode)) continue;
+      for (const holderIri of this.objects(q.subject, T.visView)) references.push({ nodeIri: q.subject.value, holderIri });
+    }
+    return references.sort((a, b) => a.holderIri.localeCompare(b.holderIri) || a.nodeIri.localeCompare(b.nodeIri));
+  }
+
+  setReferenceView(holderIri: string, nodeIri: string, viewIri: string): void {
+    const { removed, added } = this.setReferenceViewQuads(holderIri, nodeIri, viewIri);
+    this.remove(removed);
+    if (added.length > 0) this.store.addQuads(added);
+  }
+
+  setReferenceViewQuads(holderIri: string, nodeIri: string, viewIri: string): { removed: Quad[]; added: Quad[] } {
+    const node = nn(nodeIri);
+    const holder = nn(holderIri);
+    const unchanged = { removed: [], added: [] };
+    if (!this.objects(node, T.visView).includes(holderIri) || !this.objects(node, T.rdfType).includes(IRI.ViewReferenceNode)) return unchanged;
+    // A reference opens exactly one view, one of the model's (core-vis-shapes 0.5.0).
+    if (!this.getView(viewIri)) return unchanged;
+    const current = this.read(node, T.referencesView);
+    if (current.length === 1 && current[0]!.object.value === viewIri) return unchanged;
+    const removed: Quad[] = [...current];
+    const added: Quad[] = [triple(node, T.referencesView, nn(viewIri))];
+    // The view it opened leaves the holder with its last reference there, as when the reference is removed…
+    for (const opened of new Set(current.map((q) => q.object.value))) {
+      if (opened === viewIri) continue;
+      const others = this.read(null, T.referencesView, nn(opened)).filter(
+        (q) => q.subject.value !== nodeIri && this.objects(q.subject, T.visView).includes(holderIri),
+      );
+      if (others.length === 0) removed.push(...this.read(nn(opened), T.inView, holder));
+    }
+    // …and the one it opens now is presented there, as when one is drawn — unless it is the holder (DD-42).
+    if (viewIri !== holderIri && this.read(nn(viewIri), T.inView, holder).length === 0) {
+      added.push(triple(nn(viewIri), T.inView, holder));
+    }
+    return { removed: dedupe(removed), added };
   }
 
   removeElementFromView(viewIri: string, elementIri: string): void {

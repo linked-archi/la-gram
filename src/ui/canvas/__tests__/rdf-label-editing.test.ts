@@ -5,7 +5,7 @@ import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
 import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { RdfLabelEditingProvider, RelabelElementHandler, isRenamable, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
+import { RdfLabelEditingProvider, RelabelElementHandler, isRenamable, isViewReference, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
 import { NOTATION_DEFAULTS } from '../notation-shapes.js';
 import type { RdfChangeContext } from '../rdf-modeling.js';
 
@@ -143,6 +143,62 @@ describe('what a line from a note says, typed on it', () => {
     provider.update(line({ label: 'asks first', named: true }), 'asks first');
     provider.update(line({ label: 'asks first', named: true }), '');
     expect(executed.map((c) => c.label)).toEqual(['asks first', '']);
+  });
+});
+
+describe('a reference to another view: double-clicked it opens, F2 edits its text (Req 3.23)', () => {
+  const REF = 'https://example.org/m/view/1#node-1';
+  const reference = (extra: Record<string, unknown> = {}) => ({
+    id: REF,
+    parent: {},
+    x: 0,
+    y: 0,
+    width: 120,
+    height: 55,
+    // No text of its own: the view's name, drawn, not `named`.
+    businessObject: { iri: REF, typeIri: '', kind: 'figure' as const, figure: { kind: 'reference' as const, view: 'https://example.org/m/view/2' }, label: 'Payments', named: false, ...extra },
+  });
+
+  it('is left out of double-click editing — the canvas opens its view — and edited on F2, as a note is on both', () => {
+    const handlers = new Map<string, Array<(event: unknown) => unknown>>();
+    const on = (events: string | string[], priorityOrCallback: number | ((event: unknown) => unknown), callback?: (event: unknown) => unknown) => {
+      const handler = typeof priorityOrCallback === 'function' ? priorityOrCallback : callback!;
+      for (const event of [events].flat()) handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+    };
+    const fire = (event: string, payload: unknown) => handlers.get(event)?.forEach((handler) => handler(payload));
+    const activated: unknown[] = [];
+    let selected: unknown[] = [];
+    new RdfLabelEditingProvider(
+      { on } as never,
+      { getAbsoluteBBox: (box) => box as never, zoom: () => 1, getContainer: () => document.createElement('div'), addMarker: () => undefined, removeMarker: () => undefined },
+      { registerProvider: () => undefined, activate: (element: unknown) => void activated.push(element), isActive: () => false, complete: () => undefined } as never,
+      { registerHandler: () => undefined, execute: () => undefined },
+      { get: () => selected as never },
+    );
+    const ref = reference();
+    const note = { ...reference(), businessObject: { ...reference().businessObject, figure: { kind: 'note' as const }, named: true } };
+    fire('element.dblclick', { element: ref });
+    expect(activated).toEqual([]);
+    fire('element.dblclick', { element: note });
+    expect(activated).toEqual([note]);
+    selected = [ref];
+    fire('keyboard.keydown', { keyEvent: { key: 'F2', preventDefault: () => undefined } });
+    expect(activated).toEqual([note, ref]);
+    expect(isViewReference(ref)).toBe(true);
+    expect(isViewReference(note)).toBe(false);
+  });
+
+  it('gets text of its own, changed; emptied, it goes — the view’s name shows again; the name it shows unchanged is no edit', () => {
+    const { provider, executed } = providerWith();
+    // The box holds what is drawn: the view's name.
+    expect(provider.activate(reference())!.text).toBe('Payments');
+    provider.update(reference(), 'Payments');
+    provider.update(reference(), '');
+    provider.update(reference(), ' See  also ');
+    provider.update(reference({ label: 'See also', named: true }), 'See also');
+    provider.update(reference({ label: 'See also', named: true }), 'Read next');
+    provider.update(reference({ label: 'See also', named: true }), '');
+    expect(executed.map((c) => c.label)).toEqual(['See also', 'Read next', '']);
   });
 });
 

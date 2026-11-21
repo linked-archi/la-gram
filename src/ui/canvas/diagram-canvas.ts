@@ -177,7 +177,7 @@ import {
   type ImageScope,
   type LabelChoices,
 } from '../appearance-selection.js';
-import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
+import { isRenamable, isViewReference, rdfLabelEditingModule, RELABEL_ELEMENT_COMMAND, type LabelWriter } from './rdf-label-editing.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
 import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
 import { RdfContextMenuProvider, CONTEXT_MENU_ID, type ContextMenuAction } from './rdf-context-menu-provider.js';
@@ -777,6 +777,8 @@ export class DiagramCanvas {
   private pointerClient: { x: number; y: number } | undefined;
   /** The listeners copy and paste added, to take away with the canvas. */
   private clipboardListeners: Array<[EventTarget, string, EventListener]> = [];
+  /** Stops redrawing the references to a view renamed in the store ({@link renameReferencesTo}). */
+  private stopFollowingViewNames: (() => void) | undefined;
 
   constructor(options: DiagramCanvasOptions) {
     this.container = options.container;
@@ -948,6 +950,22 @@ export class DiagramCanvas {
         this.deleteFromModel(element.iri);
       });
     }
+    // A view reference's *Open view* (Req 3.23).
+    this.contextPadProvider.setOpenViewHandler((element) => {
+      const shape = element.diagramElement as DjsShape | undefined;
+      if (shape) this.openReferencedView(shape);
+    });
+    // A view renamed — anywhere, by anyone, or undone — renames the references to it here that have no text of
+    // their own (VR-DD-2): a name written on a view, which no figure of the open view's carries.
+    const prefLabel = NAMESPACES.skos + 'prefLabel';
+    this.stopFollowingViewNames = this.changeStore?.subscribe((change) => {
+      let named: Set<string> | undefined;
+      for (const q of [...change.added, ...change.removed]) {
+        if (q.predicate.value !== prefLabel || !this.viewManager?.getView(q.subject.value)) continue;
+        (named ??= new Set()).add(q.subject.value);
+      }
+      if (named) this.renameReferencesTo(named);
+    });
     this.registerProviders();
     this.bindKeyboard(keyboardBindTo);
     this.guardKeyboardAgainstShadowInputs();
@@ -2140,11 +2158,15 @@ export class DiagramCanvas {
     if (existing.parent !== container) this.reparentDirect(existing, container);
     const b = node.bounds;
     const moved = existing.x !== b.x || existing.y !== b.y || existing.width !== b.width || existing.height !== b.height;
-    const retexted = (existing.businessObject?.label ?? '') !== (figure.text ?? '');
+    // Its text — or, a reference with none, its view's name, which a rename or another view changes.
+    const shown = this.figureTextOf(figure);
+    const retexted =
+      (existing.businessObject?.label ?? '') !== (shown.label ?? '') || Boolean(existing.businessObject?.named) !== Boolean(shown.named);
     const recoloured = !sameAppearance(existing.businessObject?.figure, figure);
     if (existing.businessObject) {
       existing.businessObject.figure = figure;
-      existing.businessObject.label = figure.text;
+      existing.businessObject.label = shown.label;
+      existing.businessObject.named = shown.named;
     }
     if (moved) this.updateShape(existing, { bounds: b });
     else if (retexted || recoloured) services.eventBus.fire('element.changed', { element: existing });
@@ -2415,7 +2437,18 @@ export class DiagramCanvas {
 
   /** What a figure's shape carries: its node as its IRI, its text as its name. */
   private figureObject(iri: string, figure: FigureInfo): RdfBusinessObject {
-    return { iri, typeIri: '', kind: 'figure', figure, ...(figure.text ? { label: figure.text, named: true } : {}) };
+    return { iri, typeIri: '', kind: 'figure', figure, ...this.figureTextOf(figure) };
+  }
+
+  /**
+   * The text a figure shows: its own, `named` — or, a reference to another view
+   * with none, the name of the view it opens as that name is now, not `named`
+   * (Req 3.23). A reference whose view is not in the model shows none.
+   */
+  private figureTextOf(figure: FigureInfo): Pick<RdfBusinessObject, 'label' | 'named'> {
+    if (figure.text) return { label: figure.text, named: true };
+    const name = figure.kind === 'reference' && figure.view ? this.viewManager?.getView(figure.view)?.label : undefined;
+    return name ? { label: name, named: false } : {};
   }
 
   /**
@@ -2430,6 +2463,104 @@ export class DiagramCanvas {
     const figure: FigureInfo = { kind, ...(kind === 'shape' && shapeType ? { shapeType } : {}) };
     const shape = services.elementFactory.createShape({ ...FIGURE_SIZES[kind], businessObject: this.figureObject('', figure) });
     services.create.start(event, shape);
+  }
+
+  /**
+   * Start a drag that makes a reference to `viewIri` where it is let go — on the
+   * diagram, or inside the element, the group or the shape under the pointer —
+   * the model tree's drag of a view's row (Req 3.23, VR-DD-1). Made as any figure
+   * is, in the figure-create command: one undoable step, selected once made. The
+   * open view's own row makes nothing on its own diagram: refused as it is
+   * dragged over it, and said why when let go there.
+   */
+  startCreateReference(viewIri: string, event: unknown): void {
+    const services = this.services();
+    const shape = this.referenceShape(viewIri);
+    if (!services || !shape || !event) return;
+    services.create.start(event, shape);
+  }
+
+  /**
+   * Make a reference to `viewIri` at the centre of the visible area, selected,
+   * as one undoable step — the model tree's *Reference in the open view*, as
+   * {@link placeExisting} places an element. False for the open view itself.
+   */
+  placeReference(viewIri: string): boolean {
+    const services = this.services();
+    const shape = viewIri === this.viewIri ? undefined : this.referenceShape(viewIri);
+    if (!services || !shape) return false;
+    const viewbox = services.canvas.viewbox() as { x: number; y: number; width?: number; height?: number };
+    const at = {
+      x: Math.round(viewbox.x + (viewbox.width ?? 800) / 2),
+      y: Math.round(viewbox.y + (viewbox.height ?? 600) / 2),
+    };
+    (services.modeling as unknown as { createShape(s: unknown, p: unknown, parent: unknown): unknown }).createShape(
+      shape,
+      at,
+      services.canvas.getRootElement(),
+    );
+    this.service<{ select(element: unknown): void }>('selection')?.select(shape);
+    return true;
+  }
+
+  /**
+   * A reference to `viewIri` not yet written: 120 × 55, no text of its own — it
+   * shows the view's name — and its colours unset (VR-3). None without a diagram
+   * open, or for what is no view of the model.
+   */
+  private referenceShape(viewIri: string): DjsShape | undefined {
+    const services = this.services();
+    if (!services || !this.viewIri || !this.viewManager?.getView(viewIri)) return undefined;
+    const figure: FigureInfo = { kind: 'reference', view: viewIri };
+    return services.elementFactory.createShape({ ...FIGURE_SIZES.reference, businessObject: this.figureObject('', figure) });
+  }
+
+  /** Whether a shape is a reference to the open view not yet made: what its own row's drag would make (VR-1). */
+  private isOwnViewReference(shape: DjsShape | undefined): boolean {
+    const businessObject = shape?.businessObject;
+    return (
+      businessObject?.kind === 'figure' &&
+      !businessObject.iri &&
+      businessObject.figure?.kind === 'reference' &&
+      businessObject.figure.view === this.viewIri
+    );
+  }
+
+  /**
+   * Ask the app to open the view a reference opens (`open-referenced-view`): its
+   * double-click, its pad's and its menu's *Open view*. The app opens it, or
+   * says it is not in the model (Req 3.23).
+   */
+  private openReferencedView(element: DjsShape): void {
+    const figure = element.businessObject?.kind === 'figure' ? element.businessObject.figure : undefined;
+    const nodeIri = this.nodeKeyOf(element);
+    if (figure?.kind !== 'reference' || !nodeIri) return;
+    this.eventBus.emit('open-referenced-view', { nodeIri, ...(figure.view ? { viewIri: figure.view } : {}) });
+  }
+
+  /**
+   * Redraw the references in the open diagram to these views, whose names may
+   * have changed: one with no text of its own shows the name in force — renamed
+   * here, in the tree, in the panel, by a collaborator, or undone (VR-DD-2).
+   */
+  private renameReferencesTo(viewIris: ReadonlySet<string>): void {
+    const services = this.services();
+    const viewIri = this.viewIri;
+    const viewManager = this.viewManager;
+    if (!services || !viewIri || !viewManager?.referencesTo) return;
+    for (const renamed of viewIris) {
+      for (const reference of viewManager.referencesTo(renamed)) {
+        if (reference.holderIri !== viewIri) continue;
+        const shape = this.shapeOfNode(reference.nodeIri);
+        const businessObject = shape?.businessObject;
+        if (!shape || businessObject?.kind !== 'figure' || businessObject.figure?.kind !== 'reference') continue;
+        const shown = this.figureTextOf(businessObject.figure);
+        if ((businessObject.label ?? '') === (shown.label ?? '') && Boolean(businessObject.named) === Boolean(shown.named)) continue;
+        businessObject.label = shown.label;
+        businessObject.named = shown.named;
+        services.eventBus.fire('element.changed', { element: shape });
+      }
+    }
   }
 
   /**
@@ -3022,6 +3153,8 @@ export class DiagramCanvas {
   /** Tear the diagram down and leave the host container empty. */
   destroy(): void {
     this.unbindClipboard();
+    this.stopFollowingViewNames?.();
+    this.stopFollowingViewNames = undefined;
     this.initialized = false;
     this.relationships.clear();
     this.appendTargetCache.clear();
@@ -3191,7 +3324,8 @@ export class DiagramCanvas {
   /**
    * What the right-click menu offers for `target`: renaming and changing the
    * type, appending (elements), where to look at it (properties, tree, graph,
-   * the questions about it; a relationship's ends), its IRI, and deleting it. On the canvas root, the
+   * the questions about it; a relationship's ends), its IRI, and deleting it —
+   * a figure, from the view only, a reference opening its view first. On the canvas root, the
    * open view's: renaming it, its viewpoint, duplicating it, selecting
    * everything, zooming to fit, its properties, tree entry and IRI, and
    * deleting it — what the model tree offers for a view.
@@ -3265,16 +3399,22 @@ export class DiagramCanvas {
       // A line is copied with its ends: only pasting here.
       actions.push(...this.clipboardMenuActions(false));
     } else if (shown.kind === 'figure') {
-      // A group, a note or a shape: cut, copied and duplicated as an element is.
+      // A reference to another view opens it, first, as its double-click does (Req 3.23).
+      if (isViewReference(element)) {
+        actions.push({ id: 'open-view', label: 'Open view', section: 'view', run: () => this.openReferencedView(element) });
+      }
+      // A group, a note, a shape or a reference: cut, copied and duplicated as an element is.
       actions.push(...this.clipboardMenuActions(true));
     }
 
-    if (this.onContextAction && this.canMoveToFolder?.()) {
+    // Drawing — a figure, a line from one — is in no folder, no tree and no model: taken off the view only.
+    const concept = shown.kind === 'element' || shown.kind === 'relationship';
+    if (concept && this.onContextAction && this.canMoveToFolder?.()) {
       actions.push({ id: 'move-to-folder', label: 'Move to folder…', section: 'edit', run: host('move-to-folder') });
     }
     if (this.onContextAction) {
       actions.push({ id: 'properties', label: 'Properties', section: 'show', run: host('properties') });
-      actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
+      if (concept) actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
       if (shown.kind === 'element') {
         actions.push({ id: 'graph', label: 'Show relationship graph', section: 'show', run: host('graph') });
         actions.push({ id: 'ask', label: 'Ask about this element…', section: 'show', run: host('ask') });
@@ -3292,7 +3432,7 @@ export class DiagramCanvas {
       shortcut: 'Delete',
       run: () => this.deleteFromPad(pad),
     });
-    if (this.viewManager) {
+    if (this.viewManager && concept) {
       actions.push({ id: 'delete-model', label: 'Delete from model…', section: 'delete', run: () => void this.deleteFromModel(iri) });
     }
     return actions;
@@ -4388,13 +4528,52 @@ export class DiagramCanvas {
         if (line) element = line;
       }
       const shown = element?.businessObject;
-      const onConcept = Boolean(shown?.iri) && (shown?.kind === 'element' || shown?.kind === 'relationship');
+      // An element, a relationship, or a figure — a reference's menu opens its view (Req 3.23).
+      const onConcept = Boolean(shown?.iri) && (shown?.kind === 'element' || shown?.kind === 'relationship' || shown?.kind === 'figure');
       const onCanvas = element === root && Boolean(this.viewIri);
       if (!element || (!onConcept && !onCanvas)) return undefined;
       event.originalEvent?.preventDefault();
       this.openContextMenu(element, { x: event.originalEvent?.clientX ?? 0, y: event.originalEvent?.clientY ?? 0 });
       return false;
     });
+
+    // A reference to another view opens it when double-clicked (Req 3.23, VR-DD-3); F2 edits its text.
+    djs.on('element.dblclick', (event: { element?: DjsShape }) => {
+      if (event.element && isViewReference(event.element)) this.openReferencedView(event.element);
+    });
+
+    // The open view's own row, dragged from the model tree, makes nothing on its own diagram (VR-1): refused as it
+    // is dragged over it — above the metamodel's rules — and let go there, said why.
+    djs.on('commandStack.shape.create.canExecute', 2500, (event: { context?: { shape?: DjsShape } }) =>
+      this.isOwnViewReference(event.context?.shape) ? false : undefined,
+    );
+    djs.on('create.end', 1500, (event: { context?: { shape?: DjsShape; target?: unknown } }) => {
+      const context = event.context;
+      if (!this.isOwnViewReference(context?.shape)) return undefined;
+      if (context?.target) this.onNotice?.("This is the open view: drag it onto another view's diagram to reference it.", 'info');
+      return false;
+    });
+
+    // A reference's text emptied on the canvas — or its own given back, undone, redone — shows what it shows now:
+    // the rename draws the text it wrote, none for an emptied reference, where the view's name is drawn (Req 3.23).
+    djs.on(
+      [`commandStack.${RELABEL_ELEMENT_COMMAND}.executed`, `commandStack.${RELABEL_ELEMENT_COMMAND}.reverted`],
+      (event: { context?: { element?: DjsShape } }) => {
+        const element = event.context?.element;
+        const businessObject = element?.businessObject;
+        const viewIri = this.viewIri;
+        if (!element || !businessObject || !viewIri || !isViewReference(element) || !businessObject.figure) return;
+        const node = this.nodeKeyOf(element);
+        const text = node ? this.viewManager?.getNode(viewIri, node)?.figure?.text : undefined;
+        const figure: FigureInfo = { ...businessObject.figure };
+        if (text) figure.text = text;
+        else delete figure.text;
+        businessObject.figure = figure;
+        const shown = this.figureTextOf(figure);
+        businessObject.label = shown.label;
+        businessObject.named = shown.named;
+      },
+    );
 
     // Which global tool is armed. `ToolManager` is the only honest source: the
     // tools deactivate themselves when their gesture completes, `Escape` cancels

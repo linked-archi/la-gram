@@ -328,6 +328,9 @@ describe('PropertyPanel', () => {
         '_takesLinks',
         '_renderRelationshipGroup',
         '_toggleRelationships',
+        '_renderReferencedFrom',
+        '_renderFigureText',
+        '_renderOpens',
       ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
           ctx[m] = (PropertyPanel.prototype as any)[m].bind(ctx);
@@ -414,6 +417,55 @@ describe('PropertyPanel', () => {
       { predicate: 'https://example.org/owner', label: 'Owner', value: 'A', readonly: false, custom: true },
     ];
     const ANALYSIS = { relationships: [], views: [{ iri: 'https://example.org/v1', label: 'Main' }] };
+
+    it('shows a view reference’s Text — its view’s name greyed with none of its own — and what it Opens, with Open and Change… (VR-4, VR-8)', () => {
+      const node = 'https://example.org/view/1#node-1';
+      const views = [{ iri: 'https://example.org/view/2', label: 'Payments', kind: 'Diagram' as const }];
+      const heading = (reference: Record<string, unknown>) => ({ kind: 'View reference', figure: { kind: 'reference' }, reference: { views, ...reference } });
+      const none = renderPanel({ selectedIri: node, heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }) });
+      expect(none).toContain('placeholder=Payments');
+      expect(none).toContain('Opens');
+      expect(none).toMatch(/class="opens-view [^"]*"[^>]*>Payments</);
+      expect(none).toContain('>Open</button>');
+      expect(none).toContain('>Change…</button>');
+      // Text of its own: shown, the view's name no longer.
+      const own = renderPanel({
+        selectedIri: node,
+        heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }),
+        _entries: [{ predicate: SKOS_PREF_LABEL, label: 'Name', value: 'See also', readonly: false, language: 'en' }],
+      });
+      expect(own).not.toContain('placeholder=Payments');
+      // A view not in the model: said.
+      expect(renderPanel({ selectedIri: node, heading: heading({ viewIri: 'https://example.org/view/9' }) })).toContain('A view not in the model');
+      // Another figure has neither.
+      const note = renderPanel({ selectedIri: node, heading: { kind: 'Note', figure: { kind: 'note' } } });
+      expect(note).not.toContain('Opens');
+      expect(note).toContain('placeholder=Add a name…');
+    });
+
+    it('empties a view reference’s text — it shows its view’s name again — where a note’s or a name is not emptied', () => {
+      const removed = (entry: Partial<PropertyEntry>) => {
+        const ctx = makeCtx({ selectedIri: 'https://example.org/view/1#node-1', requestUpdate: vi.fn() });
+        ctx._onPropertyChange({ predicate: SKOS_PREF_LABEL, label: 'Text', value: 'See also', readonly: false, ...entry }, '  ');
+        return ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.value]);
+      };
+      expect(removed({ emptiable: true })).toEqual([['property-remove', 'See also']]);
+      expect(removed({})).toEqual([]);
+      expect(removed({ emptiable: true, value: '' })).toEqual([]);
+    });
+
+    it('lists the views referencing a view — Referenced from, each opening it — and nothing with none (VR-11)', () => {
+      const view = 'https://example.org/view/2';
+      const ctx = makeCtx({
+        selectedIri: view,
+        heading: { kind: 'View', referencedFrom: [{ iri: 'https://example.org/view/1', label: 'Index' }] },
+      });
+      const shown = flat((PropertyPanel.prototype as any).render.call(ctx));
+      expect(shown).toContain('Referenced from');
+      expect(shown).toContain('>Index</a');
+      expect(renderPanel({ selectedIri: view, heading: { kind: 'View' } })).not.toContain('Referenced from');
+      expect(renderPanel({ selectedIri: view, heading: { kind: 'View', referencedFrom: [] } })).not.toContain('Referenced from');
+    });
 
     it('lists the vertical tabs — information, properties, analysis, views — with counts', () => {
       const o = renderPanel({

@@ -76,7 +76,8 @@ them as they are.
 
 The *View* selector in the toolbar lists the model's views by name, a catalog or matrix with its kind
 after it: *Who is who (catalog)*. Choosing one opens it. A view also opens from the model tree (a
-double-click, or *Open* in its menu) and from *Appears in views* in the Properties tab.
+double-click, or *Open* in its menu), from *Appears in views* and *Referenced from* in the Properties tab,
+and from a [view reference](canvas.md#view-references) on a diagram (a double-click, or *Open view*).
 
 1. Open the example model.
 2. In the toolbar's *View*, choose "Who is who (catalog)". The catalog takes the canvas's place.
@@ -85,13 +86,24 @@ double-click, or *Open* in its menu) and from *Appears in views* in the Properti
 
 ← and → in the toolbar, or ++alt+left++ and ++alt+right++ (++option+left++ and ++option+right++ on a
 Mac), go back to the views you came from, however you got there: the selector, the model tree, *Appears
-in views*, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
+in views*, a view reference, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
 Pointing at ← says where it goes, *Back to How the shop serves its customers (Alt+←)*; with nowhere to
 go, it is greyed out (*Back (no earlier view)*).
 
 1. In the example, open "Who is who (catalog)" from the *View* selector.
 2. Click ←: the diagram comes back, as it was.
 3. Click →: the catalog again.
+
+## Referenced from {#referenced-from}
+
+A view's Properties tab lists, under *Referenced from*, the views that hold a
+[reference](canvas.md#view-references) to it, each a link that opens that view. A view no other view
+references has no such list.
+
+1. In the example, right-click "Who is who" in the model tree, and choose *Reference in the open view*.
+2. Double-click the reference on the diagram: the catalog opens.
+3. Click "Who is who" in the model tree: its Properties tab lists "How the shop serves its customers"
+   under *Referenced from*. Click it: the diagram opens again.
 
 ## New view {#new-view}
 
@@ -178,10 +190,13 @@ Deleting a view keeps what it shows: its elements and relationships stay in the 
 view. What the view drew goes with it: its boxes and lines, their routes, and the looks given to them in it
 (colours, fonts, pictures, label expressions), for every presentation and for each. *Delete view (keeps its elements)* in the model tree, or *Delete view…* in the canvas's right-click
 menu, asks first: *Delete the view "Who is who"? The elements and relationships it shows stay in the
-model.*
+model.* The [references to it](canvas.md#view-references) in other views go with it, and the question
+counts them: *3 references to it, in 2 other views, are deleted with it.* Deleted while another diagram
+is open, the view is one step to undo there, which brings it back with its references.
 
 1. Right-click "Who is who" in the model tree, and choose *Delete view (keeps its elements)*.
 2. Choose *Delete view* to confirm. "Customer" and "Shop team" are still under *Elements*.
+3. Press ++ctrl+z++ (++cmd+z++ on a Mac): "Who is who" is back, as the diagram is still open.
 
 *Duplicate view* (*Duplicate* in the model tree) makes a copy of a view, with the same elements placed
 the same way, and opens it.

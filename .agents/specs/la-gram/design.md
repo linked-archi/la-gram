@@ -3709,6 +3709,31 @@ dialog; the modules' section).
     target model lacks into a note (`placement-copy.ts`), the converter's rule for a `viewRef` naming no
     view. The model-manager part was made in `linked-archi-kernel` too, file for file (L01's rule).
 
+    Made, it is made as any figure is (2026-11-21; `.agents/tasks/view-references/`, VR-DD-1–8). The model
+    tree's drag of a view's row (`explorer-drag-start` carries the row's kind) starts
+    `DiagramCanvas.startCreateReference`, and its *Reference in the open view* calls `placeReference`; both make
+    it in the figure-create command (`addFigure`, `kind: 'reference'`), so undo, collaboration, nesting on drop
+    and selection come as they do for a note. The open view's own row is refused by a `shape.create` rule above
+    the metamodel's, and said why at `create.end` when let go over the diagram — not when let go in the tree,
+    where the same drag files a view in a folder. A new reference has no `skos:prefLabel`: the canvas draws its
+    text, else the view's name as it is now (`figureTextOf`, `named` false), and a name written on a view — which
+    no figure of the open view carries, so no figure's cache sees it — redraws the references to it there
+    (`ViewManager.referencesTo`, from the store's changes). Double-click opens its view rather than editing its
+    text: `rdf-label-editing.ts` leaves a reference out, F2 keeps it, and the canvas emits
+    `open-referenced-view` for its double-click and its pad's and menu's *Open view*, which mount-ui opens or
+    says is not in the model. Emptied, on the canvas or in the panel, its own text goes, and the rename command's
+    drawing is corrected to the view's name. *Change…* is one store change, `setReferenceView`, whose quads are
+    read first (`setReferenceViewQuads`), as a removal's are by its `collect…` twin, and which moves the presence
+    by the rule `addFigure` and `collectNodeQuads` follow. Deleting a view counts the references
+    `collectViewQuads` takes with it, by holder, in the confirmation; with another diagram open the deletion is a
+    recorded change on its undo stack, so undo brings the view back with them. A view's *Referenced from* is read
+    from its `arch:inView`, which this rule keeps true, rather than from every view's nodes: the answer holds for
+    a model opened without its views' geometry. Nesting and lines are the figure rules unchanged — `canContain`,
+    the pad's *Draw a line to…*, the connect rules — held to a reference by tests. The canvas's right-click menu
+    opens on figures too: a reference's starts with *Open view*, and drawing gets none of the model's entries
+    (*Move to folder…*, *Show in model tree*, *Delete from model…*). `referencesTo` and `setReferenceView` were
+    made in `linked-archi-kernel` too, file for file (VR-DD-6).
+
 ## Running
 
 | What | Command |

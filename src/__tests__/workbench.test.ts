@@ -1778,6 +1778,128 @@ describe('the workbench', () => {
     for (const view of [second, third]) app.session.deleteView(view);
   });
 
+  it('makes, opens, re-points and deletes references to other views — from the tree, the canvas and the panel (Req 3.23)', async () => {
+    const holder = app.session.activeViewIri!;
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const payments = app.session.createView('Diagram', { label: 'Payments', open: false });
+    const orders = app.session.createView('Catalog', { label: 'Orders', open: false });
+    const third = app.session.createView('Diagram', { label: 'Third', open: false });
+    const at = () => app.session.activeViewIri;
+    const diagram = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const registry = diagram.get('elementRegistry');
+    const referencesIn = (viewIri: string) => views.getNodes(viewIri).filter((n) => n.figure?.kind === 'reference');
+    const presentedIn = (viewIri: string) => store.getQuads(nn(viewIri), nn(NAMESPACES.arch + 'inView')).map((q) => q.object.value);
+    const doubleClick = (iri: string) =>
+      diagram.get('eventBus').fire('element.dblclick', { element: registry.get(iri), gfx: registry.getGraphics(registry.get(iri)), originalEvent: new MouseEvent('dblclick') });
+    const root = ui.propertyPanel.shadowRoot!;
+    const showInfo = async () => {
+      ui.propertyPanel.selectTab('info');
+      await ui.propertyPanel.updateComplete;
+    };
+
+    // The tree's Reference in the open view: made at the centre, selected; the panel says what it opens, and its Text
+    // the view's name, greyed (VR-2, VR-4, VR-8).
+    ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'reference-in-view', iri: payments, kind: 'view' } }));
+    await vi.waitFor(() => expect(referencesIn(holder)).toHaveLength(1));
+    const reference = referencesIn(holder)[0]!.nodeIri;
+    expect(views.getNode(holder, reference)?.figure).toEqual({ kind: 'reference', view: payments });
+    expect(presentedIn(payments)).toEqual([holder]);
+    expect(ui.propertyPanel.selectedIri).toBe(reference);
+    await showInfo();
+    expect(ui.propertyPanel.heading?.kind).toBe('View reference');
+    expect(root.querySelector('.opens-view')?.textContent?.trim()).toBe('Payments');
+    expect(root.querySelector<HTMLInputElement>('.property-list input.property-value')?.placeholder).toBe('Payments');
+
+    // Change…: the model's other views, the holder not among them; the one picked is what it opens, one undoable step.
+    root.querySelector<HTMLButtonElement>('.opens .change-view')!.click();
+    await ui.propertyPanel.updateComplete;
+    const picker = root.querySelector<NamedPicker>('named-picker.reference-view')!;
+    await picker.updateComplete;
+    picker.shadowRoot!.querySelector('input')!.dispatchEvent(new Event('focus'));
+    await picker.updateComplete;
+    const listed = [...picker.shadowRoot!.querySelectorAll<HTMLElement>('.option')].map((option) => option.dataset.iri);
+    expect(listed).toEqual(expect.arrayContaining([payments, orders, third]));
+    expect(listed).not.toContain(holder);
+    picker.shadowRoot!.querySelector<HTMLElement>(`.option[data-iri="${orders}"]`)!.click();
+    await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.view).toBe(orders));
+    expect([presentedIn(orders), presentedIn(payments)]).toEqual([[holder], []]);
+    expect(registry.get(reference).businessObject.label).toBe('Orders');
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getNode(holder, reference)?.figure?.view).toBe(payments);
+    expect([presentedIn(orders), presentedIn(payments)]).toEqual([[], [holder]]);
+
+    // Double-click opens the view it opens, and so do its menu's Open view and the panel's Open; Back comes back (VR-7).
+    doubleClick(reference);
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(holder);
+    (ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(reference)) as Record<string, { action: () => void }>)['open-view']!.action();
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    ui.selectConcept(reference);
+    await showInfo();
+    root.querySelector<HTMLButtonElement>('.opens .open-view')!.click();
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(holder);
+    // One whose view is not in the model opens nothing, and says so.
+    const lost = views.addFigure!(holder, { kind: 'reference', view: 'https://example.org/no-such-view', bounds: { x: 0, y: 700, width: 120, height: 55 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    doubleClick(lost);
+    expect(at()).toBe(holder);
+    expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['The view this reference opens is not in the model.', 'warning']);
+    // Validation reports it too: a reference opens one of the model's views (core-vis-shapes 0.5.0).
+    expect(
+      ui.validationPanel.results.some((r) => r.focusNode.value === lost && r.resultPath?.value === NAMESPACES['arch-vis'] + 'referencesView'),
+    ).toBe(true);
+    views.removeElementFromView(holder, lost);
+
+    // A view's panel lists the views referencing it, each opening that view; none, nothing (VR-11).
+    ui.selectConcept(payments);
+    await showInfo();
+    expect(ui.propertyPanel.heading?.referencedFrom?.map((view) => view.iri)).toEqual([holder]);
+    expect(root.querySelectorAll('.referenced-from a')).toHaveLength(1);
+    ui.selectConcept(third);
+    await ui.propertyPanel.updateComplete;
+    expect(root.querySelector('.referenced-from')).toBeNull();
+
+    // Deleting a view others reference says what goes with it; undo brings it all back (VR-10).
+    const another = views.addFigure!(holder, { kind: 'reference', view: payments, bounds: { x: 200, y: 700, width: 120, height: 55 } });
+    views.addFigure!(third, { kind: 'reference', view: payments, bounds: { x: 0, y: 0, width: 120, height: 55 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'delete-view', iri: payments, kind: 'view' } }));
+    await vi.waitFor(() => expect(views.getView(payments)).toBeUndefined());
+    expect(vi.mocked(script.dialogs.confirm).mock.calls.at(-1)?.[1]).toBe(
+      'Delete the view "Payments"? The elements and relationships it shows stay in the model. 3 references to it, in 2 other views, are deleted with it.',
+    );
+    expect(referencesIn(holder)).toEqual([]);
+    expect(registry.get(reference)).toBeUndefined();
+    expect(ui.appToolbar.views.map((view) => view.iri)).not.toContain(payments);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getView(payments)?.label).toBe('Payments');
+    expect(ui.appToolbar.views.map((view) => view.iri)).toContain(payments);
+    expect(referencesIn(holder).map((n) => n.nodeIri).sort()).toEqual([reference, another].sort());
+    expect(referencesIn(third)).toHaveLength(1);
+    expect(registry.get(another)).toBeDefined();
+    // One reference, in one other view; none, and nothing more is said.
+    views.addFigure!(third, { kind: 'reference', view: orders, bounds: { x: 0, y: 100, width: 120, height: 55 } });
+    const deleteView = async (iri: string) => {
+      ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'delete-view', iri, kind: 'view' } }));
+      await vi.waitFor(() => expect(views.getView(iri)).toBeUndefined());
+      return vi.mocked(script.dialogs.confirm).mock.calls.at(-1)?.[1];
+    };
+    expect(await deleteView(orders)).toBe(
+      'Delete the view "Orders"? The elements and relationships it shows stay in the model. 1 reference to it, in 1 other view, is deleted with it.',
+    );
+    expect(await deleteView(third)).toBe('Delete the view "Third"? The elements and relationships it shows stay in the model.');
+
+    ui.selectConcept(undefined);
+    app.session.deleteView(payments);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(referencesIn(holder)).toEqual([]);
+  });
+
   it('File › Settings… › You: the name and email recorded with your edits, kept on this machine (Req 9.16)', async () => {
     const before = app.editor;
     try {

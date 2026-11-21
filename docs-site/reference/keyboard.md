@@ -213,7 +213,7 @@ undoes your typing there, and ++backspace++ deletes a character, not the selecte
     | ++shift++ + click | add to the selection, or take from it |
     | ++shift++ + drag on the canvas | select with a lasso |
     | drag on an empty part of the canvas | move around the diagram |
-    | double-click | rename what is under the pointer |
+    | double-click | rename what is under the pointer; a view reference: open the view it references |
     | right-click | the right-click menu of what is under the pointer, or of the canvas |
     | scroll | scroll up and down |
     | ++shift++ + scroll | scroll sideways |
@@ -227,7 +227,7 @@ undoes your typing there, and ++backspace++ deletes a character, not the selecte
     | ++shift++ + click | add to the selection, or take from it |
     | ++shift++ + drag on the canvas | select with a lasso |
     | drag on an empty part of the canvas | move around the diagram |
-    | double-click | rename what is under the pointer |
+    | double-click | rename what is under the pointer; a view reference: open the view it references |
     | right-click, or ++ctrl++ + click | the right-click menu of what is under the pointer, or of the canvas |
     | scroll | scroll up and down |
     | ++shift++ + scroll | scroll sideways |

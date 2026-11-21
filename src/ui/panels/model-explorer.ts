@@ -53,9 +53,10 @@
  * - pressing on a row and dragging past a small threshold drags it — with those
  *   selected of its group — onto a folder of the group (`explorer-move`); a
  *   folder rested on unfolds. An element dragged also starts placing it on the
- *   canvas (`explorer-drag-start`, carrying the pointer event for diagram-js's
- *   `create` gesture), which takes it if let go there. The threshold is what
- *   keeps a click a click.
+ *   canvas, and a view making a reference to it there (`explorer-drag-start`,
+ *   carrying the row's kind and the pointer event for diagram-js's `create`
+ *   gesture), which takes it if let go there. The threshold is what keeps a
+ *   click a click.
  *
  * The tree is rebuilt from a {@link ModelContents} snapshot the host supplies
  * (`contentsProvider`), once after the events that can change it; another
@@ -144,6 +145,7 @@ export type ExplorerAction =
   | 'new-matrix'
   | 'new-element'
   | 'open-view'
+  | 'reference-in-view'
   | 'rename-view'
   | 'duplicate-view'
   | 'delete-view'
@@ -208,6 +210,8 @@ const KIND_WORDS: Record<FolderKind, [string, string]> = {
 /** Detail of `explorer-drag-start`. */
 export interface ExplorerDragDetail {
   iri: string;
+  /** The row's kind: an element's places it; a view's makes a reference to that view (Req 3.23). */
+  kind: TreeNodeKind;
   /** The pointer event to hand to diagram-js's `create.start`. */
   sourceEvent: MouseEvent;
 }
@@ -484,10 +488,12 @@ export function filterTree(nodes: TreeNode[], query: string): TreeNode[] {
  *   *Move to folder…* only then.
  * @param options.many How many rows of the row's group are selected, it among
  *   them: more than one, and moving them is all there is.
+ * @param options.openDiagram The diagram open on the canvas, when one is: every
+ *   other view's row offers *Reference in the open view* (Req 3.23).
  */
 export function actionsFor(
   node: TreeNode,
-  options: { folders?: boolean; many?: number } = {},
+  options: { folders?: boolean; many?: number; openDiagram?: string } = {},
 ): Array<{ action: ExplorerAction; label: string; danger?: boolean }> {
   const move = options.folders ? [{ action: 'move-to-folder' as const, label: 'Move to folder…' }] : [];
   const kind = folderKindOf(node);
@@ -530,6 +536,9 @@ export function actionsFor(
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
+        ...(options.openDiagram && node.iri !== options.openDiagram
+          ? [{ action: 'reference-in-view' as const, label: 'Reference in the open view' }]
+          : []),
         { action: 'rename-view', label: 'Rename…' },
         { action: 'set-viewpoint', label: 'Set viewpoint…' },
         { action: 'duplicate-view', label: 'Duplicate' },
@@ -1037,11 +1046,17 @@ export class ModelExplorer extends LitElement {
     this._emit<ExplorerActivateDetail>('explorer-activate', { iri: node.iri, kind: node.kind });
   }
 
+  /** The view on the canvas when it is a diagram: what a view's row can be referenced in. */
+  private _openDiagram(): string | undefined {
+    const open = this.activeViewIri;
+    return open && this._contents?.views.some((view) => view.iri === open && view.type === 'Diagram') ? open : undefined;
+  }
+
   private _openMenu(e: MouseEvent, node: TreeNode): void {
     e.preventDefault();
     // Right-clicked among several selected: the menu is for all of them, and they stay selected.
     const iris = this._selectedWith(node);
-    const options = { folders: hasFolders(this._contents), many: iris.length };
+    const options = { folders: hasFolders(this._contents), many: iris.length, openDiagram: this._openDiagram() };
     if (actionsFor(node, options).length === 0) return;
     if (iris.length < 2) this._select(node);
     this._menu = { x: e.clientX, y: e.clientY, node, ...(iris.length > 1 ? { iris } : {}) };
@@ -1096,9 +1111,9 @@ export class ModelExplorer extends LitElement {
         ? { iris: [node.folderIri], kind, folderIri: node.folderIri }
         : { iris: this._selectedWith(node), kind };
     }
-    // An element onto the canvas, as before: the canvas takes it if it is let go there.
-    if (node.iri && (node.kind === 'element' || node.kind === 'unclassified')) {
-      this._emit<ExplorerDragDetail>('explorer-drag-start', { iri: node.iri, sourceEvent: e });
+    // An element onto the canvas, as before, and a view — a reference to it: the canvas takes it if it is let go there.
+    if (node.iri && (node.kind === 'element' || node.kind === 'unclassified' || node.kind === 'view')) {
+      this._emit<ExplorerDragDetail>('explorer-drag-start', { iri: node.iri, kind: node.kind, sourceEvent: e });
     }
   };
 
@@ -1261,7 +1276,11 @@ export class ModelExplorer extends LitElement {
       </div>
       ${this._menu
         ? html`<div class="menu" style="left:${this._menu.x}px;top:${this._menu.y}px" role="menu">
-            ${actionsFor(this._menu.node, { folders: hasFolders(this._contents), many: this._menu.iris?.length }).map(
+            ${actionsFor(this._menu.node, {
+              folders: hasFolders(this._contents),
+              many: this._menu.iris?.length,
+              openDiagram: this._openDiagram(),
+            }).map(
               (entry) => html`<button
                 role="menuitem"
                 class=${entry.danger ? 'danger' : ''}

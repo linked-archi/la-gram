@@ -1,6 +1,6 @@
 ---
 title: Drawing on the canvas
-description: How to place, connect, rename, nest, move, arrange and delete elements on la-gram's canvas, with the context pad, the right-click menu, figures and undo.
+description: How to place, connect, rename, nest, move, arrange and delete elements on la-gram's canvas, with the context pad, the right-click menu, figures, view references and undo.
 ---
 # Drawing on the canvas
 
@@ -50,7 +50,8 @@ target.
 **Double-click** an element's box, or select it and press ++f2++, and type its name: ++enter++ keeps
 it, ++esc++ drops it, and undo brings the old one back. A relationship is named the same way on its line:
 double-click the line, or its name. A relationship's name emptied is removed. A name is typed in its own
-font, where it is drawn.
+font, where it is drawn. A [view reference](#view-references) opens its view when double-clicked: press
+++f2++ to type its text.
 
 1. Double-click "Gift wrapping".
 2. Type "Gift wrap service", and press ++enter++.
@@ -79,7 +80,8 @@ Component. Permitted: Aggregation, …*
 | *Connect* | an element: draws a relationship from it |
 | *Append element* | an element: a new or related element, connected to it |
 | *Change relationship type: Serving* | a relationship: the types permitted between its ends |
-| *Draw a line to…* | a group, a note or a shape: a line that is no relationship |
+| *Draw a line to…* | a group, a note, a shape or a view reference: a line that is no relationship |
+| *Open view* | a view reference: opens the view it references |
 | *Connect these two…* | two elements selected |
 
 1. Select "Payments".
@@ -178,7 +180,7 @@ figures draw it). Each direction is in the [order of the types](#relationship-or
 
 ## Lines from figures {#lines-from-figures}
 
-A group, a note or a shape (see [Shapes](#shapes)) has *Draw a line to…* in its pad. The line it draws,
+A group, a note, a shape (see [Shapes](#shapes)) or a view reference has *Draw a line to…* in its pad. The line it draws,
 dashed, stands for no relationship: a note's to what it is about. Its Appearance tab makes it solid or
 dotted and puts an arrowhead, a diamond or a dot at either end
 ([Line ends](appearance.md#line-ends)). Double-click it to write on it: the text sits at its middle, and
@@ -249,14 +251,52 @@ elements are; selected, the Properties tab gives their text, and their look in t
 A figure that sets no colours of its own is drawn neutral: a group light grey, a shape white, **a note
 yellow**. An ArchiMate Exchange file's groups, notes and the lines from them import as these.
 
-A **view reference** is a figure that stands for another view of the model, such as an index view's entry
-for each view it lists, or a box inside an element's for the view that details it. It comes with a file
-(Shapes does not offer it), drawn as a blue-grey box with a small view in its top left. Selected, the panel says *View reference* and the name of the view it opens.
-It holds nothing, and is moved, resized, renamed, coloured and deleted as a note is. Deleting the view it
-opens deletes it too; pasted into a model without that view, it becomes a note with its text.
-
 1. Click *Shapes* above the canvas.
 2. Drag **Rounded rectangle** onto the diagram, double-click it and type "Checkout".
+
+## View references {#view-references}
+
+A **view reference** is a figure that stands for another view of the model, such as an index view's entry
+for each view it lists, or a box inside an element's for the view that details it. It is drawn as a
+blue-grey box with a small view in its top left, and shows the name of the view it opens.
+
+| To | Do |
+|---|---|
+| make one | drag a view's row from the model tree onto the diagram; or right-click the row and choose *Reference in the open view*, which puts it in the middle of what you see |
+| put it inside an element, a group or a shape | let go of the row over it, or drag the reference into it |
+| open the view it references | double-click it, or choose *Open view* on its pad or in its right-click menu, or *Open* in the Properties tab |
+| give it text of its own | press ++f2++, or type in *Text* in the Properties tab; empty the text to show the view's name again |
+| point it at another view | choose *Change…* under *Opens* in the Properties tab, and pick the view |
+| draw a line from it or to it | its pad's *Draw a line to…*, as from a note |
+
+A new reference is 120 × 55, selected, and one step to undo. Only a diagram takes one: with a catalog or a
+matrix open, nothing is made, and the open view's own row makes nothing on its own diagram — let go there,
+la-gram says *This is the open view: drag it onto another view's diagram to reference it.* With no text of
+its own, a reference follows the view's name: renamed in the tree, in the Properties tab or by a
+collaborator, every such reference shows the new name. It is moved, resized, coloured, given a picture and
+deleted as a note is. Nothing goes inside a reference, and no relationship ends on one: a line to it or
+from it stands for no relationship, and with a relationship type picked in the palette, none is drawn.
+
+The view it opens is presented in the view holding it (`arch:inView`), from its first reference there to
+its last. Deleting the view it opens deletes the references to it too ([Delete a
+view](models-and-views.md#delete-a-view)); pasted into a model without that view, a reference becomes a
+note with its text. One whose view is not in the model opens nothing, and says *The view this reference
+opens is not in the model.*; validation reports it too. An ArchiMate Exchange file's references to its
+views, and a converted model's, are view references.
+
+Selected, the Properties tab says *View reference*, with its *Text* — the view's name greyed while it has
+none of its own — and *Opens*, the name of the view it opens, with two buttons:
+
+| Button | Does |
+|---|---|
+| *Open* | opens the view it references, as a double-click does |
+| *Change…* | lists the model's other diagrams, catalogs and matrices, by kind, to search by name; the one picked becomes the view it opens, one step to undo, its text of its own kept |
+
+1. Right-click *Who is who* in the model tree, and choose *Reference in the open view*: a box named "Who is
+   who" is drawn in the middle of the diagram, selected.
+2. Double-click it: the catalog *Who is who* opens. Press ++alt+left++ to come back.
+3. Drag the *Who is who* row from the tree onto "Payments"' empty corner, and let go: another reference to
+   it is drawn inside "Payments".
 
 ## Move, resize and bend {#move-resize-bend}
 
@@ -531,7 +571,8 @@ Right-click on the canvas for what applies to what is under the pointer.
 |---|---|
 | an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
-| a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and its other entries |
+| a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Copy IRI*, *Delete from view* |
+| a view reference | *Open view*, then what a note has ([View references](#view-references)) |
 | the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Copy view as PNG*, *Copy view as SVG*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
 | one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
 
