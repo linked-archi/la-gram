@@ -11,6 +11,7 @@
  * {ns}graph/model      the arch:Model resource and its conformance
  * {ns}graph/semantic   elements, relationships, views, membership
  * {ns}graph/views      arch-vis geometry only — droppable on its own
+ * {ns}graph/provenance how it came to be: a converter's run, la-gram's editing activities (DD-27)
  * ```
  *
  * `{ns}` is the model's namespace, `{base}{notation}/{modelId}/`, so the graph
@@ -49,6 +50,7 @@ import { readModelNamespace } from '../model-manager/model-namespace.js';
 import { ensureNamespace } from '../rdf-engine/iri.js';
 import { KIND_PREFIXES, writeTurtle } from '../rdf-engine/turtle-writer.js';
 import { IRI, nn } from '../model-manager/vocabulary.js';
+import { isProvenanceStatement, provenanceSubjects } from '../model-manager/provenance.js';
 
 /** File formats a model can be saved in. */
 export type ModelFormat = 'turtle' | 'trig' | 'n-triples' | 'n-quads' | 'json-ld' | 'rdf-xml';
@@ -85,6 +87,8 @@ export type SerializationProfile = 'full' | 'no-geometry';
 export interface SerializeOptions {
   format?: ModelFormat;
   profile?: SerializationProfile;
+  /** Whether to write the provenance (`{ns}graph/provenance`): yes unless `false` — the RDF panel's switch. */
+  provenance?: boolean;
   /** Extra prefixes on top of the derived ones. */
   prefixes?: PrefixMap;
   /**
@@ -99,12 +103,18 @@ export interface ModelPartition {
   model: Quad[];
   semantic: Quad[];
   views: Quad[];
+  provenance: Quad[];
 }
 
 /** Graph IRIs of the partition, in a model's namespace. */
-export function partitionGraphs(namespace: string): { model: string; semantic: string; views: string } {
+export function partitionGraphs(namespace: string): { model: string; semantic: string; views: string; provenance: string } {
   const ns = ensureNamespace(namespace);
-  return { model: `${ns}graph/model`, semantic: `${ns}graph/semantic`, views: `${ns}graph/views` };
+  return {
+    model: `${ns}graph/model`,
+    semantic: `${ns}graph/semantic`,
+    views: `${ns}graph/views`,
+    provenance: `${ns}graph/provenance`,
+  };
 }
 
 /**
@@ -114,6 +124,11 @@ export function partitionGraphs(namespace: string): { model: string; semantic: s
  * of their point lists (typed nothing, found by walking from `arch-vis:points`).
  * The line falls around geometry, not around views: an `arch:View` is a model
  * concept and stays in the semantic graph.
+ *
+ * Provenance is every PROV statement and every statement about a resource a PROV
+ * class types — an activity, an agent, a source entity, a bundle (DD-27): a
+ * converter's run, la-gram's editing activities, a derivation's activity. A
+ * concept's `dcterms:created` and `dcterms:modified` describe it, and stay with it.
  */
 export function partitionModel(quads: Quad[], modelIri: string | undefined): ModelPartition {
   const geometry = new Set<string>();
@@ -136,9 +151,11 @@ export function partitionModel(quads: Quad[], modelIri: string | undefined): Mod
     }
   }
 
-  const partition: ModelPartition = { model: [], semantic: [], views: [] };
+  const provenance = provenanceSubjects(quads);
+  const partition: ModelPartition = { model: [], semantic: [], views: [], provenance: [] };
   for (const q of quads) {
     if (geometry.has(q.subject.value)) partition.views.push(q);
+    else if (isProvenanceStatement(q, provenance)) partition.provenance.push(q);
     else if (modelIri && q.subject.value === modelIri) partition.model.push(q);
     else partition.semantic.push(q);
   }
@@ -208,9 +225,15 @@ export class ModelIO {
     const format = formatInfo(options.format ?? 'turtle');
     const partition = partitionModel(options.quads ?? this.modelQuads(), modelIri);
     if (options.profile === 'no-geometry') partition.views = [];
+    if (options.provenance === false) partition.provenance = [];
 
     if (!format.graphs || !modelIri) {
-      return this.write([...partition.model, ...partition.semantic, ...partition.views], format, modelIri, options.prefixes);
+      return this.write(
+        [...partition.model, ...partition.semantic, ...partition.views, ...partition.provenance],
+        format,
+        modelIri,
+        options.prefixes,
+      );
     }
     const graphs = partitionGraphs(readModelNamespace(this.store, modelIri).namespace);
     const regraph = (quads: Quad[], graph: string) =>
@@ -220,6 +243,7 @@ export class ModelIO {
         ...regraph(partition.model, graphs.model),
         ...regraph(partition.semantic, graphs.semantic),
         ...regraph(partition.views, graphs.views),
+        ...regraph(partition.provenance, graphs.provenance),
       ],
       format,
       modelIri,

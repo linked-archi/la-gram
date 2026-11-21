@@ -12,7 +12,8 @@ import { mountUi, type MountedUi } from '../../ui/mount-ui.js';
 import type { Dialogs, FormField, FormOptions, FormValues } from '../../ui/dialogs.js';
 import { installJsdomSvgSupport } from '../../ui/__tests__/jsdom-svg-support.js';
 import { startGitStorage, type GitStorage } from '../module.js';
-import { fromBase64 } from '../providers/provider.js';
+import { fromBase64, type RestProvider } from '../providers/provider.js';
+import { parseRepositoryLink } from '../link.js';
 import { fakeHost } from './fake-host.js';
 import { MemoryStorage } from './memory-storage.js';
 
@@ -27,6 +28,7 @@ let git: GitStorage;
 const forms: Array<FormValues | null> = [];
 const prompts: Array<string | null> = [];
 const host = fakeHost([
+  { method: 'GET', url: 'https://api.github.com/user', body: { html_url: 'https://github.com/ada', login: 'ada', name: 'Ada', email: null } },
   { method: 'GET', url: GH, body: { default_branch: 'main' } },
   { method: 'GET', url: /\/contents\/models\/.*\?ref=main$/, status: 404, body: { message: 'Not Found' } },
   { method: 'PUT', url: /\/contents\/models\//, status: 201, body: { content: { sha: 'blob1' }, commit: { sha: 'abc1234def', html_url: 'https://github.com/acme/arch/commit/abc1234def' } } },
@@ -114,6 +116,43 @@ describe('the Git module in the File menu', () => {
     expect(text).toContain('Shop Floor');
     expect(text).not.toContain(TOKEN);
     expect(app.isDirty()).toBe(false);
+  });
+
+  it('the account the token acts for: read once, the one edits name; commits written by You (Req 9.16, 18.29)', async () => {
+    await vi.waitFor(() => expect(app.gitAccount).toEqual({ url: 'https://github.com/ada', username: 'ada', name: 'Ada' }));
+    expect(host.calls.filter((c) => c.url === 'https://api.github.com/user')).toHaveLength(1);
+    expect(app.currentEditor()?.account).toEqual({ url: 'https://github.com/ada', username: 'ada' });
+    // Nobody in You: the commit is the token owner's.
+    expect(host.calls.find((c) => c.method === 'PUT')!.body).not.toHaveProperty('author');
+    const before = app.editor;
+    try {
+      app.editor = { name: 'Ada Lovelace', email: 'ada@example.org' };
+      const provider = git.context.provider(parseRepositoryLink('https://github.com/acme/arch'), TOKEN) as RestProvider;
+      expect(provider.commitAuthor?.()).toEqual({ name: 'Ada Lovelace', email: 'ada@example.org' });
+      expect(host.calls.filter((c) => c.url === 'https://api.github.com/user')).toHaveLength(1);
+    } finally {
+      app.editor = before;
+    }
+  });
+
+  it('Model settings shows where the model is kept in Git, and the account its edits name, to copy (Req 18.30)', async () => {
+    forms.push(null);
+    await ui.runCommand({ command: 'model-settings' });
+    const [title, fields] = vi.mocked(ui.dialogs.form).mock.calls.at(-1)!;
+    expect(title).toBe('Model settings');
+    const git = fields.slice(fields.findIndex((f) => f.name === 'git'));
+    expect(git.map((f) => [f.label, f.value ?? null, f.readOnly ?? false])).toEqual([
+      ['Git', null, false],
+      ['Address', 'https://github.com/acme/arch/blob/main/models/shop-floor.ttl', true],
+      ['Your Git account', 'ada · https://github.com/ada', true],
+    ]);
+    expect(git.map((f) => f.hint)).toEqual([
+      'Kept in acme/arch, on branch main.',
+      'The file models/shop-floor.ttl, last read or written at commit abc1234d. File › Open from Git… opens it from this address.',
+      'Recorded with your edits, beside your name from File › Settings… › You.',
+    ]);
+    // The address is what Open from Git… reads back as the same file.
+    expect(parseRepositoryLink(String(git[1].value))).toMatchObject({ repository: 'acme/arch', branch: 'main', path: 'models/shop-floor.ttl' });
   });
 
   it('bound now: Save to Git names where, and Save to Git as…, Update from main… and Open merge request… are offered', () => {
@@ -244,9 +283,13 @@ describe('the Git module in the File menu', () => {
     await ui.runCommand({ command: 'settings' });
     const [title, fields] = vi.mocked(ui.dialogs.form).mock.calls.at(-1)!;
     expect(title).toBe('Settings');
-    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'Git storage']);
+    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'You', 'Git storage']);
     expect(fields.map((f) => f.name)).toContain('git.forget:github.com');
-    expect(JSON.parse(storage.getItem('la-gram:settings')!)).toEqual({ git: { folder: 'architecture', message: 'arch: {action} {model}', rememberByDefault: false } });
+    expect(JSON.parse(storage.getItem('la-gram:settings')!)).toEqual({
+      git: { folder: 'architecture', message: 'arch: {action} {model}', rememberByDefault: false },
+      // The account the host reported: not a secret, kept with the settings, not with the tokens.
+      'git-accounts': { accounts: { 'github.com': { url: 'https://github.com/ada', username: 'ada', name: 'Ada' } }, last: 'github.com' },
+    });
     expect(await git.context.tokens.get('github.com')).toBeUndefined();
 
     forms.push(null);
@@ -261,7 +304,7 @@ describe('the Git module in the File menu', () => {
     forms.push({ 'modules.git': false });
     await ui.runCommand({ command: 'settings' });
     const fields = vi.mocked(ui.dialogs.form).mock.calls.at(-1)![1];
-    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'Git storage', 'Modules']);
+    expect(fields.filter((f) => f.type === 'section').map((f) => f.label)).toEqual(['Metamodels', 'You', 'Git storage', 'Modules']);
     expect(toggle).toHaveBeenCalledWith('git', false);
   });
 
@@ -331,5 +374,9 @@ describe('the Git module in the File menu', () => {
     expect(app.isDirty()).toBe(true);
     expect(entries()).toEqual([]);
     expect(ui.historyPanel.git).toBeUndefined();
+    // Nor does Model settings show a Git part.
+    forms.push(null);
+    await ui.runCommand({ command: 'model-settings' });
+    expect(vi.mocked(ui.dialogs.form).mock.calls.at(-1)![1].map((f) => f.name)).toEqual(['label', 'namespace', 'prefix', 'rename']);
   });
 });

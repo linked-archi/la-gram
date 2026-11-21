@@ -210,18 +210,26 @@ container-image:
   cache: []
 
 # The web app, as app.linked.archi/la-gram/ serves it: every request, so a merge
-# request that breaks the production build fails here.
+# request that breaks the production build fails here. On the default branch, the
+# alpha (alpha-deploy): built for its channel, which keeps its browser storage
+# apart from the release's (src/storage-scope.ts) and gives its version's page
+# the alpha's app and the commit it was built from (scripts/version-page.mjs).
 web:
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^la-gram-git-v/
       when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        LA_GRAM_CHANNEL: alpha
     - when: on_success
   script:
     - *la-gram-version
     - npm ci --prefer-offline
     - npm run build:web
     - test -f dist/web/index.html && test -f dist/web/favicon.svg && ls dist/web/*.wasm
+    # This version's page: the IRI the edits it records name as their agent (scripts/version-page.mjs).
+    - test -f "dist/web/v$VERSION/index.html"
     # The version, for the Releases page (its fields take variables, not shell).
     - echo "VERSION=$VERSION" > version.env
   artifacts:
@@ -401,7 +409,53 @@ web-deploy:
       done
     - (cd dist/web/downloads && sha256sum la-gram-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
     - echo "Deploying to $DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH"
-    - rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
+    # Every earlier version's page stays (P: protected from --delete): models name the version they were
+    # edited with, by its page's address.
+    - rsync -az --delete --filter='P /v[0-9]*/' --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
+
+# The alpha: the default branch's la-gram, while package.json says a pre-release
+# (0.3.0-alpha), at app.linked.archi/la-gram-alpha/ beside the release — the app
+# and its documentation into LA_GRAM_DEPLOY_PATH-alpha, files no longer built taken
+# away, on every merge. Its version's page goes beside the released versions' pages
+# (/la-gram/v0.3.0-alpha/), which web-deploy keeps: the edits made in the alpha name
+# it. Once package.json says a release (0.3.0), it deploys nothing until the next
+# pre-release. One deploy at a time with web-deploy (resource_group).
+#
+# CI/CD variables: web-deploy's four, each also scoped to the environment alpha
+# (README.md, "Releasing la-gram"); the folder is LA_GRAM_DEPLOY_PATH's, with -alpha.
+alpha-deploy:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  interruptible: false
+  cache: []
+  needs:
+    - job: web # the alpha's build, and VERSION
+      artifacts: true
+    - job: docs
+      artifacts: true
+  image: alpine:3.22
+  resource_group: app-linked-archi
+  environment:
+    name: alpha
+    url: https://app.linked.archi/la-gram-alpha/
+  script:
+    - |
+      case "$VERSION" in
+        *-*) ;;
+        *) echo "package.json says $VERSION, a release: no alpha to deploy."; exit 0 ;;
+      esac
+    - test -n "$LA_GRAM_DEPLOY_PATH"
+    # Both or neither, and the version's page: rsync --delete would take away whichever one is missing.
+    - test -f dist/web/index.html && test -f dist/web/docs/index.html && test -f "dist/web/v$VERSION/index.html"
+    - apk add --no-cache openssh-client rsync
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - cp "$DEPLOY_SSH_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan -t ed25519,ecdsa,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+    - echo "Deploying the alpha to $DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH-alpha"
+    # The app and its documentation; its version's page not here, but beside the released versions'.
+    - rsync -az --delete --exclude='/v[0-9]*/' --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH-alpha/"
+    - rsync -az --chmod=D755,F644 "dist/web/v$VERSION/" "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/v$VERSION/"
 
 # The Releases page: the version, the desktop apps from the package registry,
 # and the web app.

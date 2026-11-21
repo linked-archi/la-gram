@@ -1778,6 +1778,60 @@ describe('the workbench', () => {
     for (const view of [second, third]) app.session.deleteView(view);
   });
 
+  it('File › Settings… › You: the name and email recorded with your edits, kept on this machine (Req 9.16)', async () => {
+    const before = app.editor;
+    try {
+      script.forms.push({ 'you.name': '  Ada Lovelace ', 'you.email': 'ada@example.com' });
+      await ui.runCommand({ command: 'settings' });
+      const fields = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(fields.filter((f) => f.name.startsWith('you.')).map((f) => [f.label, f.value])).toEqual([
+        ['Name', ''],
+        ['Email', ''],
+        ['Git account', 'None yet'],
+        ['Record my Git account with my edits', true],
+      ]);
+      expect(fields.find((f) => f.name === 'you.account')?.readOnly).toBe(true);
+      expect(app.editor).toEqual({ name: 'Ada Lovelace', email: 'ada@example.com' });
+      // Asked again: as kept. Emptied: nobody, and the collaboration name is used in a room.
+      script.forms.push({ 'you.name': '', 'you.email': '' });
+      await ui.runCommand({ command: 'settings' });
+      const again = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(again.filter((f) => f.name.startsWith('you.')).map((f) => f.value).slice(0, 2)).toEqual(['Ada Lovelace', 'ada@example.com']);
+      expect(app.editor).toBeUndefined();
+      // Not an address: the dialog refuses it, and nothing is kept.
+      script.forms.push({ 'you.email': 'ada' });
+      await ui.runCommand({ command: 'settings' });
+      expect(app.editor).toBeUndefined();
+    } finally {
+      app.editor = before;
+    }
+  });
+
+  it('File › Settings… › You: the Git account the host reported — shown, its name standing in for none, recorded unless unticked (Req 9.16, 18.29)', async () => {
+    const before = { editor: app.editor, account: app.gitAccount, record: app.recordGitAccount };
+    try {
+      app.editor = undefined;
+      app.gitAccount = { url: 'https://gitlab.com/ada', username: 'ada', name: 'Ada Lovelace' };
+      script.forms.push({});
+      await ui.runCommand({ command: 'settings' });
+      const fields = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(fields.find((f) => f.name === 'you.account')?.value).toBe('ada · https://gitlab.com/ada');
+      expect(fields.find((f) => f.name === 'you.name')?.hint).toContain('Ada Lovelace');
+      expect(app.currentEditor()).toEqual({ name: 'Ada Lovelace', account: { url: 'https://gitlab.com/ada', username: 'ada' } });
+      // Unticked: the account is not recorded; its name still stands in for none given.
+      script.forms.push({ 'you.recordAccount': false });
+      await ui.runCommand({ command: 'settings' });
+      expect(app.currentEditor()).toEqual({ name: 'Ada Lovelace' });
+      script.forms.push({ 'you.recordAccount': true });
+      await ui.runCommand({ command: 'settings' });
+      expect(app.recordGitAccount).toBe(true);
+    } finally {
+      app.editor = before.editor;
+      app.gitAccount = before.account;
+      app.recordGitAccount = before.record;
+    }
+  });
+
   it('offers in the Metamodels menu the catalogue\u2019s entries Settings leaves there, and keeps the choice', async () => {
     {
       const AM3 = 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2';

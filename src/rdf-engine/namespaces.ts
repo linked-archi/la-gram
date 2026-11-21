@@ -19,6 +19,11 @@ export const NAMESPACES = {
   xsd: 'http://www.w3.org/2001/XMLSchema#',
   prov: 'http://www.w3.org/ns/prov#',
   vann: 'http://purl.org/vocab/vann/',
+  /**
+   * schema.org as la-gram and the converters write it, `https:`: a folder's name and entries, a picture, the
+   * provenance of edits (la-gram, a person). The `http:` form is read too where it matters (folders).
+   */
+  schema: 'https://schema.org/',
 } as const;
 
 /** Prefix-to-namespace map (same data, typed for use with N3.js / serializers). */

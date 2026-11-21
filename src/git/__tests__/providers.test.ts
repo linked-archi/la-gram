@@ -457,3 +457,39 @@ describe('listing a branch’s files and the branches (Open from Git)', () => {
     expect(await provider.listBranches()).toEqual(['main']);
   });
 });
+
+describe('who a commit is written by, and whose the token is (Req 18.29)', () => {
+  const GL_COMMIT = { method: 'POST', url: `${GL}/repository/commits`, status: 201, body: { id: 'c1', web_url: 'x' } };
+  const GH_PUT = { method: 'PUT', url: `${GH}/contents/a.ttl`, status: 201, body: { content: { sha: 'b1' }, commit: { sha: 'c1', html_url: 'x' } } };
+
+  it('GitLab: the author’s name and address, from the change or else the provider’s author; none, the token’s owner', async () => {
+    const host = fakeHost([GL_COMMIT, GL_COMMIT, GL_COMMIT]);
+    const provider = new GitLabProvider(gitlab, TOKEN, host.fetch);
+    await provider.commitFile({ branch: 'main', path: 'a.ttl', text: TEXT, message: 'm' });
+    provider.commitAuthor = () => ({ name: 'Ada Lovelace' });
+    await provider.commitFile({ branch: 'main', path: 'a.ttl', text: TEXT, message: 'm' });
+    await provider.commitFile({ branch: 'main', path: 'a.ttl', text: TEXT, message: 'm', author: { name: 'Grace', email: 'grace@example.org' } });
+    expect(host.calls[0].body).not.toHaveProperty('author_name');
+    expect(host.calls[1].body).toMatchObject({ author_name: 'Ada Lovelace' });
+    expect(host.calls[1].body).not.toHaveProperty('author_email');
+    expect(host.calls[2].body).toMatchObject({ author_name: 'Grace', author_email: 'grace@example.org' });
+  });
+
+  it('GitHub: an author only with a name and an address — GitHub refuses one without either', async () => {
+    const host = fakeHost([GH_PUT, GH_PUT]);
+    const provider = new GitHubProvider(github, TOKEN, host.fetch);
+    provider.commitAuthor = () => ({ name: 'Ada Lovelace' });
+    await provider.commitFile({ branch: 'main', path: 'a.ttl', text: TEXT, message: 'm' });
+    provider.commitAuthor = () => ({ name: 'Ada Lovelace', email: 'ada@example.org' });
+    await provider.commitFile({ branch: 'main', path: 'a.ttl', text: TEXT, message: 'm' });
+    expect(host.calls[0].body).not.toHaveProperty('author');
+    expect(host.calls[1].body?.['author']).toEqual({ name: 'Ada Lovelace', email: 'ada@example.org' });
+  });
+
+  it('the account the token acts for: its page, username, name and public address; what it leaves blank, left out', async () => {
+    const lab = fakeHost([{ method: 'GET', url: 'https://gitlab.com/api/v4/user', body: { web_url: 'https://gitlab.com/ada', username: 'ada', name: 'Ada Lovelace', public_email: '' } }]);
+    expect(await new GitLabProvider(gitlab, TOKEN, lab.fetch).currentAccount()).toEqual({ url: 'https://gitlab.com/ada', username: 'ada', name: 'Ada Lovelace' });
+    const hub = fakeHost([{ method: 'GET', url: 'https://api.github.com/user', body: { html_url: 'https://github.com/ada', login: 'ada', name: null, email: 'ada@example.org' } }]);
+    expect(await new GitHubProvider(github, TOKEN, hub.fetch).currentAccount()).toEqual({ url: 'https://github.com/ada', username: 'ada', email: 'ada@example.org' });
+  });
+});

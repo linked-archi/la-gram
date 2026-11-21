@@ -156,7 +156,8 @@ https://app.linked.archi/la-gram/?room=acme-review&ws=wss://collab.example.org
 ## `user` {#user}
 
 The name others in the room see beside your presence avatar. It is also the author of the History
-checkpoints you save while in the room.
+checkpoints you save while in the room, and the name recorded with your edits, when
+[*File › Settings… › You*](../guide/settings.md#you-tab) gives none and no Git account is known.
 
 - **Default:** `Guest` and a random number from 100 to 999, such as `Guest 482`, new at each load.
 - Write a space as `%20`.

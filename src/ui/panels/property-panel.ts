@@ -48,6 +48,7 @@ import { contextNamesOf } from '../../model-manager/context-names.js';
 import { picturesOf } from '../../model-manager/element-pictures.js';
 import { fieldName, type NameOf } from '../../model-manager/field-names.js';
 import { isQualifiedPredicate } from '../../model-manager/cascade.js';
+import { provenanceOf, type ConceptProvenance } from '../../model-manager/provenance.js';
 import './named-picker.js';
 import './property-picker.js';
 import type { NamedOption, NamedPicker, TypedOption } from './named-picker.js';
@@ -745,6 +746,10 @@ export class PropertyPanel extends LitElement {
       margin-left: 2px;
     }
 
+    .property-value.provenance {
+      color: #5f6368;
+      white-space: normal;
+    }
     .property-value {
       width: 100%;
       box-sizing: border-box;
@@ -1530,6 +1535,10 @@ export class PropertyPanel extends LitElement {
   @state()
   private _entries: PropertyEntry[] = [];
 
+  /** Its provenance, shown read-only on the information tab (Req 9.16). */
+  @state()
+  private _provenance: ConceptProvenance = { other: [] };
+
   override willUpdate(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has('selectedIri')) this._shownIris = new Set();
     // Another selection, or another presentation: the Label and Image tabs edit what is in force for it, not the last
@@ -1560,6 +1569,7 @@ export class PropertyPanel extends LitElement {
   private _loadProperties(): void {
     if (!this.selectedIri || !this.rdfStore) {
       this._entries = [];
+      this._provenance = { other: [] };
       return;
     }
 
@@ -1580,7 +1590,9 @@ export class PropertyPanel extends LitElement {
       if (!qualified.has(predicate)) qualified.set(predicate, isQualifiedPredicate(store, predicate));
       return qualified.get(predicate)! || store.getQuads(q.object as NamedNode, sourceOf, subjectNode).length > 0;
     };
-    const quads = store.getQuads(subjectNode).filter((q) => !isPointer(q));
+    // Provenance is recorded, not edited: shown apart, read-only (Req 9.16).
+    const quads = store.getQuads(subjectNode).filter((q) => !isPointer(q) && !q.predicate.value.startsWith(NAMESPACES.prov));
+    this._provenance = provenanceOf(store, this.selectedIri);
 
     // Determine the element's rdf:type for SHACL shape lookup
     const typeQuad = quads.find((q) => q.predicate.value === RDF_TYPE);
@@ -2859,6 +2871,35 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
+  /**
+   * The provenance, read-only: when the concept was last changed, by whom and with which tool; and its other
+   * PROV statements, as a converter's source. Recorded by la-gram and the converters, never edited here.
+   */
+  private _renderProvenance() {
+    const { changed, other } = this._provenance ?? { other: [] };
+    if (!changed && other.length === 0) return nothing;
+    const when = (at: string) => {
+      const date = new Date(at);
+      return Number.isNaN(date.getTime()) ? at : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+    };
+    return html`${changed
+      ? html`<li class="property-row provenance-row">
+          <div class="property-label"><span class="field-name" title="Recorded by la-gram as it is edited">Last changed</span></div>
+          <span class="property-value provenance" data-provenance="changed"
+            >${[when(changed.at), changed.by ? `by ${changed.by}` : '', changed.tool ? `with ${changed.tool}` : '']
+              .filter(Boolean)
+              .join(' · ')}</span
+          >
+        </li>`
+      : nothing}
+    ${other.map(
+      (o) => html`<li class="property-row provenance-row">
+        <div class="property-label"><span class="field-name">${fieldName(o.predicate)}</span></div>
+        <span class="property-value provenance" data-provenance=${o.predicate}>${this.nameOf?.(o.value) ?? o.value}</span>
+      </li>`,
+    )}`;
+  }
+
   private _renderEntry(entry: PropertyEntry) {
     const rowClass = 'property-row';
 
@@ -3021,7 +3062,7 @@ export class PropertyPanel extends LitElement {
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
-                ${this._renderContextNames()} ${this._renderContextPictures()}
+                ${this._renderContextNames()} ${this._renderContextPictures()} ${this._renderProvenance()}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0

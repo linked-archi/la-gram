@@ -1,6 +1,6 @@
 ---
 title: Settings
-description: la-gram's personal settings, under File › Settings…, with which metamodels the menu offers, which modules are on, and Git storage's defaults and tokens.
+description: la-gram's personal settings, under File › Settings…, with which metamodels the menu offers, the name recorded with your edits, which modules are on, and Git storage's defaults and tokens.
 ---
 # Settings
 
@@ -16,6 +16,7 @@ What the deployment sets is shown, not offered for change.* It has a tab for eac
 | Tab | Shown |
 |---|---|
 | *Metamodels* | always |
+| *You* | always |
 | *Git storage* | while Git storage is on |
 | *Modules* | when there is a module to switch |
 
@@ -38,6 +39,27 @@ entries hidden, so a metamodel the catalogue gains later is offered.
 1. Choose *Metamodels › Choose which to show…*.
 2. Under *Extensions*, choose *None*, and *Apply*. The menu has no *Extensions* section, and
    *Choose which to show…* says how many are hidden.
+
+## You tab {#you-tab}
+
+*Recorded with your edits, in the model you save — who changed a concept, and when — and as the author of
+your commits and checkpoints. Kept on this machine. Without a name, your Git account's is recorded, else
+your collaboration name in a shared room.* What la-gram records is in
+[Last changed](properties.md#last-changed).
+
+| Field | Value | Default |
+|---|---|---|
+| *Name* | as others should see it, written into the model as the user's `schema:name`, and the author of your commits and checkpoints: `Ada Lovelace` | **empty**: your Git account's name, else your collaboration name in a shared room, else nobody but la-gram |
+| *Email* | optional, written into the model with the name (`schema:email`) and the author's address of your commits; one address is one user, whatever its case | **empty** |
+| *Git account* | read-only, to copy: the account your token acts for on the open model's Git host, its username and page, `ada · https://gitlab.com/ada`; la-gram reads it from GitLab or GitHub when you open or save a model there with a token ([Git storage](git.md#who-commits)). [*Model settings*](models-and-views.md#model-settings-git) shows it too, beside the model's address in Git | **None yet** |
+| *Record my Git account with my edits* | the account's page and username written into the model with your name: one person is then one user in every model, on every machine | **ticked** |
+
+A change applies to the next edit after the model is opened or saved. An email that is not an address is
+refused: *The email address is not one.*
+
+1. Choose *File › Settings…*, and *You*.
+2. Type `Ada Lovelace` in *Name*, and choose *Apply*.
+3. Rename an element: its *Last changed* says *by Ada Lovelace*.
 
 ## Modules tab {#modules-tab}
 

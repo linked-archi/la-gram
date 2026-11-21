@@ -2,8 +2,9 @@
  * Two versions of the model, compared by element (`model-diff.ts`): a row per
  * concept added, removed or changed — its name, type and, for a relationship,
  * its ends — and under it what changed: values old → new, values added and
- * removed, a view's shapes placed, moved, rerouted. A click on a concept's name
- * asks the host to show it (`diff-select`).
+ * removed, a view's shapes placed, moved, rerouted — and who made the change and
+ * when, where the later version records it. A click on a concept's name asks the
+ * host to show it (`diff-select`).
  *
  * The words are `model-diff-text.ts`'s, as a merge request's description has
  * them.
@@ -12,7 +13,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { ModelDiff } from '../../model-manager/model-diff.js';
-import { conceptName, countsText, detailLines, endsText, shownType, type DiffWords } from '../../model-manager/model-diff-text.js';
+import { conceptName, countsText, detailLines, editText, endsText, shownType, type DiffWords } from '../../model-manager/model-diff-text.js';
 
 /** Concepts shown at most; the rest are counted. */
 export const MAX_DIFF_CONCEPTS = 300;
@@ -80,8 +81,13 @@ export class ModelDiffView extends LitElement {
       cursor: default;
     }
     .type,
-    .ends {
+    .ends,
+    .edit {
       color: #5f6368;
+    }
+    .edit {
+      margin-left: auto;
+      font-size: 12px;
     }
     ul.details {
       margin-left: 1.6em;
@@ -124,6 +130,8 @@ export class ModelDiffView extends LitElement {
           const named = Boolean(diff.about[change.subject]?.name);
           const ends = endsText(diff, change, words);
           const details = detailLines(diff, change, words);
+          const edit = editText(change, (iso) => new Date(iso).toLocaleString());
+          const recorded = change.edit;
           return html`<li class="change ${change.status}" data-subject=${change.subject} data-kind=${change.kind}>
             <div class="head">
               <span class="sign" aria-label=${change.status}>${change.status === 'added' ? '+' : change.status === 'removed' ? '−' : '~'}</span>
@@ -132,6 +140,9 @@ export class ModelDiffView extends LitElement {
               </button>
               ${type && named ? html`<span class="type">${words.typeName(type)}</span>` : nothing}
               ${ends ? html`<span class="ends">${ends}</span>` : nothing}
+              ${edit
+                ? html`<span class="edit" data-edit title=${[recorded?.account, recorded?.tool && `with ${recorded.tool}`].filter(Boolean).join(' · ')}>${edit}</span>`
+                : nothing}
             </div>
             ${details.length > 0
               ? html`<ul class="details">

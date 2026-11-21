@@ -60,6 +60,7 @@ import {
 } from '../model-manager/folders.js';
 import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
 import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
+import { accountText } from '../model-manager/provenance.js';
 import { fromTextField } from './canvas/canvas-clipboard.js';
 import {
   arrangeSettings,
@@ -282,6 +283,12 @@ export interface MountedUi {
    * it is. Returns what takes it away.
    */
   addNamespaceCheck(check: (move: NamespaceMoveRequest) => Promise<boolean>): () => void;
+  /**
+   * What a module shows of the model in Model settings, after its name and namespace — Git, where the model is
+   * kept and the account its edits are recorded under (Req 18.30): read-only fields, asked for each time the
+   * dialog opens; nothing a module gives is applied. Returns what takes them away.
+   */
+  addModelSettingsInfo(fields: (modelIri: string) => FormField[]): () => void;
   /**
    * A module's tab in the bottom panel, after la-gram's own: `element` is shown
    * in it. Returns what shows it, sets its badge, and takes it away.
@@ -691,7 +698,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (scope === 'model') {
       const contents = modelContents();
       return {
-        text: app.saveModel(format, profile).text,
+        text: app.saveModel(format, profile, { provenance: request.provenance }).text,
         stats: {
           elements: contents.elements.length + contents.unclassified.length,
           relationships: contents.relationships.length,
@@ -704,9 +711,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     const iris = scope === 'view' ? (viewIri ? [viewIri] : []) : selectedIris;
     if (iris.length === 0) return { text: '' };
     const all = scope === 'view' ? viewStatements(store, iris[0]!) : conceptStatements(store, iris, viewIri);
-    // Without geometry, what Save would leave out is left out here too — and from the count.
-    const geometry = profile === 'no-geometry' ? new Set(partitionModel(all, session.modelIri).views) : undefined;
-    const quads = geometry ? all.filter((q) => !geometry.has(q)) : all;
+    // Without geometry, what Save would leave out is left out here too — and from the count; without
+    // provenance, the provenance.
+    const parts = partitionModel(all, session.modelIri);
+    const left = new Set([...(profile === 'no-geometry' ? parts.views : []), ...(request.provenance === false ? parts.provenance : [])]);
+    const quads = left.size > 0 ? all.filter((q) => !left.has(q)) : all;
     const contents = modelContents();
     const subjects = new Set(quads.map((q) => q.subject.value));
     const count = (list: Array<{ iri: string }>) => list.filter((c) => subjects.has(c.iri)).length;
@@ -2063,7 +2072,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (!modelIri) return;
     const { message } = (e as CustomEvent<HistoryCommitDetail>).detail;
     try {
-      await versionHistory.commit(modelIri, message, app.collaborationUser);
+      await versionHistory.commit(modelIri, message, app.currentEditor()?.name);
       dialogs.toast('Checkpoint saved');
     } catch (err: unknown) {
       report(`The checkpoint could not be saved: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -2081,7 +2090,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       { confirmLabel: 'Restore', ...(app.collaborationRoom ? { details: [`It is restored for everyone in room "${app.collaborationRoom}".`] } : {}) },
     );
     if (!go) return;
-    if (!diagramCanvas.recordChange(versionHistory.restorer(commit))) {
+    // A version restored is that version, its stamps with it: no edit to record.
+    const restore = versionHistory.restorer(commit);
+    if (!diagramCanvas.recordChange(() => app.withoutStamps(restore))) {
       eventBus.emit('model-changed', { origin: 'history' });
     }
     eventBus.emit('views-changed', {});
@@ -2561,7 +2572,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const onRdfDownload = (e: Event): void => {
     const request = (e as CustomEvent<RdfDownloadDetail>).detail;
     // The whole model downloads as Save writes it; a view or a concept as the panel shows it.
-    if (request.scope === 'model') return save(request.format, request.profile);
+    if (request.scope === 'model') return save(request.format, request.profile, { provenance: request.provenance });
     const content = rdfContent(request);
     if (content.text && content.fileName) void saveFile(content.text, content.fileName, content.mediaType ?? 'text/plain');
   };
@@ -2689,6 +2700,14 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     };
   };
 
+  const modelSettingsInfo = new Set<(modelIri: string) => FormField[]>();
+  const addModelSettingsInfo = (fields: (modelIri: string) => FormField[]): (() => void) => {
+    modelSettingsInfo.add(fields);
+    return () => {
+      modelSettingsInfo.delete(fields);
+    };
+  };
+
   const addSettingsSection = (section: SettingsSection): (() => void) => {
     settingsSections.set(section.id, section);
     updateSettingsMenu();
@@ -2787,6 +2806,69 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     },
   });
 
+  // ── File › Settings… › You: who is recorded with your edits and your commits (Req 9.16, 18.29) ──
+  const editorSettings = (): { name?: string; email?: string; recordAccount: boolean } => {
+    const kept = personalSettings.get<{ name: unknown; email: unknown; recordAccount: unknown }>('you');
+    return {
+      ...(typeof kept.name === 'string' && kept.name.trim() ? { name: kept.name.trim() } : {}),
+      ...(typeof kept.email === 'string' && kept.email.trim() ? { email: kept.email.trim() } : {}),
+      recordAccount: kept.recordAccount !== false,
+    };
+  };
+  const applyEditor = (): void => {
+    const { recordAccount, ...you } = editorSettings();
+    app.editor = you.name || you.email ? you : undefined;
+    app.recordGitAccount = recordAccount;
+  };
+  applyEditor();
+  addSettingsSection({
+    id: 'you',
+    title: 'You',
+    detail:
+      'Recorded with your edits, in the model you save — who changed a concept, and when — and as the author of ' +
+      'your commits and checkpoints. Kept on this machine. Without a name, your Git account’s is recorded, else ' +
+      'your collaboration name in a shared room.',
+    fields: () => {
+      const you = editorSettings();
+      const account = app.gitAccount;
+      return [
+        {
+          name: 'name',
+          label: 'Name',
+          value: you.name ?? '',
+          hint: account?.name ? `As others should see it; empty, your Git account’s: ${account.name}` : 'As others should see it: Ada Lovelace',
+        },
+        { name: 'email', label: 'Email', value: you.email ?? '', hint: 'Optional: written into the model with your name, and the author’s address of your commits' },
+        {
+          name: 'account',
+          label: 'Git account',
+          value: account ? accountText(account) : 'None yet',
+          readOnly: true,
+          hint: 'Read from GitLab or GitHub with the token you give la-gram, when you open or save a model there',
+        },
+        {
+          name: 'recordAccount',
+          label: 'Record my Git account with my edits',
+          type: 'checkbox',
+          value: you.recordAccount,
+          hint: 'Its page and username: one person is then one user in every model, on every machine',
+        },
+      ];
+    },
+    validate: (values) => {
+      const email = String(values['email'] ?? '').trim();
+      return email && !/^[^\s@]+@[^\s@]+$/.test(email) ? 'The email address is not one.' : null;
+    },
+    apply: (values) => {
+      personalSettings.set('you', {
+        name: String(values['name'] ?? '').trim(),
+        email: String(values['email'] ?? '').trim(),
+        ...(values['recordAccount'] === false ? { recordAccount: false } : {}),
+      });
+      applyEditor();
+    },
+  });
+
   // ── Toolbar commands ─────────────────────────────────────────────────
   const onToolbarCommand = (e: Event): void => {
     void runCommand((e as CustomEvent<ToolbarCommandDetail>).detail);
@@ -2822,8 +2904,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       current ?? '',
     );
 
-  const save = (format: ModelFormat, profile: SerializationProfile = 'full'): void => {
-    const saved = app.saveModel(format, profile);
+  const save = (format: ModelFormat, profile: SerializationProfile = 'full', options: { provenance?: boolean } = {}): void => {
+    const saved = app.saveModel(format, profile, options);
     void Promise.resolve(saveFile(saved.text, saved.fileName, saved.mediaType)).then(() => {
       eventBus.emit('model-saved', { fileName: saved.fileName });
       refreshToolbar();
@@ -2852,10 +2934,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     }
   };
 
-  /** Name, namespace and prefix of the model, in one dialog. */
+  /** Name, namespace and prefix of the model, in one dialog; after them, what the modules show of it (Git). */
   const editModelSettings = async (): Promise<void> => {
     const current = session.namespace();
     if (!current) return;
+    const modelIri = session.modelIri;
+    // Shown, never applied: whatever a module gives is read-only.
+    const shown = modelIri ? [...modelSettingsInfo].flatMap((fields) => fields(modelIri)) : [];
     const values = await dialogs.form(
       'Model settings',
       [
@@ -2874,6 +2959,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           value: true,
           hint: 'Otherwise only IRIs minted from now on use it.',
         },
+        ...shown.map((field) => (field.type === 'section' || field.type === 'group' ? field : { ...field, readOnly: true })),
       ],
       {
         confirmLabel: 'Apply',
@@ -2902,7 +2988,6 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         return;
       }
       // What the move means to a module: Git, of a model saved to a repository (DD-41).
-      const modelIri = session.modelIri;
       if (moving && modelIri) {
         for (const check of [...namespaceChecks]) {
           if (!(await check({ modelIri, from: current.namespace, to: namespace }))) {
@@ -3515,6 +3600,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     setModuleSwitches,
     addSettingsSection,
     addNamespaceCheck,
+    addModelSettingsInfo,
     addBottomTab,
     describeConcept: (iri) => validationPanel.describe?.(iri) ?? { name: labelOf(store, iri) },
     propertyName: (predicate) => fieldName(predicate, undefined, propertyPanel.nameOf),

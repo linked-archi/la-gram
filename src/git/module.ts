@@ -37,7 +37,10 @@ import { PersonalSettings } from '../settings.js';
 import type { PersonalGitSettings } from './git-save.js';
 import { GitHubProvider } from './providers/github.js';
 import { GitLabProvider } from './providers/gitlab.js';
-import type { GitHostProvider } from './providers/provider.js';
+import type { CommitAuthor, GitHostProvider } from './providers/provider.js';
+import { GitAccounts } from './git-accounts.js';
+import { modelSettingsFields } from './git-model-settings.js';
+import { unscopedKey } from '../storage-scope.js';
 
 /** File › Git ▸: every Git entry of the File menu. */
 const GIT_SUBMENU: FileSubmenu = { id: 'git', label: 'Git', icon: 'git' };
@@ -45,13 +48,21 @@ const GIT_SUBMENU: FileSubmenu = { id: 'git', label: 'Git', icon: 'git' };
 /**
  * A provider for a repository — only on a host the deployment allows, when it
  * lists them: the flows refuse an address before this, and this is the last
- * check before a request.
+ * check before a request. Its commits are written by `author`, where it names
+ * someone (Req 18.29).
  */
-export function providerFor(link: RepositoryLink, token: string | undefined, config?: GitConfig): GitHostProvider {
+export function providerFor(
+  link: RepositoryLink,
+  token: string | undefined,
+  config?: GitConfig,
+  author?: () => CommitAuthor | undefined,
+): GitHostProvider {
   if (config?.hosts && !config.hosts.some((h) => h.host === link.host)) {
     throw new GitError('forbidden', hostNotAllowed(link.host, config.hosts));
   }
-  return link.provider === 'github' ? new GitHubProvider(link, token) : new GitLabProvider(link, token);
+  const provider = link.provider === 'github' ? new GitHubProvider(link, token) : new GitLabProvider(link, token);
+  if (author) provider.commitAuthor = author;
+  return provider;
 }
 
 /** The module, started. */
@@ -81,11 +92,26 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   const remember = config?.rememberTokens !== 'never';
   const bridge = desktopBridge();
   const tokens: TokenStore = (bridge && (await DesktopTokenStore.create(bridge, remember))) || new WebTokenStore(undefined, remember);
-  const provider = (link: RepositoryLink, token: string | undefined) => providerFor(link, token, config);
   const bindings = new GitBindings();
   const hostKinds = new HostKinds();
   const settings = new PersonalSettings();
   const autoCommits = new AutoCommitStore();
+  // Who edits and commits (Req 9.16, 18.29): the account on the open model's host, read with its token.
+  const followAccount = (): void => {
+    const modelIri = app.session.modelIri;
+    app.gitAccount = accounts.for(modelIri ? bindings.get(modelIri)?.host : undefined);
+  };
+  const accounts = new GitAccounts(settings, followAccount);
+  const commitAuthor = (): CommitAuthor | undefined => {
+    const editor = app.currentEditor();
+    return editor?.name ? { name: editor.name, ...(editor.email ? { email: editor.email } : {}) } : undefined;
+  };
+  const provider = (link: RepositoryLink, token: string | undefined): GitHostProvider => {
+    const made = providerFor(link, token, config, commitAuthor);
+    if (token) accounts.learn(link.host, made);
+    return made;
+  };
+  followAccount();
   const personal = (): PersonalGitSettings => settings.get<PersonalGitSettings>('git');
   // The user's "Remember starts ticked", where tokens may be remembered at all.
   const mine = personal().rememberByDefault;
@@ -101,6 +127,7 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     const { modelIri, previousModelIri } = event.detail ?? {};
     if (typeof modelIri === 'string' && typeof previousModelIri === 'string') bindings.move(previousModelIri, modelIri);
     generation++;
+    followAccount();
     sync?.modelLoaded();
   };
   eventBus.on('model-loaded', onLoaded);
@@ -151,6 +178,11 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
     if (!binding) return true;
     return ui.dialogs.confirm('Model saved to Git', namespaceMoveMessage(binding, to), { confirmLabel: 'Move' });
   });
+
+  // Model settings: where the model is kept in Git, and the account its edits and commits name (Req 18.30).
+  const removeModelInfo = ui.addModelSettingsInfo((modelIri) =>
+    modelSettingsFields(bindings.get(modelIri), app.gitAccount, app.recordGitAccount),
+  );
 
   // File › Settings…: the defaults, the tokens kept, the host kinds learned.
   const removeSettings = ui.addSettingsSection(
@@ -217,9 +249,11 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
   syncPanel.addEventListener('git-sync-action', onSyncAction);
   const onEnvironment = () => sync?.refresh();
   const onSettingsStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === 'la-gram:settings' || event.key === 'la-gram:git-tokens' || event.key.startsWith(AUTO_COMMIT_PREFIX)) sync?.refresh(true);
+    // As this build names it (storage-scope.ts): another channel's keys are not this one's settings.
+    const key = unscopedKey(event.key);
+    if (event.key === null || (key !== null && (key === 'la-gram:settings' || key === 'la-gram:git-tokens' || key.startsWith(AUTO_COMMIT_PREFIX)))) sync?.refresh(true);
   };
-  const onSaved = () => { queueMicrotask(() => sync?.refresh()); };
+  const onSaved = () => { queueMicrotask(() => { followAccount(); sync?.refresh(); }); };
   const onChange = () => sync?.modelChanged();
   eventBus.on('model-saved', onSaved);
   eventBus.on('collab-status', onEnvironment);
@@ -298,10 +332,12 @@ export async function startGitStorage(app: App, ui: MountedUi, options: GitStora
       eventBus.off('model-loaded', onLoaded);
       removeMenu();
       removeNamespaceCheck();
+      removeModelInfo();
       removeSettings();
       removeHistory();
       merging.stop();
       tokens.clearSession();
+      app.gitAccount = undefined;
     },
   };
 }

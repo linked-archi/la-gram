@@ -39,7 +39,7 @@ and in either of two forms:
 
 | Form | Lists |
 |---|---|
-| **By element** | each concept added, removed or changed: a name old → new, a relationship's ends, a view's shapes placed, moved or rerouted |
+| **By element** | each concept added, removed or changed: a name old → new, a relationship's ends, a view's shapes placed, moved or rerouted; and, at the end of its line, who changed it and when — *by Ada Lovelace, 20/11/2026, 16:40:31*, with their Git account and the la-gram on hover — from the later version's record of the edit ([Last changed](properties.md#last-changed)). A change made where edits are not recorded — in a text editor — names nobody. *Created*, *Modified* and the provenance are not changes of their own, and are left out |
 | *As triples* | the triples added and removed, at most **500** of each, with the count of all |
 
 1. Click "Before the payments".
@@ -60,7 +60,8 @@ for everyone in the room. *Restore* confirms, and undo takes the restore back wh
 ## Git commits {#git-commits}
 
 For a model bound to a file in Git ([Git storage](git.md)), the tab also lists that file's commits,
-newest first, beside the checkpoints: each with its message, its author and a link to it on the host.
+newest first, beside the checkpoints: each with its message, its author — who la-gram wrote it for, from
+[*You*](settings.md#you-tab) — and a link to it on the host.
 They are read when the tab opens, and again on *Read again*; *Older commits…* reads more. A commit's
 changes are shown as a checkpoint's, against the commit before it or the model now.
 

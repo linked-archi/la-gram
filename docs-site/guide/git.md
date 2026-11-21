@@ -105,13 +105,33 @@ git@github.com:acme/architecture.git
 
 The message template knows `{action}` (*Add* for a new file, *Update* for one there), `{model}`,
 `{path}` and `{branch}`; [Settings](settings.md#git-storage-tab) changes it. *Commit* saves. From then
-on, the model is bound to that file: *File › Git › Save to Git* asks for the commit message only. A save to a
+on, the model is bound to that file: *File › Git › Save to Git* asks for the commit message only, and
+[*Model settings*](models-and-views.md#model-settings-git) shows the file's address, to copy. A save to a
 new branch offers to open its merge request at once.
 
 1. Choose *File › Git › Save to Git…*.
 2. In *Repository*, paste `https://github.com/acme/architecture`; leave *Branch* empty.
 3. In *New branch*, type `la-gram/shop`, and choose *Commit*.
 4. Change the model, then choose *File › Git › Save to Git*: only the message is asked.
+
+### Who commits {#who-commits}
+
+A commit is written by you, as [*File › Settings… › You*](settings.md#you-tab) says — your name, else your
+Git account's, and your address — and committed by the token's owner: the host lists your name as its
+author, in History and on its own pages. GitHub takes an author only with both a name and an address;
+without an address, a commit on GitHub is the token owner's. With nothing in *You*, every commit is the
+token owner's.
+
+With a token for a host, la-gram also asks the host, once a session, which account the token acts for —
+its username, page, name and public address — and keeps it on this machine with your settings. *You*
+shows it as *Git account*, and *Model settings* as *Your Git account*, beside the model's address; la-gram
+records it with your edits (the account's page and username) unless
+you untick *Record my Git account with my edits*. A GitLab token without the `read_user`, `read_api` or
+`api` scope cannot read it: the account stays unknown, and nothing else changes.
+
+1. Choose *File › Settings…*, *You*: type `Ada Lovelace` and `ada@example.org`, and choose *Apply*.
+2. Change the model, and choose *File › Git › Save to Git*.
+3. Open the *History* tab: the commit is listed first, by Ada Lovelace.
 
 ## Save to Git as {#save-to-git-as}
 
@@ -359,7 +379,8 @@ To follow a colleague who moved it on `main`:
 
 *File › Git › Open merge request…* proposes the bound branch for merging into the default one: a pull request
 on GitHub, a merge request on GitLab. It asks for a *Title*, the branch's last commit's message, and a
-*Description* in Markdown, the branch's changes by element; *Open* opens it. A request already open from
+*Description* in Markdown, the branch's changes by element, each with who made it and when
+(*— changed by Ada Lovelace, 2026-11-20 16:40 UTC*); *Open* opens it. A request already open from
 the branch is named, with its link, not opened again. A model on the default branch is told to commit to
 a branch of its own first, with *Save to Git as…*.
 

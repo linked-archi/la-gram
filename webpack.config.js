@@ -6,6 +6,7 @@ import CopyWebpackPlugin from 'copy-webpack-plugin';
 import { createHash } from 'crypto';
 import { readdirSync, readFileSync } from 'fs';
 import { ThirdPartyLicencesPlugin } from './scripts/third-party-licences.mjs';
+import { VersionPagePlugin } from './scripts/version-page.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,11 +39,32 @@ const sharedModuleRules = [
 const sharedExperiments = { asyncWebAssembly: true };
 
 /**
+ * The page of the version built (`scripts/version-page.mjs`), from package.json. Built in CI from a commit
+ * rather than a release tag, it names the commit (GitLab's `CI_COMMIT_SHA`); built for a channel
+ * (`LA_GRAM_CHANNEL=alpha`), the channel's app.
+ */
+function versionPage() {
+  const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
+  const channel = process.env.LA_GRAM_CHANNEL;
+  const commit = process.env.CI_COMMIT_TAG ? undefined : process.env.CI_COMMIT_SHA;
+  return new VersionPagePlugin({
+    version: pkg.version,
+    licence: pkg.license,
+    repository: 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram',
+    ...(commit ? { commit } : {}),
+    ...(channel ? { app: `https://app.linked.archi/la-gram-${channel}/` } : {}),
+  });
+}
+
+/**
  * Build-time switches (`src/types/build-flags.d.ts`). A module switched off
  * here is not in the bundle at all: `if (__LA_GRAM_GIT__)` becomes `if (false)`,
  * and webpack drops the branch and the chunk only it imports.
  *
  *   LA_GRAM_GIT=off npm run build      no Git storage (Req 18.1)
+ *   LA_GRAM_CHANNEL=alpha npm run build:web
+ *                                      the alpha, beside the release: its own browser storage, its own
+ *                                      version page (Req 15.10)
  */
 const buildFlags = ({ desktop = false } = {}) =>
   new webpack.DefinePlugin({
@@ -75,7 +97,8 @@ function buildInfo(desktop) {
     const own = JSON.parse(readFileSync(path.resolve(__dirname, 'node_modules', name, 'package.json'), 'utf8'));
     return { name, version: own.version, license: typeof own.license === 'string' ? own.license : 'see its package' };
   });
-  return { version: pkg.version, components };
+  // The channel a pre-release is built for (`LA_GRAM_CHANNEL=alpha`): its browser storage is its own (src/storage-scope.ts).
+  return { version: pkg.version, channel: process.env.LA_GRAM_CHANNEL || '', components };
 }
 
 /**
@@ -197,6 +220,8 @@ export default (_env, argv) => {
       ...deploymentConfig(),
       // The licences of the packages bundled, beside index.html (Req 15.9).
       new ThirdPartyLicencesPlugin(),
+      // This version's page, v{version}/index.html: the IRI la-gram records as the agent of its edits (Req 9.16).
+      versionPage(),
     ],
     devtool,
   };

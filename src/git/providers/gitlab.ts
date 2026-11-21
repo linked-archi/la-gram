@@ -17,6 +17,10 @@
  * | a file's commits | `GET /projects/{id}/repository/commits?ref_name={ref}&path={path}`, a page of 100 at a time |
  * | the open merge request | `GET /projects/{id}/merge_requests?state=opened&source_branch=&target_branch=` |
  * | open a merge request | `POST /projects/{id}/merge_requests` — `source_branch`, `target_branch`, `title`, `description` |
+ * | the token's account | `GET /user` → `web_url`, `username`, `name`, `public_email`; the token needs `read_user`, `read_api` or `api` |
+ *
+ * A commit is written by the user from *Settings › You* (`author_name`, `author_email`) where they are known,
+ * and else by the token's owner, who is its committer either way.
  *
  * No merge commit: a commit made through the REST API has one parent, so
  * *Update from main* commits to a new branch started from the other one's head
@@ -27,12 +31,14 @@
  */
 import {
   RestProvider,
+  account,
   fromBase64,
   COMMITS_PER_PAGE,
   type CommitPage,
   type CommitResult,
   type FileChange,
   type FileList,
+  type GitAccount,
   type GitFile,
   type MergeRequest,
   type MergeRequestChange,
@@ -98,6 +104,7 @@ export class GitLabProvider extends RestProvider {
         ? { start_sha: change.startFrom }
         : { start_branch: change.branch }
       : {};
+    const author = this.authorOf(change);
     const commit = await this.request<{ id: string; web_url: string }>(
       'POST',
       `/projects/${this.project}/repository/commits`,
@@ -107,6 +114,7 @@ export class GitLabProvider extends RestProvider {
           branch,
           commit_message: change.message,
           ...start,
+          ...(author ? { author_name: author.name, ...(author.email ? { author_email: author.email } : {}) } : {}),
           actions: [
             {
               action: change.expectedVersion ? 'update' : 'create',
@@ -119,6 +127,15 @@ export class GitLabProvider extends RestProvider {
       },
     );
     return { version: commit!.id, commit: commit!.id, branch, webUrl: commit!.web_url };
+  }
+
+  async currentAccount(): Promise<GitAccount> {
+    const user = await this.request<{ web_url: string; username?: string; name?: string; public_email?: string | null }>(
+      'GET',
+      '/user',
+      'your account',
+    );
+    return account(user!.web_url, user!.username, user!.name, user!.public_email);
   }
 
   async listFiles(ref: string): Promise<FileList> {

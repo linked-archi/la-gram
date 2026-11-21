@@ -15,6 +15,11 @@ own: a Git token goes only to its Git host, when you use Git storage.
 | IndexedDB `la-gram-history` | History checkpoints |
 | the desktop app's `secrets.json` | Git tokens, encrypted |
 
+The alpha, at app.linked.archi/la-gram-alpha/, keeps its own on the same site: the same keys, each
+starting `alpha:` (`alpha:la-gram:settings`), and its checkpoints in `la-gram-history-alpha`. What you
+set, remember or save in the alpha is not in the release, and the release's is not in the alpha: a token
+remembered in one is asked for again in the other.
+
 To see them in a Chromium-based browser: open the developer tools, then *Application* › *Storage*. To
 clear them all, clear the site's data for app.linked.archi in the browser's settings. That also forgets
 remembered tokens and History checkpoints, and cannot be undone.
@@ -40,6 +45,8 @@ tab is opened, or a panel folded or resized.
 |---|---|
 | `metamodels` | `hidden`: the catalogue entries unticked in *Metamodels*, by IRI |
 | `git` | the *Git storage* tab's fields: `repository`, `branch`, `folder`, `message`, `branchPrefix`, `rememberByDefault`, `checkIntervalMinutes` and `autoPull` |
+| `you` | the *You* tab's: `name`, `email`, and `recordAccount`, `false` when *Record my Git account with my edits* is unticked |
+| `git-accounts` | the Git accounts your tokens act for, as the hosts reported them: `accounts`, by host, each with its `url`, `username`, `name` and `email` where the host shows them, and `last`, the host read last. Not secret: no token is kept here |
 
 An empty field is not kept: the deployment's value, or la-gram's, applies. If the browser refuses
 storage, settings hold for the session only.
@@ -129,8 +136,8 @@ Each is off until you switch it on.
 ## History checkpoints {#checkpoints}
 
 IndexedDB database `la-gram-history`, store `commits`: the checkpoints of the History tab, per model,
-each with its message, its time, the model's triples, and its author when it was saved in a
-collaboration room ([`user`](url-parameters.md#user)). They stay when you close la-gram,
+each with its message, its time, the model's triples, and its author: *File › Settings… › You*'s name,
+else your Git account's, else your collaboration name in a room ([`user`](url-parameters.md#user)). They stay when you close la-gram,
 and are not in the model file. Git commits of a model bound to Git are not kept here; History reads them
 from the repository.
 

@@ -345,7 +345,10 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     await branch.click();
     const row = history.locator('model-diff-view li.change');
     await row.first().waitFor({ state: 'visible' });
-    expect((await row.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim())).toEqual(['~ Portal (A3) Application Component Name (en): “Portal (B)” → “Portal (A3)”']);
+    // Who and when, as the branch's version records the edit: a time only, as nobody is named in You here.
+    const edit = (await row.first().locator('.edit').innerText()).replace(/\s+/g, ' ').trim();
+    expect(edit).toMatch(/\d{4}/);
+    expect((await row.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim())).toEqual([`~ Portal (A3) Application Component ${edit} Name (en): “Portal (B)” → “Portal (A3)”`]);
     await sessions[0]!.screenshot('git-history-branch');
   }, 60_000);
 
@@ -580,8 +583,16 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     const old = billing.slice(0, billing.indexOf('element/'));
     const movedBilling = `${NEW}${billing.slice(old.length)}`;
 
-    // Model settings: the new namespace; then the Git module's question, naming the file.
+    // Model settings: where the model is kept in Git, to copy (Req 18.30); the new namespace; then the Git
+    // module's question, naming the file.
     await f.evaluate(() => { void (window as any).__LA_GRAM_UI__.runCommand({ command: 'model-settings' }); });
+    const settings = f.locator('.la-dialog[aria-label="Model settings"]');
+    await settings.waitFor({ state: 'visible' });
+    expect(await settings.locator('.la-form-section-title').allInnerTexts()).toEqual(['Git']);
+    const address = settings.locator('input[name="git.address"]');
+    expect(await address.inputValue()).toBe(`https://github.com/acme/arch/blob/main/${PATH}`);
+    expect([await address.getAttribute('readonly'), await address.isDisabled()]).toEqual(['', false]);
+    expect(await settings.locator('input[name="git.account"]').getAttribute('readonly')).toBe('');
     await answer(f, { namespace: NEW });
     const warning = f.locator('.la-dialog[aria-label="Model saved to Git"]');
     await warning.waitFor({ state: 'visible' });

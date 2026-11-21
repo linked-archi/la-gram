@@ -80,7 +80,6 @@ export const DOCUMENTATION_PROPERTIES = [
   NAMESPACES.dcterms + 'created',
   NAMESPACES.rdfs + 'comment',
   NAMESPACES.rdfs + 'seeAlso',
-  NAMESPACES.prov + 'wasDerivedFrom',
 ];
 
 /**
@@ -125,8 +124,11 @@ const LITERAL_RANGES = new Set([
   NAMESPACES.rdf + 'PlainLiteral',
 ]);
 
-/** Namespaces whose properties are never offered: diagram geometry and notation. */
-const NOT_OFFERED_NAMESPACES = [NAMESPACES['arch-vis'], NAMESPACES.sh, NAMESPACES.owl];
+/**
+ * Namespaces whose properties are never offered: diagram geometry and notation; and provenance, which la-gram
+ * and the converters record and the panel shows read-only (Req 9.16).
+ */
+const NOT_OFFERED_NAMESPACES = [NAMESPACES['arch-vis'], NAMESPACES.sh, NAMESPACES.owl, NAMESPACES.prov];
 
 const GROUP_ORDER: PropertyGroup[] = ['type', 'model', 'documentation', 'more'];
 

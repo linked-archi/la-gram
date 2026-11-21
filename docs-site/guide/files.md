@@ -50,8 +50,9 @@ why.
 *File › Save*, or ++ctrl+s++ (++cmd+s++ on a Mac), saves the model as **TriG**, named after the model:
 `Acme-online-shop.trig`. In the browser it is a download, where the browser saves them. Saved, the ● after
 the model's name goes, and the title's •. TriG keeps the model in its [graphs](../reference/file-formats.md#graphs):
-the model resource, its semantics — elements, relationships, views — and the diagram geometry, which a
-pipeline can drop on its own. The example model, abridged:
+the model resource, its semantics — elements, relationships, views — the diagram geometry, which a
+pipeline can drop on its own, and who changed what and when ([Last changed](properties.md#last-changed)).
+The example model, abridged:
 
 ```trig
 @prefix arch: <https://meta.linked.archi/core#>.
@@ -95,7 +96,7 @@ A field you are typing in when you press ++ctrl+s++ is left first, so what it ho
 
 | Entry | File |
 |---|---|
-| *Turtle* | `.ttl`: one graph, the three together; `arch:inModel` on every concept keeps membership clear |
+| *Turtle* | `.ttl`: one graph, the four together; `arch:inModel` on every concept keeps membership clear |
 | *TriG (graph per layer)* | `.trig`, as *Save* writes it |
 | *JSON-LD* | `.jsonld`, with the graphs |
 | *N-Quads* | `.nq`, with the graphs |

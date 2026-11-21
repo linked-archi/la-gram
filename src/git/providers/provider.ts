@@ -9,6 +9,18 @@
  */
 import { GitError, networkError, responseError } from '../errors.js';
 import type { RepositoryLink } from '../link.js';
+import type { GitAccount } from '../../model-manager/provenance.js';
+
+export type { GitAccount };
+
+/**
+ * Who a commit is written by, where it is someone other than the token's owner: the user's name and address
+ * from *Settings › You* (Req 18.29). The host still records the token's owner as the committer.
+ */
+export interface CommitAuthor {
+  name: string;
+  email?: string;
+}
 
 /** A file read from a branch. */
 export interface GitFile {
@@ -30,6 +42,8 @@ export interface FileChange {
   message: string;
   /** The version of the file this replaces; absent for a file that is not there yet. */
   expectedVersion?: string;
+  /** Who the commit is written by; the provider's {@link RestProvider.commitAuthor}, else the token's owner. */
+  author?: CommitAuthor;
 }
 
 /** A commit made. */
@@ -58,6 +72,8 @@ export interface MergeCommitChange {
   path: string;
   text: string;
   message: string;
+  /** Who the commit is written by, as {@link FileChange.author}. */
+  author?: CommitAuthor;
 }
 
 /** The files of a branch. */
@@ -145,6 +161,8 @@ export interface GitHostProvider {
    * (a commit there has one parent).
    */
   commitMerge?(change: MergeCommitChange): Promise<CommitResult>;
+  /** The account the token acts for: its page, username, and the name and address it shows. */
+  currentAccount?(): Promise<GitAccount>;
 }
 
 /** `fetch`, injectable for tests. */
@@ -168,6 +186,16 @@ export abstract class RestProvider implements GitHostProvider {
   abstract fileCommits(ref: string, path: string, page?: number): Promise<CommitPage>;
   abstract findMergeRequest(source: string, target: string): Promise<MergeRequest | undefined>;
   abstract openMergeRequest(change: MergeRequestChange): Promise<MergeRequest>;
+  abstract currentAccount(): Promise<GitAccount>;
+
+  /** Who commits are written by when a change does not say: the user's name and address (Req 18.29). */
+  commitAuthor?: () => CommitAuthor | undefined;
+
+  /** The author of `change`'s commit: its own, else {@link commitAuthor}'s; a name at least. */
+  protected authorOf(change: { author?: CommitAuthor }): CommitAuthor | undefined {
+    const author = change.author ?? this.commitAuthor?.();
+    return author?.name.trim() ? author : undefined;
+  }
 
   /**
    * Every entry of a paged listing (`per_page=100&page=N`), reading pages until
@@ -243,6 +271,16 @@ export function retryTime(headers: Headers, now = Date.now()): number | undefine
     reset === null ? NaN : Number(reset) * 1000,
   ].filter((time) => Number.isFinite(time) && time > now);
   return times.length ? Math.max(...times) : undefined;
+}
+
+/** An account as a host reports it, what it leaves blank left out. */
+export function account(url: string, username?: string | null, name?: string | null, email?: string | null): GitAccount {
+  return {
+    url,
+    ...(username ? { username } : {}),
+    ...(name?.trim() ? { name: name.trim() } : {}),
+    ...(email?.trim() ? { email: email.trim() } : {}),
+  };
 }
 
 /** A path's segments, each URL-encoded: `models/a b.ttl` → `models/a%20b.ttl`. */

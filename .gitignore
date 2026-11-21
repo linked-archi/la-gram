@@ -70,3 +70,4 @@ data/
 .venv-docs/
 .agents/tasks/*
 !.agents/tasks/git-sync/
+!.agents/tasks/kernel-migration/

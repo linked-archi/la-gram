@@ -324,6 +324,7 @@ describe('PropertyPanel', () => {
         '_renderDerivation',
         '_renderContextNames',
         '_renderContextPictures',
+        '_renderProvenance',
         '_takesLinks',
         '_renderRelationshipGroup',
         '_toggleRelationships',
@@ -652,6 +653,56 @@ describe('PropertyPanel', () => {
       expect(byPredicate.has(AM3 + 'qualifiedAggregates')).toBe(false);
       expect(byPredicate.get(AM3 + 'serves')?.drawn).toBe(true);
       expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.drawn).toBeUndefined();
+    });
+
+    it('keeps provenance out of the properties, and shows it read-only: when, by whom, with which la-gram (Req 9.16)', () => {
+      const iri = 'https://example.org/elem1';
+      const PROV = NAMESPACES.prov;
+      const activity = 'https://example.org/provenance/a1';
+      const ada = 'https://example.org/provenance/ada';
+      const laGram = 'https://app.linked.archi/la-gram/v0.3.0';
+      const iriQuad = (s: string, p: string, o: string): Quad =>
+        ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+      const quads = [
+        ...sampleQuads(iri),
+        iriQuad(iri, PROV + 'wasGeneratedBy', activity),
+        makeQuad(iri, PROV + 'generatedAtTime', '2026-11-20T16:40:31Z'),
+        iriQuad(iri, PROV + 'wasDerivedFrom', 'https://example.org/source/shop.xml'),
+        iriQuad(activity, PROV + 'wasAssociatedWith', laGram),
+        iriQuad(activity, PROV + 'wasAssociatedWith', ada),
+        iriQuad(laGram, NAMESPACES.rdf + 'type', PROV + 'SoftwareAgent'),
+        makeQuad(laGram, 'https://schema.org/name', 'la-gram'),
+        makeQuad(laGram, 'https://schema.org/softwareVersion', '0.3.0'),
+        iriQuad(ada, NAMESPACES.rdf + 'type', PROV + 'Person'),
+        makeQuad(ada, 'https://schema.org/name', 'Ada'),
+      ];
+      const store = {
+        ...mockRdfStore(quads),
+        getQuads: vi.fn((s?: NamedNode | null, p?: NamedNode | null, o?: NamedNode | null) =>
+          quads.filter((q) => (!s || q.subject.value === s.value) && (!p || q.predicate.value === p.value) && (!o || q.object.value === o.value)),
+        ),
+      } as unknown as RdfStore;
+      const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
+      (PropertyPanel.prototype as any)._loadProperties.call(ctx);
+      expect(ctx._entries.some((e: PropertyEntry) => e.predicate.startsWith(PROV))).toBe(false);
+      expect(ctx._provenance).toEqual({
+        changed: { at: '2026-11-20T16:40:31Z', by: 'Ada', tool: 'la-gram 0.3.0' },
+        other: [{ predicate: PROV + 'wasDerivedFrom', value: 'https://example.org/source/shop.xml' }],
+      });
+      // Shown as text, never as a field to edit.
+      // The template's text, its values in place (this file runs without a DOM).
+      const textOf = (r: any): string =>
+        r == null || typeof r === 'symbol'
+          ? ''
+          : Array.isArray(r)
+            ? r.map(textOf).join('')
+            : r.strings
+              ? r.strings.map((s: string, i: number) => s + (i < r.values.length ? textOf(r.values[i]) : '')).join('')
+              : String(r);
+      const text = textOf((PropertyPanel.prototype as any)._renderProvenance.call(ctx));
+      expect(text).toMatch(/data-provenance="changed"\s*>20 Nov 2026, \d\d:\d\d · by Ada · with la-gram 0\.3\.0</);
+      expect(text).not.toMatch(/<input|<textarea|<select/);
+      expect(text).toContain('https://example.org/source/shop.xml');
     });
 
     it('clears entries when no selectedIri', () => {

@@ -192,3 +192,71 @@ describe('the diff by element, in words', () => {
     expect(markdownOfDiff(diffByElement(MODEL, MODEL), words)).toBe('_No changes to the model._');
   });
 });
+
+describe('the diff by element, and the provenance of edits (Req 9.16)', () => {
+  const PROV = 'http://www.w3.org/ns/prov#';
+  const DCT = 'http://purl.org/dc/terms/';
+  const XSD_DT = '<http://www.w3.org/2001/XMLSchema#dateTime>';
+  const at = (t: string) => `"${t}"^^${XSD_DT}`;
+  const line = (s: string, p: string, o: string) => `<${s}> <${p}> ${o} .`;
+  const SCHEMA = 'https://schema.org/';
+  const LA_GRAM = 'https://app.linked.archi/la-gram/v0.3.0';
+  /** A version in which `concepts` were last changed by `activity` at `time` — by `user`, if any — with the activity itself. */
+  const stamped = (lines: readonly string[], activity: string, time: string, concepts: string[], user?: { iri: string; name: string; account?: string }) => [
+    ...lines,
+    ...concepts.flatMap((c) => [
+      line(c, DCT + 'modified', at(time)),
+      line(c, PROV + 'wasGeneratedBy', `<${activity}>`),
+      line(c, PROV + 'generatedAtTime', at(time)),
+    ]),
+    line(activity, RDF + 'type', `<${PROV}Activity>`),
+    line(activity, PROV + 'endedAtTime', at(time)),
+    line(activity, PROV + 'wasAssociatedWith', `<${LA_GRAM}>`),
+    line(LA_GRAM, RDF + 'type', `<${PROV}SoftwareAgent>`),
+    line(LA_GRAM, SCHEMA + 'name', '"la-gram"'),
+    line(LA_GRAM, SCHEMA + 'softwareVersion', '"0.3.0"'),
+    ...(user
+      ? [
+          line(activity, PROV + 'wasAssociatedWith', `<${user.iri}>`),
+          line(user.iri, RDF + 'type', `<${PROV}Person>`),
+          line(user.iri, SCHEMA + 'name', `"${user.name}"`),
+          ...(user.account ? [line(user.iri, SCHEMA + 'sameAs', `<${user.account}>`)] : []),
+        ]
+      : []),
+  ].sort();
+  const ada = { iri: `${M}provenance/user-ada`, name: 'Ada Lovelace', account: 'https://gitlab.com/ada' };
+
+  it('a change says what changed — the name — not when or by whom; the triples still have it all', () => {
+    const before = stamped(MODEL, `${M}provenance/edit-a1`, '2026-11-20T10:00:00Z', [M + 'portal']);
+    const renamed = MODEL.map((l) => l.replace('"Portal"@en', '"Portal (new)"@en'));
+    const after = stamped(renamed, `${M}provenance/edit-a2`, '2026-11-20T11:00:00Z', [M + 'portal']);
+    const diff = diffByElement(before, after);
+    expect(diff.changes.map((c) => c.subject)).toEqual([M + 'portal']);
+    expect(of(diff, 'portal').values.map((v) => v.predicate)).toEqual([SKOS + 'prefLabel']);
+    expect(of(diff, 'portal').added.concat(of(diff, 'portal').removed).map((v) => v.predicate)).toEqual([]);
+    expect(diff.lines.added.some((l) => l.includes(PROV))).toBe(true);
+  });
+
+  it('stamps alone are no change', () => {
+    const before = stamped(MODEL, `${M}provenance/edit-a1`, '2026-11-20T10:00:00Z', [M + 'portal']);
+    const after = stamped(MODEL, `${M}provenance/edit-a2`, '2026-11-20T11:00:00Z', [M + 'portal']);
+    expect(diffByElement(before, after).changes).toEqual([]);
+  });
+
+  it('a change says who made it, when and with what, as the later version records it; the Markdown too', () => {
+    const before = stamped(MODEL, `${M}provenance/edit-a1`, '2026-11-20T10:00:00Z', [M + 'portal']);
+    const renamed = MODEL.map((l) => l.replace('"Portal"@en', '"Portal (new)"@en'));
+    const after = stamped(renamed, `${M}provenance/edit-a2`, '2026-11-20T16:40:31Z', [M + 'portal'], ada);
+    const diff = diffByElement(before, after);
+    expect(of(diff, 'portal').edit).toEqual({ at: '2026-11-20T16:40:31Z', by: 'Ada Lovelace', account: 'https://gitlab.com/ada', tool: 'la-gram 0.3.0' });
+    const words = { typeName: (i: string) => i.slice(i.lastIndexOf('#') + 1), propertyName: (i: string) => i.slice(i.lastIndexOf('#') + 1) };
+    expect(markdownOfDiff(diff, words)).toContain('— changed by Ada Lovelace, 2026-11-20 16:40 UTC');
+  });
+
+  it('a change the later version records no edit of names nobody: it was made where edits are not recorded', () => {
+    const before = stamped(MODEL, `${M}provenance/edit-a1`, '2026-11-20T10:00:00Z', [M + 'portal'], ada);
+    // Renamed in a text editor: the record of the last edit is the old one.
+    const after = before.map((l) => l.replace('"Portal"@en', '"Portal (new)"@en'));
+    expect(of(diffByElement(before, after), 'portal').edit).toBeUndefined();
+  });
+});

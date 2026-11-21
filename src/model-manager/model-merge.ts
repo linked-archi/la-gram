@@ -64,6 +64,12 @@
  *   may be placed in a view more than once, so the merged model keeps both,
  *   with what each side drew at it; the conflict offers to keep only one — two
  *   people placing the same element at once most likely meant it once.
+ * - **The provenance of edits** (Req 9.16): a concept each side changed names
+ *   each side's editing activity; it keeps the one that ended later, as its
+ *   `prov:generatedAtTime` and `dcterms:modified` are the later of the two
+ *   (`latest`, never a conflict), and an editing activity no concept names any
+ *   more goes, with a person or a la-gram version nothing names
+ *   ({@link settleEditProvenance}).
  * - **Count limits** broken by the combination: each side added a value where
  *   the shapes allow two, or each removed a different one of the values a
  *   shape requires. Checked with the in-app SHACL validator ({@link shaclCountCheck}),
@@ -98,6 +104,7 @@ import { derivedNamespace } from './model-namespace.js';
 import { diffSnapshots, snapshotOf } from './version-history.js';
 import { BOUNDS_PREDICATES, IRI } from './vocabulary.js';
 import { iriOf, literalValue, parseLine, predicateOf, subjectOf, type Line } from './snapshot-lines.js';
+import { LA_GRAM_HOME } from './provenance.js';
 
 /** One of the two versions merged into base. */
 export type MergeSide = 'ours' | 'theirs';
@@ -247,7 +254,51 @@ export function mergeSnapshots(
   if (sameSet(b, t)) return { merged: sortedOf(o), conflicts: [] };
   const aligned = alignNamespaces(base, ours, theirs);
   if (aligned) return { ...mergeSnapshots(aligned.base, aligned.ours, aligned.theirs, options), moved: aligned.moved };
-  return new ThreeWay(b, o, t, options).run();
+  const result = new ThreeWay(b, o, t, options).run();
+  return { ...result, merged: settleEditProvenance(result.merged) };
+}
+
+const PROV_GENERATED_BY = NAMESPACES.prov + 'wasGeneratedBy';
+const PROV_ENDED = NAMESPACES.prov + 'endedAtTime';
+const PROV_ASSOCIATED = NAMESPACES.prov + 'wasAssociatedWith';
+
+/**
+ * The provenance of edits after a merge: a concept named by two editing activities — one each side — keeps the
+ * one that ended later; then la-gram's activities no concept names go, and the people and la-gram versions no
+ * remaining line names. A converter's run is not la-gram's, and stays (`model-manager/provenance.ts`).
+ */
+export function settleEditProvenance(lines: readonly string[]): string[] {
+  const generatedBy = new Map<string, string[]>();
+  const ended = new Map<string, string>();
+  const associated = new Map<string, string[]>();
+  for (const line of lines) {
+    const p = predicateOf(line);
+    if (p === PROV_GENERATED_BY) push(generatedBy, subjectOf(line), line);
+    else if (p === PROV_ENDED) ended.set(subjectOf(line), parseLine(line).o);
+    else if (p === PROV_ASSOCIATED) push(associated, subjectOf(line), parseLine(line).o);
+  }
+  const drop = new Set<string>();
+  for (const named of generatedBy.values()) {
+    if (named.length < 2) continue;
+    const endOf = (line: string) => ended.get(parseLine(line).o) ?? '';
+    const kept = named.reduce((a, b) => (endOf(b) > endOf(a) ? b : a));
+    for (const line of named) if (line !== kept) drop.add(line);
+  }
+  if (drop.size === 0) return [...lines];
+  const named = new Set([...generatedBy.values()].flat().filter((l) => !drop.has(l)).map((l) => parseLine(l).o));
+  const laGram = (term: string) => term.startsWith(`<${LA_GRAM_HOME}`);
+  const gone = new Set<string>();
+  for (const [activity, agents] of associated) {
+    if (!named.has(activity) && agents.some(laGram)) gone.add(activity);
+  }
+  let kept = lines.filter((l) => !drop.has(l) && !gone.has(subjectOf(l)));
+  // People and la-gram versions only the dropped activities named.
+  const stillNamed = new Set(kept.flatMap((l) => parseLine(l).refs));
+  const orphans = new Set(
+    [...gone].flatMap((a) => associated.get(a) ?? []).filter((agent) => !stillNamed.has(agent)),
+  );
+  if (orphans.size > 0) kept = kept.filter((l) => !orphans.has(subjectOf(l)));
+  return kept;
 }
 
 /** The merged snapshot with one conflict resolved to one side's version. */

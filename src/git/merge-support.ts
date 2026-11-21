@@ -55,8 +55,8 @@ export function startMerging(app: App, ui: MountedUi): { support: MergeSupport; 
         if (removed.length > 0) store.removeQuads(quadsOfSnapshot(removed));
         if (added.length > 0) store.addQuads(quadsOfSnapshot(added));
       };
-      if (typeof batching.batch === 'function') batching.batch(run);
-      else run();
+      // Another version's statements, its stamps with them: no edit of this person's to record.
+      app.withoutStamps(() => (typeof batching.batch === 'function' ? batching.batch(run) : run()));
     };
     if (!ui.diagramCanvas.recordChange(apply)) eventBus.emit('model-changed', { origin: 'git' });
     eventBus.emit('views-changed', {});

@@ -126,7 +126,7 @@ describe('<rdf-panel>', () => {
   it('serializes when opened and shows highlighted Turtle with counts', async () => {
     const { panel, source } = await mount(true);
     // The open view, by default.
-    expect(source).toHaveBeenCalledWith({ format: 'turtle', profile: 'full', scope: 'view', selectedIris: [] });
+    expect(source).toHaveBeenCalledWith({ format: 'turtle', profile: 'full', provenance: true, scope: 'view', selectedIris: [] });
     const root = panel.shadowRoot!;
     expect(root.querySelector('.code')!.textContent).toContain('skos:prefLabel');
     expect(root.querySelectorAll('.code .rdf-block')).toHaveLength(2);
@@ -155,6 +155,19 @@ describe('<rdf-panel>', () => {
     box.checked = false;
     box.dispatchEvent(new Event('change'));
     expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ format: 'json-ld', profile: 'no-geometry' }));
+  });
+
+  it('leaves the provenance out on request, and downloads as shown (Req 9.16)', async () => {
+    const { panel, source } = await mount(true);
+    const box = panel.shadowRoot!.querySelector<HTMLInputElement>('label.provenance input[type=checkbox]')!;
+    expect(box.checked).toBe(true);
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    expect(source).toHaveBeenLastCalledWith(expect.objectContaining({ profile: 'full', provenance: false }));
+    const downloads: unknown[] = [];
+    panel.addEventListener('rdf-download', (e) => downloads.push((e as CustomEvent).detail));
+    panel.shadowRoot!.querySelector<HTMLButtonElement>('button[title="Download this file"]')!.click();
+    expect(downloads).toEqual([expect.objectContaining({ provenance: false })]);
   });
 
   it('highlights the selected concept’s block, and selects on click', async () => {

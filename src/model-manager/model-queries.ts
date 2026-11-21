@@ -213,7 +213,7 @@ export function statementsOf(store: RdfStore, subject: NamedNode, predicate: Nam
 }
 
 /** schema.org, as converters write it, and its older `http:` form. */
-const SCHEMA_NAMESPACES = ['https://schema.org/', 'http://schema.org/'];
+const SCHEMA_NAMESPACES = [NAMESPACES.schema, 'http://schema.org/'];
 const schemaTerms = (local: string): NamedNode[] => SCHEMA_NAMESPACES.map((ns) => nn(ns + local));
 /** A folder's name, its list entries and an entry's item — the `https:` form first, the one la-gram writes. */
 export const SCHEMA_NAME = schemaTerms('name');

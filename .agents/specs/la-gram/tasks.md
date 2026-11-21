@@ -150,6 +150,8 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] Collaboration server persists rooms continuously (debounced, atomic writes)
 - [x] Files: open/save in six formats; unsaved-changes indicator and guard
 - [x] Save writes TriG; Ctrl/⌘+O and Ctrl/⌘+S (Req 9.8, 11.10; 2026-11-20) — *workbench.test, help.test, workbench.spec*
+- [x] The provenance of edits (Req 9.16; key design decision 39; 2026-11-20): stamped inside each edit, one activity a session, la-gram at its version and the person (*File › Settings… › You*); `{ns}graph/provenance`; *Last changed* read-only; the RDF panel's *provenance*; left out of the diff by element, the later kept in a merge; each version's page built and kept — *provenance.test, model-diff.test, property-panel.test, rdf-panel.test, workbench.test, git-module.test, release-pipeline.test, workbench.spec*
+- [x] The user and their Git account in the provenance, `{ns}provenance/edit-…` and `{ns}provenance/user-…`; who made each change and when in the diff by element and a merge request's description; a checkpoint by *You*'s name (Req 9.10, 9.14, 9.16, 18.29; key design decisions 39, 41; 2026-11-20) — *provenance.test, model-diff.test, workbench.test, git-module.test*
 
 ### Task 15: Checkpoints & version history — done
 - [x] An explicit checkpoint of the working state (called a commit until 2026-10-23); history list; diff (added/removed triples); restore — *version-history.test, workbench.test, workbench.spec*
@@ -178,6 +180,8 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] **Optional automatic commits** (2026-11-18): destination settings, idle/interval scheduler, pause/resume, remote reconciliation, immutable snapshots and durable uncertain-response recovery (Req 18.26) — *git-auto-commit.test, settings-section.test, git-merge.spec*.
 - [x] **Regular remote checks and optional clean-only automatic pull** (2026-11-18): manual Check and the Git status tab, personal settings, one active owner per destination, separate operation locks, pause/backoff and obsolete-result guards (Req 18.25) — *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
 In three parts, each reviewed before the next.
+- [x] **Where the model is kept, in Model settings** (2026-11-21; Req 18.30): the *Git* part — the bound file's address, to copy, and the Git account; a module's read-only fields (`MountedUi.addModelSettingsInfo`, `FormField.readOnly`) — *git-model-settings.test, link.test, git-module.test, dialogs.test, git-merge.spec*.
+- [x] **Who commits, and whose account** (2026-11-20; Req 18.29; key design decision 41): commits written by the user from *Settings › You*, the token's owner the committer; the account the token acts for read once a session per host, kept with the personal settings, shown in *You* — *providers.test, git-accounts.test, git-module.test, workbench.test*
 - [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Automatic commits are specified in Req 18.26.
 - [x] **1. Document** (2026-10-19): Req 18; design — *Git storage (optional module)*
 - [x] **2. Save to Git** (2026-10-19)
@@ -293,6 +297,7 @@ In parts, each reviewed before the next.
 - [x] Render SPARQL results (SELECT or CONSTRUCT) as a new view: the elements and relationships they mention, laid out as a tree — *view-from-results.test, model-session.test, graph-layout.test, workbench.test*
 - [x] Electron packaging and a smoke test of the desktop build — `npm run package`; *electron.spec* launches the desktop build (skipped without the Electron binary); the packaged app checked by hand (macOS arm64)
 - [x] Electron: a current major (28 is past end of life), a Content-Security-Policy, and the renderer without Node integration — done (2026-10-17), see the change log
+- [x] The alpha at app.linked.archi/la-gram-alpha/, deployed from each merge to the default branch while `package.json` says a pre-release; its browser storage its own; its version's page naming the commit (Req 15.10; key design decision 40; 2026-11-20) — *release-pipeline.test, storage-scope.test, version-page.test*
 
 ## Beyond the reference spec (tool spec phases 3–4)
 - [ ] Freehand sketch layer and progressive typing (tool spec §5.8–5.9)
@@ -335,6 +340,7 @@ when it starts; what is already recorded elsewhere is named, not repeated.
 
 Agreed order; relationship visuals come first.
 
+- [ ] **la-gram on `@linked-archi/kernel` (L01)** — recorded (2026-11-20), not started: the model logic (`rdf-engine`, `metamodel-manager`, `model-manager`, `model-io.ts`) and `assets/` moved to the kernel repository (`tools/platform/linked-archi-kernel`, platform decision PD-14); la-gram builds on the package and deletes its copies, with no change in behaviour. Until then, a fix to these modules is made in the kernel first and copied here. `.agents/tasks/kernel-migration/`.
 - [x] **The Linked.Archi IRI layout, part 4** (DD-41) — done (2026-11-18): a merge follows a namespace move, la-gram asks before moving a model saved to Git and keeps it bound, `la-gram-git check` reports the layout. Parts 1–4 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
 - [x] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), done (2026-11-19): *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* (after a second question) move the open model to the IRI the other version has it under, its session, binding and History tab with it; automatic checks and auto-commit stop and say that Pull follows (Req 18.28; key design decision 34). See the change log.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
@@ -435,6 +441,105 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-21 — Model settings shows where the model is kept in Git, and the Git account
+
+- **Model settings' *Git* part** (Req 18.30): with Git storage on, *Model settings* ends with *Address* — the
+  bound file on its branch as the host's page addresses it, `…/blob/main/models/shop.ttl` on GitHub,
+  `…/-/blob/main/…` on GitLab, which *Open from Git…* reads back as the same file (`fileLink`, beside
+  `parseRepositoryLink`) — and *Your Git account*, as *Settings › You* shows it, its hint saying whether it is
+  recorded with the edits. A model not in Git shows *Not in Git*. The Git module gives the part
+  (`MountedUi.addModelSettingsInfo`, `git-model-settings.ts`), so a build without Git has none, and stopping
+  the module takes it away; mount-ui shows what a module gives read-only and applies none of it.
+- **Read-only fields** (`FormField.readOnly`): shown to select and copy, unlike a `disabled` one, and never the
+  field focused first. *You*'s *Git account* is one now.
+- Tests: *git-model-settings.test* (bound, not in Git, no account, not recorded), *link.test* (the file's
+  link, read back), *git-module.test* (the part on a bound model; gone when stopped), *dialogs.test* (a
+  read-only field), *workbench.test*, *git-merge.spec* (the address in the dialog, read-only). Docs: *Models
+  and views* (*Model settings › Git*), *Git* (*Save to Git*, *Who commits*), *Settings* (*You tab*).
+
+### 2026-11-20 — who made a change: the user and their Git account; the alpha beside the release
+
+- **The provenance names the user** (Req 9.16; key design decision 39): the IRIs read as what they are,
+  `{ns}provenance/edit-{uuid}` and `{ns}provenance/user-{digest}` (`mp:edit-…`, `mp:user-…`); the id stays
+  opaque. A user is a `prov:Person` with `schema:name`, `schema:email`, and their Git account —
+  `schema:sameAs` its page, `schema:alternateName` its username; the digest is of the account's page, else
+  the address, else the name, so one user is one resource on every machine and the IRI carries nothing
+  personal. What is known of the user when an activity starts replaces what the model had. Meta's *IRI
+  Minting*, *Provenance of edits*, and DD-27 say the same. Decision confirmed on 2026-11-20.
+- **The Git account** (Req 18.29; key design decision 41): with a token for a host, la-gram reads the account
+  it acts for (`GET /user`, GitLab and GitHub), once a session, in the background, and keeps it with the
+  personal settings. *File › Settings… › You* shows it (*Git account*), uses its name when none is given, and
+  records it with the edits unless *Record my Git account with my edits* is unticked.
+- **Who commits**: *Save to Git* and the other Git writes set the commit's author from *You* — GitLab's
+  `author_name` and `author_email`, GitHub's `author` (only with both) — the token's owner the committer, so
+  the History tab names who wrote a change. A checkpoint's author is *You*'s name, else the Git account's,
+  else the collaboration name (Req 9.10).
+- **Who made each change** (Req 9.14): the diff by element gives each change the edit its later version
+  records — who, when, with which la-gram — where that record is new, so a change made in a text editor names
+  nobody. The History tab shows it beside the concept (*by Ada Lovelace, 20/11/2026, 16:40:31*), with the
+  account and the tool on hover; a merge request's description adds *— changed by Ada Lovelace, 2026-11-20
+  16:40 UTC*.
+- **The alpha** (Req 15.10; key design decision 40): `package.json` says `0.3.0-alpha` — `alpha` because
+  pre-release labels sort as text, and `0.3.0-snapshot` would sort after `0.3.0-rc.1`. On the default branch,
+  `web` builds for the channel `alpha` (`LA_GRAM_CHANNEL`), and `alpha-deploy` copies the app and its
+  documentation to `/la-gram-alpha/` (`LA_GRAM_DEPLOY_PATH-alpha`) and its version's page to
+  `/la-gram/v0.3.0-alpha/`, which names the commit it was built from; while `package.json` says a release it
+  deploys nothing. The alpha keeps its `localStorage` under `alpha:` and its checkpoints in
+  `la-gram-history-alpha` (`storage-scope.ts`): one origin with the release, it would otherwise share and
+  overwrite the release's settings, tokens, bindings and checkpoints. The server's nginx site has the
+  `/la-gram-alpha/` location; the environment `alpha` and the deploy variables scoped to it are set up once
+  (*Releasing*, *Before the first release*). Decision confirmed on 2026-11-20 (the path
+  `/la-gram-alpha/`).
+- Tests: *provenance.test* (the IRIs, a user by their account, details replaced), *model-diff.test* (who made
+  a change; none where the record is old; the Markdown), *providers.test* (the author on GitLab and GitHub,
+  the account), *git-accounts.test*, *git-module.test* (the account read once, the author),
+  *workbench.test* (*You*: the account, its name, the switch), *storage-scope.test*, *version-page.test*,
+  *release-pipeline.test* (the alpha jobs, the version). Docs: *Settings* (*You tab*), *Properties*,
+  *History*, *Git*, *File formats and vocabulary*, *Hosting the web app*, *Releasing*.
+- Not tried: the pipeline's alpha jobs on GitLab, and the nginx location on the server.
+
+### 2026-11-20 — who changed what, and when: the provenance of edits
+
+- la-gram records who changed a concept, when and with which la-gram, as it is edited, inside each edit: the
+  store hands what a local edit changed to `EditProvenance` (`model-manager/provenance.ts`) at the end of its
+  outermost write, so the stamps are part of its undo step and its notification (Req 9.16; key design
+  decision 39; meta's DD-27, *What a modeller records of its edits*, and *IRI Minting*, *Provenance of edits*).
+  - On the concept — the model, an element, a relationship, a view: `dcterms:created` and `dcterms:modified`,
+    shown on the Properties tab as any property; a value set by hand stays.
+  - In the provenance graph: the editing activity that last changed it (`prov:wasGeneratedBy`) and when
+    (`prov:generatedAtTime`); the activity — one person's edits in one la-gram, from opening or saving to the
+    next save, `{ns}provenance/{uuid}` — with its times, la-gram at its version
+    (`https://app.linked.archi/la-gram/v{version}`) and the person (`{ns}provenance/{digest}`).
+  - Minimal: an activity no concept names any more is removed in the same edit, with a person or a la-gram
+    version nothing names.
+  - Not recorded: opening, importing, a new model, undo and redo, merging, pulling, restoring a version, a
+    namespace move, a collaborator's changes (`ObservableRdfStore.withoutStamps`, origins).
+- *File › Settings… › You*: the name and email recorded with your edits; without them, the collaboration name
+  in a room, else nobody.
+- The save puts every `prov:` statement, and what a PROV class types, in `{ns}graph/provenance` — a converted
+  model's run, which went into the semantic graph, too; Turtle writes `{ns}provenance/` as `{p}p:` (`mp:`), and
+  `la-gram-git check` counts `provenance` among the kinds.
+- The property panel shows it read-only, *Last changed* (*20 Nov 2026, 16:40 · by Ada · with la-gram 0.3.0*),
+  and offers no `prov:` property (`prov:wasDerivedFrom` was offered). The RDF panel's *provenance* switch
+  leaves it out of the panel and its download. The diff by element — History, merge request descriptions —
+  leaves the stamps and the provenance out of what changed (they had read as an activity added and every
+  concept changed). A merge takes the later `prov:generatedAtTime` and `prov:endedAtTime` and the activity
+  that ended later, never a conflict (`settleEditProvenance`).
+- `schema:` is bound to `https://schema.org/`, the form la-gram and the converters write: a folder's name and
+  entries, a picture, la-gram and a person are written `schema:name`, `schema:SoftwareApplication`. A model with
+  folders saved before is written once differently (`la-gram-git fix` rewrites it); it reads the same. Decision
+  confirmed on 2026-11-20.
+- The web build writes this version's page, `v{version}/index.html` (`scripts/version-page.mjs`), with its
+  JSON-LD; `web` checks it, and `web-deploy` keeps every earlier version's (`--filter='P /v[0-9]*/'`).
+- Tests: *provenance.test* (stamps on the concept and in the provenance, a shape's change to its view, undo and
+  redo, one activity a session and the unnamed removed, not an edit, a value set by hand, a deletion, opening,
+  the TriG graphs, the merge), *model-diff.test*, *property-panel.test*, *rdf-panel.test*, *workbench.test*
+  (*Settings › You*), *git-module.test*, *release-pipeline.test*, *workbench.spec* (a save with its
+  provenance, *Last changed*, the Properties tab's *Created* and *Modified*, *You* among the tabs). Docs:
+  *Properties* (*Last changed*), *Settings* (*You tab*), *The RDF panel* (*Provenance*), *Files*, *File formats
+  and vocabulary*, *History*, *Hosting the web app*, *Releasing*. Verified: type checking, all 2,758 unit tests
+  and all 94 browser tests pass; `npm run build` (with `v0.2.0/index.html`), `npm run docs:build`.
 
 ### 2026-11-20 — Save writes TriG; Ctrl/⌘+O and +S; the File menu in sections and submenus; a view copied to the clipboard
 

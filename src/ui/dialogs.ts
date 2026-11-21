@@ -37,6 +37,11 @@ export interface FormField {
   options?: Array<{ value: string; label: string }>;
   /** Shown, not offered for change: a value set elsewhere (a deployment's). */
   disabled?: boolean;
+  /**
+   * Shown to read and copy, not to change: what the dialog reports (a model's address in Git). Unlike a
+   * `disabled` one, its text can be selected.
+   */
+  readOnly?: boolean;
 }
 
 /** What {@link Dialogs.form} resolves with: text fields trimmed, checkboxes as booleans. */
@@ -225,7 +230,7 @@ export const domDialogs: Dialogs = {
     /** One field's row; its input is kept by name. */
     const row = (field: FormField): HTMLElement => {
       const id = `la-form-${field.name}`;
-      const line = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}${field.disabled ? ' fixed' : ''}` });
+      const line = el('div', { class: `la-form-row${field.type === 'checkbox' ? ' check' : ''}${field.disabled || field.readOnly ? ' fixed' : ''}` });
       if (field.type === 'select') {
         const select = el('select', { id, name: field.name, class: 'la-input', 'aria-label': field.label });
         for (const option of field.options ?? []) select.append(el('option', { value: option.value, text: option.label }));
@@ -248,6 +253,7 @@ export const domDialogs: Dialogs = {
       const type = field.type === 'checkbox' ? 'checkbox' : field.type === 'password' ? 'password' : 'text';
       const input = el('input', { id, name: field.name, type });
       input.disabled = field.disabled === true;
+      if (field.readOnly && field.type !== 'checkbox') input.readOnly = true;
       if (field.type === 'password') {
         // Not remembered by the browser's autofill, nor offered back.
         input.setAttribute('autocomplete', 'off');
@@ -374,7 +380,7 @@ export const domDialogs: Dialogs = {
     const opened = options.tabs ? tabs.find((t) => t.name === options.openSection) ?? tabs[0] : undefined;
     const first = [...inputs.entries()].find(
       ([name, i]) =>
-        i instanceof HTMLInputElement && !i.disabled && (i.type === 'text' || i.type === 'password') && (!opened || tabOf.get(name) === opened),
+        i instanceof HTMLInputElement && !i.disabled && !i.readOnly && (i.type === 'text' || i.type === 'password') && (!opened || tabOf.get(name) === opened),
     )?.[1] as HTMLInputElement | undefined;
     if (first) queueMicrotask(() => first.select());
     return modal<FormValues | null>(

@@ -22,12 +22,56 @@
  * the merge and the room read them) is shown as its old value and its new; a
  * changed type too. Any other property as values added and removed — but not a
  * relationship's `rdf:reifies`, which changes with its ends.
+ *
+ * The provenance of edits is not a change of its own (Req 9.16): a concept's
+ * `dcterms:created` and `dcterms:modified`, every PROV statement, and the
+ * activities, users and tools PROV types change with every edit, and say only
+ * when and by whom. They are left out here — the changes by element are what
+ * changed — and stay in the triples added and removed (`lines`). What they say
+ * is given with the change instead ({@link ConceptChange.edit}): who made it,
+ * when, with what — where the later version records an edit the earlier does
+ * not, so a change made where nothing records it names nobody.
  */
 
 import { SingleValued } from '../rdf-engine/single-valued.js';
 import { diffSnapshots, type SnapshotDiff } from './version-history.js';
 import { BOUNDS_PREDICATES, IRI, localName } from './vocabulary.js';
 import { iriOf, literalValue, parseLine, predicateOf, subjectOf, type Line } from './snapshot-lines.js';
+import { NAMESPACES } from '../rdf-engine/namespaces.js';
+
+const PROV_TERM = `<${NAMESPACES.prov}`;
+const STAMPS = new Set([IRI.dctermsCreated, IRI.dctermsModified]);
+const PROV = {
+  generatedBy: NAMESPACES.prov + 'wasGeneratedBy',
+  at: NAMESPACES.prov + 'generatedAtTime',
+  associated: NAMESPACES.prov + 'wasAssociatedWith',
+  person: NAMESPACES.prov + 'Person',
+  software: NAMESPACES.prov + 'SoftwareAgent',
+};
+const SCHEMA = {
+  name: new Set([NAMESPACES.schema + 'name']),
+  alternateName: new Set([NAMESPACES.schema + 'alternateName']),
+  email: new Set([NAMESPACES.schema + 'email']),
+  sameAs: new Set([NAMESPACES.schema + 'sameAs']),
+  softwareVersion: new Set([NAMESPACES.schema + 'softwareVersion']),
+};
+
+/** What records an edit rather than makes one: a date stamp, a PROV statement, a resource PROV types. */
+function provenanceFilter(...versions: ReadonlyArray<readonly string[]>): (line: string) => boolean {
+  const recorded = new Set<string>();
+  for (const lines of versions) {
+    for (const line of lines) {
+      if (predicateOf(line) === IRI.rdfType && line.includes(PROV_TERM, line.indexOf('> <') + 3)) {
+        const o = parseLine(line).o;
+        if (o.startsWith(PROV_TERM)) recorded.add(subjectOf(line));
+      }
+    }
+  }
+  return (line) => {
+    const p = predicateOf(line);
+    return STAMPS.has(p) || p.startsWith(NAMESPACES.prov) || recorded.has(subjectOf(line));
+  };
+}
 
 /** What a concept is, as the diff groups it. */
 export type ConceptKind = 'model' | 'element' | 'relationship' | 'view' | 'folder' | 'other';
@@ -80,6 +124,18 @@ export interface ShapeChange {
   bounds?: { from?: Bounds; to?: Bounds };
 }
 
+/** Who made a concept's change, when and with what, as the later version records its last edit (Req 9.16). */
+export interface EditRecord {
+  /** When: its `prov:generatedAtTime`, ISO 8601. */
+  at?: string;
+  /** Who: the user's name, else their username, else their address. */
+  by?: string;
+  /** Their Git account's page. */
+  account?: string;
+  /** With what: the tool's name and version. */
+  tool?: string;
+}
+
 /** One concept's changes. */
 export interface ConceptChange {
   /** The concept (an IRI, or `_:label`). */
@@ -97,6 +153,8 @@ export interface ConceptChange {
   shapes: ShapeChange[];
   /** What a view shows, by `arch:inView`, that no shape placed or removed accounts for. */
   shows: { added: string[]; removed: string[] };
+  /** Who made the change, when, with what — where the later version records an edit of it the earlier does not. */
+  edit?: EditRecord;
   /** Every line put under it. */
   lines: SnapshotDiff;
 }
@@ -156,6 +214,9 @@ export function diffByElement(from: readonly string[], to: readonly string[], op
   const before = new Version(from);
   const after = new Version(to);
   const versions: Record<'added' | 'removed', Version> = { added: after, removed: before };
+  const recordsAnEdit = provenanceFilter(from, to);
+  // A concept whose record of its last edit is new: it was edited where an edit is recorded.
+  const recorded = new Set(lines.added.filter((l) => predicateOf(l) === PROV.generatedBy).map(subjectOf));
 
   // ── Each line under its concept ──
   const groups = new Map<string, Group>();
@@ -170,6 +231,7 @@ export function diffByElement(from: readonly string[], to: readonly string[], op
   for (const side of ['added', 'removed'] as const) {
     const version = versions[side];
     for (const line of lines[side]) {
+      if (recordsAnEdit(line)) continue;
       const parsed = parseLine(line);
       let owner: string;
       if (parsed.p === IRI.inView && parsed.refs.length === 1) {
@@ -214,6 +276,8 @@ export function diffByElement(from: readonly string[], to: readonly string[], op
       shows: { added: [], removed: [] },
       lines: g.lines,
     };
+    const edit = status !== 'removed' && recorded.has(term) ? after.edit(term) : undefined;
+    if (edit) change.edit = edit;
     named.add(term);
 
     // Its own lines: single values paired, the rest as values added and removed.
@@ -346,6 +410,33 @@ class Version {
   objectOf(subject: string, predicates: ReadonlySet<string>): string | undefined {
     const line = this.of(subject).find((l) => predicates.has(predicateOf(l)));
     return line === undefined ? undefined : parseLine(line).o;
+  }
+
+  /** Its last edit, as recorded: the activity that generated it, the user and the tool that activity is associated with. */
+  edit(subject: string): EditRecord | undefined {
+    const activity = this.objectOf(subject, new Set([PROV.generatedBy]));
+    if (!activity?.startsWith('<')) return undefined;
+    const text = (term: string, predicates: ReadonlySet<string>) => {
+      const o = this.objectOf(term, predicates);
+      return o === undefined ? undefined : o.startsWith('<') ? iriOf(o) : literalValue(o);
+    };
+    const record: EditRecord = {};
+    const at = text(subject, new Set([PROV.at]));
+    if (at) record.at = at;
+    for (const line of this.of(activity)) {
+      if (predicateOf(line) !== PROV.associated) continue;
+      const agent = parseLine(line).o;
+      const types = this.types(agent);
+      if (types.includes(PROV.software)) {
+        record.tool = [text(agent, SCHEMA.name) ?? iriOf(agent), text(agent, SCHEMA.softwareVersion)].filter(Boolean).join(' ');
+      } else if (types.includes(PROV.person)) {
+        const by = text(agent, SCHEMA.name) ?? text(agent, SCHEMA.alternateName) ?? text(agent, SCHEMA.email);
+        const account = text(agent, SCHEMA.sameAs);
+        if (by) record.by = by;
+        if (account) record.account = account;
+      }
+    }
+    return Object.keys(record).length > 0 ? record : undefined;
   }
 
   /** Its name: the first property of {@link NAME_PREDICATES} it has, in `language`, else without one, else the first. */

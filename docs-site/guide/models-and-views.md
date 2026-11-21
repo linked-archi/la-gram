@@ -56,6 +56,22 @@ Git* commits the move there ([Moving the model to another namespace](git.md#name
 Every IRI of the model now starts with `https://example.org/acme/models/shop/`, written `shop:…` in
 Turtle.
 
+### Git {#model-settings-git}
+
+With [Git storage](git.md) on, *Model settings* ends with a *Git* part: where the model is kept, and the
+account your edits are recorded under. Its fields can be selected and copied, not changed; *Apply* leaves
+them as they are.
+
+| Field | What it shows | Without it |
+|---|---|---|
+| *Address* | the file the model is bound to, on its branch, as the host's page has it: `https://gitlab.com/acme/architecture/-/blob/main/models/shop.ttl`. Its hint names the file and the commit it was last read or written at; [*Open from Git…*](git.md#open-from-git) opens the model from this address | **Not in Git**, until [*Save to Git…*](git.md#save-to-git) binds the model to a file |
+| *Your Git account* | the account your token acts for on the model's Git host, its username and page, `ada · https://gitlab.com/ada`: the one recorded with your edits, unless *Record my Git account with my edits* is unticked in [*File › Settings… › You*](settings.md#you-tab) | **None yet**, until you open or save a model there with a token ([Who commits](git.md#who-commits)) |
+
+1. Open a model from Git, or save one there.
+2. Click the model's name in the toolbar.
+3. Under *Git*, select the *Address*, copy it, and send it to a colleague: *Open from Git…* opens the same
+   file from it.
+
 ## Open a view {#open-a-view}
 
 The *View* selector in the toolbar lists the model's views by name, a catalog or matrix with its kind

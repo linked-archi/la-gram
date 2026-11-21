@@ -2400,7 +2400,8 @@ checkpoint. Snapshots, not deltas: restore and diff need no other checkpoint.
 They are kept per model IRI in IndexedDB (Chromium in the browser and Electron
 alike), in memory where there is none; a saved file does not carry them, and a
 Git save does not push them. Each records its time (strictly after the model's
-previous one), message, author (the collaboration name, when in a room) and
+previous one), message, author (`App.currentEditor()`'s name: *Settings › You*'s, else the Git account's,
+else the collaboration name) and
 the one before it. The History tab (*Save checkpoint*, its tooltip saying it is
 not a Git commit) lists them with +/− triple counts against the one before,
 shows what a checkpoint changed — against the one before or against the model
@@ -2727,6 +2728,14 @@ so a difference of form is never a change.
   bound file still has. `checkSnapshot` accepts that IRI in the file;
   `advanced` keeps it while the file read still has it, and a commit from here
   drops it.
+- Where the model is kept, in Model settings (Req 18.30). The module gives
+  Model settings its *Git* part (`MountedUi.addModelSettingsInfo`,
+  `modelSettingsFields`), asked each time the dialog opens, so mount-ui knows
+  nothing of bindings and a build without the module shows none. The address
+  is `fileLink`, the inverse of `parseRepositoryLink` for a file on a branch,
+  so what is copied opens the same file. mount-ui makes every field a module
+  gives read-only (`FormField.readOnly`, which, unlike `disabled`, lets its
+  text be selected) and applies none of them.
 
 **Measured** (*model-merge-bench.test*): 350 000 triples, a few hundred renames,
 moves and deletions on each side — reading one version from Turtle 0.5–0.6 s,
@@ -3633,6 +3642,60 @@ dialog; the modules' section).
     picture may paste the text. An SVG is its markup as `text/plain` always, and `image/svg+xml` where
     `ClipboardItem.supports` says the browser writes it; with no `ClipboardItem`, the markup by `writeText`.
     The desktop app uses the same API: its window is a secure context, and Electron grants the write.
+39. **Edits are stamped inside themselves, one activity a session** (Req 9.16; meta's DD-27 and *IRI
+    Minting*, *Provenance of edits*; 2026-11-20). `ObservableRdfStore.setStamper` hands what a local edit
+    changed to `EditProvenance.stamp` at the end of its outermost write — a `record`, a `batch`, or a write
+    outside both — while the edit is still recorded and batched, so the stamps are in its undo diff and its
+    notification, and a collaborator receives them with it; `applyDiff` (undo, redo), another origin
+    (`remote`) and `withoutStamps` (opening, importing, a new model, merging, restoring, a namespace move)
+    collect nothing. Stamping at save instead would write what the panel never showed and undo never took
+    back. The unit is the editing activity, not the change: per change, a model would grow with every
+    keystroke; one global activity could not say who. A concept names only the activity that changed it
+    last, and an activity nothing names is removed in the same edit, so a model holds what is behind its
+    current state — four statements a concept, five an activity — and its history stays in checkpoints and
+    Git. What a change is about is read from the triples: the subject if it is in the model (`arch:inModel`,
+    or `arch:Model`), a shape's view (`arch-vis:view`), else the owner of the link that leads to it, walked
+    up — not through a folder's links. The activities and users are IRIs in the model's namespace, since
+    la-gram knows no dataset base (DD-29): `{ns}provenance/edit-{uuid}` and `{ns}provenance/user-{digest}` —
+    the word for a reader of the Turtle (a `/` would need escaping in a prefixed name), the id opaque. A
+    user's digest is of their Git account's page, else their address, else their name: the most lasting
+    first, so one user is one resource on every machine, and nothing personal is in an IRI that is copied
+    wherever the model goes; who they are is the user's own statements, replaced with what is known when an
+    activity starts (DD 41). la-gram itself is one IRI per version, the same in every
+    model, whose page the web build writes (`scripts/version-page.mjs`) and the deploy keeps
+    (`--filter='P /v[0-9]*/'`). The save puts every `prov:` statement, and what a PROV class types, in
+    `{ns}graph/provenance` — a converter's run with la-gram's, told apart by the agent. The diff by element
+    leaves the stamps and the provenance out of what changed, and says instead who made each change and when
+    (`ConceptChange.edit`) — only where the later version's `prov:wasGeneratedBy` line is new, so a change
+    made where nothing records edits is not put on whoever edited the concept before; the merge settles `prov:generatedAtTime` and
+    `prov:endedAtTime` as `latest`, as `dcterms:modified` already was, and keeps the activity that ended
+    later (`settleEditProvenance`). The panel reads it apart from the properties and shows it as text;
+    `prov:` is not offered (`prov:wasDerivedFrom` was).
+40. **The alpha keeps its browser storage under its channel** (Req 15.10; 2026-11-20). The alpha is served
+    beside the release, `/la-gram-alpha/` and `/la-gram/` on app.linked.archi — one origin, whose
+    `localStorage` and IndexedDB every page of it shares. Shared, an alpha could write settings, bindings or
+    checkpoints in a form the release cannot read yet, and the two would overwrite each other's open
+    state. A build for a channel (`LA_GRAM_CHANNEL=alpha`, `__LA_GRAM_BUILD__.channel`) therefore replaces
+    `globalThis.localStorage`, before any other module runs (`storage-scope-install.ts`, the entry point's
+    first import), with a `ScopedStorage` that puts every key under `alpha:`, and names the checkpoints'
+    database `la-gram-history-alpha` (`scopedName`): every module keeps reading `localStorage` as it does,
+    and none had to learn a prefix. A release's build installs nothing, so its users' storage is as it was.
+    A storage event names the inner key; the Git module reads it through `unscopedKey`. Another origin per
+    channel would have needed a host name and a certificate of its own; the version page and the IRI stay
+    under `/la-gram/` either way. `alpha`, not `snapshot`: pre-release labels sort as text, and
+    `0.3.0-snapshot` would sort after `0.3.0-rc.1`.
+41. **Who commits is the user; whose account is the host's answer** (Req 18.29, 9.16; 2026-11-20). la-gram
+    commits through the user's token, so the host attributed every commit to the token's owner and the
+    History tab could not say who made a change. A provider's commits now carry an author —
+    `RestProvider.commitAuthor`, set by `providerFor` from `App.currentEditor()` — GitLab's `author_name`
+    and `author_email`, GitHub's `author`, which GitHub takes only with both; the owner stays the
+    committer. The account is read from the host with the token la-gram already has (`currentAccount`,
+    `GET /user`), once a session per host and in the background (`GitAccounts.learn`), kept with the
+    personal settings rather than the tokens — it is no secret — and followed to the open model's host on
+    each load and save (`App.gitAccount`). A token without the scope only leaves it unknown. The account
+    names the user in the provenance (`schema:sameAs`, `schema:alternateName`, the digest's key) unless
+    *Record my Git account with my edits* is unticked; its name stands in for a name not given either way,
+    since it is the token owner's name the host would show anyway.
 
 ## Running
 

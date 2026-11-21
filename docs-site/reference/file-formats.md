@@ -112,7 +112,7 @@ With the example model:
 
 ## Graphs {#graphs}
 
-In a format that names graphs (TriG, N-Quads, JSON-LD), la-gram writes the model in three graphs, named in
+In a format that names graphs (TriG, N-Quads, JSON-LD), la-gram writes the model in four graphs, named in
 the model's namespace `{ns}`:
 
 | Graph | Holds |
@@ -120,8 +120,9 @@ the model's namespace `{ns}`:
 | `{ns}graph/model` | the `arch:Model` resource: its name, namespace and the metamodels it conforms to |
 | `{ns}graph/semantic` | the elements, the relationships, the views and what each view shows |
 | `{ns}graph/views` | the geometry: nodes, links and their bounds, which can be dropped on its own |
+| `{ns}graph/provenance` | how the model came to be: every `prov:` statement, and what a PROV class types — la-gram's editing activities, la-gram itself and the people ([Last changed](../guide/properties.md#last-changed)), a converter's run and source, a derivation's activity |
 
-- Turtle, N-Triples and RDF/XML cannot name graphs, so they hold the three together. `arch:inModel` on
+- Turtle, N-Triples and RDF/XML cannot name graphs, so they hold the four together. `arch:inModel` on
   every concept keeps membership clear there.
 - **On opening**, every statement goes into one graph, whichever graph it came in; the graphs are made
   again on saving.
@@ -173,6 +174,11 @@ from the metamodel (here ArchiMate 4.0, `am4:`):
 | `vann:preferredNamespaceUri`, `vann:preferredNamespacePrefix` | the model | its namespace and prefix, when they are not the model IRI's own |
 | `skos:prefLabel` | anything | its name, per language |
 | `arch:inModel` | every element, relationship and view | which model it belongs to |
+| `dcterms:created`, `dcterms:modified` | the model, an element, a relationship, a view | when it was made, and last changed, as `xsd:dateTime`; la-gram writes them as it is edited |
+| `prov:wasGeneratedBy`, `prov:generatedAtTime` | the same | the editing activity that changed it last, and when: in the provenance graph |
+| `prov:Activity`, `prov:startedAtTime`, `prov:endedAtTime`, `prov:wasAssociatedWith` | an editing activity, `{ns}provenance/edit-{uuid}` | one user's edits in one la-gram, from the first change after opening or saving to the save; la-gram at its version and the user |
+| `prov:SoftwareAgent`, `schema:SoftwareApplication`, `schema:name`, `schema:softwareVersion` | `https://app.linked.archi/la-gram/v{version}` | la-gram at a version, its page |
+| `prov:Person`, `schema:name`, `schema:email`, `schema:sameAs`, `schema:alternateName` | a user, `{ns}provenance/user-{digest}`, the digest of their Git account's page, else their address, else their name | who made the edits: their name and address, as *File › Settings… › You* says, and their Git account's page and username |
 | `arch:View`, with `arch:Diagram`, `arch:Catalog` or `arch:Matrix` | a view | a view, and its kind |
 | `arch:viewConformsToViewpoint` | a view | its viewpoint |
 | `arch:inView` | a concept | a view that shows it |
