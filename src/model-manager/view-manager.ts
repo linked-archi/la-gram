@@ -170,7 +170,9 @@ export class OxigraphViewManager implements ViewManager {
       // told by the node's type, so an element renamed does not read a view again.
       const figureText = (q: Quad) =>
         q.predicate.value === IRI.prefLabel &&
-        this.objects(q.subject, T.rdfType).some((t) => t === IRI.ContainerNode || t === IRI.LabelNode || t === IRI.Link);
+        this.objects(q.subject, T.rdfType).some(
+          (t) => t === IRI.ContainerNode || t === IRI.LabelNode || t === IRI.ViewReferenceNode || t === IRI.Link,
+        );
       const shapes = (q: Quad) => shapesAView(q) || figureText(q);
       observed.onEveryWrite((diff) => {
         if (this.cache?.size && (diff.added.some(shapes) || diff.removed.some(shapes))) this.cache.clear();
@@ -292,6 +294,12 @@ export class OxigraphViewManager implements ViewManager {
     }
     // …and every membership statement naming it. The concepts themselves stay.
     quads.push(...this.read(null, T.inView, view));
+    // …and every reference to it from another view, which would open nothing once it is gone: removed as when it is
+    // removed alone (core-vis-shapes 0.5.0 asks a reference for the view it opens).
+    for (const reference of this.read(null, T.referencesView, view)) {
+      const holder = this.objects(reference.subject, T.visView)[0];
+      if (holder && holder !== viewIri) quads.push(...this.collectNodeQuads(holder, reference.subject.value));
+    }
     return dedupe(quads);
   }
 
@@ -340,11 +348,16 @@ export class OxigraphViewManager implements ViewManager {
     const view = nn(viewIri);
     const nodeIri = iri ?? this.mintShape(viewIri, 'node');
     const node = nn(nodeIri);
-    const quads: Quad[] = [
-      triple(node, T.rdfType, figure.kind === 'note' ? T.LabelNode : T.ContainerNode),
-      triple(node, T.visView, view),
-      ...boundsQuads(node, figure.bounds),
-    ];
+    // A reference opening no view is a note: text, standing for nothing (core-vis-shapes 0.5.0).
+    const opens = figure.kind === 'reference' ? figure.view : undefined;
+    const type = opens ? T.ViewReferenceNode : figure.kind === 'note' || figure.kind === 'reference' ? T.LabelNode : T.ContainerNode;
+    const quads: Quad[] = [triple(node, T.rdfType, type), triple(node, T.visView, view), ...boundsQuads(node, figure.bounds)];
+    if (opens) {
+      // It stands for the view it opens, which is presented in this one, as an element's placement presents the
+      // element (`arch:inView`, DD-30) — unless it opens the view it is drawn in.
+      quads.push(triple(node, T.referencesView, nn(opens)));
+      if (opens !== viewIri) quads.push(triple(nn(opens), T.inView, view));
+    }
     if (figure.kind === 'shape' && figure.shapeType) {
       const style = nn(this.styleIriOf(nodeIri));
       quads.push(triple(node, T.visStyle, style), triple(style, T.rdfType, T.Style), triple(style, T.shapeType, nn(figure.shapeType)));
@@ -393,6 +406,15 @@ export class OxigraphViewManager implements ViewManager {
     quads.push(...this.placementQuads(view, nodeIris));
     if (nodeIris.length > 0) {
       quads.push(...this.read(nn(elementIri), T.inView, view));
+    }
+    // A referenced view leaves the view with its last reference there, as an element with its last placement.
+    for (const nodeIri of nodeIris) {
+      for (const opened of this.objects(nn(nodeIri), T.referencesView)) {
+        const others = this.read(null, T.referencesView, nn(opened)).filter(
+          (q) => !nodeIris.includes(q.subject.value) && this.objects(q.subject, T.visView).includes(viewIri),
+        );
+        if (others.length === 0) quads.push(...this.read(nn(opened), T.inView, view));
+      }
     }
     return dedupe(quads);
   }
@@ -808,8 +830,9 @@ export class OxigraphViewManager implements ViewManager {
 
   /**
    * What a node is when it stands for no model element: a group or a shape (an
-   * `arch-vis:ContainerNode`, with a shape type or without), or a note (an
-   * `arch-vis:LabelNode` that is no diagram element's `arch-vis:label`).
+   * `arch-vis:ContainerNode`, with a shape type or without), a note (an
+   * `arch-vis:LabelNode` that is no diagram element's `arch-vis:label`), or a
+   * reference to another view (an `arch-vis:ViewReferenceNode`, core-vis 0.9).
    */
   private figureOf(node: Term): FigureInfo | undefined {
     const types = this.objects(node, T.rdfType);
@@ -820,6 +843,11 @@ export class OxigraphViewManager implements ViewManager {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
       const shapeType = style ? this.objects(style, T.shapeType)[0] : undefined;
       return { kind: shapeType ? 'shape' : 'group', ...(shapeType ? { shapeType } : {}), ...(text !== undefined ? { text } : {}), ...colours };
+    }
+    if (types.includes(IRI.ViewReferenceNode)) {
+      const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
+      const view = this.objects(node, T.referencesView)[0];
+      return { kind: 'reference', ...(view ? { view } : {}), ...(text !== undefined ? { text } : {}), ...colours };
     }
     if (types.includes(IRI.LabelNode) && this.read(null, T.visLabel, node as NamedNode).length === 0) {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;

@@ -5335,6 +5335,7 @@ export const FIGURE_SIZES: Record<FigureKind, { width: number; height: number }>
   group: { width: 400, height: 260 },
   shape: { width: 120, height: 80 },
   note: { width: 185, height: 80 },
+  reference: { width: 120, height: 55 },
 };
 
 /** Nodes ordered so every container comes before what is drawn inside it. */

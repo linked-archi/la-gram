@@ -5,6 +5,7 @@ import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
 import { OxigraphViewManager, addRelationshipsToView } from '../view-manager.js';
 import { OxigraphElementManager } from '../element-manager.js';
 import { OxigraphRelationshipManager } from '../relationship-manager.js';
+import { copyPlacements } from '../placement-copy.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 
 const { namedNode } = DataFactory;
@@ -653,6 +654,76 @@ describe('figures: groups, shapes and notes, standing for no model element', () 
     expect(copiedGroup.elementIri).not.toBe(group);
     expect(copiedGroup.figure).toEqual({ kind: 'group', text: 'G' });
     expect(nodes.find((n) => n.elementIri === element)?.parentElementIri).toBe(copiedGroup.elementIri);
+  });
+});
+
+describe('a reference to another view (core-vis 0.9): a figure standing for the view it opens', () => {
+  const VIS_NS = NAMESPACES['arch-vis'];
+  const IN_VIEW = NAMESPACES.arch + 'inView';
+  const bounds = { x: 10, y: 10, width: 120, height: 55 };
+  let store: OxigraphRdfStore;
+  let views: OxigraphViewManager;
+  let index: string;
+  let detail: string;
+
+  beforeEach(() => {
+    store = new OxigraphRdfStore();
+    views = new OxigraphViewManager(store);
+    index = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'Index' }).value;
+    detail = views.createView('Diagram', undefined, { modelIri: 'https://example.org/model', label: 'Detail' }).value;
+  });
+
+  it('is a ViewReferenceNode, not a LabelNode, naming the view it opens, which is presented in its view', () => {
+    const reference = views.addFigure(index, { kind: 'reference', view: detail, text: 'Detail', bounds });
+    expect(objects(store, reference, RDF_TYPE)).toEqual([VIS_NS + 'ViewReferenceNode']);
+    expect(objects(store, reference, VIS_NS + 'referencesView')).toEqual([detail]);
+    expect(objects(store, detail, IN_VIEW)).toEqual([index]);
+    expect(views.getNodes(index).map((n) => n.figure)).toEqual([{ kind: 'reference', view: detail, text: 'Detail' }]);
+  });
+
+  it('opening no view, it is a note; opening its own view, it presents nothing', () => {
+    const note = views.addFigure(index, { kind: 'reference', text: 'Nowhere', bounds });
+    expect(objects(store, note, RDF_TYPE)).toEqual([VIS_NS + 'LabelNode']);
+    const self = views.addFigure(index, { kind: 'reference', view: index, bounds: { ...bounds, y: 100 } });
+    expect(objects(store, self, VIS_NS + 'referencesView')).toEqual([index]);
+    expect(objects(store, index, IN_VIEW)).toEqual([]);
+  });
+
+  it('its view leaves the view with its last reference there, as an element with its last placement', () => {
+    const first = views.addFigure(index, { kind: 'reference', view: detail, bounds });
+    const second = views.addFigure(index, { kind: 'reference', view: detail, bounds: { ...bounds, y: 100 } });
+    views.removeElementFromView(index, first);
+    expect(objects(store, detail, IN_VIEW)).toEqual([index]);
+    views.removeElementFromView(index, second);
+    expect(objects(store, detail, IN_VIEW)).toEqual([]);
+    expect(store.getQuads(nn(second), null, null)).toEqual([]);
+  });
+
+  it('goes when the view it opens is deleted, and comes back when the deletion is undone', () => {
+    const reference = views.addFigure(index, { kind: 'reference', view: detail, bounds });
+    const removed = views.collectViewQuads(detail);
+    expect(removed.some((q) => q.subject.value === reference)).toBe(true);
+    views.deleteView(detail);
+    expect(store.getQuads(nn(reference), null, null)).toEqual([]);
+    expect(views.getNodes(index)).toEqual([]);
+    store.addQuads(removed);
+    expect(views.getNodes(index).map((n) => n.figure?.kind)).toEqual(['reference']);
+    expect(objects(store, detail, IN_VIEW)).toEqual([index]);
+  });
+
+  it('is copied with its view, opening the same view from the copy', () => {
+    views.addFigure(index, { kind: 'reference', view: detail, text: 'Detail', bounds });
+    const copy = views.duplicateView(index).value;
+    expect(views.getNodes(copy).map((n) => n.figure)).toEqual([{ kind: 'reference', view: detail, text: 'Detail' }]);
+    expect(objects(store, detail, IN_VIEW).sort()).toEqual([copy, index].sort());
+  });
+
+  it('pasted into a model without the view it opens, is a note with its text', () => {
+    views.addFigure(index, { kind: 'reference', view: detail, text: 'Detail', bounds });
+    const other = new OxigraphViewManager(new OxigraphRdfStore());
+    const target = other.createView('Diagram', undefined, { modelIri: 'https://example.org/other', label: 'T' }).value;
+    copyPlacements(views, index, other, target);
+    expect(other.getNodes(target).map((n) => n.figure)).toEqual([{ kind: 'note', text: 'Detail' }]);
   });
 });
 

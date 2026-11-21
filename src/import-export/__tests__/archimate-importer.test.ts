@@ -322,6 +322,61 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     });
     expect(views.getNode(viewIri, `${ns}element/id-node`)?.parentElementIri).toBeUndefined();
   });
+  it('draws a Label opening a view of the file as a reference to that view, on the view or in a box; one opening none as a note', () => {
+    // The view it opens comes later in the file, as an index view's do.
+    const REFERENCES = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
+  <name xml:lang="en">References</name>
+  <elements>
+    <element identifier="id-pay" xsi:type="ApplicationComponent"><name xml:lang="en">Payments</name></element>
+  </elements>
+  <views><diagrams>
+    <view identifier="id-index" xsi:type="Diagram"><name xml:lang="en">Index</name>
+      <node identifier="n-top" xsi:type="Label" x="10" y="10" w="120" h="55">
+        <label xml:lang="en">Payments in detail</label>
+        <viewRef ref="id-detail"/>
+      </node>
+      <node identifier="n-pay" elementRef="id-pay" xsi:type="Element" x="200" y="10" w="240" h="160">
+        <node identifier="n-in" xsi:type="Label" x="220" y="80" w="120" h="55">
+          <label xml:lang="en">Payments in detail</label>
+          <viewRef ref="id-detail"/>
+        </node>
+      </node>
+      <node identifier="n-gone" xsi:type="Label" x="10" y="300" w="120" h="55">
+        <label xml:lang="en">Retired</label>
+        <viewRef ref="id-gone"/>
+      </node>
+    </view>
+    <view identifier="id-detail" xsi:type="Diagram"><name xml:lang="en">Payments in detail</name></view>
+  </diagrams></views>
+</model>`;
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/references/';
+    const report = applyExchangeModel(parseArchiMateExchange(REFERENCES), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    expect(report.figureCount).toBe(3);
+    const index = `${ns}view/id-index`;
+    const detail = `${ns}view/id-detail`;
+    const figures = views
+      .getNodes(index)
+      .filter((n) => n.figure)
+      .map((n) => ({ kind: n.figure!.kind, view: n.figure!.view, text: n.figure!.text, in: n.parentElementIri }));
+    expect(figures).toHaveLength(3);
+    expect(figures).toEqual(
+      expect.arrayContaining([
+        { kind: 'reference', view: detail, text: 'Payments in detail', in: undefined },
+        { kind: 'reference', view: detail, text: 'Payments in detail', in: `${ns}element/id-pay` },
+        { kind: 'note', view: undefined, text: 'Retired', in: undefined },
+      ]),
+    );
+    // The view it opens is presented in the index, once however many references open it.
+    expect(store.getQuads(nn(detail), nn(NAMESPACES.arch + 'inView'), nn(index))).toHaveLength(1);
+  });
 
   it('draws a relationship twice when the view does, each between the placements it joins', () => {
     const TWICE = `<?xml version="1.0" encoding="UTF-8"?>

@@ -816,7 +816,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     if (connector) {
       const endName = (nodeIri: string, conceptIri: string): string => {
         const figure = figureOf(nodeIri);
-        if (figure) return figure.text || (figure.kind === 'group' ? 'a group' : figure.kind === 'note' ? 'a note' : 'a shape');
+        if (figure) {
+          const unnamed = { group: 'a group', note: 'a note', reference: 'a view reference', shape: 'a shape' } as const;
+          return figure.text || unnamed[figure.kind];
+        }
         return labelOf(store, conceptIri) || localNameOf(conceptIri);
       };
       return {
@@ -827,11 +830,13 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     // A figure says what it is — no type to change, no model element.
     const figure = figureOf(iri);
     if (figure) {
-      const kind = figure.kind === 'group' ? 'Group' : figure.kind === 'note' ? 'Note' : 'Shape';
+      const kind = ({ group: 'Group', note: 'Note', reference: 'View reference', shape: 'Shape' } as const)[figure.kind];
       const { kind: figureKind, fillColor, lineColor, fontColor } = figure;
       return {
         kind,
         ...(figure.kind === 'shape' && figure.shapeType ? { typeLabel: humanize(localNameOf(figure.shapeType)) } : {}),
+        // A reference says which view it opens.
+        ...(figure.kind === 'reference' && figure.view ? { typeLabel: labelOf(store, figure.view) || localNameOf(figure.view) } : {}),
         figure: { kind: figureKind, ...(fillColor ? { fillColor } : {}), ...(lineColor ? { lineColor } : {}), ...(fontColor ? { fontColor } : {}) },
       };
     }

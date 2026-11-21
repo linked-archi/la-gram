@@ -379,14 +379,16 @@ function isFigure(target: RuleTarget | undefined): boolean {
 /**
  * Whether shapes may be dropped into `target`: the diagram, or an element or a
  * figure big enough to hold them — not a relationship, not a junction, not a
- * note, and not one of the shapes moved or anything inside them.
+ * note, not a reference to another view, and not one of the shapes moved or
+ * anything inside them.
  */
 function canContain(target: RuleTarget | undefined, moved: readonly RuleTarget[] = []): boolean {
   if (!target) return true;
   if (target.waypoints) return false;
   const figure = isFigure(target);
   if (!figure && !isElementShape(target)) return true;
-  if (figure && target.businessObject?.figure?.kind === 'note') return false;
+  const kind = figure ? target.businessObject?.figure?.kind : undefined;
+  if (kind === 'note' || kind === 'reference') return false;
   if (!labelFitsInside(target.width ?? 0, target.height ?? 0)) return false;
   for (let at: RuleTarget | undefined = target; at; at = at.parent) {
     if (moved.includes(at)) return false;

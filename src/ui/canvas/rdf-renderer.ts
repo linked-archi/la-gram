@@ -755,6 +755,8 @@ export class RdfRenderer extends BaseRenderer {
       );
       if (figure.gradient) applyGradient(group, body, figure.gradient);
       this.drawImage(group, element, figure, insetBox(width, height));
+      // A reference to another view says so with a small view in its top left.
+      if (figure.kind === 'reference') group.appendChild(viewGlyph(colours.lineColor));
       const layout = containerLayout(shapeLayout(shapeType, width, height), element);
       this.appendLabel(group, text, layout.label, {
         color: colours.fontColor,
@@ -1473,6 +1475,15 @@ function cssEscapeId(id: string): string {
 
 /** Last path/fragment segment of an IRI, used when nothing supplies a label. */
 /** A shape figure's core-vis shape type, by its local name — `arch-vis:Ellipse` is `Ellipse`; a rectangle without one. */
+/** The mark of a reference to another view: a small view, a box under a title bar, drawn in the reference's line colour. */
+function viewGlyph(stroke: string): SVGElement {
+  const glyph = svgEl('g', { transform: 'translate(5,5)', 'data-view-reference': 'true' });
+  glyph.setAttribute('class', RENDER_CLASSES.details);
+  glyph.appendChild(svgEl('rect', { x: 0, y: 0, width: 12, height: 9, fill: 'none', stroke, 'stroke-width': 1 }));
+  glyph.appendChild(svgEl('line', { x1: 0, y1: 3, x2: 12, y2: 3, stroke, 'stroke-width': 1 }));
+  return glyph;
+}
+
 function figureShapeType(figure: FigureInfo): ShapeType {
   const name = figure.shapeType ? localName(figure.shapeType) : 'Rectangle';
   return (SHAPE_TYPES as readonly string[]).includes(name) ? (name as ShapeType) : 'Rectangle';

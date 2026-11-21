@@ -74,22 +74,27 @@ export interface NodeInfo {
 }
 
 /**
- * What a figure is: drawing only, no model element behind it.
+ * What a figure is: no model element behind it.
  *
  * - `group` — a box holding others, its name at the top (`arch-vis:ContainerNode`);
  * - `shape` — a core-vis shape type (`arch-vis:ContainerNode` whose `arch-vis:style`
  *   gives `arch-vis:shapeType`), which may hold others too;
  * - `note` — a sticky note: free-standing text (`arch-vis:LabelNode` no element's
- *   `arch-vis:label` points at).
+ *   `arch-vis:label` points at);
+ * - `reference` — another view, which it opens (`arch-vis:ViewReferenceNode`, core-vis
+ *   0.9). It stands for that view, its {@link FigureInfo.view},
+ *   which is presented in this one (`arch:inView`), and holds nothing.
  *
  * Its text is its `skos:prefLabel`.
  */
-export type FigureKind = 'group' | 'shape' | 'note';
+export type FigureKind = 'group' | 'shape' | 'note' | 'reference';
 
 export interface FigureInfo extends Appearance {
   kind: FigureKind;
   /** The core-vis shape type of a `shape`. */
   shapeType?: string;
+  /** The view a `reference` opens (`arch-vis:referencesView`). */
+  view?: string;
   text?: string;
 }
 

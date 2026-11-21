@@ -14,7 +14,7 @@
   dcterms:language <http://id.loc.gov/vocabulary/iso639-1/en>;
   dcterms:license <https://creativecommons.org/licenses/by/4.0/>;
   dcterms:issued "2024-06-01"^^xsd:date;
-  dcterms:modified "2026-11-17"^^xsd:date;
+  dcterms:modified "2026-11-20"^^xsd:date;
   dcterms:publisher <https://linked.archi>;
   foaf:homepage <https://meta.linked.archi/>;
   dcat:themeTaxonomy <https://meta.linked.archi/catalog#themes>;
@@ -939,9 +939,11 @@ its run: an activity of its own, with its agent and when it ran, of which each d
 produced is part (dcterms:isPartOf). What the modeller stated is told from what a rule derived by the
 graph, in a store (a derivation is kept in .../graph/derived), and by the resource. Before the rules run,
 :QualifyRelationships gives each relationship the model states only as a direct triple a resource of
-its own. The IRIs are in the
-model's namespace, a derivation's and its derivation activity's from its rule and premises; with no model
-loaded, or several, in urn:linked-archi:. The rules are SPARQL 1.2. A rule
+its own. The IRIs are in the model's namespace, in the Linked.Archi IRI layout (DD-41): a derivation is a
+relationship, relationship/{digest} of its rule and premises, with its derivation activity and the
+association as its parts, .../activity and .../activity/association; a qualified direct triple is
+relationship/{digest} of the triple. A digest is the first 20 hex characters of the SHA-256 of what it is
+of, joined by spaces. With no model loaded, or several, in urn:linked-archi:. The rules are SPARQL 1.2. A rule
 derives only from relationships whose triple is asserted, in the model or by a valid derivation
 — one that is only :Potential is for the modeller to confirm, as is any other proposition — so the rules give the closure of valid
 derivations and one layer of potential ones; a valid derivation of a relationship that so far is only
@@ -953,7 +955,7 @@ Generated from Appendix B (inline style)."""@en;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate3/derivation#";
   vann:preferredNamespacePrefix "amderiv";
   owl:versionInfo "3.2";
-  dcterms:modified "2026-10-16"^^xsd:date;
+  dcterms:modified "2026-11-19"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -1553,9 +1555,11 @@ its run: an activity of its own, with its agent and when it ran, of which each d
 produced is part (dcterms:isPartOf). What the modeller stated is told from what a rule derived by the
 graph, in a store (a derivation is kept in .../graph/derived), and by the resource. Before the rules run,
 :QualifyRelationships gives each relationship the model states only as a direct triple a resource of
-its own. The IRIs are in the
-model's namespace, a derivation's and its derivation activity's from its rule and premises; with no model
-loaded, or several, in urn:linked-archi:. The rules are SPARQL 1.2. A rule
+its own. The IRIs are in the model's namespace, in the Linked.Archi IRI layout (DD-41): a derivation is a
+relationship, relationship/{digest} of its rule and premises, with its derivation activity and the
+association as its parts, .../activity and .../activity/association; a qualified direct triple is
+relationship/{digest} of the triple. A digest is the first 20 hex characters of the SHA-256 of what it is
+of, joined by spaces. With no model loaded, or several, in urn:linked-archi:. The rules are SPARQL 1.2. A rule
 derives only from relationships whose triple is asserted, in the model or by a valid derivation
 — one that is only :Potential is for the modeller to confirm, as is any other proposition — so the rules give the closure of valid
 derivations and one layer of potential ones; a valid derivation of a relationship that so far is only
@@ -1567,7 +1571,7 @@ Generated from Appendix B (inline style)."""@en;
   vann:preferredNamespaceUri "https://meta.linked.archi/archimate4/derivation#";
   vann:preferredNamespacePrefix "am4deriv";
   owl:versionInfo "4.0";
-  dcterms:modified "2026-10-14"^^xsd:date;
+  dcterms:modified "2026-11-19"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;
@@ -3809,8 +3813,8 @@ at the type level (default notation for model concepts via NotationSet)."""@en;
   dcterms:conformsTo owl:Ontology;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-vis#";
   vann:preferredNamespacePrefix "arch-vis";
-  owl:versionInfo "0.8";
-  dcterms:modified "2026-11-09"^^xsd:date;
+  owl:versionInfo "0.9";
+  dcterms:modified "2026-11-20"^^xsd:date;
   dcterms:license <http://creativecommons.org/licenses/by-sa/3.0/>;
   dcterms:creator [ a foaf:Person;
       foaf:name "Kalin Maldzhanski"
@@ -3839,7 +3843,7 @@ at the type level (default notation for model concepts via NotationSet)."""@en;
   dcterms:title "Linked.Archi Core Visual Notation SHACL Shapes"@en;
   dcterms:description """SHACL shapes for the Linked.Archi diagram and visual notation
 layer (core-vis). Constrains the diagram interchange classes — ArchNode, LabelNode,
-ContainerNode, Link, Point, PointList — and the type-level notation classes NotationSet,
+ViewReferenceNode, ContainerNode, Link, Point, PointList — and the type-level notation classes NotationSet,
 VisualNotation and Style.
 
 Until 0.1.0 the diagram layer had no shapes at all: a validate run loaded the notation's
@@ -3852,8 +3856,8 @@ must belong to exactly one view); the remainder is cardinality and datatype hygi
   dcterms:conformsTo <http://www.w3.org/ns/shacl#>;
   vann:preferredNamespaceUri "https://meta.linked.archi/core-vis-shapes#";
   vann:preferredNamespacePrefix "archvissh";
-  owl:versionInfo "0.4.0";
-  dcterms:modified "2026-11-09"^^xsd:date;
+  owl:versionInfo "0.5.0";
+  dcterms:modified "2026-11-20"^^xsd:date;
   adms:status <http://purl.org/adms/status/UnderDevelopment>;
   dcterms:license <http://creativecommons.org/licenses/by/4.0/>;
   dcterms:creator [ a foaf:Person;

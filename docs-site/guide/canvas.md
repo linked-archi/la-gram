@@ -249,6 +249,12 @@ elements are; selected, the Properties tab gives their text, and their look in t
 A figure that sets no colours of its own is drawn neutral: a group light grey, a shape white, **a note
 yellow**. An ArchiMate Exchange file's groups, notes and the lines from them import as these.
 
+A **view reference** is a figure that stands for another view of the model, such as an index view's entry
+for each view it lists, or a box inside an element's for the view that details it. It comes with a file
+(Shapes does not offer it), drawn as a blue-grey box with a small view in its top left. Selected, the panel says *View reference* and the name of the view it opens.
+It holds nothing, and is moved, resized, renamed, coloured and deleted as a note is. Deleting the view it
+opens deletes it too; pasted into a model without that view, it becomes a note with its text.
+
 1. Click *Shapes* above the canvas.
 2. Drag **Rounded rectangle** onto the diagram, double-click it and type "Checkout".
 

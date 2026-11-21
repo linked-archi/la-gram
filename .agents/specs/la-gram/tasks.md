@@ -60,6 +60,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Delete from model cascades to relationships and every view, undoable in one step — *view-canvas.test*
 - [x] Inline label editing on the canvas (double-click, F2) — see Phase 5, Rename on the canvas
 - [x] The property picker offers a type's links by domain, none a relationship class draws (Req 3.6) — *property-catalog.test*
+- [x] A reference to another view (core-vis 0.9 `arch-vis:ViewReferenceNode`) is a figure: drawn with a small view, named *View reference* with the view it opens; its view's `arch:inView` follows its first and last reference; deleting the view deletes it; copied and pasted, a note where the target model lacks its view; imported from an Exchange `Label` with a `<viewRef>` (Req 3.23, 13.4) — *view-manager.test, archimate-importer.test, appearance-render.test*
 
 ### Task 4: Relationships (Req 4)
 - [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
@@ -409,9 +410,13 @@ Agreed order; relationship visuals come first.
 - [x] **The glyphs the notations name, published** — done in meta (2026-11-17), published with its next deploy: the 58 badge glyphs LeanIX's, BPMN's, BPMN Lite's, UML's and Backstage's notations name are drawn beside each notation (`modelingLanguages/<language>/icons/glyphs/`) and copied to the site by `.scripts/copy-icon-assets.sh`. Nothing changes in la-gram: once they load, the palette shows them in place of the drawn figure and the canvas draws the badge. None of the five languages is bundled.
 
 - [x] **Incoming links in the property panel** — not to be done: decided on 2026-11-17 that a concept's relationships, to and from it, are the Analysis tab's, and its Properties tab every other property (key design decision 26).
+- [ ] **View references: make, nest, link, open and change them** (Req 3.23) — recorded (2026-11-21), not started:
+  documented in `.agents/tasks/view-references/` (VR-1–12, VR-DD-1–8); direction confirmed and decisions taken (2026-11-21).
 ---
 
 ## Known limitations
+- A reference to another view (Req 3.23) comes only with a file: la-gram cannot make one, and double-clicking
+  one edits its text rather than opening the view it references.
 
 - A namespace move (Req 18.27–18.28): automatic checks and auto-commit do not follow a move made on the
   other side — *Pull from Git* does. Undo does not take a move back, made here or followed. Auto-commit is
@@ -441,6 +446,21 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-21 — A reference to another view: drawn, imported, kept with its view
+
+- **References to other views** (Req 3.23, 13.4; DD-42): a reference to another view, which the ArchiMate
+  converter writes as an `arch-vis:ViewReferenceNode` since core-vis 0.9 (it wrote a note before), was not
+  drawn at all once typed so: la-gram drew a node standing for no element only as a group, a shape or a
+  note. It is now a fourth figure, a *view reference* (`FigureKind` `reference`, its view `FigureInfo.view`),
+  drawn as a blue-grey box with a small view in its top left; selected, the panel says *View
+  reference* and which view it opens. It holds nothing, and is edited as a note is. Its view is presented in
+  the view holding it (`arch:inView`), written with the first reference and taken with the last; deleting a
+  view deletes the references to it, undoably; *Duplicate view* and paste copy one, and one pasted into a
+  model without its view is a note. An Exchange file's `Label` with a `<viewRef>` naming one of its views
+  imports as a reference, wherever it is drawn; one naming none is a note. The bundled core-vis and its
+  shapes are 0.9 and 0.5.0, from a local linked-archi-meta checkout. The model-manager change is the
+  kernel's too (`linked-archi-kernel`, L01's rule). *view-manager.test, archimate-importer.test, appearance-render.test*
 
 ### 2026-11-21 — Model settings shows where the model is kept in Git, and the Git account
 

@@ -3179,7 +3179,7 @@ dialog; the modules' section).
     greyed out: a switch that appeared only with folders left a user looking
     for it on a model whose export had none, with nothing to say why.
 14. **Folders by kind, under Views, Elements and Relationships** (2026-11-04).
-    Archi keeps each kind in folders of its own — its layer folders hold
+    A source tool may keep each kind in folders of its own — its layer folders hold
     elements, *Relations* relationships, *Views* views — and the other
     converters write Elements, Relationships and Views folders; a tree that
     mixed them in one folder list, with a *Not in a folder* bucket, matched
@@ -3696,6 +3696,18 @@ dialog; the modules' section).
     names the user in the provenance (`schema:sameAs`, `schema:alternateName`, the digest's key) unless
     *Record my Git account with my edits* is unticked; its name stands in for a name not given either way,
     since it is the token owner's name the host would show anyway.
+42. **A reference to another view is a figure, and its view's presence follows it** (Req 3.23, 13.4; 2026-11-21).
+    core-vis 0.9 makes a reference to another view an `arch-vis:ViewReferenceNode` paired with
+    `arch-vis:referencesView`, as `ArchNode` is with `archElement`, and no longer a `LabelNode`; the ArchiMate
+    converter writes it so. la-gram drew a node standing for no element only as a group, a shape or a note,
+    so it dropped every one. It is a fourth `FigureKind`, `reference`, with the view in `FigureInfo.view`,
+    because la-gram draws and edits it as it does a figure — it names no element, has no notation, holds
+    nothing. Its view's `arch:inView` is the presence an element's placement gives the element (DD-30), so
+    it follows the same rule: written with the first reference (`addFigure`), taken with the last
+    (`collectNodeQuads`). Deleting a view deletes the references to it (`collectViewQuads`, the undo twin),
+    since one left behind would open nothing and fail core-vis-shapes 0.5.0; paste turns one whose view the
+    target model lacks into a note (`placement-copy.ts`), the converter's rule for a `viewRef` naming no
+    view. The model-manager part was made in `linked-archi-kernel` too, file for file (L01's rule).
 
 ## Running
 

@@ -33,6 +33,7 @@
  * | `<node elementRef x y w h>`           | `arch-vis:ArchNode` with bounds                 |
  * | `<node xsi:type="Container">`         | a group: `arch-vis:ContainerNode`, its `<label>` its text |
  * | `<node xsi:type="Label">`             | a note: `arch-vis:LabelNode`, its `<label>` its text |
+ * | `<node xsi:type="Label">` with a `<viewRef>` naming a view of the file | a reference to that view: `arch-vis:ViewReferenceNode`, `arch-vis:referencesView` the view, which is `arch:inView` this one |
  * | a `<node>` inside another             | `arch-vis:inNode` to it                         |
  * | `<connection relationshipRef>`        | `arch-vis:Link`, bendpoints as its route        |
  * | `<connection>` with no `relationshipRef` | a line standing for no relationship (an `arch-vis:Link` with no `archRelationship`) — a note's to what it is about |
@@ -115,6 +116,8 @@ export interface ExchangeNode {
   parentId?: string;
   /** A Container's or a Label's text (`<label>`). */
   label?: string;
+  /** The view a node opens (its first `<viewRef ref>`): on a Label, a reference to another view. */
+  viewRef?: string;
   /** Its `<style>`, as its look. */
   style?: Appearance;
   x: number;
@@ -322,6 +325,9 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
               ...(parentId ? { parentId } : {}),
               ...(nodeEl.getAttribute('elementRef') ? { elementRef: nodeEl.getAttribute('elementRef') as string } : {}),
               ...(getChildText(nodeEl, 'label') ? { label: getChildText(nodeEl, 'label') as string } : {}),
+              ...(getChildElements(nodeEl, 'viewRef')[0]?.getAttribute('ref')
+                ? { viewRef: getChildElements(nodeEl, 'viewRef')[0]!.getAttribute('ref') as string }
+                : {}),
               ...styleOf(nodeEl),
               x: num(nodeEl, 'x'),
               y: num(nodeEl, 'y'),
@@ -544,6 +550,8 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     }
   }
 
+  /** The views a diagram model reference may open: those of the file. */
+  const viewIds = new Set(model.views.map((view) => view.id));
   for (const view of model.views) {
     const viewIri = deps.views.createView('Diagram', view.viewpoint ? deps.viewpointFor?.(view.viewpoint) : undefined, {
       iri: `${base}view/${safeId(view.id)}`,
@@ -559,12 +567,20 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     const linkIds = new Set(view.connections.map((conn) => conn.id));
     for (const node of view.nodes) {
       const bounds = { x: node.x, y: node.y, width: node.w || 120, height: node.h || 55 };
-      // A visual group, or a note: drawing with no element behind it.
-      const figure = node.kind === 'Container' ? 'group' : node.kind === 'Label' ? 'note' : undefined;
+      // A Label with a viewRef naming a view of the file is a reference to that view, named after its id as the
+      // view is, so a view later in the file is opened as well. One naming
+      // no view of the file is a note, as a Label without one is.
+      const opens = node.kind === 'Label' && node.viewRef && viewIds.has(node.viewRef) ? `${base}view/${safeId(node.viewRef)}` : undefined;
+      // A visual group, a note, or a reference to another view: no element behind it.
+      const figure = node.kind === 'Container' ? 'group' : opens ? 'reference' : node.kind === 'Label' ? 'note' : undefined;
       if (figure && deps.views.addFigure) {
         nodeElement.set(
           node.id,
-          deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }, shapeIri(viewIri, 'node', node.id, nodeIds)),
+          deps.views.addFigure(
+            viewIri,
+            { kind: figure, ...(opens ? { view: opens } : {}), bounds, ...(node.label ? { text: node.label } : {}), ...node.style },
+            shapeIri(viewIri, 'node', node.id, nodeIds),
+          ),
         );
         report.figureCount += 1;
         continue;

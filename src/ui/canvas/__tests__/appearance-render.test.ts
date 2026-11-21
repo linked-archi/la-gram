@@ -121,6 +121,29 @@ describe('a gradient, and the glyph’s colour', () => {
   });
 });
 
+describe('a reference to another view (core-vis 0.9)', () => {
+  const draw = (figure: Record<string, unknown>) =>
+    boot().drawShape(
+      { iri: 'https://example.org/model/view/v1#node-r', typeIri: '', kind: 'figure', label: 'Payments in detail', figure: { kind: 'reference', ...figure } },
+      { width: 120, height: 55 },
+    );
+
+  it('is a box in its kind’s blue-grey, with a small view in its top left in its line colour', () => {
+    const shape = draw({ view: 'https://example.org/model/view/v2' });
+    expect(shape.getAttribute('data-figure')).toBe('reference');
+    expect(body(shape).getAttribute('fill')).toBe('#dcebeb');
+    const glyph = shape.querySelector('[data-view-reference]')!;
+    expect(glyph).not.toBeNull();
+    expect(glyph.querySelector('rect')!.getAttribute('stroke')).toBe('#5c5c5c');
+  });
+
+  it('in its own colours where it has them', () => {
+    const shape = draw({ view: 'https://example.org/model/view/v2', fillColor: '#ffffff', lineColor: '#7a0019' });
+    expect(body(shape).getAttribute('fill')).toBe('#ffffff');
+    expect(shape.querySelector('[data-view-reference] rect')!.getAttribute('stroke')).toBe('#7a0019');
+  });
+});
+
 describe('a notation’s look, beneath the placement’s own', () => {
   const SAYS: VisualStyle = { ...NOTATION, fontName: 'Georgia', fontSize: 9, lineWidth: 2, textAlignment: 'left', gradient: 'top' };
   function drawWith(style: VisualStyle, appearance?: Appearance, options?: RenderOptions): SVGElement {

@@ -34,12 +34,14 @@ export const FIGURE_CHOICES: readonly FigureChoice[] = [
 
 /**
  * How a figure is drawn when it says nothing of its colours: neutral, so the
- * model's elements stand out — a group grey, a shape white, a note yellow.
+ * model's elements stand out — a group grey, a shape white, a note yellow, a
+ * reference to another view blue-grey.
  */
 export const FIGURE_DEFAULT_COLOURS: Record<FigureKind, Required<FigureColours>> = {
   group: { fillColor: '#f1f3f4', lineColor: '#8a9399', fontColor: '#202124' },
   shape: { fillColor: '#ffffff', lineColor: '#5f6368', fontColor: '#202124' },
   note: { fillColor: '#fff7b3', lineColor: '#d4b106', fontColor: '#202124' },
+  reference: { fillColor: '#dcebeb', lineColor: '#5c5c5c', fontColor: '#202124' },
 };
 
 /** A figure's colours: its own, else its kind's default. */

@@ -139,6 +139,7 @@ ArchiMate tool writes, Archi, BiZZdesign and Sparx among them. It is a 3.x forma
 | connections and their bendpoints | lines, with their routes |
 | styles | each placement's look: fill and line colours, line width, font |
 | groups and notes, and the lines from them | groups, notes and lines from figures |
+| a reference to another view (a `Label` with a `viewRef`) | a [view reference](canvas.md#shapes) to that view; a note when the file has no such view |
 | folders | not imported: convert the file with `archimate2linkedarchi` to keep them |
 
 It says what it imported (*Imported … elements, … relationships, … views.*), and names the types it

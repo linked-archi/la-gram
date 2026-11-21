@@ -10,7 +10,18 @@
  * paste reads a copy's placements through a view manager over the copy and places them in the open view.
  */
 
-import type { Bounds, Point, ViewManager } from './interfaces.js';
+import type { Bounds, FigureInfo, Point, ViewManager } from './interfaces.js';
+
+/**
+ * A figure as the target can place it. A reference opens a view of its own model: pasted into a model without
+ * that view it would open nothing, so it is placed as a note with its text (core-vis-shapes 0.5.0).
+ */
+function placeable(figure: FigureInfo | undefined, target: ViewManager): FigureInfo | undefined {
+  if (figure?.kind !== 'reference' || !figure.view || target.getView(figure.view)) return figure;
+  const note: FigureInfo = { ...figure, kind: 'note' };
+  delete note.view;
+  return note;
+}
 
 export interface PlacementCopyOptions {
   /** Only these placements of the source view, by node IRI; every node when absent. */
@@ -45,8 +56,9 @@ export function copyPlacements(
   const nodes = source.getNodes(sourceViewIri).filter((node) => !options.nodes || options.nodes.has(node.nodeIri));
   const copies = new Map<string, string>();
   for (const node of nodes) {
-    const copied = node.figure
-      ? target.addFigure!(targetViewIri, { ...node.figure, bounds: moved(node.bounds) })
+    const figure = placeable(node.figure, target);
+    const copied = figure
+      ? target.addFigure!(targetViewIri, { ...figure, bounds: moved(node.bounds) })
       : target.addElementToView(targetViewIri, concept(node.elementIri), moved(node.bounds), { another: true });
     copies.set(node.nodeIri, copied);
     // Looking as it did: a figure's appearance is copied with it; its label saying what it said.

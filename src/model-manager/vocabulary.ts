@@ -121,6 +121,8 @@ export const IRI = {
   LabelNode: VIS + 'LabelNode',
   /** A node standing for no model element: a group, or a figure of a core-vis shape type. */
   ContainerNode: VIS + 'ContainerNode',
+  /** The appearance of another view on a diagram, which it opens (core-vis 0.9). */
+  ViewReferenceNode: VIS + 'ViewReferenceNode',
   visStyle: VIS + 'style',
   Style: VIS + 'Style',
   /** What a label says (core-vis 0.7): an `arch-vis:LabelExpression`, its text, the notation set it is for. */
@@ -159,6 +161,8 @@ export const IRI = {
   /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
   visLabel: VIS + 'label',
   archElement: VIS + 'archElement',
+  /** The view an `arch-vis:ViewReferenceNode` stands for and opens, as `archElement` names an ArchNode's element. */
+  referencesView: VIS + 'referencesView',
   inNode: VIS + 'inNode',
   archRelationship: VIS + 'archRelationship',
   visSource: VIS + 'source',

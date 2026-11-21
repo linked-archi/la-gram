@@ -74,7 +74,7 @@ const PART_OF = new Set<string>([
   IRI.altVisNotation,
   ...SCHEMA_ITEM_LIST_ELEMENT.map((t) => t.value),
 ]);
-const NODE_TYPES = new Set<string>([IRI.ArchNode, IRI.ContainerNode, IRI.LabelNode]);
+const NODE_TYPES = new Set<string>([IRI.ArchNode, IRI.ContainerNode, IRI.LabelNode, IRI.ViewReferenceNode]);
 /** A shape's fragment in its view: a line's `link-{id}`, a node's `node-{id}`, either for a shape of no known type. */
 const SHAPE_NAME = { link: /^link-[^/#]+$/, node: /^node-[^/#]+$/, either: /^(?:node|link)-[^/#]+$/ };
 
