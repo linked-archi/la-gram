@@ -188,7 +188,7 @@ describe('a reference to another view: double-clicked it opens, F2 edits its tex
     expect(isViewReference(note)).toBe(false);
   });
 
-  it('gets text of its own, changed; emptied, it goes — the view’s name shows again; the name it shows unchanged is no edit', () => {
+  it('gets text of its own, changed, emptied — drawn as nothing; what it shows unchanged is no edit; a note’s is emptied too', () => {
     const { provider, executed } = providerWith();
     // The box holds what is drawn: the view's name.
     expect(provider.activate(reference())!.text).toBe('Payments');
@@ -198,7 +198,13 @@ describe('a reference to another view: double-clicked it opens, F2 edits its tex
     provider.update(reference({ label: 'See also', named: true }), 'See also');
     provider.update(reference({ label: 'See also', named: true }), 'Read next');
     provider.update(reference({ label: 'See also', named: true }), '');
-    expect(executed.map((c) => c.label)).toEqual(['See also', 'Read next', '']);
+    provider.update(reference({ label: '', named: true }), '');
+    expect(executed.map((c) => c.label)).toEqual(['', 'See also', 'Read next', '']);
+    // A note's text, emptied: an edit, where an element's name is never emptied.
+    const note = { ...reference(), businessObject: { ...reference().businessObject, figure: { kind: 'note' as const }, label: 'Draft', named: true } };
+    provider.update(note, '');
+    provider.update({ ...note, businessObject: { ...note.businessObject, label: undefined, named: false } }, '');
+    expect(executed.map((c) => c.label)).toEqual(['', 'See also', 'Read next', '', '']);
   });
 });
 

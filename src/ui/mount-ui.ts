@@ -1205,7 +1205,8 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   const editProperty = (d: PropertyEditDetail): void => {
     const value = termFor(d);
     changeProperties(d.elementIri, () => {
-      const replaced = d.previous ? valuesOf(d.elementIri, d.predicate, d.previous, d.previousLanguage) : [];
+      // The value edited — an empty one too, a view reference's text written empty.
+      const replaced = d.previous !== undefined ? valuesOf(d.elementIri, d.predicate, d.previous, d.previousLanguage) : [];
       if (replaced.length > 0) store.removeQuads(replaced);
       store.addQuads([DataFactory.quad(DataFactory.namedNode(d.elementIri), DataFactory.namedNode(d.predicate), value as never) as unknown as Quad]);
     });

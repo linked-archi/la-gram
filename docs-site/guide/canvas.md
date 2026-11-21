@@ -247,7 +247,9 @@ The *Shapes* switch opens a second row of figures, drawn with no model element b
 | Rectangle, Rounded rectangle, Ellipse, Circle, Diamond, Hexagon, Octagon, Parallelogram | that shape |
 
 Drag one onto the diagram, or click it and place it. Figures are renamed, moved, resized and deleted as
-elements are; selected, the Properties tab gives their text, and their look in the Appearance tab.
+elements are; selected, the Properties tab gives their text, and their look in the Appearance tab. Unlike an
+element's name, a figure's text can be emptied — in its *Text*, or on the canvas with ++f2++ — and then
+nothing is drawn.
 A figure that sets no colours of its own is drawn neutral: a group light grey, a shape white, **a note
 yellow**. An ArchiMate Exchange file's groups, notes and the lines from them import as these.
 
@@ -265,7 +267,7 @@ blue-grey box with a small view in its top left, and shows the name of the view 
 | make one | drag a view's row from the model tree onto the diagram; or right-click the row and choose *Reference in the open view*, which puts it in the middle of what you see |
 | put it inside an element, a group or a shape | let go of the row over it, or drag the reference into it |
 | open the view it references | double-click it, or choose *Open view* on its pad or in its right-click menu, or *Open* in the Properties tab |
-| give it text of its own | press ++f2++, or type in *Text* in the Properties tab; empty the text to show the view's name again |
+| give it text of its own | press ++f2++, or type in *Text* in the Properties tab; empty it to show no text at all, and choose × beside *Text* to show the view's name again |
 | point it at another view | choose *Change…* under *Opens* in the Properties tab, and pick the view |
 | draw a line from it or to it | its pad's *Draw a line to…*, as from a note |
 
@@ -284,8 +286,8 @@ note with its text. One whose view is not in the model opens nothing, and says *
 opens is not in the model.*; validation reports it too. An ArchiMate Exchange file's references to its
 views, and a converted model's, are view references.
 
-Selected, the Properties tab says *View reference*, with its *Text* — the view's name greyed while it has
-none of its own — and *Opens*, the name of the view it opens, with two buttons:
+Selected, the Properties tab says *View reference*, with its *Text* — the view's name, greyed, while it
+has none of its own — and *Opens*, the name of the view it opens, with two buttons:
 
 | Button | Does |
 |---|---|

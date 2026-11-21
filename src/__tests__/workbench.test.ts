@@ -1809,7 +1809,8 @@ describe('the workbench', () => {
     await showInfo();
     expect(ui.propertyPanel.heading?.kind).toBe('View reference');
     expect(root.querySelector('.opens-view')?.textContent?.trim()).toBe('Payments');
-    expect(root.querySelector<HTMLInputElement>('.property-list input.property-value')?.placeholder).toBe('Payments');
+    const textField = () => root.querySelector<HTMLInputElement>('.property-list input.property-value')!;
+    expect([textField().value, textField().classList.contains('inherited')]).toEqual(['Payments', true]);
 
     // Change…: the model's other views, the holder not among them; the one picked is what it opens, one undoable step.
     root.querySelector<HTMLButtonElement>('.opens .change-view')!.click();
@@ -1828,6 +1829,19 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'undo' });
     expect(views.getNode(holder, reference)?.figure?.view).toBe(payments);
     expect([presentedIn(orders), presentedIn(payments)]).toEqual([[], [holder]]);
+
+    // Its Text emptied in the panel: written empty, nothing drawn; × shows the view's name again (VR-4).
+    ui.selectConcept(reference);
+    await showInfo();
+    textField().value = '';
+    textField().dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.text).toBe(''));
+    expect(registry.get(reference).businessObject.label).toBe('');
+    await ui.propertyPanel.updateComplete;
+    expect(textField().classList.contains('inherited')).toBe(false);
+    root.querySelector<HTMLButtonElement>('.property-list button.reset')!.click();
+    await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.text).toBeUndefined());
+    expect(registry.get(reference).businessObject.label).toBe('Payments');
 
     // Double-click opens the view it opens, and so do its menu's Open view and the panel's Open; Back comes back (VR-7).
     doubleClick(reference);

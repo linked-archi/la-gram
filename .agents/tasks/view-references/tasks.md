@@ -56,3 +56,8 @@ are in [design.md](design.md).
   a recorded change there, so they leave at once and undo brings them back (VR-10's last sentence).
 - **Left as it is.** Deleting the open view is not undoable: another view opens, with an undo history of its own
   (la-gram's known limitation 3). Recorded under *Known limitations*.
+- **Changed after review (2026-11-21): emptied text.** VR-4 said an emptied reference text shows the view's name
+  again; the UI then had no way to blank a reference, nor any figure once it had text. Now any figure's text can be
+  emptied, in the panel and with F2: a note's, a group's or a shape's goes; a reference's is written empty
+  (`""@en`) and draws nothing. × beside a reference's own text shows the view's name again. No new term: an empty
+  label, and no label, say the two things. Req 3.13 and 3.23 say so now.

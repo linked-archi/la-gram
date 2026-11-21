@@ -768,6 +768,14 @@ describe('a reference to another view (core-vis 0.9): a figure standing for the 
     expect(objects(store, index, IN_VIEW)).toEqual([]);
   });
 
+  it('keeps an empty text as its own — drawn as nothing — and copies it so with its view', () => {
+    const blank = views.addFigure(index, { kind: 'reference', view: detail, text: '', bounds });
+    expect(store.getQuads(nn(blank), nn(NAMESPACES.skos + 'prefLabel')).map((q) => [q.object.value, (q.object as { language?: string }).language])).toEqual([['', 'en']]);
+    expect(views.getNode(index, blank)?.figure).toEqual({ kind: 'reference', view: detail, text: '' });
+    const copy = views.duplicateView(index).value;
+    expect(views.getNodes(copy).map((n) => n.figure)).toEqual([{ kind: 'reference', view: detail, text: '' }]);
+  });
+
   it('is not pointed anywhere from another view, at what is no view, or at the view it opens already; a note is not', () => {
     const reference = views.addFigure(index, { kind: 'reference', view: detail, bounds });
     const note = views.addFigure(index, { kind: 'note', text: 'n', bounds });

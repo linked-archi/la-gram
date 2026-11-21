@@ -1463,7 +1463,7 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(references(f)).toEqual([]);
   });
 
-  it('shows its view’s name as it is now — renamed in the tree, by a collaborator — until it has text of its own (F2); emptied, the name again (VR-4)', () => {
+  it('shows its view’s name as it is now — renamed in the tree, by a collaborator — until it has text of its own (F2), an empty one drawing nothing (VR-4)', () => {
     const { f, payments } = scene();
     const node = placed(f, payments);
     f.canvas.syncFromStore();
@@ -1482,14 +1482,35 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     ]);
     f.session.renameView(payments, 'Payments v4');
     expect(textOf(f, node)).toBe('See also');
-    // Emptied: its own text goes, the view's name is drawn again; undone, its own is back; redone, gone again.
+    // Emptied: written empty, its own — nothing drawn, a rename of the view changing nothing; undone, its text is back.
     editor.update(registryOf(f).get(node), '');
-    expect(f.views.getNode(f.viewIri, node)?.figure?.text).toBeUndefined();
-    expect(textOf(f, node)).toBe('Payments v4');
+    expect(f.store.getQuads(nn(node), nn(NAMESPACES.skos + 'prefLabel')).map((q) => [q.object.value, (q.object as { language?: string }).language])).toEqual([
+      ['', 'en'],
+    ]);
+    expect(f.views.getNode(f.viewIri, node)?.figure?.text).toBe('');
+    expect(textOf(f, node)).toBe('');
+    f.session.renameView(payments, 'Payments v5');
+    expect(textOf(f, node)).toBe('');
     f.commandStack.undo();
     expect(textOf(f, node)).toBe('See also');
     f.commandStack.redo();
-    expect(textOf(f, node)).toBe('Payments v4');
+    expect(textOf(f, node)).toBe('');
+    // With none of its own — the panel's × — it shows the view's name again.
+    f.views.setFigureText(f.viewIri, node, undefined);
+    f.canvas.syncFromStore();
+    expect(textOf(f, node)).toBe('Payments v5');
+  });
+
+  it('a note’s, a group’s or a shape’s text emptied on the canvas goes: nothing drawn, undoably', () => {
+    const { f } = scene();
+    const note = f.views.addFigure(f.viewIri, { kind: 'note', text: 'Draft', bounds: { x: 0, y: 450, width: 185, height: 80 } });
+    f.canvas.syncFromStore();
+    const editor = f.service<{ update(element: unknown, text: string): void }>('rdfLabelEditingProvider');
+    editor.update(registryOf(f).get(note), '');
+    expect(f.store.getQuads(nn(note), nn(NAMESPACES.skos + 'prefLabel'))).toEqual([]);
+    expect(textOf(f, note)).toBe('');
+    f.commandStack.undo();
+    expect(textOf(f, note)).toBe('Draft');
   });
 
   it('follows a collaborator: drawn as they made it, pointed at another view, taken off (VR-12)', () => {

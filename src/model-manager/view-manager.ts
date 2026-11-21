@@ -363,7 +363,8 @@ export class OxigraphViewManager implements ViewManager {
       const style = nn(this.styleIriOf(nodeIri));
       quads.push(triple(node, T.visStyle, style), triple(style, T.rdfType, T.Style), triple(style, T.shapeType, nn(figure.shapeType)));
     }
-    if (figure.text) quads.push(triple(node, T.prefLabel, langLiteral(figure.text)));
+    // Its text as given — an empty one too: a reference's drawn as nothing, where none of its own shows its view's name.
+    if (figure.text !== undefined) quads.push(triple(node, T.prefLabel, langLiteral(figure.text)));
     const [parentNode] = figure.parentIri ? this.nodeIrisFor(viewIri, figure.parentIri) : [];
     if (parentNode && parentNode !== nodeIri) quads.push(triple(node, T.inNode, nn(parentNode)));
     this.store.addQuads(quads);

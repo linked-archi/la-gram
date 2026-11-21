@@ -14,10 +14,11 @@
  * (confirm it first, as the model tree has it), nor a bare triple with no
  * relationship resource to carry the name.
  *
- * A reference to another view is the exception to the double-click: it opens
- * the view it references (the canvas's), and F2 edits its text. Its text is its
- * own `skos:prefLabel`; emptied, that goes, and it shows the view's name again
- * (Req 3.23).
+ * A figure's text may be emptied, where an element's name may not: a note's, a
+ * group's or a shape's then goes. A reference to another view is the exception
+ * to the double-click: it opens the view it references (the canvas's), and F2
+ * edits its text, its own `skos:prefLabel` — emptied, written empty and drawn as
+ * nothing, as with none of its own it shows the view's name (Req 3.23).
  *
  * The text box is `diagram-js-direct-editing`, the editor bpmn-js uses for its
  * labels. Its package entry imports a diagram-js folder without `/index.js`,
@@ -120,7 +121,8 @@ export function isRenamable(element: unknown): boolean {
 
 /**
  * Whether a shape is a reference to another view (Req 3.23). Double-clicked, it opens that view — the canvas's —
- * so only F2 edits its text; with no text of its own it shows the view's name, `named` false.
+ * so only F2 edits its text; with no text of its own it shows the view's name, `named` false, and with an empty
+ * one, nothing.
  */
 export function isViewReference(element: unknown): boolean {
   const businessObject = (element as LabelledShape | undefined)?.businessObject;
@@ -448,12 +450,10 @@ export class RdfLabelEditingProvider {
       this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });
       return;
     }
-    if (isViewReference(shape)) {
-      // A reference's text of its own, emptied, is taken away: it shows the view's name again. Unchanged — its own
-      // text, or the view's name it shows — is no edit.
-      const businessObject = shape.businessObject;
-      const own = businessObject?.named ? (businessObject.label ?? '') : '';
-      if (label === own || (label !== '' && label === businessObject?.label)) return;
+    if (shape.businessObject?.kind === 'figure') {
+      // A figure's text may be emptied: a note's, a group's or a shape's goes, and a view reference's is written
+      // empty — each drawn as nothing. What it shows unchanged — a reference's view's name too — is no edit.
+      if (label === (shape.businessObject.label ?? '')) return;
       this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });
       return;
     }

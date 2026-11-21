@@ -449,6 +449,17 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-21 — A figure's text can be emptied
+
+- **Emptied text** (Req 3.13, 3.23): neither the property panel's *Text* nor the canvas (F2) took an empty text —
+  the panel put the name back, and a view reference emptied showed its view's name — so a figure, once given text,
+  could not be made blank. Now a note's, a group's or a shape's text emptied goes, and a view reference's is
+  written empty (`""@en`): each draws nothing, one undoable step. A reference with none of its own still shows its
+  view's name, held greyed in the panel's *Text*; × beside a text of its own takes it away to show that name again.
+  `addFigure` writes an empty text given it, so copying the view keeps a blank reference blank; an edit of a
+  property replaces an empty value as any other (`editProperty`). The model-manager change is the kernel's too.
+  *view-manager.test, view-canvas.test, rdf-label-editing.test, property-panel.test, workbench.test*
+
 ### 2026-11-21 — View references: made from the tree, opened, re-pointed, named after their view
 
 - **Making one** (Req 3.23; `.agents/tasks/view-references/`, VR-1–3): a view's row dragged from the model tree

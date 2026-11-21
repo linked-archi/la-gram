@@ -3721,8 +3721,9 @@ dialog; the modules' section).
     (`ViewManager.referencesTo`, from the store's changes). Double-click opens its view rather than editing its
     text: `rdf-label-editing.ts` leaves a reference out, F2 keeps it, and the canvas emits
     `open-referenced-view` for its double-click and its pad's and menu's *Open view*, which mount-ui opens or
-    says is not in the model. Emptied, on the canvas or in the panel, its own text goes, and the rename command's
-    drawing is corrected to the view's name. *Change…* is one store change, `setReferenceView`, whose quads are
+    says is not in the model. Emptied, on the canvas or in the panel, its text is written empty (`""@en`): no term
+    is needed to draw nothing, and none of its own still means the view's name — the panel's × takes its own away.
+    The rename command's drawing is corrected to what the store then says, as it draws only the text it wrote. *Change…* is one store change, `setReferenceView`, whose quads are
     read first (`setReferenceViewQuads`), as a removal's are by its `collect…` twin, and which moves the presence
     by the rule `addFigure` and `collectNodeQuads` follow. Deleting a view counts the references
     `collectViewQuads` takes with it, by holder, in the confirmation; with another diagram open the deletion is a

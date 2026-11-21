@@ -2446,7 +2446,8 @@ export class DiagramCanvas {
    * (Req 3.23). A reference whose view is not in the model shows none.
    */
   private figureTextOf(figure: FigureInfo): Pick<RdfBusinessObject, 'label' | 'named'> {
-    if (figure.text) return { label: figure.text, named: true };
+    // Its own, an empty one too: a reference emptied shows nothing.
+    if (figure.text !== undefined) return { label: figure.text, named: true };
     const name = figure.kind === 'reference' && figure.view ? this.viewManager?.getView(figure.view)?.label : undefined;
     return name ? { label: name, named: false } : {};
   }
@@ -2513,6 +2514,12 @@ export class DiagramCanvas {
     if (!services || !this.viewIri || !this.viewManager?.getView(viewIri)) return undefined;
     const figure: FigureInfo = { kind: 'reference', view: viewIri };
     return services.elementFactory.createShape({ ...FIGURE_SIZES.reference, businessObject: this.figureObject('', figure) });
+  }
+
+  /** Whether a node of the open view is a reference to another view. */
+  private isReferenceNode(nodeIri: string): boolean {
+    const viewIri = this.viewIri;
+    return Boolean(viewIri && this.viewManager?.getNode(viewIri, nodeIri)?.figure?.kind === 'reference');
   }
 
   /** Whether a shape is a reference to the open view not yet made: what its own row's drag would make (VR-1). */
@@ -4566,7 +4573,7 @@ export class DiagramCanvas {
         const node = this.nodeKeyOf(element);
         const text = node ? this.viewManager?.getNode(viewIri, node)?.figure?.text : undefined;
         const figure: FigureInfo = { ...businessObject.figure };
-        if (text) figure.text = text;
+        if (text !== undefined) figure.text = text;
         else delete figure.text;
         businessObject.figure = figure;
         const shown = this.figureTextOf(figure);
@@ -5287,7 +5294,9 @@ export class DiagramCanvas {
       const language = shown ? (shown.object.language ?? '') : 'en';
       const replaced = inModel.filter((q) => (q.object.language ?? '') === language);
       if (replaced.length > 0) this.rdfStore?.removeQuads(replaced as never[]);
-      if (label === '') return;
+      // Emptied, a name goes — a relationship's, a figure's text: nothing drawn. A view reference's is written
+      // empty instead, as none of its own would show its view's name (Req 3.23).
+      if (label === '' && !this.isReferenceNode(iri)) return;
       this.rdfStore?.addQuads?.([
         DataFactory.quad(namedNode(iri), namedNode(prefLabel), DataFactory.literal(label, language || undefined)) as never,
       ]);

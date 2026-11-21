@@ -423,18 +423,25 @@ describe('PropertyPanel', () => {
       const views = [{ iri: 'https://example.org/view/2', label: 'Payments', kind: 'Diagram' as const }];
       const heading = (reference: Record<string, unknown>) => ({ kind: 'View reference', figure: { kind: 'reference' }, reference: { views, ...reference } });
       const none = renderPanel({ selectedIri: node, heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }) });
-      expect(none).toContain('placeholder=Payments');
+      // The view's name as the field's value, greyed: no text of its own, no ×.
+      expect(none).toContain('class="property-value inherited"');
+      expect(none).not.toContain("Show the view's name");
       expect(none).toContain('Opens');
       expect(none).toMatch(/class="opens-view [^"]*"[^>]*>Payments</);
       expect(none).toContain('>Open</button>');
       expect(none).toContain('>Change…</button>');
-      // Text of its own: shown, the view's name no longer.
-      const own = renderPanel({
-        selectedIri: node,
-        heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }),
-        _entries: [{ predicate: SKOS_PREF_LABEL, label: 'Name', value: 'See also', readonly: false, language: 'en' }],
-      });
-      expect(own).not.toContain('placeholder=Payments');
+      // Text of its own — an empty one too: not greyed, and × shows the view's name again.
+      const own = (value: string) =>
+        renderPanel({
+          selectedIri: node,
+          heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }),
+          _entries: [{ predicate: SKOS_PREF_LABEL, label: 'Name', value, readonly: false, language: 'en' }],
+        });
+      for (const value of ['See also', '']) {
+        expect(own(value)).not.toContain('class="property-value inherited"');
+        expect(own(value)).toContain(`title=Show the view's name`);
+      }
+      expect(own('')).toContain('placeholder=No text');
       // A view not in the model: said.
       expect(renderPanel({ selectedIri: node, heading: heading({ viewIri: 'https://example.org/view/9' }) })).toContain('A view not in the model');
       // Another figure has neither.
@@ -443,15 +450,24 @@ describe('PropertyPanel', () => {
       expect(note).toContain('placeholder=Add a name…');
     });
 
-    it('empties a view reference’s text — it shows its view’s name again — where a note’s or a name is not emptied', () => {
-      const removed = (entry: Partial<PropertyEntry>) => {
+    it('empties a figure’s text — a note’s goes, a view reference’s is written empty — where a name is not emptied', () => {
+      const changed = (entry: Partial<PropertyEntry>, value = '  ') => {
         const ctx = makeCtx({ selectedIri: 'https://example.org/view/1#node-1', requestUpdate: vi.fn() });
-        ctx._onPropertyChange({ predicate: SKOS_PREF_LABEL, label: 'Text', value: 'See also', readonly: false, ...entry }, '  ');
-        return ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.value]);
+        ctx._onPropertyChange({ predicate: SKOS_PREF_LABEL, label: 'Text', value: 'See also', readonly: false, language: 'en', ...entry }, value);
+        return ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.value, call[0].detail.previous]);
       };
-      expect(removed({ emptiable: true })).toEqual([['property-remove', 'See also']]);
-      expect(removed({})).toEqual([]);
-      expect(removed({ emptiable: true, value: '' })).toEqual([]);
+      // A note's, a group's or a shape's text: taken away — nothing drawn.
+      expect(changed({ emptied: 'removed' })).toEqual([['property-remove', 'See also', undefined]]);
+      // A view reference's own text: written empty, in place of the one it had — an empty one too.
+      expect(changed({ emptied: 'blank' })).toEqual([['property-edit', '', 'See also']]);
+      expect(changed({ emptied: 'blank', value: '' }, 'Read next')).toEqual([['property-edit', 'Read next', '']]);
+      // Its view's name, shown greyed with none of its own: unchanged, no edit; emptied or typed over, its own.
+      const inherited = { emptied: 'blank' as const, value: 'Payments', inherited: true, language: undefined };
+      expect(changed(inherited, 'Payments')).toEqual([]);
+      expect(changed(inherited)).toEqual([['property-edit', '', undefined]]);
+      expect(changed(inherited, 'Pay')).toEqual([['property-edit', 'Pay', undefined]]);
+      // A name is not emptied.
+      expect(changed({})).toEqual([]);
     });
 
     it('lists the views referencing a view — Referenced from, each opening it — and nothing with none (VR-11)', () => {

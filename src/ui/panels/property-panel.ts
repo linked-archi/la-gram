@@ -110,10 +110,21 @@ export interface PropertyEntry {
   drawn?: boolean;
   /** The values the SHACL shape allows (`sh:in`): shown as a choice. */
   choices?: PropertyChoice[];
-  /** Shown greyed in the field while it is empty, in place of its default prompt: a view reference's view's name. */
+  /** Shown greyed in the field while it is empty, in place of its default prompt. */
   placeholder?: string;
-  /** Emptied, the value is removed, as the definition's is: a view reference's text, which then shows its view's name. */
-  emptiable?: boolean;
+  /**
+   * What emptying the field does, where a name cannot be emptied: `removed`, the value goes — a figure's text, drawn
+   * as nothing then; `blank`, it is written empty — a view reference's, drawn as nothing where none of its own would
+   * show its view's name.
+   */
+  emptied?: 'removed' | 'blank';
+  /**
+   * The value shown is not its own but what it shows without one, greyed — a view reference's view's name.
+   * Unchanged, no edit; typed over or emptied, one of its own.
+   */
+  inherited?: boolean;
+  /** A × that takes its own value away, titled so: a view reference's text, back to its view's name. */
+  reset?: string;
 }
 
 /** `reference-view-change`: the view reference `nodeIri`, in the open view, opens `viewIri` now (Req 3.23). */
@@ -1014,6 +1025,10 @@ export class PropertyPanel extends LitElement {
     .opens-row named-picker {
       margin-top: 4px;
     }
+    /* What it shows without a value of its own — a view reference's view's name — greyed until one is typed. */
+    .property-value.inherited {
+      color: #80868b;
+    }
     .referenced-from .analysis-list {
       padding: 0;
     }
@@ -1673,13 +1688,20 @@ export class PropertyPanel extends LitElement {
   private _onPropertyChange(entry: PropertyEntry, newValue: string): void {
     if (entry.readonly || !this.selectedIri) return;
 
-    if (newValue.trim() === '' && DEFAULT_FIELDS.includes(entry.predicate)) {
-      // Emptying the definition removes it — and a view reference's text, which then shows its view's name; a name
-      // cannot be emptied, and the field shows the name again (the value bindings are `live`).
-      if ((entry.predicate === SKOS_DEFINITION || entry.emptiable) && entry.value !== '') this._remove(entry);
+    // What it shows without a value of its own — a view reference's view's name — unchanged: no edit.
+    if (entry.inherited && newValue === entry.value) return;
+    const emptied = newValue.trim() === '';
+    if (emptied && DEFAULT_FIELDS.includes(entry.predicate) && entry.emptied !== 'blank') {
+      // Emptying the definition removes it, and a figure's text, which then draws nothing; a name cannot be emptied,
+      // and the field shows the name again (the value bindings are `live`).
+      if ((entry.predicate === SKOS_DEFINITION || entry.emptied === 'removed') && entry.value !== '') this._remove(entry);
       else this.requestUpdate();
       return;
     }
+    // A view reference's text emptied is written empty: drawn as nothing.
+    if (emptied && entry.emptied === 'blank') newValue = '';
+    // What is replaced: its own value — an empty one too, as a reference's is — not what it shows without one.
+    const own = !entry.inherited && (entry.value !== '' || entry.language !== undefined);
 
     // Keep the value's language; text without one gets `en`, which is what the
     // Linked.Archi shapes expect of labels and definitions.
@@ -1709,8 +1731,8 @@ export class PropertyPanel extends LitElement {
           value: newValue,
           ...(language ? { language } : {}),
           ...(chosen?.isIri ? { isIri: true } : !language && entry.datatype ? { datatype: entry.datatype } : {}),
-          ...(entry.value !== '' ? { previous: entry.value } : {}),
-          ...(entry.language ? { previousLanguage: entry.language } : {}),
+          ...(own ? { previous: entry.value } : {}),
+          ...(own && entry.language ? { previousLanguage: entry.language } : {}),
         },
         bubbles: true,
         composed: true,
@@ -1791,6 +1813,10 @@ export class PropertyPanel extends LitElement {
   }
 
   private _renderRemove(entry: PropertyEntry) {
+    // A value that falls back to another when taken away says to what: a view reference's text, to its view's name.
+    if (entry.reset && !entry.readonly) {
+      return html`<button class="remove reset" title=${entry.reset} @click=${() => this._remove(entry)}>×</button>`;
+    }
     // The type and the name are what make the concept what it is; the rest can
     // go — the definition by emptying it, as it stays listed anyway.
     if (entry.readonly || DEFAULT_FIELDS.includes(entry.predicate)) return nothing;
@@ -2104,16 +2130,19 @@ export class PropertyPanel extends LitElement {
    * element.
    */
   private _renderFigureText() {
-    // A reference with no text of its own shows its view's name: greyed here, and again once its text is emptied.
     const reference = this.heading?.reference;
+    // Its own text: one read from the store — an empty one too — not the empty field every concept is given.
+    const own = this._entries.find((e) => e.predicate === SKOS_PREF_LABEL && (e.value !== '' || e.language !== undefined));
+    // Emptied, a figure's text goes and a reference's is written empty: drawn as nothing either way. A reference with
+    // none of its own shows its view's name, greyed, and × takes its own away to show that name again.
     const text: PropertyEntry = {
-      ...(this._entries.find((e) => e.predicate === SKOS_PREF_LABEL) ?? {
-        predicate: SKOS_PREF_LABEL,
-        value: '',
-        readonly: false,
-      }),
+      ...(own ?? { predicate: SKOS_PREF_LABEL, value: '', readonly: false }),
       label: 'Text',
-      ...(reference ? { placeholder: reference.viewLabel ?? '', emptiable: true } : {}),
+      ...(!reference
+        ? { emptied: 'removed' as const }
+        : own
+          ? { emptied: 'blank' as const, placeholder: 'No text', reset: "Show the view's name" }
+          : { emptied: 'blank' as const, value: reference.viewLabel ?? '', inherited: true }),
     } as PropertyEntry;
     return html`<ul class="property-list">${this._renderEntry(text)}${reference ? this._renderOpens(reference) : nothing}</ul>`;
   }
@@ -3099,7 +3128,7 @@ export class PropertyPanel extends LitElement {
       <li class=${rowClass}>
         ${this._renderLabel(entry, true)}
         <input
-          class="property-value"
+          class="property-value ${entry.inherited ? 'inherited' : ''}"
           type=${this._inputType(entry)}
           .value=${live(entry.value)}
           placeholder=${entry.value ? '' : (entry.placeholder ?? DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
