@@ -38,7 +38,8 @@ the view it is drawn in, and the view it **opens** is the concept it stands for.
   notation says they may be drawn by nesting with the view inside — the core's *Refines*, by the core notation — then
   *None*. The one picked is made, the view refining the element (`V arch:refines E`), shown by the nesting rather than
   a line, one undoable step; a nesting the model already states asks nothing, and taken out, the relationship is
-  drawn as a line. Inside a group or a shape, nothing is asked.
+  drawn as a line. Inside a group or a shape, nothing is asked. *2026-11-22:* the core's *Has Part* is offered too,
+  first — the element having the view as a part (`E arch:hasPart V`), the part inside the whole.
 
 ## Zoom in
 

@@ -45,7 +45,12 @@ corrected to what was built (2026-11-21).
   sets last (`coreNotationSetIris`), after every loaded metamodel's, and never as the active set. The nesting offer
   needs no change: the palette definition's relationship types carry the core's (`core`; only the palette panel
   leaves them out, Req 4.21), so Refines comes with its `nestedEnds`. A note, a group or a shape nested in an element
-  is offered nothing, now that a core type has nested ends.
+  is offered nothing, now that a core type has nested ends. *2026-11-22:* a descriptor for Association, with no
+  nested end, and one for Has Part, with `arch-vis:nestedEnd arch-vis:TargetEnd`, beside Refines' — the lines
+  la-gram drew for them already (Req 2.25), stated so that every tool draws them alike (meta's DD-42). Nesting lists
+  the offers with the inner shape as the target first, so a view nested in an element is offered Has Part, then
+  Refines, and so is an element nested in one no loaded language relates it to. `arch:Element` and
+  `arch:QualifiedRelationship` get none: one would reach every class that nothing nearer describes.
 - **VC-DD-6 Zoom in reads the semantic graph.** `ViewManager.viewsRefining(concept)` — the views `V` with
   `V arch:refines concept` or `concept arch:refinedInto V` — by name; the pad's *Zoom in* opens the one, or a popup
   menu of several; the right-click menu lists each.

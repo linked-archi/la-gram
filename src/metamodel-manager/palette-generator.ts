@@ -208,7 +208,7 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     const superClassMap = buildSuperClassMap(graph);
     const fallbackSets = orderedFallbackSets(graph, notationSet?.iri, [
       ...(options?.defaultNotationSetIris ?? storeDefaultNotationSetIris(graph)),
-      // The core's own relationship types, after every language's: Refines, which nesting may draw (VC-DD-5).
+      // The core's own relationship types, after every language's; nesting may draw Has Part and Refines (VC-DD-5).
       ...coreNotationSetIris(graph),
     ]);
     const resolver = new NotationResolver(graph, notationSet, fallbackSets, superClassMap);

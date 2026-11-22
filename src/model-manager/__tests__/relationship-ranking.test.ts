@@ -329,7 +329,9 @@ describe('the core\'s relationship types, where no loaded language relates two e
 
   it('are offered between elements of two metamodels — Association first — and say why', () => {
     const offered = relationships.getValidRelationships(`${AM}ApplicationComponent`, `${AD}Decision`);
-    expect(offered.map((r) => r.iri)).toEqual([`${ARCH}Association`, `${ARCH}HasPart`, `${ARCH}Refines`]);
+    // The least said first: Association, then Depends On, then Has Part and Refines.
+    expect(offered.map((r) => r.iri)).toEqual([`${ARCH}Association`, `${ARCH}DependsOn`, `${ARCH}HasPart`, `${ARCH}Refines`]);
+    expect(offered[1]!.unqualifiedPredicateIri).toBe(`${ARCH}dependsOn`);
     expect(offered.every((r) => r.fallback)).toBe(true);
     expect(offered[0]!.reason).toContain('the loaded metamodels permit no relationship between these two element types');
     expect(offered[0]!.unqualifiedPredicateIri).toBe(`${ARCH}associatedWith`);
@@ -350,6 +352,7 @@ describe('the core\'s relationship types, where no loaded language relates two e
     expect(style(`${AD}ModifiesConcept`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
     expect(style(`${AD}SupportingInfluence`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
     expect(style(`${ARCH}HasPart`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
+    expect(style(`${ARCH}DependsOn`)).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
     // The core's Association: its predicate is symmetric.
     expect(palette.relationshipTypes.some((r) => r.iri === `${ARCH}Association`)).toBe(true);
     expect(style(`${ARCH}Association`)).toBeUndefined();

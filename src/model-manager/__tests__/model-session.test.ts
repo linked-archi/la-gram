@@ -316,6 +316,23 @@ describe('ModelSession', () => {
     expect(store.getQuads(null, nn(ARCH + 'target'), nn('urn:bare:b'))).toHaveLength(1);
   });
 
+  it('makes a Depends On on adopt from a bare arch:dependencyOf: from the dependent to what it needs, its arch:dependsOn stated', () => {
+    const api = namedNode('urn:dep:api');
+    const billing = namedNode('urn:dep:billing');
+    store.addQuads([
+      quad(api, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationInterface')),
+      quad(billing, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      // Written the other way round, as another tool may: the API is a dependency of Billing (core 0.7.0).
+      quad(api, namedNode(ARCH + 'dependencyOf'), billing),
+    ] as never);
+    expect(session.adopt({ fallbackLabel: 'Dependencies' }).qualified).toBe(1);
+    const [relationship] = store.getQuads(null, nn(RDF_TYPE), nn(ARCH + 'DependsOn')).map((q) => q.subject.value);
+    const of = (p: string) => store.getQuads(nn(relationship!), nn(p)).map((q) => q.object.value);
+    expect([of(ARCH + 'source'), of(ARCH + 'target')]).toEqual([['urn:dep:billing'], ['urn:dep:api']]);
+    expect(store.getQuads(nn('urn:dep:billing'), nn(ARCH + 'dependsOn')).map((q) => q.object.value)).toEqual(['urn:dep:api']);
+    expect(store.getQuads(nn('urn:dep:billing'), nn(ARCH + 'qualifiedDependsOn')).map((q) => q.object.value)).toEqual([relationship]);
+  });
+
   it('leaves a bare triple alone on adopt when a relationship already stands for it', () => {
     const a = namedNode('urn:kept:a');
     const b = namedNode('urn:kept:b');

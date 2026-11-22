@@ -37,7 +37,7 @@ relationship pattern), and composite/connector concepts as RDF/OWL. Version 3.2 
 the ontology to current Linked.Archi conventions and RDF 1.2 rdf:reifies.'''@en ;
     dcterms:created               "2019-03-17"^^xsd:date ;
     dcterms:issued                "2019-03-17"^^xsd:date ;
-    dcterms:modified              "2026-10-10"^^xsd:date ;
+    dcterms:modified              "2026-11-22"^^xsd:date ;
     dcterms:publisher                  "Linked.Archi"@en,
                                   <https://linked.archi> ;
     bibo:status                   "draft" ;
@@ -56,7 +56,10 @@ qualified relationship classes (: namespace) and qualified properties. Replaced 
 with skos:prefLabel, arch:specURL with dcterms:source. Added RDF 1.2 rdf:reifies bridge in
 relationship examples. Updated license to CC-BY 4.0. Aligned all elements with
 archimate-tax ontology (:).'''@en ;
-    skos:changeNote               '''2026-10-10: the kinds of access are subclasses of Access — ReadAccess, WriteAccess and
+    skos:changeNote               '''2026-11-22: serves is a subproperty of the core's arch:dependencyOf (core 0.7.0):
+what an element serves depends on it (DD-44).
+
+2026-10-10: the kinds of access are subclasses of Access — ReadAccess, WriteAccess and
 ReadWriteAccess, an Access that is none of them being unspecified — and a directed association is a
 DirectedAssociation, so each has a notation of its own (DD-31). accessType is deprecated.'''@en ;
     rdfs:seeAlso                  <https://www.w3.org/TR/rdf12-concepts/> ;
@@ -1234,8 +1237,12 @@ ex:qr-004 a am:Realization ;
 
 :serves
     a                    owl:ObjectProperty ;
+    rdfs:subPropertyOf   arch:dependencyOf ;
     skos:prefLabel       "Serves"@en ;
     skos:definition      '''Indicates that an element provides its functionality to another element.'''@en ;
+    skos:scopeNote       '''A serving element is a dependency of the one it serves: A serves B says that B depends
+on A (arch:dependencyOf, core 0.7.0), so a question about what depends on an element follows serving with the
+core's dependencies (DD-44).'''@en ;
     skos:changeNote      "3.0: Renamed from 'Used By' to 'Serves', in line with the other active names of relationships."@en ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-and-Relationship-Connectors.html#sec-Serving-Relationship> ;
     arch:domainIncludes  arch:Element ;

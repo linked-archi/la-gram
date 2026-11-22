@@ -50,7 +50,7 @@ let palette: PaletteDefinition;
 beforeAll(async () => {
   base = new OxigraphRdfStore();
   const loader = new N3MetamodelLoader(new N3TtlParser(), base);
-  // The core first, as the app loads it: its notation draws Refines, which nesting may stand for (VC-DD-5).
+  // The core first, as the app loads it: its notation draws Has Part and Refines, which nesting may stand for (VC-DD-5).
   await loader.loadCoreAssets();
   const loaded = await loader.loadBundledMetamodel();
   palette = new SparqlPaletteGenerator(base).generatePalette(loaded.metamodelIri, {
@@ -456,6 +456,28 @@ describe('nesting', () => {
 
     f.commandStack.undo();
     expect(f.relationships.getRelationshipsOf!(linux)).toHaveLength(0);
+  });
+
+  it('a drop into an element that no loaded language relates to it offers the core’s two: Has Part, the inner a part, and Refines (VC-DD-5)', async () => {
+    const f = mount();
+    const server = place(f, NODE, 'Server', { x: 100, y: 100, width: 300, height: 200 });
+    const thing = place(f, 'https://example.org/lang#Thing', 'Thing', { x: 600, y: 100, width: 120, height: 55 });
+    f.canvas.showView(f.viewIri);
+    f.service<{ moveElements(e: unknown[], d: unknown, target?: unknown): void }>('modeling').moveElements(
+      [shapeOf(f, thing)],
+      { x: -450, y: 60 },
+      shapeOf(f, server),
+    );
+    await Promise.resolve();
+
+    const entries = f.canvas.nestMenuProvider.getPopupMenuEntries(undefined) as Record<string, { label: string; description: string; action(): void }>;
+    expect(Object.values(entries).map((e) => e.label)).toEqual(['Has Part', 'Refines', 'None']);
+    expect(Object.values(entries).slice(0, 2).map((e) => e.description)).toEqual(['Server → Thing', 'Thing → Server']);
+    entries['la-nest-0']!.action();
+    expect(f.relationships.getRelationshipsOf!(thing).map((r) => [r.classIri, r.sourceIri, r.targetIri])).toEqual([
+      [NAMESPACES.arch + 'HasPart', server, thing],
+    ]);
+    expect(f.views.getLinks(f.viewIri)).toHaveLength(0);
   });
 
   it('draws nodes inside their containers from the store, and follows when the store moves one out', () => {
@@ -1585,10 +1607,10 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     const element = registryOf(f).get(shop)!;
     const rules = rulesOf(f);
     expect(f.canvas.contextPadProvider.getContextPadEntries(reference as never)['connect']?.title).toBe('Connect');
-    // ArchiMate relates no view: the core's three, Association first (Req 4.21).
+    // ArchiMate relates no view: the core's own, Association first (Req 4.21).
     const attrs = rules.allowed('connection.create', { source: element, target: reference }) as { typeIri: string; candidates: Array<{ iri: string }> };
     expect(attrs.typeIri).toBe(NAMESPACES.arch + 'Association');
-    expect(attrs.candidates.map((c) => c.iri)).toEqual(['Association', 'HasPart', 'Refines'].map((t) => NAMESPACES.arch + t));
+    expect(attrs.candidates.map((c) => c.iri)).toEqual(['Association', 'DependsOn', 'HasPart', 'Refines'].map((t) => NAMESPACES.arch + t));
     const line = modelingOf(f).connect(element, reference, attrs)!;
     expect(line.businessObject?.kind).toBe('relationship');
     const [relationship] = f.relationships.getRelationshipsOf(payments);
@@ -1662,9 +1684,11 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(f.service<{ isOpen(): boolean }>('popupMenu').isOpen()).toBe(true);
     const offers = f.canvas.nestMenuProvider.getPopupMenuEntries(reference) as Record<string, { label: string; description: string; action: () => void }>;
-    expect(Object.keys(offers)).toEqual(['la-nest-0', 'la-nest-none']);
-    expect([offers['la-nest-0']!.label, offers['la-nest-0']!.description]).toEqual(['Refines', 'Payments → Shop']);
-    offers['la-nest-0']!.action();
+    // The core's two that nesting may draw: the view a part of the element, the view refining it.
+    expect(Object.keys(offers)).toEqual(['la-nest-0', 'la-nest-1', 'la-nest-none']);
+    expect([offers['la-nest-0']!.label, offers['la-nest-0']!.description]).toEqual(['Has Part', 'Shop → Payments']);
+    expect([offers['la-nest-1']!.label, offers['la-nest-1']!.description]).toEqual(['Refines', 'Payments → Shop']);
+    offers['la-nest-1']!.action();
     const [refines] = f.relationships.getRelationshipsOf(payments);
     expect(refines).toMatchObject({ sourceIri: payments, targetIri: shop, classIri: NAMESPACES.arch + 'Refines' });
     expect(f.store.getQuads(nn(payments), nn(NAMESPACES.arch + 'refines')).map((q) => q.object.value)).toEqual([shop]);
@@ -1676,6 +1700,24 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(f.views.getLinks(f.viewIri)).toEqual([expect.objectContaining({ relationshipIri: refines!.iri, sourceNodeIri: made!.nodeIri })]);
     f.commandStack.undo();
     expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    f.commandStack.undo();
+    expect(f.relationships.getRelationshipsOf(payments)).toEqual([]);
+  });
+
+  it('let go in an element’s box and answered Has Part, records the view as a part of the element, shown by the nesting (VC-5)', async () => {
+    const { f, payments, shop } = scene();
+    dragView(f, payments, registryOf(f).get(shop), { x: 550, y: 220 });
+    const [made] = references(f);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const offers = f.canvas.nestMenuProvider.getPopupMenuEntries(registryOf(f).get(made!.nodeIri)!) as Record<string, { label: string; action: () => void }>;
+    expect(offers['la-nest-0']!.label).toBe('Has Part');
+    offers['la-nest-0']!.action();
+    const [hasPart] = f.relationships.getRelationshipsOf(payments);
+    expect(hasPart).toMatchObject({ sourceIri: shop, targetIri: payments, classIri: NAMESPACES.arch + 'HasPart' });
+    expect(f.store.getQuads(nn(shop), nn(NAMESPACES.arch + 'hasPart')).map((q) => q.object.value)).toEqual([payments]);
+    // Shown by the nesting, the part inside the whole: no line.
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    expect(presentedIn(f, hasPart!.iri)).toEqual([f.viewIri]);
     f.commandStack.undo();
     expect(f.relationships.getRelationshipsOf(payments)).toEqual([]);
   });

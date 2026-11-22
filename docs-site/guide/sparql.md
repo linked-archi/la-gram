@@ -89,6 +89,11 @@ Picking a question puts its query in the editor, with the model, view, viewpoint
 does not prove (*Does not prove:*); a finding with no rows says *None found.* Right-click an element ›
 *Ask about this element…* opens the menu with the questions about it.
 
+Under *Analysis*, *What depends on this element?* and *What does this element depend on?* follow the
+dependencies every loaded language states, each the way it runs: the core's *Depends On*, ArchiMate's
+serving read from what is served to what serves it, TOGAF's, UML's, Backstage's and LeanIX's own. Each
+row is a concept one or two steps away, with the concept between and the predicates followed.
+
 <figure markdown="span">
   ![The SPARQL Query tab with the Questions menu open for the example's diagram: the view and its viewpoint, Service Realization, named under the title; under Fits this view, Which services does nothing realise?, marked finding; then Orientation and Resolution, where What is recorded about this element? is greyed with Select an element.](../assets/screenshots/guide/sparql/questions-menu.png)
   <figcaption>The Questions menu, the questions that fit the view first.</figcaption>

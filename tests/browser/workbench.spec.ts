@@ -1382,11 +1382,12 @@ describe('nesting', () => {
     await expect(drawn.locator('[data-view-reference]').count()).resolves.toBe(1);
     await expect(drawn.textContent()).resolves.toContain('Payments');
 
-    // Inside an element's box, it asks what the nesting stands for: the view refining the element (VC-5).
+    // Inside an element's box, it asks what the nesting stands for: the element having the view as a part, or the
+    // view refining the element (VC-5).
     const entries = page.locator('.djs-popup .entry');
     await entries.first().waitFor({ state: 'visible' });
     const labels = (await entries.allInnerTexts()).map((s) => s.split('\n')[0].trim());
-    expect(labels).toEqual(['Refines', 'None']);
+    expect(labels).toEqual(['Has Part', 'Refines', 'None']);
     await session.screenshot('workbench-view-reference');
     await entries.filter({ hasText: 'Refines' }).first().click();
     const relationshipsOf = (iri: string) =>
@@ -2099,7 +2100,7 @@ describe('model questions', () => {
     const titles = await menu.locator('.group-title').allInnerTexts();
     expect(titles.map((t) => t.toLowerCase())).toEqual(expect.arrayContaining(['orientation', 'analysis', 'quality', 'views']));
     const all = await menu.locator('button.question').count();
-    expect(all).toBe(38);
+    expect(all).toBe(40);
     const concern = menu.locator('select.concern');
     const firstConcern = await concern.locator('option').nth(1).getAttribute('value');
     await concern.selectOption(firstConcern!);

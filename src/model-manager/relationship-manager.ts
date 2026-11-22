@@ -340,16 +340,17 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       ranking.set(match, { proposal, hintFit });
     }
 
-    // Core's own relationship types (Association, Has Part, Refines) are for two elements no loaded language
-    // relates — an element of one metamodel and one of another, or two of a metamodel with no relationship types:
-    // where a language permits anything, they are not offered (Req 4.21).
+    // Core's own relationship types (Association, Depends On, Has Part, Refines) are for two elements no loaded
+    // language relates — an element of one metamodel and one of another, or two of a metamodel with no relationship
+    // types: where a language permits anything, they are not offered (Req 4.21).
     const ofLanguage = matches.filter((m) => !m.iri.startsWith(NAMESPACES.arch));
     if (ofLanguage.length > 0 && ofLanguage.length < matches.length) {
       matches.length = 0;
       matches.push(...ofLanguage);
     } else if (ofLanguage.length === 0) {
-      // The least said first: Association, then Has Part, then Refines.
-      const CORE_ORDER = ['Association', 'HasPart', 'Refines'];
+      // The least said first: Association, then Depends On, the one with a direction and nothing more, then Has
+      // Part and Refines.
+      const CORE_ORDER = ['Association', 'DependsOn', 'HasPart', 'Refines'];
       for (const match of matches) {
         const place = CORE_ORDER.indexOf(match.iri.slice(NAMESPACES.arch.length));
         match.fallback = true;

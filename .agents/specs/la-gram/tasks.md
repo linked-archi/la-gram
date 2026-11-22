@@ -415,6 +415,16 @@ Agreed order; relationship visuals come first.
   `.agents/tasks/view-references/` (VR-1–12, VR-DD-1–8).
 - [x] **Views as model concepts on a diagram** (Req 3.23, 2.16, 4.21, 11.9) — done (2026-11-21): see the change log.
   `.agents/tasks/views-as-concepts/` (VC-1–11, VC-DD-1–8).
+- [x] **The core notation draws the core's three types; nesting may stand for Has Part** (Req 2.25, 3.12, 3.23, 4.21)
+  — done (2026-11-22): see the change log. *palette-generator.test, view-canvas.test, workbench.spec*
+- [x] **Depends On, the core's dependency type** (Req 2.25, 3.23, 4.21) — done (2026-11-22): see the change log.
+  *palette-generator.test, relationship-ranking.test, model-session.test, view-canvas.test*
+- [x] **Questions about dependencies, across languages** (Req 16.4) — done (2026-11-22): see the change log.
+  *questions.test, questions-bench.test, workbench.test, workbench.spec*
+- [ ] **Inferred dependencies kept out of a model on open** — recorded (2026-11-22), not started: a bare
+  `arch:dependsOn` triple that a stated triple of one of its subproperties implies (`A am4:serves B` beside
+  `B arch:dependsOn A`) is opened as a Depends On today (Req 4.22). Skipping it needs `rdfs:subPropertyOf` read
+  where relationships are made from triples. Meta's DD-44 keeps such triples out of models instead.
 ---
 
 ## Known limitations
@@ -455,6 +465,61 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-22 — Questions about dependencies, across languages
+
+- **Two core questions** (Req 16.4; linked-archi-meta's DD-44): *What depends on this element?* and *What does this
+  element depend on?*, under *Analysis* in the SPARQL tab's *Questions* menu. Each follows, one or two steps out,
+  every predicate a loaded language declares a subproperty of the core's `arch:dependsOn`, and of
+  `arch:dependencyOf` read the other way — ArchiMate's serving, TOGAF's used by — reading the alignment from the
+  metamodel, as no reasoner runs here. A row is the concept, how many steps away, the concept between and the
+  predicates followed.
+- **The bundled languages aligned**: ArchiMate 4.0's and 3.2's `serves` are subproperties of `arch:dependencyOf`,
+  the decision extension's `dependsOn` of `arch:dependsOn` (also TOGAF, UML, Backstage and LeanIX in meta, which
+  la-gram loads from there). Nothing on the canvas reads `rdfs:subPropertyOf`, so drawing and the offered
+  relationships do not change. A model must not be saved with a reasoner's inferred `arch:dependsOn` triples:
+  la-gram opens each as a Depends On (Req 4.22), as DD-44 says.
+- Each answers 350 000 triples within the 1 s limit of the timing test. The assets (`archimate4-onto.ttl`,
+  `archimate3.2-onto.ttl`, `arch-decision-onto.ttl`, `core-questions.ttl`) and `questions-bench.test.ts` are the
+  kernel's too, byte for byte.
+  *questions.test, questions-bench.test, workbench.test, workbench.spec*
+
+### 2026-11-22 — Depends On: the core's dependency between concepts no language relates
+
+- **A fourth core relationship type** (Req 4.21, 3.23; linked-archi-meta's DD-43, core 0.7.0): `arch:DependsOn`,
+  its predicate `arch:dependsOn` and the inverse `arch:dependencyOf`, from a concept to one it needs. Between two
+  elements no loaded language relates, or an element and a view, connect, change type and the "+" menu offer
+  *Association*, then *Depends On*, then *Has Part* and *Refines* (`CORE_ORDER` in `relationship-manager.ts`). Until
+  now a model could relate concepts of different languages only by an association with no direction, or by a part
+  or a refinement; an impact question follows a dependency's direction.
+- **Drawn dashed** (Req 2.25): the core notation draws it as a dashed line with an open arrowhead at the concept
+  depended on, so it is not taken for Has Part or Refines, drawn solid. Nesting does not draw it.
+- **Written the other way round**: a file's bare `arch:dependencyOf` triple opens as a Depends On from the dependent
+  to what it needs, its `arch:dependsOn` stated, as any declared inverse is read (Req 4.22).
+- The assets (`core-onto.ttl`, `core-notation.ttl`), `relationship-manager.ts` and the comments naming the core's
+  types in `bundled-assets.ts`, `notation-resolver.ts` and `interfaces.ts` are the kernel's too, file for file, with
+  the palette and session tests. la-gram's `catalog.ttl` still says core 0.6.0 until meta's catalogue is generated
+  again.
+  *palette-generator.test, relationship-ranking.test, model-session.test, view-canvas.test*
+
+### 2026-11-22 — The core notation draws the core's three relationship types; nesting may stand for Has Part
+
+- **A descriptor for each core type** (Req 2.25, 4.21; linked-archi-meta's DD-42): the core notation,
+  `core/core-notation.ttl`, described Refines only. It now describes the three: Association a solid line with
+  nothing at either end, Has Part and Refines a solid line with an open arrowhead at the target. They are the lines
+  Req 2.25 gave them, so nothing is drawn differently; stated as data, every tool that reads the notation draws them
+  alike.
+- **Nesting may stand for Has Part** (Req 3.12, 3.23): its descriptor has `arch-vis:nestedEnd arch-vis:TargetEnd`,
+  the part inside the whole. A view's reference dropped into an element's box offers *Has Part* (the element having
+  the view as a part), then *Refines*, then *None*; an element dropped into one no loaded language relates it to is
+  offered the same two, Has Part first. Where a language relates the two, its own relationships are offered, as
+  before. A Has Part the model already has between a container and what is nested in it is shown by the nesting,
+  with no line, and the drop asks nothing.
+- `arch:Element` and `arch:QualifiedRelationship` get no core descriptor: one would reach every class that nothing
+  nearer describes, and replace the built-in look of every language that publishes no notation.
+- The asset is the kernel's too, byte for byte, and so are the comments in `bundled-assets.ts`,
+  `notation-resolver.ts` and `palette-generator.ts` and the palette test.
+  *palette-generator.test, view-canvas.test, workbench.spec*
 
 ### 2026-11-21 — A view is a model concept on a diagram: its references its placements
 

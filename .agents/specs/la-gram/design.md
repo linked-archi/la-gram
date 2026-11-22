@@ -404,9 +404,10 @@ names with `arch:usesNotationSet`, or else the primary metamodel's
 `arch:notationSet`. The fallback layers F are the default sets
 (`arch:notationSet`) of all loaded metamodels except A itself, in load order,
 then the core notation's (`coreNotationSetIris`), which no manifest names and
-which is never A: it draws the core's own relationship types — Refines, which
-nesting may draw (DD-42). F includes the default set of A's own metamodel when
-a presentation context picked an alternative set.
+which is never A: it draws the core's own relationship types — Association,
+Depends On, and Has Part and Refines, which nesting may draw (DD-42). F
+includes the default set of A's own metamodel when a presentation context
+picked an alternative set.
 
 1. A descriptor in A for C.
 2. A descriptor for C in F, the first match in load order.
@@ -3421,7 +3422,8 @@ dialog; the modules' section).
     concepts (and of what they import) is offered — under its own metamodel's group, else *Other* — and a notice
     names each metamodel that leaves something out; an ontology loaded only because a shapes document imports it
     gives no types. *Relationships:* where the loaded metamodels permit nothing between two elements, the core's
-    own three are offered (Association first), marked as the fallback they are; they are flagged `core` on the
+    own are offered (the least said first, `CORE_ORDER`: Association, Depends On, Has Part, Refines), marked as the
+    fallback they are; they are flagged `core` on the
     palette's types so the canvas can draw and name them, and the palette panel does not list them. *Looks:* a
     relationship type no notation describes is given a style when the palette is generated — an open arrowhead
     at the target, none where its predicate is `owl:SymmetricProperty` — so the canvas, the menus and the icons
@@ -3748,7 +3750,7 @@ dialog; the modules' section).
     the old view's relationships at the node and keeps the connectors. On the canvas, a reference's shape keeps its
     node as its `iri` and gets it as its `nodeIri` too — a line drawn from it is drawn from that placement — and
     its view's class as its `typeIri` (`arch:Diagram`, `arch:Catalog`, `arch:Matrix`), which the rules ask
-    `getValidRelationships` with, so the core's three types arrive through Req 4.21 unchanged. Its `label` is its
+    `getValidRelationships` with, so the core's types arrive through Req 4.21 unchanged. Its `label` is its
     view's name, which F2 and *Rename* rename on every reference to it (the relabel command writes the view, as
     it writes an element), and its own text is its `labelText`, drawn in the name's place as a label expression's
     is; the panel's *Text* writes the node. `view-reference.ts` holds what a shape stands for (`conceptIriOf`,
@@ -3764,8 +3766,12 @@ dialog; the modules' section).
     (`V arch:refines X`, or `X arch:refinedInto V` as another tool may write it): the pad opens the one view or a
     menu of several (`zoom-in.ts`), the right-click menu lists each, and the canvas emits `open-view`, which
     mount-ui opens so that Back comes back. What nesting may stand for comes from the notation, as for elements:
-    the core's relationship types get one in linked-archi-meta, `core/core-notation.ttl` (its DD-42), whose
-    Refines descriptor has `arch-vis:nestedEnd arch-vis:SourceEnd`. No manifest names it; it is bundled with the
+    the core's relationship types get one in linked-archi-meta, `core/core-notation.ttl` (its DD-42), a
+    descriptor for each: Association's with no `arch-vis:nestedEnd`, Has Part's with `arch-vis:TargetEnd` (the
+    part inside the whole, so `nestingOffers` lists it first, the inner shape the target) and Refines' with
+    `arch-vis:SourceEnd`. Their lines are those Req 2.25 gave them before: Association plain, the other two
+    with an open arrowhead at the target. Depends On's (meta's DD-43) is dashed, with an open arrowhead at the
+    concept depended on and no nested end. No manifest names it; it is bundled with the
     core (`coreNotation`) and its sets are the last fallback layer (`coreNotationSetIris`), never the active set,
     and the nesting offer needs no change, since the palette's relationship types carry the core's (`core`,
     hidden from the palette panel only). Rejected: references as element shapes, which would have given

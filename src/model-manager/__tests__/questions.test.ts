@@ -243,8 +243,8 @@ const ask = (iri: string, bindings: QuestionBindings = {}) => answer(plain, ques
 
 describe('the bundled question sets', () => {
   it('list every question — the question as its label, a stage, the prefixes, its SELECT without PREFIX or LIMIT', () => {
-    expect(questions.length).toBe(38);
-    expect(questions.filter((q) => q.iri.startsWith('https://meta.linked.archi/core-questions#'))).toHaveLength(16);
+    expect(questions.length).toBe(40);
+    expect(questions.filter((q) => q.iri.startsWith('https://meta.linked.archi/core-questions#'))).toHaveLength(18);
     for (const q of questions) {
       expect(q.label, q.iri).toMatch(/\?$/);
       expect(stageOf(q), q.iri).toBeDefined();
@@ -278,7 +278,7 @@ describe('the bundled question sets', () => {
     const coreOnly = offeredQuestions(questions, new Set());
     expect(coreOnly.every((q) => q.iri.startsWith('https://meta.linked.archi/core-questions#'))).toBe(true);
     const offered = offeredQuestions(questions, new Set([AM4]), AM4VP + 'CapabilityMapViewpoint');
-    expect(offered).toHaveLength(38);
+    expect(offered).toHaveLength(40);
     expect(offered[0]!.viewpoints).toContain(AM4VP + 'CapabilityMapViewpoint');
   });
 });
@@ -326,6 +326,19 @@ describe('the findings, on meta’s example model', () => {
     expect(ids(ask(am4q('viewpoint-scope')), 'element')).toEqual(new Set(['customer', 'clerk', 'bankActor', 'bankRole']));
     expect(ids(ask(am4q('viewpoint-scope'), { viewpoint: AM4VP + 'TechnologyViewpoint' }), 'element')).toEqual(new Set(['server', 'cloudServer']));
     expect(ids(ask(am4q('impact-of-change')), 'impacted')).toEqual(new Set(['crm', 'policyApp']));
+  });
+
+  it('dependencies: what depends on an element and what it depends on, serving read the other way (DD-44)', () => {
+    // The server serves the CRM, which serves the policy application: both depend on the server.
+    const dependents = ask(archq('what-depends-on-it'));
+    expect(ids(dependents, 'dependent')).toEqual(new Set(['crm', 'policyApp']));
+    const twoSteps = dependents.find((r) => r.includes(`dependent=${EX}policyApp`))!;
+    expect(twoSteps).toContain('hops=2');
+    expect(twoSteps).toContain(`via=${EX}crm`);
+    expect(twoSteps).toContain(`firstPredicate=${AM4}serves`);
+    // The customer assigned to the clerk reaches it, and does not depend on it.
+    expect(ids(ask(archq('what-depends-on-it'), { focus: EX + 'clerk' }), 'dependent')).toEqual(new Set());
+    expect(ids(ask(archq('what-it-depends-on'), { focus: EX + 'policyApp' }), 'dependency')).toEqual(new Set(['crm', 'server']));
   });
 
   it('every answer is the same with the inferable core and abstract types added', () => {
@@ -570,7 +583,7 @@ describe('the ArchiMate 3.2 questions, on meta’s 3.2 example model', () => {
 
   it('are listed beside the core ones, and run with all their parameters and with their required ones only', () => {
     expect(questions32.filter((q) => q.iri.startsWith('https://meta.linked.archi/archimate3/questions#'))).toHaveLength(21);
-    expect(questions32).toHaveLength(37);
+    expect(questions32).toHaveLength(39);
     for (const q of questions32) {
       expect(q.label, q.iri).toMatch(/\?$/);
       const required: QuestionBindings = {};
@@ -623,7 +636,7 @@ describe('the workbench loads them', () => {
     const am4 = app.loadedMetamodels().find((m) => m.metamodelIri.includes('archimate4'))!;
     expect(am4.graphsByRole.questions).toEqual(['https://meta.linked.archi/archimate4/questions#']);
     const loaded = listQuestions(app.components.store);
-    expect(loaded).toHaveLength(38);
+    expect(loaded).toHaveLength(40);
     // Never model data: nothing of them in the default graph.
     expect(app.components.store.query(`ASK { ?q a <${ARCH}ModelQuestion> }`)).toEqual({ type: 'boolean', value: false });
   }, 120_000);

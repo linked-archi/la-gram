@@ -1,7 +1,7 @@
 # Views as model concepts on a diagram (VC)
 
-Recorded 2026-11-21. **Done** (2026-11-21): la-gram's Req 3.23, DD-42 and change log say what it does now; the core
-notation waits to be published with linked-archi-meta. Files here: `requirements.md` (VC-n), `design.md` (VC-DD-n)
+Recorded 2026-11-21. **Done** (2026-11-21; Has Part by nesting, 2026-11-22): la-gram's Req 3.23, DD-42 and change
+log say what it does now; the core notation waits to be published with linked-archi-meta. Files here: `requirements.md` (VC-n), `design.md` (VC-DD-n)
 and `tasks.md`, the checklist.
 
 ## Goal
@@ -26,7 +26,8 @@ panel shows a figure, nesting it means nothing — was not what was meant. This 
    not *Draw a line to…*; a note's line to a reference stays drawing.
 3. **Nesting a view in an element asks what the nesting stands for**, as nesting an element does. The answer comes
    from the notation, as for elements: a **core notation in linked-archi-meta** says Refines may be drawn by nesting
-   the refining view inside.
+   the refining view inside. *2026-11-22:* it describes all three of the core's types now, and Has Part may be drawn
+   by nesting too, the part inside the whole: a view nested in an element is offered Has Part, then Refines.
 4. **Zoom in** on the pad and in the right-click menu of any element or relationship a view refines (`V arch:refines
    X`, or `X arch:refinedInto V` read from a file), whether or not a reference is drawn: it opens the view, or lists
    them when several do.

@@ -267,8 +267,8 @@ export interface RelationshipTypeInfo {
    */
   generic?: boolean;
   /**
-   * One of the core's own relationship types (Association, Has Part, Refines): offered where the loaded metamodels
-   * permit nothing between two elements (Req 4.21), and not listed in the palette.
+   * One of the core's own relationship types (Association, Depends On, Has Part, Refines): offered where the loaded
+   * metamodels permit nothing between two elements (Req 4.21), and not listed in the palette.
    */
   core?: boolean;
   /**

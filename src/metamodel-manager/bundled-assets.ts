@@ -78,8 +78,10 @@
  * `coreNotation` is the notation of the core's own relationship types
  * (`core-notation`), which no manifest names either: its sets are consulted
  * after every loaded metamodel's default set, the last fallback layer of the
- * notation lookup (`coreNotationSetIris`, VC-DD-5) — a view nested in the box
- * of an element may stand for its Refines.
+ * notation lookup (`coreNotationSetIris`, VC-DD-5). It draws Association,
+ * Depends On, Has Part and Refines, and lets nesting stand for Has Part and
+ * Refines: the part inside the whole, a view inside the box of the element it
+ * refines.
  */
 export type BundledAssetRole =
   | 'manifest'

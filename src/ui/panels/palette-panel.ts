@@ -431,8 +431,8 @@ export class PalettePanel extends LitElement {
       .map((group) => ({ ...group, elements: group.elements.filter(keepElement) }))
       .filter((group) => group.elements.length > 0);
 
-    // Not the core's own (Association, Has Part, Refines): they are offered when two elements nothing else relates
-    // are connected, and are no types to pick here.
+    // Not the core's own (Association, Depends On, Has Part, Refines): they are offered when two elements nothing
+    // else relates are connected, and are no types to pick here.
     const filteredRelationships = this.palette.relationshipTypes.filter(
       (rel) =>
         !rel.core &&

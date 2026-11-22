@@ -24,6 +24,9 @@ Recorded 2026-11-21. **Done** (2026-11-21). Criteria refer to [requirements.md](
   `coreNotationSetIris` the last fallback layer, never the active set — *bundled-assets.test, palette-generator.test*
 - [x] Nesting needs no change: the palette's relationship types carry the core's (`core`, hidden from the palette panel
   only), so Refines comes with its `nestedEnds` (2026-11-21)
+- [x] Association and Has Part descriptors beside Refines', Has Part's with `arch-vis:TargetEnd`: the meta file,
+  DD-42, the ontology reference, the visual notation guide, `llms.txt`, `llms-full.txt`; the asset and the comments
+  in both copies — *palette-generator.test, view-canvas.test, workbench.spec* (2026-11-22)
 
 ## The canvas (VC-1–6, VC-9)
 

@@ -234,8 +234,9 @@ export function storeDefaultNotationSetIris(graph: Store): string[] {
  * The core notation's sets (`core/core-notation.ttl`), in IRI order: the last
  * fallback layers, after every loaded metamodel's default set (VC-DD-5). No
  * manifest names them — they draw the core's own relationship types, whatever
- * the language: Refines, which nesting may draw with the refining view inside —
- * so a language's own descriptor for a core class comes first.
+ * the language: Association, Depends On, and Has Part and Refines, which
+ * nesting may draw with the part or the refining concept inside — so a
+ * language's own descriptor for a core class comes first.
  */
 export function coreNotationSetIris(graph: Store): string[] {
   const sets = graph

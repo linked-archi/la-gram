@@ -1341,7 +1341,7 @@ describe('the workbench', () => {
     editor.querySelector<HTMLButtonElement>('.questions-btn')!.click();
     await ui.sparqlEditor.updateComplete;
     const entry = (iri: string) => editor.querySelector<HTMLButtonElement>(`button.question[data-iri="${iri}"]`)!;
-    expect(editor.querySelectorAll('button.question')).toHaveLength(38);
+    expect(editor.querySelectorAll('button.question')).toHaveLength(40);
     expect(entry(am4q('impact-of-change')).disabled).toBe(true);
     expect(entry(am4q('impact-of-change')).textContent).toContain('Select an element');
     // Picking one runs it, bound to the open model, and says what a row means.
@@ -2460,7 +2460,7 @@ describe('the workbench', () => {
     expect(app.loadedMetamodels().some((m) => m.metamodelIri.includes('archimate4'))).toBe(true);
     const offered = ui.sparqlEditor.questionSource!();
     const from = (set: string) => offered.filter((q) => q.iri.startsWith(`https://meta.linked.archi/${set}#`)).length;
-    expect([offered.length, from('core-questions'), from('archimate3/questions'), from('archimate4/questions')]).toEqual([37, 16, 21, 0]);
+    expect([offered.length, from('core-questions'), from('archimate3/questions'), from('archimate4/questions')]).toEqual([39, 18, 21, 0]);
     expect(ui.validationPanel.checksAvailable).toBe(14);
     // "What realises each capability?" — ArchiMate 3.2's — asks the imported model.
     const capabilities = offered.find((q) => q.iri === 'https://meta.linked.archi/archimate3/questions#capability-realisation')!;

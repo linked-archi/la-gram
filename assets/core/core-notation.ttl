@@ -23,16 +23,21 @@
     dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
     dcterms:title                 "Linked.Archi Core Visual Notation"@en ;
     dcterms:description           '''The visual notation of the core's own relationship types, which relate any
-two model concepts that no loaded language relates (DD-40). No metamodel manifest names it: it applies
+two model concepts that no loaded language relates (DD-40, DD-43). No metamodel manifest names it: it applies
 whatever the language, so a tool loads it with the core, as it loads core-shapes, and consults its notation
 set after the default sets of every loaded metamodel — the last fallback layer of the lookup in the Visual
 Notation Guide. A language's own descriptor for a core class therefore wins over this one.
 
-It describes arch:Refines. Its line is the one a renderer draws for a relationship type no notation
-describes: solid, with an open arrowhead at the concept refined. And nesting may draw it instead, the
-refining concept inside the refined one (arch-vis:nestedEnd arch-vis:SourceEnd): a view nested in the box of
-the element it details, which an editor that nests one in the other can then offer to record.'''@en ;
+It describes each of them, so that every tool draws them alike whatever its own defaults:
+arch:Association as a solid line with nothing at either end, as it has no direction; arch:HasPart and
+arch:Refines as a solid line with an open arrowhead at the target — the part, the concept refined; and
+arch:DependsOn as a dashed line with an open arrowhead at the concept depended on, so that it is not taken
+for either (DD-43). Nesting may draw arch:HasPart and arch:Refines instead of a line: the part inside the
+whole (arch-vis:nestedEnd arch-vis:TargetEnd), and the refining concept inside the refined one
+(arch-vis:SourceEnd) — a view nested in the box of the element it details. An editor that nests one concept
+in another can then offer to record either.'''@en ;
     dcterms:created               "2026-11-21"^^xsd:date ;
+    dcterms:modified              "2026-11-22"^^xsd:date ;
     dcterms:publisher             "Linked.Archi"@en, <https://linked.archi> ;
     bibo:status                   "draft" ;
     owl:versionIRI                <https://meta.linked.archi/core-notation/0.1.0#> ;
@@ -52,21 +57,63 @@ the element it details, which an editor that nests one in the other can then off
 :CoreNotation
     a               arch-vis:NotationSet ;
     skos:prefLabel  "Core Notation"@en ;
-    skos:definition '''Notation set of the core's own relationship types: arch:Refines is a solid line
-with an open arrowhead at the concept refined, which nesting may draw instead, the refining concept
-inside.'''@en ;
+    skos:definition '''Notation set of the core's own relationship types: arch:Association a plain solid
+line, arch:HasPart and arch:Refines a solid line with an open arrowhead at the target, arch:DependsOn a
+dashed one. Nesting may draw arch:HasPart, the part inside the whole, and arch:Refines, the refining
+concept inside.'''@en ;
     skos:scopeNote  '''No metamodel names this set with arch:notationSet, and no presentation context
 picks it with arch:usesNotationSet: it is never the set a palette is styled by. A renderer consults it
 after the default sets of every loaded metamodel, for a class that none of them describes — a descriptor a
-language publishes for a core class comes first. arch:Association and arch:HasPart have no descriptor here:
-a renderer draws a relationship type no notation describes from its source to its target, with an open
-arrowhead at the target, unless its predicate is symmetric, as arch:associatedWith is.'''@en ;
+language publishes for a core class comes first. The lines are those DD-40 has a tool draw for a
+relationship type with no notation: from its source to its target, with an arrowhead, unless its predicate
+is symmetric, as arch:associatedWith is. arch:DependsOn's is dashed besides, so that a dependency is not
+read as a part or a refinement (DD-43). Stated here, they do not depend on a tool's defaults.'''@en ;
 .
 
 
 #################################################################
 # Relationship Visual Notation
 #################################################################
+
+:AssociationNotation
+    a                      arch-vis:VisualNotation ;
+    skos:prefLabel         "Association notation"@en ;
+    skos:definition        '''Solid line with no decoration at either end, for arch:Association. An
+association is undirected — its predicate, arch:associatedWith, is symmetric — so neither end carries a
+marker. Nesting does not draw it.'''@en ;
+    arch-vis:notationFor   arch:Association ;
+    arch-vis:inNotationSet :CoreNotation ;
+    arch-vis:lineStyle     arch-vis:SolidLine ;
+    arch-vis:sourceDecor   arch-vis:NoDecoration ;
+    arch-vis:targetDecor   arch-vis:NoDecoration ;
+.
+
+:DependsOnNotation
+    a                      arch-vis:VisualNotation ;
+    skos:prefLabel         "Depends On notation"@en ;
+    skos:definition        '''Dashed line with no decoration at the source end and an open arrowhead at
+the target end, for arch:DependsOn: from the dependent concept to the one it depends on. Dashed, it is not
+taken for arch:HasPart or arch:Refines, which are drawn solid. Nesting does not draw it.'''@en ;
+    arch-vis:notationFor   arch:DependsOn ;
+    arch-vis:inNotationSet :CoreNotation ;
+    arch-vis:lineStyle     arch-vis:DashedLine ;
+    arch-vis:sourceDecor   arch-vis:NoDecoration ;
+    arch-vis:targetDecor   arch-vis:OpenArrowhead ;
+.
+
+:HasPartNotation
+    a                      arch-vis:VisualNotation ;
+    skos:prefLabel         "Has Part notation"@en ;
+    skos:definition        '''Solid line with no decoration at the source end and an open arrowhead at
+the target end, for arch:HasPart: from the whole to its part. Nesting may draw it instead of a line, the
+target — the part — inside the source, the whole.'''@en ;
+    arch-vis:notationFor   arch:HasPart ;
+    arch-vis:inNotationSet :CoreNotation ;
+    arch-vis:lineStyle     arch-vis:SolidLine ;
+    arch-vis:sourceDecor   arch-vis:NoDecoration ;
+    arch-vis:targetDecor   arch-vis:OpenArrowhead ;
+    arch-vis:nestedEnd     arch-vis:TargetEnd ;
+.
 
 :RefinesNotation
     a                      arch-vis:VisualNotation ;

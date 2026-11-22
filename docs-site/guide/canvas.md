@@ -107,17 +107,19 @@ The types a pair permits come in three groups, and within each in the metamodel'
 
 Between two concepts that no loaded metamodel relates — an element of one metamodel and an element of
 another, two of a metamodel that defines no relationship types, or an element and a
-[view](#view-references) — la-gram offers the core's own three, each *always permitted*:
-**Association**, which has no direction, then *Has Part* and *Refines*. Where a loaded metamodel
-permits anything between the two, they are not offered, and they are not in the palette. *Refines* is
-drawn from the more concrete concept to the one it refines, and nesting may draw it instead
+[view](#view-references) — la-gram offers the core's own relationship types, each *always permitted*:
+**Association**, which has no direction, then *Depends On*, *Has Part* and *Refines*. Where a loaded
+metamodel permits anything between the two, they are not offered, and they are not in the palette.
+*Depends On* is drawn dashed, from the concept that needs the other to the one it needs; *Has Part*
+from the whole to its part; *Refines* from the more concrete concept to the one it refines. Each has an
+open arrowhead at its target, and nesting may draw *Has Part* or *Refines* instead
 ([Nesting](#nesting)).
 
 !!! example "Connecting an ArchiMate element and an ATAM risk"
 
     With ArchiMate 4.0 and ATAM loaded, drag the Connect handle from the Application Component
     "Billing" to the Architectural Risk "Latency under load": the line is an **Association**, and its
-    menu offers *Has Part* and *Refines* too.
+    menu offers *Depends On*, *Has Part* and *Refines* too.
 
 A relationship type whose metamodel publishes no notation — a decision's *Modifies*, a process's
 *Precedes*, an evaluation's *Identified Risk* — is drawn as a solid line with an open arrowhead at
@@ -205,10 +207,11 @@ While nested, no line runs between the element and its container: the nesting sh
 relationships the view showed are drawn as lines again. Relationships' lines and names are drawn above
 every element, nested ones included.
 
-A [view reference](#view-references) dropped into an element's box asks too: **Refines** — the view
-refining the element, *Who is who → Payments* — or **None**. The core notation lets nesting draw
-Refines with the refining concept inside, so an element nested in one no loaded metamodel relates it to
-is offered Refines as well. Dropped into a group or a shape, nothing is asked.
+A [view reference](#view-references) dropped into an element's box asks too: **Has Part**, the element
+having the view as a part (*Payments → Who is who*), **Refines**, the view refining the element (*Who is
+who → Payments*), or **None**. Nesting may draw the core's Has Part with the part inside the whole, and
+its Refines with the refining concept inside, so an element dropped into one that no loaded metamodel
+relates it to is offered both as well. Dropped into a group or a shape, nothing is asked.
 
 1. Drag "Web shop" onto "Payments"' empty corner, and drop it.
 2. Choose **None** when asked *Which relationship?*. "Web shop" is drawn inside "Payments", with no new
@@ -274,7 +277,7 @@ is drawn as a blue-grey box with a small view in its top left, and shows the nam
 | To | Do |
 |---|---|
 | make one | drag a view's row from the model tree onto the diagram; or right-click the row and choose *Reference in the open view*, which puts it in the middle of what you see |
-| put it inside an element, a group or a shape | let go of the row over it, or drag the reference into it; in an element's box, choose what that stands for: **Refines** or **None** |
+| put it inside an element, a group or a shape | let go of the row over it, or drag the reference into it; in an element's box, choose what that stands for: **Has Part**, **Refines** or **None** |
 | open the view it references | double-click it, or choose *Open view* on its pad or in its right-click menu, or *Open* in the Properties tab |
 | rename the view | press ++f2++, or choose *Rename* in its right-click menu: every reference to the view shows the new name |
 | give it text of its own | type in *Text* in the Properties tab; empty it to show no text at all, and choose × beside *Text* to show the view's name again |
@@ -290,9 +293,9 @@ every reference to it shows the new name, unless it has text of its own. It is m
 given a picture and deleted from the view as a note is. Nothing goes inside a reference.
 
 A line drawn to or from a reference is a relationship with its view: of the type the loaded metamodels
-rank first between the two — ArchiMate relates no view, so the core's **Association**, then *Has Part*
-and *Refines* ([Connecting](#connecting)) — written in the model and drawn between the two boxes. A type
-picked in the palette is drawn when the two permit it. Made, a reference draws its view's relationships
+rank first between the two — ArchiMate relates no view, so the core's **Association**, then
+*Depends On*, *Has Part* and *Refines* ([Connecting](#connecting)) — written in the model and drawn
+between the two boxes. A type picked in the palette is drawn when the two permit it. Made, a reference draws its view's relationships
 to what the diagram shows, as a placed element does; pointed at another view, it loses the lines of the
 old view's relationships. A line from a note, a group or a shape to a reference is no relationship.
 
