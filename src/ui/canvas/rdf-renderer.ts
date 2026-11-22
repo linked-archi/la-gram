@@ -303,7 +303,9 @@ export interface RdfBusinessObject {
   /**
    * What an element's label says when an expression says it (core-vis 0.7's
    * `arch-vis:labelExpression`): drawn in place of {@link label}, which stays
-   * its name — what renaming edits. Its lines are the expression's.
+   * its name — what renaming edits. Its lines are the expression's. A view
+   * reference's own text, an empty one too, the same way: drawn in place of its
+   * view's name, which F2 renames (VC-DD-4).
    */
   labelText?: string;
   /**
@@ -679,7 +681,8 @@ export class RdfRenderer extends BaseRenderer {
     const figure = businessObject.figure ?? { kind: 'shape' };
     const width = element.width ?? NOTATION_DEFAULTS.width;
     const height = element.height ?? NOTATION_DEFAULTS.height;
-    const text = businessObject.label ?? '';
+    // A reference's own text — an empty one too — in place of its view's name, its label (VC-DD-4).
+    const text = businessObject.labelText ?? businessObject.label ?? '';
     // Its own colours, else its kind's; its own line and font.
     const colours = figureColours(figure);
     const font = fontOf(figure);

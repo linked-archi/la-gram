@@ -763,10 +763,19 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   modelExplorer.activeViewIri = session.activeViewIri;
 
   // ── Selection routing ────────────────────────────────────────────────
-  /** A figure — a group, a shape, a note — in the open view: drawing, with no model element behind it. */
+  /**
+   * A figure — a group, a shape, a note, a reference — in the open view, by its node: drawing, with no model element
+   * behind it. Not a view's IRI, which keys the references to it there as an element's keys its boxes (VC-DD-1).
+   */
   const figureOf = (iri: string) => {
     const viewIri = session.activeViewIri;
-    return viewIri ? viewManager.getNode?.(viewIri, iri)?.figure : undefined;
+    const node = viewIri ? viewManager.getNode?.(viewIri, iri) : undefined;
+    return node?.nodeIri === iri ? node.figure : undefined;
+  };
+  /** The view a reference in the open view opens, when the model has it: what selecting the reference selects (VC-1). */
+  const referencedViewOf = (iri: string): string | undefined => {
+    const figure = figureOf(iri);
+    return figure?.kind === 'reference' && figure.view && viewManager.getView?.(figure.view) ? figure.view : undefined;
   };
 
   /** A line drawn from a figure, in the open view: the link standing for no relationship. */
@@ -836,9 +845,9 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       return {
         kind,
         ...(figure.kind === 'shape' && figure.shapeType ? { typeLabel: humanize(localNameOf(figure.shapeType)) } : {}),
-        // A reference says which view it opens.
+        // A reference says which view it opens — one the model does not have: one selected otherwise is its view's.
         ...(figure.kind === 'reference' && figure.view ? { typeLabel: labelOf(store, figure.view) || localNameOf(figure.view) } : {}),
-        ...(figure.kind === 'reference' ? { reference: referenceHeading(figure.view) } : {}),
+        ...(figure.kind === 'reference' ? { reference: referenceHeading(figure.view, iri) } : {}),
         figure: { kind: figureKind, ...(fillColor ? { fillColor } : {}), ...(lineColor ? { lineColor } : {}), ...(fontColor ? { fontColor } : {}) },
       };
     }
@@ -861,24 +870,32 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       premises: details.premises.map((premise) => ({ iri: premise, label: labelOf(store, premise) })),
     };
     const shown = derivation && !derivation.confirmed ? (derivation.certainty === 'valid' ? 'Derived relationship' : 'Potential relationship') : kind;
-    // A view: the views holding a reference to it, read from its presence in them (`arch:inView`, VR-DD-8).
+    // A view: the views holding a reference to it, read from its presence in them (`arch:inView`, VR-DD-8) — and,
+    // selected by a reference to it on the canvas, that reference: its own text and *Opens* (VC-1, VC-DD-3).
     const referencedFrom = kind === 'View' ? referencingViews(iri) : [];
+    const selectedReference = kind === 'View' ? diagramCanvas.selectedReference() : undefined;
     return {
       kind: shown,
       ...(typeIri ? { typeIri, typeLabel: labelOf(store, typeIri) } : {}),
       ...(derivation ? { derivation } : {}),
       ...(referencedFrom.length > 0 ? { referencedFrom } : {}),
+      ...(selectedReference?.viewIri === iri ? { reference: referenceHeading(iri, selectedReference.nodeIri) } : {}),
     };
   };
 
   /**
-   * What the panel says of a reference (VR-8): the view it opens — named when the model has it — and the model's
-   * views it can open instead: every one but the view it is drawn in.
+   * What the panel says of a reference (VR-8): its node and its own text — its `skos:prefLabel`, an empty one too —
+   * the view it opens, named when the model has it, and the model's views it can open instead: every one but the
+   * view it is drawn in.
    */
-  const referenceHeading = (viewIri: string | undefined): NonNullable<PropertyHeading['reference']> => {
+  const referenceHeading = (viewIri: string | undefined, nodeIri: string): NonNullable<PropertyHeading['reference']> => {
     const opened = viewIri ? viewManager.getView?.(viewIri) : undefined;
     const holder = session.activeViewIri;
+    const own = statementsOf(store, namedNode(nodeIri) as unknown as NamedNode, namedNode(NAMESPACES.skos + 'prefLabel') as unknown as NamedNode)
+      .map((q) => q.object as { value: string; language?: string })[0];
     return {
+      nodeIri,
+      ...(own ? { text: own.value, ...(own.language ? { textLanguage: own.language } : {}) } : {}),
       ...(viewIri ? { viewIri } : {}),
       ...(opened ? { viewLabel: opened.label || localNameOf(opened.iri) } : {}),
       views: viewManager
@@ -997,9 +1014,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       selectTheView();
       return;
     }
-    selectConcept(iri, { fromCanvas: true });
+    // A reference is its view's placement: selected, the view is — with the reference's look and own text (VC-1).
+    selectConcept(referencedViewOf(iri) ?? iri, { fromCanvas: true });
     // The rest of the panels follow the first; the RDF panel shows them all.
-    rdfPanel.selectedIris = (event.detail?.iris as string[] | undefined) ?? [iri];
+    const iris = (event.detail?.iris as string[] | undefined) ?? [iri];
+    rdfPanel.selectedIris = [...new Set(iris.map((selected) => referencedViewOf(selected) ?? selected))];
   };
 
   modelExplorer.addEventListener('explorer-select', onExplorerSelect);
@@ -1242,6 +1261,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     else dialogs.toast('The view this reference opens is not in the model.', 'warning');
   };
   const onOpenReferencedView: ModelEventHandler = (event) => openReferencedView(event.detail?.viewIri as string | undefined);
+  /** Zoomed into from an element or a relationship it refines (VC-6): the view opens, and Back comes back. */
+  const onOpenView: ModelEventHandler = (event) => {
+    const viewIri = event.detail?.viewIri as string | undefined;
+    if (viewIri && viewManager.getView?.(viewIri)) session.openView(viewIri);
+  };
+  eventBus.on('open-view', onOpenView);
   const onReferenceOpen = (e: Event): void => openReferencedView((e as CustomEvent<{ viewIri?: string }>).detail.viewIri);
   /** The panel's *Change…*: the reference opens another view, one undoable step (VR-DD-4). */
   const onReferenceViewChange = (e: Event): void => {
@@ -1382,13 +1407,17 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
         return;
       case 'delete-view': {
         const view = viewManager.getView?.(iri);
-        // The references to it in other views are deleted with it (`collectViewQuads`): counted, by holder (VR-DD-5).
+        // The references to it in other views are deleted with it (`collectViewQuads`): counted, by holder (VR-DD-5) —
+        // and the relationships it is an end of, as an element's are (VC-7).
         const references = (viewManager.referencesTo?.(iri) ?? []).filter((reference) => reference.holderIri !== iri);
         const holders = new Set(references.map((reference) => reference.holderIri)).size;
-        const withIt =
-          references.length > 0
-            ? ` ${plural(references.length, 'reference')} to it, in ${plural(holders, 'other view')}, ${references.length === 1 ? 'is' : 'are'} deleted with it.`
-            : '';
+        const relationships = relationshipManager.getRelationshipsOf?.(iri).length ?? 0;
+        const parts = [
+          ...(references.length > 0 ? [`${plural(references.length, 'reference')} to it, in ${plural(holders, 'other view')},`] : []),
+          ...(relationships > 0 ? [`${plural(relationships, 'relationship')} with it`] : []),
+        ];
+        const one = references.length + relationships === 1;
+        const withIt = parts.length > 0 ? ` ${parts.join(' and ')} ${one ? 'is' : 'are'} deleted with it.` : '';
         const ok = await dialogs.confirm(
           'Delete view',
           `Delete the view "${view?.label ?? iri}"? The elements and relationships it shows stay in the model.${withIt}`,
@@ -3458,7 +3487,12 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
       historyPanel.working = versionHistory.workingSnapshot();
       showGitHistory();
     }
-    if (propertyPanel.selectedIri) {
+    // The reference shown pointed at another view — in the panel, by a collaborator, undone: its view is shown (VC-1).
+    const shownReference = propertyPanel.heading?.reference?.nodeIri;
+    const opens = shownReference && diagramCanvas.selectedReference()?.nodeIri === shownReference ? referencedViewOf(shownReference) : undefined;
+    if (opens && opens !== propertyPanel.selectedIri) {
+      selectConcept(opens, { fromCanvas: true });
+    } else if (propertyPanel.selectedIri) {
       // Undone, redone, changed by a collaborator: the tab shows the look in force.
       if (propertyPanel.appearance) propertyPanel.appearance = selectedLook();
       propertyPanel.heading = headingFor(propertyPanel.selectedIri);
@@ -3644,6 +3678,7 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
     propertyPanel.removeEventListener('reference-open', onReferenceOpen);
     propertyPanel.removeEventListener('reference-view-change', onReferenceViewChange);
     eventBus.off('open-referenced-view', onOpenReferencedView);
+    eventBus.off('open-view', onOpenView);
     modelExplorer.eventBus = undefined;
     diagramCanvas.destroy();
     shell.remove();

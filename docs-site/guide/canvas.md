@@ -51,7 +51,7 @@ target.
 it, ++esc++ drops it, and undo brings the old one back. A relationship is named the same way on its line:
 double-click the line, or its name. A relationship's name emptied is removed. A name is typed in its own
 font, where it is drawn. A [view reference](#view-references) opens its view when double-clicked: press
-++f2++ to type its text.
+++f2++ to rename the view.
 
 1. Double-click "Gift wrapping".
 2. Type "Gift wrap service", and press ++enter++.
@@ -75,14 +75,16 @@ Component. Permitted: Aggregation, …*
 
 | Pad entry | For |
 |---|---|
-| *Delete from view* | an element or a relationship: takes it off this view |
+| *Delete from view* | an element, a relationship or a view reference: takes it off this view |
 | *Delete from model (all views)* | an element or a relationship: see [Delete](#delete) |
-| *Connect* | an element: draws a relationship from it |
+| *Delete view from model…* | a view reference: deletes its view, as the model tree does |
+| *Connect* | an element or a view reference: draws a relationship from it |
 | *Append element* | an element: a new or related element, connected to it |
 | *Change relationship type: Serving* | a relationship: the types permitted between its ends |
-| *Draw a line to…* | a group, a note, a shape or a view reference: a line that is no relationship |
+| *Zoom in* | an element or a relationship a view refines: opens the view, or lists them ([Zoom in](#zoom-in)) |
+| *Draw a line to…* | a group, a note or a shape: a line that is no relationship |
 | *Open view* | a view reference: opens the view it references |
-| *Connect these two…* | two elements selected |
+| *Connect these two…* | two elements selected, or an element and a view reference |
 
 1. Select "Payments".
 2. Drag from *Connect* in its pad to "Online ordering". An Assignment is drawn — the type ArchiMate 4.0
@@ -103,11 +105,13 @@ The types a pair permits come in three groups, and within each in the metamodel'
 | what they permit only as the conclusion of a derivation | *only by derivation* | Application Component → Process: **Assignment** |
 | Association and Directed Association | *always permitted* | last — except to a Meaning or a Value, where Association comes first |
 
-Between two elements that no loaded metamodel relates — an element of one metamodel and an element of
-another, or two of a metamodel that defines no relationship types — la-gram offers the core's own
-three, each *always permitted*: **Association**, which has no direction, then *Has Part* and
-*Refines*. Where a loaded metamodel permits anything between the two, they are not offered, and they
-are not in the palette.
+Between two concepts that no loaded metamodel relates — an element of one metamodel and an element of
+another, two of a metamodel that defines no relationship types, or an element and a
+[view](#view-references) — la-gram offers the core's own three, each *always permitted*:
+**Association**, which has no direction, then *Has Part* and *Refines*. Where a loaded metamodel
+permits anything between the two, they are not offered, and they are not in the palette. *Refines* is
+drawn from the more concrete concept to the one it refines, and nesting may draw it instead
+([Nesting](#nesting)).
 
 !!! example "Connecting an ArchiMate element and an ATAM risk"
 
@@ -180,8 +184,8 @@ figures draw it). Each direction is in the [order of the types](#relationship-or
 
 ## Lines from figures {#lines-from-figures}
 
-A group, a note, a shape (see [Shapes](#shapes)) or a view reference has *Draw a line to…* in its pad. The line it draws,
-dashed, stands for no relationship: a note's to what it is about. Its Appearance tab makes it solid or
+A group, a note or a shape (see [Shapes](#shapes)) has *Draw a line to…* in its pad. The line it draws,
+dashed, stands for no relationship: a note's to what it is about, an element or a view reference. Its Appearance tab makes it solid or
 dotted and puts an arrowhead, a diamond or a dot at either end
 ([Line ends](appearance.md#line-ends)). Double-click it to write on it: the text sits at its middle, and
 can be dragged elsewhere.
@@ -200,6 +204,11 @@ hold what is inside, keeps its name at the top, and moves with it.
 While nested, no line runs between the element and its container: the nesting shows it. Moved out, the
 relationships the view showed are drawn as lines again. Relationships' lines and names are drawn above
 every element, nested ones included.
+
+A [view reference](#view-references) dropped into an element's box asks too: **Refines** — the view
+refining the element, *Who is who → Payments* — or **None**. The core notation lets nesting draw
+Refines with the refining concept inside, so an element nested in one no loaded metamodel relates it to
+is offered Refines as well. Dropped into a group or a shape, nothing is asked.
 
 1. Drag "Web shop" onto "Payments"' empty corner, and drop it.
 2. Choose **None** when asked *Which relationship?*. "Web shop" is drawn inside "Payments", with no new
@@ -258,36 +267,47 @@ yellow**. An ArchiMate Exchange file's groups, notes and the lines from them imp
 
 ## View references {#view-references}
 
-A **view reference** is a figure that stands for another view of the model, such as an index view's entry
-for each view it lists, or a box inside an element's for the view that details it. It is drawn as a
-blue-grey box with a small view in its top left, and shows the name of the view it opens.
+A **view reference** is a view's placement on another diagram, as an element's box is the element's: an
+index view's entry for each view it lists, or a box inside an element's for the view that details it. It
+is drawn as a blue-grey box with a small view in its top left, and shows the name of the view it opens.
 
 | To | Do |
 |---|---|
 | make one | drag a view's row from the model tree onto the diagram; or right-click the row and choose *Reference in the open view*, which puts it in the middle of what you see |
-| put it inside an element, a group or a shape | let go of the row over it, or drag the reference into it |
+| put it inside an element, a group or a shape | let go of the row over it, or drag the reference into it; in an element's box, choose what that stands for: **Refines** or **None** |
 | open the view it references | double-click it, or choose *Open view* on its pad or in its right-click menu, or *Open* in the Properties tab |
-| give it text of its own | press ++f2++, or type in *Text* in the Properties tab; empty it to show no text at all, and choose × beside *Text* to show the view's name again |
+| rename the view | press ++f2++, or choose *Rename* in its right-click menu: every reference to the view shows the new name |
+| give it text of its own | type in *Text* in the Properties tab; empty it to show no text at all, and choose × beside *Text* to show the view's name again |
 | point it at another view | choose *Change…* under *Opens* in the Properties tab, and pick the view |
-| draw a line from it or to it | its pad's *Draw a line to…*, as from a note |
+| relate its view to an element | choose *Connect* in its pad and click the element, or draw a line from the element to it |
+| delete its view | choose *Delete view from model…* in its pad or its right-click menu |
 
 A new reference is 120 × 55, selected, and one step to undo. Only a diagram takes one: with a catalog or a
 matrix open, nothing is made, and the open view's own row makes nothing on its own diagram — let go there,
-la-gram says *This is the open view: drag it onto another view's diagram to reference it.* With no text of
-its own, a reference follows the view's name: renamed in the tree, in the Properties tab or by a
-collaborator, every such reference shows the new name. It is moved, resized, coloured, given a picture and
-deleted as a note is. Nothing goes inside a reference, and no relationship ends on one: a line to it or
-from it stands for no relationship, and with a relationship type picked in the palette, none is drawn.
+la-gram says *This is the open view: drag it onto another view's diagram to reference it.* A reference
+follows the view's name: renamed in the tree, in the Properties tab, on a reference or by a collaborator,
+every reference to it shows the new name, unless it has text of its own. It is moved, resized, coloured,
+given a picture and deleted from the view as a note is. Nothing goes inside a reference.
+
+A line drawn to or from a reference is a relationship with its view: of the type the loaded metamodels
+rank first between the two — ArchiMate relates no view, so the core's **Association**, then *Has Part*
+and *Refines* ([Connecting](#connecting)) — written in the model and drawn between the two boxes. A type
+picked in the palette is drawn when the two permit it. Made, a reference draws its view's relationships
+to what the diagram shows, as a placed element does; pointed at another view, it loses the lines of the
+old view's relationships. A line from a note, a group or a shape to a reference is no relationship.
 
 The view it opens is presented in the view holding it (`arch:inView`), from its first reference there to
-its last. Deleting the view it opens deletes the references to it too ([Delete a
-view](models-and-views.md#delete-a-view)); pasted into a model without that view, a reference becomes a
-note with its text. One whose view is not in the model opens nothing, and says *The view this reference
-opens is not in the model.*; validation reports it too. An ArchiMate Exchange file's references to its
-views, and a converted model's, are view references.
+its last. Deleting the view deletes the references to it and the relationships with it
+([Delete a view](models-and-views.md#delete-a-view)); taken off the view, a reference leaves its view and
+its relationships in the model. Pasted into a model without that view, a reference becomes a note with
+its text, and its view's relationships are left out. One whose view is not in the model opens nothing,
+and says *The view this reference opens is not in the model.*; validation reports it too. An ArchiMate
+Exchange file's references to its views, and a converted model's, are view references.
 
-Selected, the Properties tab says *View reference*, with its *Text* — the view's name, greyed, while it
-has none of its own — and *Opens*, the name of the view it opens, with two buttons:
+Selected, a reference selects its view: the Properties tab shows the view — its *View information*,
+*Properties*, *Analysis* (its relationships) and *Appears in views* — and the model tree its row. Under
+the view's information come the reference's own *Text* — the view's name, greyed, while it has none of
+its own — and *Opens*, the name of the view it opens, with two buttons:
 
 | Button | Does |
 |---|---|
@@ -295,10 +315,22 @@ has none of its own — and *Opens*, the name of the view it opens, with two but
 | *Change…* | lists the model's other diagrams, catalogs and matrices, by kind, to search by name; the one picked becomes the view it opens, one step to undo, its text of its own kept |
 
 1. Right-click *Who is who* in the model tree, and choose *Reference in the open view*: a box named "Who is
-   who" is drawn in the middle of the diagram, selected.
+   who" is drawn in the middle of the diagram, selected, and the Properties tab shows the catalog.
 2. Double-click it: the catalog *Who is who* opens. Press ++alt+left++ to come back.
 3. Drag the *Who is who* row from the tree onto "Payments"' empty corner, and let go: another reference to
-   it is drawn inside "Payments".
+   it is drawn inside "Payments", and la-gram asks *Which relationship?*.
+4. Choose **Refines**: the catalog refines "Payments", shown by the nesting.
+
+### Zoom in {#zoom-in}
+
+An element or a relationship a view refines — `arch:refines`, as *Refines* writes it, or
+`arch:refinedInto`, as another tool may — has *Zoom in* in its pad, whether or not a reference to the
+view is drawn: it opens the view, or, refined by several, lists them by name, and the one picked opens.
+Its right-click menu has *Zoom in: Who is who* for each. ++alt+left++ comes back.
+
+1. After the steps above, select "Payments".
+2. Choose *Zoom in* in its pad: *Who is who* opens.
+3. Press ++alt+left++: back to the diagram.
 
 ## Move, resize and bend {#move-resize-bend}
 
@@ -524,7 +556,9 @@ its two ends: a relationship with only one end selected is not copied.
 Deleting from the model asks first, in *Delete element from model* (or *Delete relationship from model*):
 *"Web shop" will be removed from the model and from every view it appears in*, with the views listed and,
 for an element, *— and every relationship connected to it*. *Delete from model* confirms. Both are
-undoable from the canvas. A figure has *Delete* only: it is in no model.
+undoable from the canvas. A group, a note or a shape has *Delete* only: it is in no model. A view
+reference has *Delete from view*, and *Delete view from model…*, which deletes its view as the model tree
+does ([Delete a view](models-and-views.md#delete-a-view)).
 
 1. Select "Gift wrapping", and choose *Delete from model (all views)* in its pad.
 2. Read the views it is in, and choose *Delete from model*.
@@ -571,10 +605,10 @@ Right-click on the canvas for what applies to what is under the pointer.
 
 | On | Entries |
 |---|---|
-| an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
-| a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| an element | *Rename* (F2), *Change type…*, *Cut*, *Copy*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Duplicate*, *Append…*, *Zoom in: …* (for each view refining it), *Move to folder…* (when the model has folders), *Properties*, *Show in model tree*, *Show relationship graph*, *Ask about this element…*, *Copy IRI*, *Delete from view*, *Delete from model…* |
+| a relationship | *Rename* (F2), *Move name back to its place* (when its name was moved), *Change relationship type…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Zoom in: …* (for each view refining it), *Move to folder…*, *Properties*, *Show in model tree*, *Show source*, *Show target*, *Copy IRI*, *Delete from view*, *Delete from model…* |
 | a group, a note or a shape | *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Copy IRI*, *Delete from view* |
-| a view reference | *Open view*, then what a note has ([View references](#view-references)) |
+| a view reference | *Open view*, *Rename* (F2: the view's name), *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, *Properties*, *Show in model tree* and *Copy IRI* — the view's — *Delete from view*, *Delete view from model…* ([View references](#view-references)) |
 | the empty canvas (the open view) | *Rename view…*, *Set viewpoint…*, *Duplicate view*, *Arrange view…*, *Arrange relationships…*, *Align to grid…*, *Sizes…*, *Paste*, *Paste as copies*, *Paste as references* (once something is copied), *Select all*, *Zoom to fit*, *View properties*, *Show in model tree*, *Copy IRI*, *Copy view as PNG*, *Copy view as SVG*, *Export view as SVG*, *Export view as PNG*, *Delete view…* |
 | one of several selected | elements: *Cut*, *Copy*, the three pastes (once something is copied), *Duplicate*, and *Move 2 elements to folder…* when the model has folders; relationships: the three pastes (once something is copied), and *Move 2 relationships to folder…* when the model has folders |
 
@@ -588,6 +622,8 @@ What the entries do beyond the canvas:
 | *Ask about this element…* | opens the SPARQL tab's Questions menu with the questions about it |
 | *Copy IRI* | copies its IRI, and says *IRI copied* |
 | *Show source*, *Show target* | selects the relationship's end, opening a view that shows it if this one does not |
+| *Zoom in: …* | opens the view that refines it ([Zoom in](#zoom-in)); ++alt+left++ comes back |
+| *Delete view from model…* | on a view reference: deletes its view, as [Delete a view](models-and-views.md#delete-a-view) |
 | *Copy view as PNG*, *Copy view as SVG* | puts the diagram on the clipboard, to paste into a document, a slide or a drawing, as [File › Export view › Copy as PNG](files.md#copy-view) |
 | *Export view as SVG*, *Export view as PNG* | as [File › Export view](files.md#export-svg-png) |
 

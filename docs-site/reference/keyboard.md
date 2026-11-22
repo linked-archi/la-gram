@@ -54,7 +54,7 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++ctrl+shift+v++ | paste as copies |
     | ++ctrl+alt+v++ | paste as references: the same elements, placed again |
     | ++ctrl+d++ | duplicate the selection, as copies |
-    | ++f2++ | rename the one selected element or relationship |
+    | ++f2++ | rename the one selected element, relationship or figure — on a view reference, its view |
     | ++ctrl+plus++ / ++ctrl+minus++ | zoom in / out one step |
     | ++ctrl+0++ | zoom to 100 % |
     | ++esc++ | put the format painter down; cancel a connection, lasso or move in progress |
@@ -73,7 +73,7 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++shift+cmd+v++ | paste as copies |
     | ++alt+cmd+v++ | paste as references: the same elements, placed again |
     | ++cmd+d++ | duplicate the selection, as copies |
-    | ++f2++ | rename the one selected element or relationship |
+    | ++f2++ | rename the one selected element, relationship or figure — on a view reference, its view |
     | ++cmd+plus++ / ++cmd+minus++ (or the Ctrl forms) | zoom in / out one step |
     | ++cmd+0++ (or ++ctrl+0++) | zoom to 100 % |
     | ++esc++ | put the format painter down; cancel a connection, lasso or move in progress |
@@ -83,8 +83,9 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
   view, and property edits. Its history belongs to the open view and starts again when another view
   opens. Changes that come from elsewhere (a collaborator, an import, a deletion from the model tree of a
   concept not on the canvas) are not undone from here; see [Undo](../troubleshooting.md#undo).
-- **++f2++** acts on one selected element or relationship only, and not while the focus is in a text
-  field. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
+- **++f2++** acts on one selected element, relationship or figure only, and not while the focus is in a
+  text field. On a [view reference](../guide/canvas.md#view-references) it renames the view, every
+  reference to it with it; the reference's own text is its *Text* in the Properties tab. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
 - **Delete** never deletes from the model: *Delete from model (all views)* on the context pad or the
   right-click menu does, after asking.
 - **Copy and paste** — what each pastes, and where: [Copy and paste](../guide/canvas.md#copy-and-paste). The

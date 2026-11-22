@@ -49,8 +49,13 @@ let palette: PaletteDefinition;
 
 beforeAll(async () => {
   base = new OxigraphRdfStore();
-  const loaded = await new N3MetamodelLoader(new N3TtlParser(), base).loadBundledMetamodel();
-  palette = new SparqlPaletteGenerator(base).generatePalette(loaded.metamodelIri);
+  const loader = new N3MetamodelLoader(new N3TtlParser(), base);
+  // The core first, as the app loads it: its notation draws Refines, which nesting may stand for (VC-DD-5).
+  await loader.loadCoreAssets();
+  const loaded = await loader.loadBundledMetamodel();
+  palette = new SparqlPaletteGenerator(base).generatePalette(loaded.metamodelIri, {
+    ...(loaded.notationSetIri ? { defaultNotationSetIris: [loaded.notationSetIri] } : {}),
+  });
 }, 60_000);
 
 afterAll(() => base.dispose());
@@ -1401,9 +1406,15 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect([made!.bounds.width, made!.bounds.height]).toEqual([120, 55]);
     expect(Math.abs(made!.bounds.x + 60 - 200)).toBeLessThanOrEqual(1);
     expect(presentedIn(f, payments)).toEqual([f.viewIri]);
-    // Drawn with its view's name, which is not its own.
+    // Drawn with its view's name — named as its view is, no text of its own (VC-DD-4) — and of its view's class.
     expect(textOf(f, made!.nodeIri)).toBe('Payments');
-    expect(registryOf(f).get(made!.nodeIri)?.businessObject).toMatchObject({ label: 'Payments', named: false });
+    expect(registryOf(f).get(made!.nodeIri)?.businessObject).toMatchObject({
+      label: 'Payments',
+      named: true,
+      nodeIri: made!.nodeIri,
+      typeIri: NAMESPACES.arch + 'Diagram',
+    });
+    expect(registryOf(f).get(made!.nodeIri)?.businessObject).not.toHaveProperty('labelText');
     expect(f.canvas.selectedIris()).toEqual([made!.nodeIri]);
     f.commandStack.undo();
     expect(references(f)).toEqual([]);
@@ -1419,9 +1430,12 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(made?.parentElementIri).toBe(shop);
     const reference = registryOf(f).get(made!.nodeIri)!;
     expect(reference.parent?.id).toBe(shop);
-    // Drawing: no relationship to ask the nesting about.
+    // In an element's box it asks what the nesting stands for (VC-5): answered None, it is only drawn there.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(f.service<{ isOpen(): boolean }>('popupMenu').isOpen()).toBe(false);
+    const popup = f.service<{ isOpen(): boolean }>('popupMenu');
+    expect(popup.isOpen()).toBe(true);
+    (f.canvas.nestMenuProvider.getPopupMenuEntries(reference) as Record<string, { action: () => void }>)['la-nest-none']!.action();
+    expect(popup.isOpen()).toBe(false);
     const x = f.views.getNode(f.viewIri, made!.nodeIri)!.bounds.x;
     modelingOf(f).moveElements([registryOf(f).get(shop)], { x: 40, y: 0 });
     expect(f.views.getNode(f.viewIri, made!.nodeIri)!.bounds.x).toBe(x + 40);
@@ -1463,9 +1477,10 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(references(f)).toEqual([]);
   });
 
-  it('shows its view’s name as it is now — renamed in the tree, by a collaborator — until it has text of its own (F2), an empty one drawing nothing (VR-4)', () => {
+  it('is named as its view is now — renamed in the tree, by a collaborator, by F2 on it — and draws its own text, an empty one too, in its place (VR-4, VC-2)', () => {
     const { f, payments } = scene();
     const node = placed(f, payments);
+    const second = placed(f, payments, 600);
     f.canvas.syncFromStore();
     expect(textOf(f, node)).toBe('Payments');
     // Renamed in the tree, and by a collaborator: nothing else asked to redraw it.
@@ -1473,32 +1488,36 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(textOf(f, node)).toBe('Payments v2');
     f.views.renameView(payments, 'Payments v3');
     expect(textOf(f, node)).toBe('Payments v3');
-    // Text of its own, typed on it: drawn, its prefLabel in English; the view's name no longer.
+    // F2 on it renames the view — every reference to it — in one undoable step, and never to nothing.
+    const prefLabel = nn(NAMESPACES.skos + 'prefLabel');
     const editor = f.service<{ update(element: unknown, text: string): void }>('rdfLabelEditingProvider');
-    editor.update(registryOf(f).get(node), 'See also');
-    expect(textOf(f, node)).toBe('See also');
-    expect(f.store.getQuads(nn(node), nn(NAMESPACES.skos + 'prefLabel')).map((q) => [q.object.value, (q.object as { language?: string }).language])).toEqual([
-      ['See also', 'en'],
-    ]);
-    f.session.renameView(payments, 'Payments v4');
-    expect(textOf(f, node)).toBe('See also');
-    // Emptied: written empty, its own — nothing drawn, a rename of the view changing nothing; undone, its text is back.
+    editor.update(registryOf(f).get(node), 'Payment flows');
+    expect(f.views.getView(payments)?.label).toBe('Payment flows');
+    expect([textOf(f, node), textOf(f, second)]).toEqual(['Payment flows', 'Payment flows']);
+    expect(f.store.getQuads(nn(node), prefLabel)).toEqual([]);
     editor.update(registryOf(f).get(node), '');
-    expect(f.store.getQuads(nn(node), nn(NAMESPACES.skos + 'prefLabel')).map((q) => [q.object.value, (q.object as { language?: string }).language])).toEqual([
-      ['', 'en'],
-    ]);
-    expect(f.views.getNode(f.viewIri, node)?.figure?.text).toBe('');
-    expect(textOf(f, node)).toBe('');
-    f.session.renameView(payments, 'Payments v5');
-    expect(textOf(f, node)).toBe('');
+    expect(f.views.getView(payments)?.label).toBe('Payment flows');
     f.commandStack.undo();
+    expect(f.views.getView(payments)?.label).toBe('Payments v3');
+    expect([textOf(f, node), textOf(f, second)]).toEqual(['Payments v3', 'Payments v3']);
+    // Its own text — the property panel's Text — drawn in place of the name, which F2 still renames.
+    f.views.setFigureText(f.viewIri, node, 'See also');
+    f.canvas.syncFromStore();
     expect(textOf(f, node)).toBe('See also');
-    f.commandStack.redo();
+    expect(registryOf(f).get(node)?.businessObject).toMatchObject({ label: 'Payments v3', labelText: 'See also' });
+    f.session.renameView(payments, 'Payments v4');
+    expect([textOf(f, node), textOf(f, second)]).toEqual(['See also', 'Payments v4']);
+    // An empty one of its own draws nothing.
+    f.store.removeQuads(f.store.getQuads(nn(node), prefLabel));
+    f.store.addQuads([DataFactory.quad(nn(node), prefLabel, DataFactory.literal('', 'en')) as never]);
+    f.canvas.syncFromStore();
+    expect(f.views.getNode(f.viewIri, node)?.figure?.text).toBe('');
     expect(textOf(f, node)).toBe('');
     // With none of its own — the panel's × — it shows the view's name again.
     f.views.setFigureText(f.viewIri, node, undefined);
     f.canvas.syncFromStore();
-    expect(textOf(f, node)).toBe('Payments v5');
+    expect(textOf(f, node)).toBe('Payments v4');
+    expect(registryOf(f).get(node)?.businessObject).not.toHaveProperty('labelText');
   });
 
   it('a note’s, a group’s or a shape’s text emptied on the canvas goes: nothing drawn, undoably', () => {
@@ -1547,7 +1566,8 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(pad['open-view']!.title).toBe('Open view');
     (pad['open-view']!.action as () => void)();
     const menu = f.canvas.contextMenuProvider.getPopupMenuEntries(reference) as Record<string, { label: string; action: () => void }>;
-    expect(Object.keys(menu)).toEqual(['open-view', 'delete']);
+    // Its menu renames its view, too (VC-2).
+    expect(Object.keys(menu)).toEqual(['open-view', 'rename', 'delete']);
     expect(menu['open-view']!.label).toBe('Open view');
     menu['open-view']!.action();
     expect(asked).toHaveLength(3);
@@ -1557,22 +1577,160 @@ describe('a reference to another view, made and used on the canvas (Req 3.23)', 
     expect(Object.keys(f.canvas.contextPadProvider.getContextPadEntries(registryOf(f).get(note) as never))).toEqual(['delete', 'connect']);
   });
 
-  it('has lines from it and to it standing for no relationship; with a relationship type picked, none (VR-6)', () => {
+  it('connects to an element by a relationship with the view as its end — the core’s, where no language relates them; undoably (VC-3)', () => {
     const { f, payments, shop } = scene();
     const node = placed(f, payments);
     f.canvas.syncFromStore();
     const reference = registryOf(f).get(node)!;
     const element = registryOf(f).get(shop)!;
     const rules = rulesOf(f);
-    expect(f.canvas.contextPadProvider.getContextPadEntries(reference as never)['connect']?.title).toBe('Draw a line to…');
-    const attrs = rules.allowed('connection.create', { source: reference, target: element });
-    expect(attrs).toMatchObject({ connector: true, typeIri: '' });
-    const line = modelingOf(f).connect(reference, element, attrs)!;
-    expect(line.businessObject?.kind).toBe('connector');
-    expect(f.views.getLinks(f.viewIri)).toEqual([expect.objectContaining({ connector: true, sourceNodeIri: node, targetElementIri: shop })]);
-    expect(rules.allowed('connection.create', { source: element, target: reference })).toMatchObject({ connector: true });
+    expect(f.canvas.contextPadProvider.getContextPadEntries(reference as never)['connect']?.title).toBe('Connect');
+    // ArchiMate relates no view: the core's three, Association first (Req 4.21).
+    const attrs = rules.allowed('connection.create', { source: element, target: reference }) as { typeIri: string; candidates: Array<{ iri: string }> };
+    expect(attrs.typeIri).toBe(NAMESPACES.arch + 'Association');
+    expect(attrs.candidates.map((c) => c.iri)).toEqual(['Association', 'HasPart', 'Refines'].map((t) => NAMESPACES.arch + t));
+    const line = modelingOf(f).connect(element, reference, attrs)!;
+    expect(line.businessObject?.kind).toBe('relationship');
+    const [relationship] = f.relationships.getRelationshipsOf(payments);
+    expect(relationship).toMatchObject({ sourceIri: shop, targetIri: payments, classIri: NAMESPACES.arch + 'Association' });
+    expect(f.views.getLinks(f.viewIri)).toEqual([
+      expect.objectContaining({ relationshipIri: relationship!.iri, targetNodeIri: node, targetElementIri: payments }),
+    ]);
+    expect(line.businessObject?.iri).toBe(relationship!.iri);
+    f.commandStack.undo();
+    expect(f.relationships.getRelationshipsOf(payments)).toEqual([]);
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    f.commandStack.redo();
+    expect(f.relationships.getRelationshipsOf(payments).map((r) => r.iri)).toEqual([relationship!.iri]);
+    // Taken off the view, the reference goes with its line; the relationship stays in the model (VC-8).
+    (f.canvas.contextPadProvider.getContextPadEntries(registryOf(f).get(node) as never)['delete']!.action as () => void)();
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    expect(f.relationships.getRelationshipsOf(payments).map((r) => r.iri)).toEqual([relationship!.iri]);
+  });
+
+  it('a type picked in the palette is drawn when the pair permits it; a line from a note to it stands for no relationship (VC-3)', () => {
+    const { f, payments, shop } = scene();
+    const node = placed(f, payments);
+    const note = f.views.addFigure(f.viewIri, { kind: 'note', text: 'n', bounds: { x: 0, y: 700, width: 185, height: 80 } });
+    f.canvas.syncFromStore();
+    const [reference, element] = [registryOf(f).get(node)!, registryOf(f).get(shop)!];
+    const rules = rulesOf(f);
     f.canvas.setPreferredRelationshipType(`${AM4}Serving`);
     expect(rules.allowed('connection.create', { source: element, target: reference })).toBe(false);
+    f.canvas.setPreferredRelationshipType(NAMESPACES.arch + 'Refines');
+    const refines = rules.allowed('connection.create', { source: reference, target: element });
+    expect(refines).toMatchObject({ typeIri: NAMESPACES.arch + 'Refines' });
+    // Drawn from the reference it was drawn from, where the view is referenced twice.
+    const another = placed(f, payments, 300);
+    f.canvas.syncFromStore();
+    modelingOf(f).connect(registryOf(f).get(another), element, refines);
+    expect(f.views.getLinks(f.viewIri)).toEqual([expect.objectContaining({ sourceNodeIri: another, sourceElementIri: payments, targetElementIri: shop })]);
+    expect(f.store.getQuads(nn(payments), nn(NAMESPACES.arch + 'refines')).map((q) => q.object.value)).toEqual([shop]);
+    f.commandStack.undo();
+    f.canvas.setPreferredRelationshipType(undefined);
+    const attrs = rules.allowed('connection.create', { source: registryOf(f).get(note), target: reference });
+    expect(attrs).toMatchObject({ connector: true, typeIri: '' });
+    modelingOf(f).connect(registryOf(f).get(note), reference, attrs);
+    expect(f.views.getLinks(f.viewIri)).toEqual([expect.objectContaining({ connector: true, sourceElementIri: note, targetNodeIri: node })]);
+    expect(f.relationships.getRelationshipsOf(payments)).toEqual([]);
+  });
+
+  it('made, draws its view’s relationships to what the diagram shows, in the same undo step (VC-4)', () => {
+    const { f, payments, shop } = scene();
+    const refines = f.relationships.createQualifiedRelationship({
+      typeIri: NAMESPACES.arch + 'Refines',
+      predicateIri: NAMESPACES.arch + 'refines',
+      sourceIri: payments,
+      targetIri: shop,
+      modelIri: f.modelIri,
+    }).iri;
+    dragView(f, payments, rootOf(f));
+    const [made] = references(f);
+    expect(f.views.getLinks(f.viewIri)).toEqual([expect.objectContaining({ relationshipIri: refines, sourceNodeIri: made!.nodeIri, targetElementIri: shop })]);
+    expect(registryOf(f).get(refines)?.waypoints).toBeDefined();
+    f.commandStack.undo();
+    expect(references(f)).toEqual([]);
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    expect(f.relationships.getRelationshipsOf(payments).map((r) => r.iri)).toEqual([refines]);
+  });
+
+  it('let go in an element’s box, asks what the nesting stands for: Refines, made and shown by it; taken out, drawn as a line (VC-5)', async () => {
+    const { f, payments, shop } = scene();
+    dragView(f, payments, registryOf(f).get(shop), { x: 550, y: 220 });
+    const [made] = references(f);
+    const reference = registryOf(f).get(made!.nodeIri)!;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(f.service<{ isOpen(): boolean }>('popupMenu').isOpen()).toBe(true);
+    const offers = f.canvas.nestMenuProvider.getPopupMenuEntries(reference) as Record<string, { label: string; description: string; action: () => void }>;
+    expect(Object.keys(offers)).toEqual(['la-nest-0', 'la-nest-none']);
+    expect([offers['la-nest-0']!.label, offers['la-nest-0']!.description]).toEqual(['Refines', 'Payments → Shop']);
+    offers['la-nest-0']!.action();
+    const [refines] = f.relationships.getRelationshipsOf(payments);
+    expect(refines).toMatchObject({ sourceIri: payments, targetIri: shop, classIri: NAMESPACES.arch + 'Refines' });
+    expect(f.store.getQuads(nn(payments), nn(NAMESPACES.arch + 'refines')).map((q) => q.object.value)).toEqual([shop]);
+    // Shown by the nesting: the view's, with no line.
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    expect(presentedIn(f, refines!.iri)).toEqual([f.viewIri]);
+    // Taken out of the box: drawn as a line, in the same step as the move.
+    modelingOf(f).moveElements([reference], { x: -500, y: 400 }, rootOf(f));
+    expect(f.views.getLinks(f.viewIri)).toEqual([expect.objectContaining({ relationshipIri: refines!.iri, sourceNodeIri: made!.nodeIri })]);
+    f.commandStack.undo();
+    expect(f.views.getLinks(f.viewIri)).toEqual([]);
+    f.commandStack.undo();
+    expect(f.relationships.getRelationshipsOf(payments)).toEqual([]);
+  });
+
+  it('is selected when its view is — in the tree, by its link — and tells which reference is selected (VC-1)', () => {
+    const { f, payments } = scene();
+    const node = placed(f, payments);
+    const second = placed(f, payments, 600);
+    f.canvas.syncFromStore();
+    expect(f.canvas.reveal(payments)).toBe(true);
+    expect(f.canvas.selectedIris().sort()).toEqual([node, second].sort());
+    expect(f.canvas.selectedReference()).toEqual({ nodeIri: expect.any(String), viewIri: payments });
+    f.canvas.selectIris([second]);
+    expect(f.canvas.selectedReference()).toEqual({ nodeIri: second, viewIri: payments });
+    f.canvas.selectIris([]);
+    expect(f.canvas.selectedReference()).toBeUndefined();
+  });
+
+  it('zooms in from an element or a relationship a view refines, drawn or not: the one opens, several are listed by name (VC-6)', () => {
+    const bus = new EventBus();
+    const opened: unknown[] = [];
+    bus.on('open-view', (event) => void opened.push(event.detail));
+    const { f, payments, shop } = scene({ eventBus: bus });
+    const api = f.elements.createElement(COMPONENT, f.modelIri, { label: 'API' }).value;
+    f.views.addElementToView(f.viewIri, api, { x: 0, y: 100, width: 120, height: 55 });
+    const serving = f.relationships.createQualifiedRelationship({ typeIri: `${AM4}Serving`, sourceIri: api, targetIri: shop }).iri;
+    f.views.addRelationshipToView(f.viewIri, serving);
+    f.canvas.syncFromStore();
+    const padOf = (iri: string) => f.canvas.contextPadProvider.getContextPadEntries(registryOf(f).get(iri) as never);
+    const menuOf = (iri: string) => f.canvas.contextMenuProvider.getPopupMenuEntries(registryOf(f).get(iri)) as Record<string, { label: string; action: () => void }>;
+    expect(padOf(shop)['zoom-in']).toBeUndefined();
+    // Payments refines Shop, with no reference to it drawn; another tool's Overview is what the line is refined into.
+    const quadOf = (s: string, p: string, o: string) => DataFactory.quad(nn(s), nn(p), nn(o)) as never;
+    f.store.addQuads([quadOf(payments, NAMESPACES.arch + 'refines', shop)]);
+    const overview = f.views.createView('Diagram', undefined, { modelIri: f.modelIri, label: 'Overview' }).value;
+    f.store.addQuads([quadOf(serving, NAMESPACES.arch + 'refinedInto', overview)]);
+    expect(padOf(shop)['zoom-in']?.title).toBe('Zoom in');
+    (padOf(shop)['zoom-in']!.action as (event: unknown) => void)(new MouseEvent('click'));
+    expect(opened).toEqual([{ viewIri: payments }]);
+    expect(menuOf(shop)['zoom-in-0']?.label).toBe('Zoom in: Payments');
+    (padOf(serving)['zoom-in']!.action as (event: unknown) => void)(new MouseEvent('click'));
+    expect(opened).toEqual([{ viewIri: payments }, { viewIri: overview }]);
+    // Refined by two: the pad's lists them, by name, and the one picked opens.
+    f.store.addQuads([quadOf(overview, NAMESPACES.arch + 'refines', shop)]);
+    (padOf(shop)['zoom-in']!.action as (event: unknown) => void)(new MouseEvent('click'));
+    expect(f.service<{ isOpen(): boolean }>('popupMenu').isOpen()).toBe(true);
+    const listed = f.canvas.zoomMenuProvider.getPopupMenuEntries(registryOf(f).get(shop)) as Record<string, { label: string; action: () => void }>;
+    expect(Object.values(listed).map((entry) => entry.label)).toEqual(['Overview', 'Payments']);
+    listed['la-zoom-0']!.action();
+    expect(opened.at(-1)).toEqual({ viewIri: overview });
+    expect(f.service<{ isOpen(): boolean }>('popupMenu').isOpen()).toBe(false);
+    expect(Object.values(menuOf(shop)).map((entry) => entry.label).filter((label) => label.startsWith('Zoom in'))).toEqual([
+      'Zoom in: Overview',
+      'Zoom in: Payments',
+    ]);
   });
 
   it('is deleted as any figure — its pad, its menu — its view leaving the holder with its last reference there; undo brings both back (VR-9)', () => {

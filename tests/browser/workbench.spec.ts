@@ -1341,18 +1341,21 @@ describe('nesting', () => {
     findings.push(`nesting: offered ${labels.join(', ')}`);
   }, 60_000);
 
-  it('drags a view’s row from the tree into an element’s box: a reference to it, drawn and kept inside, which opens it (Req 3.23)', async () => {
+  it('drags a view’s row from the tree into an element’s box: a reference to it, drawn and kept inside, refining it if asked; a line drawn to it is a relationship with the view; it opens it (Req 3.23, VC-3, VC-5)', async () => {
     const { page, session } = await openPage();
     await page.locator(PALETTE_ACTOR).waitFor({ state: 'visible', timeout: 30_000 });
-    const { team, payments, holder } = await page.evaluate(() => {
+    const { team, clerk, payments, holder } = await page.evaluate(() => {
       const app = (window as any).__LA_GRAM_APP__;
       const holder = app.session.activeViewIri as string;
       const payments = app.session.createView('Diagram', { label: 'Payments', open: false }) as string;
       const team = app.components.elementManager
         .createElement('https://meta.linked.archi/archimate4/onto#Collaboration', app.session.modelIri, { label: 'Sales team' }).value as string;
       app.components.viewManager.addElementToView(holder, team, { x: 150, y: 100, width: 400, height: 250 });
+      const clerk = app.components.elementManager
+        .createElement('https://meta.linked.archi/archimate4/onto#BusinessActor', app.session.modelIri, { label: 'Clerk' }).value as string;
+      app.components.viewManager.addElementToView(holder, clerk, { x: 700, y: 150, width: 120, height: 55 });
       app.components.eventBus.emit('model-changed', { origin: 'test' });
-      return { team, payments, holder };
+      return { team, clerk, payments, holder };
     });
     const row = page.locator(`model-explorer .row[data-iri="${payments}"]`);
     await row.waitFor({ state: 'visible' });
@@ -1378,9 +1381,51 @@ describe('nesting', () => {
     const drawn = page.locator(`.djs-element[data-element-id="${reference!.node}"]`);
     await expect(drawn.locator('[data-view-reference]').count()).resolves.toBe(1);
     await expect(drawn.textContent()).resolves.toContain('Payments');
+
+    // Inside an element's box, it asks what the nesting stands for: the view refining the element (VC-5).
+    const entries = page.locator('.djs-popup .entry');
+    await entries.first().waitFor({ state: 'visible' });
+    const labels = (await entries.allInnerTexts()).map((s) => s.split('\n')[0].trim());
+    expect(labels).toEqual(['Refines', 'None']);
     await session.screenshot('workbench-view-reference');
+    await entries.filter({ hasText: 'Refines' }).first().click();
+    const relationshipsOf = (iri: string) =>
+      page.evaluate(
+        (end) =>
+          ((window as any).__LA_GRAM_APP__.components.relationshipManager.getRelationshipsOf(end) as any[]).map((r) => ({
+            iri: r.iri as string,
+            from: r.sourceIri as string,
+            to: r.targetIri as string,
+            type: (r.classIri as string).split('#')[1],
+          })),
+        iri,
+      );
+    await until(async () => (await relationshipsOf(payments)).length === 1, 'the view refining the element');
+    expect((await relationshipsOf(payments))[0]).toMatchObject({ from: payments, to: team, type: 'Refines' });
+
+    // A line drawn with the pad from an element to it is a relationship with the view, drawn to the reference (VC-3).
+    await page.locator(`.djs-shape[data-element-id="${clerk}"]`).click();
+    const connect = page.locator('.djs-context-pad .context-pad-connect');
+    await connect.waitFor({ state: 'visible' });
+    await connect.click();
+    const to = (await drawn.boundingBox())!;
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await page.mouse.down();
+    await page.mouse.up();
+    await until(async () => (await relationshipsOf(clerk)).length === 1, 'the relationship with the view');
+    const [line] = await relationshipsOf(clerk);
+    expect(line).toMatchObject({ from: clerk, to: payments, type: 'Association' });
+    const link = await page.evaluate(
+      ([view, rel]) =>
+        ((window as any).__LA_GRAM_APP__.components.viewManager.getLinks(view) as any[]).find((l) => l.relationshipIri === rel),
+      [holder, line!.iri],
+    );
+    expect(link).toMatchObject({ targetNodeIri: reference!.node, targetElementIri: payments });
+    expect(await page.locator(`.djs-connection [data-relationship-iri="${line!.iri}"]`).count()).toBe(1);
+    expect(session.diagnostics.pageErrors).toEqual([]);
 
     // Double-clicked, it opens the view it references.
+    await page.keyboard.press('Escape');
     await drawn.dblclick();
     await until(async () => (await model(page)).activeView === payments, 'the referenced view');
   }, 60_000);

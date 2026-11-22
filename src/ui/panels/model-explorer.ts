@@ -282,8 +282,8 @@ function viewKindDetail(view: ViewInfo): string {
   return view.type === 'Diagram' ? 'diagram' : view.type === 'Catalog' ? 'catalog' : 'matrix';
 }
 
-/** A view's row. */
-function viewNode(v: ModelContents['views'][number], activeViewIri: string | undefined): TreeNode {
+/** A view's row — marked placed while the open diagram holds a reference to it, its placement there (VC-1). */
+function viewNode(v: ModelContents['views'][number], activeViewIri: string | undefined, placed: ReadonlySet<string>): TreeNode {
   return {
     id: v.iri,
     iri: v.iri,
@@ -291,6 +291,7 @@ function viewNode(v: ModelContents['views'][number], activeViewIri: string | und
     label: v.label || iriFragment(v.iri),
     detail: viewKindDetail(v),
     active: v.iri === activeViewIri,
+    ...(placed.has(v.iri) ? { placed: true } : {}),
     children: [],
   };
 }
@@ -323,7 +324,7 @@ function typeGroups(
     children: [...(folders?.nodes[folderKind] ?? []), ...own],
   });
   const groups: TreeNode[] = [
-    group('view', 'Views', stated.views.map((v) => viewNode(v, activeViewIri)), stated.views.length),
+    group('view', 'Views', stated.views.map((v) => viewNode(v, activeViewIri, placed)), stated.views.length),
     group('element', 'Elements', groupByType(stated.elements, 'element', 'elements', placed), stated.elements.length),
     group('relationship', 'Relationships', groupByType(stated.relationships, 'relationship', 'relationships', placed), stated.relationships.length),
   ];
@@ -378,7 +379,7 @@ function folderGroups(contents: ModelContents, activeViewIri: string | undefined
   const layout = folderLayout(contents);
   // A concept's row, made afresh where it is listed: a concept may be in two folders.
   const rows = new Map<string, () => TreeNode>();
-  for (const v of stated.views) rows.set(v.iri, () => viewNode(v, activeViewIri));
+  for (const v of stated.views) rows.set(v.iri, () => viewNode(v, activeViewIri, placed));
   const concept = (kind: 'element' | 'relationship' | 'unclassified') => (item: ConceptSummary) =>
     rows.set(item.iri, () => ({ id: item.iri, iri: item.iri, kind, label: item.label, typeIri: item.typeIri, placed: placed.has(item.iri), children: [] }));
   stated.elements.forEach(concept('element'));
@@ -434,7 +435,7 @@ function folderGroups(contents: ModelContents, activeViewIri: string | undefined
 /**
  * Build the tree from a model snapshot.
  *
- * @param placed IRIs drawn in the open view (elements and relationships).
+ * @param placed IRIs drawn in the open view: elements, relationships, and the views it holds a reference to.
  * @param grouping `folders` shows the model's own folders when it has any
  *   ({@link hasFolders}); otherwise, and with `types`, concepts are grouped by
  *   kind and type.
@@ -536,6 +537,8 @@ export function actionsFor(
     case 'view':
       return [
         { action: 'open-view', label: 'Open' },
+        // Referenced in the open diagram: its references selected there, as an element's boxes are.
+        ...(node.placed ? [{ action: 'reveal' as const, label: 'Select on canvas' }] : []),
         ...(options.openDiagram && node.iri !== options.openDiagram
           ? [{ action: 'reference-in-view' as const, label: 'Reference in the open view' }]
           : []),

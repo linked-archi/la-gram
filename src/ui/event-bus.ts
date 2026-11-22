@@ -29,6 +29,8 @@ export type ModelEventType =
    * or its menu's *Open view* (Req 3.23). No `viewIri` when it names none.
    */
   | 'open-referenced-view'
+  /** Open a view of the model (`{ viewIri }`): zoomed into from an element or a relationship it refines (VC-6). */
+  | 'open-view'
   /** The format painter started, picked a look, or stopped (`{ state: 'pick' | 'paint' | 'off' }`). */
   | 'format-painter-changed'
   /** A view was created, renamed, re-pointed or deleted (`{ viewIri? }`). */

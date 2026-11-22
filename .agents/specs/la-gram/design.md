@@ -402,9 +402,11 @@ resolved per class by `notation-resolver.ts` in five steps (Req 2.16):
 For a class C, the active set A is the set that the active presentation context
 names with `arch:usesNotationSet`, or else the primary metamodel's
 `arch:notationSet`. The fallback layers F are the default sets
-(`arch:notationSet`) of all loaded metamodels except A itself, in load order.
-F includes the default set of A's own metamodel when a presentation context
-picked an alternative set.
+(`arch:notationSet`) of all loaded metamodels except A itself, in load order,
+then the core notation's (`coreNotationSetIris`), which no manifest names and
+which is never A: it draws the core's own relationship types — Refines, which
+nesting may draw (DD-42). F includes the default set of A's own metamodel when
+a presentation context picked an alternative set.
 
 1. A descriptor in A for C.
 2. A descriptor for C in F, the first match in load order.
@@ -3696,7 +3698,7 @@ dialog; the modules' section).
     names the user in the provenance (`schema:sameAs`, `schema:alternateName`, the digest's key) unless
     *Record my Git account with my edits* is unticked; its name stands in for a name not given either way,
     since it is the token owner's name the host would show anyway.
-42. **A reference to another view is a figure, and its view's presence follows it** (Req 3.23, 13.4; 2026-11-21).
+42. **A reference to another view is drawn as a figure, is its view's placement, and its view's presence follows it** (Req 3.23, 13.4; 2026-11-21).
     core-vis 0.9 makes a reference to another view an `arch-vis:ViewReferenceNode` paired with
     `arch-vis:referencesView`, as `ArchNode` is with `archElement`, and no longer a `LabelNode`; the ArchiMate
     converter writes it so. la-gram drew a node standing for no element only as a group, a shape or a note,
@@ -3715,25 +3717,62 @@ dialog; the modules' section).
     it in the figure-create command (`addFigure`, `kind: 'reference'`), so undo, collaboration, nesting on drop
     and selection come as they do for a note. The open view's own row is refused by a `shape.create` rule above
     the metamodel's, and said why at `create.end` when let go over the diagram — not when let go in the tree,
-    where the same drag files a view in a folder. A new reference has no `skos:prefLabel`: the canvas draws its
-    text, else the view's name as it is now (`figureTextOf`, `named` false), and a name written on a view — which
-    no figure of the open view carries, so no figure's cache sees it — redraws the references to it there
-    (`ViewManager.referencesTo`, from the store's changes). Double-click opens its view rather than editing its
-    text: `rdf-label-editing.ts` leaves a reference out, F2 keeps it, and the canvas emits
-    `open-referenced-view` for its double-click and its pad's and menu's *Open view*, which mount-ui opens or
-    says is not in the model. Emptied, on the canvas or in the panel, its text is written empty (`""@en`): no term
-    is needed to draw nothing, and none of its own still means the view's name — the panel's × takes its own away.
-    The rename command's drawing is corrected to what the store then says, as it draws only the text it wrote. *Change…* is one store change, `setReferenceView`, whose quads are
+    where the same drag files a view in a folder. A new reference has no `skos:prefLabel`: the canvas names it as its
+    view is now (`figureTextOf`) and draws its own text in the name's place once it has one, and a name written on
+    a view — which no figure of the open view carries, so no figure's cache sees it — renames the references to it
+    there (`ViewManager.referencesTo`, from the store's changes). Double-click opens its view: `rdf-label-editing.ts`
+    leaves a reference out of double-click editing, and the canvas emits `open-referenced-view` for its
+    double-click and its pad's and menu's *Open view*, which mount-ui opens or says is not in the model. Emptied in
+    the panel, its text is written empty (`""@en`): no term is needed to draw nothing, and none of its own still
+    means the view's name — the panel's × takes its own away. *Change…* is one store change, `setReferenceView`, whose quads are
     read first (`setReferenceViewQuads`), as a removal's are by its `collect…` twin, and which moves the presence
     by the rule `addFigure` and `collectNodeQuads` follow. Deleting a view counts the references
     `collectViewQuads` takes with it, by holder, in the confirmation; with another diagram open the deletion is a
     recorded change on its undo stack, so undo brings the view back with them. A view's *Referenced from* is read
     from its `arch:inView`, which this rule keeps true, rather than from every view's nodes: the answer holds for
-    a model opened without its views' geometry. Nesting and lines are the figure rules unchanged — `canContain`,
-    the pad's *Draw a line to…*, the connect rules — held to a reference by tests. The canvas's right-click menu
-    opens on figures too: a reference's starts with *Open view*, and drawing gets none of the model's entries
-    (*Move to folder…*, *Show in model tree*, *Delete from model…*). `referencesTo` and `setReferenceView` were
-    made in `linked-archi-kernel` too, file for file (VR-DD-6).
+    a model opened without its views' geometry. Nesting is the figure rule — `canContain` lets a reference into a
+    box and nothing into it. The canvas's right-click menu opens on figures too: a reference's starts with *Open
+    view*, and drawing — a note, a group, a shape — gets none of the model's entries (*Move to folder…*, *Show in
+    model tree*, *Delete from model…*). `referencesTo` and `setReferenceView` were made in `linked-archi-kernel`
+    too, file for file (VR-DD-6).
+
+    A reference is its view's placement, as an element's box is the element's (2026-11-21;
+    `.agents/tasks/views-as-concepts/`, VC-DD-1–8): a view is a model concept, so a relationship may end on it, a
+    nesting may stand for one, and the panels show it. It stays a figure where it is drawn — its look, its text,
+    its glyph, the Appearance and Image tabs — and answers with its view wherever a concept is asked for. In the
+    view manager, a reference node's concept is its `arch-vis:referencesView` (`conceptOf`, so `readLink` gives a
+    link's end as the view), a view's IRI keys its references in a view (`nodeIrisFor`, so `getNode`,
+    `removeElementFromView`, `addRelationshipToView` and `refreshLinksOf` take it), and `placedIn` and
+    `viewsContaining` count them. `collectViewQuads` takes the relationships the view is an end of, with
+    `collectRelationshipQuads`, and a concept's `arch:refinedInto` it; `setReferenceViewQuads` takes the lines of
+    the old view's relationships at the node and keeps the connectors. On the canvas, a reference's shape keeps its
+    node as its `iri` and gets it as its `nodeIri` too — a line drawn from it is drawn from that placement — and
+    its view's class as its `typeIri` (`arch:Diagram`, `arch:Catalog`, `arch:Matrix`), which the rules ask
+    `getValidRelationships` with, so the core's three types arrive through Req 4.21 unchanged. Its `label` is its
+    view's name, which F2 and *Rename* rename on every reference to it (the relabel command writes the view, as
+    it writes an element), and its own text is its `labelText`, drawn in the name's place as a label expression's
+    is; the panel's *Text* writes the node. `view-reference.ts` holds what a shape stands for (`conceptIriOf`,
+    `isDrawingOnly`, `viewClassOf`) for the modeling's `connect`, the rules — only a note, a group or a shape gives
+    a line standing for no relationship — the reuse check, nesting, reconnecting and the pad and menus, and the
+    placement index files a reference under its node and its view, so `reveal`, `shapesOf` and the drawing of
+    relationships find it. Made, it draws its view's relationships with its first placement, as a placed element
+    does; it emits no `element-created`, and the viewpoint's greying skips figures. Selected, mount-ui maps it to
+    its view (`referencedViewOf`) and `headingFor(view)` adds the canvas's `selectedReference()`, whose rows
+    write the reference (`PropertyEntry.subject`); the panel follows a reference pointed at another view. A
+    reference's *Delete view from model…* is the tree's *Delete view* (`onContextAction('delete-view')`), whose
+    confirmation counts the relationships with the view. Zoom in reads `ViewManager.viewsRefining`
+    (`V arch:refines X`, or `X arch:refinedInto V` as another tool may write it): the pad opens the one view or a
+    menu of several (`zoom-in.ts`), the right-click menu lists each, and the canvas emits `open-view`, which
+    mount-ui opens so that Back comes back. What nesting may stand for comes from the notation, as for elements:
+    the core's relationship types get one in linked-archi-meta, `core/core-notation.ttl` (its DD-42), whose
+    Refines descriptor has `arch-vis:nestedEnd arch-vis:SourceEnd`. No manifest names it; it is bundled with the
+    core (`coreNotation`) and its sets are the last fallback layer (`coreNotationSetIris`), never the active set,
+    and the nesting offer needs no change, since the palette's relationship types carry the core's (`core`,
+    hidden from the palette panel only). Rejected: references as element shapes, which would have given
+    relationships for free and lost their look; F2 editing the reference's own text, which would make a view's
+    placement the one box F2 does not rename; offering every permitted type on nesting, past what a notation says.
+    The model-manager and metamodel-manager parts and the asset were made in `linked-archi-kernel` too, file for
+    file (VC-DD-8).
 
 ## Running
 

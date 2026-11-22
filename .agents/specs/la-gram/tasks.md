@@ -413,12 +413,19 @@ Agreed order; relationship visuals come first.
 - [x] **Incoming links in the property panel** — not to be done: decided on 2026-11-17 that a concept's relationships, to and from it, are the Analysis tab's, and its Properties tab every other property (key design decision 26).
 - [x] **View references: make, nest, link, open and change them** (Req 3.23) — done (2026-11-21): see the change log.
   `.agents/tasks/view-references/` (VR-1–12, VR-DD-1–8).
+- [x] **Views as model concepts on a diagram** (Req 3.23, 2.16, 4.21, 11.9) — done (2026-11-21): see the change log.
+  `.agents/tasks/views-as-concepts/` (VC-1–11, VC-DD-1–8).
 ---
 
 ## Known limitations
-- View references (Req 3.23): deleting a view is undone, with the references that went with it, only while another
-  diagram stays open. Deleting the open view opens another, whose undo history starts afresh (known limitation 3):
-  the view and its references come back by restoring a checkpoint or a Git version (the History tab).
+- View references (Req 3.23): deleting a view is undone, with the references and the relationships that went with
+  it, only while another diagram stays open. Deleting the open view opens another, whose undo history starts afresh
+  (known limitation 3): the view and what went with it come back by restoring a checkpoint or a Git version (the
+  History tab).
+- The core notation (Req 2.16, 4.21, 3.23) is bundled from a linked-archi-meta checkout and not yet published on
+  meta.linked.archi: la-gram loads the bundled copy in every asset mode (`remote-first` falls back to it), but
+  `npm run sync-assets` from the published site fails on it until it is published. A reference whose view refines
+  an element is not drawn inside the element's box on its own: nesting is the modeller's gesture, as for elements.
 
 - A namespace move (Req 18.27–18.28): automatic checks and auto-commit do not follow a move made on the
   other side — *Pull from Git* does. Undo does not take a move back, made here or followed. Auto-commit is
@@ -448,6 +455,39 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+### 2026-11-21 — A view is a model concept on a diagram: its references its placements
+
+- **A reference is its view's placement** (Req 3.23; `.agents/tasks/views-as-concepts/`, VC-1–11, VC-DD-1–8), as an
+  element's box is the element's: a view is a model concept, and a reference had been drawing that pointed at one —
+  no relationship ended on it, nesting it meant nothing, the panel showed a figure. It is still drawn as a figure,
+  and wherever a concept is asked for it now answers with its view.
+- **Selected, the view** (VC-1, VC-10): the panel shows the view — its information, *Properties*, *Analysis* (its
+  relationships) and *Appears in views* — with the reference's own *Text*, *Opens*, *Appearance* and *Image*; the
+  tree reveals the view's row, which carries the *In the open view* dot and *Select on canvas* while the open
+  diagram references it. Selecting the view elsewhere selects its references. Pointed at another view, the panel
+  follows. F2 and *Rename* rename the view, every reference to it with it (VC-2); its own text is the panel's.
+- **Relationships with a view** (VC-3, VC-4, VC-9): *Connect* on its pad, or a line drawn to or from it, draws a
+  relationship whose end is the view — the view's class its type for the rules, so where no language relates the
+  two, the core's Association, Has Part and Refines (Req 4.21). Made, a reference draws its view's relationships
+  to what the diagram shows. Pointed at another view, it loses the old view's lines. A note's line to it stands
+  for no relationship, as before.
+- **Nesting** (VC-5): dropped into an element's box, it asks what that stands for — *Refines*, the view refining
+  the element, shown by the nesting. The answer is the notation's: linked-archi-meta has a **core notation** now,
+  `core/core-notation.ttl`, bundled with the core (`coreNotation`), consulted after every language's default set
+  and never the active one (Req 2.16). Its Refines draws as before, solid with an open arrowhead.
+- **Zoom in** (VC-6): an element or a relationship a view refines (`arch:refines`, or `arch:refinedInto` from a
+  file) offers *Zoom in* on its pad — the view opens, or a menu lists several — and *Zoom in: …* in its menu,
+  whether or not a reference is drawn; Back comes back (`ViewManager.viewsRefining`, `open-view`).
+- **Deleting** (VC-7, VC-8): deleting a view deletes the relationships with it, everywhere, and the confirmation
+  counts them beside the references; a reference's *Delete view from model…* deletes its view so. Taken off the
+  view, the view and its relationships stay.
+- **Copy and paste** (VC-11): a relationship with a view, copied with both placements, ends on that view when pasted
+  in the same model; into another model it is left out, the reference a note.
+- The model-manager and metamodel-manager parts and the asset are the kernel's too, file for file (VC-DD-8).
+  *view-manager.test, palette-generator.test, bundled-assets.test, clipboard.test, view-canvas.test,
+  rdf-rule-provider.test, rdf-label-editing.test, property-panel.test, model-explorer.test, workbench.test,
+  workbench.spec*
 
 ### 2026-11-21 — A figure's text can be emptied
 

@@ -125,6 +125,11 @@ export interface PropertyEntry {
   inherited?: boolean;
   /** A × that takes its own value away, titled so: a view reference's text, back to its view's name. */
   reset?: string;
+  /**
+   * What the value is of, when not the concept selected: a view reference's own text, shown with its view's
+   * information, is the reference's (VC-1).
+   */
+  subject?: string;
 }
 
 /** `reference-view-change`: the view reference `nodeIri`, in the open view, opens `viewIri` now (Req 3.23). */
@@ -193,10 +198,15 @@ export interface PropertyHeading {
   /** A line drawn from a figure — a note's to what it is about: no relationship, nothing to edit. */
   line?: { from: string; to: string };
   /**
-   * A reference to another view (Req 3.23): the view it opens — its name when the model has it — and the model's
-   * views it can be pointed at instead, every one but the view it is drawn in.
+   * A reference to another view (Req 3.23): its node, its own text — none, or one, an empty one too — the view it
+   * opens — its name when the model has it — and the model's views it can be pointed at instead, every one but the
+   * view it is drawn in. On a view's heading, the reference selected on the canvas, whose view it is (VC-1): its
+   * text and *Opens* follow the view's information.
    */
   reference?: {
+    nodeIri: string;
+    text?: string;
+    textLanguage?: string;
     viewIri?: string;
     viewLabel?: string;
     views: Array<{ iri: string; label: string; kind: ViewKind }>;
@@ -1687,6 +1697,8 @@ export class PropertyPanel extends LitElement {
   /** Handle input change and propagate to ElementManager. */
   private _onPropertyChange(entry: PropertyEntry, newValue: string): void {
     if (entry.readonly || !this.selectedIri) return;
+    // A value of another than the concept selected — a view reference's own text (VC-1).
+    const subject = entry.subject ?? this.selectedIri;
 
     // What it shows without a value of its own — a view reference's view's name — unchanged: no edit.
     if (entry.inherited && newValue === entry.value) return;
@@ -1719,14 +1731,14 @@ export class PropertyPanel extends LitElement {
               ? DataFactory.literal(newValue, DataFactory.namedNode(entry.datatype))
               : DataFactory.literal(newValue)
       ) as unknown as Term;
-      this.elementManager.updateProperty(this.selectedIri, entry.predicate, valueTerm);
+      this.elementManager.updateProperty(subject, entry.predicate, valueTerm);
     }
 
     // Dispatch a custom event for external listeners
     this.dispatchEvent(
       new CustomEvent<PropertyEditDetail>('property-edit', {
         detail: {
-          elementIri: this.selectedIri,
+          elementIri: subject,
           predicate: entry.predicate,
           value: newValue,
           ...(language ? { language } : {}),
@@ -1768,7 +1780,7 @@ export class PropertyPanel extends LitElement {
   private _remove(entry: PropertyEntry): void {
     if (!this.selectedIri) return;
     this._emit<PropertyChangeDetail>('property-remove', {
-      elementIri: this.selectedIri,
+      elementIri: entry.subject ?? this.selectedIri,
       predicate: entry.predicate,
       value: entry.value,
     });
@@ -2131,20 +2143,36 @@ export class PropertyPanel extends LitElement {
    */
   private _renderFigureText() {
     const reference = this.heading?.reference;
+    if (reference) return html`<ul class="property-list">${this._renderReference(reference)}</ul>`;
     // Its own text: one read from the store — an empty one too — not the empty field every concept is given.
     const own = this._entries.find((e) => e.predicate === SKOS_PREF_LABEL && (e.value !== '' || e.language !== undefined));
-    // Emptied, a figure's text goes and a reference's is written empty: drawn as nothing either way. A reference with
-    // none of its own shows its view's name, greyed, and × takes its own away to show that name again.
+    // Emptied, a figure's text goes: drawn as nothing.
     const text: PropertyEntry = {
       ...(own ?? { predicate: SKOS_PREF_LABEL, value: '', readonly: false }),
       label: 'Text',
-      ...(!reference
-        ? { emptied: 'removed' as const }
-        : own
-          ? { emptied: 'blank' as const, placeholder: 'No text', reset: "Show the view's name" }
-          : { emptied: 'blank' as const, value: reference.viewLabel ?? '', inherited: true }),
+      emptied: 'removed' as const,
     } as PropertyEntry;
-    return html`<ul class="property-list">${this._renderEntry(text)}${reference ? this._renderOpens(reference) : nothing}</ul>`;
+    return html`<ul class="property-list">${this._renderEntry(text)}</ul>`;
+  }
+
+  /**
+   * A view reference's own rows: its *Text* — written on the reference, not the view, an empty one drawing nothing;
+   * with none of its own, its view's name greyed, and × takes its own away to show that name again — and *Opens*
+   * (Req 3.23). Under its view's information when it is selected on the canvas (VC-1).
+   */
+  private _renderReference(reference: NonNullable<PropertyHeading['reference']>) {
+    const own = reference.text !== undefined;
+    const text: PropertyEntry = {
+      predicate: SKOS_PREF_LABEL,
+      label: 'Text',
+      readonly: false,
+      subject: reference.nodeIri,
+      emptied: 'blank',
+      ...(own
+        ? { value: reference.text!, language: reference.textLanguage ?? '', placeholder: 'No text', reset: "Show the view's name" }
+        : { value: reference.viewLabel ?? '', inherited: true }),
+    };
+    return html`${this._renderEntry(text)}${this._renderOpens(reference)}`;
   }
 
   /**
@@ -2159,7 +2187,7 @@ export class PropertyPanel extends LitElement {
       this._changingReference = false;
       const viewIri = e.detail.iri;
       if (viewIri === reference.viewIri) return;
-      this._emit<ReferenceViewChangeDetail>('reference-view-change', { nodeIri: this.selectedIri, viewIri });
+      this._emit<ReferenceViewChangeDetail>('reference-view-change', { nodeIri: reference.nodeIri, viewIri });
     };
     return html`
       <li class="property-row opens-row">
@@ -3055,7 +3083,8 @@ export class PropertyPanel extends LitElement {
   }
 
   private _renderEntry(entry: PropertyEntry) {
-    const rowClass = 'property-row';
+    // A view reference's own text, among its view's rows, says whose it is.
+    const rowClass = entry.subject ? 'property-row reference-text' : 'property-row';
 
     // An element's own type: a choice of the loaded types.
     if (entry.predicate === RDF_TYPE && this.typeChoices && this.typeChoices.length > 0 && entry.value === this.heading?.typeIri) {
@@ -3216,7 +3245,8 @@ export class PropertyPanel extends LitElement {
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
-                ${this._renderReferencedFrom()} ${this._renderContextNames()} ${this._renderContextPictures()} ${this._renderProvenance()}
+                ${this._renderReferencedFrom()} ${this.heading?.reference ? this._renderReference(this.heading.reference) : nothing}
+                ${this._renderContextNames()} ${this._renderContextPictures()} ${this._renderProvenance()}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0

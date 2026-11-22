@@ -75,6 +75,11 @@
  * `coreQuestions` the core one, which no manifest names because it applies to
  * every model: model questions the SPARQL tab offers and the Validation tab runs
  * as model checks (`model-manager/questions.ts`). They are never model data.
+ * `coreNotation` is the notation of the core's own relationship types
+ * (`core-notation`), which no manifest names either: its sets are consulted
+ * after every loaded metamodel's default set, the last fallback layer of the
+ * notation lookup (`coreNotationSetIris`, VC-DD-5) — a view nested in the box
+ * of an element may stand for its Refines.
  */
 export type BundledAssetRole =
   | 'manifest'
@@ -91,7 +96,8 @@ export type BundledAssetRole =
   | 'coreVisOntology'
   | 'coreShapes'
   | 'questions'
-  | 'coreQuestions';
+  | 'coreQuestions'
+  | 'coreNotation';
 
 /** A single TTL file shipped with the application. */
 export interface BundledAsset {
@@ -303,6 +309,11 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     role: 'coreQuestions',
     ontologyIri: 'https://meta.linked.archi/core-questions#',
     path: 'core/core-questions.ttl',
+  },
+  {
+    role: 'coreNotation',
+    ontologyIri: 'https://meta.linked.archi/core-notation#',
+    path: 'core/core-notation.ttl',
   },
   ...languageAssets('archimate4', 'archimate4', 'archimate4', '4.0'),
   // The ArchiMate versions publish question sets; the other languages do not yet.

@@ -305,7 +305,8 @@ export interface ViewManager {
   setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
   /**
    * The references to a view — the nodes that open it (`arch-vis:referencesView`) — in every view, each with the
-   * view it is drawn in; by holder, then by node.
+   * view it is drawn in; by holder, then by node. A reference is its view's placement: wherever a concept's IRI keys
+   * its nodes (`getNode`, `removeElementFromView`, a link's ends), a view's IRI keys its references in that view.
    */
   referencesTo?(viewIri: string): ViewReferenceInfo[];
   /**
@@ -317,6 +318,11 @@ export interface ViewManager {
   setReferenceView?(holderIri: string, nodeIri: string, viewIri: string): void;
   /** The quads {@link setReferenceView} removes and adds, read before anything changes. */
   setReferenceViewQuads?(holderIri: string, nodeIri: string, viewIri: string): { removed: Quad[]; added: Quad[] };
+  /**
+   * The views that refine a concept — `V arch:refines X`, or `X arch:refinedInto V` — by name: what zooming in
+   * from it opens.
+   */
+  viewsRefining?(conceptIri: string): ViewInfo[];
   /** A connector's text (its `skos:prefLabel`); none removes it. */
   setConnectorText?(viewIri: string, linkIri: string, text: string | undefined): void;
   /** Set a figure's colours on its own style — `null` takes one back to the default. */

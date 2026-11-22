@@ -787,6 +787,126 @@ describe('a reference to another view (core-vis 0.9): a figure standing for the 
     views.setReferenceView(index, note, detail);
     expect(views.getNode(index, note)?.figure).toEqual({ kind: 'note', text: 'n' });
   });
+
+  describe('the view’s placement, as an element’s box is the element’s (VC-DD-1)', () => {
+    const modelIri = 'https://example.org/model';
+    const REFINES = NAMESPACES.arch + 'refines';
+    let elements: OxigraphElementManager;
+    let rels: OxigraphRelationshipManager;
+    let element: string;
+    let elementNode: string;
+    let reference: string;
+    /** `detail` refining `element`, as linking them with Refines writes it. */
+    let refines: string;
+
+    beforeEach(() => {
+      elements = new OxigraphElementManager(store);
+      rels = new OxigraphRelationshipManager(store);
+      element = elements.createElement('https://example.org/lang#Component', modelIri).value;
+      elementNode = views.addElementToView(index, element, { ...bounds, x: 300 });
+      reference = views.addFigure(index, { kind: 'reference', view: detail, bounds });
+      refines = rels.createQualifiedRelationship({
+        typeIri: NAMESPACES.arch + 'Refines',
+        predicateIri: REFINES,
+        sourceIri: detail,
+        targetIri: element,
+      }).iri;
+    });
+
+    it('is where a relationship with the view is drawn, its end the view (VC-3)', () => {
+      const link = views.addRelationshipToView(index, refines);
+      expect(link).toBeDefined();
+      const [info] = views.getLinks(index);
+      expect(info).toMatchObject({ relationshipIri: refines, sourceNodeIri: reference, targetNodeIri: elementNode });
+      expect(info).toMatchObject({ sourceElementIri: detail, targetElementIri: element });
+      expect(info!.connector).toBeUndefined();
+      expect(objects(store, refines, IN_VIEW)).toEqual([index]);
+    });
+
+    it('is the view’s node there: placed, found by the view’s IRI, and counted among the views presenting it', () => {
+      expect([...views.placedIn(index)].sort()).toEqual([detail, element].sort());
+      expect(views.getNode(index, detail)?.nodeIri).toBe(reference);
+      expect(views.viewsContaining(detail)).toEqual([index]);
+      // A note, a group or a shape stands for nothing still.
+      const note = views.addFigure(index, { kind: 'note', text: 'n', bounds: { ...bounds, y: 300 } });
+      expect(views.placedIn(index).has(note)).toBe(false);
+    });
+
+    it('draws the line at the reference named, when the view is referenced twice', () => {
+      const second = views.addFigure(index, { kind: 'reference', view: detail, bounds: { ...bounds, y: 200 } });
+      views.addRelationshipToView(index, refines, undefined, { sourceNodeIri: second });
+      expect(views.getLinks(index).map((l) => l.sourceNodeIri)).toEqual([second]);
+    });
+
+    it('taken off the view by the view’s IRI, goes with every reference there, their lines and the presence', () => {
+      views.addFigure(index, { kind: 'reference', view: detail, bounds: { ...bounds, y: 200 } });
+      views.addRelationshipToView(index, refines);
+      views.removeElementFromView(index, detail);
+      expect(views.getNodes(index).map((n) => n.elementIri)).toEqual([element]);
+      expect(views.getLinks(index)).toEqual([]);
+      expect(objects(store, detail, IN_VIEW)).toEqual([]);
+      expect(objects(store, refines, IN_VIEW)).toEqual([]);
+      // The relationship stays in the model (VC-8).
+      expect(objects(store, refines, NAMESPACES.arch + 'source')).toEqual([detail]);
+    });
+
+    it('deleting the view deletes its relationships, everywhere; undone, they all come back (VC-7)', () => {
+      views.addRelationshipToView(index, refines);
+      const before = store.size();
+      const removed = views.collectViewQuads(detail);
+      views.deleteView(detail);
+      expect(store.getQuads(nn(refines), null, null)).toEqual([]);
+      expect(objects(store, detail, REFINES)).toEqual([]);
+      expect(views.getLinks(index)).toEqual([]);
+      expect(views.getNodes(index).map((n) => n.elementIri)).toEqual([element]);
+      store.addQuads(removed);
+      expect(store.size()).toBe(before);
+      expect(views.getLinks(index).map((l) => l.relationshipIri)).toEqual([refines]);
+      expect(objects(store, detail, REFINES)).toEqual([element]);
+    });
+
+    it('deleting the view takes another tool’s `arch:refinedInto` it', () => {
+      store.addQuads([DataFactory.quad(nn(element), nn(NAMESPACES.arch + 'refinedInto'), nn(detail)) as never]);
+      views.deleteView(detail);
+      expect(objects(store, element, NAMESPACES.arch + 'refinedInto')).toEqual([]);
+    });
+
+    it('pointed at another view, loses the lines of the old view’s relationships and keeps a note’s (VC-9)', () => {
+      const third = views.createView('Diagram', undefined, { modelIri, label: 'Third' }).value;
+      views.addRelationshipToView(index, refines);
+      const note = views.addFigure(index, { kind: 'note', text: 'n', bounds: { ...bounds, y: 300 } });
+      const connector = views.addConnector(index, { sourceNodeIri: note, targetNodeIri: reference })!;
+      const { removed, added } = views.setReferenceViewQuads(index, reference, third);
+      views.setReferenceView(index, reference, third);
+      expect(views.getLinks(index).map((l) => l.linkIri)).toEqual([connector]);
+      expect(objects(store, refines, IN_VIEW)).toEqual([]);
+      expect(objects(store, refines, NAMESPACES.arch + 'source')).toEqual([detail]);
+      store.removeQuads(added);
+      store.addQuads(removed);
+      expect(views.getLinks(index).map((l) => l.relationshipIri).sort()).toEqual([connector, refines].sort());
+    });
+
+    it('a line from a note to it stands for no relationship, its end the reference itself', () => {
+      const note = views.addFigure(index, { kind: 'note', text: 'n', bounds: { ...bounds, y: 300 } });
+      const connector = views.addConnector(index, { sourceNodeIri: note, targetNodeIri: reference })!;
+      expect(views.getLinks(index)).toEqual([
+        expect.objectContaining({ linkIri: connector, connector: true, sourceElementIri: note, targetElementIri: reference }),
+      ]);
+    });
+
+    it('zooming in: the views refining a concept, by `arch:refines` or `arch:refinedInto`, by name (VC-6)', () => {
+      const overview = views.createView('Diagram', undefined, { modelIri, label: 'Overview' }).value;
+      store.addQuads([
+        DataFactory.quad(nn(element), nn(NAMESPACES.arch + 'refinedInto'), nn(overview)) as never,
+        // What is no view refines nothing to zoom into.
+        DataFactory.quad(nn('https://example.org/other'), nn(REFINES), nn(element)) as never,
+      ]);
+      expect(views.viewsRefining(element).map((v) => v.label)).toEqual(['Detail', 'Overview']);
+      expect(views.viewsRefining(detail)).toEqual([]);
+      views.deleteView(detail);
+      expect(views.viewsRefining(element).map((v) => v.label)).toEqual(['Overview']);
+    });
+  });
 });
 
 describe('an element placed more than once in a view', () => {

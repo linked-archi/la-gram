@@ -15,10 +15,11 @@
  * relationship resource to carry the name.
  *
  * A figure's text may be emptied, where an element's name may not: a note's, a
- * group's or a shape's then goes. A reference to another view is the exception
- * to the double-click: it opens the view it references (the canvas's), and F2
- * edits its text, its own `skos:prefLabel` — emptied, written empty and drawn as
- * nothing, as with none of its own it shows the view's name (Req 3.23).
+ * group's or a shape's then goes. A reference to another view is its view's
+ * placement (VC-DD-4): F2 renames the view, as it renames an element — every
+ * reference to it with it, and never to nothing — while its own text, which may
+ * be empty, is edited in the property panel. It is the exception to the
+ * double-click, too: it opens the view it references (the canvas's, Req 3.23).
  *
  * The text box is `diagram-js-direct-editing`, the editor bpmn-js uses for its
  * labels. Its package entry imports a diagram-js folder without `/index.js`,
@@ -43,7 +44,10 @@ import { RdfChangeHandler, type RdfChangeContext } from './rdf-modeling.js';
 import { connectionLabelLayout, fontFamilyOf, type RdfBusinessObject } from './rdf-renderer.js';
 import { hasFontStyle, type Appearance } from '../../model-manager/appearance.js';
 import { isRelationshipKey } from './relationship-resolution.js';
+import { conceptIriOf, isViewReference } from './view-reference.js';
 import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
+
+export { isViewReference } from './view-reference.js';
 
 /** Command id of a rename on the canvas — an element's or a relationship's. */
 export const RELABEL_ELEMENT_COMMAND = 'rdf.element.relabel';
@@ -119,16 +123,6 @@ export function isRenamable(element: unknown): boolean {
   return isElementShape(shape) || isNameableLine(shape);
 }
 
-/**
- * Whether a shape is a reference to another view (Req 3.23). Double-clicked, it opens that view — the canvas's —
- * so only F2 edits its text; with no text of its own it shows the view's name, `named` false, and with an empty
- * one, nothing.
- */
-export function isViewReference(element: unknown): boolean {
-  const businessObject = (element as LabelledShape | undefined)?.businessObject;
-  return businessObject?.kind === 'figure' && businessObject.figure?.kind === 'reference';
-}
-
 /** Renames as one undoable step; the shape or line shows the name in force. */
 export class RelabelElementHandler extends RdfChangeHandler {
   static override $inject = ['rdfChangeStore', 'rdfLabelWriter', 'elementRegistry'];
@@ -146,11 +140,18 @@ export class RelabelElementHandler extends RdfChangeHandler {
     const businessObject = relabel.element.businessObject!;
     relabel.previous ??= businessObject.label;
     relabel.previousNamed ??= businessObject.named;
-    relabel.apply ??= () => this.writer(businessObject.iri, relabel.label);
-    // An element placed more than once is renamed on every placement; a relationship drawn more than once, on every line.
+    // A reference's name is its view's (VC-DD-4).
+    const reference = isViewReference(relabel.element);
+    const named = reference ? conceptIriOf(relabel.element) : businessObject.iri;
+    relabel.apply ??= () => {
+      if (named) this.writer(named, relabel.label);
+    };
+    // An element placed more than once is renamed on every placement; a relationship drawn more than once, on every
+    // line; a view, on every reference to it.
     const line = businessObject.kind === 'relationship';
-    relabel.others ??=
-      businessObject.kind === 'element' || line
+    relabel.others ??= reference
+      ? (this.registry?.filter((e) => e !== relabel.element && isViewReference(e) && conceptIriOf(e) === named) ?? [])
+      : businessObject.kind === 'element' || line
         ? (this.registry?.filter(
             (e) => e !== relabel.element && Boolean(e.waypoints) === line && e.businessObject?.iri === businessObject.iri,
           ) ?? [])
@@ -240,7 +241,7 @@ export class RdfLabelEditingProvider {
     directEditing.registerProvider(this);
 
     eventBus.on('element.dblclick', (event) => {
-      // A reference to another view opens it instead; F2 edits its text.
+      // A reference to another view opens it instead; F2 renames the view.
       if (isRenamable(event.element) && !isViewReference(event.element)) directEditing.activate(event.element);
     });
 
@@ -450,14 +451,14 @@ export class RdfLabelEditingProvider {
       this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });
       return;
     }
-    if (shape.businessObject?.kind === 'figure') {
-      // A figure's text may be emptied: a note's, a group's or a shape's goes, and a view reference's is written
-      // empty — each drawn as nothing. What it shows unchanged — a reference's view's name too — is no edit.
+    if (shape.businessObject?.kind === 'figure' && !isViewReference(shape)) {
+      // A figure's text may be emptied: a note's, a group's or a shape's goes, drawn as nothing. Unchanged, no edit.
       if (label === (shape.businessObject.label ?? '')) return;
       this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });
       return;
     }
-    // A name cannot be emptied (as in the property panel), and an unchanged one is no edit.
+    // A name cannot be emptied (as in the property panel) — an element's, a view's on its reference — and an
+    // unchanged one is no edit.
     if (!label || label === shape.businessObject?.label) return;
     this.commandStack.execute(RELABEL_ELEMENT_COMMAND, { element: shape, label });
   }

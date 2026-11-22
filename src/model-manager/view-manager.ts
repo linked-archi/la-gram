@@ -78,6 +78,7 @@ import { modelNamespace, viewNamespace } from './model-namespace.js';
 import { shortHash } from './short-hash.js';
 import { picturesOf } from './element-pictures.js';
 import { copyPlacements } from './placement-copy.js';
+import { collectRelationshipQuads, relationshipsTouching } from './cascade.js';
 import {
   APPEARANCE_KEYS,
   APPEARANCE_PREDICATES,
@@ -134,7 +135,7 @@ type RouteNames = (typeof ROUTE_NAMES)[number];
 /** Whether a quad is one what a view shows is read from: which view a node or link is in, what it draws. */
 function placesInAView(q: Quad): boolean {
   const p = q.predicate.value;
-  return p === IRI.visView || p === IRI.archElement || p === IRI.archRelationship;
+  return p === IRI.visView || p === IRI.archElement || p === IRI.archRelationship || p === IRI.referencesView;
 }
 
 /**
@@ -204,6 +205,9 @@ export class OxigraphViewManager implements ViewManager {
     for (const q of this.read(null, T.visView, nn(viewIri))) {
       for (const element of this.objects(q.subject, T.archElement)) placed.add(element);
       for (const relationship of this.objects(q.subject, T.archRelationship)) placed.add(relationship);
+      // A reference places the view it opens, as a box its element (VC-DD-1).
+      const view = this.viewOf(q.subject);
+      if (view) placed.add(view);
     }
     if (this.cache) this.members.set(viewIri, placed);
     return placed;
@@ -301,6 +305,12 @@ export class OxigraphViewManager implements ViewManager {
       const holder = this.objects(reference.subject, T.visView)[0];
       if (holder && holder !== viewIri) quads.push(...this.collectNodeQuads(holder, reference.subject.value));
     }
+    // …and the relationships it is an end of, which cannot outlive it, as an element's cannot (VC-DD-7) — with a
+    // concept's `arch:refinedInto` it, which another tool may write without one (its `arch:refines` is its own).
+    for (const relationship of relationshipsTouching(this.store, viewIri)) {
+      quads.push(...collectRelationshipQuads(this.store, relationship));
+    }
+    quads.push(...this.read(null, T.refinedInto, view));
     return dedupe(quads);
   }
 
@@ -429,7 +439,27 @@ export class OxigraphViewManager implements ViewManager {
     if (viewIri !== holderIri && this.read(nn(viewIri), T.inView, holder).length === 0) {
       added.push(triple(nn(viewIri), T.inView, holder));
     }
+    // The lines at it drew relationships of the view it opened: they go, as a line whose end is no longer placed
+    // does (`refreshLinksOf`); a line standing for no relationship stays (VC-9).
+    for (const end of [T.visSource, T.visTarget]) {
+      for (const link of this.read(null, end, node)) {
+        if (this.objects(link.subject, T.archRelationship).length > 0) removed.push(...this.linkQuads(link.subject, holder));
+      }
+    }
     return { removed: dedupe(removed), added };
+  }
+
+  viewsRefining(conceptIri: string): ViewInfo[] {
+    // `V arch:refines X`, as la-gram writes it, or `X arch:refinedInto V`, as another tool may (VC-DD-6).
+    const iris = new Set<string>();
+    for (const q of this.read(null, T.refines, nn(conceptIri))) iris.add(q.subject.value);
+    for (const q of this.read(nn(conceptIri), T.refinedInto, null)) iris.add(q.object.value);
+    return [...iris]
+      .flatMap((iri) => {
+        const view = iri === conceptIri ? undefined : this.getView(iri);
+        return view ? [view] : [];
+      })
+      .sort((a, b) => a.label.localeCompare(b.label) || a.iri.localeCompare(b.iri));
   }
 
   removeElementFromView(viewIri: string, elementIri: string): void {
@@ -717,6 +747,11 @@ export class OxigraphViewManager implements ViewManager {
     for (const q of this.read(null, T.archRelationship, nn(conceptIri))) {
       for (const v of this.objects(q.subject, T.visView)) views.add(v);
     }
+    // A view, by the references drawing it (VC-DD-1).
+    for (const q of this.read(null, T.referencesView, nn(conceptIri))) {
+      if (!this.objects(q.subject, T.rdfType).includes(IRI.ViewReferenceNode)) continue;
+      for (const v of this.objects(q.subject, T.visView)) views.add(v);
+    }
     return [...views].sort();
   }
 
@@ -842,9 +877,14 @@ export class OxigraphViewManager implements ViewManager {
     return this.nodeIrisFor(viewIri, conceptIri)[0] ?? this.linkIrisFor(viewIri, conceptIri)[0];
   }
 
-  /** The concept a link's end stands for: a node's element, or a link's relationship. */
+  /** The concept a link's end stands for: a node's element — a reference's view — or a link's relationship. */
   private conceptOf(end: Term): string | undefined {
-    return this.objects(end, T.archElement)[0] ?? this.objects(end, T.archRelationship)[0];
+    return this.objects(end, T.archElement)[0] ?? this.objects(end, T.archRelationship)[0] ?? this.viewOf(end);
+  }
+
+  /** The view a reference node opens: the concept it stands for, as an ArchNode's element (VC-DD-1). */
+  private viewOf(node: Term): string | undefined {
+    return this.objects(node, T.rdfType).includes(IRI.ViewReferenceNode) ? this.objects(node, T.referencesView)[0] : undefined;
   }
 
   /** What a connector's end, a node, is keyed by: its element — or, a figure, the node itself. */
@@ -870,7 +910,12 @@ export class OxigraphViewManager implements ViewManager {
     if (nodes.length > 0) return nodes;
     // A figure stands for no element: its node is its own key.
     const node = nn(elementIri);
-    return this.objects(node, T.visView).includes(view) && this.figureOf(node) ? [elementIri] : [];
+    if (this.objects(node, T.visView).includes(view) && this.figureOf(node)) return [elementIri];
+    // A view's placements are the references to it there (VC-DD-1).
+    return this.read(null, T.referencesView, node)
+      .map((q) => q.subject)
+      .filter((reference) => this.objects(reference, T.visView).includes(view) && this.viewOf(reference) === elementIri)
+      .map((reference) => reference.value);
   }
 
   /**

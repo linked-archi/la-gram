@@ -136,6 +136,7 @@ import type {
   RelationshipManager,
   Bounds,
   Point,
+  ViewInfo,
   ViewManager,
 } from '../../model-manager/interfaces.js';
 import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
@@ -177,7 +178,9 @@ import {
   type ImageScope,
   type LabelChoices,
 } from '../appearance-selection.js';
-import { isRenamable, isViewReference, rdfLabelEditingModule, RELABEL_ELEMENT_COMMAND, type LabelWriter } from './rdf-label-editing.js';
+import { isRenamable, rdfLabelEditingModule, type LabelWriter } from './rdf-label-editing.js';
+import { conceptIriOf, isViewReference, viewClassOf } from './view-reference.js';
+import { RdfZoomMenuProvider, ZOOM_MENU_ID } from './zoom-in.js';
 import { RdfElementReplaceMenuProvider, ELEMENT_REPLACE_MENU_ID } from './rdf-element-replace-menu-provider.js';
 import { RETYPE_ELEMENT_COMMAND, RetypeElementHandler, type RetypeElementContext } from './rdf-element-retype.js';
 import { RdfContextMenuProvider, CONTEXT_MENU_ID, type ContextMenuAction } from './rdf-context-menu-provider.js';
@@ -726,6 +729,8 @@ export class DiagramCanvas {
   readonly nestMenuProvider: RdfNestMenuProvider;
   /** The question asked when a line drawn is a relationship the model already has (`reuse-relationship.ts`). */
   readonly reuseMenuProvider: RdfReuseMenuProvider;
+  /** The views refining what the pad's *Zoom in* was clicked on, when several do (`zoom-in.ts`, VC-6). */
+  readonly zoomMenuProvider: RdfZoomMenuProvider;
   readonly notationStyles: NotationStyleRegistry;
 
   /** The diagram-js instance, or `null` once destroyed. */
@@ -896,6 +901,16 @@ export class DiagramCanvas {
     this.reuseMenuProvider = new RdfReuseMenuProvider(
       (iri) => this.paletteDefinition.relationshipTypes.find((r) => r.iri === iri)?.iconUrl,
     );
+    this.zoomMenuProvider = new RdfZoomMenuProvider((viewIri) => {
+      this.services()?.popupMenu.close();
+      this.zoomMenuProvider.pending = undefined;
+      this.openView(viewIri);
+    });
+    // *Zoom in* on the pad of an element or a relationship a view refines (VC-6).
+    this.contextPadProvider.setZoomSupport({
+      isAvailable: (element) => this.viewsRefining(element.diagramElement).length > 0,
+      open: (element, event) => this.zoomIn(element.diagramElement as DjsShape, this.padMenuPosition(event)),
+    });
 
     const keyboardBindTo =
       options.keyboardBindTo === undefined
@@ -949,6 +964,10 @@ export class DiagramCanvas {
       this.contextPadProvider.setDeleteFromModelHandler((element) => {
         this.deleteFromModel(element.iri);
       });
+      // A reference's view: through the app's confirmation, which counts what goes with it (VC-7).
+      if (this.onContextAction) {
+        this.contextPadProvider.setDeleteViewHandler((element) => this.deleteReferencedView(element.diagramElement as DjsShape));
+      }
     }
     // A view reference's *Open view* (Req 3.23).
     this.contextPadProvider.setOpenViewHandler((element) => {
@@ -2158,18 +2177,38 @@ export class DiagramCanvas {
     if (existing.parent !== container) this.reparentDirect(existing, container);
     const b = node.bounds;
     const moved = existing.x !== b.x || existing.y !== b.y || existing.width !== b.width || existing.height !== b.height;
-    // Its text — or, a reference with none, its view's name, which a rename or another view changes.
-    const shown = this.figureTextOf(figure);
-    const retexted =
-      (existing.businessObject?.label ?? '') !== (shown.label ?? '') || Boolean(existing.businessObject?.named) !== Boolean(shown.named);
     const recoloured = !sameAppearance(existing.businessObject?.figure, figure);
-    if (existing.businessObject) {
-      existing.businessObject.figure = figure;
-      existing.businessObject.label = shown.label;
-      existing.businessObject.named = shown.named;
+    let retexted = false;
+    const businessObject = existing.businessObject;
+    if (businessObject) {
+      // A reference pointed at another view — changed in the panel, by a collaborator, or undone — is that view's
+      // placement now, of its class (VC-DD-1, VC-DD-2).
+      const opened = businessObject.figure?.kind === 'reference' ? businessObject.figure.view : undefined;
+      businessObject.figure = figure;
+      if (figure.kind === 'reference') {
+        businessObject.nodeIri ??= node.nodeIri;
+        businessObject.typeIri = this.referenceTypeOf(figure);
+        if (opened !== figure.view) this.reindexPlacement(existing, opened, figure.view);
+      }
+      // Its text — a reference's view's name too, which a rename or another view changes.
+      retexted = this.showFigureText(businessObject, this.figureTextOf(figure));
     }
     if (moved) this.updateShape(existing, { bounds: b });
     else if (retexted || recoloured) services.eventBus.fire('element.changed', { element: existing });
+  }
+
+  /** A reference that opens another view now: found under that view's placements, no longer the one it opened. */
+  private reindexPlacement(shape: DjsShape, from: string | undefined, to: string | undefined): void {
+    if (from) {
+      const set = this.placements.get(from);
+      set?.delete(shape);
+      if (set?.size === 0) this.placements.delete(from);
+    }
+    if (to) {
+      let set = this.placements.get(to);
+      if (!set) this.placements.set(to, (set = new Set()));
+      set.add(shape);
+    }
   }
 
   /** What a relationship's notation says of its name — its size, where it sits — under the line's own. */
@@ -2435,21 +2474,46 @@ export class DiagramCanvas {
     return this.renderOptions.notationOnly ?? false;
   }
 
-  /** What a figure's shape carries: its node as its IRI, its text as its name. */
+  /**
+   * What a figure's shape carries: its node as its IRI, its text as its name. A reference to another view is its
+   * view's placement (VC-DD-1): its node is its placement's too, and its type the view's class (VC-DD-2).
+   */
   private figureObject(iri: string, figure: FigureInfo): RdfBusinessObject {
-    return { iri, typeIri: '', kind: 'figure', figure, ...this.figureTextOf(figure) };
+    if (figure.kind !== 'reference') return { iri, typeIri: '', kind: 'figure', figure, ...this.figureTextOf(figure) };
+    return { iri, ...(iri ? { nodeIri: iri } : {}), typeIri: this.referenceTypeOf(figure), kind: 'figure', figure, ...this.figureTextOf(figure) };
+  }
+
+  /** The class of the view a reference opens: its type for the rules (VC-DD-2) — a diagram's when it opens none. */
+  private referenceTypeOf(figure: FigureInfo): string {
+    return viewClassOf(figure.view ? this.viewManager?.getView(figure.view)?.type : undefined);
   }
 
   /**
-   * The text a figure shows: its own, `named` — or, a reference to another view
-   * with none, the name of the view it opens as that name is now, not `named`
-   * (Req 3.23). A reference whose view is not in the model shows none.
+   * The text a figure shows: its own, `named`. A reference to another view is named as its view is — what F2
+   * renames — and its own text, an empty one too, is drawn in place of the name (`labelText`, VC-DD-4). A reference
+   * whose view is not in the model has no name.
    */
-  private figureTextOf(figure: FigureInfo): Pick<RdfBusinessObject, 'label' | 'named'> {
-    // Its own, an empty one too: a reference emptied shows nothing.
-    if (figure.text !== undefined) return { label: figure.text, named: true };
-    const name = figure.kind === 'reference' && figure.view ? this.viewManager?.getView(figure.view)?.label : undefined;
-    return name ? { label: name, named: false } : {};
+  private figureTextOf(figure: FigureInfo): Pick<RdfBusinessObject, 'label' | 'named' | 'labelText'> {
+    if (figure.kind === 'reference') {
+      const name = figure.view ? this.viewManager?.getView(figure.view)?.label : undefined;
+      return { ...(name ? { label: name, named: true } : {}), ...(figure.text !== undefined ? { labelText: figure.text } : {}) };
+    }
+    return figure.text !== undefined ? { label: figure.text, named: true } : {};
+  }
+
+  /** Give a figure's shape the text it shows now — what it no longer has, taken away: whether that changed it. */
+  private showFigureText(businessObject: RdfBusinessObject, shown: Pick<RdfBusinessObject, 'label' | 'named' | 'labelText'>): boolean {
+    const changed =
+      (businessObject.label ?? '') !== (shown.label ?? '') ||
+      Boolean(businessObject.named) !== Boolean(shown.named) ||
+      businessObject.labelText !== shown.labelText;
+    if (shown.label === undefined) delete businessObject.label;
+    else businessObject.label = shown.label;
+    if (shown.named === undefined) delete businessObject.named;
+    else businessObject.named = shown.named;
+    if (shown.labelText === undefined) delete businessObject.labelText;
+    else businessObject.labelText = shown.labelText;
+    return changed;
   }
 
   /**
@@ -2516,12 +2580,6 @@ export class DiagramCanvas {
     return services.elementFactory.createShape({ ...FIGURE_SIZES.reference, businessObject: this.figureObject('', figure) });
   }
 
-  /** Whether a node of the open view is a reference to another view. */
-  private isReferenceNode(nodeIri: string): boolean {
-    const viewIri = this.viewIri;
-    return Boolean(viewIri && this.viewManager?.getNode(viewIri, nodeIri)?.figure?.kind === 'reference');
-  }
-
   /** Whether a shape is a reference to the open view not yet made: what its own row's drag would make (VR-1). */
   private isOwnViewReference(shape: DjsShape | undefined): boolean {
     const businessObject = shape?.businessObject;
@@ -2546,9 +2604,60 @@ export class DiagramCanvas {
   }
 
   /**
+   * The reference selected on the canvas — the first selected, when it is one — and the view it opens: what the
+   * property panel shows the view of, with the reference's own text and *Opens* (VC-1, VC-DD-3).
+   */
+  selectedReference(): { nodeIri: string; viewIri?: string } | undefined {
+    const [first] = this.service<{ get(): DjsShape[] }>('selection')?.get() ?? [];
+    const nodeIri = first && isViewReference(first) ? this.nodeKeyOf(first) : undefined;
+    if (!nodeIri) return undefined;
+    const viewIri = conceptIriOf(first);
+    return { nodeIri, ...(viewIri ? { viewIri } : {}) };
+  }
+
+  /**
+   * A reference's *Delete from model…*: its view, deleted as the model tree deletes it — the app asks first, and
+   * says how many references to it and relationships with it go with it (VC-7).
+   */
+  private deleteReferencedView(element: DjsShape): void {
+    const viewIri = conceptIriOf(element);
+    if (viewIri) this.onContextAction?.('delete-view', viewIri);
+  }
+
+  /**
+   * The views refining what a shape or a line stands for — an element, a relationship — by name: what zooming in
+   * from it opens (VC-6). None for a figure, or without a view manager that can tell.
+   */
+  private viewsRefining(element: unknown): ViewInfo[] {
+    const businessObject = (element as DjsShape | undefined)?.businessObject;
+    if (businessObject?.kind !== 'element' && businessObject?.kind !== 'relationship') return [];
+    const concept = conceptIriOf(element);
+    return concept ? (this.viewManager?.viewsRefining?.(concept) ?? []) : [];
+  }
+
+  /** *Zoom in* from a shape or a line: the one view refining it opens; several are listed at `at`, to pick one. */
+  private zoomIn(element: DjsShape, at: { x: number; y: number }): void {
+    const views = this.viewsRefining(element);
+    const services = this.services();
+    if (views.length === 0 || !services) return;
+    if (views.length === 1) {
+      this.openView(views[0]!.iri);
+      return;
+    }
+    this.zoomMenuProvider.pending = { views };
+    services.popupMenu.open(element, ZOOM_MENU_ID, at, { title: 'Zoom in', width: 280 });
+  }
+
+  /** Ask the app to open a view (`open-view`): zooming in (VC-6). */
+  private openView(viewIri: string): void {
+    this.eventBus.emit('open-view', { viewIri });
+  }
+
+  /**
    * Redraw the references in the open diagram to these views, whose names may
-   * have changed: one with no text of its own shows the name in force — renamed
-   * here, in the tree, in the panel, by a collaborator, or undone (VR-DD-2).
+   * have changed: each is named as its view is now — renamed here, in the tree,
+   * in the panel, by a collaborator, or undone (VR-DD-2) — which shows where it
+   * has no text of its own (VC-DD-4).
    */
   private renameReferencesTo(viewIris: ReadonlySet<string>): void {
     const services = this.services();
@@ -2561,11 +2670,9 @@ export class DiagramCanvas {
         const shape = this.shapeOfNode(reference.nodeIri);
         const businessObject = shape?.businessObject;
         if (!shape || businessObject?.kind !== 'figure' || businessObject.figure?.kind !== 'reference') continue;
-        const shown = this.figureTextOf(businessObject.figure);
-        if ((businessObject.label ?? '') === (shown.label ?? '') && Boolean(businessObject.named) === Boolean(shown.named)) continue;
-        businessObject.label = shown.label;
-        businessObject.named = shown.named;
-        services.eventBus.fire('element.changed', { element: shape });
+        if (this.showFigureText(businessObject, this.figureTextOf(businessObject.figure))) {
+          services.eventBus.fire('element.changed', { element: shape });
+        }
       }
     }
   }
@@ -3406,20 +3513,39 @@ export class DiagramCanvas {
       // A line is copied with its ends: only pasting here.
       actions.push(...this.clipboardMenuActions(false));
     } else if (shown.kind === 'figure') {
-      // A reference to another view opens it, first, as its double-click does (Req 3.23).
+      // A reference to another view opens it, first, as its double-click does (Req 3.23) — and, its view's
+      // placement, renames the view as an element's box renames the element (VC-DD-4).
       if (isViewReference(element)) {
         actions.push({ id: 'open-view', label: 'Open view', section: 'view', run: () => this.openReferencedView(element) });
+        actions.push({
+          id: 'rename',
+          label: 'Rename',
+          section: 'edit',
+          shortcut: 'F2',
+          run: () => this.service<{ activate(element: unknown): boolean }>('directEditing')?.activate(element),
+        });
       }
       // A group, a note, a shape or a reference: cut, copied and duplicated as an element is.
       actions.push(...this.clipboardMenuActions(true));
     }
+    // Refined by a view — `V arch:refines` it — an element or a relationship zooms into each (VC-6).
+    this.viewsRefining(element).forEach((view, index) => {
+      actions.push({ id: `zoom-in-${index}`, label: `Zoom in: ${view.label || localName(view.iri)}`, section: 'view', run: () => this.openView(view.iri) });
+    });
 
-    // Drawing — a figure, a line from one — is in no folder, no tree and no model: taken off the view only.
+    // Drawing — a figure, a line from one — is in no folder, no tree and no model: taken off the view only. A
+    // reference is its view's placement: what is looked at, its IRI copied, deleted from the model, is the view.
     const concept = shown.kind === 'element' || shown.kind === 'relationship';
+    const reference = isViewReference(element) ? conceptIriOf(element) : undefined;
+    const ofView = (action: CanvasContextAction) => () => (reference ? this.onContextAction?.(action, reference) : undefined);
     if (concept && this.onContextAction && this.canMoveToFolder?.()) {
       actions.push({ id: 'move-to-folder', label: 'Move to folder…', section: 'edit', run: host('move-to-folder') });
     }
-    if (this.onContextAction) {
+    if (this.onContextAction && reference) {
+      actions.push({ id: 'properties', label: 'Properties', section: 'show', run: ofView('properties') });
+      actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: ofView('reveal-tree') });
+      actions.push({ id: 'copy-iri', label: 'Copy IRI', section: 'copy', run: ofView('copy-iri') });
+    } else if (this.onContextAction) {
       actions.push({ id: 'properties', label: 'Properties', section: 'show', run: host('properties') });
       if (concept) actions.push({ id: 'reveal-tree', label: 'Show in model tree', section: 'show', run: host('reveal-tree') });
       if (shown.kind === 'element') {
@@ -3441,6 +3567,10 @@ export class DiagramCanvas {
     });
     if (this.viewManager && concept) {
       actions.push({ id: 'delete-model', label: 'Delete from model…', section: 'delete', run: () => void this.deleteFromModel(iri) });
+    }
+    // A reference's view, deleted from the model as the tree deletes it, after the app asks (VC-7).
+    if (this.viewManager && reference && this.onContextAction) {
+      actions.push({ id: 'delete-model', label: 'Delete view from model…', section: 'delete', run: () => this.deleteReferencedView(element) });
     }
     return actions;
   }
@@ -3944,7 +4074,8 @@ export class DiagramCanvas {
     const services = this.services();
     if (!services) return;
     for (const shape of this.shapes()) {
-      const typeIri = shape.businessObject?.typeIri;
+      // An element's type; a figure has none the viewpoint judges — a reference's view's class neither.
+      const typeIri = shape.businessObject?.kind === 'figure' ? undefined : shape.businessObject?.typeIri;
       const outside = Boolean(this.viewpointFilter && typeIri && !this.viewpointFilter(typeIri));
       const has = services.canvas.hasMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
       if (outside && !has) services.canvas.addMarker(shape, OUTSIDE_VIEWPOINT_MARKER);
@@ -3985,7 +4116,11 @@ export class DiagramCanvas {
     const innerObject = inner.businessObject;
     const outerObject = outer.businessObject;
     if (!services || !innerObject?.iri || !outerObject?.iri || inner.parent !== outer) return;
-    const innerEnd = { iri: innerObject.iri, typeIri: innerObject.typeIri };
+    // An element, or a reference — its view, of its class: a view nested in an element may refine it (VC-5). A
+    // note, a group or a shape stands for nothing.
+    const innerIri = innerObject.kind === 'element' || isViewReference(inner) ? conceptIriOf(inner) : undefined;
+    if (!innerIri || outerObject.kind !== 'element') return;
+    const innerEnd = { iri: innerIri, typeIri: innerObject.typeIri };
     const outerEnd = { iri: outerObject.iri, typeIri: outerObject.typeIri };
     const existing = (this.relationshipManager.getRelationshipsOf?.(innerEnd.iri) ?? []).filter(
       (r) => r.sourceIri === outerEnd.iri || r.targetIri === outerEnd.iri,
@@ -4020,8 +4155,9 @@ export class DiagramCanvas {
   private reuseCheck(): RdfReuseCheck {
     return ({ source, target, typeIri, createNew }) => {
       const services = this.services();
-      const sourceIri = source.businessObject?.iri;
-      const targetIri = target.businessObject?.iri;
+      // The concepts at the ends — a reference's view (VC-DD-1).
+      const sourceIri = conceptIriOf(source);
+      const targetIri = conceptIriOf(target);
       if (!services || !this.viewIri || !sourceIri || !targetIri) return false;
       const existing = this.relationshipsBetween(sourceIri, targetIri).filter(
         (r) =>
@@ -4208,7 +4344,8 @@ export class DiagramCanvas {
 
   private drawRelationshipsOf(shape: DjsShape): void {
     const services = this.services();
-    const iri = shape.businessObject?.iri;
+    // An element's — a reference's view's (VC-4).
+    const iri = conceptIriOf(shape);
     if (!services || !iri || !this.relationshipManager.getRelationshipsOf) return;
     // Then those ending on a relationship just drawn, and so on.
     const ends = [iri];
@@ -4283,7 +4420,8 @@ export class DiagramCanvas {
     const services = this.services();
     const viewIri = this.viewIri;
     const viewManager = this.viewManager;
-    const innerIri = inner.businessObject?.iri;
+    // The concepts: a reference's view, nested in an element it may refine (VC-5).
+    const innerIri = conceptIriOf(inner);
     const outerIri = outer.businessObject?.iri;
     if (!services || !viewIri || !viewManager?.addMember || !innerIri || !outerIri) return;
     if (outer.businessObject?.kind !== 'element') return;
@@ -4321,7 +4459,7 @@ export class DiagramCanvas {
   private showAsLines(inner: DjsShape, outer: DjsShape): void {
     const viewIri = this.viewIri;
     const viewManager = this.viewManager;
-    const innerIri = inner.businessObject?.iri;
+    const innerIri = conceptIriOf(inner);
     const outerIri = outer.businessObject?.iri;
     if (!viewIri || !viewManager || !innerIri || !outerIri || outer.businessObject?.kind !== 'element') return;
     const between = this.relationshipsBetween(innerIri, outerIri);
@@ -4365,6 +4503,7 @@ export class DiagramCanvas {
     services.popupMenu.registerProvider(APPEND_RELATIONSHIP_MENU_ID, this.appendRelationshipMenuProvider);
     services.popupMenu.registerProvider(NEST_MENU_ID, this.nestMenuProvider);
     services.popupMenu.registerProvider(REUSE_MENU_ID, this.reuseMenuProvider);
+    services.popupMenu.registerProvider(ZOOM_MENU_ID, this.zoomMenuProvider);
     services.popupMenu.registerProvider(PAIR_CONNECT_MENU_ID, this.pairConnectMenuProvider);
   }
 
@@ -4374,8 +4513,10 @@ export class DiagramCanvas {
     const ends: PairEnd[] = [];
     for (const shape of target as DjsShape[]) {
       const shown = shape?.businessObject;
-      if (!shown || shown.kind !== 'element' || !shown.iri || !shown.typeIri) return undefined;
-      ends.push({ shapeId: shape.id, iri: shown.iri, typeIri: shown.typeIri, label: shown.label ?? localName(shown.iri) });
+      // An element, or a reference — its view, of its class (VC-DD-1).
+      const iri = shown && (shown.kind === 'element' || isViewReference(shape)) ? conceptIriOf(shape) : undefined;
+      if (!shown || !iri || !shown.typeIri) return undefined;
+      ends.push({ shapeId: shape.id, iri, typeIri: shown.typeIri, label: shown.label ?? localName(iri) });
     }
     return { a: ends[0], b: ends[1] };
   }
@@ -4471,24 +4612,30 @@ export class DiagramCanvas {
     djs.on('connection.added', (event: { element: DjsShape }) => {
       if (event.element.id !== event.element.businessObject?.iri) this.otherwiseNamed.add(event.element);
     });
-    // Each element's placements, and each placement by its node.
+    // Each element's placements, and each placement by its node — a reference's under its node and its view, whose
+    // placement it is (VC-DD-1): found from the view to select it, to draw a relationship with the view to it.
+    const placementKeys = (shape: DjsShape): string[] => {
+      const iri = shape.businessObject?.iri;
+      if (!iri || shape.businessObject?.kind === 'relationship') return [];
+      const view = isViewReference(shape) ? conceptIriOf(shape) : undefined;
+      return view && view !== iri ? [iri, view] : [iri];
+    };
     djs.on('shape.added', 2000, (event: { element: DjsShape }) => {
       const shape = event.element;
-      const iri = shape.businessObject?.iri;
-      if (!iri || shape.businessObject?.kind === 'relationship') return;
-      let set = this.placements.get(iri);
-      if (!set) this.placements.set(iri, (set = new Set()));
-      set.add(shape);
+      for (const key of placementKeys(shape)) {
+        let set = this.placements.get(key);
+        if (!set) this.placements.set(key, (set = new Set()));
+        set.add(shape);
+      }
       const node = shape.businessObject?.nodeIri;
-      if (node) this.placementByNode.set(node, shape);
+      if (node && shape.businessObject?.kind !== 'relationship') this.placementByNode.set(node, shape);
     });
     djs.on('shape.removed', 2000, (event: { element: DjsShape }) => {
       const shape = event.element;
-      const iri = shape.businessObject?.iri;
-      if (iri) {
-        const set = this.placements.get(iri);
+      for (const key of placementKeys(shape)) {
+        const set = this.placements.get(key);
         set?.delete(shape);
-        if (set?.size === 0) this.placements.delete(iri);
+        if (set?.size === 0) this.placements.delete(key);
       }
       const node = shape.businessObject?.nodeIri;
       if (node && this.placementByNode.get(node) === shape) this.placementByNode.delete(node);
@@ -4544,7 +4691,7 @@ export class DiagramCanvas {
       return false;
     });
 
-    // A reference to another view opens it when double-clicked (Req 3.23, VR-DD-3); F2 edits its text.
+    // A reference to another view opens it when double-clicked (Req 3.23, VR-DD-3); F2 renames its view (VC-DD-4).
     djs.on('element.dblclick', (event: { element?: DjsShape }) => {
       if (event.element && isViewReference(event.element)) this.openReferencedView(event.element);
     });
@@ -4560,27 +4707,6 @@ export class DiagramCanvas {
       if (context?.target) this.onNotice?.("This is the open view: drag it onto another view's diagram to reference it.", 'info');
       return false;
     });
-
-    // A reference's text emptied on the canvas — or its own given back, undone, redone — shows what it shows now:
-    // the rename draws the text it wrote, none for an emptied reference, where the view's name is drawn (Req 3.23).
-    djs.on(
-      [`commandStack.${RELABEL_ELEMENT_COMMAND}.executed`, `commandStack.${RELABEL_ELEMENT_COMMAND}.reverted`],
-      (event: { context?: { element?: DjsShape } }) => {
-        const element = event.context?.element;
-        const businessObject = element?.businessObject;
-        const viewIri = this.viewIri;
-        if (!element || !businessObject || !viewIri || !isViewReference(element) || !businessObject.figure) return;
-        const node = this.nodeKeyOf(element);
-        const text = node ? this.viewManager?.getNode(viewIri, node)?.figure?.text : undefined;
-        const figure: FigureInfo = { ...businessObject.figure };
-        if (text !== undefined) figure.text = text;
-        else delete figure.text;
-        businessObject.figure = figure;
-        const shown = this.figureTextOf(figure);
-        businessObject.label = shown.label;
-        businessObject.named = shown.named;
-      },
-    );
 
     // Which global tool is armed. `ToolManager` is the only honest source: the
     // tools deactivate themselves when their gesture completes, `Escape` cancels
@@ -4702,8 +4828,9 @@ export class DiagramCanvas {
           return;
         }
         const relIri = connection?.businessObject?.iri;
-        const sourceIri = connection?.source?.businessObject?.iri;
-        const targetIri = connection?.target?.businessObject?.iri;
+        // The concepts at its new ends — a reference's view among them (VC-3).
+        const sourceIri = conceptIriOf(connection?.source);
+        const targetIri = conceptIriOf(connection?.target);
         const reconnect = this.relationshipManager.reconnectRelationship;
         if (!relIri || !sourceIri || !targetIri || !reconnect || !this.viewManager) return;
         const viewManager = this.viewManager;
@@ -4719,8 +4846,8 @@ export class DiagramCanvas {
       (event: { context?: { connection?: DjsShape } }) => {
         const connection = event.context?.connection;
         const record = connection ? this.relationships.get(connection.id) : undefined;
-        const sourceIri = connection?.source?.businessObject?.iri;
-        const targetIri = connection?.target?.businessObject?.iri;
+        const sourceIri = conceptIriOf(connection?.source);
+        const targetIri = conceptIriOf(connection?.target);
         if (record && sourceIri && targetIri) {
           record.sourceIri = sourceIri;
           record.targetIri = targetIri;
@@ -4761,6 +4888,10 @@ export class DiagramCanvas {
         // Its relationships are drawn with its first placement; a further one gets the lines drawn to it.
         if (this.shapesOf(shape.businessObject.iri).length <= 1) this.drawRelationshipsOf(shape);
       }
+      // A reference made — dragged from the tree, placed by its menu — is its view's placement: the view's
+      // relationships to what the view shows are drawn with the first, as an element's (VC-4).
+      const view = shape && isViewReference(shape) && shape.businessObject?.iri ? conceptIriOf(shape) : undefined;
+      if (shape && view && this.hasViewContext() && this.shapesOf(view).length <= 1) this.drawRelationshipsOf(shape);
     });
 
     // Collaboration locks: deny the edit rules for anything another user holds.
@@ -4818,6 +4949,8 @@ export class DiagramCanvas {
         const iri = viewManager.addFigure!(viewIri, { ...figure, bounds, ...(parentIri ? { parentIri } : {}) });
         shape.id = iri;
         businessObject.iri = iri;
+        // A reference is its view's placement, this node: a line drawn from it is drawn from it (VC-DD-1).
+        if (figure.kind === 'reference') businessObject.nodeIri = iri;
       });
     });
 
@@ -4937,7 +5070,8 @@ export class DiagramCanvas {
       (event: { context?: { shape?: DjsShape } }) => {
         const shape = event.context?.shape;
         const businessObject = shape?.businessObject;
-        if (!shape || !businessObject?.iri || !businessObject.typeIri) return;
+        // A figure is no element — a reference neither, though it carries its view's class as its type.
+        if (!shape || !businessObject?.iri || !businessObject.typeIri || businessObject.kind === 'figure') return;
         this.emitWithoutSelfSync('element-created', {
           iri: businessObject.iri,
           elementIri: businessObject.iri,
@@ -5294,9 +5428,9 @@ export class DiagramCanvas {
       const language = shown ? (shown.object.language ?? '') : 'en';
       const replaced = inModel.filter((q) => (q.object.language ?? '') === language);
       if (replaced.length > 0) this.rdfStore?.removeQuads(replaced as never[]);
-      // Emptied, a name goes — a relationship's, a figure's text: nothing drawn. A view reference's is written
-      // empty instead, as none of its own would show its view's name (Req 3.23).
-      if (label === '' && !this.isReferenceNode(iri)) return;
+      // Emptied, a name goes — a relationship's, a note's, a group's or a shape's text: nothing drawn. A view
+      // reference's F2 names its view, never with nothing (VC-DD-4); its own text is the panel's to write.
+      if (label === '') return;
       this.rdfStore?.addQuads?.([
         DataFactory.quad(namedNode(iri), namedNode(prefLabel), DataFactory.literal(label, language || undefined)) as never,
       ]);

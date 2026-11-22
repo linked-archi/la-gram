@@ -92,6 +92,7 @@ import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
 import { relationshipKey } from './relationship-resolution.js';
 import type { RdfReuseCheck } from './reuse-relationship.js';
+import { conceptIriOf } from './view-reference.js';
 import type { ObservableRdfStore, RdfDiff } from '../../rdf-engine/observable-store.js';
 
 /**
@@ -799,8 +800,10 @@ export class RdfModeling extends ModelingBase {
     attrs?: RdfConnectAttrs | null,
     hints?: Record<string, unknown>,
   ): DjsElement | undefined {
-    const sourceIri = source.businessObject?.iri;
-    const targetIri = target.businessObject?.iri;
+    // The concepts at its ends: an element's, a relationship's — a reference's view (VC-DD-1). The link joins the
+    // placements, which `RdfRelationshipBehavior` reads off the shapes.
+    const sourceIri = conceptIriOf(source);
+    const targetIri = conceptIriOf(target);
 
     const resolved =
       attrs ??

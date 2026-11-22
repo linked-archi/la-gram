@@ -273,6 +273,15 @@ describe('actionsFor', () => {
     expect(actionsFor(view('v')).map((a) => a.action)).not.toContain('reference-in-view');
   });
 
+  it('marks a view referenced in the open diagram as placed there, and selects its references on the canvas (VC-1)', () => {
+    const tree = buildModelTree(contents(), `${M}/view/1`, new Set([`${M}/view/2`]));
+    expect(find(tree, (n) => n.iri === `${M}/view/2`)?.placed).toBe(true);
+    expect(find(tree, (n) => n.iri === `${M}/view/1`)?.placed).toBeUndefined();
+    const placed: TreeNode = { id: 'v', iri: 'v', kind: 'view', label: 'v', placed: true, children: [] };
+    expect(actionsFor(placed, { openDiagram: 'd' }).slice(0, 3).map((a) => a.action)).toEqual(['open-view', 'reveal', 'reference-in-view']);
+    expect(actionsFor({ ...placed, placed: undefined }).map((a) => a.action)).not.toContain('reveal');
+  });
+
   it('makes a folder in a group and in a folder of the model; moves a concept only when there are folders', () => {
     const actions = (n: TreeNode, folders = false) => actionsFor(n, { folders }).map((a) => a.action);
     expect(actions({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] })).not.toContain('new-folder');

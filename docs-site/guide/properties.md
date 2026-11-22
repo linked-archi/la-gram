@@ -6,8 +6,11 @@ description: The Properties tab in la-gram, with its information, properties, an
 
 The bottom panel's *Properties* tab shows what is selected, on the canvas, in the model tree or in a
 list, in vertical tabs. With nothing selected, it shows the open view. A figure or a line from one is
-drawing, not model: it has its information and its look only. ++up++ and ++down++ move through the
-tabs, and the tab last open stays open for the next selection, and the next visit.
+drawing, not model: it has its information and its look only. A
+[view reference](canvas.md#view-references) is its view's placement: selected, the tab shows the view,
+with the reference's own *Text* and *Opens* after the view's information, and the reference's look.
+++up++ and ++down++ move through the tabs, and the tab last open stays open for the next selection, and
+the next visit.
 
 | Tab | For |
 |---|---|

@@ -1798,19 +1798,23 @@ describe('the workbench', () => {
       await ui.propertyPanel.updateComplete;
     };
 
-    // The tree's Reference in the open view: made at the centre, selected; the panel says what it opens, and its Text
-    // the view's name, greyed (VR-2, VR-4, VR-8).
+    // The tree's Reference in the open view: made at the centre, selected. Selected, it is its view's placement: the
+    // panel shows the view, with the reference's Text — the view's name, greyed — and what it Opens (VR-2, VR-4, VR-8,
+    // VC-1).
     ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'reference-in-view', iri: payments, kind: 'view' } }));
     await vi.waitFor(() => expect(referencesIn(holder)).toHaveLength(1));
     const reference = referencesIn(holder)[0]!.nodeIri;
     expect(views.getNode(holder, reference)?.figure).toEqual({ kind: 'reference', view: payments });
     expect(presentedIn(payments)).toEqual([holder]);
-    expect(ui.propertyPanel.selectedIri).toBe(reference);
+    expect(ui.diagramCanvas.selectedIris()).toEqual([reference]);
+    expect(ui.propertyPanel.selectedIri).toBe(payments);
+    expect(ui.propertyPanel.heading).toMatchObject({ kind: 'View', reference: { nodeIri: reference, viewIri: payments } });
     await showInfo();
-    expect(ui.propertyPanel.heading?.kind).toBe('View reference');
     expect(root.querySelector('.opens-view')?.textContent?.trim()).toBe('Payments');
-    const textField = () => root.querySelector<HTMLInputElement>('.property-list input.property-value')!;
+    const textField = () => root.querySelector<HTMLInputElement>('.reference-text input.property-value')!;
     expect([textField().value, textField().classList.contains('inherited')]).toEqual(['Payments', true]);
+    // The model tree marks the view's row: in the open view.
+    await vi.waitFor(() => expect(ui.modelExplorer.shadowRoot!.querySelector(`[data-iri="${payments}"] .placed`)).not.toBeNull());
 
     // Change…: the model's other views, the holder not among them; the one picked is what it opens, one undoable step.
     root.querySelector<HTMLButtonElement>('.opens .change-view')!.click();
@@ -1825,23 +1829,57 @@ describe('the workbench', () => {
     picker.shadowRoot!.querySelector<HTMLElement>(`.option[data-iri="${orders}"]`)!.click();
     await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.view).toBe(orders));
     expect([presentedIn(orders), presentedIn(payments)]).toEqual([[holder], []]);
-    expect(registry.get(reference).businessObject.label).toBe('Orders');
+    expect(registry.get(reference).businessObject).toMatchObject({ label: 'Orders', typeIri: NAMESPACES.arch + 'Catalog' });
+    // The panel shows the view it opens now — and again when undone.
+    expect(ui.propertyPanel.selectedIri).toBe(orders);
     await ui.runCommand({ command: 'undo' });
     expect(views.getNode(holder, reference)?.figure?.view).toBe(payments);
     expect([presentedIn(orders), presentedIn(payments)]).toEqual([[], [holder]]);
+    expect(ui.propertyPanel.selectedIri).toBe(payments);
 
-    // Its Text emptied in the panel: written empty, nothing drawn; × shows the view's name again (VR-4).
-    ui.selectConcept(reference);
+    // Its Text emptied in the panel: written empty on the reference, not the view, nothing drawn; × shows the view's
+    // name again (VR-4).
+    ui.diagramCanvas.selectIris([reference]);
     await showInfo();
     textField().value = '';
     textField().dispatchEvent(new Event('change'));
     await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.text).toBe(''));
-    expect(registry.get(reference).businessObject.label).toBe('');
+    expect(registry.get(reference).businessObject).toMatchObject({ label: 'Payments', labelText: '' });
+    expect(views.getView(payments)?.label).toBe('Payments');
     await ui.propertyPanel.updateComplete;
     expect(textField().classList.contains('inherited')).toBe(false);
-    root.querySelector<HTMLButtonElement>('.property-list button.reset')!.click();
+    root.querySelector<HTMLButtonElement>('.reference-text button.reset')!.click();
     await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.text).toBeUndefined());
     expect(registry.get(reference).businessObject.label).toBe('Payments');
+    expect(registry.get(reference).businessObject).not.toHaveProperty('labelText');
+
+    // A relationship with the view, drawn from an element to it: in the view's Analysis, and the element's (VC-3, VC-10).
+    const shop = app.components.elementManager.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label: 'Shop' }).value;
+    views.addElementToView(holder, shop, { x: 600, y: 600, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const modeling = diagram.get('modeling');
+    const rules = diagram.get('rules');
+    // No type picked in the palette: the pair's first.
+    ui.diagramCanvas.setPreferredRelationshipType(undefined);
+    const attrs = rules.allowed('connection.create', { source: registry.get(reference), target: registry.get(shop) });
+    expect(attrs.typeIri).toBe(NAMESPACES.arch + 'Association');
+    modeling.connect(registry.get(reference), registry.get(shop), { ...attrs, typeIri: NAMESPACES.arch + 'Refines', unqualifiedPredicateIri: NAMESPACES.arch + 'refines' });
+    const [refines] = app.components.relationshipManager.getRelationshipsOf!(payments);
+    expect(refines).toMatchObject({ sourceIri: payments, targetIri: shop, classIri: NAMESPACES.arch + 'Refines' });
+    ui.diagramCanvas.selectIris([reference]);
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.analysis?.relationships.map((r) => [r.direction, r.otherIri])).toEqual([['out', shop]]);
+    expect(ui.propertyPanel.analysis?.views.map((v) => v.iri)).toEqual([holder]);
+    ui.diagramCanvas.selectIris([shop]);
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.analysis?.relationships.map((r) => [r.direction, r.otherIri])).toEqual([['in', payments]]);
+
+    // Zoom in: the element the view refines opens it, whether or not a reference is drawn; Back comes back (VC-6).
+    const pad = ui.diagramCanvas.contextPadProvider.getContextPadEntries(registry.get(shop));
+    (pad['zoom-in']!.action as (event: unknown) => void)(new MouseEvent('click'));
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(holder);
 
     // Double-click opens the view it opens, and so do its menu's Open view and the panel's Open; Back comes back (VR-7).
     doubleClick(reference);
@@ -1878,17 +1916,20 @@ describe('the workbench', () => {
     await ui.propertyPanel.updateComplete;
     expect(root.querySelector('.referenced-from')).toBeNull();
 
-    // Deleting a view others reference says what goes with it; undo brings it all back (VR-10).
+    // Deleting a view others reference says what goes with it — the references to it, and the relationships with it,
+    // as an element's go with it; undo brings it all back (VR-10, VC-7).
     const another = views.addFigure!(holder, { kind: 'reference', view: payments, bounds: { x: 200, y: 700, width: 120, height: 55 } });
     views.addFigure!(third, { kind: 'reference', view: payments, bounds: { x: 0, y: 0, width: 120, height: 55 } });
     app.components.eventBus.emit('model-changed', { origin: 'test' });
     ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'delete-view', iri: payments, kind: 'view' } }));
     await vi.waitFor(() => expect(views.getView(payments)).toBeUndefined());
     expect(vi.mocked(script.dialogs.confirm).mock.calls.at(-1)?.[1]).toBe(
-      'Delete the view "Payments"? The elements and relationships it shows stay in the model. 3 references to it, in 2 other views, are deleted with it.',
+      'Delete the view "Payments"? The elements and relationships it shows stay in the model. 3 references to it, in 2 other views, and 1 relationship with it are deleted with it.',
     );
     expect(referencesIn(holder)).toEqual([]);
     expect(registry.get(reference)).toBeUndefined();
+    expect(app.components.relationshipManager.getRelationshipsOf!(shop)).toEqual([]);
+    expect(registry.get(refines!.iri)).toBeUndefined();
     expect(ui.appToolbar.views.map((view) => view.iri)).not.toContain(payments);
     await ui.runCommand({ command: 'undo' });
     expect(views.getView(payments)?.label).toBe('Payments');
@@ -1896,6 +1937,17 @@ describe('the workbench', () => {
     expect(referencesIn(holder).map((n) => n.nodeIri).sort()).toEqual([reference, another].sort());
     expect(referencesIn(third)).toHaveLength(1);
     expect(registry.get(another)).toBeDefined();
+    expect(app.components.relationshipManager.getRelationshipsOf!(shop).map((r) => r.iri)).toEqual([refines!.iri]);
+    expect(registry.get(refines!.iri)).toBeDefined();
+    // A reference's Delete view from model… deletes its view so, after the same question; undone, back.
+    const confirmed = vi.mocked(script.dialogs.confirm).mock.calls.length;
+    (ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(another)) as Record<string, { label: string; action: () => void }>)['delete-model']!.action();
+    await vi.waitFor(() => expect(views.getView(payments)).toBeUndefined());
+    expect(vi.mocked(script.dialogs.confirm).mock.calls).toHaveLength(confirmed + 1);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getView(payments)?.label).toBe('Payments');
+    app.components.elementManager.deleteElement(shop);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
     // One reference, in one other view; none, and nothing more is said.
     views.addFigure!(third, { kind: 'reference', view: orders, bounds: { x: 0, y: 100, width: 120, height: 55 } });
     const deleteView = async (iri: string) => {

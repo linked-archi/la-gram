@@ -1054,6 +1054,45 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   });
 });
 
+describe("the core notation: the core's own relationship types, after every language's (VC-DD-5)", () => {
+  const ARCH = NAMESPACES.arch;
+  const CORE_SET = 'https://meta.linked.archi/core-notation#CoreNotation';
+
+  /** The core assets, as the app loads them, and a bundled metamodel. */
+  const paletteWith = async (metamodelIri?: string): Promise<PaletteDefinition> => {
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+    await loader.loadCoreAssets();
+    const loaded = await loader.loadBundledMetamodel(metamodelIri);
+    // In load order, as mount-ui passes them.
+    const defaultNotationSetIris = loaded.notationSetIri ? [loaded.notationSetIri] : [];
+    return new SparqlPaletteGenerator(store).generatePalette(loaded.metamodelIri, { defaultNotationSetIris });
+  };
+
+  it('draws Refines as before — solid, an open arrowhead at the concept refined — and lets nesting draw it, the source inside', async () => {
+    const palette = await paletteWith();
+    const refines = relationship(palette, `${ARCH}Refines`);
+    expect(refines?.core).toBe(true);
+    expect(refines?.relationshipStyle).toMatchObject({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead', nestedEnds: ['source'] });
+    expect(refines?.relationshipStyle?.sourceDecor ?? 'NoDecoration').toBe('NoDecoration');
+    expect(refines?.relationshipStyle?.lineColor).toBeUndefined();
+    // The canvas's copy of the lookup answers for the class and its predicate alike.
+    expect(palette.notationIndex?.[`${ARCH}Refines`]).toMatchObject({ source: 'fallback', notationSetIri: CORE_SET });
+    expect(palette.notationIndex?.[`${ARCH}refines`]?.relationshipStyle?.nestedEnds).toEqual(['source']);
+    // The other two have no descriptor: Association undirected, Has Part from its source to its target (Req 2.25).
+    expect(relationship(palette, `${ARCH}Association`)?.relationshipStyle).toBeUndefined();
+    expect(relationship(palette, `${ARCH}HasPart`)?.relationshipStyle).toEqual({ lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' });
+  }, 60_000);
+
+  it("is never the set the palette is styled by: the language's is, and a language with none has none", async () => {
+    expect((await paletteWith()).notationSetIri).toBe('https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation');
+    const decisions = await paletteWith('https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions');
+    expect(decisions.notationSetIri).toBeUndefined();
+    // Refines keeps its nesting all the same.
+    expect(relationship(decisions, `${ARCH}Refines`)?.relationshipStyle?.nestedEnds).toEqual(['source']);
+  }, 60_000);
+});
+
 describe('relationship categories come from the dimension that names the most relationship types', () => {
   it('not from a dimension of element types that lists one beside them (UML: Transition in the state machine diagram)', async () => {
     const store = new OxigraphRdfStore();

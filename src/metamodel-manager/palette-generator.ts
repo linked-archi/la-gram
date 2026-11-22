@@ -99,6 +99,7 @@ import {
 } from './notation.js';
 import { NOTATION_ROOTS, buildSuperClassMap, closureOf, compareIris, superClassesNearestFirst } from './class-hierarchy.js';
 import {
+  coreNotationSetIris,
   NotationResolver,
   orderedFallbackSets,
   storeDefaultNotationSetIris,
@@ -205,11 +206,11 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     // One hierarchy map and one resolver per palette: relationship discovery,
     // the palette entries and the canvas index all read the same answers.
     const superClassMap = buildSuperClassMap(graph);
-    const fallbackSets = orderedFallbackSets(
-      graph,
-      notationSet?.iri,
-      options?.defaultNotationSetIris ?? storeDefaultNotationSetIris(graph),
-    );
+    const fallbackSets = orderedFallbackSets(graph, notationSet?.iri, [
+      ...(options?.defaultNotationSetIris ?? storeDefaultNotationSetIris(graph)),
+      // The core's own relationship types, after every language's: Refines, which nesting may draw (VC-DD-5).
+      ...coreNotationSetIris(graph),
+    ]);
     const resolver = new NotationResolver(graph, notationSet, fallbackSets, superClassMap);
 
     // The dimensions the grouping does not name place what it leaves out, after its own sections: the types of

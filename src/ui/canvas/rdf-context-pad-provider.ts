@@ -37,6 +37,7 @@
 import type { RelationshipManager, ElementManager } from '../../model-manager/interfaces.js';
 import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
+import { isViewReference } from './view-reference.js';
 import {
   hasOutgoingRelationshipTypes,
   shapesOf,
@@ -147,10 +148,12 @@ export class RdfContextPadProvider {
   private onDelete?: (element: ContextPadElement) => void;
   private onDeleteFromModel?: (element: ContextPadElement) => void;
   private onOpenView?: (element: ContextPadElement) => void;
+  private onDeleteView?: (element: ContextPadElement) => void;
   private classClosure: ClassClosure;
   private replaceSupport?: PadMenuSupport;
   private appendSupport?: PadMenuSupport;
   private pairSupport?: PairMenuSupport;
+  private zoomSupport?: PadMenuSupport;
 
   constructor(
     elementManager: ElementManager,
@@ -180,28 +183,39 @@ export class RdfContextPadProvider {
     const entries: Record<string, ContextPadEntry> = {};
 
     // A figure, or a line drawn from one, is drawing, in no model: it can only
-    // be taken off the view — and a line drawn from a figure to what it is about,
-    // and a reference to another view opens that view.
+    // be taken off the view — and a line drawn from a figure to what it is about.
+    // A reference to another view is its view's placement (VC-DD-1): taken off
+    // the view, or its view deleted from the model; connected by a relationship;
+    // and it opens its view.
     if (element.kind === 'figure' || element.kind === 'connector') {
+      const reference = isViewReference(element.diagramElement);
       entries['delete'] = {
         group: 'edit',
-        title: 'Delete',
+        title: reference && this.onDeleteView ? 'Delete from view' : 'Delete',
         className: 'context-pad-delete',
         action: () => this.onDelete?.(element),
       };
+      if (reference && this.onDeleteView) {
+        entries['delete-model'] = {
+          group: 'edit',
+          title: 'Delete view from model…',
+          className: 'context-pad-delete-model',
+          action: () => this.onDeleteView?.(element),
+        };
+      }
       if (element.kind === 'figure') {
         const startConnect = (event: unknown, _target?: unknown, autoActivate?: boolean): void => {
           this.onStartConnect?.(element, event, autoActivate);
         };
         entries['connect'] = {
           group: 'connect',
-          title: 'Draw a line to…',
+          // A relationship to or from the view — the core's, where no language relates the two (Req 4.21).
+          title: reference ? 'Connect' : 'Draw a line to…',
           className: 'context-pad-connect',
           action: { click: startConnect, dragstart: startConnect },
         };
         // A reference to another view opens it, as a double-click does (Req 3.23).
-        const figure = (element.diagramElement as DiagramTarget | undefined)?.businessObject?.figure;
-        if (figure?.kind === 'reference' && this.onOpenView) {
+        if (reference && this.onOpenView) {
           entries['open-view'] = {
             group: 'edit',
             title: 'Open view',
@@ -240,6 +254,9 @@ export class RdfContextPadProvider {
     // becomes changeable — and the entry only exists when the menu has more than
     // one type to offer. Connections cannot themselves be the source of a
     // connection, so the connect entry below never applies to them.
+    // Refined by a view — `V arch:refines` it — an element or a relationship zooms into it (VC-6).
+    this.addZoomIn(entries, element);
+
     if (element.kind === 'relationship') {
       if (this.replaceSupport?.isAvailable(element)) {
         entries['replace'] = {
@@ -300,6 +317,22 @@ export class RdfContextPadProvider {
     return entries;
   }
 
+  /** *Zoom in*, when a view refines the element or the relationship: it opens it, or lists them (VC-6). */
+  private addZoomIn(entries: Record<string, ContextPadEntry>, element: ContextPadElement): void {
+    if (!this.zoomSupport?.isAvailable(element)) return;
+    entries['zoom-in'] = {
+      group: 'edit',
+      title: 'Zoom in',
+      className: 'context-pad-zoom-in',
+      action: (event: unknown) => this.zoomSupport?.open(element, event),
+    };
+  }
+
+  /** How the pad reaches the views refining what it is on: *Zoom in* (VC-6). */
+  setZoomSupport(zoomSupport: PadMenuSupport | undefined): void {
+    this.zoomSupport = zoomSupport;
+  }
+
   /** Update the palette definition (e.g. after viewpoint change). */
   updatePaletteDefinition(paletteDefinition: PaletteDefinition): void {
     this.paletteDefinition = paletteDefinition;
@@ -326,7 +359,8 @@ export class RdfContextPadProvider {
    */
   getMultiElementContextPadEntries(targets: Array<ContextPadElement | DiagramTarget>): Record<string, ContextPadEntry> {
     if (!this.pairSupport || targets.length !== 2) return {};
-    if (targets.some((target) => toContextPadElement(target).kind !== 'element')) return {};
+    // Elements, and references — each its view's placement (VC-DD-1).
+    if (targets.some((target) => toContextPadElement(target).kind !== 'element' && !isViewReference(target))) return {};
     if (!this.pairSupport.isAvailable(targets)) return {};
     return {
       'connect-pair': {
@@ -345,6 +379,14 @@ export class RdfContextPadProvider {
   /** What a view reference's *Open view* does: the canvas opens the view it references. */
   setOpenViewHandler(onOpenView: ((element: ContextPadElement) => void) | undefined): void {
     this.onOpenView = onOpenView;
+  }
+
+  /**
+   * What a view reference's *Delete view from model…* does: its view deleted, as the model tree deletes it (VC-7).
+   * Set by a canvas whose app can ask first; without it, a reference is only taken off the view.
+   */
+  setDeleteViewHandler(onDeleteView: ((element: ContextPadElement) => void) | undefined): void {
+    this.onDeleteView = onDeleteView;
   }
 
   /** Point connect at the diagram's `connect` service. */

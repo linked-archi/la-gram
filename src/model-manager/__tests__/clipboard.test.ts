@@ -242,6 +242,61 @@ describe('links on links, connectors and figures', () => {
   });
 });
 
+describe('a reference to a view, copied with its view’s relationships (VC-11)', () => {
+  const REFINES = NAMESPACES.arch + 'refines';
+  let detail: string;
+  let reference: string;
+  let refines: string;
+  beforeEach(() => {
+    detail = deps.views.createView('Diagram', undefined, { modelIri: MODEL, label: 'Detail' }).value;
+    reference = deps.views.addFigure!(v1, { kind: 'reference', view: detail, bounds: box(100, 300) });
+    refines = deps.relationships.createQualifiedRelationship({
+      typeIri: NAMESPACES.arch + 'Refines',
+      predicateIri: REFINES,
+      sourceIri: detail,
+      targetIri: a,
+      modelIri: MODEL,
+    }).iri;
+    deps.views.addRelationshipToView(v1, refines);
+  });
+
+  it('holds the relationship with the view when both placements are copied — not the view itself', () => {
+    const copy = copyFromView(store, deps.views, source(v1), [reference, nodeOf(v1, a)]);
+    expect(new Set(copy.concepts)).toEqual(new Set([a, refines]));
+    expect(copy.links).toHaveLength(1);
+  });
+
+  it('pasted in the same model, the line ends on the same view — the relationship itself, or a copy of it', () => {
+    const copy = copyFromView(store, deps.views, source(v1), [reference, nodeOf(v1, a)]);
+    const placed = pasteFragment(deps, copy, { modelIri: MODEL, viewIri: v2 });
+    expect(placed).toMatchObject({ mode: 'references', relationshipsCopied: 0, relationshipsPlaced: 1 });
+    const [link] = deps.views.getLinks(v2);
+    expect(link).toMatchObject({ relationshipIri: refines, sourceElementIri: detail, targetElementIri: a });
+    expect(deps.views.getNode(v2, link!.sourceNodeIri)?.figure).toEqual({ kind: 'reference', view: detail });
+    const copied = pasteFragment(deps, copy, { modelIri: MODEL, viewIri: v1 }, { mode: 'copies' });
+    const refinesCopy = copied.copied.get(refines)!;
+    expect(objects(refinesCopy, IRI.source)).toEqual([detail]);
+    expect(objects(refinesCopy, IRI.target)).toEqual([copied.copied.get(a)]);
+    expect(deps.views.getLinks(v1).find((l) => l.relationshipIri === refinesCopy)?.sourceElementIri).toBe(detail);
+  });
+
+  it('pasted into another model, where the view is not, the reference is a note and the relationship is left out', () => {
+    const otherStore = new ObservableRdfStore(new OxigraphRdfStore());
+    const other = {
+      store: otherStore,
+      elements: new OxigraphElementManager(otherStore),
+      relationships: new OxigraphRelationshipManager(otherStore),
+      views: new OxigraphViewManager(otherStore),
+    };
+    const otherView = other.views.createView('Diagram', undefined, { modelIri: OTHER_MODEL }).value;
+    const copy = copyFromView(store, deps.views, source(v1), [reference, nodeOf(v1, a)]);
+    const result = pasteFragment(other, copy, { modelIri: OTHER_MODEL, viewIri: otherView });
+    expect(result.notes).toEqual([{ iri: refines, reason: 'end-left-out' }]);
+    expect(other.views.getLinks(otherView)).toEqual([]);
+    expect(other.views.getNodes(otherView).map((n) => n.figure?.kind ?? 'element').sort()).toEqual(['element', 'note']);
+  });
+});
+
 describe('into another model (R9)', () => {
   let otherView: string;
   beforeEach(() => {

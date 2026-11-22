@@ -330,6 +330,7 @@ describe('PropertyPanel', () => {
         '_toggleRelationships',
         '_renderReferencedFrom',
         '_renderFigureText',
+        '_renderReference',
         '_renderOpens',
       ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
@@ -421,7 +422,7 @@ describe('PropertyPanel', () => {
     it('shows a view reference’s Text — its view’s name greyed with none of its own — and what it Opens, with Open and Change… (VR-4, VR-8)', () => {
       const node = 'https://example.org/view/1#node-1';
       const views = [{ iri: 'https://example.org/view/2', label: 'Payments', kind: 'Diagram' as const }];
-      const heading = (reference: Record<string, unknown>) => ({ kind: 'View reference', figure: { kind: 'reference' }, reference: { views, ...reference } });
+      const heading = (reference: Record<string, unknown>) => ({ kind: 'View reference', figure: { kind: 'reference' }, reference: { nodeIri: node, views, ...reference } });
       const none = renderPanel({ selectedIri: node, heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }) });
       // The view's name as the field's value, greyed: no text of its own, no ×.
       expect(none).toContain('class="property-value inherited"');
@@ -434,8 +435,7 @@ describe('PropertyPanel', () => {
       const own = (value: string) =>
         renderPanel({
           selectedIri: node,
-          heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }),
-          _entries: [{ predicate: SKOS_PREF_LABEL, label: 'Name', value, readonly: false, language: 'en' }],
+          heading: heading({ nodeIri: node, viewIri: views[0]!.iri, viewLabel: 'Payments', text: value, textLanguage: 'en' }),
         });
       for (const value of ['See also', '']) {
         expect(own(value)).not.toContain('class="property-value inherited"');
@@ -468,6 +468,39 @@ describe('PropertyPanel', () => {
       expect(changed(inherited, 'Pay')).toEqual([['property-edit', 'Pay', undefined]]);
       // A name is not emptied.
       expect(changed({})).toEqual([]);
+    });
+
+    it('shows the view a selected reference stands for — its information, tabs and properties — with the reference’s Text and Opens (VC-1)', () => {
+      const view = 'https://example.org/view/2';
+      const node = 'https://example.org/view/1#node-1';
+      const views = [{ iri: view, label: 'Payments', kind: 'Diagram' as const }];
+      const viewHeading = (reference: Record<string, unknown>) => ({ kind: 'View', typeLabel: 'Diagram', reference: { nodeIri: node, viewIri: view, viewLabel: 'Payments', views, ...reference } });
+      const entries = [{ predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Payments', readonly: false, language: 'en' }];
+      const shown = renderPanel({ selectedIri: view, _entries: entries, heading: viewHeading({}), analysis: ANALYSIS });
+      expect(shown).toContain('View information');
+      expect(shown).toContain('Analysis');
+      expect(shown).toContain('Appears in views');
+      expect(shown).toContain('Opens');
+      // Its Text: the view's name, greyed, with none of its own.
+      expect(shown).toContain('class="property-value inherited"');
+      // Typed in its Text, the reference's own — not the view's name, edited above it.
+      const ctx = makeCtx({ selectedIri: view, _entries: entries, heading: viewHeading({ text: 'See also', textLanguage: 'en' }), requestUpdate: vi.fn() });
+      const edits = (entry: Partial<PropertyEntry>, value: string) => {
+        ctx.dispatchEvent.mockClear();
+        ctx._onPropertyChange({ predicate: SKOS_PREF_LABEL, label: 'Text', readonly: false, emptied: 'blank', ...entry }, value);
+        return ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.elementIri, call[0].detail.value, call[0].detail.previous]);
+      };
+      expect(edits({ subject: node, value: 'See also', language: 'en' }, 'Read next')).toEqual([['property-edit', node, 'Read next', 'See also']]);
+      expect(edits({ subject: node, value: 'See also', language: 'en' }, '')).toEqual([['property-edit', node, '', 'See also']]);
+      expect(edits({ subject: node, value: '', language: 'en' }, 'Back')).toEqual([['property-edit', node, 'Back', '']]);
+      // Its view's name with none of its own: unchanged, no edit.
+      expect(edits({ subject: node, value: 'Payments', inherited: true }, 'Payments')).toEqual([]);
+      // × takes its own away, from the reference.
+      ctx.dispatchEvent.mockClear();
+      ctx._remove({ predicate: SKOS_PREF_LABEL, label: 'Text', value: 'See also', readonly: false, subject: node });
+      expect(ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.elementIri])).toEqual([['property-remove', node]]);
+      // A view selected otherwise — in the tree — shows no reference's rows.
+      expect(renderPanel({ selectedIri: view, _entries: entries, heading: { kind: 'View' }, analysis: ANALYSIS })).not.toContain('Opens');
     });
 
     it('lists the views referencing a view — Referenced from, each opening it — and nothing with none (VR-11)', () => {

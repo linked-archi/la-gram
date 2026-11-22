@@ -114,6 +114,9 @@ export const IRI = {
   target: ARCH + 'target',
   unqualifiedForm: ARCH + 'unqualifiedForm',
   hasQualifiedRelationship: ARCH + 'hasQualifiedRelationship',
+  /** A more concrete representation of a concept — a view detailing an element — and its inverse. */
+  refines: ARCH + 'refines',
+  refinedInto: ARCH + 'refinedInto',
 
   ArchNode: VIS + 'ArchNode',
   Link: VIS + 'Link',

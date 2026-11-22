@@ -77,7 +77,8 @@ them as they are.
 The *View* selector in the toolbar lists the model's views by name, a catalog or matrix with its kind
 after it: *Who is who (catalog)*. Choosing one opens it. A view also opens from the model tree (a
 double-click, or *Open* in its menu), from *Appears in views* and *Referenced from* in the Properties tab,
-and from a [view reference](canvas.md#view-references) on a diagram (a double-click, or *Open view*).
+from a [view reference](canvas.md#view-references) on a diagram (a double-click, or *Open view*), and from
+an element or a relationship the view refines ([Zoom in](canvas.md#zoom-in)).
 
 1. Open the example model.
 2. In the toolbar's *View*, choose "Who is who (catalog)". The catalog takes the canvas's place.
@@ -86,7 +87,7 @@ and from a [view reference](canvas.md#view-references) on a diagram (a double-cl
 
 ← and → in the toolbar, or ++alt+left++ and ++alt+right++ (++option+left++ and ++option+right++ on a
 Mac), go back to the views you came from, however you got there: the selector, the model tree, *Appears
-in views*, a view reference, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
+in views*, a view reference, *Zoom in*, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
 Pointing at ← says where it goes, *Back to How the shop serves its customers (Alt+←)*; with nowhere to
 go, it is greyed out (*Back (no earlier view)*).
 
@@ -190,9 +191,11 @@ Deleting a view keeps what it shows: its elements and relationships stay in the 
 view. What the view drew goes with it: its boxes and lines, their routes, and the looks given to them in it
 (colours, fonts, pictures, label expressions), for every presentation and for each. *Delete view (keeps its elements)* in the model tree, or *Delete view…* in the canvas's right-click
 menu, asks first: *Delete the view "Who is who"? The elements and relationships it shows stay in the
-model.* The [references to it](canvas.md#view-references) in other views go with it, and the question
-counts them: *3 references to it, in 2 other views, are deleted with it.* Deleted while another diagram
-is open, the view is one step to undo there, which brings it back with its references.
+model.* The [references to it](canvas.md#view-references) in other views go with it, and so do the
+relationships with it, as an element's relationships go with the element; the question counts them: *3
+references to it, in 2 other views, and 2 relationships with it are deleted with it.* A view reference's
+*Delete view from model…* deletes its view the same way. Deleted while another diagram is open, the view
+is one step to undo there, which brings it back with its references and its relationships.
 
 1. Right-click "Who is who" in the model tree, and choose *Delete view (keeps its elements)*.
 2. Choose *Delete view* to confirm. "Customer" and "Shop team" are still under *Elements*.
