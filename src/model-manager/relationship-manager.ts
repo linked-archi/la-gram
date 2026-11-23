@@ -319,7 +319,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       // Association, and a kind of it (a directed association), is the fallback.
       const association = label === 'Association' || relationshipClosure.some((c) => iriFragment(c) === 'Association');
       // Generic: it relates any two elements of its metamodel, and no relationship table restricts it
-      // (ArchiMate's Specialization also names arch:Element, but its table governs it).
+      // (a table governs a type whatever its hints name).
       const generic = !shaped && isGenericRelationshipType(domainTypes, rangeTypes);
       if (association) score -= ASSOCIATION_PENALTY;
       if (generic) score -= GENERIC_PENALTY;

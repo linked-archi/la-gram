@@ -467,6 +467,18 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-23 — ArchiMate's relationship hints name ArchiMate's classes
+
+- **The bundled ArchiMate ontologies, refreshed from meta** (linked-archi-meta's DD-40): the domain and range hints
+  of 4.0's Composition, Aggregation, Association and Specialization, and of every one of 3.2's relationships, name
+  ArchiMate's own classes, where they named `arch:Element`. What la-gram offers is unchanged: the relationship tables
+  decide for both versions (Req 4.2), and ArchiMate's order of proposal lists every relationship, so no hint orders
+  one. No ArchiMate relationship names a core class now, so the comments in `class-hierarchy.ts` and
+  `relationship-manager.ts`, and the design, no longer give one as the example of a type a table governs whatever
+  its hints name.
+- The assets (`archimate4-onto.ttl`, `archimate3.2-onto.ttl`) and both comments are the kernel's too, file for file.
+  No test changed; the suite passes as it was.
+
 ### 2026-11-22 — A language's relationship types for its own elements
 
 - **Between two languages, the core's types** (Req 4.2, 4.21; linked-archi-meta's DD-40): connect, change type and

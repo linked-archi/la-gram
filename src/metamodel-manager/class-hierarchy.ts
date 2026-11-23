@@ -47,9 +47,9 @@ export const NOTATION_ROOTS: ReadonlySet<string> = new Set([
  * "anything". The relationship manager offers such a type only between elements
  * of its own metamodel: between two languages, the core's types (DD-40).
  *
- * Generic only when no relationship table governs the type as well — ArchiMate
- * names `arch:Element` on Specialization and Composition and restricts them in
- * its tables — so the relationship manager, which knows the tables, decides.
+ * Generic only when no relationship table governs the type as well: a table
+ * restricts a type whatever its hints name, so the relationship manager, which
+ * knows the tables, decides.
  */
 export function isGenericRelationshipType(domainTypes: readonly string[], rangeTypes: readonly string[]): boolean {
   const core = (iri: string) => iri.startsWith(NAMESPACES.arch);

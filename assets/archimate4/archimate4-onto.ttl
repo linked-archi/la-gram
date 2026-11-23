@@ -1014,8 +1014,8 @@ Junctions may be used on triggering relationships. This is a technique used by o
     rdfs:subPropertyOf  :aggregates ;
     skos:prefLabel      "Composed Of"@en ;
     skos:definition     '''Indicates that an element combines one or more other concepts, where the existence of those concepts depends on that of the element.'''@en ;
-    arch:domainIncludes arch:Element ;
-    arch:rangeIncludes  arch:Element ;
+    arch:domainIncludes :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
+    arch:rangeIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
 .
 
 :Composition
@@ -1040,7 +1040,7 @@ A composition relationship is allowed in exactly the same cases where an aggrega
     a                    owl:ObjectProperty ;
     rdfs:range           :Composition ;
     arch:unqualifiedForm :composedOf ;
-    arch:domainIncludes  arch:Element ;
+    arch:domainIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
     skos:prefLabel       "qualified Composition"@en ;
     skos:definition      '''Navigates from a source element to a Composition qualified relationship
 resource.'''@en ;
@@ -1052,8 +1052,8 @@ resource.'''@en ;
     a                   owl:ObjectProperty ;
     skos:prefLabel      "Aggregates"@en ;
     skos:definition     '''Indicates that an element combines one or more other concepts.'''@en ;
-    arch:domainIncludes arch:Element ;
-    arch:rangeIncludes  arch:Element ;
+    arch:domainIncludes :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
+    arch:rangeIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
 .
 
 :Aggregation
@@ -1077,7 +1077,7 @@ The interpretation of an aggregation relationship is that the whole or part of t
     a                    owl:ObjectProperty ;
     rdfs:range           :Aggregation ;
     arch:unqualifiedForm :aggregates ;
-    arch:domainIncludes  arch:Element ;
+    arch:domainIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
     skos:prefLabel       "qualified Aggregation"@en ;
     skos:definition      '''Navigates from a source element to an Aggregation qualified relationship
 resource.'''@en ;
@@ -1409,8 +1409,8 @@ resource.'''@en ;
     a                   owl:ObjectProperty ;
     skos:prefLabel      "Specializes"@en ;
     skos:definition     '''Indicates that an element is a particular kind of another element.'''@en ;
-    arch:domainIncludes arch:Element ;
-    arch:rangeIncludes  arch:Element ;
+    arch:domainIncludes :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
+    arch:rangeIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
 .
 
 :Specialization
@@ -1433,7 +1433,7 @@ Alternatively, a specialization relationship can be expressed by nesting the spe
     a                    owl:ObjectProperty ;
     rdfs:range           :Specialization ;
     arch:unqualifiedForm :specializes ;
-    arch:domainIncludes  arch:Element ;
+    arch:domainIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
     skos:prefLabel       "qualified Specialization"@en ;
     skos:definition      '''Navigates from a source element to a Specialization qualified relationship
 resource.'''@en ;
@@ -1446,8 +1446,8 @@ resource.'''@en ;
     skos:prefLabel      "Associated With"@en ;
     skos:definition     '''Indicates an unspecified relationship, or one that is not represented by another
 ArchiMate relationship.'''@en ;
-    arch:domainIncludes arch:Element ;
-    arch:rangeIncludes  arch:Element ;
+    arch:domainIncludes :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
+    arch:rangeIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
 .
 
 :Association
@@ -1483,7 +1483,7 @@ isDirected="true".'''@en ;
     a                    owl:ObjectProperty ;
     rdfs:range           :Association ;
     arch:unqualifiedForm :associatedWith ;
-    arch:domainIncludes  arch:Element ;
+    arch:domainIncludes  :BehaviorElement, :CompositeElement, :MotivationElement, :StructureElement ;
     skos:prefLabel       "qualified Association"@en ;
     skos:definition      '''Navigates from a source element to an Association qualified relationship
 resource.'''@en ;

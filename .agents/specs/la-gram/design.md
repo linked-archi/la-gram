@@ -443,10 +443,9 @@ Aggregation and before Association (Basic's `arch:relationshipProposalOrder`);
 Association and Aggregation keep Basic's restrictions, and between a Basic
 element and another language's the core's types are offered (Req 4.21). A
 relationship is *generic* (`RelationshipTypeInfo.generic`) when its domain and
-range name only core classes and no relationship table governs it — ArchiMate
-names `arch:Element` on Specialization and Composition and restricts them in
-its tables, so they are not (`isGenericRelationshipType`, decided in the
-relationship manager, which knows the tables). A generic relationship relates
+range name only core classes and no relationship table governs it, since a
+table restricts a type whatever its hints name (`isGenericRelationshipType`,
+decided in the relationship manager, which knows the tables). A generic relationship relates
 any two elements of its own metamodel, ranks with the fallbacks, below
 Association, and counts as generic in the append menu
 (`isGenericRelationship`), so it never makes a choice ambiguous. A core class is never a palette type, whatever a taxonomy
