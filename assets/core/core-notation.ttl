@@ -23,7 +23,7 @@
     dcterms:creator               "Kalin Maldzhanski"^^xsd:string ;
     dcterms:title                 "Linked.Archi Core Visual Notation"@en ;
     dcterms:description           '''The visual notation of the core's own relationship types, which relate any
-two model concepts that no loaded language relates (DD-40, DD-43). No metamodel manifest names it: it applies
+two model concepts that no loaded language relates (DD-40). No metamodel manifest names it: it applies
 whatever the language, so a tool loads it with the core, as it loads core-shapes, and consults its notation
 set after the default sets of every loaded metamodel — the last fallback layer of the lookup in the Visual
 Notation Guide. A language's own descriptor for a core class therefore wins over this one.
@@ -32,7 +32,7 @@ It describes each of them, so that every tool draws them alike whatever its own 
 arch:Association as a solid line with nothing at either end, as it has no direction; arch:HasPart and
 arch:Refines as a solid line with an open arrowhead at the target — the part, the concept refined; and
 arch:DependsOn as a dashed line with an open arrowhead at the concept depended on, so that it is not taken
-for either (DD-43). Nesting may draw arch:HasPart and arch:Refines instead of a line: the part inside the
+for either (DD-40). Nesting may draw arch:HasPart and arch:Refines instead of a line: the part inside the
 whole (arch-vis:nestedEnd arch-vis:TargetEnd), and the refining concept inside the refined one
 (arch-vis:SourceEnd) — a view nested in the box of the element it details. An editor that nests one concept
 in another can then offer to record either.'''@en ;
@@ -67,7 +67,7 @@ after the default sets of every loaded metamodel, for a class that none of them 
 language publishes for a core class comes first. The lines are those DD-40 has a tool draw for a
 relationship type with no notation: from its source to its target, with an arrowhead, unless its predicate
 is symmetric, as arch:associatedWith is. arch:DependsOn's is dashed besides, so that a dependency is not
-read as a part or a refinement (DD-43). Stated here, they do not depend on a tool's defaults.'''@en ;
+read as a part or a refinement (DD-40). Stated here, they do not depend on a tool's defaults.'''@en ;
 .
 
 

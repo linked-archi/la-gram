@@ -260,10 +260,10 @@ export interface RelationshipTypeInfo {
    */
   direct?: boolean;
   /**
-   * For the queried pair: a generic relationship — one that relates any
-   * elements, which no relationship table restricts (Basic's Connection).
-   * Ranked after every language's own relationships. Undefined outside a
-   * pair-specific query.
+   * For the queried pair: a generic relationship — one whose hints name only
+   * core classes, so that it relates any two elements of its metamodel, and
+   * which no relationship table restricts. Ranked after the metamodel's other
+   * relationships. Undefined outside a pair-specific query.
    */
   generic?: boolean;
   /**

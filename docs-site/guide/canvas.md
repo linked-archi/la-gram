@@ -6,7 +6,7 @@ description: How to place, connect, rename, nest, move, arrange and delete eleme
 
 The canvas draws the open diagram view. What can be connected, and how, comes from the loaded
 metamodels: connect, change type and append offer only what their relationship shapes permit (for
-ArchiMate, its relationship tables).
+ArchiMate, its relationship tables; C4 and Backstage list their pairs the same way).
 
 ## Tools {#tools}
 
@@ -110,6 +110,12 @@ another, two of a metamodel that defines no relationship types, or an element an
 [view](#view-references) — la-gram offers the core's own relationship types, each *always permitted*:
 **Association**, which has no direction, then *Depends On*, *Has Part* and *Refines*. Where a loaded
 metamodel permits anything between the two, they are not offered, and they are not in the palette.
+
+A language's own relationship types relate its own elements. Between a C4 container and an EDGY
+capability neither C4's *Uses* nor EDGY's *Link* is offered: the core's are, and *Change relationship
+type* on a line drawn between them before offers the core's too. An extension's link that may end at any
+concept, such as a decision's *Modifies*, is offered there instead of the core's. A relationship type
+its metamodel marks abstract, such as EDGY's *Enterprise Relationship*, is never offered: its kinds are.
 *Depends On* is drawn dashed, from the concept that needs the other to the one it needs; *Has Part*
 from the whole to its part; *Refines* from the more concrete concept to the one it refines. Each has an
 open arrowhead at its target, and nesting may draw *Has Part* or *Refines* instead

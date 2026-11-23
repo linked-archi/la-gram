@@ -14,19 +14,33 @@
  * subclasses). The hints below decide only for relationship types no shape
  * covers — metamodels without relationship shapes.
  *
+ * **Never an abstract type.** A relationship class marked `arch:isAbstractClass
+ * true` classifies its subclasses and is never offered, as an abstract element
+ * type is no palette type: EDGY's Enterprise Relationship, of its Link, Flow and
+ * Tree.
+ *
+ * **A language's types for its own elements.** Between elements of different
+ * languages the core's types are offered (DD-40). A type no shape covers whose
+ * hints name only core classes, or nothing, says nothing about any language's
+ * elements and relates only its own metamodel's (`own-metamodel.ts`). One that
+ * names a class of its own at one end and `arch:ModelConcept` at the other — the
+ * decision extension's Modifies, from an option to any concept — relates any
+ * concept at that end.
+ *
  * **What is proposed first.** In three groups (core's `arch:relationshipProposalOrder`):
  * what the relationship tables let a modeller draw directly, or say nothing
  * about; then what they permit only as the conclusion of a derivation (`direct:
- * false`); then the fallbacks — Association and a generic relationship (Basic's
- * Connection), which every pair admits and which say least — unless an order
- * scoped to the pair lists one, as ArchiMate's does association to a meaning or
- * a value. Within a group, a candidate takes the place the most specific order
- * of proposal that lists it gives it (`proposal-order.ts`): between two
- * behaviour elements triggering and flow first, from a service serving, the
- * strongest first elsewhere. What no order lists — every candidate, in a
- * language that publishes none — comes after what an order lists: one whose
- * `arch:domainIncludes` / `arch:rangeIncludes` hints describe the pair before one
- * they do not, then the score's small nudges, then the label. Whether the
+ * false`); then the fallbacks — Association and a generic relationship (one
+ * whose hints name only core classes, for any two elements of its metamodel),
+ * which say least — unless an order scoped to the pair lists one, as
+ * ArchiMate's does association to a meaning or a value. Within a group, a
+ * candidate takes the place the most specific order of proposal that lists it
+ * gives it (`proposal-order.ts`): between two behaviour elements triggering and
+ * flow first, from a service serving, the strongest first elsewhere. What no
+ * order lists — every candidate, in a language that publishes none — comes
+ * after what an order lists: one whose `arch:domainIncludes` /
+ * `arch:rangeIncludes` hints describe the pair before one they do not, then the
+ * score's small nudges, then the label. Whether the
  * language's metamodel figures draw a relationship does not move it; it is
  * said (`drawn`).
  *
@@ -42,23 +56,23 @@
  *    `rdfs:subClassOf*` closure of the source and target types, not their exact
  *    IRIs.
  * 2. **Absent means unconstrained.** A relationship type that declares no
- *    domain (or no range) is permitted between anything, rather than forbidden
- *    everywhere.
+ *    domain (or no range) is permitted to anything at that end, rather than
+ *    forbidden everywhere — among its own metamodel's elements when none of its
+ *    hints names a class of a language (above).
  *
  * ## Where the constraints live
  *
  * Metamodels split a relationship type across two resources — an
  * `owl:ObjectProperty` for the direct predicate and an `owl:Class` subclassing
  * `arch:QualifiedRelationship` for the palette concept, linked by
- * `arch:unqualifiedForm` — and they do not agree on which of the two carries the
- * constraints:
+ * `arch:unqualifiedForm` — and the hints belong on the first:
  *
  * - ArchiMate 4.0 declares `am4:Serving a owl:Class ; rdfs:subClassOf
  *   arch:QualifiedRelationship ; arch:unqualifiedForm am4:serves` with no
  *   constraints on the class at all, hanging `arch:domainIncludes` /
- *   `arch:rangeIncludes` off the *property* `am4:serves`.
- * - C4 declares `c4:Using` the same way but repeats the constraints on *both*
- *   the class and the property `c4:uses`.
+ *   `arch:rangeIncludes` off the *property* `am4:serves`, as every published
+ *   metamodel does.
+ * - An older or hand-written metamodel may put them on the class instead.
  *
  * Constraints are consequently gathered from the class and from whatever
  * `arch:unqualifiedForm` points at, de-duplicated, so no metamodel-specific
@@ -91,6 +105,7 @@ import { graphScope, isSafeIri, type GraphScope } from '../rdf-engine/graph-scop
 import { mintIri } from '../rdf-engine/iri.js';
 import { conceptNamespace, modelNamespace } from './model-namespace.js';
 import { readRelationshipTable, type RelationshipTable } from './relationship-table.js';
+import { OwnMetamodels, namesNoLanguageClass } from './own-metamodel.js';
 import { readDirectPermissions, readDrawnPermissions, type TablePermissions } from './direct-permissions.js';
 import { compareProposals, isProposed, readProposalOrders, type ProposalOrders, type Proposal } from './proposal-order.js';
 import {
@@ -112,11 +127,15 @@ const ARCH_TARGET = namedNode(NAMESPACES.arch + 'target');
 
 /**
  * `arch:Element` — the universal element superclass. Treated as a wildcard by
- * {@link matchesClass}: a constraint naming it says "anything".
+ * {@link matchesClass}: a constraint naming it says "any element, of any
+ * language" — except that a type naming no class of its own at either end
+ * relates its own metamodel's elements only (DD-40).
  */
 const ARCH_ELEMENT = NAMESPACES.arch + 'Element';
 /** `arch:ModelConcept` — superclass of both elements and relationships; also a wildcard. */
 const ARCH_MODEL_CONCEPT = NAMESPACES.arch + 'ModelConcept';
+/** `arch:isAbstractClass` — on a relationship class, one that is never offered. */
+const ARCH_IS_ABSTRACT_CLASS = nn(NAMESPACES.arch + 'isAbstractClass');
 
 // ── Ranking weights ────────────────────────────────────────────────────
 
@@ -232,10 +251,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * Return the relationship types that may connect `sourceTypeIri` to
    * `targetTypeIri`, best fit first.
    *
-   * A type qualifies when its `arch:domainIncludes` matches somewhere in the
-   * source type's superclass closure (or declares nothing at all) and its
-   * `arch:rangeIncludes` does the same for the target. Each result carries a
-   * `score` and a `reason` explaining the decision.
+   * A type qualifies when its relationship shapes admit the pair or, where none
+   * covers it, when its `arch:domainIncludes` matches somewhere in the source
+   * type's superclass closure (or declares nothing at all) and its
+   * `arch:rangeIncludes` does the same for the target — both being of its own
+   * metamodel when its hints name no class of a language. An abstract type never
+   * qualifies. Each result carries a `score` and a `reason` explaining the decision.
    */
   getValidRelationships(sourceTypeIri: string, targetTypeIri: string): RelationshipTypeInfo[] {
     // One scope for all three reads below: enumerating the named graphs costs a
@@ -255,6 +276,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     const sourceClosure = closureOf(sourceTypeIri);
     const targetClosure = closureOf(targetTypeIri);
     const table = this.relationshipTable(scope);
+    const ownMetamodels = this.ownMetamodels(scope);
     const directPermissions = this.directPermissions(scope);
     const drawnPermissions = this.drawnPermissions(scope);
     const proposalOrders = this.proposalOrders(scope);
@@ -267,6 +289,9 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       const { domainTypes, rangeTypes } = candidate;
       const relationshipClosure = this.relationshipClosure(candidate.iri, scope);
       const shaped = table.covers(relationshipClosure);
+      // A language's type whose hints name no class of a language relates its own metamodel's elements only.
+      const ownOnly =
+        !shaped && !candidate.iri.startsWith(NAMESPACES.arch) && namesNoLanguageClass(domainTypes, rangeTypes);
 
       if (shaped) {
         // The relationship shapes are normative (the language's relationship
@@ -280,6 +305,10 @@ export class OxigraphRelationshipManager implements RelationshipManager {
         const targetOk =
           rangeTypes.length === 0 || rangeTypes.some((iri) => matchesClass(targetClosure, iri));
         if (!sourceOk || !targetOk) continue;
+        // Hints that name only core classes, or none, say nothing about another language's elements: such a type
+        // relates its own metamodel's, and between two languages the core's types are offered (DD-40).
+        const ofItsMetamodel = (closure: readonly string[]) => ownMetamodels.includes(candidate.iri, closure);
+        if (ownOnly && !(ofItsMetamodel(sourceClosure) && ofItsMetamodel(targetClosure))) continue;
       }
 
       const label = candidate.label ?? fragmentToLabel(iriFragment(candidate.iri));
@@ -289,7 +318,7 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (rangeTypes.includes(targetTypeIri)) score += EXACT_TARGET_BONUS;
       // Association, and a kind of it (a directed association), is the fallback.
       const association = label === 'Association' || relationshipClosure.some((c) => iriFragment(c) === 'Association');
-      // Generic: it relates any elements, and no relationship table restricts it
+      // Generic: it relates any two elements of its metamodel, and no relationship table restricts it
       // (ArchiMate's Specialization also names arch:Element, but its table governs it).
       const generic = !shaped && isGenericRelationshipType(domainTypes, rangeTypes);
       if (association) score -= ASSOCIATION_PENALTY;
@@ -310,9 +339,17 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       const allowed = shaped
         ? `Allowed by the metamodel's relationship shapes: a ${shortLabel(sourceTypeIri)} may have ` +
           `${label} to a ${shortLabel(targetTypeIri)}.`
+        : constrained && ownOnly
+        ? `Allowed because ${shortLabel(sourceTypeIri)} matches ${shortList(domainTypes)} ` +
+          `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}, both of the metamodel that defines ` +
+          `${label}: hints naming only core classes relate its own elements.`
         : constrained
         ? `Allowed because ${shortLabel(sourceTypeIri)} matches ${shortList(domainTypes)} ` +
           `and ${shortLabel(targetTypeIri)} matches ${shortList(rangeTypes)}.`
+        : ownOnly
+        ? 'Allowed because the metamodel declares no arch:domainIncludes or arch:rangeIncludes for this type, ' +
+          `and ${shortLabel(sourceTypeIri)} and ${shortLabel(targetTypeIri)} are both of the metamodel that defines ` +
+          'it: it relates any two of its elements.'
         : 'Allowed because the metamodel declares no arch:domainIncludes or ' +
           'arch:rangeIncludes for this type, and an absent constraint hint is permissive.';
       const why = drawn ? ' The language\'s metamodel figures draw it between these element types.' : '';
@@ -436,6 +473,21 @@ export class OxigraphRelationshipManager implements RelationshipManager {
     return this.tableCache.table;
   }
 
+  /** The loaded metamodels' documents, read likewise. */
+  private ownCache: { key: string; metamodels: OwnMetamodels } | undefined;
+
+  /**
+   * Which metamodel each relationship type is of, for the types whose hints name no class of a language
+   * (`own-metamodel.ts`), read once per set of loaded graphs.
+   */
+  private ownMetamodels(scope: GraphScope): OwnMetamodels {
+    const key = scope.namedGraphs.join('\n');
+    if (this.ownCache?.key !== key) {
+      this.ownCache = { key, metamodels: new OwnMetamodels(this.store, scope.namedGraphs) };
+    }
+    return this.ownCache.metamodels;
+  }
+
   /** `rdfs:subClassOf*` closures of relationship classes; they change only with the metamodels. */
   private readonly relationshipClosures = new Map<string, string[]>();
 
@@ -494,8 +546,13 @@ export class OxigraphRelationshipManager implements RelationshipManager {
    * intermediate steps are real (ArchiMate's `Composition` subclasses
    * `Aggregation`, which subclasses `arch:QualifiedRelationship`) and because
    * `arch:QualifiedRelationship` itself is not a relationship type. A generic
-   * relationship — one that relates any elements — is a language's own type
-   * whose domain and range name only core classes (Basic's Connection).
+   * relationship — one that relates any two elements of its metamodel — is a
+   * language's own type whose domain and range name only core classes.
+   *
+   * A class marked `arch:isAbstractClass true` is left out: it classifies its
+   * subclasses and is never offered (EDGY's Enterprise Relationship). The mark is
+   * looked for in every graph, as the palette looks for it, not inside the query,
+   * whose two passes each see only part of the store.
    *
    * A legacy `?rel a arch:Relationship` typing is also accepted. That class was
    * removed from the core ontology, but recognising it costs one UNION branch
@@ -569,7 +626,12 @@ export class OxigraphRelationshipManager implements RelationshipManager {
       if (range && !record.rangeTypes.includes(range)) record.rangeTypes.push(range);
     }
 
-    return Array.from(byIri.values());
+    return Array.from(byIri.values()).filter((record) => !this.isAbstractClass(record.iri));
+  }
+
+  /** Whether a class carries `arch:isAbstractClass true`, in any graph. */
+  private isAbstractClass(iri: string): boolean {
+    return this.store.getQuads(nn(iri), ARCH_IS_ABSTRACT_CLASS).some((q) => q.object.value === 'true');
   }
 
   /**

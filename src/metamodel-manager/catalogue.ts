@@ -15,9 +15,10 @@
  * `assets/catalog.ttl` (refreshed by `npm run sync-assets`), so the menu is
  * complete offline, and `App.loadCatalogue` replaces it with the published one
  * when it arrives — a metamodel meta.linked.archi publishes appears without a
- * new la-gram. Every metamodel offered is meta.linked.archi's: for elements and
- * relationships no loaded language has, Basic is the generic language (its
- * Connection relates any two elements).
+ * new la-gram. Every metamodel offered is meta.linked.archi's: for elements no
+ * loaded language has, Basic is the generic language (its Connection relates any
+ * two of its elements); between elements of two languages, the core's
+ * relationship types are offered.
  */
 
 import type { Quad } from '@rdfjs/types';

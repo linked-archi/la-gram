@@ -86,6 +86,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] A section's types in the order of the array under their group, where it has one (Req 2.23) — *palette-generator.test*
 - [x] The order of proposal is the metamodel's: the orders its manifest names (`arch:relationshipProposalOrder`), by the kinds of the two elements, in three groups — direct, derived, fallback; the figures said, not ranked by (Req 4.2; key design decision 22) — *relationship-ranking.test, rdf-replace-menu.test, connect-interaction.test*
 - [x] A link a file states only as a triple, either way round where the vocabulary declares the inverse, opens as a relationship resource named as meta's rules name it (Req 4.22) — *model-session.test, short-hash.test, drawn-extensions.test*
+- [x] A language's relationship types between its own elements only, an abstract one never; between two languages the core's, in change type too (Req 4.2, 4.21; meta's DD-40) — *cross-language-relationships.test, relationship-manager.test, basic-metamodel.test*
 
 ### Task 5: RDF export (Req 5)
 - [x] Six formats: Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML — *model-io.test* (round-trip each)
@@ -466,6 +467,36 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-22 — A language's relationship types for its own elements
+
+- **Between two languages, the core's types** (Req 4.2, 4.21; linked-archi-meta's DD-40): connect, change type and
+  the "+" menu no longer offer a language's relationship type between one of its elements and another language's.
+  With C4 and EDGY loaded beside ArchiMate, C4's *Uses* and EDGY's *Enterprise Relationship* were offered between an
+  ArchiMate component and an EDGY capability, and because a language's type was permitted the core's were not, so a
+  line drawn so could not be changed to one of them. Now the core's are offered there, in change type too.
+- **Why they were offered.** EDGY's *Enterprise Relationship* is abstract, the superclass of its Link, Flow and Tree,
+  and was read as a type with no hints, which admitted every pair. C4's `uses` named `arch:Element`, which matches
+  any element. Now an abstract relationship class (`arch:isAbstractClass`) is never offered, as the palette never
+  listed one, and a type no shape covers whose hints name only core classes, or none, relates only its own
+  metamodel's elements (`model-manager/own-metamodel.ts`): the documents a loaded manifest names as its concepts,
+  and what they import; else the document that declares it; else its namespace. An extension's type that names its
+  own class at one end and `arch:ModelConcept` at the other, a decision's *Modifies*, still relates any concept there.
+- **In meta** the languages name their own classes: C4's `uses` (the Structurizr extension adds its nodes),
+  Basic's `connection`, Backstage's ownership, TechDocs delegation and scaffolding, and BPMN Lite's sequence flow and
+  data association. C4's and Backstage's relationship shapes list their pairs as ArchiMate's do, the qualified
+  relationship and the direct triple alike, so validation rejects such a line too, and la-gram reads them as
+  relationship tables (`relationship-table.ts`). Backstage's Dependency is then offered from a Component or a
+  Resource to an entity of any kind, as its shapes permit; validation warns where the target is not a Component
+  or a Resource.
+- **Basic's Connection** relates Basic's three element types, no longer any element, and is no longer generic.
+  Basic now publishes an order of proposal, Aggregation, Connection, Association: from a group node to a node
+  Aggregation is drawn first and the menu asks, and between two nodes Connection comes before Association.
+- The assets (`basic-onto.ttl`, `basic-tax.ttl`, `basic-metamodel.ttl`; `core-onto.ttl` and `core-notation.ttl`,
+  whose notes now cite DD-40, into which meta folded DD-43), `relationship-manager.ts`, `own-metamodel.ts`, the
+  comments in `relationship-table.ts`, `class-hierarchy.ts`, `interfaces.ts`, `catalogue.ts` and `bundled-assets.ts`,
+  `cross-language-relationships.test.ts` and `relationship-manager.test.ts` are the kernel's too, file for file.
+  *cross-language-relationships.test, relationship-manager.test, basic-metamodel.test*
+
 ### 2026-11-22 — Questions about dependencies, across languages
 
 - **Two core questions** (Req 16.4; linked-archi-meta's DD-44): *What depends on this element?* and *What does this
@@ -486,7 +517,7 @@ Agreed order; relationship visuals come first.
 
 ### 2026-11-22 — Depends On: the core's dependency between concepts no language relates
 
-- **A fourth core relationship type** (Req 4.21, 3.23; linked-archi-meta's DD-43, core 0.7.0): `arch:DependsOn`,
+- **A fourth core relationship type** (Req 4.21, 3.23; linked-archi-meta's DD-40, core 0.7.0): `arch:DependsOn`,
   its predicate `arch:dependsOn` and the inverse `arch:dependencyOf`, from a concept to one it needs. Between two
   elements no loaded language relates, or an element and a view, connect, change type and the "+" menu offer
   *Association*, then *Depends On*, then *Has Part* and *Refines* (`CORE_ORDER` in `relationship-manager.ts`). Until

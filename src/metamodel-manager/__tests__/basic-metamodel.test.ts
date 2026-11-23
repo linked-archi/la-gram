@@ -1,8 +1,8 @@
 /**
  * Basic, the generic language: three element types and three relationship
- * types, of which Connection relates any two elements — of Basic, of another
- * language, or across them. Bundled, so it works offline; added beside a
- * language, or used alone.
+ * types, of which Connection relates any two of its elements; between a Basic
+ * element and another language's, the core's types are offered. Bundled, so it
+ * works offline; added beside a language, or used alone.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -70,31 +70,32 @@ describe('Basic, the generic language', () => {
     expect(p.relationshipTypes.filter((r) => !r.core).map((r) => r.label)).toEqual(['Aggregation', 'Association', 'Connection']);
   });
 
-  it('Connection relates any two elements, and ranks last between ArchiMate ones', async () => {
+  it('Connection relates any two of Basic’s elements; across languages, the core’s types are offered', async () => {
     await app.loadMetamodel(BASIC_MM);
-    // Across languages: only Connection — Association and Aggregation keep their restrictions.
-    expect(relationshipLabels(BASIC + 'Node', AM4 + 'BusinessActor')).toEqual(['Connection']);
-    expect(relationshipLabels(AM4 + 'ApplicationComponent', BASIC + 'GroupNode')).toEqual(['Connection']);
-    // Within Basic: Association, then Connection, the least specific.
-    expect(relationshipLabels(BASIC + 'Node', BASIC + 'SpecialNode')).toEqual(['Association', 'Connection']);
-    // Between ArchiMate elements: ArchiMate's own first, Connection last.
+    // Across languages: the core's types — Connection, Association and Aggregation keep to Basic's elements.
+    const core = ['Association', 'Depends On', 'Has Part', 'Refines'];
+    expect(relationshipLabels(BASIC + 'Node', AM4 + 'BusinessActor')).toEqual(core);
+    expect(relationshipLabels(AM4 + 'ApplicationComponent', BASIC + 'GroupNode')).toEqual(core);
+    // Within Basic: Connection, which names every Basic element type, and Association, which ranks last as every
+    // Association does.
+    expect(relationshipLabels(BASIC + 'Node', BASIC + 'SpecialNode')).toEqual(['Connection', 'Association']);
+    expect(relationshipLabels(BASIC + 'GroupNode', BASIC + 'Node')).toEqual(['Aggregation', 'Connection']);
+    expect(relationshipLabels(BASIC + 'SpecialNode', BASIC + 'GroupNode')).toEqual(['Connection']);
+    // Between ArchiMate elements: ArchiMate's own only.
     const archimate = app.components.relationshipManager.getValidRelationships(AM4 + 'BusinessActor', AM4 + 'Role');
-    const connection = archimate.at(-1)!;
-    expect(connection.label).toBe('Connection');
-    expect(connection.generic).toBe(true);
-    // ArchiMate's Specialization names arch:Element too, but its table governs it: not generic.
-    expect(archimate.find((r) => r.label === 'Specialization')?.generic).toBeUndefined();
-    // Like Association, it never makes an append ask which relationship.
-    expect(isGenericRelationship(connection)).toBe(true);
-    const assignment = archimate.find((r) => r.label === 'Assignment')!;
-    expect(unambiguousRelationship([assignment, connection])).toBe(assignment);
+    expect(archimate.map((r) => r.label)).not.toContain('Connection');
+    expect(archimate.some((r) => r.generic)).toBe(false);
+    // Naming Basic's classes, it is no generic relationship: from a group node, Aggregation or Connection is a choice.
+    const fromGroup = app.components.relationshipManager.getValidRelationships(BASIC + 'GroupNode', BASIC + 'Node');
+    expect(fromGroup.some((r) => isGenericRelationship(r))).toBe(false);
+    expect(unambiguousRelationship(fromGroup)).toBeUndefined();
   });
 
   it('creates valid elements and a Connection between them', async () => {
     await app.loadMetamodel(BASIC_MM);
     const model = app.session.modelIri!;
     const a = app.components.elementManager.createElement(BASIC + 'Node', model, { label: 'Thing A' }).value;
-    const b = app.components.elementManager.createElement(AM4 + 'BusinessActor', model, { label: 'Thing B' }).value;
+    const b = app.components.elementManager.createElement(BASIC + 'GroupNode', model, { label: 'Thing B' }).value;
     const r = app.components.relationshipManager.createQualifiedRelationship!({
       typeIri: BASIC + 'Connection',
       sourceIri: a,

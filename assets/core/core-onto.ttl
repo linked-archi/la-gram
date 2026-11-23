@@ -44,7 +44,7 @@ Trademarked names (UML, BPMN, ArchiMate, TOGAF, etc.) referenced herein are prop
 arch:DependsOn, with its predicate arch:dependsOn and the inverse arch:dependencyOf: from a model
 concept to one it needs, so that a change to the second may affect the first. Like the core's other
 relationship types, it is offered between two concepts no loaded language relates. It is not
-transitive. See DD-43.
+transitive. See DD-40.
 
 0.6.0 — relationship types of the core's own.
 arch:Association (arch:associatedWith, symmetric), arch:HasPart (arch:hasPart) and arch:Refines

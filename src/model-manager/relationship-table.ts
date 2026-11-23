@@ -32,9 +32,12 @@
  * So a relationship class is judged by the rows of every class in its
  * `rdfs:subClassOf*` closure, and must satisfy all of them, as validation would.
  *
+ * C4's and Backstage's relationship shapes list their pairs in the same form,
+ * and are read the same way.
+ *
  * A relationship class that neither it nor a superclass has rows for is left to
- * the hints: a metamodel without relationship shapes (C4, BPMN, …) behaves as
- * before.
+ * the hints: a metamodel without relationship shapes in this form (BPMN, Basic,
+ * EDGY, …) behaves as before.
  */
 
 import type { NamedNode, Term } from '@rdfjs/types';

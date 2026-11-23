@@ -97,7 +97,8 @@ const ASSOCIATIONS = new Set(['Association', 'DirectedAssociation']);
 /**
  * A relationship type that holds between almost anything — ArchiMate's
  * Association, directed or not, and a generic relationship whose domain and
- * range name only core classes (Basic's Connection, `generic`).
+ * range name only core classes, which relates any two elements of its
+ * metamodel (`generic`).
  * They are always offered, so they do not make a choice ambiguous; the
  * relationship manager ranks them last for the same reason.
  */

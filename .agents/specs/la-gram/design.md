@@ -436,18 +436,20 @@ loader also loads the sets the presentation contexts name
 
 **Basic, the generic language** (Req 1.12; meta.linked.archi's, bundled:
 `assets/basic/`, `https://meta.linked.archi/basic/metamodel#Basic`). Every
-metamodel la-gram offers is meta.linked.archi's; for elements and
-relationships no loaded language has, Basic is the one to add. Its
-Connection's domain and range are `arch:Element`, so it relates any two
-elements, across languages; Association and Aggregation keep Basic's
-restrictions. A relationship is *generic* (`RelationshipTypeInfo.generic`)
-when its domain and range name only core classes and no relationship table
-governs it — ArchiMate names `arch:Element` on Specialization and Composition
-and restricts them in its tables, so they are not (`isGenericRelationshipType`,
-decided in the relationship manager, which knows the tables). A generic
-relationship ranks with the fallbacks, below Association, and counts as
-generic in the append menu (`isGenericRelationship`), so it never makes a
-choice ambiguous. A core class is never a palette type, whatever a taxonomy
+metamodel la-gram offers is meta.linked.archi's; for elements no loaded
+language has, Basic is the one to add. Its Connection's domain and range name
+Basic's three element types, so it relates any two of them, proposed after
+Aggregation and before Association (Basic's `arch:relationshipProposalOrder`);
+Association and Aggregation keep Basic's restrictions, and between a Basic
+element and another language's the core's types are offered (Req 4.21). A
+relationship is *generic* (`RelationshipTypeInfo.generic`) when its domain and
+range name only core classes and no relationship table governs it — ArchiMate
+names `arch:Element` on Specialization and Composition and restricts them in
+its tables, so they are not (`isGenericRelationshipType`, decided in the
+relationship manager, which knows the tables). A generic relationship relates
+any two elements of its own metamodel, ranks with the fallbacks, below
+Association, and counts as generic in the append menu
+(`isGenericRelationship`), so it never makes a choice ambiguous. A core class is never a palette type, whatever a taxonomy
 lists. So that adding a language does not disturb the first: the palette's
 axes come in the loaded metamodels' order (`PaletteOptions.metamodelIris`,
 which the UI passes as it passes the notation sets), so the first language's
@@ -905,7 +907,8 @@ placements are selected (`DiagramCanvas.arrangeAvailability`) on every selection
 append and "change type". The authority is the metamodel's **relationship
 shapes**: ArchiMate 4.0's and 3.2's are generated from the specification's
 relationship matrix — one node shape per qualified relationship class whose
-`sh:or` lists every permitted (source class, target classes) pair.
+`sh:or` lists every permitted (source class, target classes) pair — and C4's
+and Backstage's list theirs in the same form.
 `model-manager/relationship-table.ts` reads them into a lookup, walking the RDF
 lists with indexed quad lookups (136 ms for ArchiMate 4.0, 500 ms for 3.2; the
 same as one SPARQL query with `rdf:rest*` took ~50 s), cached until the loaded
@@ -913,7 +916,20 @@ graphs change. As in validation, `sh:targetClass` reaches subclasses, so every
 shape on a class in the relationship's closure must admit the pair — Composition
 is allowed exactly where Aggregation is. Relationship classes no shape covers
 (metamodels without relationship shapes) fall back to the `domainIncludes` /
-`rangeIncludes` hints. Before the table, the hints admitted every ArchiMate 4.0
+`rangeIncludes` hints, where `arch:Element` and `arch:ModelConcept` match any
+element. A language's types relate its own elements (linked-archi-meta's
+DD-40): one whose hints name only core classes, or none, is offered only
+between elements of its own metamodel (`model-manager/own-metamodel.ts`) — the
+documents a loaded manifest names as its concepts beside the one that declares
+it, and what they import; else that document and what it imports; for a type
+no named graph declares, its namespace — and an element type is of it when it
+or a superclass is declared there. So between two languages the core's types
+are offered, while an extension's type that names its own class at one end and
+`arch:ModelConcept` at the other (a decision's Modifies) relates any concept
+there. A relationship class marked `arch:isAbstractClass` (EDGY's Enterprise
+Relationship, the superclass of its Link, Flow and Tree) is never offered, as
+it is no palette type; the mark is read from every graph, outside the
+two-pass query. Before the table, the hints admitted every ArchiMate 4.0
 pair, and the relationship an append created by default failed the shapes for
 68% of them.
 
@@ -938,7 +954,7 @@ model's default graph), a general one and ones scoped with `arch:domainIncludes`
 / `arch:rangeIncludes` to kinds of element. Candidates come in three groups,
 core's rule: what the tables let a modeller draw directly, or say nothing about;
 then `direct: false`, only by derivation; then the fallbacks (`fallback`),
-Association and the core's generic relationship, unless an order scoped to the
+Association and a generic relationship, unless an order scoped to the
 pair lists one — ArchiMate's association to a meaning or a value. Within a group,
 each takes the place the most specific order that lists it gives it
 (`Proposal`: the ends an order names, then the closure sizes of the classes it
@@ -3416,15 +3432,21 @@ dialog; the modules' section).
     question, and say them in their tooltips. The median is the "middle" size.
 
 24. **What a metamodel leaves unsaid, la-gram supplies from the core and says so** (Req 2.24, 2.25, 4.21;
-    `metamodel-manager/metamodel-completeness.ts`, `palette-generator.ts`, `model-manager/relationship-manager.ts`).
+    `metamodel-manager/metamodel-completeness.ts`, `palette-generator.ts`, `model-manager/relationship-manager.ts`,
+    `own-metamodel.ts`).
     Loaded metamodels are data of uneven completeness, and several are loaded at once. Three rules keep that
     from hiding things. *Types:* every non-abstract element class of the documents a manifest names as its
     concepts (and of what they import) is offered — under its own metamodel's group, else *Other* — and a notice
     names each metamodel that leaves something out; an ontology loaded only because a shapes document imports it
     gives no types. *Relationships:* where the loaded metamodels permit nothing between two elements, the core's
     own are offered (the least said first, `CORE_ORDER`: Association, Depends On, Has Part, Refines), marked as the
-    fallback they are; they are flagged `core` on the
-    palette's types so the canvas can draw and name them, and the palette panel does not list them. *Looks:* a
+    fallback they are; they are flagged `core` on the palette's types so the canvas can draw and name them, and the
+    palette panel does not list them. A language's type relates its own elements: one whose hints name only core
+    classes, or none, says nothing about another language's, and is offered only within its own metamodel, so that
+    C4's Uses does not stand in for the core's between a C4 container and an EDGY capability; an abstract
+    relationship type is never offered. Not by narrowing `arch:Element` in every hint to the language's own
+    elements: the decision extension names `arch:ModelConcept` at one end of its links because they relate any
+    concept. *Looks:* a
     relationship type no notation describes is given a style when the palette is generated — an open arrowhead
     at the target, none where its predicate is `owl:SymmetricProperty` — so the canvas, the menus and the icons
     all draw the same thing without knowing why. Not done by loading Basic silently: that would add a metamodel
@@ -3770,7 +3792,7 @@ dialog; the modules' section).
     descriptor for each: Association's with no `arch-vis:nestedEnd`, Has Part's with `arch-vis:TargetEnd` (the
     part inside the whole, so `nestingOffers` lists it first, the inner shape the target) and Refines' with
     `arch-vis:SourceEnd`. Their lines are those Req 2.25 gave them before: Association plain, the other two
-    with an open arrowhead at the target. Depends On's (meta's DD-43) is dashed, with an open arrowhead at the
+    with an open arrowhead at the target. Depends On's (meta's DD-40) is dashed, with an open arrowhead at the
     concept depended on and no nested end. No manifest names it; it is bundled with the
     core (`coreNotation`) and its sets are the last fallback layer (`coreNotationSetIris`), never the active set,
     and the nesting offer needs no change, since the palette's relationship types carry the core's (`core`,

@@ -39,7 +39,7 @@ A loaded entry says *loaded* and cannot be chosen again. Loading says what it lo
 could not be loaded (see [Loaded assets](#loaded-assets)).
 
 1. Open *Metamodels*.
-2. Click **Basic**: Basic is loaded beside ArchiMate 4.0, and its Connection relates any two elements.
+2. Click **Basic**: Basic is loaded beside ArchiMate 4.0, and its Connection relates any two of its elements.
 3. To model in C4 alone instead, click *switch to* on **C4 Model**.
 
 A metamodel can also be loaded as la-gram starts, with
@@ -164,7 +164,7 @@ la-gram ships, in `assets/`, a snapshot of what meta.linked.archi serves for:
 - **ArchiMate 4.0**, the default language;
 - **ArchiMate 3.2**, which [ArchiMate Exchange import](files.md#import-archimate-exchange) needs, the
   exchange format being a 3.x one;
-- **Basic**, the generic language, whose Connection relates any two elements;
+- **Basic**, the generic language, whose Connection relates any two of its elements;
 - **Architecture Decisions**, the extension for decision records — issues, decisions, options and the
   forces on them — to add beside a language;
 - **Architecture Processes**, the extension for the architecture practice's own processes — a process, its

@@ -190,8 +190,8 @@ export const BUNDLED_ICON_PREFIXES: readonly string[] = [
  * Open Group Exchange Format — the one interchange format every ArchiMate tool
  * writes — is a 3.x format, so importing an exchange file needs the 3.2
  * ontology whether or not the network is up. Basic ships because it is the
- * generic language — elements and relationships no other loaded language has,
- * its Connection relating any two elements — and that has to work offline too.
+ * generic language — elements no other loaded language has, its Connection
+ * relating any two of them — and that has to work offline too.
  * Architecture Decisions ships because it is added beside whichever language is
  * loaded, to record the decisions about a model: an extension, with no
  * presentation contexts and no notation of its own.
