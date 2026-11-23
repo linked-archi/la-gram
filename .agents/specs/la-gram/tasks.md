@@ -467,6 +467,13 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-23 — unit tests: 20 s a test
+
+- `vitest.config.ts` sets `testTimeout: 20_000`. The CI `test` job failed three tests at Vitest's 5 s
+  (*workbench.test*: importing an ArchiMate exchange file, switching metamodel; *relationship-ranking.test*:
+  after a 3.2 business process): 2–3 s on a developer's machine, past 5 s on the shared runner, which ran
+  the suite in 514 s. A test that hangs still fails.
+
 ### 2026-11-23 — ArchiMate's relationship hints name ArchiMate's classes
 
 - **The bundled ArchiMate ontologies, refreshed from meta** (linked-archi-meta's DD-40): the domain and range hints
