@@ -342,7 +342,50 @@ describe('mountUi', () => {
       expect(app.components.paletteGenerator.generatePalette).toHaveBeenCalledWith('urn:mm', {
         axisIri: undefined,
       });
-      expect(ui.palettePanel.palette).toEqual(SAMPLE_PALETTE);
+      // The generated palette, each element type with no icon given its drawn figure.
+      const shown = ui.palettePanel.palette;
+      expect(shown.elementGroups.map((g) => g.elements.map((e) => e.iri))).toEqual([['urn:t:Actor']]);
+      expect(shown.elementGroups[0]!.elements[0]!.iconUrl).toMatch(/^data:image\/svg\+xml/);
+    });
+
+    it('draws the figure of an element type whose named icon does not load, and keeps the one that does', async () => {
+      const missing = 'https://example.org/icons/glyphs/application.svg';
+      const published = 'https://example.org/icons/glyphs/actor.svg';
+      vi.stubGlobal(
+        'Image',
+        class {
+          onerror: (() => void) | null = null;
+          onload: (() => void) | null = null;
+          set src(value: string) {
+            setTimeout(() => (value === missing ? this.onerror?.() : this.onload?.()), 0);
+          }
+        },
+      );
+      vi.mocked(app.components.paletteGenerator.generatePalette).mockReturnValue({
+        elementGroups: [
+          {
+            category: 'Application',
+            elements: [
+              { iri: 'urn:t:Application', label: 'Application', iconUrl: missing, isAbstract: false, style: { shapeType: 'RoundedRectangle', fillColor: '#E8F5E9' } },
+              { iri: 'urn:t:Actor', label: 'Actor', iconUrl: published, isAbstract: false },
+            ],
+          },
+        ],
+        relationshipTypes: [],
+      });
+      try {
+        app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+        const icons = () => ui.palettePanel.palette.elementGroups[0]!.elements.map((e) => e.iconUrl);
+        expect(icons()).toEqual([missing, published]);
+        await vi.waitFor(() => expect(icons()[0]).toMatch(/^data:image\/svg\+xml/));
+        expect(decodeURIComponent(icons()[0]!)).toContain('fill="#E8F5E9"');
+        expect(icons()[1]).toBe(published);
+        // Known not to load: the next palette draws it at once.
+        app.components.eventBus.emit('metamodel-loaded', { metamodelIri: 'urn:mm' });
+        expect(icons()[0]).toMatch(/^data:image\/svg\+xml/);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it('draws the icon of a relationship type whose named icon does not load, and keeps the one that does', async () => {
@@ -405,13 +448,16 @@ describe('mountUi', () => {
       });
     });
 
-    it("passes the loaded metamodels, and their default notation sets, in load order (Req 2.16)", () => {
+    it("passes the loaded metamodels — each with the documents it loaded (Req 2.24) — and their default notation sets, in load order (Req 2.16)", () => {
       const loaded = (iri: string, notationSetIri?: string): LoadedMetamodel => ({
         metamodelIri: iri,
         manifestGraphIri: iri,
-        info: { iri, name: '', version: '', description: '' },
+        info: { iri, name: `${iri.slice(7)} Metamodel`, version: '', description: '' },
         graphsByRole: {},
-        assets: [],
+        assets: [
+          { referencedIri: `${iri}:onto`, documentIri: `${iri}:onto`, via: 'arch:modelConcepts', outcome: 'loaded' },
+          { referencedIri: `${iri}:gone`, documentIri: `${iri}:gone`, via: 'arch:formalRules', outcome: 'unavailable' },
+        ],
         ...(notationSetIri ? { notationSetIri } : {}),
       });
       vi.spyOn(app, 'loadedMetamodels').mockReturnValue([
@@ -424,6 +470,11 @@ describe('mountUi', () => {
 
       expect(app.components.paletteGenerator.generatePalette).toHaveBeenLastCalledWith('urn:mm:primary', {
         metamodelIris: ['urn:mm:primary', 'urn:mm:without-a-set', 'urn:mm:added'],
+        metamodels: [
+          { iri: 'urn:mm:primary', label: 'primary', documents: ['urn:mm:primary:onto'], conceptDocuments: ['urn:mm:primary:onto'] },
+          { iri: 'urn:mm:without-a-set', label: 'without-a-set', documents: ['urn:mm:without-a-set:onto'], conceptDocuments: ['urn:mm:without-a-set:onto'] },
+          { iri: 'urn:mm:added', label: 'added', documents: ['urn:mm:added:onto'], conceptDocuments: ['urn:mm:added:onto'] },
+        ],
         defaultNotationSetIris: ['urn:set:primary', 'urn:set:added'],
       });
     });

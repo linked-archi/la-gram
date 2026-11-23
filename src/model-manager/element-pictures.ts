@@ -7,19 +7,22 @@
  *
  * A value may also be the image's own IRI, as published notations write
  * `arch:prefVisNotation`: read as its own address. la-gram writes an
- * ImageObject named after the element — `{element}-picture` for every
- * audience, `{element}-picture-{hash}` for one — its address an `xsd:anyURI`
- * literal (an http(s) URL, or a `data:image/…` URI for a picture kept in the
- * model), so that a merge can match it. One per audience.
+ * ImageObject named after the element — `{element}/picture` for every
+ * audience, `{element}/picture/{hash}` for one (DD-41) — its address an
+ * `xsd:anyURI` literal (an http(s) URL, or a `data:image/…` URI for a picture
+ * kept in the model), so that a merge can match it. One per audience. One named
+ * as la-gram named it before (`{element}-picture`, `-picture-{hash}`) keeps its
+ * name when the picture changes.
  */
 
 import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
+import { isPartNamed, partIri } from '../rdf-engine/iri.js';
 import { imageUri } from './appearance.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { shortHash } from './short-hash.js';
-import { T } from './vocabulary.js';
+import { T, netChange } from './vocabulary.js';
 
 const { namedNode, literal, quad } = DataFactory;
 
@@ -69,9 +72,9 @@ export function pictureOf(store: RdfStore, iri: string, context: string | undefi
   );
 }
 
-/** The IRI of `iri`'s picture for `context` — for every audience when absent. */
+/** The IRI of `iri`'s picture for `context` — for every audience when absent: `{iri}/picture`, `{iri}/picture/{hash}`. */
 export function pictureIri(iri: string, context: string | undefined): string {
-  return context ? `${iri}-picture-${shortHash(context)}` : `${iri}-picture`;
+  return context ? partIri(iri, 'picture', shortHash(context)) : partIri(iri, 'picture');
 }
 
 /**
@@ -92,20 +95,24 @@ export function pictureChange(
   // An address that is none changes nothing — it does not take the picture away either.
   if (url?.trim() && !address) return { remove: [], add: [] };
   const remove: Quad[] = [];
+  // The ImageObject it replaces keeps its name when it is the element's own, either way it was named.
+  let kept: string | undefined;
   for (const q of store.getQuads(element as never, predicate as never) as Quad[]) {
     const scope = q.object.termType === 'Literal' ? undefined : store.getQuads(q.object as never, T.inPresentationContext as never)[0]?.object.value;
     if (scope !== context) continue;
     remove.push(q);
     const shared = store.getQuads(null, null, q.object as never).length > 1;
     if (!shared && q.object.termType !== 'Literal') remove.push(...(store.getQuads(q.object as never) as Quad[]));
+    if (!shared && q.object.termType === 'NamedNode' && isPartNamed(iri, q.object.value, 'picture', /[0-9a-f]{8}/)) kept = q.object.value;
   }
   if (!address) return { remove, add: [] };
-  const picture = namedNode(pictureIri(iri, context));
+  const picture = namedNode(kept ?? pictureIri(iri, context));
   const add: Quad[] = [
     quad(element, predicate, picture) as Quad,
     quad(picture, T.rdfType as NamedNode, T.ImageObject as NamedNode) as Quad,
     quad(picture, T.contentUrl as NamedNode, literal(address, namedNode(NAMESPACES.xsd + 'anyURI'))) as Quad,
     ...(context ? [quad(picture, T.inPresentationContext as NamedNode, namedNode(context)) as Quad] : []),
   ];
-  return { remove, add };
+  // A picture that keeps its name changes only in what differs.
+  return netChange({ remove, add });
 }

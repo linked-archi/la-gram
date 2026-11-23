@@ -28,8 +28,8 @@
  * All three versions are read the same way — the model through its own
  * serialization — so a difference of form is never taken for a change.
  */
-import type { MergeConflict, MergeOptions } from '../model-manager/model-merge.js';
-import { mergeSnapshots, snapshotOfText } from '../model-manager/model-merge.js';
+import type { MergeConflict, MergeOptions, MergeResult } from '../model-manager/model-merge.js';
+import { NamespaceConflict, mergeSnapshots, snapshotModel, snapshotOfText } from '../model-manager/model-merge.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import type { CommitResult, GitHostProvider } from './providers/provider.js';
@@ -40,10 +40,15 @@ import { bindingLink, branchProblem, formatOfPath, gitDefaults, saveToGit, slug,
 export interface MergeSupport {
   /** The single-value rules and the count check the merge runs with. */
   options(): MergeOptions;
-  /** Make the model this snapshot, as one undoable step. */
+  /**
+   * Make the model this snapshot, as one undoable step. A snapshot that has the
+   * model under another IRI — moved to another namespace there (DD-41) — moves
+   * the open model there: `modelIri()` is the new IRI after it, and the binding
+   * is kept under it.
+   */
   replace(snapshot: string[]): void;
   /** Show the conflicts left by merging `against` (the branch, at a commit). */
-  conflicts(conflicts: MergeConflict[], against: { branch: string; commit: string }): void;
+  conflicts(conflicts: MergeConflict[], against: { branch: string; commit: string }, activate?: boolean): void;
   /** How many of the conflicts shown are not chosen yet. */
   unresolved(): number;
   /** The conflicts are done with: the model was committed. */
@@ -54,6 +59,119 @@ export interface MergeSupport {
 
 /** How many times a merge is tried again when the branch moves on while merging. */
 export const MERGE_ATTEMPTS = 3;
+
+/**
+ * Reconcile and apply once, without committing; shared by Pull and Save. `where`: the branch theirs is from.
+ * With `follow`, a move made there is followed ({@link mergeHere}): `followed` is the model's IRI after it.
+ */
+export function reconcile(merge: MergeSupport, base: string[], ours: string[], theirs: string[], where: string, follow = false) {
+  const result = mergeHere(merge, base, ours, theirs, where, follow);
+  const changed = !sameLines(result.merged, ours);
+  if (changed) merge.replace(result.merged);
+  return { ...result, changed };
+}
+
+/**
+ * The model, `ours`, merged with a version from `where`. A move to another
+ * namespace here is merged into, with the other version moved after it
+ * (DD-41). One made there gives the merged model another IRI than the open one:
+ * with `follow` — a merge someone asked for — the result is returned with
+ * `followed`, the IRI the open model moves to when it is applied; without it — a
+ * check or a commit made automatically — it is refused before anything is
+ * applied, for the open model is not moved behind its user's back. Moved here
+ * and there, to two namespaces: refused either way.
+ */
+export function mergeHere(
+  merge: Pick<MergeSupport, 'options'>,
+  base: string[],
+  ours: string[],
+  theirs: string[],
+  where: string,
+  follow = false,
+): MergeResult & { followed?: string } {
+  let result: MergeResult;
+  try {
+    result = mergeSnapshots(base, ours, theirs, merge.options());
+  } catch (err: unknown) {
+    if (!(err instanceof NamespaceConflict)) throw err;
+    throw new GitError(
+      'invalid',
+      `The model was moved to another namespace both here, to ${err.ours.namespace}, and on ${where}, to ${err.theirs.namespace}: move it to the same one on both, then merge again.`,
+    );
+  }
+  const open = snapshotModel(ours)?.model;
+  const merged = snapshotModel(result.merged)?.model;
+  if (open && merged && merged !== open) {
+    // A move is to another namespace, and makes the model `{to}model` (DD-41). Another IRI in the
+    // same namespace, or not named so, is another model in the file: not this one moved.
+    const before = snapshotModel(base);
+    const there = snapshotModel(theirs);
+    const moved = before !== undefined && there !== undefined && there.model === merged
+      && there.namespace !== before.namespace && merged === `${there.namespace}model`;
+    if (!moved) throw new GitError('invalid', anotherModel(where, merged));
+    if (!follow) throw new GitError('invalid', movedElsewhere(where, merged));
+    return { ...result, followed: merged };
+  }
+  return result;
+}
+
+/** Why la-gram does not merge a version that has another model than the open one, and what to do instead. */
+export function anotherModel(where: string, model: string): string {
+  return (
+    `${where} has another model now, ${model}: not this one moved to another namespace, so it is not merged into it. ` +
+    `Open ${where} from Git to open that model; Save to Git as… keeps this one on a branch of its own.`
+  );
+}
+
+/**
+ * A binding after the model may have moved from `before` to `now`, following a
+ * move made elsewhere: kept under `now`, noting the IRI its file has the model
+ * under while that is not `now` — as `GitBindings.move` keeps it.
+ */
+export function keptAs(binding: GitBinding, before: string, now: string): GitBinding {
+  if (now === before) return binding;
+  const { movedFrom, ...rest } = binding;
+  const inFile = movedFrom ?? before;
+  return inFile === now ? rest : { ...rest, movedFrom: inFile };
+}
+
+/** What la-gram says when the open model followed a move made on `where` to `model`. */
+export function followedMove(where: string, model: string): string {
+  return (
+    `${where} has the model in another namespace, as ${model}: the open model moved there too, and stays bound to its file. ` +
+    'Auto-commit, if it was on, is off for it until you turn it on again.'
+  );
+}
+
+/** What Model settings says before it moves a model saved to Git into another namespace (DD-41). */
+export function namespaceMoveMessage(binding: Pick<GitBinding, 'repository' | 'branch' | 'path'>, to: string): string {
+  return (
+    `This model is saved to Git: ${binding.repository} · ${binding.branch} · ${binding.path}. Moving it to ${to} renames every IRI in it, ` +
+    'and Save to Git commits that to the same file — do it right after, so that the move is a commit of its own. ' +
+    'A branch started before the move is merged into the new namespace by Update from main… on the moved branch, and by la-gram-git merge.'
+  );
+}
+
+/**
+ * A binding moved on to a version of its file: its `movedFrom` kept only while
+ * that version still has the model under the IRI it had before it was moved here.
+ */
+export function advanced(binding: GitBinding, to: { commit: string; version: string }, file: readonly string[]): GitBinding {
+  const { movedFrom, ...rest } = binding;
+  const still = movedFrom !== undefined && snapshotModel(file)?.model === movedFrom;
+  return { ...rest, commit: to.commit, version: to.version, ...(still ? { movedFrom } : {}) };
+}
+
+/**
+ * Why an automatic check or commit does not merge a version that has the model
+ * moved to another namespace there, and what moves the open model there instead.
+ */
+export function movedElsewhere(where: string, model: string): string {
+  return (
+    `${where} has the model in another namespace now, as ${model}. Automatic checks and auto-commit do not move the open model there: ` +
+    'Pull from Git does.'
+  );
+}
 
 /**
  * Merge the model with the newer version of its file and commit the result —
@@ -78,6 +196,8 @@ export async function mergeWithNewer(
   }
   let base = snapshotOfText(baseFile.text, path);
   let binding = bound;
+  // The model's IRI as the loop goes: a merge follows a move made on the branch (DD-41).
+  let iri = modelIri;
   for (let attempt = 0; attempt < MERGE_ATTEMPTS; attempt++) {
     const head = await provider.branchHead(branch);
     const there = await provider.readFile(head, path);
@@ -87,12 +207,17 @@ export async function mergeWithNewer(
     }
     const theirs = snapshotOfText(there.text, path);
     const ours = snapshotOfText(ctx.serialize(target.format), path);
-    const { merged, conflicts } = mergeSnapshots(base, ours, theirs, merge.options());
-    if (!sameLines(merged, ours)) merge.replace(merged);
-    binding = { ...binding, version: there.version, commit: head };
+    const { merged, conflicts, followed } = reconcile(merge, base, ours, theirs, branch, true);
+    if (followed) {
+      ctx.bindings.forget(iri);
+      binding = keptAs(binding, iri, followed);
+      iri = followed;
+      ctx.report(followedMove(branch, followed));
+    }
+    binding = advanced(binding, { version: there.version, commit: head }, theirs);
 
     if (conflicts.length > 0) {
-      ctx.bindings.set(modelIri, binding);
+      ctx.bindings.set(iri, binding);
       merge.conflicts(conflicts, { branch, commit: head });
       ctx.report(
         `Merged with ${branch} at ${head.slice(0, 8)}: ${conflicts.length === 1 ? 'one change' : `${conflicts.length} changes`} made on both sides to choose between in the Conflicts tab — then Save to Git.`,
@@ -102,7 +227,7 @@ export async function mergeWithNewer(
     }
     if (sameLines(merged, theirs) && !binding.update) {
       // Everything here was there already: nothing to commit.
-      ctx.bindings.set(modelIri, binding);
+      ctx.bindings.set(iri, binding);
       merge.clear();
       ctx.saved(path.split('/').pop() ?? path);
       ctx.report(`The model is now ${branch} at ${head.slice(0, 8)}, which had all of its changes: nothing to commit.`);
@@ -227,6 +352,8 @@ export async function updateFromBranch(ctx: GitSaveContext): Promise<CommitResul
 
     // The model's own branch first, if it moved on: the update is merged on top of it.
     let binding: GitBinding = bound;
+    // The model's IRI as the update goes: each merge follows a move made where it merges from (DD-41).
+    let iri = modelIri;
     let ours = snapshotOfText(ctx.serialize(format), path);
     const head = await provider.branchHead(branch);
     if (head !== bound.commit) {
@@ -235,10 +362,16 @@ export async function updateFromBranch(ctx: GitSaveContext): Promise<CommitResul
         ctx.report(`${path} could not be read on ${branch}: the update is not made.`, 'error');
         return undefined;
       }
-      const caughtUp = mergeSnapshots(base.snapshot, ours, newer.snapshot, merge.options());
+      const caughtUp = mergeHere(merge, base.snapshot, ours, newer.snapshot, branch, true);
       if (!sameLines(caughtUp.merged, ours)) merge.replace(caughtUp.merged);
-      binding = { ...bound, version: newer.file.version, commit: head };
-      ctx.bindings.set(modelIri, binding);
+      if (caughtUp.followed) {
+        ctx.bindings.forget(iri);
+        binding = keptAs(binding, iri, caughtUp.followed);
+        iri = caughtUp.followed;
+        ctx.report(followedMove(branch, iri));
+      }
+      binding = advanced(binding, { version: newer.file.version, commit: head }, newer.snapshot);
+      ctx.bindings.set(iri, binding);
       if (caughtUp.conflicts.length > 0) {
         merge.conflicts(caughtUp.conflicts, { branch, commit: head });
         ctx.report(
@@ -262,9 +395,17 @@ export async function updateFromBranch(ctx: GitSaveContext): Promise<CommitResul
       return undefined;
     }
     const base = await read(baseCommit);
-    const { merged, conflicts } = mergeSnapshots(base?.snapshot ?? [], ours, theirs.snapshot, merge.options());
+    const { merged, conflicts, followed } = mergeHere(merge, base?.snapshot ?? [], ours, theirs.snapshot, source, true);
     if (!sameLines(merged, ours)) merge.replace(merged);
-    ctx.bindings.set(modelIri, {
+    if (followed) {
+      // Moved on the other branch: the file on this one still has the model as it was, until the
+      // update is committed.
+      ctx.bindings.forget(iri);
+      binding = keptAs(binding, iri, followed);
+      iri = followed;
+      ctx.report(followedMove(source, iri));
+    }
+    ctx.bindings.set(iri, {
       ...binding,
       update: { branch: source, commit: sourceHead, version: theirs.file.version },
     });
@@ -284,6 +425,6 @@ export async function updateFromBranch(ctx: GitSaveContext): Promise<CommitResul
   }
 }
 
-function sameLines(a: readonly string[], b: readonly string[]): boolean {
+export function sameLines(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((line, i) => line === b[i]);
 }

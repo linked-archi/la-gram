@@ -33,11 +33,11 @@
  * Where several rules name a property, the stricter wins: one value overall
  * over one per language.
  *
- * One property is settled rather than chosen: `dcterms:modified`, which
- * la-gram stamps on the model when it renames it, moves its namespace or makes
- * a view. Two stamps made apart are no disagreement, so it takes the later of
- * them (`latest`) — in the room as in the merge, which reports no conflict for
- * it.
+ * Three properties are settled rather than chosen: `dcterms:modified`, which
+ * la-gram stamps on a concept at every edit, and `prov:generatedAtTime` and
+ * `prov:endedAtTime`, the provenance of edits (Req 9.16). Two stamps made apart
+ * are no disagreement, so each takes the later of them (`latest`) — in the room
+ * as in the merge, which reports no conflict for them.
  */
 
 import { DataFactory } from 'n3';
@@ -83,6 +83,9 @@ export const BUILT_IN_LIMITS: ReadonlyMap<string, ValueLimit> = new Map<string, 
   [NAMESPACES.arch + 'target', 'one'],
   [NAMESPACES.skos + 'prefLabel', 'one-per-language'],
   [NAMESPACES.dcterms + 'modified', 'latest'],
+  // The provenance of edits (Req 9.16): when a concept was last changed, and when an editing activity ended.
+  [NAMESPACES.prov + 'generatedAtTime', 'latest'],
+  [NAMESPACES.prov + 'endedAtTime', 'latest'],
 ]);
 
 const nn = (iri: string) => DataFactory.namedNode(iri) as unknown as NamedNode;

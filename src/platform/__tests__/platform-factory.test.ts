@@ -13,7 +13,8 @@ const BRIDGE = {
 describe('isElectronEnvironment', () => {
   afterEach(() => {
     delete (window as Record<string, unknown>).laGramDesktop;
-    delete (window as Record<string, unknown>).process;
+    // The real process back: the test runner's own messaging needs it.
+    vi.unstubAllGlobals();
   });
 
   it('returns false in a normal browser environment', () => {
@@ -26,7 +27,7 @@ describe('isElectronEnvironment', () => {
   });
 
   it('does not go by process.versions.electron: the desktop renderer has no Node', () => {
-    (window as Record<string, unknown>).process = { versions: { electron: '44.9.0' } };
+    vi.stubGlobal('process', { versions: { electron: '44.9.0' } });
     expect(isElectronEnvironment()).toBe(false);
   });
 });

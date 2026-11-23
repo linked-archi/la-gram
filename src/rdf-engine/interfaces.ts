@@ -38,7 +38,11 @@ export type PrefixMap = Record<string, string>;
 
 /** Serializes RDF quads to pretty-printed Turtle. */
 export interface TtlSerializer {
-  serialize(quads: Quad[], prefixes: PrefixMap): string;
+  /**
+   * @param model The model the quads are about, by its namespace and prefix: its IRIs are written as DD-41
+   *   says (`turtle-writer.ts`). Without one, by the prefixes alone.
+   */
+  serialize(quads: Quad[], prefixes: PrefixMap, model?: { namespace: string; prefix: string }): string;
 }
 
 // ---------------------------------------------------------------------------

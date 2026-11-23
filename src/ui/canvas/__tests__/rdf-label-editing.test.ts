@@ -5,7 +5,7 @@ import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
 import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { RdfLabelEditingProvider, RelabelElementHandler, isRenamable, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
+import { RdfLabelEditingProvider, RelabelElementHandler, isRenamable, isViewReference, normalizeLabel, type RelabelContext } from '../rdf-label-editing.js';
 import { NOTATION_DEFAULTS } from '../notation-shapes.js';
 import type { RdfChangeContext } from '../rdf-modeling.js';
 
@@ -143,6 +143,92 @@ describe('what a line from a note says, typed on it', () => {
     provider.update(line({ label: 'asks first', named: true }), 'asks first');
     provider.update(line({ label: 'asks first', named: true }), '');
     expect(executed.map((c) => c.label)).toEqual(['asks first', '']);
+  });
+});
+
+describe('a reference to another view: double-clicked it opens, F2 renames its view (Req 3.23, VC-DD-4)', () => {
+  const REF = 'https://example.org/m/view/1#node-1';
+  const VIEW = 'https://example.org/m/view/2';
+  const reference = (extra: Record<string, unknown> = {}, iri = REF) => ({
+    id: iri,
+    parent: {},
+    x: 0,
+    y: 0,
+    width: 120,
+    height: 55,
+    // Named as its view is; its own text, when it has one, is its `labelText`, drawn in place of the name.
+    businessObject: { iri, nodeIri: iri, typeIri: 'https://meta.linked.archi/core#Diagram', kind: 'figure' as const, figure: { kind: 'reference' as const, view: VIEW }, label: 'Payments', named: true, ...extra },
+  });
+
+  it('is left out of double-click editing — the canvas opens its view — and edited on F2, as a note is on both', () => {
+    const handlers = new Map<string, Array<(event: unknown) => unknown>>();
+    const on = (events: string | string[], priorityOrCallback: number | ((event: unknown) => unknown), callback?: (event: unknown) => unknown) => {
+      const handler = typeof priorityOrCallback === 'function' ? priorityOrCallback : callback!;
+      for (const event of [events].flat()) handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+    };
+    const fire = (event: string, payload: unknown) => handlers.get(event)?.forEach((handler) => handler(payload));
+    const activated: unknown[] = [];
+    let selected: unknown[] = [];
+    new RdfLabelEditingProvider(
+      { on } as never,
+      { getAbsoluteBBox: (box) => box as never, zoom: () => 1, getContainer: () => document.createElement('div'), addMarker: () => undefined, removeMarker: () => undefined },
+      { registerProvider: () => undefined, activate: (element: unknown) => void activated.push(element), isActive: () => false, complete: () => undefined } as never,
+      { registerHandler: () => undefined, execute: () => undefined },
+      { get: () => selected as never },
+    );
+    const ref = reference();
+    const note = { ...reference(), businessObject: { ...reference().businessObject, figure: { kind: 'note' as const }, named: true } };
+    fire('element.dblclick', { element: ref });
+    expect(activated).toEqual([]);
+    fire('element.dblclick', { element: note });
+    expect(activated).toEqual([note]);
+    selected = [ref];
+    fire('keyboard.keydown', { keyEvent: { key: 'F2', preventDefault: () => undefined } });
+    expect(activated).toEqual([note, ref]);
+    expect(isViewReference(ref)).toBe(true);
+    expect(isViewReference(note)).toBe(false);
+  });
+
+  it('holds its view’s name — not its own text — renamed, never emptied; unchanged, no edit; a note’s text is emptied still', () => {
+    const { provider, executed } = providerWith();
+    // The box holds its name, what F2 renames, though its own text is drawn.
+    expect(provider.activate(reference({ labelText: 'See also' }))!.text).toBe('Payments');
+    provider.update(reference(), 'Payments');
+    provider.update(reference(), '');
+    provider.update(reference({ labelText: '' }), '');
+    provider.update(reference(), ' Payment  flows ');
+    expect(executed.map((c) => c.label)).toEqual(['Payment flows']);
+    // A note's text, emptied: an edit, where a name is never emptied.
+    const note = { ...reference(), businessObject: { ...reference().businessObject, figure: { kind: 'note' as const }, label: 'Draft', named: true } };
+    provider.update(note, '');
+    provider.update({ ...note, businessObject: { ...note.businessObject, label: undefined, named: false } }, '');
+    expect(executed.map((c) => c.label)).toEqual(['Payment flows', '']);
+  });
+
+  it('renames the view, on every reference to it, in one undoable step; its own text stays its own', () => {
+    const store = new ObservableRdfStore(new OxigraphRdfStore());
+    store.addQuads([quad(namedNode(VIEW), namedNode(PREF_LABEL), literal('Payments', 'en')) as unknown as Quad]);
+    const written: string[] = [];
+    const writer = (iri: string, label: string) => {
+      written.push(iri);
+      store.removeQuads(store.getQuads(namedNode(iri) as never, namedNode(PREF_LABEL) as never));
+      store.addQuads([quad(namedNode(iri), namedNode(PREF_LABEL), literal(label, 'en')) as unknown as Quad]);
+    };
+    const first = reference();
+    const second = reference({ labelText: 'See also' }, `${REF}-2`);
+    const other = { ...reference({}, `${REF}-3`), businessObject: { ...reference({}, `${REF}-3`).businessObject, figure: { kind: 'reference' as const, view: `${VIEW}-other` }, label: 'Other' } };
+    const handler = new RelabelElementHandler(store, writer, { filter: (fn) => [first, second, other].filter(fn) as never });
+    const context = { element: first, label: 'Payment flows' } as RelabelContext & RdfChangeContext;
+
+    handler.execute(context);
+    expect(written).toEqual([VIEW]);
+    expect(store.getQuads(namedNode(VIEW) as never, namedNode(PREF_LABEL) as never).map((q) => q.object.value)).toEqual(['Payment flows']);
+    expect([first, second, other].map((r) => r.businessObject.label)).toEqual(['Payment flows', 'Payment flows', 'Other']);
+    expect(second.businessObject.labelText).toBe('See also');
+
+    handler.revert(context);
+    expect(store.getQuads(namedNode(VIEW) as never, namedNode(PREF_LABEL) as never).map((q) => q.object.value)).toEqual(['Payments']);
+    expect([first, second].map((r) => r.businessObject.label)).toEqual(['Payments', 'Payments']);
   });
 });
 

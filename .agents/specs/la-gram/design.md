@@ -95,18 +95,29 @@ deletes those at its ends.
 
 UUID-based, minted at creation, never changed by editing (`rdf-engine/iri.ts`).
 A model owns a **namespace**, `{base}{notation}/{modelId}/` (DD-15/DD-29), and
-everything minted for it is a flat local name in it — flat because a Turtle
-prefixed name cannot contain `/`, so the whole model is written with `m:`:
+what is minted for it follows the layout every Linked.Archi tool shares (DD-41,
+key design decision 33), written short in Turtle (key design decision 32):
 
 ```
 {base}{notation}/{uuid}/           namespace     (base: https://example.org/ unless configured)
 {ns}model                          model         m:model
-{ns}element-{uuid}                 element       m:element-…
-{ns}relationship-{uuid}            relationship  m:relationship-…
-{ns}view-{uuid}                    view          m:view-…
-{ns}node-{uuid}                    ArchNode      m:node-…
-{ns}link-{uuid}                    Link          m:link-…   route: {link}-points-{i} (cells), {link}-p{i} (points)
+{ns}element/{uuid}                 element       me:…
+{ns}relationship/{uuid}            relationship  mr:…
+{ns}view/{uuid}                    view          mv:…
+{ns}folder/{uuid}                  folder        mf:…
+{view}#node-{uuid}                 ArchNode      mv{hash}:node-…
+{view}#link-{uuid}                 Link          mv{hash}:link-…    route: {link}-points-{i} (cells), {link}-point-{i} (points)
+{shape}-style, {shape}-style-{h}   own styles    and {link}-label, {node}-label-expression[-{h}]
+{element}/name/{h}[/{lang}]        names         and {element}/picture[/{h}]
 ```
+
+After a view's `#`, names are joined with `-` and need no escape in Turtle; elsewhere a part is joined to
+its owner with `/` (`partIri`).
+
+A model la-gram saved before DD-41 keeps its names, which are read as before:
+`{ns}element-{uuid}`, `{ns}node-{uuid}`, `{owner}-style[-{h}]`,
+`{link}-points-{i}`, `{link}-p{i}`, `{link}-label`, `{node}-label-expression[-{h}]`,
+`{element}-name-{h}[-{lang}]`, `{element}-picture[-{h}]`.
 
 The namespace is stated on the model with the VANN properties the Linked.Archi
 ontologies use for their own (`model-manager/model-namespace.ts`):
@@ -127,8 +138,8 @@ model shows the namespace it will use and lets it be edited. **Model settings**
 (the model name in the toolbar, File menu, tree menu) edits name, namespace and
 prefix. Changing the namespace **moves** the model's IRIs into it by default:
 every IRI in the model data under the old namespace is rewritten under the new
-one, keeping its local name with any `/` turned into `-` (so legacy IRIs become
-prefixable), and `arch:Model` becomes `{ns}model`. Terms a loaded vocabulary
+one, keeping its local name exactly — a shape moves with its view — and
+`arch:Model` becomes `{ns}model`. Terms a loaded vocabulary
 defines are never renamed. The move is one store change — one Yjs update —
 and a collaborator's session follows it to the same view under its new IRI
 (`ModelSession.resync`). Unticking "move" keeps existing IRIs and mints only new
@@ -228,8 +239,9 @@ pictures are loaded by the browser as images, which no fetch option reaches:
 the files' names and contents), so a build with other assets gives them other
 addresses and the same ones keep theirs; the servers, and the desktop app's
 `app://` handler, read the path alone. `assets/` is
-refreshed from a linked-archi-meta checkout with `npm run sync-assets`, which
-uses that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
+refreshed from the published meta.linked.archi site by default with `npm run sync-assets`.
+A local `linked-archi-meta` checkout can be selected explicitly (`--meta` or `LINKED_ARCHI_META`),
+using that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
@@ -279,6 +291,43 @@ the palette — and the canvas's menus, without redrawing the shapes
 (`updatePaletteDefinition(…, { iconsOnly: true })`) — take the drawn one. The
 swap waits on the network: a few seconds for a link that does not resolve.
 
+**Bare triples become relationships** (Req 4.22). `ModelSession.adopt` repairs a model as it opens —
+membership, `rdf:reifies`, qualified pointers — and `ensureRelationshipResources` runs between the second and
+the third: for each predicate some relationship class names as its `arch:unqualifiedForm`, the most general
+such class (a bare triple says no more), and for each `owl:inverseOf` of one, the drawn predicate read the
+other way; every model triple of those, both ends concepts of the model and not yet reified, gets a resource.
+Its IRI is `{namespace}relationship/{digest of "s p o"}` — the IRI meta's ArchiMate derivation rules give the
+same triple (`:QualifyRelationships`), key decision 36 — so the repair is idempotent and two clients adopting
+one room's data make one resource, not two: a random IRI, as a drawn link gets, would have made both. The
+digest is computed synchronously (`keyDigest`, `short-hash.ts`), as the repairs are; Web Crypto's is
+asynchronous. A resource made before, `{namespace}relationship-{SHA-1}`, keeps its name. Making them on
+opening rather than when a link is placed on a view (decision D6 of meta's decision task) is what lists them
+under Relationships and lets a view draw them: the model changes on the next save, as the other repairs
+change it.
+
+**Links in the property picker** (Req 3.6). `PropertyCatalog.suggest` offers an object property by
+`rdfs:domain` or `arch:domainIncludes`, and leaves out what a relationship class draws: every
+`arch:unqualifiedForm`, the qualified predicates (which name one too), and the `owl:inverseOf` of either. A
+link whose only fitting domain is `arch:Element`, `arch:ModelConcept` or `owl:Thing` is not offered: core's
+are notation and metamodel authoring (`arch:prefVisNotation`, `arch:templateResource`,
+`arch:hasQualifiedRelationship`), and under *More* they took a typed name's Enter — "owner" became
+`arch:conceptOwner` rather than a new `m:owner`.
+
+**Element icons** (Req 2.26). An element type's icon is its descriptor's
+`arch:prefVisNotation`, else its `arch-vis:iconSymbol` badge glyph. A notation
+may name glyphs not yet published — LeanIX's, BPMN's, UML's and Backstage's
+answer 404 — and a type with no notation names none. `withElementIcons`
+(`notation-shapes.ts`) gives those its figure (`elementIconDataUri`): a
+standalone 24 × 24 SVG as a `data:` URI, the shape `shapeGeometry` builds for
+the canvas at 22 × 15 — a notation's own shape from its templates, inner lines
+stroked — in its fill and line colours, escaped into the markup. `mount-ui`
+tries the element icons with the relationship icons, once each, and swaps a
+broken one the same way. Only the palette and the menus read an element
+type's icon; the canvas draws a shape from its style and its badge from
+`iconSymbol`, so the drawn figure never reaches a diagram. The palette panel
+also swaps an `<img>` that fails for the figure itself (its `error` event), so
+the palette shows no broken image while the probe is waiting on the network.
+
 **The palette panel** (Req 2.8, 2.22). `palette-panel.ts` lists the
 relationship types first, above the element groups — a short list, kept in
 reach — in a section that folds by its header as a group does; its state is
@@ -327,14 +376,37 @@ shows (the vocabulary's `arch-vis:iconSymbol` convention), so they need no
 recolouring to match the pictures.
 
 Palette generation (existing, unchanged in approach): dual classification over
-the taxonomy (`conceptClassification`) and ontology, several axes. Notation is
+the taxonomy (`conceptClassification`) and ontology, several axes — in the order
+the manifest's palette grouping gives, each axis's groups in the order of its
+thesaurus array (key design decision 20). A group's members are the element
+types the ontology declares: a class the taxonomy lists, or a concept with nothing
+under it that stands for one (`rdfs:seeAlso`, or the same local name). A concept
+with nothing under it and no class behind it is an empty concept — neither an
+element type nor a reason its parent is no axis. Within a section, the types
+come first in the order of the array under their own group, where it has one
+(`memberRanksByAxis`, from the axis's `memberRanks` — ArchiMate 4.0's Common
+Domain), then by their groups' ranks under the other grouping axes, then by name.
+A group under no axis and no
+other group (ArchiMate's Junction, a top concept of its own) is kept as a
+standalone axis of its one group: its members are palette types, in a section of
+its name when no grouping axis classifies them, and it is offered as no way of
+grouping. The relationship types take their category from the first axis whose
+groups list relationship types (ArchiMate's Relationship), through their nearest
+superclass for a kind the taxonomy does not list, and come in the order of that
+axis's array; within a category, in the order of the array under it (the axis's
+`memberRanks` — ArchiMate's strongest first), a kind after its superclass, then
+by name (`categoriseRelationships`). The panel shows a group per category inside
+the Relationships section. Notation is
 resolved per class by `notation-resolver.ts` in five steps (Req 2.16):
 
 For a class C, the active set A is the set that the active presentation context
 names with `arch:usesNotationSet`, or else the primary metamodel's
 `arch:notationSet`. The fallback layers F are the default sets
-(`arch:notationSet`) of all loaded metamodels except A itself, in load order.
-F includes the default set of A's own metamodel when a presentation context
+(`arch:notationSet`) of all loaded metamodels except A itself, in load order,
+then the core notation's (`coreNotationSetIris`), which no manifest names and
+which is never A: it draws the core's own relationship types — Association,
+Depends On, and Has Part and Refines, which nesting may draw (DD-42). F
+includes the default set of A's own metamodel when a presentation context
 picked an alternative set.
 
 1. A descriptor in A for C.
@@ -364,24 +436,25 @@ loader also loads the sets the presentation contexts name
 
 **Basic, the generic language** (Req 1.12; meta.linked.archi's, bundled:
 `assets/basic/`, `https://meta.linked.archi/basic/metamodel#Basic`). Every
-metamodel la-gram offers is meta.linked.archi's; for elements and
-relationships no loaded language has, Basic is the one to add. Its
-Connection's domain and range are `arch:Element`, so it relates any two
-elements, across languages; Association and Aggregation keep Basic's
-restrictions. A relationship is *generic* (`RelationshipTypeInfo.generic`)
-when its domain and range name only core classes and no relationship table
-governs it — ArchiMate names `arch:Element` on Specialization and Composition
-and restricts them in its tables, so they are not (`isGenericRelationshipType`,
-decided in the relationship manager, which knows the tables). A generic
-relationship ranks with the fallbacks, below Association, and counts as
-generic in the append menu (`isGenericRelationship`), so it never makes a
-choice ambiguous. A core class is never a palette type, whatever a taxonomy
+metamodel la-gram offers is meta.linked.archi's; for elements no loaded
+language has, Basic is the one to add. Its Connection's domain and range name
+Basic's three element types, so it relates any two of them, proposed after
+Aggregation and before Association (Basic's `arch:relationshipProposalOrder`);
+Association and Aggregation keep Basic's restrictions, and between a Basic
+element and another language's the core's types are offered (Req 4.21). A
+relationship is *generic* (`RelationshipTypeInfo.generic`) when its domain and
+range name only core classes and no relationship table governs it, since a
+table restricts a type whatever its hints name (`isGenericRelationshipType`,
+decided in the relationship manager, which knows the tables). A generic relationship relates
+any two elements of its own metamodel, ranks with the fallbacks, below
+Association, and counts as generic in the append menu
+(`isGenericRelationship`), so it never makes a choice ambiguous. A core class is never a palette type, whatever a taxonomy
 lists. So that adding a language does not disturb the first: the palette's
 axes come in the loaded metamodels' order (`PaletteOptions.metamodelIris`,
 which the UI passes as it passes the notation sets), so the first language's
 grouping stays the default, and under its axis another language's types are
 in "Other". Only an axis that groups some element type is offered: a taxonomy
-may also classify relationship types — ArchiMate's Relationship by Category —
+may also classify relationship types — ArchiMate's relationship categories —
 which are no palette elements. Basic's notation draws `arch:Element` and
 `arch:QualifiedRelationship` generically, so an element typed by a core class
 alone is drawn too. The core ontology document loads under its bundled
@@ -400,8 +473,21 @@ then — unless offline — the published one, read from meta.linked.archi
 whatever the asset mode: under `bundled-first` the chain would always answer
 from the bundle, and a newly published metamodel would wait for a new la-gram.
 A published catalogue that is missing or unreadable leaves the bundled list.
-`npm run sync-assets` takes the catalogue from the meta checkout's last
-generated site (`.onto-docs/catalog.ttl`).
+`npm run sync-assets` takes the published `catalog.ttl` by default. Explicit local mode uses
+the meta checkout's last generated site (`.onto-docs/catalog.ttl`).
+
+Snapshot freshness is a release preparation step (key design decision 25). The sync command compares
+the files already bundled with the selected source. Online mode fetches Turtle by namespace path,
+icons by their relative paths and the published catalogue; downloads are staged before writing,
+with a failed required request failing the run and preserving the snapshot. It does not silently
+fall back to local files. `--meta` or `LINKED_ARCHI_META` selects local mode; `--online` overrides the
+environment selection. Local mode does not regenerate its catalogue. Neither mode adds other
+languages' Turtle documents, and webpack copies the snapshot without syncing it. A catalogue-only
+entry such as LeanIX resolves remotely. Documents already loaded into the session's store stay
+there until the app is reopened; HTTP revalidation applies to a new fetch.
+The CLI package's generated `assets/` sits beside webpack's `dist/` output and outside its normal
+cleanup. Its build therefore cleans the copied asset folder explicitly, so obsolete semantic
+documents cannot survive a rebuild. Package metadata and other sibling folders are preserved.
 
 ### Editing on the canvas — recorded changes
 
@@ -633,7 +719,7 @@ else on the line the bendpoints take it as before. The name follows the pointer
 (redrawn through `graphicsFactory.update`, no command); let go, it is moved by
 `rdf.link.label.move`, a recorded store change whose writer
 (`ViewManager.setLinkLabel`) keeps the link's `arch-vis:LabelNode` —
-`{link}-label`, typed, in the view, with bounds — or, moved to nowhere (*Move
+`{link}-label` (`partIri`; the one a link already has keeps its name), typed, in the view, with bounds — or, moved to nowhere (*Move
 name back to the middle*), drops it. On the line the name is an offset from the
 route's middle (`RdfBusinessObject.labelOffset`): read from the kept bounds'
 centre when the line is drawn (`labelOffsetOf`, `addRelationship`) and when the
@@ -665,8 +751,20 @@ centre. `rdfModelingModule` binds three services that belong together
   element, when it is the element's centre. A resize that grows an element over
   bends hands the last (or first) of them over as the end
   (`getResizedSourceAnchor` / `getResizedTargetAnchor`), and the bends from
-  there to the element go. A connection with no route yet is laid out centre to
-  centre; both ends are then cropped by the docking service.
+  there to the element go. A right-angled route (bends, every segment along an
+  axis — as Arrange view draws them) stays right-angled: the bend next to a moved
+  end follows it along their segment's axis, the others stay; where that would put
+  a bend inside an element, or fold two points into one, the line is routed again
+  at right angles between the centres, leaving as the old route left the source
+  (diagram-js's `connectRectangles`). An arranged straight line — along an axis,
+  its ends on the outlines where a drawn line's are aimed at the centres — stays
+  straight while its ends share the axis, and turns right-angled when an element
+  leaves it, out of and into the elements where it was. A connection with no route yet — a new
+  line between two elements — is laid out centre to centre, the gesture's points
+  aside; both ends are then cropped by the docking service. Only shapes with finite
+  bounds replace a gesture's point with their centre. During a connect preview the
+  hovered diagram root has no bounds: its end keeps the pointer hint, and
+  `FastCroppingConnectionDocking` leaves that free end uncropped (Req 4.1).
 - **`connectionDocking` — `FastCroppingConnectionDocking`.** diagram-js's
   cropping assumes an end's reference lies inside the element, and keeps the
   reference as the end when the line misses the outline. A shape is hit-tested on
@@ -693,13 +791,123 @@ The reconnect rule (`RdfRules.checkReconnect`) answers `false`, not
 allowed, and a reattach let go over empty canvas — the diagram's root — was
 attached to it.
 
+### Automatic layout
+
+Req 21; key design decision 21. `src/layout/` is DOM-free; `ui/arrange-view.ts`
+and `mount-ui` use it.
+
+| File | Does |
+|---|---|
+| `layout-types.ts` | `LayoutInput` (nodes with size, parent, padding, band and sort key; edges, an association marked), `LayoutOptions` (direction, spacing, bands, origin, `maxNodes` 2 000, `timeoutMs` 10 000), `LayoutResult` (bounds by node, routes by edge, the engine and why) |
+| `elk-graph.ts` | the input as ELK's JSON graph: nodes nested under their parents, in the order of their keys (band, type, name, IRI); edges at the root, by IRI, none between a node and one nested in it; the options, and ELK's effort by the diagram's size (below) |
+| `elk-result.ts` | ELK's result as top-left bounds and routes (start, bends, end), rounded and moved to the origin |
+| `bands.ts` | the bands: the list a loaded manifest names with `arch:diagramGroupOrder`, a band for each type it lists; `withNeighbourBands` gives an element of no band the band most of what it holds, else most of what it is related to, is in |
+| `grid-layout.ts` | the fallback: rows, what is nested inside its parent |
+| `layout-service.ts` | `layout()`: the size limit, ELK raced against the timeout (the worker stopped when it loses), the grid on failure; never half of one |
+| `elk-engine.ts`, `elk.worker.ts`, `elk-node-engine.ts` | ELK in a worker, created on the first layout (`elk-api.js` with the worker as one webpack chunk), for the browser and the desktop app; the bundled ELK in Node, for the tests |
+| `view-layout.ts` | a view as an input — each placement by its node IRI, at its current size, nesting and figures included — and a result written back by node and link IRI (`updateNodeBounds`, `updateLinkWaypoints`); a line ELK did not route whose ends moved is made straight |
+
+ELK is asked for layered layout (`elk.algorithm` layered), the direction, orthogonal
+routes, `elk.hierarchyHandling` INCLUDE_CHILDREN (nested nodes in their parents, in
+one run), `elk.randomSeed` 1, the spacing (node to node 30 / 50 / 80, layer to layer
+50 / 80 / 120), coordinates relative to the root (`elk.json.shapeCoords` and
+`edgeCoords` ROOT, so nested results need no adding up), and with bands
+`elk.partitioning.activate` and each node's `elk.partitioning.partition`. An
+association's edge has `elk.layered.priority.direction` 0. Its effort follows the
+diagram's size (`effortOptions`): up to 150 nodes
+`elk.layered.considerModelOrder.strategy` NODES_AND_EDGES, so a layer keeps the
+given order where it adds no crossing; above, with bands,
+`elk.layered.layering.strategy` LONGEST_PATH; above 500,
+`elk.layered.thoroughness` 1.
+
+Where it runs:
+
+- ***Arrange view…*** (`arrangeView`): the dialog, then `layoutView` — the view's
+  placements, or those selected and what is nested in them, kept at their top-left
+  (the input's origin) — then `diagramCanvas.recordChange(() =>
+  applyViewLayout(…))`: one `rdf.store.edit` on the command stack, so one step to
+  undo and one change for collaborators. The choices are `arrange-settings.ts`'s,
+  remembered as `la-gram:arrange-view`.
+- **A model opened with no geometry**: `ModelSession.autoLayoutIfNoGeometry`
+  places every element in the grid on the first diagram, as before; then
+  `layoutLoaded` lays that view out with the remembered choices and writes it as
+  part of the load, not as a step to undo. When the grid stays, the message says why.
+- ***Render as new view***: `layoutPlan` lays out the elements and relationships the
+  plan holds, not yet placed, at their notation's default sizes, and
+  `createViewWith` writes the bounds and the routes.
+
+`npm run bench -- --layout` arranges diagrams of 100, 500 and 2 000 elements, each
+with twice as many relationships between random types, in the built app in Chrome,
+at CPU rate 1 and 4×, and fails when one is not laid out by ELK, or has an element
+over another, at rate 1.
+
+### Arrange options
+
+*Arrange relationships*, align and distribute, align to a grid and sizes (Req 22) tidy a diagram without laying it
+out again. Each computes, from the shapes on the canvas, moves (a delta per placement), resizes (bounds per
+placement) or routes (waypoints per line) — `layout/arrange-geometry.ts` and `layout/orthogonal-router.ts`, pure
+functions — and `ui/canvas/canvas-arrange.ts` runs them as one diagram-js command, `la.arrange.apply`, whose
+`preExecute` calls `modeling.moveShape`, `resizeShape` and `updateWaypoints`. Nested, they share the outer command's
+undo step, and the canvas's `shape.move` / `shape.resize` / `connection.updateWaypoints` hooks write them to the view
+as a drag's are written: a moved element's lines keep their bends and re-dock their ends, a container grows to hold
+what moves into its edge.
+
+What is acted on is what is selected less what is in a selected container (it moves with it), unlocked; with nothing
+selected, align to grid, arrange relationships and the default size act on the whole view.
+
+The router routes each line, in order of IRI, on the orthogonal visibility graph of the placements near it: the grid
+of the edges, grown by a 16 px margin, of every placement but the line's ends and their containers, with the ports'
+stubs and the middle of the gap between the two ends, within the ends' bounding box grown by a border (widened if no
+route is found); each obstacle marks the vertices and steps it covers by binary search, so building the graph costs
+the obstacles' areas on it. Its ports are the middle of each side and, where the two placements face each other with
+their sides overlapping, a point they share — the same for both, so the line runs straight: the middle of the one
+with the shorter side, moved into the overlap, and only within the middle half of that side, so a small element
+beside a large one keeps its line at its middle and none is pushed to an edge; a port off the middle costs 0.4 per
+pixel. A* weighs, in pixels of length: a bend 150, a bend within 24 px of either
+end's placement 150 more — as much as a second bend, so two bends clear of the elements beat one cramped against
+one — a crossing of a line already routed 40: fewer bends come first, and a line is not bent to avoid one or two
+crossings. Then the lines on each side of a placement dock so that none crosses another as it leaves: straight ones
+stay at the point they share with their other end, lines on one point moving apart — a straight one only where both
+its ends can, so no bend is added. A line that turns may dock between the level it turns to and the first straight
+line beyond that level that runs further than it before turning; one ending sooner it passes by. Along the side, the
+lines turning towards one end before those turning towards the other, of those turning one way the one turning
+soonest outermost, the straight ones fixed among them; each placed as near where the search docked it — the middle —
+as that order allows, by least squares (adjacent violators pooled), 12 px apart, else 6, else 4. Where even 4 leaves
+no room, every line goes 4 px apart anywhere along the side: a crossing comes before lines on top of one another. A
+move that would run through a placement is not made, and the others are placed again about that line. Then each
+inner segment is moved to the middle of
+the gap between the placements either side of it — open on one side, 72 px wide — segments sharing a gap side by
+side about its middle, 4–16 px apart so the outer ones stay 24 px from the placements where the gap has room, in
+the order that crosses least: where one leaves the gap before the other, it goes on the side it leaves towards; and
+the ends are docked again, for lines that left a side on one level and now turn on two. Each
+move is kept only where the segment and its neighbours stay clear of every placement and keep their direction, read
+from the line as it is then; a U — a line stepping out and back — only comes nearer its ends, never further out, and
+a last pass brings each U between two inner segments to the nearer of its far ends as far as the placements allow,
+flat where the line returns to the level it left: a step round an element is never grown into a loop. Routing every line a second
+time, around all the others, was tried and dropped: 2% fewer crossings for 8% more bends and twice the time. It runs on the main thread: 200 lines among 100
+placements in 40 ms, 1 000 among 500 in 0.35–1.8 s, 4 000 among 2 000 in 4.4 s (Node, Apple M4 Pro).
+
+*Arrange view*, a model opened with no geometry and *Render as new view* take ELK's placement and the router's
+routes (`layout/reroute.ts`): ELK's own dock anywhere along a side — at a corner, beside a large element — and bend
+close to the elements. Up to 500 placements: the router runs on the main thread, and a layout spreads a large
+diagram wide, its lines long — 500 placements add about a second, 2 000 would add nine or more — so above it ELK's
+routes stay, and *Arrange relationships* routes them when asked. For a long line in a wide diagram the router keeps
+its effort bounded: the simple shapes first (straight, an L, a Z through the middle of the gap), taken when clear and
+crossing nothing; the search's estimate counts the bends still needed, not only the distance; a search past 30 000
+states is done again with crossings free; a grid above 60 000 vertices is not searched.
+
+The toolbar's quick actions use what the dialogs last chose, remembered per browser (`la-gram:arrange-grid`,
+`la-gram:arrange-sizes`, `arrange-settings.ts`), and say it in their tooltips; the toolbar is told how many
+placements are selected (`DiagramCanvas.arrangeAvailability`) on every selection change, to enable what that allows.
+
 ### Which relationships are permitted
 
 `RelationshipManager.getValidRelationships(source, target)` answers for connect,
 append and "change type". The authority is the metamodel's **relationship
 shapes**: ArchiMate 4.0's and 3.2's are generated from the specification's
 relationship matrix — one node shape per qualified relationship class whose
-`sh:or` lists every permitted (source class, target classes) pair.
+`sh:or` lists every permitted (source class, target classes) pair — and C4's
+and Backstage's list theirs in the same form.
 `model-manager/relationship-table.ts` reads them into a lookup, walking the RDF
 lists with indexed quad lookups (136 ms for ArchiMate 4.0, 500 ms for 3.2; the
 same as one SPARQL query with `rdf:rest*` took ~50 s), cached until the loaded
@@ -707,7 +915,20 @@ graphs change. As in validation, `sh:targetClass` reaches subclasses, so every
 shape on a class in the relationship's closure must admit the pair — Composition
 is allowed exactly where Aggregation is. Relationship classes no shape covers
 (metamodels without relationship shapes) fall back to the `domainIncludes` /
-`rangeIncludes` hints. Before the table, the hints admitted every ArchiMate 4.0
+`rangeIncludes` hints, where `arch:Element` and `arch:ModelConcept` match any
+element. A language's types relate its own elements (linked-archi-meta's
+DD-40): one whose hints name only core classes, or none, is offered only
+between elements of its own metamodel (`model-manager/own-metamodel.ts`) — the
+documents a loaded manifest names as its concepts beside the one that declares
+it, and what they import; else that document and what it imports; for a type
+no named graph declares, its namespace — and an element type is of it when it
+or a superclass is declared there. So between two languages the core's types
+are offered, while an extension's type that names its own class at one end and
+`arch:ModelConcept` at the other (a decision's Modifies) relates any concept
+there. A relationship class marked `arch:isAbstractClass` (EDGY's Enterprise
+Relationship, the superclass of its Link, Flow and Tree) is never offered, as
+it is no palette type; the mark is read from every graph, outside the
+two-pass query. Before the table, the hints admitted every ArchiMate 4.0
 pair, and the relationship an append created by default failed the shapes for
 68% of them.
 
@@ -724,26 +945,39 @@ candidate `direct: true | false`, or leaves it unmarked where the tables do not
 say (a junction, which they do not list). The same tables say which
 relationships the specification's metamodel figures draw for a pair
 (`am4:assignedTo am4rt:drawnBy am4rt:drawsAssignment`), read by the same code
-under the name `drawnBy`; and the language's taxonomy gives its order of
-proposal — `arch:RelationshipProposalOrder` collections, a general one and
-exceptions scoped with `arch:domainIncludes` / `arch:rangeIncludes`
-(`model-manager/proposal-order.ts`). Candidates come in five groups
-(`RelationshipPreference`), best first: `first`, a scoped exception names it for
-these elements (composition between two capabilities, aggregation from a
-grouping); `drawn`, the figures draw it, in the general order (a process
-realizes a service before it triggers it, triggers another process before it
-flows to or aggregates it); `direct`; `derived`, only by derivation; and
-`fallback`, Association and the core's generic relationship. Within the last
-three, a candidate whose `arch:domainIncludes`/`arch:rangeIncludes` hints
-describe the pair comes first, then the score's nudges (Specialization,
-Composition and Aggregation down), then the label. The general order is kept to
-what the figures draw: where they draw nothing it proposes worse than the hints
-(an actor serving a process before being assigned to it). So in 4.0 an
+under the name `drawnBy` and said on the candidate (`drawn`), not ranked by. The
+order is the metamodel's: the ordered collections its manifest names with
+`arch:relationshipProposalOrder` (`model-manager/proposal-order.ts`, which reads
+the pointer only from a named graph — a metamodel's document — never the
+model's default graph), a general one and ones scoped with `arch:domainIncludes`
+/ `arch:rangeIncludes` to kinds of element. Candidates come in three groups,
+core's rule: what the tables let a modeller draw directly, or say nothing about;
+then `direct: false`, only by derivation; then the fallbacks (`fallback`),
+Association and a generic relationship, unless an order scoped to the
+pair lists one — ArchiMate's association to a meaning or a value. Within a group,
+each takes the place the most specific order that lists it gives it
+(`Proposal`: the ends an order names, then the closure sizes of the classes it
+matches them by, then the position): between two processes Triggering, Flow,
+Composition, Aggregation; from a process to a service Realization; elsewhere the
+general order, strongest first. What no order lists — every candidate, in a
+language that publishes none — follows: one whose hints describe the pair first,
+then the score's nudges (Specialization, Composition and Aggregation down), then
+the label. A connect with no type chosen
+draws the best-ranked type, and where the pair permits more than one specific
+type, `connect.end` (after `Connect`'s own handler) opens the relationship-type
+menu on the new line: picking one is a retype, Escape keeps it. So in 4.0 an
 application component is assigned to a data object — the system of record, as
 the Application Structure metamodel draws it — with Access, derived, second. The
-menus say why in words (`preferenceNotes`): "proposed first", "drawn in the
-metamodel", "only by derivation", "always permitted"; the candidate's reason
-says it too.
+menus say in words (`preferenceNotes`): "drawn in the metamodel", "only by
+derivation", "always permitted"; the candidate's reason says it too. The "+"
+menu's target types come in the order a modeller reaches for next
+(`appendableTargetTypes`): the source's own type, then the rest of its palette
+section, then the other sections in the palette's order; within a section the
+types most like the source first — the most superclasses in common — then the
+palette's order. Both orders are the metamodel's data: its palette grouping and
+thesaurus arrays, its ontology. (The figures ordered them before, and so led a
+process's menu with the Technology Domain: a figure draws access to an artifact,
+and the twelve drawn types tied, broken by name.)
 
 **Append.** "+" on the pad lists the element types some relationship is
 permitted to, with the palette's icons. Association is permitted between any two
@@ -984,11 +1218,16 @@ The open tab is kept in `localStorage` (`la-gram:property-panel-tab`), so it
 holds from one selection to the next and across reloads; a concept without that
 tab (a model has no analysis) shows its information instead.
 
-The Properties tab leads with the concept's own properties; its relationships'
-direct statements (`am4:serves` to the element served — a predicate a
-relationship type declares as its `arch:unqualifiedForm`) are folded together
-under "Relationships" with their count, opened on a click and remembered per
-browser; the tab's count is of the others. The way in to each relationship it is
+**Properties and relationships** (key design decision 26). The Properties tab
+lists everything the concept states but its relationships: data properties and
+links, whether the value is a concept of the model (`ad:relatedDecision` to
+another decision) or not (a reference data value, a document, an address). A
+drawn relationship's direct statement (`am4:serves` to the element served — a
+predicate a relationship type declares as its `arch:unqualifiedForm`) is left
+out: the relationship is on the Analysis tab. The value of a link added is
+picked by name from the model's elements, relationships and views, and by kind:
+`named-picker`'s `group-filter` gives a switch for each group its options come
+in, all on at first. The way in to each relationship it is
 the source of is left out — known by name (`isQualifiedPredicate`) and by what it
 links (a relationship whose `arch:source` the concept is), so a converter's or a
 mapping's own name for it is left out too.
@@ -1013,7 +1252,10 @@ is and its IRI. IRIs are behind the list's **Show IRIs** switch — remembered p
 browser, for every picker that has one — except where entries share a name
 (ArchiMate 3's Business Actor and ArchiMate 4's), which show theirs anyway. The
 type field shows the current type's name and goes back to it when left without
-a pick, or when the change is not made after all. A property takes a link when
+a pick, or when the change is not made after all. Its adjacent **IRI** button
+toggles the row's existing `_shownIris` disclosure, as its label and read-only
+types do; it does not focus the picker or emit `property-retype` (Req 3.11).
+A property takes a link when
 its shape says so (`sh:class`, a `sh:nodeKind` that admits IRIs) or its
 vocabulary does (an object property, a range that is a class), and for
 `rdfs:seeAlso`, `prov:wasDerivedFrom` and `dcterms:source` / `relation` /
@@ -1270,10 +1512,10 @@ the IRIs the result mentions, in order, and keeps the model's elements
 relationships between elements, each bringing its ends; `placeNodes` turns
 layout centres into bounds at each element's notation default size;
 `ModelSession.createViewWith` writes the diagram, its nodes and links in one
-batch and opens it. Without positions from a drawing, the layout is the Graph
-tab's tree, run headless (`layoutPositions` in `graph-view.ts`, Cytoscape.js
-without a container). Like *New view*, it is not on the canvas's undo stack;
-deleting the view removes it.
+batch and opens it. Without positions from a drawing for every element, the
+elements are laid out by ELK, with their routes (`layoutPlan`, *Automatic
+layout*). Like *New view*, it is not on the canvas's undo stack; deleting the view
+removes it.
 
 ### Model questions in the workbench
 
@@ -1756,7 +1998,7 @@ no second one.
 Req 3.13. Drawing with no model element behind it: a group, a sticky note, a
 core-vis shape. In the view they are core-vis nodes (`OxigraphViewManager.addFigure`):
 a group an `arch-vis:ContainerNode`; a shape a `ContainerNode` whose own
-`arch-vis:style` (`<node>-style`, removed with it) gives an `arch-vis:shapeType`;
+`arch-vis:style` (`{node}-style`, removed with it) gives an `arch-vis:shapeType`;
 a note an `arch-vis:LabelNode` that no element's `arch-vis:label` points at — a
 relationship's moved name, which is one, is not read as a note. Their text is
 `skos:prefLabel`, language-tagged: core-vis names no text property for a node
@@ -1851,8 +2093,8 @@ converter now.
 **Store.** `ViewManager.setAppearance(viewIri, iri, changes)` takes a node's or
 a link's IRI — of the view, else nothing is written — and sets each value
 given, `null` taking one back. The style it writes on is the node's or link's
-own, `<iri>-style` (`ownStyle`, generalised from the figures' `ownFigureStyle`):
-made when there is none; a style another tool wrote — a converter's blank node,
+own, `partIri(iri, 'style')` — `{iri}-style` for a shape in its view's IRI — or the one it has under the
+other joiner (`ownStyle`, generalised from the figures' `ownFigureStyle`; `isOwnStyle` matches either name exactly): written on in place, made when there is none; a style another tool wrote — a converter's blank node,
 or one others share — copied into it first, so the change is to this one alone
 and keeps what the old one said (a shape type, a font). A style left with
 nothing to say is removed, with the node's `arch-vis:style` to it.
@@ -1934,7 +2176,7 @@ share (DD-34 in meta's design decisions). Where one is said: a placement's own
 style (`ViewManager.setLabelExpression(view, node, context, text)`, read into
 `NodeInfo.labelExpressions` — `{ context?, expression }` — named
 `{node}-label-expression`, or `…-label-expression-{hash of the context}` for
-one context, so the merge can match it; removed with the node, copied by
+one context, so the merge can match it — one named under the other joiner keeps its name when replaced; removed with the node, copied by
 `duplicateView`); a type's notation (`buildVisualNotations` puts every
 expression of the notation and its default style on the style,
 `VisualStyle.labelExpressions`, so the notation lookup — superclasses included
@@ -1965,8 +2207,8 @@ SKOS-XL names (`contextNamesOf`: each `skosxl:altLabel` with an
 `contextNameOf(store, iri, context, language)` — in that language, else none,
 else any) and works out a change (`contextNameChange`: the label for that
 context and language and its link go, with its plain `skos:altLabel` unless
-another of its names has the same text; a new one is `{element}-name-{hash}` —
-`-{language}` beyond English — typed `skosxl:Label`, its literal form, its
+another of its names has the same text; a new one is `{element}/name/{hash}` —
+`/{language}` beyond English, and one replaced keeps its name, `-name-…` before DD-41 — typed `skosxl:Label`, its literal form, its
 context, linked by `skosxl:altLabel`, its text also a `skos:altLabel`). The
 property panel lists the loaded metamodels' presentation contexts
 (`presentationContexts`, set with the toolbar's; the chosen one,
@@ -1984,18 +2226,20 @@ every presentation context and one for each (core-vis 0.7; meta's DD-35):
 `ViewManager.setAppearance(view, iri, changes, context?)` writes the style for
 `context` — `{node}-style-{shortHash(context)}`, typed `arch-vis:Style`, with
 `arch:inPresentationContext`, made on demand and removed when it says nothing
-else — or, without, `{node}-style` as before (`ownStyle` copies a converter's or
+else — or, without, `{node}-style` (`ownStyle` copies another tool's blank node or
 a shared style, ignoring context styles). `styleOf(subject, context?)` is the
 one read of a style: the figure, the look, the label expressions all read the
 style for every context; `contextAppearancesOf` reads the others into
-`NodeInfo.contextAppearances`; `ownStylesQuads` removes them all with the node;
-`duplicateView` copies them. The canvas draws a placement with
+`NodeInfo.contextAppearances`; `ownStylesQuads` removes them all with the node,
+and with its view (`collectViewQuads`, so that deleting a view leaves no style of
+what it drew, nor the label expressions on them, a converter's blank-node styles
+included); `duplicateView` copies them. The canvas draws a placement with
 `lookFor(node)` — its style for every context, the context's laid over it —
 in `syncFromStore` and in `refreshLabelTexts`, which runs on every presentation
 switch. An element's own pictures (core 0.5.0) are read and written by
 `model-manager/element-pictures.ts` (`picturesOf`, `pictureOf(store, iri,
 context)` — the one for the context, else `arch:prefVisNotation` —
-`pictureChange`, ImageObjects `{element}-picture[-{hash}]` with an
+`pictureChange`, ImageObjects `{element}/picture[/{hash}]` — one replaced keeps its name — with an
 `xsd:anyURI` `schema:contentUrl`; an address `imageUri` refuses changes
 nothing); the refresh puts the one for the presentation chosen on the business
 object (`elementPicture`, from `labelSource.pictureFor`), and the renderer's
@@ -2174,7 +2418,8 @@ checkpoint. Snapshots, not deltas: restore and diff need no other checkpoint.
 They are kept per model IRI in IndexedDB (Chromium in the browser and Electron
 alike), in memory where there is none; a saved file does not carry them, and a
 Git save does not push them. Each records its time (strictly after the model's
-previous one), message, author (the collaboration name, when in a room) and
+previous one), message, author (`App.currentEditor()`'s name: *Settings › You*'s, else the Git account's,
+else the collaboration name) and
 the one before it. The History tab (*Save checkpoint*, its tooltip saying it is
 not a Git commit) lists them with +/− triple counts against the one before,
 shows what a checkpoint changed — against the one before or against the model
@@ -2437,6 +2682,27 @@ Blank nodes do not match between versions (their labels are not kept), so both
 sides' copies end up in the merged model; la-gram makes none, and a Git save asks
 first for an imported model that has them.
 
+**A model moved to another namespace** (Req 18.28; DD-41's scenario S7; key
+design decision 34). After the quick answers (a side unchanged, the sides
+alike), `snapshotModel` reads each version's `arch:Model` and its namespace —
+`vann:preferredNamespaceUri`, else derived from the model's IRI. A side whose
+model has another IRI than base's moved it (a move makes it `{to}model`); a
+namespace set without moving the IRIs keeps the model's IRI and merges as the
+value it is. One side moved: base and the other side are moved after it
+(`moveLines`, through quads so that a moved line is the canonical one), each
+IRI under the old namespace to the same local part under the new one, inside
+triple terms too, unless the mover still has it (a vocabulary's term, which
+`planNamespaceChange` leaves alone), the model to the mover's IRI and its
+`vann:preferredNamespaceUri` lines to the mover's; then the moved versions are
+merged as any, and the result carries `moved: { from, to, by }`. Moved alike on
+both sides: base is moved. To two namespaces: `NamespaceConflict`, nothing
+merged.
+
+```
+mergeSnapshots(…) → { merged, conflicts, moved? }   // moved: { from, to, by: 'ours' | 'theirs' | 'both' }
+snapshotModel(snapshot) → { model, namespace } | undefined
+```
+
 **In the editor** (`src/git/git-merge.ts`, Req 18.18–18.21). The three versions
 are read alike — the model through its own serialization, `snapshotOfText` —
 so a difference of form is never a change.
@@ -2466,6 +2732,28 @@ so a difference of form is never a change.
   *Take theirs*, *Keep it* / *Delete it* for a deletion. A choice swaps the
   lines that stand for the conflict for the chosen side's, as one undoable step;
   it can be changed.
+- A namespace move (Req 18.27–18.28). Every merge here goes through `mergeHere`:
+  a `NamespaceConflict` becomes a message, and a result whose model is not the
+  open model's — the other version moved it, or holds another model — is refused
+  before `replace`, saying what to do (`movedElsewhere`); *Open this version*
+  refuses such a commit too. Model settings asks the module first
+  (`MountedUi.addNamespaceCheck`: *Model saved to Git*, `namespaceMoveMessage`).
+  The binding is kept by model IRI, so it moves with the model: the session's
+  `model-loaded` says which IRI a move renamed (`previousModelIri`, after Model
+  settings, and after a collaborator's move when the open view is found under
+  the same local part — not a new model started in the room), and
+  `GitBindings.move` carries the binding over, noting `movedFrom`, the IRI the
+  bound file still has. `checkSnapshot` accepts that IRI in the file;
+  `advanced` keeps it while the file read still has it, and a commit from here
+  drops it.
+- Where the model is kept, in Model settings (Req 18.30). The module gives
+  Model settings its *Git* part (`MountedUi.addModelSettingsInfo`,
+  `modelSettingsFields`), asked each time the dialog opens, so mount-ui knows
+  nothing of bindings and a build without the module shows none. The address
+  is `fileLink`, the inverse of `parseRepositoryLink` for a file on a branch,
+  so what is copied opens the same file. mount-ui makes every field a module
+  gives read-only (`FormField.readOnly`, which, unlike `disabled`, lets its
+  text be selected) and applies none of them.
 
 **Measured** (*model-merge-bench.test*): 350 000 triples, a few hundred renames,
 moves and deletions on each side — reading one version from Turtle 0.5–0.6 s,
@@ -2478,7 +2766,10 @@ each side's additions and removals on one base model): changes that combine;
 a name per language; a retype; a retarget kept whole; a concept deleted against
 a rename, a new relationship, a placement, a folder entry, and deletions that
 agree; bounds; a route; two placements; count limits; TriG read whole; blank
-nodes. *model-merge.property.test* (fast-check, on models la-gram's managers
+nodes; a model moved to another namespace on one side against a rename, an
+addition with its triple term and a deletion, a value both changed, a deletion
+after the move, moved alike, moved apart, a vocabulary term the move left, a
+namespace set without a move. *model-merge.property.test* (fast-check, on models la-gram's managers
 build and edit): the result does not depend on which side is ours; a version
 merged with itself or an unchanged base comes back; edits on disjoint halves
 never conflict and are all kept (`MERGE_RUNS` for a longer search).
@@ -2487,7 +2778,13 @@ never conflict and are all kept (`MERGE_RUNS` for a longer search).
 GitHub and as GitLab): the merge committed to the same branch; again when the
 branch moves on; conflicts listed, then committed after choosing; asked before
 saving with conflicts or blank nodes; *Update from main* as a merge commit and
-as a new branch, with conflicts, after catching up, up to date. *providers.test*:
+as a new branch, with conflicts, after catching up, up to date; a model moved
+here merged with a colleague's change and committed to the same file, the
+binding moved with it; one moved there refused; moved apart refused; a branch
+started before the move merged into it, and *Update from main…* on that branch
+refused. *git-pull.test*: pulled into a model
+moved here; refused when the branch moved it. *git-history.test*: a commit from
+before the move not opened. *providers.test*:
 the merge base and GitHub's merge commit, recorded. *conflicts-panel.test*,
 *git-module.test* (the tab in the mounted UI). *git-merge.spec* (Chrome, two
 browser contexts, a fake GitHub): the second save merged on the same branch,
@@ -2540,7 +2837,25 @@ The merge driver merges a file la-gram's way only when both sides are la-gram
 models: `.gitattributes` routes files by extension, so ontologies and shapes
 files come to it too, and those — and a side that does not parse — go to Git's
 own text merge (`git merge-file`, labelled ours/base/theirs), as without the
-driver.
+driver. A namespace move is followed in either direction, as *Merging versions*
+says, and told on the standard error; a `NamespaceConflict` is a file not
+merged, left as ours (exit 1).
+
+**The IRI layout** (Req 20.2; DD-41; key design decision 35).
+`model-manager/iri-conformance.ts`, `layoutReport(quads)`, takes the file's own
+triples (`parseModelText`), not the opened model, which adds a default view and
+a layout. The model is the first `arch:Model`, its namespace stated or derived;
+a shape is a subject with `arch-vis:view` that is not a node's or a line's label;
+a part is the object of `arch-vis:style`, `label`, `labelExpression`,
+`skosxl:altLabel`, `arch:prefVisNotation`, `arch:altVisNotation` or
+`schema:itemListElement` from exactly one owner, and a route's cells and points
+are the line's. Each IRI of the namespace, and the model's, goes into the first
+category that applies — `characters`, `hashes`, `shape`, `part`, `outside` — or
+`legacy` when it is named as before the layout (`{kind}-…`, `{owner}-…`, a
+converter's `{ns}view/{v}/node/{id}`). `check.ts`'s `layoutNotes` writes them
+under *IRI layout (DD-41), advisory*, after the SPARQL-based rules, each counted
+with its first three names relative to the namespace; a model all in the layout
+gets no line.
 
 **Release** (Req 20.9). `.gitlab-ci.yml`, la-gram's only pipeline, runs on a
 tag `la-gram-git-v<version>`, and for merge requests and the default branch
@@ -2819,9 +3134,9 @@ dialog; the modules' section).
 7. **Indicative vs. normative.** `domainIncludes`/`rangeIncludes` are hints;
    the relationship shapes decide — what the canvas offers as well as what
    validation reports (`relationship-table.ts`).
-8. **A model owns a namespace.** HTTP IRIs, minted flat in it, so every IRI of
-   the model is a prefixed name in Turtle; the namespace is data on the model
-   and can be moved.
+8. **A model owns a namespace.** HTTP IRIs, minted in it in the Linked.Archi
+   layout (key design decision 33) and written short in Turtle (32); the namespace
+   is data on the model and can be moved.
 9. **The vocabularies decide what to offer.** Properties are suggested by
    `rdfs:domain` and SHACL, not listed wholesale.
 10. **The relationship graph is drawn with Cytoscape.js, not D3** (2026-09-27).
@@ -2882,7 +3197,7 @@ dialog; the modules' section).
     greyed out: a switch that appeared only with folders left a user looking
     for it on a model whose export had none, with nothing to say why.
 14. **Folders by kind, under Views, Elements and Relationships** (2026-11-04).
-    Archi keeps each kind in folders of its own — its layer folders hold
+    A source tool may keep each kind in folders of its own — its layer folders hold
     elements, *Relations* relationships, *Views* views — and the other
     converters write Elements, Relationships and Views folders; a tree that
     mixed them in one folder list, with a *Not in a folder* bucket, matched
@@ -2998,8 +3313,155 @@ dialog; the modules' section).
     150 ms. Then set the values, build, and run `--graph` again: it must exit 0 —
     it fails when a row is not laid out as the limits say, or a node limit is above
     3 000 (as *graph-force.test* does).
+18. **Every bundled package's licence, gathered from what the bundle emits, by
+    la-gram's own build plugin** (2026-11-12, Req 15.9). Minification keeps only the
+    comments marked `/*!` or `@license` (the `*.js.LICENSE.txt` files), and many
+    packages mark none — Cytoscape.js, diagram-js and D3 among them — so their
+    notices were not shipped. `scripts/third-party-licences.mjs` adds
+    `third-party-licences.txt` beside the web build's and the desktop renderer's
+    `index.html`: every npm package one of the bundle's emitted modules comes from
+    (the modules of every chunk, inside concatenated modules too), each with its
+    version, the licence its `package.json` declares, and each licence or notice
+    file it ships (`LICENSE`, `LICENCE`, `COPYING`, `NOTICE`, with a `-MIT`-style
+    suffix or a `.md`/`.txt` extension), as it ships it. A package shipping none is
+    listed with its declared licence, author and source repository. **What the
+    bundle emits, not what is installed**: a dependency whose code tree shaking
+    removed, or a development tool, is not in the app, and listing it would say
+    otherwise. **Our own plugin, not a dependency**: it is about 150 lines and reads
+    nothing but `package.json` files and licence files, where a plugin package would
+    be one more dependency in the build whose own output la-gram must then trust.
+    The desktop app's main and preload bundles emit no npm code (Electron's own
+    licences, `LICENSE` and `LICENSES.chromium.html`, are put in the app by
+    `@electron/packager`), and la-gram-git keeps every package an import, installed
+    with its own licence (`externals`), so neither gets the file. *About la-gram*
+    links to the file beside the web app it runs from; the desktop app, which opens
+    only web pages, links to the published web app's, whose packages are the
+    renderer's — the same build of `src/index.ts`.
+19. **Copy and paste are store changes, read back through a view manager, placed by
+    *Duplicate view*'s code** (2026-11-12, Req 3.22, 10.17; the copy-paste task). A
+    copy is RDF (`model-manager/clipboard.ts`): the copied concepts' own triples and
+    each placement's triples with what hangs off it — its route's cells, a moved
+    name's label node, its styles, looks and label expressions. A paste makes or
+    reuses the concepts through the managers, then reads the placements back through
+    a view manager over a scratch store holding the copy, and places them with
+    `copyPlacements` (`placement-copy.ts`), the function *Duplicate view* now calls
+    too: figures, an element placed twice, nesting, appearances per presentation,
+    label expressions, connectors, routes, moved names and a line on a line are
+    placed again the same way by both, and a later kind of placement or look is
+    copied by both. **Not diagram-js's `copyPaste`**: it copies shapes and pastes by
+    creating them through modelling commands, which la-gram would have to catch and
+    turn into model triples; here the store is the model of record, so a paste is
+    one recorded change (`recordChange`) the canvas redraws from, as it does a
+    collaborator's. **The browser's copy and paste events**, not the asynchronous
+    Clipboard API: they need no permission, the desktop app's Edit menu fires them,
+    and another la-gram window reads la-gram's type from them
+    (`application/x-la-gram-clipboard+json`, a JSON envelope — the source as JSON,
+    so no vocabulary is invented for it — with the triples as N-Triples), with Turtle
+    as `text/plain`. The forced pastes, *Duplicate* and the menus are not paste
+    events and a page may not read the clipboard unasked, so the window keeps what
+    it copied or pasted last for them. **A copy keeps type, names and definition
+    only**: an identifier, an owner or a status belongs to the original. **The
+    paste's mode follows the context** — the same concepts into another view of the
+    model, copies into the same view or another model — because a second placement in
+    the same view is rarely what a paste means.
+20. **The palette's grouping and a diagram's bands are the metamodel's data: an
+    axis's order in a thesaurus array, two lists the manifest points to**
+    (2026-11-13, Req 2.5, 2.6, 2.23; meta's DD-36). An axis stays a SKOS concept,
+    its groups narrower than it; the order of the groups is an ISO 25964 thesaurus
+    array, an ordered collection whose `iso-thes:superOrdinate` is the axis
+    (`taxonomy.ts` reads its `skos:memberList`) — a published term, so reading it
+    is not a rule of la-gram's, and a taxonomy without one still classifies. The
+    manifest names the palette's axes, main one first (`arch:paletteGrouping`),
+    and the groups a diagram keeps in bands, top first (`arch:diagramGroupOrder`,
+    read by `layout/bands.ts`). The palette and the diagram want different orders
+    — ArchiMate 3.2 has no motivation layer, yet its diagrams draw motivation on
+    top — so they are two lists, not one. The palette grouping replaces a guess:
+    which axis is the default, from "aspect" in its label (gone: without a palette
+    grouping, the axes come by name); and an axis it names is taken as one whatever
+    its shape, where the structural detection would find one beneath it.
+21. **Automatic layout is ELK's, in a worker, its effort set by the diagram's
+    size, the grid when it cannot** (2026-11-12, 2026-11-15; Req 21). One library
+    gives what the three uses need: layered layout with right-angled routes,
+    nesting in the same run (INCLUDE_CHILDREN) and ordered bands (partitions) —
+    `elkjs` 0.12.1, pinned exactly, used under EPL-2.0, its licence shipped with
+    the others (decision 18). It runs in a worker, so a long layout never freezes
+    the app; it uses neither `eval` nor `new Function`, so it runs under the web
+    app's Content-Security-Policy. Determinism (Req 21.6) comes from the input
+    order and the seed, not from ELK's model order. Keeping the given order inside
+    each layer costs most, and more with bands — on the benchmark's diagrams, 0.3 s
+    at 100 elements, 1.1 s at 200, 4.8 s at 300, 14.5 s at 500 (Node, Apple M4
+    Pro), so the first measurement of 500 elements hit the 10 s limit and fell back
+    to the grid — so it is kept up to 150 elements, where a layout is read most
+    closely; above, banded layers by longest path (network simplex costs several
+    times more within partitions) and above 500 less crossing effort: in the app,
+    500 elements are arranged in 1.9 s and 2 000 in 6.6 s. The grid stays for
+    what ELK cannot do in time, said, never half a layout. The result is written
+    through the view manager in one recorded change, so it is undone, and shared,
+    as one.
+22. **The order of proposal is the metamodel's — orders its manifest names, by
+    the kinds of the two elements — under one rule, core's; the figures are said,
+    not ranked by** (2026-11-15; Req 4.2; meta's DD-38). la-gram had five tiers:
+    a scoped exception, then what the figures draw, then direct, derived,
+    fallback. The figures split the order — a relationship they do not draw fell
+    below every one they do, so composition between two processes came after flow
+    in 4.0 and before it in 3.2 — and, expanded from abstract types, put
+    assignment first between two roles. The order is now data: orders for kinds of
+    element (between behaviour elements triggering first), each kept only where
+    taking it out changes a pair, and a general one. Derivation still demotes:
+    letting the order alone decide put a derived relationship before a direct one
+    in 46 of the 5 364 pairs of 4.0 and 3.2, 42 for the worse (in 3.2, across
+    layers, triggering before the realization the tables permit directly). The
+    orders are found through the manifest, not by a class searched for in every
+    graph, so a model file cannot change them. "Subclass of" between two orders'
+    classes is measured by closure size, which agrees with it wherever one's
+    classes are subclasses of the other's.
+23. **Arrange options are moves, resizes and routes run as one command; routing
+    alone is la-gram's own router** (2026-11-15; Req 22; `.agents/tasks/arrange-options/`).
+    Run as diagram-js's own `moveShape` / `resizeShape` / `updateWaypoints` inside
+    one command, an option is undone in one step and written to the view exactly
+    as a drag is, lines re-docked as after a drag — nothing of the canvas's
+    write-back is repeated. diagram-js's align and distribute features were left
+    unused: they need rules of their own and move through `elements.align`, where
+    sizes, the grid and routes would have needed three more paths. Routing without
+    moving cannot be ELK's — its layered layout places the elements, its fixed one
+    routes nothing — and libavoid, the orthogonal router of record, would bring an
+    LGPL licence and a WebAssembly file of its own; la-gram's is a few hundred lines,
+    deterministic, after Wybrow, Marriott and Stuckey's orthogonal connector routing.
+    The quick actions take the dialogs' last choices so that a click needs no
+    question, and say them in their tooltips. The median is the "middle" size.
+
+24. **What a metamodel leaves unsaid, la-gram supplies from the core and says so** (Req 2.24, 2.25, 4.21;
+    `metamodel-manager/metamodel-completeness.ts`, `palette-generator.ts`, `model-manager/relationship-manager.ts`,
+    `own-metamodel.ts`).
+    Loaded metamodels are data of uneven completeness, and several are loaded at once. Three rules keep that
+    from hiding things. *Types:* every non-abstract element class of the documents a manifest names as its
+    concepts (and of what they import) is offered — under its own metamodel's group, else *Other* — and a notice
+    names each metamodel that leaves something out; an ontology loaded only because a shapes document imports it
+    gives no types. *Relationships:* where the loaded metamodels permit nothing between two elements, the core's
+    own are offered (the least said first, `CORE_ORDER`: Association, Depends On, Has Part, Refines), marked as the
+    fallback they are; they are flagged `core` on the palette's types so the canvas can draw and name them, and the
+    palette panel does not list them. A language's type relates its own elements: one whose hints name only core
+    classes, or none, says nothing about another language's, and is offered only within its own metamodel, so that
+    C4's Uses does not stand in for the core's between a C4 container and an EDGY capability; an abstract
+    relationship type is never offered. Not by narrowing `arch:Element` in every hint to the language's own
+    elements: the decision extension names `arch:ModelConcept` at one end of its links because they relate any
+    concept. *Looks:* a
+    relationship type no notation describes is given a style when the palette is generated — an open arrowhead
+    at the target, none where its predicate is `owl:SymmetricProperty` — so the canvas, the menus and the icons
+    all draw the same thing without knowing why. Not done by loading Basic silently: that would add a metamodel
+    to the model the modeller did not choose.
+
+25. **Sync published assets by default; local checkout as an explicit source** (Req 1.9;
+    `scripts/sync-assets.mjs`). The default build preparation must reflect what meta.linked.archi
+    publishes, including its catalogue, without requiring a developer's local checkout or generated
+    documentation tree. `--meta` or `LINKED_ARCHI_META` opts into unpublished local resources;
+    `--online` selects the published site over the environment. Required online downloads are staged
+    before writing and failures do not fall back to another source, so a failed sync cannot report
+    an older or partially updated snapshot as current. Builds remain explicit consumers of the
+    snapshot, keeping builds from adding an implicit network operation.
 
 ---
+
 
 ## Technology stack
 
@@ -3016,6 +3478,328 @@ dialog; the modules' section).
 | Build | webpack 5 (web, electron-main, electron-preload, electron-renderer — the web build again), TypeScript 5 (strict) |
 | Tests | Vitest (unit, jsdom) + Playwright (browser suite against the production build) |
 | Desktop | Electron 44 — sandboxed renderer without Node, `app://la-gram/`, Content-Security-Policy, preload bridge for files |
+
+26. **What a relationship type draws is analysis; any other link is a property** (Req 11.4, 3.6;
+    2026-11-17). Decided so on 2026-11-17: the Analysis tab lists a concept's relationships, to and from it,
+    and the Properties tab every other property, a link to another concept among them; a predicate a
+    relationship class draws is never a property, in the list or the picker. Listing links between concepts
+    that no relationship type draws on the Analysis tab was tried and left: they are the concept's own
+    statements, and a link that should be drawn is better given a relationship type in its metamodel.
+
+27. **A free connection end stays at the pointer** (Req 4.1; 2026-11-17).
+    diagram-js reports the root as the hovered target over empty canvas. It has
+    neither a centre nor an outline, so layout keeps the pointer hint and docking
+    keeps that endpoint. This lets the blue connect preview follow the pointer
+    before entering a target and after leaving one, while actual shapes retain
+    centre-to-centre routing cropped to their outlines.
+
+28. **Inspect the current type beside its editor** (Req 3.11; 2026-11-17).
+    A separate, keyboard-operable **IRI** button beside the direct type's picker
+    reveals its current IRI through the same disclosure used for read-only types.
+    Keeping the button outside the picker lets a modeller inspect or copy the
+    IRI without opening the choices or changing the type.
+
+29. **Pull incorporates a remote base without committing** (Req 18.24; 2026-11-17).
+    `git-pull.ts` reads the bound commit and the file at a pinned branch head through the
+    shared read-access helper. After all I/O, it serializes the latest working model and
+    validates all snapshots before `git-merge.ts`’s shared `reconcile` applies the existing
+    three-way merge as one store-change command. With no await between that snapshot and
+    application, edits during network requests are included without a revision retry loop.
+    A no-op skips the command. The binding records the incorporated remote head/version,
+    independently of local-file saves and undo; bindings read from storage are pinned per
+    editor so another tab cannot silently advance its base. A fresh snapshot comparison
+    determines the dirty marker, and conflicts keep it dirty. Model-loaded generations,
+    the full binding and room state reject obsolete reads; module stop invalidates them.
+    A module-owned busy guard prevents overlapping manual Git menu flows. Pull cannot run
+    in shared rooms or with an unfinished cross-branch merge. Periodic checks are described in key design decision 30; auto-commit is described in key design decision 31,
+    and History stays demand-loaded.
+
+30. **Observe first, incorporate only when explicitly allowed** (Req 18.25; 2026-11-18).
+    `git-observation.ts` reads pinned immutable versions and caches the base and observed remote
+    snapshot separately. Checking never advances the incorporated binding. `git-sync.ts` schedules
+    one completion-based timeout, captures the latest local snapshot after I/O, and calls
+    `applyGitObservation` only for an opted-in scheduled check; that helper checks the clean-only
+    precondition again synchronously before the existing undoable store change. Local status is
+    debounced from effective model changes, independently of the app's local-file dirty marker.
+    The Git tab reports status without opening itself; File provides the manual check action.
+    Personal defaults are Off, with intervals 1/2/5/10 minutes and clean-only auto-pull Off.
+    A queued Web Lock selects the visible, online owner per destination; a different short lock
+    coordinates Git operations, allowing a waiting editor to act manually. Lifecycle/environment
+    changes invalidate pending reads and release ownership; no lock support means no automation.
+    Hidden/offline time yields at most one due check on return. Network/server/rate-limit errors
+    back off exponentially up to ten minutes, waiting longer when Retry-After or an exposed reset
+    header requires it. Other failures pause for a manual retry/settings change. Reads in flight
+    may finish after cancellation but cannot apply obsolete results. No background prompts,
+    repository writes or history polling are introduced.
+
+31. **Automatic writes require a destination opt-in and a recoverable result** (Req 18.26; 2026-11-18).
+    `auto-commit-settings.ts` stores personal settings and persistent pauses per model IRI and complete
+    destination (excluding baseline versions). Separate journal keys prevent a settings update from
+    erasing a pending write. `git-sync.ts` schedules checks and commits through the same owner and
+    operation locks, including when checks are Off. Idle deadlines follow effective local edits;
+    synchronous internal merge/pull mutations are excluded. Interval attempts schedule from completion.
+    Conflicts/required decisions persist a pause; resolving choices alone never publishes.
+    `git-auto-commit.ts` reuses `observeGit`, undoable reconciliation and the provider's existing
+    immutable-text `commitFile` primitive. A full binding guard is advanced synchronously after its
+    own merge. It names the expected file version, retries at most three explicit version conflicts,
+    and never calls prompting, branch creation, overwrite or review flows. After success, it compares
+    the current snapshot with the submitted snapshot before marking clean. A separate editor epoch
+    allows sent writes to settle after Pause/Off but prevents old results rebinding a reloaded model.
+    Before sending, a verified local-storage journal records the source binding, editor epoch and
+    SHA-256 of canonical submitted content, with no text/token. Network/server/unknown write failures
+    retain that journal and pause. Confirmation checks pinned remote content and at most one history
+    page, requiring ancestry from the submitted base and reachability from the current head. Finding
+    an older confirmed write adopts that commit, not a later head, so subsequent remote deletions
+    remain changes for the next merge. A new editor must already incorporate the confirmed commit
+    before clearing the journal; manual Save can also acknowledge it. Confirmation leaves an explicit
+    pause so newer edits are published only after Resume. Unconfirmed results never lead to a blind
+    automatic retry. This conservative recovery avoids needing to persist private model snapshots.
+    Web and Electron use the same settings/status/module wiring; all tests use fake hosts and tokens.
+
+32. **The IRI layout is written short by one method of N3's writer, with n3 pinned** (Req 5.13; DD-41;
+    2026-11-18). `rdf-engine/turtle-writer.ts` writes Turtle and TriG for `ModelIO` and the copy as
+    Turtle. A prefixed name holds a `/` or a `#` only escaped, and N3.js 2.13.12 makes an IRI relative to
+    a `baseIRI` before it looks for a prefix, so with a base it writes `<element/…>`, never `me:…`. The
+    writer is therefore N3's `Writer` with its own `_encodeIriOrBlank`, the one method N3 calls for every
+    IRI it writes: it takes N3's answer where N3 found a prefix, and otherwise tries the view's prefix with
+    the fragment escaped, then a reference relative to the namespace. N3 is given no base, so it makes
+    nothing relative itself, another model's IRIs included; `@base` is put in front when something was
+    written relative. A writer of la-gram's own would have changed every file's text, grouping and
+    literals included, which `la-gram-git check` compares byte for byte, so the override was chosen; the
+    method is internal, so `package.json` and la-gram-git's pin n3 exactly, and `turtle-writer.test.ts`
+    fails when another version is installed. View prefixes are named by SHA-256 (`sha256Hex`, synchronous),
+    as DD-41 names them, so that a converter writing the same view gives the same
+    prefix. The derived prefixes are checked against every known prefix, not only those a file uses, so a
+    file does not swap a prefix for relative IRIs when it starts using a vocabulary's term.
+
+33. **la-gram mints the Linked.Archi layout and renames nothing it finds** (Req 9.7c; DD-41; 2026-11-18,
+    `-` after a view's `#` 2026-11-19). `mintIri` mints `{ns}{kind}/{uuid}`; `mintShapeIri` a node or a
+    line in its view's IRI, `{view}#node-{uuid}`, so that a shape's IRI opens its view's page; and parts are
+    `partIri(owner, …)`, joined with `-` to an owner whose IRI holds a `#` (`{node}-style`,
+    `{link}-points-0`) and with `/` to any other (`{element}/name/{h}`). A `-` after the `#` because Turtle
+    writes a `/` in a prefixed name only escaped (`mv{hash}:node\/…`), and a view's shapes and their parts
+    are most of a saved model's names. What a part belongs to is read from the triples (`arch-vis:style`,
+    `arch-vis:points` and its list, `arch-vis:label`), not from its name. The cost of the `-` is that a
+    part can take the name of a shape beside its owner: `{link}-point-0` of line `c1` is line `c1-point-0`'s
+    IRI. la-gram's own shapes are UUIDs, which never end in a part's name; an Exchange import gives a UUID
+    instead to a shape whose id is another's of its kind in the view followed by a part's name (`-style`,
+    `-label`, `-points-{i}`, …; `shapeIri`), where the converters refuse the file. Every name la-gram or a
+    converter wrote before is kept: `isPartNamed` reads a part named with `/` or with `-`, exactly
+    (`{owner}-style-x` of another node is not its), and what replaces a part takes its name — a placement's own style is written on in place, a
+    route keeps its pattern and only what differs is written (`rewritePoints`), a moved name, a label
+    expression, a name or a picture for a presentation context keep theirs. A route in another form (blank
+    nodes, another tool's names) is written anew under la-gram's. A relationship is minted in its source's
+    model's namespace (`conceptNamespace`), never beside the source's IRI, now that an element's IRI is
+    `{ns}element/…`. In a view whose IRI already holds a `#` — a model saved with a `#` namespace, which a new
+    model can no longer have (`namespaceProblem`) — a shape is minted flat, `{ns}node-{uuid}`, as before:
+    an IRI holds one `#`, and asking for a namespace change before the first shape would rename the whole
+    model. An Exchange import names what it makes as the ArchiMate converter does (`pathSegment`, Java's
+    `URLEncoder`), so an import and a conversion of one file give the same local names. A namespace change
+    keeps every local part. A relationship made for a bare triple is named as meta's rules name it
+    (decision 36).
+
+34. **A merge follows a namespace move, and so does the open model** (Req 18.27–18.28, 20.5; DD-41's
+    scenario S7; 2026-11-18, the open model following a move made elsewhere 2026-11-19). Moving a model
+    renames every IRI in it, so a move on one side and an edit on the other merged as they are read as
+    everything deleted on one side — the one scenario DD-41 found to break every layout. `mergeSnapshots`
+    therefore moves base and the other side after the mover first, keeping local parts as
+    `planNamespaceChange` does; it is in the merge, not in a caller, so that the driver, *Pull*, *Merge with
+    the newer version* and *Update from main…* all have it. A move is told by the model's IRI, which a move
+    always changes (`{to}model`); a namespace set without moving the IRIs is not taken for one, so the IRIs
+    the other side added are not renamed behind the user's back. An IRI the mover still has stays, as its
+    move left it. Two moves to two namespaces have no namespace to merge into: refused, not guessed.
+
+    The binding moves with the model when it is moved here, so that *Save to Git* commits the move to the
+    same file, naming the version it replaces, instead of asking where and replacing the file unmerged;
+    `movedFrom` lets Pull and the checks read that file until the move is committed. A move made elsewhere
+    is followed the same way, from the one place every merge and *Open this version* go through: the merged
+    model replaces the open one (`MergeSupport.replace`), and when it has the model under another IRI,
+    `ModelSession.resync({ moved: true })` re-points the session at it and its view, and emits `model-loaded`
+    with `previousModelIri`, by which the Git module moves the binding, as for a move made here; the History
+    tab and the canvas read the model's new IRI from the session. The flows themselves only re-read the
+    IRI after applying (`mergeHere`'s `followed`, `keptAs` for the binding), so none of them carries its
+    own copy of the rename. The canvas opens the view under its new IRI, which starts a fresh undo
+    history: undo does not take the move back, as after a move in Model settings, rather than restoring
+    the old IRIs under a session that names the new ones.
+
+    Only a merge someone asked for follows. A version with the model in another namespace is a move of the
+    whole model, so an automatic pull or commit (Req 18.25–18.26) stops at it and says that *Pull from Git*
+    follows it, rather than rename the model while nobody is looking; its checks still read and report the
+    version. A move is a change of namespace to `{namespace}model`: a version with another model IRI in the
+    same namespace, or one not named so, holds another model, and is not merged into this one. Auto-commit
+    stays keyed by model IRI, so it is off for a model moved either way until turned on again: a namespace
+    change is the moment to look at what it would commit.
+
+35. **The IRI layout is reported, never failed, from the file's own triples** (Req 20.2; DD-41;
+    2026-11-18). No tool renames an IRI (DD-41), so a check that failed on names given before the layout
+    would fail a repository's models for good, and one that failed on names outside it would fail the hand-
+    written example model and every converted model from before. `la-gram-git check` lists them, as it lists
+    the SPARQL-based rules, under *IRI layout (DD-41), advisory*, with legacy names counted apart from the
+    rest. It reads the file's triples rather than the opened model, so that what opening adds is not
+    counted, and finds a shape, a part and its owner from the triples, as the guide's *Reading IRIs* says to,
+    never from the name.
+36. **A relationship made for a bare triple is named as meta's derivation rules name it** (Req 4.22; DD-41;
+    2026-11-19). `ensureRelationshipResources` and the rules' `:QualifyRelationships` both mint
+    `{ns}relationship/{digest}`, the digest DD-41's and the converters' — the first 20 hex characters of the
+    SHA-256 (`keyDigest`) — of the triple's three IRIs joined by spaces, so a file opened in la-gram and run
+    through the rules gets one resource, not two. The rules build the key in SPARQL, and the key is joined by
+    spaces rather than length-prefixed as the converters' `PartIri.encode` does: SPARQL's `STRLEN` counts
+    characters where JavaScript counts UTF-16 code units, so the two would build different keys for an IRI
+    outside the Basic Multilingual Plane, and no IRI holds a space. A resource made before, named
+    `relationship-` and the SHA-1, keeps its name, and `la-gram-git check` counts it as legacy, with the
+    rules' own former names, `derivation-{sha1}` and `derivation-activity-{sha1}[-association]`. Neither
+    the rules nor `ensureRelationshipResources` makes a second resource beside it: both look for one that
+    is there, whatever its name. `sha1Hex` went with the SHA-1.
+37. **Save writes TriG; the File menu groups by what an entry does** (Req 9.8, 11.10, 11.12; 2026-11-20).
+    TriG keeps the model in its DD-15 graphs, which Turtle flattens, at the same size (the example model:
+    9 400 characters against 9 287), so *Save* writes it and Turtle is one entry of *Save as ▸*. The menu
+    had thirteen entries in a column with a module's mixed into it — Git's *Open from Git…* under *Open…*,
+    its six others after the formats — so the formats are one submenu and a module's entries another
+    (`ModuleMenuItem.submenu`), placed after *Save*; the toolbar draws a submenu beside its entry inside the
+    menu, which therefore does not scroll. A submenu replaced on the pointer waits 250 ms, so a diagonal move
+    to an open one does not close it on the way. Ctrl/⌘+O and +S are taken on `window`, not by the canvas's
+    keyboard, so they work from a panel too; they leave the focused field first, through the shadow roots, so
+    a name being typed is committed before it is saved.
+38. **A picture goes to the clipboard as the click's own** (Req 14.4; 2026-11-20). Safari writes to the
+    clipboard only within the user's gesture, and drawing a PNG takes longer than that may last, so the
+    `ClipboardItem` is made in the click's handler with a promise per type (`import-export/image-clipboard.ts`),
+    as Chrome and Firefox accept too. A PNG is `image/png` alone: an application that finds text beside a
+    picture may paste the text. An SVG is its markup as `text/plain` always, and `image/svg+xml` where
+    `ClipboardItem.supports` says the browser writes it; with no `ClipboardItem`, the markup by `writeText`.
+    The desktop app uses the same API: its window is a secure context, and Electron grants the write.
+39. **Edits are stamped inside themselves, one activity a session** (Req 9.16; meta's DD-27 and *IRI
+    Minting*, *Provenance of edits*; 2026-11-20). `ObservableRdfStore.setStamper` hands what a local edit
+    changed to `EditProvenance.stamp` at the end of its outermost write — a `record`, a `batch`, or a write
+    outside both — while the edit is still recorded and batched, so the stamps are in its undo diff and its
+    notification, and a collaborator receives them with it; `applyDiff` (undo, redo), another origin
+    (`remote`) and `withoutStamps` (opening, importing, a new model, merging, restoring, a namespace move)
+    collect nothing. Stamping at save instead would write what the panel never showed and undo never took
+    back. The unit is the editing activity, not the change: per change, a model would grow with every
+    keystroke; one global activity could not say who. A concept names only the activity that changed it
+    last, and an activity nothing names is removed in the same edit, so a model holds what is behind its
+    current state — four statements a concept, five an activity — and its history stays in checkpoints and
+    Git. What a change is about is read from the triples: the subject if it is in the model (`arch:inModel`,
+    or `arch:Model`), a shape's view (`arch-vis:view`), else the owner of the link that leads to it, walked
+    up — not through a folder's links. The activities and users are IRIs in the model's namespace, since
+    la-gram knows no dataset base (DD-29): `{ns}provenance/edit-{uuid}` and `{ns}provenance/user-{digest}` —
+    the word for a reader of the Turtle (a `/` would need escaping in a prefixed name), the id opaque. A
+    user's digest is of their Git account's page, else their address, else their name: the most lasting
+    first, so one user is one resource on every machine, and nothing personal is in an IRI that is copied
+    wherever the model goes; who they are is the user's own statements, replaced with what is known when an
+    activity starts (DD 41). la-gram itself is one IRI per version, the same in every
+    model, whose page the web build writes (`scripts/version-page.mjs`) and the deploy keeps
+    (`--filter='P /v[0-9]*/'`). The save puts every `prov:` statement, and what a PROV class types, in
+    `{ns}graph/provenance` — a converter's run with la-gram's, told apart by the agent. The diff by element
+    leaves the stamps and the provenance out of what changed, and says instead who made each change and when
+    (`ConceptChange.edit`) — only where the later version's `prov:wasGeneratedBy` line is new, so a change
+    made where nothing records edits is not put on whoever edited the concept before; the merge settles `prov:generatedAtTime` and
+    `prov:endedAtTime` as `latest`, as `dcterms:modified` already was, and keeps the activity that ended
+    later (`settleEditProvenance`). The panel reads it apart from the properties and shows it as text;
+    `prov:` is not offered (`prov:wasDerivedFrom` was).
+40. **The alpha keeps its browser storage under its channel** (Req 15.10; 2026-11-20). The alpha is served
+    beside the release, `/la-gram-alpha/` and `/la-gram/` on app.linked.archi — one origin, whose
+    `localStorage` and IndexedDB every page of it shares. Shared, an alpha could write settings, bindings or
+    checkpoints in a form the release cannot read yet, and the two would overwrite each other's open
+    state. A build for a channel (`LA_GRAM_CHANNEL=alpha`, `__LA_GRAM_BUILD__.channel`) therefore replaces
+    `globalThis.localStorage`, before any other module runs (`storage-scope-install.ts`, the entry point's
+    first import), with a `ScopedStorage` that puts every key under `alpha:`, and names the checkpoints'
+    database `la-gram-history-alpha` (`scopedName`): every module keeps reading `localStorage` as it does,
+    and none had to learn a prefix. A release's build installs nothing, so its users' storage is as it was.
+    A storage event names the inner key; the Git module reads it through `unscopedKey`. Another origin per
+    channel would have needed a host name and a certificate of its own; the version page and the IRI stay
+    under `/la-gram/` either way. `alpha`, not `snapshot`: pre-release labels sort as text, and
+    `0.3.0-snapshot` would sort after `0.3.0-rc.1`.
+41. **Who commits is the user; whose account is the host's answer** (Req 18.29, 9.16; 2026-11-20). la-gram
+    commits through the user's token, so the host attributed every commit to the token's owner and the
+    History tab could not say who made a change. A provider's commits now carry an author —
+    `RestProvider.commitAuthor`, set by `providerFor` from `App.currentEditor()` — GitLab's `author_name`
+    and `author_email`, GitHub's `author`, which GitHub takes only with both; the owner stays the
+    committer. The account is read from the host with the token la-gram already has (`currentAccount`,
+    `GET /user`), once a session per host and in the background (`GitAccounts.learn`), kept with the
+    personal settings rather than the tokens — it is no secret — and followed to the open model's host on
+    each load and save (`App.gitAccount`). A token without the scope only leaves it unknown. The account
+    names the user in the provenance (`schema:sameAs`, `schema:alternateName`, the digest's key) unless
+    *Record my Git account with my edits* is unticked; its name stands in for a name not given either way,
+    since it is the token owner's name the host would show anyway.
+42. **A reference to another view is drawn as a figure, is its view's placement, and its view's presence follows it** (Req 3.23, 13.4; 2026-11-21).
+    core-vis 0.9 makes a reference to another view an `arch-vis:ViewReferenceNode` paired with
+    `arch-vis:referencesView`, as `ArchNode` is with `archElement`, and no longer a `LabelNode`; the ArchiMate
+    converter writes it so. la-gram drew a node standing for no element only as a group, a shape or a note,
+    so it dropped every one. It is a fourth `FigureKind`, `reference`, with the view in `FigureInfo.view`,
+    because la-gram draws and edits it as it does a figure — it names no element, has no notation, holds
+    nothing. Its view's `arch:inView` is the presence an element's placement gives the element (DD-30), so
+    it follows the same rule: written with the first reference (`addFigure`), taken with the last
+    (`collectNodeQuads`). Deleting a view deletes the references to it (`collectViewQuads`, the undo twin),
+    since one left behind would open nothing and fail core-vis-shapes 0.5.0; paste turns one whose view the
+    target model lacks into a note (`placement-copy.ts`), the converter's rule for a `viewRef` naming no
+    view. The model-manager part was made in `linked-archi-kernel` too, file for file (L01's rule).
+
+    Made, it is made as any figure is (2026-11-21; `.agents/tasks/view-references/`, VR-DD-1–8). The model
+    tree's drag of a view's row (`explorer-drag-start` carries the row's kind) starts
+    `DiagramCanvas.startCreateReference`, and its *Reference in the open view* calls `placeReference`; both make
+    it in the figure-create command (`addFigure`, `kind: 'reference'`), so undo, collaboration, nesting on drop
+    and selection come as they do for a note. The open view's own row is refused by a `shape.create` rule above
+    the metamodel's, and said why at `create.end` when let go over the diagram — not when let go in the tree,
+    where the same drag files a view in a folder. A new reference has no `skos:prefLabel`: the canvas names it as its
+    view is now (`figureTextOf`) and draws its own text in the name's place once it has one, and a name written on
+    a view — which no figure of the open view carries, so no figure's cache sees it — renames the references to it
+    there (`ViewManager.referencesTo`, from the store's changes). Double-click opens its view: `rdf-label-editing.ts`
+    leaves a reference out of double-click editing, and the canvas emits `open-referenced-view` for its
+    double-click and its pad's and menu's *Open view*, which mount-ui opens or says is not in the model. Emptied in
+    the panel, its text is written empty (`""@en`): no term is needed to draw nothing, and none of its own still
+    means the view's name — the panel's × takes its own away. *Change…* is one store change, `setReferenceView`, whose quads are
+    read first (`setReferenceViewQuads`), as a removal's are by its `collect…` twin, and which moves the presence
+    by the rule `addFigure` and `collectNodeQuads` follow. Deleting a view counts the references
+    `collectViewQuads` takes with it, by holder, in the confirmation; with another diagram open the deletion is a
+    recorded change on its undo stack, so undo brings the view back with them. A view's *Referenced from* is read
+    from its `arch:inView`, which this rule keeps true, rather than from every view's nodes: the answer holds for
+    a model opened without its views' geometry. Nesting is the figure rule — `canContain` lets a reference into a
+    box and nothing into it. The canvas's right-click menu opens on figures too: a reference's starts with *Open
+    view*, and drawing — a note, a group, a shape — gets none of the model's entries (*Move to folder…*, *Show in
+    model tree*, *Delete from model…*). `referencesTo` and `setReferenceView` were made in `linked-archi-kernel`
+    too, file for file (VR-DD-6).
+
+    A reference is its view's placement, as an element's box is the element's (2026-11-21;
+    `.agents/tasks/views-as-concepts/`, VC-DD-1–8): a view is a model concept, so a relationship may end on it, a
+    nesting may stand for one, and the panels show it. It stays a figure where it is drawn — its look, its text,
+    its glyph, the Appearance and Image tabs — and answers with its view wherever a concept is asked for. In the
+    view manager, a reference node's concept is its `arch-vis:referencesView` (`conceptOf`, so `readLink` gives a
+    link's end as the view), a view's IRI keys its references in a view (`nodeIrisFor`, so `getNode`,
+    `removeElementFromView`, `addRelationshipToView` and `refreshLinksOf` take it), and `placedIn` and
+    `viewsContaining` count them. `collectViewQuads` takes the relationships the view is an end of, with
+    `collectRelationshipQuads`, and a concept's `arch:refinedInto` it; `setReferenceViewQuads` takes the lines of
+    the old view's relationships at the node and keeps the connectors. On the canvas, a reference's shape keeps its
+    node as its `iri` and gets it as its `nodeIri` too — a line drawn from it is drawn from that placement — and
+    its view's class as its `typeIri` (`arch:Diagram`, `arch:Catalog`, `arch:Matrix`), which the rules ask
+    `getValidRelationships` with, so the core's types arrive through Req 4.21 unchanged. Its `label` is its
+    view's name, which F2 and *Rename* rename on every reference to it (the relabel command writes the view, as
+    it writes an element), and its own text is its `labelText`, drawn in the name's place as a label expression's
+    is; the panel's *Text* writes the node. `view-reference.ts` holds what a shape stands for (`conceptIriOf`,
+    `isDrawingOnly`, `viewClassOf`) for the modeling's `connect`, the rules — only a note, a group or a shape gives
+    a line standing for no relationship — the reuse check, nesting, reconnecting and the pad and menus, and the
+    placement index files a reference under its node and its view, so `reveal`, `shapesOf` and the drawing of
+    relationships find it. Made, it draws its view's relationships with its first placement, as a placed element
+    does; it emits no `element-created`, and the viewpoint's greying skips figures. Selected, mount-ui maps it to
+    its view (`referencedViewOf`) and `headingFor(view)` adds the canvas's `selectedReference()`, whose rows
+    write the reference (`PropertyEntry.subject`); the panel follows a reference pointed at another view. A
+    reference's *Delete view from model…* is the tree's *Delete view* (`onContextAction('delete-view')`), whose
+    confirmation counts the relationships with the view. Zoom in reads `ViewManager.viewsRefining`
+    (`V arch:refines X`, or `X arch:refinedInto V` as another tool may write it): the pad opens the one view or a
+    menu of several (`zoom-in.ts`), the right-click menu lists each, and the canvas emits `open-view`, which
+    mount-ui opens so that Back comes back. What nesting may stand for comes from the notation, as for elements:
+    the core's relationship types get one in linked-archi-meta, `core/core-notation.ttl` (its DD-42), a
+    descriptor for each: Association's with no `arch-vis:nestedEnd`, Has Part's with `arch-vis:TargetEnd` (the
+    part inside the whole, so `nestingOffers` lists it first, the inner shape the target) and Refines' with
+    `arch-vis:SourceEnd`. Their lines are those Req 2.25 gave them before: Association plain, the other two
+    with an open arrowhead at the target. Depends On's (meta's DD-40) is dashed, with an open arrowhead at the
+    concept depended on and no nested end. No manifest names it; it is bundled with the
+    core (`coreNotation`) and its sets are the last fallback layer (`coreNotationSetIris`), never the active set,
+    and the nesting offer needs no change, since the palette's relationship types carry the core's (`core`,
+    hidden from the palette panel only). Rejected: references as element shapes, which would have given
+    relationships for free and lost their look; F2 editing the reference's own text, which would make a view's
+    placement the one box F2 does not rename; offering every permitted type on nesting, past what a notation says.
+    The model-manager and metamodel-manager parts and the asset were made in `linked-archi-kernel` too, file for
+    file (VC-DD-8).
 
 ## Running
 

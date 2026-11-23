@@ -11,10 +11,13 @@
  * *Open this version* makes the model the file at that commit, as one undoable
  * step, and leaves the binding as it was: the next Save to Git names the version
  * it last saw, so it commits the old version as a change on top — or, if the
- * branch moved on, offers the conflict's choices.
+ * branch moved on, offers the conflict's choices. A version that has the model
+ * under another IRI — from before it was moved to another namespace, or after —
+ * is opened once its user agrees: the open model moves to that IRI with it,
+ * still bound to the file (DD-41), and undo does not take the move back.
  */
 import type { HistoryGitCommit, HistoryGitSource } from '../ui/panels/history-panel.js';
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { snapshotModel, snapshotOfText } from '../model-manager/model-merge.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import { Access, type GitOpenContext } from './git-open.js';
@@ -23,12 +26,14 @@ import type { GitHostProvider } from './providers/provider.js';
 
 /** What opening a version needs of la-gram. */
 export interface GitHistoryOptions {
-  /** Make the model this snapshot, as one undoable step. */
+  /** Make the model this snapshot, as one undoable step; one under another IRI moves the open model there. */
   replace(snapshot: string[]): void;
   /** Take away a merge's conflicts: they are about the model being replaced. */
   clearConflicts?(): void;
   /** The room the model is shared in, if it is. */
   room?(): string | undefined;
+  /** The open model's IRI: a version that has the model under another is opened only once its user agrees. */
+  model?(): string | undefined;
 }
 
 /** Files read, kept per commit for the comparisons. */
@@ -86,9 +91,25 @@ export function gitHistorySource(ctx: GitOpenContext, binding: GitBinding, optio
         ctx.report(`${binding.path} was not there at ${short}: nothing to open.`, 'warning');
         return;
       }
+      // The model under another IRI: moved to another namespace before or after that commit (DD-41).
+      // Opened, the open model moves there, which its user is asked first: undo does not take it back.
+      const open = options.model?.();
+      const there = snapshotModel(snapshot)?.model;
+      const moves = open !== undefined && there !== undefined && there !== open;
+      if (moves) {
+        const move = await ctx.dialogs.confirm(
+          'Open this version',
+          `Commit ${short} has the model as ${there}, in another namespace. Opened, the open model moves there with it, ` +
+            `and stays bound to ${binding.path} on ${binding.branch}; undo does not take the move back.`,
+          { confirmLabel: 'Open and move', ...(room ? { details: [`It changes for everyone in room "${room}".`] } : {}) },
+        );
+        if (!move) return;
+      }
       options.clearConflicts?.();
       options.replace(snapshot);
-      ctx.report(`The model is ${binding.path} as at ${short}. Save to Git commits it to ${binding.branch}.`);
+      ctx.report(
+        `The model is ${binding.path} as at ${short}${moves ? `, as ${there}` : ''}. Save to Git commits it to ${binding.branch}.`,
+      );
     } catch (err: unknown) {
       ctx.report(`That version could not be read: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }

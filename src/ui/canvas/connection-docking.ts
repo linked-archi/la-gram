@@ -66,6 +66,7 @@
 import BaseLayouter from 'diagram-js/lib/layout/BaseLayouter.js';
 import CroppingConnectionDocking from 'diagram-js/lib/layout/CroppingConnectionDocking.js';
 import { getMid } from 'diagram-js/lib/layout/LayoutUtil.js';
+import { connectRectangles, withoutRedundantPoints } from 'diagram-js/lib/layout/ManhattanLayout.js';
 
 /** A point on the diagram, optionally remembering where it was cropped from. */
 export interface DockingPoint {
@@ -167,9 +168,30 @@ export class CroppingLayouter extends BaseLayouterBase {
       const at = (point: DockingPoint) => bends.findIndex((bend) => bend.x === point.x && bend.y === point.y);
       if (layoutHints.connectionStart && at(start) >= 0) bends = bends.slice(at(start) + 1);
       if (layoutHints.connectionEnd && at(end) >= 0) bends = bends.slice(0, at(end));
-      waypoints = [start, ...bends, end];
+      const moved = Boolean(layoutHints.connectionStart || layoutHints.connectionEnd);
+      waypoints =
+        moved && bends.length === route.length - 2 && rightAngled(route)
+          ? squared(route, start, end, bends, source, target, layoutHints)
+          : moved && route.length === 2 && arrangedStraight(route, start, end, source, target)
+            ? squaredStraight(route, start, end, source, target)
+            : [start, ...bends, end];
     } else {
-      waypoints = super.layoutConnection(connection, hints);
+      // A new line between two elements runs centre to centre, wherever the gesture pressed and let go, so
+      // the first line drawn already looks as an arranged one does; docking then crops it at the outlines.
+      // An end on a relationship keeps its point — where on the line it was dropped is the choice — and so
+      // does a line from an element to itself, which centre to centre would not show.
+      const centred: LayoutHints = { ...layoutHints };
+      const isShape = (end: unknown) => {
+        const shape = end as { x?: number; y?: number; width?: number; height?: number; waypoints?: unknown };
+        return !shape.waypoints && [shape.x, shape.y, shape.width, shape.height].every(Number.isFinite);
+      };
+      if (source && target && source !== target) {
+        // During a connect drag, empty canvas is the diagram root: it has no
+        // bounds. Keep the pointer hint there instead of taking an invalid centre.
+        if (isShape(source)) delete centred.connectionStart;
+        if (isShape(target)) delete centred.connectionEnd;
+      }
+      waypoints = super.layoutConnection(connection, centred);
       // Nothing to crop against while an end is still unattached — which is the
       // state `Connect` is in until it hovers a valid target.
       if (!source || !target || waypoints.length < 2) return waypoints;
@@ -201,6 +223,96 @@ function anchorOf(end: DockingPoint, element: unknown): DockingPoint {
     reference.y >= y - ANCHOR_SLACK &&
     reference.y <= y + height + ANCHOR_SLACK;
   return near ? reference : getMid(element as never);
+}
+
+/** How far off an axis a segment may be and still run along it: the docking's rounding. */
+const AXIS_SLACK = 1;
+/** Two points closer than this have collapsed into one. */
+const COLLAPSED = 3;
+
+type Axis = 'h' | 'v' | undefined;
+
+/** Whether a segment runs horizontally ('h') or vertically ('v'), or neither. */
+function axisOf(a: DockingPoint, b: DockingPoint): Axis {
+  if (Math.abs(a.y - b.y) <= AXIS_SLACK) return 'h';
+  if (Math.abs(a.x - b.x) <= AXIS_SLACK) return 'v';
+  return undefined;
+}
+
+/** A route with bends whose every segment runs along an axis — as Arrange view draws them. */
+function rightAngled(route: readonly DockingPoint[]): boolean {
+  return route.length >= 3 && route.every((point, i) => i === 0 || axisOf(route[i - 1], point) !== undefined);
+}
+
+/** The bounds diagram-js gives a shape. */
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const inside = (point: DockingPoint, box: Box) =>
+  point.x > box.x && point.x < box.x + box.width && point.y > box.y && point.y < box.y + box.height;
+
+const atCentre = (point: DockingPoint, box: Box) =>
+  Math.abs(point.x - (box.x + box.width / 2)) <= AXIS_SLACK && Math.abs(point.y - (box.y + box.height / 2)) <= AXIS_SLACK;
+
+/**
+ * A straight line as Arrange view draws one: along an axis, its ends on the outlines rather than aimed at the
+ * centres, as a drawn line's are. Its two references — the moved end where the move put it — say which.
+ */
+function arrangedStraight(route: readonly DockingPoint[], start: DockingPoint, end: DockingPoint, source: unknown, target: unknown): boolean {
+  return axisOf(route[0]!, route[1]!) !== undefined && !atCentre(start, source as Box) && !atCentre(end, target as Box);
+}
+
+/**
+ * An arranged straight line with an end moved: still straight where its ends are still on one axis, else
+ * right-angled — out of the source and into the target where it did, along the axis it ran on, with a
+ * crossing between (diagonal lines are no part of an arranged view).
+ */
+function squaredStraight(route: readonly DockingPoint[], start: DockingPoint, end: DockingPoint, source: unknown, target: unknown): DockingPoint[] {
+  const along = axisOf(route[0]!, route[1]!);
+  if (axisOf(start, end) === along) return [{ x: start.x, y: start.y }, { x: end.x, y: end.y }];
+  return withoutRedundantPoints(
+    connectRectangles(source as Box, target as Box, start, end, { preferredLayouts: [along === 'v' ? 'v:v' : 'h:h'] }),
+  );
+}
+
+/**
+ * A right-angled route with an end moved, kept right-angled: the bend next to the moved end follows it along
+ * the axis their segment ran on, so that segment stays horizontal or vertical and the bends beyond stay put —
+ * where the route leaves its other element too. Where that would put a bend inside one of the elements, or
+ * fold two points into one, the line is routed again at right angles between the two centres, leaving the
+ * way the old route left the source (diagram-js's Manhattan layout, which bpmn-js repairs its lines with).
+ */
+function squared(
+  route: readonly DockingPoint[],
+  start: DockingPoint,
+  end: DockingPoint,
+  bends: readonly DockingPoint[],
+  source: unknown,
+  target: unknown,
+  hints: LayoutHints,
+): DockingPoint[] {
+  const points: DockingPoint[] = [{ x: start.x, y: start.y }, ...bends.map(({ x, y }) => ({ x, y })), { x: end.x, y: end.y }];
+  const follow = (bend: number, moved: DockingPoint, along: Axis) => {
+    const point = points[bend]!;
+    points[bend] = along === 'h' ? { x: point.x, y: moved.y } : { x: moved.x, y: point.y };
+  };
+  if (hints.connectionStart) follow(1, start, axisOf(route[0]!, route[1]!));
+  if (hints.connectionEnd) follow(points.length - 2, end, axisOf(route[route.length - 1]!, route[route.length - 2]!));
+
+  const from = source as Box;
+  const to = target as Box;
+  const sound =
+    points.slice(1, -1).every((bend) => !inside(bend, from) && !inside(bend, to)) &&
+    points.every((point, i) => i === 0 || Math.hypot(point.x - points[i - 1]!.x, point.y - points[i - 1]!.y) >= COLLAPSED);
+  if (sound) return withoutRedundantPoints(points);
+
+  const leaves = axisOf(route[0]!, route[1]!) === 'v' ? 'v:v' : 'h:h';
+  const centre = (box: Box) => ({ x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) });
+  return withoutRedundantPoints(connectRectangles(from, to, centre(from), centre(to), { preferredLayouts: [leaves] }));
 }
 
 // ── Relationships attached to relationships ──────────────────────────────

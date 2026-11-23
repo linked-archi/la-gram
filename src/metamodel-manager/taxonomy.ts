@@ -2,20 +2,30 @@
  * Multi-axis SKOS taxonomy resolution.
  *
  * A real ArchiMate taxonomy classifies the *same* element class along several orthogonal
- * axes at once — "Element by Layer", "Element by Aspect", "Element by Domain". Grouping by a
+ * axes at once — "Layer", "Aspect", "Domain". Grouping by a
  * single `skos:broader` hop collapses those axes and lets one silently overwrite another.
  *
  * This module resolves each axis separately and records, for every palette class, its group
  * under every axis (`groupsByAxis`) plus a default `group` taken from the first (preferred) axis.
  *
- * Everything here is inferred **structurally** from the graph shape — never from IRI or label
- * pattern matching — so it works across metamodels:
+ * Axes are inferred **structurally** from the graph shape — never from IRI or label pattern
+ * matching — so it works across metamodels; a concept the metamodel manifest's
+ * `arch:paletteGrouping` names is an axis as well:
  *
- *   - `leaf`  — a child that is not a SKOS concept, or a SKOS concept with no children of its own
- *               (i.e. something instantiable)
+ *   - `leaf`  — an element type, which the ontology declares: a child that is not a SKOS concept (the
+ *               class itself), or a SKOS concept with no children that stands for a class (rdfs:seeAlso
+ *               or the same local name).
+ *               A concept with nothing under it and no class behind it is an empty concept, no leaf.
  *   - `group` — a SKOS concept that directly holds at least one leaf (e.g. "Business Layer")
  *   - `axis`  — a SKOS concept that holds no leaf itself, every concept-child of which classifies
- *               something, at least one of them directly (e.g. "Element by Layer")
+ *               something, at least one of them directly (e.g. "Layer"); an empty concept-child is
+ *               left out of the count
+ *   - a group under no axis and no other group (e.g. "Junction", a top concept of its own) is kept
+ *     as a standalone axis of its one group, so its members are classified; it is no way of grouping
+ *
+ * An axis's groups take the order of the ISO 25964 thesaurus array whose `iso-thes:superOrdinate`
+ * is the axis: an ordered collection that lists them (meta's DD-36). The classification stays in
+ * `skos:broader`/`skos:narrower`; the array only orders it, and an axis without one has no order.
  *
  * Groups may nest. The published ArchiMate 4.0 aspect axis nests three deep
  * (`Structure` → `Active Structure` → `Internal Active Structure` → members), so members are
@@ -53,11 +63,23 @@ const SKOS_TOP_CONCEPT_OF = `${SKOS_NS}topConceptOf`;
 const SKOS_HAS_TOP_CONCEPT = `${SKOS_NS}hasTopConcept`;
 const SKOS_CONCEPT = `${SKOS_NS}Concept`;
 const SKOS_CONCEPT_SCHEME = `${SKOS_NS}ConceptScheme`;
+const SKOS_MEMBER = `${SKOS_NS}member`;
+const SKOS_MEMBER_LIST = `${SKOS_NS}memberList`;
+const RDF_FIRST = `${NAMESPACES.rdf}first`;
+const RDF_REST = `${NAMESPACES.rdf}rest`;
+/**
+ * ISO 25964's SKOS extension: a thesaurus array names, with this, the concept whose narrower concepts it
+ * lists — an axis's array gives the order of its groups. Not in NAMESPACES, which also prefixes saved files.
+ */
+const ISO_THES_SUPER_ORDINATE = 'http://purl.org/iso25964/skos-thes#superOrdinate';
 
 const ARCH_CONCEPT_CLASSIFICATION = `${CORE}conceptClassification`;
+/** The axes a metamodel's palette groups by, main one first (an ordered collection of axis concepts). */
+const ARCH_PALETTE_GROUPING = `${CORE}paletteGrouping`;
 /** The abstractness flag actually published in the Linked.Archi ontologies. */
 const ARCH_IS_ABSTRACT_CLASS = `${CORE}isAbstractClass`;
 const CORE_ELEMENT = `${CORE}Element`;
+const CORE_VIEW = 'https://meta.linked.archi/core#View';
 const CORE_MODEL_CONCEPT = `${CORE}ModelConcept`;
 const CORE_QUALIFIED_RELATIONSHIP = `${CORE}QualifiedRelationship`;
 
@@ -108,8 +130,19 @@ const ABSTRACT_FRAGMENTS = new Set([
 export interface TaxonomyAxis {
   /** IRI of the axis concept (or of the scheme, for a synthesised single axis). */
   iri: string;
-  /** Human-readable axis label, e.g. "Element by Layer". */
+  /** Human-readable axis label, e.g. "Layer". */
   label: string;
+  /**
+   * A group under no axis — ArchiMate's Junction, a top concept of its own — kept as an axis of its one
+   * group so that its members are classified. It is no way of grouping: a palette does not offer it, and
+   * gives its members a section of that group's name.
+   */
+  standalone?: boolean;
+  /**
+   * Taxonomy member IRI to its position, 0 first, in the thesaurus array under the group that lists it —
+   * ArchiMate's :StructuralStrength under Structural Relationship. Absent for a member no such array lists.
+   */
+  memberRanks?: Map<string, number>;
   /**
    * Taxonomy member IRI to group label under this axis.
    *
@@ -127,7 +160,15 @@ export interface TaxonomyAxis {
    * entry, subsection = `groups` entry) without walking the taxonomy again.
    */
   topGroups: Map<string, string>;
+  /**
+   * Taxonomy member IRI to the position, 0 first, of the axis's direct child group it descends from,
+   * in the axis's thesaurus array; empty for an axis without one, and no entry for a group it does not list.
+   */
+  ranks: Map<string, number>;
 }
+
+/** The palette section of the element types no classification names. */
+export const UNCLASSIFIED_GROUP = 'Other';
 
 /** An instantiable palette class resolved from the taxonomy and the OWL ontology. */
 export interface SemanticClass {
@@ -143,7 +184,58 @@ export interface SemanticClass {
   group: string;
   /** Group label per classification axis IRI — the dual-classification result. */
   groupsByAxis: Record<string, string>;
+  /** Position of the class's group per ordered axis IRI ({@link TaxonomyAxis.ranks}). */
+  ranksByAxis: Record<string, number>;
+  /**
+   * Position of the class within its group per axis IRI, where the group orders its members with an array
+   * of its own ({@link TaxonomyAxis.memberRanks}) — ArchiMate 4.0's Common Domain.
+   */
+  memberRanksByAxis?: Record<string, number>;
   isAbstract: boolean;
+  /** No classification names the class, though one names others: it is listed under "Other". */
+  unclassified?: boolean;
+}
+
+/** An RDF list's named items, in order (cycle-safe). */
+function listItems(store: Store, head: Term): string[] {
+  const items: string[] = [];
+  const seen = new Set<string>();
+  for (let cell: Term | undefined = head; cell && !seen.has(cell.value) && cell.value !== `${NAMESPACES.rdf}nil`; ) {
+    seen.add(cell.value);
+    const first = store.getObjects(cell, namedNode(RDF_FIRST), null)[0];
+    if (first && isNamedNode(first)) items.push(first.value);
+    cell = store.getObjects(cell, namedNode(RDF_REST), null)[0];
+  }
+  return items;
+}
+
+/** A collection's members: its `skos:memberList` in order, then any `skos:member` not in it. */
+function collectionMembers(store: Store, collection: Term): { members: string[]; ordered: boolean } {
+  const head = store.getObjects(collection, namedNode(SKOS_MEMBER_LIST), null)[0];
+  const listed = head ? listItems(store, head) : [];
+  const unlisted = store
+    .getObjects(collection, namedNode(SKOS_MEMBER), null)
+    .filter(isNamedNode)
+    .map((term) => term.value)
+    .filter((iri) => !listed.includes(iri));
+  return { members: unique([...listed, ...unlisted]), ordered: listed.length > 0 };
+}
+
+/**
+ * The axes a loaded metamodel's palette groups by, main one first (`arch:paletteGrouping`): the first
+ * metamodel's, in load order, that names any; without `metamodelIris`, any metamodel's. Empty when none does.
+ */
+export function paletteGroupingOf(store: Store, metamodelIris: readonly string[] = []): string[] {
+  const subjects = metamodelIris.length > 0
+    ? metamodelIris.map((iri) => namedNode(iri))
+    : store.getSubjects(namedNode(ARCH_PALETTE_GROUPING), null, null);
+  for (const subject of subjects) {
+    for (const grouping of store.getObjects(subject, namedNode(ARCH_PALETTE_GROUPING), null)) {
+      const { members } = collectionMembers(store, grouping);
+      if (members.length > 0) return members;
+    }
+  }
+  return [];
 }
 
 /**
@@ -162,14 +254,17 @@ export interface SemanticClass {
  * When the taxonomy is flat (groups but no axis wrapper) a single axis labelled "Classification"
  * is synthesised from every group in the scheme.
  *
+ * A concept the palette grouping names (`arch:paletteGrouping`) is an axis whatever its shape;
+ * one inferred beneath it is not. Each axis's groups are ranked by its thesaurus array (`ranks`).
+ *
  * Axes are ordered by the metamodel whose classification they belong to, in load order — so a
  * language added beside another (Basic beside ArchiMate) never becomes the default grouping of
- * the first one's palette — then so structural ones (by Layer, by Domain) precede the orthogonal
- * "by Aspect" axis; the first axis becomes the default classification.
+ * the first one's palette — then by that metamodel's `arch:paletteGrouping`, then by label; the
+ * first axis becomes the default classification.
  *
  * @param store n3 store holding the taxonomy (and, optionally, the metamodel manifest).
  * @param metamodelIris The loaded `arch:Metamodel` subjects, in load order. Without them,
- *   axes are ordered by label alone after the structural/aspect rule.
+ *   any metamodel's palette grouping orders the axes, then their labels.
  * @returns The discovered axes, ordered by preference. Empty when no concept scheme is present.
  */
 export function buildClassificationAxes(store: Store, metamodelIris: readonly string[] = []): TaxonomyAxis[] {
@@ -225,7 +320,7 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
 
   const isConcept = (iri: string): boolean => schemeConcepts.has(iri);
 
-  const childrenOf = (conceptIri: string): string[] => {
+  const skosChildrenOf = (conceptIri: string): string[] => {
     const narrower = store
       .getObjects(namedNode(conceptIri), namedNode(SKOS_NARROWER), null)
       .filter(isNamedNode)
@@ -236,6 +331,33 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
       .map((term) => term.value);
     return unique([...narrower, ...broaderInverse]);
   };
+
+  // A third style of listing members (DoDAF's, UAF's and the ML extension's taxonomies): a concept with nothing
+  // under it names the classes it groups with `rdfs:seeAlso` — "Capability Viewpoint" names Capability, Capability
+  // Increment and Desired Effect. One class named so may be the class the concept stands for (ArchiMate's style,
+  // below); several are its members, and then every sibling written the same way is a group too, the one that
+  // names a single class with it.
+  const seeAlsoClassesOf = (conceptIri: string): string[] =>
+    store
+      .getObjects(namedNode(conceptIri), namedNode(RDFS_SEE_ALSO), null)
+      .filter(isNamedNode)
+      .map((term) => term.value)
+      .filter((iri) => store.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(OWL_CLASS), null).length > 0);
+  const seeAlsoGroups = new Map<string, string[]>();
+  for (const concept of schemeConcepts) {
+    if (skosChildrenOf(concept).length > 0 || seeAlsoClassesOf(concept).length < 2) continue;
+    const parents = unique([
+      ...store.getObjects(namedNode(concept), namedNode(SKOS_BROADER), null).filter(isNamedNode).map((term) => term.value),
+      ...store.getSubjects(namedNode(SKOS_NARROWER), namedNode(concept), null).filter(isNamedNode).map((term) => term.value),
+    ]);
+    for (const sibling of [concept, ...parents.flatMap(skosChildrenOf)]) {
+      if (!schemeConcepts.has(sibling) || seeAlsoGroups.has(sibling) || skosChildrenOf(sibling).length > 0) continue;
+      const classes = seeAlsoClassesOf(sibling);
+      if (classes.length > 0) seeAlsoGroups.set(sibling, classes);
+    }
+  }
+
+  const childrenOf = (conceptIri: string): string[] => seeAlsoGroups.get(conceptIri) ?? skosChildrenOf(conceptIri);
 
   const conceptChildrenOf = (conceptIri: string): string[] => childrenOf(conceptIri).filter(isConcept);
 
@@ -252,10 +374,34 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
     return unique([...broader, ...narrowerInverse]);
   };
 
-  // Two equivalent modelling styles for a member-leaf:
-  //   - AM3.2 style: skos:narrower points straight at the OWL class (a non-concept node)
-  //   - AM4 style:   skos:narrower points at a terminal SKOS concept that rdfs:seeAlso's the class
-  const isMemberLeaf = (iri: string): boolean => !isConcept(iri) || childrenOf(iri).length === 0;
+  const isOwlClassIri = (iri: string): boolean =>
+    store.getQuads(namedNode(iri), namedNode(RDF_TYPE), namedNode(OWL_CLASS), null).length > 0;
+
+  let classFragments: Set<string> | undefined;
+  /**
+   * A concept that stands for an ontology class, as `buildClasses` resolves it: `rdfs:seeAlso` from the
+   * concept to the class or back, or a class of the same local name.
+   */
+  const standsForClass = (iri: string): boolean => {
+    if (store.getObjects(namedNode(iri), namedNode(RDFS_SEE_ALSO), null).some((term) => isOwlClassIri(term.value))) return true;
+    if (store.getSubjects(namedNode(RDFS_SEE_ALSO), namedNode(iri), null).some((term) => isOwlClassIri(term.value))) return true;
+    classFragments ??= new Set(
+      store.getSubjects(namedNode(RDF_TYPE), namedNode(OWL_CLASS), null).filter(isNamedNode).map((term) => iriFragment(term.value)),
+    );
+    const fragment = iriFragment(iri);
+    return fragment !== '' && classFragments.has(fragment);
+  };
+
+  // A member is an element type, which the ontology declares. Two modelling styles list one:
+  //   - skos:narrower points straight at the OWL class (a non-concept node) — meta's taxonomies;
+  //   - skos:narrower points at a terminal SKOS concept that stands for the class (rdfs:seeAlso, or
+  //     the same local name).
+  // A concept with nothing under it and no class behind it is an empty concept: a concept, not an
+  // element type (ArchiMate 3.2's ArchiMate Element once its dimensions moved out from under it).
+  const isMemberLeaf = (iri: string): boolean =>
+    !isConcept(iri) || (childrenOf(iri).length === 0 && standsForClass(iri));
+  /** A concept with nothing under it that stands for no class: it classifies nothing, yet. */
+  const isEmptyConcept = (iri: string): boolean => isConcept(iri) && childrenOf(iri).length === 0 && !isMemberLeaf(iri);
   const membersOf = (conceptIri: string): string[] => childrenOf(conceptIri).filter(isMemberLeaf);
 
   const labelOf = (iri: string): string => labelFor(store, iri) || fragmentToLabel(iriFragment(iri));
@@ -314,9 +460,17 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
    * lists nothing.
    */
   const axisCandidates = new Set<string>();
+  // Named by the palette grouping: an axis as published, whatever its shape, if any group is under it.
+  const namedAxes = new Set(
+    paletteGroupingOf(store, metamodelIris).filter(
+      (iri) => isConcept(iri) && conceptChildrenOf(iri).some((child) => holdsMembers(child)),
+    ),
+  );
+  for (const concept of namedAxes) axisCandidates.add(concept);
   for (const concept of schemeConcepts) {
     if (isGroup(concept)) continue;
-    const conceptChildren = conceptChildrenOf(concept);
+    // An empty concept beside the groups says nothing either way, so it does not stop its parent being an axis.
+    const conceptChildren = conceptChildrenOf(concept).filter((child) => !isEmptyConcept(child));
     if (conceptChildren.length === 0) continue;
     if (!conceptChildren.every((child) => holdsMembers(child))) continue;
     if (!conceptChildren.some((child) => isGroup(child))) continue;
@@ -338,25 +492,79 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
     return false;
   };
 
-  const axisConcepts = [...axisCandidates].filter((concept) => !hasCandidateAncestor(concept));
+  const axisConcepts = [...axisCandidates].filter((concept) => namedAxes.has(concept) || !hasCandidateAncestor(concept));
+
+  /** A concept's narrower concepts in order: the first thesaurus array under it (`iso-thes:superOrdinate`) that lists any. */
+  const orderOf = (axisIri: string): string[] => {
+    for (const array of store.getSubjects(namedNode(ISO_THES_SUPER_ORDINATE), namedNode(axisIri), null)) {
+      const { members, ordered } = collectionMembers(store, array);
+      if (ordered && members.length > 0) return members;
+    }
+    return [];
+  };
 
   const buildAxis = (axisIri: string): TaxonomyAxis => {
     const groups = new Map<string, string>();
     const topGroups = new Map<string, string>();
+    const ranks = new Map<string, number>();
+    const order = orderOf(axisIri);
     for (const groupIri of conceptChildrenOf(axisIri)) {
       if (!holdsMembers(groupIri)) continue;
       const topLabel = labelOf(groupIri);
+      const rank = order.indexOf(groupIri);
       // Transitive: a member nested any number of sub-groups down still belongs to this branch.
       for (const [member, groupLabel] of collectMembers(groupIri, [axisIri])) {
         if (groups.has(member)) continue;
         groups.set(member, groupLabel);
         topGroups.set(member, topLabel);
+        if (rank >= 0) ranks.set(member, rank);
       }
     }
-    return { iri: axisIri, label: labelOf(axisIri), groups, topGroups };
+    // Within a group, its members' order: the thesaurus array under the group itself (iso-thes:superOrdinate),
+    // where it has one — the nearest group's, as a member nested deeper is listed by its own group's array.
+    const memberRanks = new Map<string, number>();
+    const seen = new Set<string>([axisIri]);
+    const queue = [...conceptChildrenOf(axisIri)];
+    while (queue.length > 0) {
+      const concept = queue.shift() as string;
+      if (seen.has(concept)) continue;
+      seen.add(concept);
+      orderOf(concept).forEach((member, index) => {
+        if (groups.has(member) && !memberRanks.has(member)) memberRanks.set(member, index);
+      });
+      queue.push(...conceptChildrenOf(concept));
+    }
+    return { iri: axisIri, label: labelOf(axisIri), groups, topGroups, ranks, memberRanks };
   };
 
   let axes = axisConcepts.map(buildAxis).filter((axis) => axis.groups.size > 0);
+
+  // A group under no axis and no other group — ArchiMate's Junction, a top concept of its own — classifies
+  // its members all the same: an element type the taxonomy lists is one, wherever it lists it.
+  if (axes.length > 0) {
+    const axisSet = new Set(axisConcepts);
+    const underAxisOrGroup = (conceptIri: string): boolean => {
+      const seen = new Set<string>([conceptIri]);
+      const queue = [...parentsOf(conceptIri)];
+      while (queue.length > 0) {
+        const current = queue.shift() as string;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        if (axisSet.has(current) || isGroup(current)) return true;
+        queue.push(...parentsOf(current));
+      }
+      return false;
+    };
+    for (const concept of schemeConcepts) {
+      if (!isGroup(concept) || axisSet.has(concept) || underAxisOrGroup(concept)) continue;
+      const label = labelOf(concept);
+      const groups = new Map<string, string>();
+      for (const [member, groupLabel] of collectMembers(concept, [])) if (!groups.has(member)) groups.set(member, groupLabel);
+      if (groups.size === 0) continue;
+      const topGroups = new Map([...groups.keys()].map((member) => [member, label] as [string, string]));
+      axes.push({ iri: concept, label, groups, topGroups, ranks: new Map(), standalone: true });
+    }
+  }
 
   // Flat taxonomy: groups but no axis wrapper — synthesise one axis over every group.
   if (axes.length === 0) {
@@ -371,21 +579,32 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
     if (groups.size > 0) {
       const [firstScheme] = [...schemes];
       // Nothing nests here, so every group is its own top-level group.
-      axes = [{ iri: firstScheme ?? '', label: 'Classification', groups, topGroups: new Map(groups) }];
+      axes = [{ iri: firstScheme ?? '', label: 'Classification', groups, topGroups: new Map(groups), ranks: new Map() }];
     }
   }
 
   // The first-loaded language's axes first: a language added beside it must not
   // become the default grouping of its palette. An axis ranks by the first
-  // loaded metamodel whose arch:conceptClassification is the axis's scheme.
+  // loaded metamodel whose arch:conceptClassification is the axis's scheme, or
+  // whose arch:paletteGrouping names it.
   const schemeRank = new Map<string, number>();
+  const groupingRank = new Map<string, number>();
   metamodelIris.forEach((metamodelIri, index) => {
     for (const scheme of store.getObjects(namedNode(metamodelIri), namedNode(ARCH_CONCEPT_CLASSIFICATION), null)) {
       if (!schemeRank.has(scheme.value)) schemeRank.set(scheme.value, index);
     }
+    for (const axisIri of paletteGroupingOf(store, [metamodelIri])) {
+      if (!groupingRank.has(axisIri)) groupingRank.set(axisIri, index);
+    }
   });
+  // Within a language, the palette grouping's order: the axes it names first, the main one first.
+  const grouping = paletteGroupingOf(store, metamodelIris);
+  const groupingPosition = (axisIri: string): number => {
+    const position = grouping.indexOf(axisIri);
+    return position < 0 ? Number.MAX_SAFE_INTEGER : position;
+  };
   const rankOf = (axisIri: string): number => {
-    let rank = Number.MAX_SAFE_INTEGER;
+    let rank = groupingRank.get(axisIri) ?? Number.MAX_SAFE_INTEGER;
     for (const scheme of [
       ...store.getObjects(namedNode(axisIri), namedNode(SKOS_IN_SCHEME), null),
       ...store.getObjects(namedNode(axisIri), namedNode(SKOS_TOP_CONCEPT_OF), null),
@@ -398,7 +617,8 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
   axes.sort(
     (a, b) =>
       rankOf(a.iri) - rankOf(b.iri) ||
-      aspectRank(a.label) - aspectRank(b.label) ||
+      Number(a.standalone ?? false) - Number(b.standalone ?? false) ||
+      groupingPosition(a.iri) - groupingPosition(b.iri) ||
       a.label.localeCompare(b.label),
   );
 
@@ -416,8 +636,8 @@ export function buildClassificationAxes(store: Store, metamodelIris: readonly st
  * `arch:isAbstractClass true`, and relationship classes (transitive-closure hit on
  * `arch:QualifiedRelationship`, or a well-known relationship local name).
  *
- * When `axes` is empty there is no taxonomy to drive grouping, so the function falls back to an
- * OWL-only walk over the non-abstract subclasses of `arch:Element` / `arch:ModelConcept`.
+ * When `axes` is empty — or its schemes classify none of the classes — there is no taxonomy to drive grouping, so
+ * the function falls back to an OWL-only walk over the non-abstract subclasses of `arch:Element` / `arch:ModelConcept`.
  *
  * @param store n3 store holding the taxonomy and the OWL ontology.
  * @param axes Axes from {@link buildClassificationAxes}; the first supplies the default group.
@@ -489,19 +709,27 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
       if (isAbstractClass(store, owlClassIri)) continue;
 
       const closure = computeClosure(owlClassIri, superClassMap);
+      // By its superclasses; by a well-known relationship name only where they do not say it is an element
+      // (EA on a Page's Realization, a phase of a process, is one).
       const isRelationship =
         owlClassIri === CORE_QUALIFIED_RELATIONSHIP ||
         closure.includes(CORE_QUALIFIED_RELATIONSHIP) ||
-        RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri));
+        (RELATIONSHIP_FRAGMENTS.has(iriFragment(owlClassIri)) && !closure.includes(CORE_ELEMENT));
       if (isRelationship) continue;
 
       seenOwl.add(owlClassIri);
 
       // Record the group under each axis; the first axis provides the default group.
       const groupsByAxis: Record<string, string> = {};
+      const ranksByAxis: Record<string, number> = {};
+      const memberRanksByAxis: Record<string, number> = {};
       for (const axis of axes) {
         const group = axis.groups.get(memberIri);
         if (group) groupsByAxis[axis.iri] = group;
+        const rank = axis.ranks.get(memberIri);
+        if (rank !== undefined) ranksByAxis[axis.iri] = rank;
+        const memberRank = axis.memberRanks?.get(memberIri);
+        if (memberRank !== undefined) memberRanksByAxis[axis.iri] = memberRank;
       }
       const primaryAxis = axes[0];
       const defaultGroup =
@@ -515,41 +743,61 @@ export function buildClasses(store: Store, axes: TaxonomyAxis[]): SemanticClass[
         transitiveSuperClasses: closure,
         group: defaultGroup,
         groupsByAxis,
+        ranksByAxis,
+        ...(Object.keys(memberRanksByAxis).length > 0 ? { memberRanksByAxis } : {}),
         isAbstract: false,
       });
     }
 
-    return taxonomyResult.sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
+    // Schemes that classify no class at all are no taxonomy of these classes — core's question stages are all a
+    // metamodel without a classification of its own has — so the OWL walk alone finds them. Where the schemes
+    // classify some, the element classes they leave out — a metamodel loaded beside this one with no classification,
+    // or one whose classification is incomplete — follow under "Other": a type the ontology defines is one to draw.
+    if (taxonomyResult.length > 0) {
+      const classified = taxonomyResult.sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
+      const rest = owlWalk()
+        .filter((cls) => !seenOwl.has(cls.iri))
+        .map((cls) => ({ ...cls, group: UNCLASSIFIED_GROUP, unclassified: true }));
+      return [...classified, ...rest.sort((a, b) => a.label.localeCompare(b.label))];
+    }
   }
 
-  // Fallback: no taxonomy — OWL-only walk over the non-abstract subclasses of arch:Element.
-  const owlOnlyResult: SemanticClass[] = [];
-  for (const iri of allClassIris) {
-    const closure = computeClosure(iri, superClassMap);
-    const isSubOfElement = closure.includes(CORE_ELEMENT) || closure.includes(CORE_MODEL_CONCEPT);
-    if (!isSubOfElement) continue;
-    if (iri === CORE_ELEMENT || iri === CORE_MODEL_CONCEPT) continue;
-    if (iri.startsWith(CORE)) continue;
+  // Fallback: no taxonomy of these classes — the OWL walk, grouped by a guess from each class's name.
+  return owlWalk().sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
 
-    const fragment = iriFragment(iri);
-    const isRelationship = closure.includes(CORE_QUALIFIED_RELATIONSHIP) || RELATIONSHIP_FRAGMENTS.has(fragment);
-    if (isRelationship) continue;
+  /** Every non-abstract subclass of `arch:Element` that is no relationship type and no core class. */
+  function owlWalk(): SemanticClass[] {
+    const result: SemanticClass[] = [];
+    for (const iri of allClassIris) {
+      const closure = computeClosure(iri, superClassMap);
+      const isSubOfElement = closure.includes(CORE_ELEMENT) || closure.includes(CORE_MODEL_CONCEPT);
+      if (!isSubOfElement) continue;
+      if (iri === CORE_ELEMENT || iri === CORE_MODEL_CONCEPT) continue;
+      if (iri.startsWith(CORE)) continue;
+      // A kind of view (BPMN's diagram) is a model concept and no element: nothing to place on a diagram.
+      if (closure.includes(CORE_VIEW)) continue;
 
-    if (isAbstractClass(store, iri) || ABSTRACT_FRAGMENTS.has(fragment)) continue;
+      const fragment = iriFragment(iri);
+      const isRelationship =
+        closure.includes(CORE_QUALIFIED_RELATIONSHIP) || (RELATIONSHIP_FRAGMENTS.has(fragment) && !closure.includes(CORE_ELEMENT));
+      if (isRelationship) continue;
 
-    owlOnlyResult.push({
-      iri,
-      label: labelFor(store, iri),
-      definition: definitionFor(store, iri),
-      superClasses: superClassMap.get(iri) ?? [],
-      transitiveSuperClasses: closure,
-      group: groupFor(iri, closure),
-      groupsByAxis: {},
-      isAbstract: false,
-    });
+      if (isAbstractClass(store, iri) || ABSTRACT_FRAGMENTS.has(fragment)) continue;
+
+      result.push({
+        iri,
+        label: labelFor(store, iri),
+        definition: definitionFor(store, iri),
+        superClasses: superClassMap.get(iri) ?? [],
+        transitiveSuperClasses: closure,
+        group: groupFor(iri, closure),
+        groupsByAxis: {},
+        ranksByAxis: {},
+        isAbstract: false,
+      });
+    }
+    return result;
   }
-
-  return owlOnlyResult.sort((a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label));
 }
 
 /**
@@ -569,11 +817,6 @@ function isAbstractClass(store: Store, iri: string): boolean {
   return store
     .getObjects(namedNode(iri), namedNode(ARCH_IS_ABSTRACT_CLASS), null)
     .some((term) => term.value === 'true');
-}
-
-/** Aspect-style axes sort after structural ones so Layer/Domain becomes the default. */
-function aspectRank(label: string): number {
-  return /aspect/i.test(label) ? 1 : 0;
 }
 
 /** Transitive `rdfs:subClassOf` closure of `iri`, excluding `iri` itself. */

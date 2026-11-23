@@ -55,8 +55,8 @@ export function startMerging(app: App, ui: MountedUi): { support: MergeSupport; 
         if (removed.length > 0) store.removeQuads(quadsOfSnapshot(removed));
         if (added.length > 0) store.addQuads(quadsOfSnapshot(added));
       };
-      if (typeof batching.batch === 'function') batching.batch(run);
-      else run();
+      // Another version's statements, its stamps with them: no edit of this person's to record.
+      app.withoutStamps(() => (typeof batching.batch === 'function' ? batching.batch(run) : run()));
     };
     if (!ui.diagramCanvas.recordChange(apply)) eventBus.emit('model-changed', { origin: 'git' });
     eventBus.emit('views-changed', {});
@@ -82,12 +82,18 @@ export function startMerging(app: App, ui: MountedUi): { support: MergeSupport; 
     replace: (snapshot) => {
       const { added, removed } = diffSnapshots(snapshotOf(modelQuads(store)), snapshot);
       change(removed, added);
+      // The model under another IRI: moved to another namespace on the other side, or replaced
+      // there (DD-41). The session follows it, and with it the binding to its file (`model-loaded`'s
+      // `previousModelIri`), the History tab and the canvas. The view opened under its new IRI starts
+      // a fresh undo history, so undo does not take the move back, as after a move in Model settings;
+      // opening the model clears the dirty mark, which the change sets again.
+      if (app.session.resync({ moved: true })) eventBus.emit('model-changed', { origin: 'git' });
     },
-    conflicts: (conflicts, against) => {
+    conflicts: (conflicts, against, activate = true) => {
       shown = { modelIri: app.session.modelIri, entries: conflicts.map((conflict) => ({ conflict, current: conflict.held })), against };
       tab ??= ui.addBottomTab({ id: CONFLICTS_TAB, label: 'Conflicts', element: panel });
       render();
-      tab.show();
+      if (activate) tab.show();
     },
     unresolved: () => (shown && shown.modelIri === app.session.modelIri ? open() : 0),
     clear: () => {

@@ -257,8 +257,10 @@ interface Dragging {
   setOptions(options: Record<string, unknown>): void;
   context(): { prefix?: string } | null;
   hover(event: { element: unknown; gfx: unknown }): void;
+  out(event: { element: unknown; gfx: unknown }): void;
   move(event: unknown): void;
   end(event?: unknown): void;
+  cancel(): void;
 }
 
 /** Build the kind of event diagram-js's own drag tests use. */
@@ -357,6 +359,48 @@ describe('context pad Connect entry', () => {
 });
 
 describe('the connect tool', () => {
+  it('keeps the preview at the pointer over empty canvas, including after leaving a target', () => {
+    const { canvas, container, relationshipManager } = fixture();
+    const dragging = service<Dragging>(canvas, 'dragging');
+    dragging.setOptions({ manual: true });
+    const registry = service<{ get(id: string): unknown; getGraphics(element: unknown): unknown }>(canvas, 'elementRegistry');
+    const root = service<{ getRootElement(): unknown }>(canvas, 'canvas').getRootElement();
+    const target = registry.get(TGT);
+    const hover = (element: unknown) => ({ element, gfx: registry.getGraphics(element) });
+    const points = () => {
+      const line = container.querySelector('.djs-dragger polyline, .djs-dragger path');
+      expect(line).not.toBeNull();
+      const geometry = line!.getAttribute('points') ?? line!.getAttribute('d')!;
+      const coordinates = geometry.replace(/[ML]/g, ' ').trim().split(/[\s,]+/).map(Number);
+      expect(coordinates.every(Number.isFinite)).toBe(true);
+      return coordinates;
+    };
+
+    canvas.startConnect(SRC, canvasEvent(canvas, 60, 27, 'dragstart'), false);
+    dragging.move(canvasEvent(canvas, 240, 170));
+    dragging.move(canvasEvent(canvas, 250, 180));
+    expect(points().slice(-2)).toEqual([250, 180]);
+
+    // The empty canvas is a hovered diagram root, not an absent target.
+    dragging.hover(hover(root));
+    dragging.move(canvasEvent(canvas, 280, 190));
+    expect(points().slice(-2)).toEqual([280, 190]);
+
+    dragging.out(hover(root));
+    dragging.hover(hover(target));
+    dragging.move(canvasEvent(canvas, 430, 25));
+    expect(points().slice(-2)).toEqual([400, 28]);
+
+    dragging.out(hover(target));
+    dragging.hover(hover(root));
+    dragging.move(canvasEvent(canvas, 300, 200));
+    expect(points().slice(-2)).toEqual([300, 200]);
+
+    dragging.cancel();
+    expect(container.querySelector('.djs-dragger')).toBeNull();
+    expect(relationshipManager.createRelationship).not.toHaveBeenCalled();
+  });
+
   it('activating it starts the diagram-js global-connect tool', () => {
     const { canvas } = fixture();
     const dragging = service<Dragging>(canvas, 'dragging');
@@ -566,11 +610,78 @@ describe('relationship type choice', () => {
     expect(entries[relationshipEntryId(ASSOCIATION)].description).toContain('matched Association');
   });
 
-  it('does not open itself when the connection is drawn', () => {
-    const f = fixture();
+  /** Serving and Flow, both specific, and Association, the fallback: as the relationship manager ranks them. */
+  const twoSpecific = (): RelationshipTypeInfo[] => [
+    { iri: SERVING, label: 'Serving', domainTypes: [], rangeTypes: [], score: 10, drawn: true, unqualifiedPredicateIri: SERVES },
+    { iri: `${MM}Flow`, label: 'Flow', domainTypes: [], rangeTypes: [], score: 8 },
+    { iri: ASSOCIATION, label: 'Association', domainTypes: [], rangeTypes: [], score: 1, fallback: true, unqualifiedPredicateIri: ASSOCIATED_WITH },
+  ];
+
+  it('opens the relationship-type menu on the new line when more than one specific type is valid', () => {
+    const f = fixture({ candidates: twoSpecific });
 
     completeConnect(f.canvas);
 
+    // The best-ranked is drawn; the menu offers it and the others, best first, to change it at once.
+    expect(f.triples()).toEqual([`${SRC}|${SERVES}|${TGT}`]);
+    expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(true);
+    const entries = f.canvas.replaceMenuProvider.getPopupMenuEntries(connectionElement(f));
+    expect(Object.values(entries).map((entry) => entry.label)).toEqual(['Serving', 'Flow', 'Association']);
+  });
+
+  /** diagram-js's command stack, as the keys use it. */
+  const commandStack = (f: { canvas: DiagramCanvas }) => service<{ undo(): void; redo(): void; canUndo(): boolean }>(f.canvas, 'commandStack');
+  const pick = (f: ReturnType<typeof fixture>, typeIri: string) =>
+    f.canvas.replaceMenuProvider.getPopupMenuEntries(connectionElement(f))[relationshipEntryId(typeIri)].action(undefined);
+
+  it("a type picked from that menu is part of the drawing's undo step: one undo takes the line away, one redo draws it with that type (Req 4.2)", () => {
+    const f = fixture({ candidates: twoSpecific });
+    completeConnect(f.canvas);
+    expect(commandStack(f).canUndo()).toBe(true);
+
+    pick(f, `${MM}Flow`);
+
+    expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(false);
+    const flow = f.triples();
+    expect(flow).toHaveLength(1);
+    expect(flow[0]).toContain('Flow');
+    commandStack(f).undo();
+    expect(f.triples()).toEqual([]);
+    expect(f.canvas.getRelationships().size).toBe(0);
+    expect(commandStack(f).canUndo()).toBe(false);
+    commandStack(f).redo();
+    expect(f.triples()).toEqual(flow);
+    expect([...f.canvas.getRelationships().values()][0].typeIri).toBe(`${MM}Flow`);
+  });
+
+  it('a type changed once that menu is closed is a step of its own: undo puts the drawn type back', () => {
+    const f = fixture({ candidates: twoSpecific });
+    completeConnect(f.canvas);
+    service<PopupMenu>(f.canvas, 'popupMenu').close();
+
+    pick(f, `${MM}Flow`);
+    commandStack(f).undo();
+
+    expect(f.triples()).toEqual([`${SRC}|${SERVES}|${TGT}`]);
+    commandStack(f).undo();
+    expect(f.triples()).toEqual([]);
+  });
+
+  it('does not open itself when one specific type is valid, Association aside', () => {
+    const f = fixture({ candidates: () => twoSpecific().filter((c) => c.label !== 'Flow') });
+
+    completeConnect(f.canvas);
+
+    expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(false);
+  });
+
+  it('does not open itself when the type was picked in the palette', () => {
+    const f = fixture({ candidates: twoSpecific });
+    f.canvas.setPreferredRelationshipType(SERVING);
+
+    completeConnect(f.canvas);
+
+    expect(f.triples()).toEqual([`${SRC}|${SERVES}|${TGT}`]);
     expect(service<PopupMenu>(f.canvas, 'popupMenu').isOpen()).toBe(false);
   });
 

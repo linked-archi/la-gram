@@ -2,7 +2,8 @@
 
 /**
  * The form dialog's fields: a section's heading (no value), a fixed field
- * (shown, not changed), a secret (never pre-filled), a select.
+ * (shown, not changed), a read-only one (shown to copy), a secret (never
+ * pre-filled), a select.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { detailLines, domDialogs, type DetailBlock } from '../dialogs.js';
@@ -38,6 +39,22 @@ describe('the form dialog', () => {
     expect(hosts.closest('.la-form-row')?.classList.contains('fixed')).toBe(true);
     ok();
     expect(await answer).toEqual({ hosts: 'github.com', folder: '' });
+  });
+
+  it('a read-only field is shown to select and copy, not to change, and is not the one focused', async () => {
+    const answer = domDialogs.form('Model settings', [
+      { name: 'git.file', label: 'File', value: 'https://gitlab.com/acme/arch/-/blob/main/a.ttl', readOnly: true },
+      { name: 'label', label: 'Name', value: 'Shop' },
+    ]);
+    const file = dialog().querySelector<HTMLInputElement>('input[name="git.file"]')!;
+    expect([file.readOnly, file.disabled, file.value]).toEqual([true, false, 'https://gitlab.com/acme/arch/-/blob/main/a.ttl']);
+    expect(file.closest('.la-form-row')?.classList.contains('fixed')).toBe(true);
+    const select = vi.spyOn(HTMLInputElement.prototype, 'select');
+    await Promise.resolve();
+    expect(select.mock.contexts).toEqual([dialog().querySelector('input[name="label"]')]);
+    select.mockRestore();
+    ok();
+    expect(await answer).toEqual({ 'git.file': 'https://gitlab.com/acme/arch/-/blob/main/a.ttl', label: 'Shop' });
   });
 
   it('a secret is typed unseen and never pre-filled; a select gives its value', async () => {

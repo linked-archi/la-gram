@@ -1,6 +1,6 @@
 ---
 title: The RDF panel
-description: The RDF panel in la-gram, which shows the live model as Turtle or another RDF format, with or without diagram geometry, for the view, the selection or the model.
+description: The RDF panel in la-gram, which shows the live model as Turtle or another RDF format, with or without diagram geometry and provenance, for the view, the selection or the model.
 ---
 # The RDF panel
 
@@ -24,7 +24,7 @@ The format selector, at the left of the panel's header, picks how the RDF is wri
 | Format | Writes |
 |---|---|
 | **Turtle** (the default) | the model in one graph |
-| TriG (graph per layer) | three graphs: the model resource, its semantics (elements, relationships, views) and its diagram geometry |
+| TriG (graph per layer) | four graphs: the model resource, its semantics (elements, relationships, views), its diagram geometry and its provenance |
 | JSON-LD | JSON-LD, with the graphs |
 | N-Quads | one statement per line, with its graph |
 | N-Triples | one statement per line |
@@ -39,11 +39,22 @@ as* last wrote.
 ## Geometry {#geometry}
 
 *geometry*, ticked by default, includes the diagram geometry: the `arch-vis:` nodes, links, bounds and
-routes of the views. Unticked, the panel shows the model's semantics alone, as *File › Save without
-diagram geometry* writes it. It is this panel's own setting, for the session.
+routes of the views. Unticked, the panel shows the model's semantics alone, as *File › Save as › Turtle
+without diagram geometry* writes it. It is this panel's own setting, for the session.
 
 1. Tick off *geometry*.
 2. The `arch-vis:ArchNode` and `arch-vis:Link` blocks go; the elements and relationships stay.
+
+## Provenance {#provenance}
+
+*provenance*, ticked by default, includes how the model came to be: the `prov:` statements — which editing
+activity last changed each concept, and when ([Last changed](properties.md#last-changed)) — the
+activities, la-gram and the people, and a converted model's conversion run. Unticked, they are left out of
+the panel and of what *Download* writes; *Created* and *Modified* stay with each concept. It is this
+panel's own setting, for the session.
+
+1. Change an element, and open the RDF panel on *Model*.
+2. Tick off *provenance*: the `mg:provenance` graph, in TriG, and every `prov:` statement go.
 
 ## Scope {#scope}
 

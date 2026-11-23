@@ -45,7 +45,7 @@ design: `design.md` (§1–§6). Rules: `README.md`.
 
 ## Status
 
-Done 2026-11-08: phases A–F — the whole task, follow-ups included. Everything is uncommitted in both repos. Also changed while doing it: the information
+Done 2026-11-08: phases A–F — the whole task, follow-ups included. Committed in both repos, and released in la-gram 0.2.0. Also changed while doing it: the information
 tab's generic properties no longer list `arch:prefVisNotation`/`arch:altVisNotation` links (shown as Pictures by
 presentation), as they no longer list `skosxl:altLabel`.
 

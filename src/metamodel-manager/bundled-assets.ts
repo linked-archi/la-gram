@@ -19,6 +19,8 @@
  * assets/archimate4/icons/glyphs/*.svg   ← badge glyphs
  * assets/basic/*.ttl                     ← Basic, the generic language
  * assets/basic/icons/, basic/notation-bubble/icons/ ← its two notations' icons
+ * assets/arch-decision/*.ttl             ← the Architecture Decisions extension
+ * assets/arch-processes/*.ttl            ← the Architecture Processes extension
  * assets/catalog.ttl                     ← meta.linked.archi's catalogue
  * ```
  *
@@ -73,6 +75,13 @@
  * `coreQuestions` the core one, which no manifest names because it applies to
  * every model: model questions the SPARQL tab offers and the Validation tab runs
  * as model checks (`model-manager/questions.ts`). They are never model data.
+ * `coreNotation` is the notation of the core's own relationship types
+ * (`core-notation`), which no manifest names either: its sets are consulted
+ * after every loaded metamodel's default set, the last fallback layer of the
+ * notation lookup (`coreNotationSetIris`, VC-DD-5). It draws Association,
+ * Depends On, Has Part and Refines, and lets nesting stand for Has Part and
+ * Refines: the part inside the whole, a view inside the box of the element it
+ * refines.
  */
 export type BundledAssetRole =
   | 'manifest'
@@ -89,7 +98,8 @@ export type BundledAssetRole =
   | 'coreVisOntology'
   | 'coreShapes'
   | 'questions'
-  | 'coreQuestions';
+  | 'coreQuestions'
+  | 'coreNotation';
 
 /** A single TTL file shipped with the application. */
 export interface BundledAsset {
@@ -180,8 +190,11 @@ export const BUNDLED_ICON_PREFIXES: readonly string[] = [
  * Open Group Exchange Format — the one interchange format every ArchiMate tool
  * writes — is a 3.x format, so importing an exchange file needs the 3.2
  * ontology whether or not the network is up. Basic ships because it is the
- * generic language — elements and relationships no other loaded language has,
- * its Connection relating any two elements — and that has to work offline too.
+ * generic language — elements no other loaded language has, its Connection
+ * relating any two of them — and that has to work offline too.
+ * Architecture Decisions ships because it is added beside whichever language is
+ * loaded, to record the decisions about a model: an extension, with no
+ * presentation contexts and no notation of its own.
  */
 export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
   {
@@ -201,6 +214,18 @@ export const BUNDLED_METAMODELS: readonly BundledMetamodel[] = [
     metamodelIri: 'https://meta.linked.archi/basic/metamodel#Basic',
     manifestIri: 'https://meta.linked.archi/basic/metamodel#',
     label: 'Basic',
+  },
+  {
+    id: 'arch-decision',
+    metamodelIri: 'https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions',
+    manifestIri: 'https://meta.linked.archi/arch-decision/metamodel#',
+    label: 'Architecture Decisions',
+  },
+  {
+    id: 'arch-processes',
+    metamodelIri: 'https://meta.linked.archi/arch-processes/metamodel#ArchitectureProcesses',
+    manifestIri: 'https://meta.linked.archi/arch-processes/metamodel#',
+    label: 'Architecture Processes',
   },
 ];
 
@@ -287,6 +312,11 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     ontologyIri: 'https://meta.linked.archi/core-questions#',
     path: 'core/core-questions.ttl',
   },
+  {
+    role: 'coreNotation',
+    ontologyIri: 'https://meta.linked.archi/core-notation#',
+    path: 'core/core-notation.ttl',
+  },
   ...languageAssets('archimate4', 'archimate4', 'archimate4', '4.0'),
   // The ArchiMate versions publish question sets; the other languages do not yet.
   {
@@ -321,6 +351,18 @@ export const BUNDLED_ASSETS: readonly BundledAsset[] = [
     path: 'basic/basic-presentation-contexts.ttl',
     metamodel: 'basic',
   },
+  // The decision extension: its vocabulary — the relationship types that draw its links with it — and its shapes
+  // keep their flat namespaces; its taxonomy and its manifest are nested under it.
+  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/arch-decision/metamodel#', path: 'arch-decision/arch-decision-metamodel.ttl', metamodel: 'arch-decision' },
+  { role: 'ontology', ontologyIri: 'https://meta.linked.archi/arch-decision#', path: 'arch-decision/arch-decision-onto.ttl', metamodel: 'arch-decision' },
+  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/arch-decision/tax#', path: 'arch-decision/arch-decision-tax.ttl', metamodel: 'arch-decision' },
+  { role: 'shapes', ontologyIri: 'https://meta.linked.archi/arch-decision-shapes#', path: 'arch-decision/arch-decision-shapes.ttl', metamodel: 'arch-decision' },
+  // The processes extension, as the decision one: its vocabulary and shapes flat, its taxonomy and manifest nested.
+  // LeanIX and EA on a Page import its vocabulary, which loads from here too.
+  { role: 'manifest', ontologyIri: 'https://meta.linked.archi/arch-processes/metamodel#', path: 'arch-processes/arch-processes-metamodel.ttl', metamodel: 'arch-processes' },
+  { role: 'ontology', ontologyIri: 'https://meta.linked.archi/arch-processes#', path: 'arch-processes/archProcesses.ttl', metamodel: 'arch-processes' },
+  { role: 'taxonomy', ontologyIri: 'https://meta.linked.archi/arch-processes/tax#', path: 'arch-processes/arch-processes-tax.ttl', metamodel: 'arch-processes' },
+  { role: 'shapes', ontologyIri: 'https://meta.linked.archi/arch-processes-shapes#', path: 'arch-processes/archProcesses-shapes.ttl', metamodel: 'arch-processes' },
 ];
 
 // ── Registry lookups ───────────────────────────────────────────────────

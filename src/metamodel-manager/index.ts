@@ -58,6 +58,7 @@ export {
 } from './notation.js';
 export type { NotationSource, ResolvedNotation, NotationIndexEntry } from './notation-resolver.js';
 export {
+  coreNotationSetIris,
   NotationResolver,
   orderedFallbackSets,
   storeDefaultNotationSetIris,

@@ -18,7 +18,7 @@ The desktop app always loads its own page with no address of yours, so none of t
 | [`ws`](#ws) | a WebSocket address | **`ws://localhost:1234`** |
 | [`user`](#user) | a display name | **`Guest NNN`** |
 | [`rdf`](#rdf) | `1` | **closed** |
-| [`base`](#base) | an absolute IRI | **`https://example.org/`** |
+| [`base`](#base) | an `https:` or `http:` IRI | **`https://example.org/`** |
 | [`git`](#git) | a link to a model file in Git, or `off` | **none** |
 | [`<module-id>=off`](#module-off) | `off` | **on** |
 
@@ -156,7 +156,8 @@ https://app.linked.archi/la-gram/?room=acme-review&ws=wss://collab.example.org
 ## `user` {#user}
 
 The name others in the room see beside your presence avatar. It is also the author of the History
-checkpoints you save while in the room.
+checkpoints you save while in the room, and the name recorded with your edits, when
+[*File › Settings… › You*](../guide/settings.md#you-tab) gives none and no Git account is known.
 
 - **Default:** `Guest` and a random number from 100 to 999, such as `Guest 482`, new at each load.
 - Write a space as `%20`.
@@ -189,8 +190,8 @@ each model.
 - **Default:** `https://example.org/`.
 - **A base without a trailing `/`** gets one: `https://example.org/acme` gives
   `https://example.org/acme/archimate/…/`.
-- **A value that is not an absolute IRI** (`not an iri`, say) is ignored, and the default applies, with
-  no message.
+- **A value that is not an `https:` or `http:` IRI, or holds a `#` or a `?`** (`not an iri`,
+  `urn:acme:`, say) is ignored, and the default applies, with no message.
 - Models you open keep their own namespace. *File › Model settings…* changes it afterwards.
 
 ```text
@@ -206,7 +207,7 @@ With either, *File › New model* proposes a namespace such as
 The Git storage module ([Git storage](../guide/git.md)) reads this parameter.
 
 - **A link to a model file** in a GitHub or GitLab repository: la-gram opens that file from Git when the
-  module starts, as *File › Open from Git…* would. A link to a private repository asks for an access
+  module starts, as *File › Git › Open from Git…* would. A link to a private repository asks for an access
   token first. A link on a host the [deployment](configuration.md#git-hosts) does not allow is refused.
   The link is used once: switching the module off and on does not open it again.
 - **`off`**: Git storage is off for this session. See [`<module-id>=off`](#module-off).

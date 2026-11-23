@@ -30,11 +30,15 @@ describe('bundled asset registry', () => {
   });
 
   it('describes every bundled TTL with a role, graph IRI and path', () => {
-    // Five core files (the core question set among them), thirteen per ArchiMate version (4.0 and 3.2,
-    // their question sets among them), and Basic's six: manifest, ontology, taxonomy, its two notation
-    // sets and its presentation contexts.
-    expect(BUNDLED_ASSETS).toHaveLength(37);
+    // Six core files (the core question set and the core notation among them), thirteen per ArchiMate version
+    // (4.0 and 3.2, their question sets among them), and Basic's six: manifest, ontology, taxonomy, its two
+    // notation sets and its presentation contexts; four for each extension, decisions and processes.
+    expect(BUNDLED_ASSETS).toHaveLength(46);
     expect(getAssetsByRole('coreQuestions').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/core-questions#']);
+    // The core's own relationship types' notation, which no manifest names (VC-DD-5).
+    expect(getAssetsByRole('coreNotation').map((a) => [a.ontologyIri, a.path, a.metamodel])).toEqual([
+      ['https://meta.linked.archi/core-notation#', 'core/core-notation.ttl', undefined],
+    ]);
     expect(getAssetsByRole('questions').map((a) => [a.metamodel, a.ontologyIri])).toEqual([
       ['archimate4', 'https://meta.linked.archi/archimate4/questions#'],
       ['archimate3', 'https://meta.linked.archi/archimate3/questions#'],
@@ -48,11 +52,23 @@ describe('bundled asset registry', () => {
 
   it('covers every single-valued role exactly once per bundled language', () => {
     const roles: BundledAssetRole[] = ['manifest', 'ontology', 'taxonomy', 'presentationContexts'];
-    for (const metamodel of BUNDLED_METAMODELS) {
+    for (const metamodel of BUNDLED_METAMODELS.filter((m) => m.id !== 'arch-decision' && m.id !== 'arch-processes')) {
       for (const role of roles) {
         expect(getAssetsByRole(role, metamodel.id), `${metamodel.id}/${role}`).toHaveLength(1);
       }
     }
+    // The decision extension: a manifest, its vocabulary — with the relationship types that draw its links — a
+    // taxonomy and its shapes; no notation and no presentation contexts.
+    expect(getAssetsByRole('manifest', 'arch-decision')).toHaveLength(1);
+    expect(getAssetsByRole('ontology', 'arch-decision').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/arch-decision#']);
+    expect(getAssetsByRole('taxonomy', 'arch-decision')).toHaveLength(1);
+    expect(getAssetsByRole('shapes', 'arch-decision')).toHaveLength(1);
+    expect(getAssetsByRole('presentationContexts', 'arch-decision')).toHaveLength(0);
+    // The processes extension, the same four.
+    for (const role of ['manifest', 'ontology', 'taxonomy', 'shapes'] as const) {
+      expect(getAssetsByRole(role, 'arch-processes'), `arch-processes/${role}`).toHaveLength(1);
+    }
+    expect(getAssetsByRole('ontology', 'arch-processes').map((a) => a.ontologyIri)).toEqual(['https://meta.linked.archi/arch-processes#']);
     for (const id of ['archimate4', 'archimate3']) {
       for (const role of ['notation', 'viewpoints', 'referenceData', 'questions'] as const) {
         expect(getAssetsByRole(role, id), `${id}/${role}`).toHaveLength(1);
@@ -205,4 +221,89 @@ describe('Node-side asset loading', () => {
   it('exposes the asset root the webpack copy target uses', () => {
     expect(ASSET_ROOT).toBe('assets');
   });
+});
+
+describe('the bundled Architecture Decisions extension', () => {
+  it('loads offline beside ArchiMate, with its element types in two groups and its links as relationship types', async () => {
+    const { OxigraphRdfStore } = await import('../../rdf-engine/rdf-store.js');
+    const { N3TtlParser } = await import('../../rdf-engine/ttl-parser.js');
+    const { N3MetamodelLoader } = await import('../metamodel-loader.js');
+    const { SparqlPaletteGenerator } = await import('../palette-generator.js');
+    const { qualifiedFormOf, unqualifiedFormOf } = await import('../../model-manager/cascade.js');
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+    const am4 = await loader.loadBundledMetamodel('archimate4');
+    const decisions = await loader.loadBundledMetamodel('arch-decision');
+    expect(decisions.assets.filter((a) => a.outcome !== 'loaded' && a.outcome !== 'already-loaded')).toEqual([]);
+
+    const documents = (m: typeof am4) => ({
+      iri: m.metamodelIri,
+      label: m.info.name,
+      documents: m.assets.map((a) => a.documentIri),
+      conceptDocuments: m.assets.filter((a) => a.via === 'arch:modelConcepts').map((a) => a.documentIri),
+    });
+    const palette = new SparqlPaletteGenerator(store).generatePalette(undefined, {
+      metamodelIris: [am4.metamodelIri, decisions.metamodelIri],
+      metamodels: [documents(am4), documents(decisions)],
+    });
+    const AD = 'https://meta.linked.archi/arch-decision#';
+    const group = (name: string) => palette.elementGroups.find((g) => g.category === name)?.elements.map((e) => e.label);
+    expect(group('Decision Record')?.sort()).toEqual(['Decision', 'Issue', 'Option']);
+    expect(group('Forces')).toHaveLength(11);
+    expect(palette.completeness).toBeUndefined();
+    const relationship = (iri: string) => palette.relationshipTypes.find((r) => r.iri === iri);
+    expect(relationship(`${AD}ModifiesConcept`)).toMatchObject({ label: 'Modifies', unqualifiedPredicateIri: `${AD}modifiesConcept` });
+    // Each metamodel's relationship types keep their own categories.
+    expect(relationship(`${AD}ModifiesConcept`)?.category).toBe('Change Links');
+    expect(relationship(`${AD}DependsOn`)?.category).toBe('Decision Map Links');
+    expect(relationship(`${AD}IssueOwner`)?.category).toBe('Stakeholder Links');
+    expect(relationship(`${AD}AppliedInOption`)?.category).toBe('Issue and Design Links');
+    expect(relationship(`${AD}OpposingForce`)?.category).toBe('Force Links');
+    // Conflicting decisions, opposing and complementary forces: no direction, a plain line.
+    for (const symmetric of ['ConflictsWith', 'OpposingForce', 'ComplementaryForce']) {
+      expect(relationship(`${AD}${symmetric}`)?.relationshipStyle, symmetric).toBeUndefined();
+    }
+    expect(relationship(`${AD}SupersededBy`)?.relationshipStyle?.targetDecor).toBe('OpenArrowhead');
+    expect(relationship('https://meta.linked.archi/archimate4/onto#Composition')?.category).toBe('Structural Relationship');
+    // An influence is drawn as one of its two kinds, each reached by Force Influence's qualified property.
+    expect(relationship(`${AD}ForceInfluence`)).toBeUndefined();
+    expect(unqualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}influencedByForce`);
+    expect(qualifiedFormOf(store, `${AD}SupportingInfluence`)).toBe(`${AD}hasInfluence`);
+    expect(qualifiedFormOf(store, `${AD}ModifiesConcept`)).toBe(`${AD}qualifiedModifiesConcept`);
+  }, 60_000);
+
+  it('loads the bundled processes extension with no network: its three groups and thirteen relationship types in their categories', async () => {
+    const { OxigraphRdfStore } = await import('../../rdf-engine/rdf-store.js');
+    const { N3TtlParser } = await import('../../rdf-engine/ttl-parser.js');
+    const { N3MetamodelLoader } = await import('../metamodel-loader.js');
+    const { SparqlPaletteGenerator } = await import('../palette-generator.js');
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+    const processes = await loader.loadBundledMetamodel('arch-processes');
+    expect(processes.assets.filter((a) => a.outcome !== 'loaded' && a.outcome !== 'already-loaded')).toEqual([]);
+    const palette = new SparqlPaletteGenerator(store).generatePalette(undefined, {
+      metamodelIris: [processes.metamodelIri],
+      metamodels: [{
+        iri: processes.metamodelIri,
+        label: processes.info.name,
+        documents: processes.assets.map((a) => a.documentIri),
+        conceptDocuments: processes.assets.filter((a) => a.via === 'arch:modelConcepts').map((a) => a.documentIri),
+      }],
+    });
+    expect(palette.elementGroups.map((g) => g.category)).toEqual(['Process Structure', 'Deliverables', 'Roles']);
+    const own = palette.relationshipTypes.filter((r) => !r.core);
+    expect(own.map((r) => r.iri.replace('https://meta.linked.archi/arch-processes#', 'ap:')).sort()).toEqual([
+      'ap:ApprovedBy', 'ap:Governs', 'ap:HasActivity', 'ap:HasSubProcess', 'ap:HasTask',
+      'ap:Input', 'ap:MilestoneOfProcess', 'ap:Output', 'ap:PerformedBy', 'ap:Precedes',
+      'ap:RelatedProcess', 'ap:ResponsibleFor', 'ap:TriggeredBy',
+    ]);
+    // A related process has no direction: a plain line. The others lead somewhere.
+    expect(own.find((r) => r.iri.endsWith('#RelatedProcess'))?.relationshipStyle).toBeUndefined();
+    expect(own.find((r) => r.iri.endsWith('#ResponsibleFor'))?.relationshipStyle?.targetDecor).toBe('OpenArrowhead');
+    expect(new Set(own.map((r) => r.category))).toEqual(
+      new Set(['Structure Links', 'Flow Links', 'Responsibility Links', 'Governance Links']),
+    );
+    expect(palette.completeness).toBeUndefined();
+    store.dispose();
+  }, 60_000);
 });

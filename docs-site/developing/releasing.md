@@ -11,6 +11,9 @@ One pipeline, `.gitlab-ci.yml`, tests every merge request and releases two produ
 | `la-gram-git-v<version>`, the version in `packages/la-gram-git/package.json` | la-gram-git: the npm package and the container image |
 | `la-gram-v<version>`, the version in `package.json` | la-gram: the desktop apps, the web app with this documentation and the desktop apps beside it, and the Releases page |
 
+Between releases, each merge to the default branch puts the **alpha** — the next release as it is being
+made — at https://app.linked.archi/la-gram-alpha/ ([The alpha](#alpha)).
+
 The excerpts below are copied from `.gitlab-ci.yml`; `# …` marks lines left out.
 
 ## When the pipeline runs {#when-the-pipeline-runs}
@@ -37,7 +40,8 @@ workflow:
 
 | Pipeline | Runs |
 |---|---|
-| merge request, default branch | `test`, `package`, `web`, `docs`; the five `desktop` jobs by hand |
+| merge request | `test`, `package`, `web`, `docs`; the five `desktop` jobs by hand |
+| default branch | the same, `web` built as the alpha; then `alpha-deploy` |
 | `la-gram-git-v*` | `test`, `package`, then `npm`, `image-amd64`, `image-arm64`, `container-image` |
 | `la-gram-v*` | `test`, `web`, `docs`, the five `desktop` jobs, then `web-deploy` (not on a pre-release) and `la-gram-release` |
 
@@ -117,7 +121,8 @@ writer or findings change fails there until the example is brought up to date
 **`web`** (stage `build`; never on `la-gram-git-v*`): the web app, `npm run build:web`. On a
 `la-gram-v*` tag, the tag's version must be `package.json`'s. It checks that the build has its page, its
 icon and its WebAssembly, keeps `dist/web/` a week as its artifact, and passes `VERSION` on, for the
-Releases page.
+Releases page. On the default branch it builds the alpha, `LA_GRAM_CHANNEL=alpha`
+([The alpha](#alpha)).
 
 ```yaml
 web:
@@ -125,12 +130,17 @@ web:
   rules:
     - if: $CI_COMMIT_TAG =~ /^la-gram-git-v/
       when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        LA_GRAM_CHANNEL: alpha
     - when: on_success
   script:
     - *la-gram-version
     - npm ci --prefer-offline
     - npm run build:web
     - test -f dist/web/index.html && test -f dist/web/favicon.svg && ls dist/web/*.wasm
+    # This version's page: the IRI the edits it records name as their agent (scripts/version-page.mjs).
+    - test -f "dist/web/v$VERSION/index.html"
     - echo "VERSION=$VERSION" > version.env
   artifacts:
     paths: [dist/web/]
@@ -322,7 +332,10 @@ place of the one on app.linked.archi, over SSH.
 - **Environment** `production`, with the app's address, so GitLab lists the deploy and only this job sees
   the deploy variables.
 - **The copy:** `rsync -az --delete`, folders mode 755 and files 644, into `LA_GRAM_DEPLOY_PATH` on the
-  server. Files the new build no longer has are deleted.
+  server. Files the new build no longer has are deleted, but for the pages of earlier versions,
+  `v{version}/`, which the filter `P /v[0-9]*/` protects: a model names the la-gram version it was edited
+  with by its page's address, `https://app.linked.archi/la-gram/v0.3.0`, so every released version's page
+  stays. The build writes its own version's page (`scripts/version-page.mjs`), and `web` checks it is there.
 - **The server's host key** is taken on first use with `ssh-keyscan`, as the job starts.
 - **On a release tag, a failed `docs` or `desktop` job holds `web-deploy` back, and with it the
   Releases page (`la-gram-release`).** Retry the failed job, and both run.
@@ -373,10 +386,71 @@ web-deploy:
       done
     - (cd dist/web/downloads && sha256sum la-gram-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
     - echo "Deploying to $DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH"
-    - rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
+    # Every earlier version's page stays (P: protected from --delete): models name the version they were
+    # edited with, by its page's address.
+    - rsync -az --delete --filter='P /v[0-9]*/' --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"
 ```
 
 What the server has to do with the folder is in [Hosting the web app](../operating/web-app.md).
+
+## The alpha {#alpha}
+
+Between releases, `package.json` says the next release's alpha, `0.3.0-alpha`, and each merge to the
+default branch deploys it beside the release, at https://app.linked.archi/la-gram-alpha/, to try what the
+next release will have. `alpha` because pre-release labels sort as text: `0.3.0-alpha` comes before
+`0.3.0-beta.1`, `0.3.0-rc.1` and `0.3.0`, as it should, where a label such as `snapshot` would come after
+`rc`.
+
+**`web`**, on the default branch, builds it for its channel, `LA_GRAM_CHANNEL=alpha`:
+
+- **Its browser storage is its own.** The alpha and the release are one site, app.linked.archi, whose
+  pages share what the browser keeps; the alpha keeps its settings, its Git tokens, the files its models
+  are bound to and its checkpoints under its own names, so that what it writes — in a form the release
+  may not read yet — and what the release writes stay apart. A token given to the release is asked for
+  again in the alpha.
+- **Its version's page** names the commit it was built from, and the alpha's app and documentation,
+  instead of a Release: `https://app.linked.archi/la-gram/v0.3.0-alpha`, which the edits made in the alpha
+  name as their agent, says which build of the alpha it is now — the last merged.
+
+**`alpha-deploy`** (stage `release`, on the default branch) then:
+
+- deploys nothing when `package.json` says a release (`0.3.0`): from the release's merge until the next
+  alpha's, the alpha stays as it was;
+- needs `web`'s and `docs`'s artifacts and checks both pages and the version's page are there, as
+  `web-deploy` does;
+- copies the app and its documentation into `LA_GRAM_DEPLOY_PATH` with `-alpha` after it — the folder the
+  web server serves as `/la-gram-alpha/` — deleting what the build no longer has, and the version's page
+  into `LA_GRAM_DEPLOY_PATH/v<version>/`, beside the released versions' pages, which `web-deploy` keeps;
+- runs one at a time with `web-deploy` (`resource_group: app-linked-archi`), in the environment `alpha`,
+  with `web-deploy`'s four variables, which are also scoped to `alpha`
+  ([Before the first release](#before-the-first-release)).
+
+```yaml
+alpha-deploy:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  # …
+  needs:
+    - job: web # the alpha's build, and VERSION
+      artifacts: true
+    - job: docs
+      artifacts: true
+  image: alpine:3.22
+  resource_group: app-linked-archi
+  environment:
+    name: alpha
+    url: https://app.linked.archi/la-gram-alpha/
+  script:
+    - |
+      case "$VERSION" in
+        *-*) ;;
+        *) echo "package.json says $VERSION, a release: no alpha to deploy."; exit 0 ;;
+      esac
+    # …
+    - rsync -az --delete --exclude='/v[0-9]*/' --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH-alpha/"
+    - rsync -az --chmod=D755,F644 "dist/web/v$VERSION/" "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/v$VERSION/"
+```
 
 ## The Releases page {#releases-page}
 
@@ -434,13 +508,16 @@ Once, in the project on GitLab, by a maintainer:
    make or delete a release tag, and the protected variables reach only its pipelines.
 2. **Let users download**: *Settings › General › Visibility, project features, permissions*: the package
    registry and the container registry for everyone with access.
-3. **Create the environment `production`**: *Operate › Environments › Create an environment*, the name
-   `production`, its address `https://app.linked.archi/la-gram/`.
+3. **Create the environments `production` and `alpha`**: *Operate › Environments › Create an
+   environment*, the name `production`, its address `https://app.linked.archi/la-gram/`; then `alpha`,
+   `https://app.linked.archi/la-gram-alpha/`.
 4. **Add the deploy variables** of [web-deploy](#web-deploy): *Settings › CI/CD › Variables › Add
    variable*, each with *Protect variable* ticked, *Expand variable reference* cleared and the
-   environment scope `production`.
-5. **Prepare the server**: the folder `<deploy-path>`, writable by `<deploy-user>`, served at
-   `/la-gram/` with the rules of [Hosting the web app](../operating/web-app.md).
+   environment scope `production`; then each again, with the same value, scoped to `alpha`, for
+   [the alpha](#alpha).
+5. **Prepare the server**: the folders `<deploy-path>` and `<deploy-path>-alpha`, writable by
+   `<deploy-user>`, served at `/la-gram/` and `/la-gram-alpha/` with the rules of
+   [Hosting the web app](../operating/web-app.md).
 6. **For la-gram-git on npm**: create the npm organization `linked-archi`, and add `NPM_TOKEN`, an npm
    granular access token that can publish `@linked-archi` packages, with an expiry, protected and masked.
    After the first release, set up trusted publishing on npmjs.com (the package's *Settings › Trusted
@@ -450,8 +527,10 @@ Once, in the project on GitLab, by a maintainer:
 
 ## Each release {#each-release}
 
-A release is a version set by a merge request, then an annotated tag on the merged commit. For la-gram
-0.2.0:
+A release is a version set by a merge request, then an annotated tag on the merged commit. Between
+releases `package.json` says the next one's alpha ([The alpha](#alpha)): the release's merge request sets
+the release's version, `0.3.0`, and once it is tagged, a merge request sets the next alpha's,
+`npm version 0.4.0-alpha --no-git-tag-version`. For la-gram 0.2.0:
 
 1. On a branch from an up-to-date `main`, set the version with `npm version 0.2.0 --no-git-tag-version`
    (it writes `package.json` and `package-lock.json`, and without the option would also commit and tag,

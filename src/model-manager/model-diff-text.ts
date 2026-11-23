@@ -95,6 +95,19 @@ export function detailLines(diff: ModelDiff, change: ConceptChange, words: DiffW
   ];
 }
 
+/** A time as the Markdown gives it, the same wherever it is written: `2026-11-20 16:40 UTC`. */
+export function utcMinute(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+/** Who made a change and when, as the later version records it: `by Ada Lovelace, 2026-11-20 16:40 UTC`. */
+export function editText(change: ConceptChange, when: (iso: string) => string = utcMinute): string | undefined {
+  const edit = change.edit;
+  if (!edit?.by && !edit?.at) return undefined;
+  return [edit.by ? `by ${edit.by}` : '', edit.at ? when(edit.at) : ''].filter(Boolean).join(', ');
+}
+
 /** `1 added · 1 removed · 5 changed`, leaving out the noughts; `No changes` for none. */
 export function countsText(diff: ModelDiff): string {
   const parts = (['added', 'removed', 'changed'] as const).filter((s) => diff.counts[s] > 0).map((s) => `${diff.counts[s]} ${s}`);
@@ -113,11 +126,13 @@ export function markdownOfDiff(diff: ModelDiff, words: DiffWords, limit = 100): 
   for (const change of diff.changes.slice(0, limit)) {
     const type = shownType(diff, change.subject);
     const ends = endsText(diff, change, words);
+    const edit = editText(change);
     const head = [
       `${sign[change.status]} **${escape(conceptName(diff, change.subject, words))}**`,
       type && diff.about[change.subject]?.name ? ` _${escape(words.typeName(type))}_` : '',
       ends ? ` ${escape(ends)}` : '',
-      change.status === 'removed' ? ' — removed' : change.status === 'added' ? ' — added' : '',
+      change.status === 'changed' ? (edit ? ' — changed' : '') : ` — ${change.status}`,
+      edit ? ` ${escape(edit)}` : '',
     ].join('');
     out.push(`- ${head}`);
     for (const line of detailLines(diff, change, words)) {

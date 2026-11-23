@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type {
+  MetamodelCompleteness,
   PaletteDefinition,
   ElementGroup,
   ElementTypeInfo,
@@ -8,7 +9,7 @@ import type {
   ViewpointInfo,
 } from '../../metamodel-manager/interfaces.js';
 import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
-import { iconHref } from '../canvas/notation-shapes.js';
+import { elementIconDataUri, iconHref } from '../canvas/notation-shapes.js';
 import { sharedNames } from '../show-iris.js';
 
 /**
@@ -105,6 +106,24 @@ function matches(text: string | undefined, query: string): boolean {
  * 2. Internally — set the `activeViewpoint` property and the component
  *    filters the palette to only show permitted types.
  */
+/** localStorage key of the closed notices about incomplete metamodels: a JSON array of {@link noticeKey}s. */
+const CLOSED_NOTICES_KEY = 'la-gram:palette-notices-closed';
+
+/** A notice as it reads: the metamodel and what it says of it. Closed, it stays closed while it reads the same. */
+function noticeKey(m: MetamodelCompleteness): string {
+  return `${m.metamodelIri} ${m.findings.map((f) => f.message).join('; ')}`;
+}
+
+/** The notices closed in this browser; none where that cannot be read. */
+function closedNotices(): Set<string> {
+  try {
+    const saved: unknown = JSON.parse(globalThis.localStorage?.getItem(CLOSED_NOTICES_KEY) ?? '[]');
+    return new Set(Array.isArray(saved) ? saved.filter((k): k is string => typeof k === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
 @customElement('palette-panel')
 export class PalettePanel extends LitElement {
   static override styles = css`
@@ -158,8 +177,20 @@ export class PalettePanel extends LitElement {
       padding: 0;
     }
 
-    .group-items.hidden {
+    .group-items.hidden,
+    .relationship-groups.hidden {
       display: none;
+    }
+
+    /* A category inside the Relationships section: indented under it, a step lighter. */
+    .relationship-group .group-header {
+      padding-left: 20px;
+      background: #fafafa;
+      font-weight: 400;
+    }
+
+    .relationship-group .palette-item {
+      padding-left: 32px;
     }
 
     .palette-item {
@@ -233,6 +264,37 @@ export class PalettePanel extends LitElement {
       font-size: 12px;
     }
 
+    .palette-incomplete strong {
+      font-weight: 600;
+    }
+
+    .notice-close {
+      float: right;
+      margin: -2px -6px 0 4px;
+      padding: 0 4px;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      line-height: 1.2;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    .notice-close:hover {
+      opacity: 1;
+    }
+
+    .notice-link {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
     .axis-selector {
       display: flex;
       align-items: center;
@@ -286,21 +348,6 @@ export class PalettePanel extends LitElement {
       font-style: italic;
     }
 
-    /* Colour swatch standing in for the shape when no icon is published. */
-    .palette-swatch {
-      width: 16px;
-      height: 12px;
-      flex-shrink: 0;
-      border: 1px solid #666;
-    }
-
-    .palette-swatch.rounded {
-      border-radius: 4px;
-    }
-
-    .palette-swatch.ellipse {
-      border-radius: 50%;
-    }
   `;
 
   @property({ attribute: false })
@@ -331,9 +378,17 @@ export class PalettePanel extends LitElement {
   @state()
   private _collapsedGroups: Set<string> = new Set();
 
-  /** Whether the relationships section is collapsed — apart from the groups, which a category could share a name with. */
+  /** The notices about incomplete metamodels that were closed ({@link _closeNotice}). */
   @state()
-  private _relationshipsCollapsed = false;
+  private _closedNotices: Set<string> = closedNotices();
+
+  /**
+   * Whether the relationships section is collapsed — apart from the groups, which a category could share a name with.
+   * Folded at first: the element types are what a palette is mostly for, and a line is mostly drawn with Connect,
+   * which proposes the relationship; a search still opens it.
+   */
+  @state()
+  private _relationshipsCollapsed = true;
 
   /**
    * Current search text, exactly as typed. Empty means "no filter".
@@ -376,8 +431,11 @@ export class PalettePanel extends LitElement {
       .map((group) => ({ ...group, elements: group.elements.filter(keepElement) }))
       .filter((group) => group.elements.length > 0);
 
+    // Not the core's own (Association, Depends On, Has Part, Refines): they are offered when two elements nothing
+    // else relates are connected, and are no types to pick here.
     const filteredRelationships = this.palette.relationshipTypes.filter(
       (rel) =>
+        !rel.core &&
         (!permittedRelationships || permittedRelationships.has(rel.iri)) &&
         named(rel.label, rel.iri),
     );
@@ -439,37 +497,28 @@ export class PalettePanel extends LitElement {
   /**
    * Visual preview for an element entry.
    *
-   * The published icon when there is one; otherwise a swatch in the notation's
-   * fill colour, shaped roughly like the notation's `shapeType`. Full shape
-   * construction belongs to the canvas renderer, not here.
+   * The published icon when there is one; otherwise — none, or one that does
+   * not load — the type's figure as the canvas draws it, in its notation's
+   * shape and colours (`elementIconDataUri`). `mount-ui` swaps a broken icon
+   * for the figure in the palette definition too, for the canvas's menus; the
+   * `error` handler here is what spares the palette a broken image meanwhile.
    *
    * `iconUrl` goes through `iconHref`/`assetUrl` rather than into `src`
    * directly: `PaletteGenerator` resolves a bundled glyph to an
    * *asset-root-relative* path (`archimate4/icons/business-actor.svg`), which a
    * browser resolves against the document — one directory short of `assets/` —
    * so used raw every glyph 404s. `iconHref` also filters out values that are
-   * not loadable at all (`urn:` and friends), which is what makes the swatch
+   * not loadable at all (`urn:` and friends), which is what makes the figure
    * fallback below the right thing rather than a broken-image icon.
    */
   private _renderElementPreview(el: ElementTypeInfo): unknown {
-    const src = iconHref(el.iconUrl, assetUrl);
-    if (src) {
-      return html`<img class="palette-icon" src=${src} alt="" />`;
-    }
-    const style = el.style;
-    if (style?.fillColor) {
-      const shapeClass =
-        style.shapeType === 'Ellipse' || style.shapeType === 'Circle'
-          ? 'ellipse'
-          : style.shapeType === 'RoundedRectangle'
-            ? 'rounded'
-            : '';
-      return html`<span
-        class="palette-swatch ${shapeClass}"
-        style="background:${style.fillColor};border-color:${style.lineColor ?? '#666'}"
-      ></span>`;
-    }
-    return html`<span class="palette-icon"></span>`;
+    const figure = elementIconDataUri(el.style);
+    const src = iconHref(el.iconUrl, assetUrl) ?? figure;
+    const drawFigure = (event: Event): void => {
+      const img = event.target as HTMLImageElement;
+      if (img.getAttribute('src') !== figure) img.setAttribute('src', figure);
+    };
+    return html`<img class="palette-icon" src=${src} alt="" data-figure=${src === figure ? 'drawn' : 'published'} @error=${drawFigure} />`;
   }
 
   private _renderElementItem(el: ElementTypeInfo): unknown {
@@ -521,6 +570,8 @@ export class PalettePanel extends LitElement {
    */
   private _renderOwlOnlyNotice(): unknown {
     if (this.palette.grouping !== 'owl' || this.palette.elementGroups.length === 0) return nothing;
+    // Said by name where the loaded metamodels were checked (below).
+    if ((this.palette.completeness ?? []).some((m) => m.findings.some((f) => f.kind === 'no-classification'))) return nothing;
     return html`<div
       class="palette-notice"
       role="note"
@@ -528,6 +579,48 @@ export class PalettePanel extends LitElement {
     >
       No classification loaded — types grouped by name.
     </div>`;
+  }
+
+  /**
+   * What each loaded metamodel leaves out (Req 2.24): one that defines nothing to draw, names no classification, or
+   * classifies part of its types — which are listed under "Other". *Details…* opens the loaded assets, which list
+   * the types.
+   */
+  private _renderCompleteness(): unknown {
+    const incomplete = (this.palette.completeness ?? []).filter((m) => !this._closedNotices.has(noticeKey(m)));
+    if (incomplete.length === 0) return nothing;
+    return incomplete.map(
+      (m) => html`<div
+        class="palette-notice palette-incomplete"
+        role="note"
+        title=${m.findings.map((f) => (f.types?.length ? `${f.types.join(', ')}.` : '')).filter(Boolean).join('\n') || 'Show loaded assets… lists what each metamodel loaded.'}
+      >
+        <button type="button" class="notice-close" title="Close" aria-label=${`Close the notice about ${m.label}`} @click=${() => this._closeNotice(m)}>
+          ✕
+        </button>
+        <strong>${m.label}</strong> is incomplete: ${m.findings.map((f) => f.message).join('; ')}.
+        <button
+          type="button"
+          class="notice-link"
+          @click=${() => this.dispatchEvent(new CustomEvent('palette-show-assets', { bubbles: true, composed: true }))}
+        >
+          Details…
+        </button>
+      </div>`,
+    );
+  }
+
+  /**
+   * Closes a metamodel's notice, for as long as it would say the same: it is remembered in this browser, and shown
+   * again when what the metamodel leaves out changes. *Show loaded assets…* goes on saying it.
+   */
+  private _closeNotice(m: MetamodelCompleteness): void {
+    this._closedNotices = new Set([...this._closedNotices, noticeKey(m)]);
+    try {
+      globalThis.localStorage?.setItem(CLOSED_NOTICES_KEY, JSON.stringify([...this._closedNotices]));
+    } catch {
+      /* not remembered: closed until the page is loaded again */
+    }
   }
 
   /** "Group by" selector, shown only when the metamodel offers several axes. */
@@ -571,10 +664,22 @@ export class PalettePanel extends LitElement {
    */
   /**
    * The relationships section: collapsible as a group is, and opened by a
-   * search the same way, so a hit is never hidden.
+   * search the same way, so a hit is never hidden. Where the taxonomy classifies
+   * relationship types, the section holds a group for each category, in the
+   * order the generator gives them (ArchiMate's Structural, Dependency, Dynamic,
+   * Other); each folds by its header, as an element group does.
    */
   private _renderRelationships(relationshipTypes: readonly RelationshipTypeInfo[]): unknown {
     const collapsed = !this._normalisedQuery && this._relationshipsCollapsed;
+    const categories: Array<[string, RelationshipTypeInfo[]]> = [];
+    if (relationshipTypes.some((r) => r.category)) {
+      for (const r of relationshipTypes) {
+        const category = r.category ?? 'Other';
+        const last = categories.at(-1);
+        if (last && last[0] === category) last[1].push(r);
+        else categories.push([category, [r]]);
+      }
+    }
     return html`
       <section class="relationships">
         <div class="section-divider" @click=${() => (this._relationshipsCollapsed = !this._relationshipsCollapsed)}>
@@ -582,10 +687,32 @@ export class PalettePanel extends LitElement {
           <span class="section-label">Relationships</span>
           <span class="group-count">${relationshipTypes.length}</span>
         </div>
-        <ul class="group-items ${collapsed ? 'hidden' : ''}">
-          ${relationshipTypes.map((r) => this._renderRelationship(r))}
-        </ul>
+        ${categories.length === 0
+          ? html`<ul class="group-items ${collapsed ? 'hidden' : ''}">
+              ${relationshipTypes.map((r) => this._renderRelationship(r))}
+            </ul>`
+          : html`<div class="relationship-groups ${collapsed ? 'hidden' : ''}">
+              ${categories.map(([category, types]) => this._renderRelationshipGroup(category, types))}
+            </div>`}
       </section>
+    `;
+  }
+
+  /** A category of relationship types, folding as an element group does; its key apart from the element groups'. */
+  private _renderRelationshipGroup(category: string, types: readonly RelationshipTypeInfo[]): unknown {
+    const key = `relationships:${category}`;
+    const collapsed = !this._normalisedQuery && this._collapsedGroups.has(key);
+    return html`
+      <div class="group relationship-group" data-category=${category}>
+        <div class="group-header" @click=${() => this._toggleGroup(key)}>
+          <span class="group-toggle ${collapsed ? 'collapsed' : ''}">▾</span>
+          ${category}
+          <span class="group-count">${types.length}</span>
+        </div>
+        <ul class="group-items ${collapsed ? 'hidden' : ''}">
+          ${types.map((r) => this._renderRelationship(r))}
+        </ul>
+      </div>
     `;
   }
 
@@ -639,12 +766,14 @@ export class PalettePanel extends LitElement {
     this._shared = sharedNames(labels.values());
     return html`
       <div class="palette-header">Palette</div>
-      ${this._renderSearch()} ${this._renderAxisSelector()} ${this._renderOwlOnlyNotice()}
+      ${this._renderSearch()} ${this._renderAxisSelector()} ${this._renderOwlOnlyNotice()} ${this._renderCompleteness()}
       ${empty
         ? html`<div class="palette-empty">
             ${this._normalisedQuery
               ? `No type matches “${this._query.trim()}”.`
-              : 'No metamodel loaded.'}
+              : (this.palette.completeness ?? []).length > 0
+                ? 'The loaded metamodels define no types to draw.'
+                : 'No metamodel loaded.'}
           </div>`
         : nothing}
       ${relationshipTypes.length > 0 ? this._renderRelationships(relationshipTypes) : nothing}

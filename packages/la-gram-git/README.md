@@ -51,6 +51,13 @@ Never failed, only listed: warnings and info (counted), and the findings of the 
 ArchiMate's principles, viewpoint conformance and the like — which are advisory for now. Each finding names
 the IRI of its shape; on meta.linked.archi the IRI opens the shape's documentation.
 
+Also listed, never failed: the model's IRIs that are outside the layout every Linked.Archi tool mints
+([IRI Minting](https://meta.linked.archi/docs/guide/iri-minting/)) — a name not `{kind}/{id}`, a shape not named in
+its view, a part not under its owner, a second `#`, a character a path cannot hold — and a namespace the model
+does not state, or one that is not an `https:` or `http:` IRI ending in `/`. Names given before the layout,
+la-gram's `element-…`, the converters' `view/…/node/…` and the Linked.Archi derivation rules' `derivation-…`, are
+counted as legacy: no tool renames them.
+
 `--shapes <folder>` adds the shapes (`.ttl`) of a folder — your repository's, or your organisation's — to the
 metamodels'. Each file is a shapes document, as la-gram loads one: it names its graph with an
 `owl:Ontology` (`<https://example.org/my-shapes> a owl:Ontology .`). A file that does not parse or names no
@@ -95,6 +102,11 @@ Where the two changes met, it exits 1 and Git marks the file conflicted. The cha
 At those places the file holds the version from before either change (a deleted element is kept for now),
 never `<<<<<<<` markers, which no RDF tool could read. The conflicts are listed in words on the standard
 error.
+
+When one side moved the model to another namespace, which renames every IRI in it, the common version and the
+other side are moved after it first, each IRI keeping its local part, and the driver says so: the other
+side's changes land in the new namespace. Both sides moved alike: merged as one. Each to a namespace of its
+own: not merged, the file left as yours, exit 1.
 
 `.gitattributes` routes files by extension, so ontologies and shapes files come to the driver too. A file
 that is not a la-gram model on both sides, or does not parse, is merged as Git merges text without the

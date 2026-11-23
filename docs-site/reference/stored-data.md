@@ -15,6 +15,11 @@ own: a Git token goes only to its Git host, when you use Git storage.
 | IndexedDB `la-gram-history` | History checkpoints |
 | the desktop app's `secrets.json` | Git tokens, encrypted |
 
+The alpha, at app.linked.archi/la-gram-alpha/, keeps its own on the same site: the same keys, each
+starting `alpha:` (`alpha:la-gram:settings`), and its checkpoints in `la-gram-history-alpha`. What you
+set, remember or save in the alpha is not in the release, and the release's is not in the alpha: a token
+remembered in one is asked for again in the other.
+
 To see them in a Chromium-based browser: open the developer tools, then *Application* › *Storage*. To
 clear them all, clear the site's data for app.linked.archi in the browser's settings. That also forgets
 remembered tokens and History checkpoints, and cannot be undone.
@@ -39,7 +44,9 @@ tab is opened, or a panel folded or resized.
 | Part | Holds |
 |---|---|
 | `metamodels` | `hidden`: the catalogue entries unticked in *Metamodels*, by IRI |
-| `git` | the *Git storage* tab's fields: `repository`, `branch`, `folder`, `message`, `branchPrefix`, and `rememberByDefault` |
+| `git` | the *Git storage* tab's fields: `repository`, `branch`, `folder`, `message`, `branchPrefix`, `rememberByDefault`, `checkIntervalMinutes` and `autoPull` |
+| `you` | the *You* tab's: `name`, `email`, and `recordAccount`, `false` when *Record my Git account with my edits* is unticked |
+| `git-accounts` | the Git accounts your tokens act for, as the hosts reported them: `accounts`, by host, each with its `url`, `username`, `name` and `email` where the host shows them, and `last`, the host read last. Not secret: no token is kept here |
 
 An empty field is not kept: the deployment's value, or la-gram's, applies. If the browser refuses
 storage, settings hold for the session only.
@@ -87,6 +94,10 @@ Each is off until you switch it on.
 | `la-gram:validation-scope` | the Validation tab's scope | **View** |
 | `la-gram:graph-depth`, `la-gram:graph-layout`, `la-gram:graph-query-form` | the Graph tab's depth, layout and query form | **2**, **Force**, **SELECT** |
 | `la-gram:graph-forces` | the Graph tab's [*Forces*](../guide/graph.md#forces), *Link distance*, *Charge strength* and *Collision radius*, as one JSON object: `{"linkDistance":180,"chargeStrength":-350,"collideScale":1}`, the charge as d3-force takes it, negative. Written when a slider is let go or a key moves it; a value out of range, or between two steps, is read as the nearest its slider offers, anything unreadable as the default. *Reset* removes the key | **180 px**, **350**, **1.0×** |
+| `la-gram:arrange-view` | [*Arrange view…*](../guide/canvas.md#arrange-view)'s *Direction*, *Spacing* and *Group by band*, as one JSON object: `{"direction":"DOWN","spacing":"normal","bands":true}`. Written when *Arrange* is chosen; a value it does not know is read as the default. Also used for a model opened with no geometry and for *Render as new view* | **Down**, **Normal**, **on** |
+| `la-gram:arrange-grid` | [*Align to grid…*](../guide/canvas.md#align-to-grid)'s *Grid* and *Align*, as one JSON object: `{"grid":20,"axis":"both"}`. Written when *Align* is chosen; also what the *Align to grid* button uses | **20**, **both** |
+| `la-gram:arrange-sizes` | [*Sizes…*](../guide/canvas.md#sizes)'s *Make them* and *Change*, as one JSON object: `{"reference":"largest","dimension":"both"}`. Written when *Resize* matches sizes; also what the *Match* buttons use | **largest**, **both** |
+| `la-gram:palette-notices-closed` | the [notices about incomplete metamodels](../guide/palette.md#incomplete) closed with ✕, as a JSON array, each the metamodel's IRI and what the notice said: `["https://meta.linked.archi/atam/metamodel#ATAM it names no classification…"]`. A notice that reads differently is shown again | **none closed** |
 | `la-gram:about-sections` | which sections of *About ‹type›* are open | **as la-gram opens them** |
 | `la-gram:matrix-axes:<viewIri>` | a matrix view's row and column types, per view | **the two most common types** |
 
@@ -94,8 +105,10 @@ Each is off until you switch it on.
 
 | Key | Holds |
 |---|---|
-| `la-gram:git-bindings` | for each model, by its IRI, the Git file it was opened from or saved to: repository, branch, path and the version last seen |
+| `la-gram:git-bindings` | for each model, by its IRI, the Git file it was opened from, saved to or pulled from: repository, branch, path and the incorporated version; checking alone does not advance it |
 | `la-gram:git-last-repository` | the repository used last, which *Save to Git…* proposes when nothing else does |
+| `la-gram:git-auto-commit:<model/destination>` | explicit mode, idle/interval timing and pause reason, scoped to a model IRI and full Git destination; defaults Off |
+| `la-gram:git-auto-commit:pending:<model/destination>` | an uncertain or in-flight write's source binding, editor identity, SHA-256 snapshot fingerprint and any returned commit receipt; no model text or token; removed when confirmed or after a successful manual Git save |
 | `la-gram:git-hosts` | the kinds learned for self-hosted hosts: `github` or `gitlab`, per host |
 
 *File › Settings…* › *Git storage* forgets the learned host kinds (*Forget the host kinds learned*).
@@ -123,8 +136,8 @@ Each is off until you switch it on.
 ## History checkpoints {#checkpoints}
 
 IndexedDB database `la-gram-history`, store `commits`: the checkpoints of the History tab, per model,
-each with its message, its time, the model's triples, and its author when it was saved in a
-collaboration room ([`user`](url-parameters.md#user)). They stay when you close la-gram,
+each with its message, its time, the model's triples, and its author: *File › Settings… › You*'s name,
+else your Git account's, else your collaboration name in a room ([`user`](url-parameters.md#user)). They stay when you close la-gram,
 and are not in the model file. Git commits of a model bound to Git are not kept here; History reads them
 from the repository.
 
@@ -143,9 +156,10 @@ in the same folder, as a browser would keep it.
 
 These are **not kept** between visits, on purpose or for now:
 
-- **The model you are working on.** la-gram has no autosave: an unsaved model is lost when the tab
+- **The model you are working on.** la-gram keeps no automatic local recovery copy: unsaved edits are lost when the tab
   reloads or closes, and la-gram asks first ([no autosave](../troubleshooting.md#no-autosave)). Save it to
-  a file or to Git, or save a checkpoint in History, which is kept.
+  a file or to Git, or save a checkpoint in History, which is kept. Optional [auto-commit](../guide/git.md#auto-commit)
+  saves to Git only after explicit enablement, and can pause or have edits still waiting.
 - **Whether the model tree, the palette and the RDF panel are shown.** Each starts as la-gram starts it:
   tree and palette shown, RDF panel closed unless the address has [`rdf=1`](url-parameters.md#rdf).
   Their sizes are kept.
@@ -153,3 +167,5 @@ These are **not kept** between visits, on purpose or for now:
 - **The presentation** chosen in the toolbar: each visit starts with *Default notation*.
 - **Recent folders** of *Move to folder…*: for the session only.
 - **A Git token** not remembered, as above.
+- **Git status and cached versions.** Last-check/last-commit times, observed remote snapshots and tab
+  ownership are kept only for this session. Regular-check preferences remain in personal settings.

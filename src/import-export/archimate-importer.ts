@@ -33,6 +33,7 @@
  * | `<node elementRef x y w h>`           | `arch-vis:ArchNode` with bounds                 |
  * | `<node xsi:type="Container">`         | a group: `arch-vis:ContainerNode`, its `<label>` its text |
  * | `<node xsi:type="Label">`             | a note: `arch-vis:LabelNode`, its `<label>` its text |
+ * | `<node xsi:type="Label">` with a `<viewRef>` naming a view of the file | a reference to that view: `arch-vis:ViewReferenceNode`, `arch-vis:referencesView` the view, which is `arch:inView` this one |
  * | a `<node>` inside another             | `arch-vis:inNode` to it                         |
  * | `<connection relationshipRef>`        | `arch-vis:Link`, bendpoints as its route        |
  * | `<connection>` with no `relationshipRef` | a line standing for no relationship (an `arch-vis:Link` with no `archRelationship`) — a note's to what it is about |
@@ -48,7 +49,7 @@ import { DataFactory } from 'n3';
 import type { Term } from '@rdfjs/types';
 import type { ElementManager, Point, RelationshipManager, ViewManager } from '../model-manager/interfaces.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { ensureNamespace } from '../rdf-engine/iri.js';
+import { ensureNamespace, pathSegment } from '../rdf-engine/iri.js';
 import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '../model-manager/appearance.js';
 import { derivedNamespace } from '../model-manager/model-namespace.js';
 
@@ -115,6 +116,8 @@ export interface ExchangeNode {
   parentId?: string;
   /** A Container's or a Label's text (`<label>`). */
   label?: string;
+  /** The view a node opens (its first `<viewRef ref>`): on a Label, a reference to another view. */
+  viewRef?: string;
   /** Its `<style>`, as its look. */
   style?: Appearance;
   x: number;
@@ -322,6 +325,9 @@ export function parseArchiMateExchange(xml: string): ExchangeModel {
               ...(parentId ? { parentId } : {}),
               ...(nodeEl.getAttribute('elementRef') ? { elementRef: nodeEl.getAttribute('elementRef') as string } : {}),
               ...(getChildText(nodeEl, 'label') ? { label: getChildText(nodeEl, 'label') as string } : {}),
+              ...(getChildElements(nodeEl, 'viewRef')[0]?.getAttribute('ref')
+                ? { viewRef: getChildElements(nodeEl, 'viewRef')[0]!.getAttribute('ref') as string }
+                : {}),
               ...styleOf(nodeEl),
               x: num(nodeEl, 'x'),
               y: num(nodeEl, 'y'),
@@ -414,10 +420,13 @@ export interface ImportReport {
   figureCount: number;
 }
 
-/** An IRI-safe local part from an exchange identifier. */
+/** An exchange identifier as one path segment, encoded as the converters encode it (`pathSegment`). */
 function safeId(id: string): string {
-  return encodeURIComponent(id.trim() || 'unnamed').replace(/%/g, '_');
+  return pathSegment(id.trim() || 'unnamed');
 }
+
+/** A shape id that is another id followed by a shape part's name (`-style`, `-point-0`), and that other id. */
+const SHAPE_PART = /^(.*)-(?:(?:style|label-expression)(?:-[0-9a-f]{8})?|label|points-\d+|point-\d+)$/;
 
 /** A property-name slug. */
 function slug(name: string): string {
@@ -462,8 +471,19 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
   };
   const unrecognized = new Set<string>();
   const iriOf = new Map<string, string>();
-  // Exchange identifiers are kept — a re-import names the same concepts alike.
+  // Exchange identifiers are kept — a re-import names the same concepts alike — and named as the ArchiMate
+  // converter names them (DD-41): `element/{id}`, `relationship/{id}`, `view/{id}`, and a view's nodes and
+  // lines in the view's IRI, `{view}#node-{id}` and `{view}#link-{id}`, so an import and a conversion of one
+  // file give the same local names.
+  //
+  // A shape's parts are joined to it with `-` (`{node}-style`, `{link}-point-0`), so an id that is another
+  // shape's id followed by a part's name — `n1-style` beside `n1` in one view — would name that shape's part.
+  // Such a shape gets a UUID instead; the converter fails the conversion.
   const base = ensureNamespace(deps.modelNamespace ?? derivedNamespace(deps.modelIri));
+  const shapeIri = (viewIri: string, kind: 'node' | 'link', id: string, ids: ReadonlySet<string>) => {
+    const owner = SHAPE_PART.exec(id)?.[1];
+    return viewIri.includes('#') || (owner !== undefined && ids.has(owner)) ? undefined : `${viewIri}#${kind}-${safeId(id)}`;
+  };
   const literal = (value: string, lang?: string) =>
     DataFactory.literal(value, lang ?? model.lang ?? 'en') as unknown as Term;
 
@@ -483,7 +503,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
       continue;
     }
     const iri = deps.elements.createElement(typeIri, deps.modelIri, {
-      iri: `${base}element-${safeId(el.id)}`,
+      iri: `${base}element/${safeId(el.id)}`,
       label: el.name ?? el.type,
       ...(el.lang ?? model.lang ? { language: el.lang ?? model.lang } : {}),
     }).value;
@@ -511,7 +531,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
         i += 1;
         continue;
       }
-      const iri = `${base}relationship-${safeId(rel.id)}`;
+      const iri = `${base}relationship/${safeId(rel.id)}`;
       if (deps.relationships.createQualifiedRelationship) {
         deps.relationships.createQualifiedRelationship({
           typeIri,
@@ -530,9 +550,11 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     }
   }
 
+  /** The views a diagram model reference may open: those of the file. */
+  const viewIds = new Set(model.views.map((view) => view.id));
   for (const view of model.views) {
     const viewIri = deps.views.createView('Diagram', view.viewpoint ? deps.viewpointFor?.(view.viewpoint) : undefined, {
-      iri: `${base}view-${safeId(view.id)}`,
+      iri: `${base}view/${safeId(view.id)}`,
       label: view.name ?? 'View',
       modelIri: deps.modelIri,
     }).value;
@@ -541,12 +563,25 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
     const nodeRect = new Map<string, ExchangeNode>();
     /** Each node drawn, by its id: the view's node for it — a placement of its element, or a figure. */
     const nodeElement = new Map<string, string>();
+    const nodeIds = new Set(view.nodes.map((node) => node.id));
+    const linkIds = new Set(view.connections.map((conn) => conn.id));
     for (const node of view.nodes) {
       const bounds = { x: node.x, y: node.y, width: node.w || 120, height: node.h || 55 };
-      // A visual group, or a note: drawing with no element behind it.
-      const figure = node.kind === 'Container' ? 'group' : node.kind === 'Label' ? 'note' : undefined;
+      // A Label with a viewRef naming a view of the file is a reference to that view, named after its id as the
+      // view is, so a view later in the file is opened as well. One naming
+      // no view of the file is a note, as a Label without one is.
+      const opens = node.kind === 'Label' && node.viewRef && viewIds.has(node.viewRef) ? `${base}view/${safeId(node.viewRef)}` : undefined;
+      // A visual group, a note, or a reference to another view: no element behind it.
+      const figure = node.kind === 'Container' ? 'group' : opens ? 'reference' : node.kind === 'Label' ? 'note' : undefined;
       if (figure && deps.views.addFigure) {
-        nodeElement.set(node.id, deps.views.addFigure(viewIri, { kind: figure, bounds, ...(node.label ? { text: node.label } : {}), ...node.style }));
+        nodeElement.set(
+          node.id,
+          deps.views.addFigure(
+            viewIri,
+            { kind: figure, ...(opens ? { view: opens } : {}), bounds, ...(node.label ? { text: node.label } : {}), ...node.style },
+            shapeIri(viewIri, 'node', node.id, nodeIds),
+          ),
+        );
         report.figureCount += 1;
         continue;
       }
@@ -556,7 +591,8 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
         continue;
       }
       // Placed again when the file places it again: each node a placement of its own.
-      const placed = deps.views.addElementToView(viewIri, elementIri, bounds, { another: true });
+      const nodeIri = shapeIri(viewIri, 'node', node.id, nodeIds);
+      const placed = deps.views.addElementToView(viewIri, elementIri, bounds, { another: true, ...(nodeIri ? { iri: nodeIri } : {}) });
       nodeElement.set(node.id, placed);
       // Looking as it did in the tool that wrote the file.
       if (node.style) deps.views.setAppearance?.(viewIri, placed, node.style);
@@ -592,7 +628,7 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           const first = conn.bendpoints[0];
           const last = conn.bendpoints[conn.bendpoints.length - 1];
           const route = first && last ? [clipToRect(src, first), ...conn.bendpoints, clipToRect(tgt, last)] : undefined;
-          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route);
+          const line = deps.views.addConnector(viewIri, { sourceNodeIri, targetNodeIri }, route, shapeIri(viewIri, 'link', conn.id, linkIds));
           if (line) {
             report.connectionCount += 1;
             if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
@@ -616,7 +652,11 @@ export function applyExchangeModel(model: ExchangeModel, deps: ApplyExchangeDeps
           ...(nodeElement.get(conn.source) ? { sourceNodeIri: nodeElement.get(conn.source) } : {}),
           ...(nodeElement.get(conn.target) ? { targetNodeIri: nodeElement.get(conn.target) } : {}),
         };
-        const line = deps.views.addRelationshipToView(viewIri, relIri, route, ends, { another: drawnRelationships.has(relIri) });
+        const linkIri = shapeIri(viewIri, 'link', conn.id, linkIds);
+        const line = deps.views.addRelationshipToView(viewIri, relIri, route, ends, {
+          another: drawnRelationships.has(relIri),
+          ...(linkIri ? { iri: linkIri } : {}),
+        });
         if (line) {
           if (conn.style) deps.views.setAppearance?.(viewIri, line, conn.style);
           report.connectionCount += 1;

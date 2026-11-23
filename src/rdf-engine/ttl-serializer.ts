@@ -3,12 +3,13 @@
  *
  * Serializes RDF quads to pretty-printed Turtle with namespace prefix
  * declarations at the top, triples grouped by subject, and consistent
- * indentation. Uses the shortest matching prefix for each IRI.
+ * indentation. Uses the shortest matching prefix for each IRI, and for the
+ * model the quads are about, the layout's own prefixes (`turtle-writer.ts`).
  */
 
-import { Writer as N3Writer } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import type { TtlSerializer, PrefixMap } from './interfaces.js';
+import { writeTurtle, type TurtleModel } from './turtle-writer.js';
 
 /**
  * Select the shortest matching prefix for each namespace IRI.
@@ -58,7 +59,7 @@ function buildPrefixMap(prefixes: PrefixMap): PrefixMap {
  * - Consistent indentation
  */
 export class N3TtlSerializer implements TtlSerializer {
-  serialize(quads: Quad[], prefixes: PrefixMap): string {
+  serialize(quads: Quad[], prefixes: PrefixMap, model?: TurtleModel): string {
     const cleanPrefixes = buildPrefixMap(prefixes);
 
     // Sort quads by subject IRI so the output is deterministic and
@@ -73,17 +74,6 @@ export class N3TtlSerializer implements TtlSerializer {
       return a.object.value < b.object.value ? -1 : a.object.value > b.object.value ? 1 : 0;
     });
 
-    const writer = new N3Writer({ prefixes: cleanPrefixes });
-
-    for (const quad of sorted) {
-      writer.addQuad(quad);
-    }
-
-    let output = '';
-    writer.end((_error: Error | null, result: string) => {
-      output = result ?? '';
-    });
-
-    return output;
+    return writeTurtle(sorted, { prefixes: cleanPrefixes, ...(model ? { model } : {}) });
   }
 }

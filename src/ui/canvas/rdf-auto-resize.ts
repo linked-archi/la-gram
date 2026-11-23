@@ -20,6 +20,9 @@ type Margins = { top: number; bottom: number; left: number; right: number };
 /** The container's name band: two lines at the top (`containerNameBand`). */
 const NAME_BAND = containerNameBand(NOTATION_DEFAULTS.fontSize, NOTATION_DEFAULTS.badgePadding);
 
+/** How close to a container's edge what is in it may come: room above for its name (`RdfAutoResize.getPadding`). */
+export const CONTAINER_PADDING: Margins = { top: NAME_BAND + 2, bottom: 8, left: 8, right: 8 };
+
 export class RdfAutoResize extends AutoResize {
   static $inject = ['eventBus', 'elementRegistry', 'modeling', 'rules'];
 
@@ -30,7 +33,7 @@ export class RdfAutoResize extends AutoResize {
 
   /** How close to the container's edge something may come before it grows. */
   override getPadding(): Margins {
-    return { top: NAME_BAND + 2, bottom: 8, left: 8, right: 8 };
+    return CONTAINER_PADDING;
   }
 }
 

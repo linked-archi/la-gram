@@ -142,6 +142,74 @@ describe('CanvasToolbar', () => {
     namesSwitch().click();
     expect(asked).toEqual([true, false]);
   });
+
+  it('offers Arrange view… as an icon beside the format painter, a button the size of the tools', async () => {
+    await mount();
+    const arrange = root().querySelector<HTMLButtonElement>('button[data-action="arrange-view"]')!;
+    // An icon, no words: the words made it wider than its 26px and ran over the format painter.
+    expect(arrange.textContent?.trim()).toBe('');
+    expect(arrange.querySelector('svg')).not.toBeNull();
+    expect(arrange.classList.contains('switch')).toBe(false);
+    expect(arrange.getAttribute('aria-label')).toBe('Arrange view…');
+    expect(arrange.previousElementSibling?.getAttribute('data-action')).toBe('format-painter');
+    let asked = 0;
+    document.body.addEventListener('arrange-view', () => asked++);
+    arrange.click();
+    expect(asked).toBe(1);
+  });
+
+  it('opens the four arrange dialogs from the menu beside Arrange view (Req 22.1)', async () => {
+    await mount();
+    const toggle = root().querySelector<HTMLButtonElement>('button[data-action="arrange-menu"]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    await toolbar.updateComplete;
+    const items = Array.from(root().querySelectorAll<HTMLButtonElement>('.menu button'));
+    expect(items.map((b) => b.textContent?.trim())).toEqual(['Arrange view…', 'Arrange relationships…', 'Align to grid…', 'Sizes…']);
+    const dialogs: string[] = [];
+    let view = 0;
+    document.body.addEventListener('arrange-dialog', (e) => dialogs.push((e as CustomEvent<{ dialog: string }>).detail.dialog));
+    document.body.addEventListener('arrange-view', () => view++);
+    items[3].click();
+    await toolbar.updateComplete;
+    // Picking closes the menu.
+    expect(root().querySelector('.menu')).toBeNull();
+    toggle.click();
+    await toolbar.updateComplete;
+    root().querySelector<HTMLButtonElement>('.menu button[data-menu="arrange-view"]')!.click();
+    expect([dialogs, view]).toEqual([['sizes'], 1]);
+  });
+
+  it('offers the quick actions, each enabled once enough is selected (Req 22.1)', async () => {
+    await mount();
+    const quick = (action: string) => root().querySelector<HTMLButtonElement>(`button[data-quick="${action}"]`)!;
+    const asked: string[] = [];
+    document.body.addEventListener('arrange-quick', (e) => asked.push((e as CustomEvent<{ action: string }>).detail.action));
+    // Nothing selected: what acts on the whole view is offered; aligning, distributing and matching are not.
+    expect(['align-left', 'distribute-horizontal', 'match-width', 'default-size', 'align-to-grid', 'arrange-relationships'].map((a) => quick(a).disabled)).toEqual([
+      true, true, true, false, false, false,
+    ]);
+    toolbar.arrangeSelected = 2;
+    await toolbar.updateComplete;
+    expect([quick('align-left').disabled, quick('distribute-vertical').disabled, quick('match-size').disabled]).toEqual([false, true, false]);
+    toolbar.arrangeSelected = 3;
+    await toolbar.updateComplete;
+    quick('distribute-vertical').click();
+    quick('align-bottom').click();
+    expect(asked).toEqual(['distribute-vertical', 'align-bottom']);
+  });
+
+  it('says in the match and grid buttons what their dialogs last chose', async () => {
+    await mount();
+    const title = (action: string) => root().querySelector(`button[data-quick="${action}"]`)!.getAttribute('title');
+    expect(title('match-width')).toContain('to the largest');
+    expect(title('align-to-grid')).toContain('20 px');
+    toolbar.sizeReference = 'median';
+    toolbar.grid = { grid: 40, axis: 'y' };
+    await toolbar.updateComplete;
+    expect(title('match-width')).toContain('to the median');
+    expect(title('align-to-grid')).toContain('40 px, down');
+  });
 });
 
 describe('toolFromManagerName', () => {

@@ -11,7 +11,11 @@
  * 4. its shapes find no violation — with `--base`, none the change adds:
  *    findings the file had where the branch started are listed, not failed;
  * 5. its shapes' SPARQL-based rules are reported, and do not fail (they are
- *    new to most models: advisory, for now).
+ *    new to most models: advisory, for now);
+ * 6. its IRIs are checked against the layout every Linked.Archi tool mints
+ *    (DD-41, `iri-conformance.ts`), and what is outside it is reported, never
+ *    failed — names given before the layout counted as legacy: a tool never
+ *    renames, so a repository's models would otherwise fail for good.
  *
  * Warnings and info are counted, never failed.
  */
@@ -19,6 +23,9 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import type { ValidationResult } from '../rdf-engine/interfaces.js';
 import { shapeIriOf } from '../rdf-engine/finding-shape.js';
+import { parseModelText } from '../import-export/model-io.js';
+import { detectFormat } from '../metamodel-manager/asset-sources.js';
+import { LAYOUT_CATEGORIES, layoutReport, type LayoutCategory, type LayoutReport } from '../model-manager/iri-conformance.js';
 import { fileAt, mergeBase, topLevel } from './git.js';
 import {
   asLaGramWrites,
@@ -117,6 +124,8 @@ async function checkFile(path: string, explicit: boolean, since: string | undefi
     result.notes.push(...rules.slice(0, 50).map((r) => `  ${r}`));
     if (rules.length > 50) result.notes.push(`  … and ${rules.length - 50} more`);
   }
+  // The file's own triples: opening it adds a default view, a layout.
+  result.notes.push(...layoutNotes(layoutReport(parseModelText(text, detectFormat(null, path)))));
   if (open.missingMetamodels.length > 0) {
     result.notes.push(`validated without ${open.missingMetamodels.join(', ')}: la-gram-git does not have ${open.missingMetamodels.length === 1 ? 'it' : 'them'}`);
   }
@@ -137,6 +146,39 @@ async function baseFindings(since: string, path: string, options: CheckOptions):
   } catch {
     return new Set();
   }
+}
+
+/** How many names of each kind a layout note gives. */
+const LAYOUT_EXAMPLES = 3;
+
+const LAYOUT_WORDS: Record<LayoutCategory, string> = {
+  characters: 'holding a character a path segment cannot',
+  hashes: 'with more than one #',
+  shape: 'shapes not named {view}#node-{id} or {view}#link-{id}',
+  part: 'parts not named under their owner',
+  outside: 'outside it, not model, graph/… or {kind}/{id}',
+  legacy: 'named before it (legacy)',
+};
+
+/**
+ * The layout notes: the namespace, then each kind of name outside the layout,
+ * counted, a few named — relative to the namespace — and the legacy names;
+ * none for a model all in it.
+ */
+export function layoutNotes(report: LayoutReport | undefined): string[] {
+  if (!report) return [];
+  const { namespace } = report;
+  const lines: string[] = [];
+  if (!report.declared) lines.push(`the model does not state its namespace (vann:preferredNamespaceUri), read as ${namespace}`);
+  if (report.namespaceProblem) lines.push(`its namespace ${namespace} ${report.namespaceProblem}`);
+  for (const category of LAYOUT_CATEGORIES) {
+    const iris = report.iris[category];
+    if (iris.length === 0) continue;
+    const names = iris.slice(0, LAYOUT_EXAMPLES).map((iri) => (iri.startsWith(namespace) ? iri.slice(namespace.length) : iri));
+    const more = iris.length > LAYOUT_EXAMPLES ? `, … and ${iris.length - LAYOUT_EXAMPLES} more` : '';
+    lines.push(`${iris.length} ${LAYOUT_WORDS[category]}: ${names.join(', ')}${more}`);
+  }
+  return lines.length > 0 ? ['IRI layout (DD-41), advisory:', ...lines.map((l) => `  ${l}`)] : [];
 }
 
 /** Where two texts first differ, in words; `undefined` when they do not. */

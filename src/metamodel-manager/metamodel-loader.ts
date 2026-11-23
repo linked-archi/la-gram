@@ -197,6 +197,9 @@ interface DiscoveredRef {
   via: string;
 }
 
+/** The core's documents — the ontology, core-vis, their shapes, questions and viewpoints: every metamodel's, never unloaded with one. */
+const CORE_DOCUMENTS = 'https://meta.linked.archi/core';
+
 /**
  * Concrete MetamodelLoader backed by a TtlParser and RdfStore.
  *
@@ -433,28 +436,30 @@ export class N3MetamodelLoader implements MetamodelLoader {
    * @returns The graph IRIs that were dropped.
    */
   unloadMetamodel(loaded: LoadedMetamodel, keep: readonly LoadedMetamodel[] = []): string[] {
-    const retained = new Set<string>();
-    for (const other of keep) {
-      for (const graphs of Object.values(other.graphsByRole)) {
-        for (const graph of graphs ?? []) retained.add(graph);
-      }
-    }
+    // Every document the metamodel loaded, or found loaded: those its manifest names (by role) and those they
+    // import (an extension ontology, another version's ontology — no role), which stayed behind when only the
+    // roles were dropped: LeanIX v3 left v4's types on the palette.
+    const documentsOf = (m: LoadedMetamodel): string[] => [
+      ...Object.values(m.graphsByRole).flatMap((graphs) => graphs ?? []),
+      ...m.assets.filter((a) => a.outcome === 'loaded' || a.outcome === 'already-loaded').map((a) => a.documentIri),
+    ];
+    const retained = new Set(keep.flatMap(documentsOf));
+    const core = new Set(
+      (['coreOntology', 'coreVisOntology', 'coreShapes'] as const).flatMap((role) => loaded.graphsByRole[role] ?? []),
+    );
     const dropped: string[] = [];
-    for (const [role, graphs] of Object.entries(loaded.graphsByRole)) {
-      if (role === 'coreOntology' || role === 'coreVisOntology' || role === 'coreShapes') continue;
-      for (const graph of graphs ?? []) {
-        if (retained.has(graph)) continue;
-        // One SPARQL DROP rather than materialising and removing each quad:
-        // the relationship-shapes graphs alone are 70 000 quads.
-        if (isSafeIri(graph)) {
-          this.store.update(`DROP SILENT GRAPH <${graph}>`);
-        } else {
-          const quads = this.store.getQuads(null, null, null, namedNode(graph));
-          if (quads.length > 0) this.store.removeQuads(quads);
-        }
-        this.loadedOntologies.delete(graph);
-        dropped.push(graph);
+    for (const graph of new Set(documentsOf(loaded))) {
+      if (retained.has(graph) || core.has(graph) || graph.startsWith(CORE_DOCUMENTS)) continue;
+      // One SPARQL DROP rather than materialising and removing each quad:
+      // the relationship-shapes graphs alone are 70 000 quads.
+      if (isSafeIri(graph)) {
+        this.store.update(`DROP SILENT GRAPH <${graph}>`);
+      } else {
+        const quads = this.store.getQuads(null, null, null, namedNode(graph));
+        if (quads.length > 0) this.store.removeQuads(quads);
       }
+      this.loadedOntologies.delete(graph);
+      dropped.push(graph);
     }
     return dropped;
   }

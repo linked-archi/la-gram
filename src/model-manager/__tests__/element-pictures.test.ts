@@ -29,8 +29,8 @@ describe('an element’s pictures (core 0.5.0)', () => {
     setPicture(store, EXECUTIVE, CARD);
     const every = pictureIri(GATEWAY, undefined);
     const forExecutives = pictureIri(GATEWAY, EXECUTIVE);
-    expect(every).toBe(`${GATEWAY}-picture`);
-    expect(forExecutives).toMatch(/-picture-[0-9a-f]{8}$/);
+    expect(every).toBe(`${GATEWAY}/picture`);
+    expect(forExecutives).toMatch(/\/picture\/[0-9a-f]{8}$/);
     expect(values(store, GATEWAY, ARCH + 'prefVisNotation')).toEqual([every]);
     expect(values(store, GATEWAY, ARCH + 'altVisNotation')).toEqual([forExecutives]);
     expect(values(store, forExecutives, ARCH + 'inPresentationContext')).toEqual([EXECUTIVE]);

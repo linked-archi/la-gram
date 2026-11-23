@@ -98,6 +98,10 @@ export interface PersonalGitSettings {
   branchPrefix?: string;
   /** Whether *Remember* starts ticked. */
   rememberByDefault?: boolean;
+  /** Off (0 or absent), or every 1, 2, 5 or 10 minutes. */
+  checkIntervalMinutes?: number;
+  /** Apply incoming versions only while unchanged relative to the Git base. */
+  autoPull?: boolean;
 }
 
 /** The defaults a save starts from: the user's, else the deployment's, else la-gram's (Req 18.14–18.15). */
@@ -269,7 +273,10 @@ export async function saveToGit(ctx: GitSaveContext, ask = false): Promise<Commi
     }
     ctx.merge?.clear();
 
-    ctx.bindings.set(modelIri, {
+    // Merged with the newer version, the model may have followed a move made there to another IRI (DD-41).
+    const committed = ctx.modelIri() ?? modelIri;
+    if (committed !== modelIri) ctx.bindings.forget(modelIri);
+    ctx.bindings.set(committed, {
       host: target.link.host,
       provider: target.link.provider,
       apiBase: target.link.apiBase,

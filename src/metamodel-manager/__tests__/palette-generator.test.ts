@@ -55,15 +55,23 @@ const TEST_METAMODEL = `
   ex:TestMetamodel
     rdf:type arch:Metamodel ;
     arch:conceptClassification ex:Scheme ;
+    arch:paletteGrouping ex:PaletteGrouping ;
     arch:notationSet ex:StandardNotation .
 
-  # ── Taxonomy: two axes over the same classes ──────────────────────
+  # ── Taxonomy: two axes over the same classes; the layers in order (an ISO 25964 thesaurus array) ──
   ex:Scheme rdf:type skos:ConceptScheme ; skos:prefLabel "Test Scheme"@en .
+
+  ex:PaletteGrouping rdf:type skos:OrderedCollection ; skos:memberList ( ex:ByLayer ex:ByAspect ) .
 
   ex:ByLayer
     rdf:type skos:Concept ; skos:inScheme ex:Scheme ;
-    skos:prefLabel "Element by Layer"@en ;
+    skos:prefLabel "Layer"@en ;
     skos:narrower ex:BusinessLayer, ex:ApplicationLayer .
+
+  ex:LayerOrder
+    rdf:type skos:OrderedCollection, <http://purl.org/iso25964/skos-thes#ThesaurusArray> ;
+    <http://purl.org/iso25964/skos-thes#superOrdinate> ex:ByLayer ;
+    skos:memberList ( ex:BusinessLayer ex:ApplicationLayer ) .
 
   ex:BusinessLayer
     rdf:type skos:Concept ; skos:inScheme ex:Scheme ;
@@ -77,7 +85,7 @@ const TEST_METAMODEL = `
 
   ex:ByAspect
     rdf:type skos:Concept ; skos:inScheme ex:Scheme ;
-    skos:prefLabel "Element by Aspect"@en ;
+    skos:prefLabel "Aspect"@en ;
     skos:narrower ex:Behavior, ex:ActiveStructure .
 
   ex:Behavior
@@ -265,8 +273,8 @@ describe('SparqlPaletteGenerator', () => {
   describe('classification axes', () => {
     it('exposes every axis so a "Group by" selector can be offered', () => {
       const labels = palette.axes?.map((a) => a.label);
-      expect(labels).toContain('Element by Layer');
-      expect(labels).toContain('Element by Aspect');
+      expect(labels).toContain('Layer');
+      expect(labels).toContain('Aspect');
     });
 
     it('groups by the first axis by default', () => {
@@ -455,6 +463,74 @@ describe('SparqlPaletteGenerator', () => {
       expect(p.axes).toEqual([]);
       expect(p.activeAxisIri).toBeUndefined();
     });
+  });
+});
+
+describe("the palette grouping (arch:paletteGrouping): sections and their order from the metamodel's data", () => {
+  const GROUPED = (grouping: string) => `
+    @prefix owl:  <${NAMESPACES.owl}> .
+    @prefix rdf:  <${NAMESPACES.rdf}> .
+    @prefix rdfs: <${NAMESPACES.rdfs}> .
+    @prefix skos: <${NAMESPACES.skos}> .
+    @prefix arch: <${NAMESPACES.arch}> .
+    @prefix iso-thes: <http://purl.org/iso25964/skos-thes#> .
+    @prefix ex:   <${EX}> .
+    <${ONTOLOGY_IRI}> rdf:type owl:Ontology .
+    ex:Grouped rdf:type arch:Metamodel ; arch:conceptClassification ex:Scheme ${grouping} .
+    ex:Scheme rdf:type skos:ConceptScheme .
+    ex:PaletteGrouping rdf:type skos:OrderedCollection ; skos:memberList ( ex:ByLayer ex:ByAspect ) .
+    ex:ByLayer rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Layer"@en .
+    ex:LayerOrder rdf:type skos:OrderedCollection, iso-thes:ThesaurusArray ; iso-thes:superOrdinate ex:ByLayer ;
+      skos:memberList ( ex:Technology ex:Business ) .
+    ex:ByAspect rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Aspect"@en .
+    ex:AspectOrder rdf:type skos:OrderedCollection, iso-thes:ThesaurusArray ; iso-thes:superOrdinate ex:ByAspect ;
+      skos:memberList ( ex:Behaviour ex:Structure ex:Motivation ) .
+    ex:Technology rdf:type skos:Concept ; skos:prefLabel "Technology"@en ; skos:broader ex:ByLayer ; skos:narrower ex:Node .
+    ex:Business rdf:type skos:Concept ; skos:prefLabel "Business"@en ; skos:broader ex:ByLayer ; skos:narrower ex:Actor, ex:Process .
+    ex:Behaviour rdf:type skos:Concept ; skos:prefLabel "Behaviour"@en ; skos:broader ex:ByAspect ; skos:narrower ex:Process .
+    ex:Structure rdf:type skos:Concept ; skos:prefLabel "Structure"@en ; skos:broader ex:ByAspect ; skos:narrower ex:Actor, ex:Node .
+    ex:Motivation rdf:type skos:Concept ; skos:prefLabel "Motivation"@en ; skos:broader ex:ByAspect ; skos:narrower ex:Goal .
+    ex:E rdf:type owl:Class ; rdfs:subClassOf arch:Element ; arch:isAbstractClass true .
+    ex:Node rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Node"@en .
+    ex:Actor rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Actor"@en .
+    ex:Process rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Process"@en .
+    ex:Goal rdf:type owl:Class ; rdfs:subClassOf ex:E ; skos:prefLabel "Goal"@en .
+  `;
+  const paletteOf = async (grouping: string, options: { axisIri?: string } = {}) => {
+    const store = new OxigraphRdfStore();
+    await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(GROUPED(grouping));
+    return new SparqlPaletteGenerator(store).generatePalette(ONTOLOGY_IRI, { ...options, metamodelIris: [`${EX}Grouped`] });
+  };
+  const sections = (p: PaletteDefinition) => p.elementGroups.map((g) => [g.category, g.elements.map((e) => e.label)]);
+
+  it("sections in the first axis's order; a class it does not classify in its group on the next; entries in the next axis's order", async () => {
+    const palette = await paletteOf('; arch:paletteGrouping ex:PaletteGrouping');
+    expect(palette.activeAxisIri).toBe(`${EX}ByLayer`);
+    expect(sections(palette)).toEqual([
+      ['Technology', ['Node']],
+      ['Business', ['Process', 'Actor']],
+      ['Motivation', ['Goal']],
+    ]);
+    expect(palette.axes?.find((a) => a.iri === `${EX}ByLayer`)?.groups).toEqual(['Technology', 'Business']);
+  });
+
+  it('under the other axis it names, that one first and the first after it', async () => {
+    const palette = await paletteOf('; arch:paletteGrouping ex:PaletteGrouping', { axisIri: `${EX}ByAspect` });
+    expect(sections(palette)).toEqual([
+      ['Behaviour', ['Process']],
+      ['Structure', ['Node', 'Actor']],
+      ['Motivation', ['Goal']],
+    ]);
+  });
+
+  it('without a palette grouping: the axes by label, the active one alone — sections in its order, entries by name', async () => {
+    const palette = await paletteOf('');
+    expect(palette.activeAxisIri).toBe(`${EX}ByAspect`);
+    expect(sections(palette)).toEqual([
+      ['Behaviour', ['Process']],
+      ['Structure', ['Actor', 'Node']],
+      ['Motivation', ['Goal']],
+    ]);
   });
 });
 
@@ -710,6 +786,33 @@ describe('Basic primary beside the bundled ArchiMate 4.0', () => {
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 
+describe('palette from the bundled ArchiMate 3.2 metamodel', () => {
+  it("groups by layer in the taxonomy's order, motivation and composite elements — of no layer — in their aspects' sections after", async () => {
+    const store = new OxigraphRdfStore();
+    const loaded = await new N3MetamodelLoader(new N3TtlParser(), store).loadBundledMetamodel(
+      'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2',
+    );
+    const palette = new SparqlPaletteGenerator(store).generatePalette(loaded.metamodelIri, { metamodelIris: [loaded.metamodelIri] });
+    expect(palette.activeAxisIri).toBe('https://meta.linked.archi/archimate3/tax#Layer');
+    expect(palette.elementGroups.map((g) => g.category)).toEqual([
+      'Business Layer',
+      'Application Layer',
+      'Technology Layer',
+      'Strategy Layer',
+      'Implementation and Migration Layer',
+      'Motivation',
+      'Composite',
+      'Junction',
+    ]);
+    const business = palette.elementGroups.find((g) => g.category === 'Business Layer')!.elements.map((e) => e.label);
+    // Structure first, active and passive alike (the 3.2 taxonomy's Structure aspect), then behaviour.
+    expect(business.slice(0, 6)).toEqual(['Business Actor', 'Business Collaboration', 'Business Interface', 'Business Object', 'Business Role', 'Contract']);
+    expect(business).toContain('Business Event');
+    expect(business.indexOf('Business Event')).toBeGreaterThan(business.indexOf('Representation'));
+    store.dispose();
+  });
+});
+
 describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   let loaded: LoadedMetamodel;
   let generator: SparqlPaletteGenerator;
@@ -753,32 +856,53 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
 
   it('generates a populated palette', () => {
     const elements = palette.elementGroups.flatMap((g) => g.elements);
-    expect(elements.length).toBe(42);
-    expect(palette.elementGroups.length).toBe(7);
-    expect(palette.relationshipTypes.length).toBe(15);
+    // 42 element types in the domains, and the two junctions.
+    expect(elements.length).toBe(44);
+    expect(palette.elementGroups.length).toBe(8);
+    // The language's own; the core's (Association, Depends On, Has Part, Refines) come with every metamodel.
+    expect(palette.relationshipTypes.filter((r) => !r.core).length).toBe(15);
+    expect(palette.relationshipTypes.filter((r) => r.core).map((r) => r.label).sort()).toEqual([
+      'Association',
+      'Depends On',
+      'Has Part',
+      'Refines',
+    ]);
     expect(palette.notationSetIri).toBe(
       'https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation',
     );
   });
 
-  it('groups the elements by domain, with every element in a real group', () => {
+  it("groups the elements by domain, in the taxonomy's order, with every element in a real group", () => {
+    // The junctions are in no domain: Junction, a top concept of their own, gives them a section last.
     expect(palette.elementGroups.map((g) => g.category)).toEqual([
-      'Application Domain',
-      'Business Domain',
       'Common Domain',
-      'Implementation and Migration Domain',
-      'Motivation Domain',
-      'Strategy Domain',
+      'Business Domain',
+      'Application Domain',
       'Technology Domain',
+      'Strategy Domain',
+      'Motivation Domain',
+      'Implementation and Migration Domain',
+      'Junction',
     ]);
+    expect(palette.elementGroups.at(-1)!.elements.map((e) => e.label)).toEqual(['And Junction', 'Or Junction']);
+  });
+
+  it("orders each domain's elements by aspect — structure, behaviour, composite — then by name", () => {
+    const section = (name: string) => palette.elementGroups.find((g) => g.category === name)!.elements.map((e) => e.label);
+    expect(section('Business Domain')).toEqual(['Business Actor', 'Business Interface', 'Business Object', 'Product']);
+  });
+
+  it("orders the Common Domain by the array under it (am4tax:CommonDomainOrder): behaviour, active structure, composite", () => {
+    const common = palette.elementGroups.find((g) => g.category === 'Common Domain')!.elements.map((e) => e.label);
+    expect(common).toEqual(['Process', 'Function', 'Service', 'Event', 'Role', 'Collaboration', 'Path', 'Grouping', 'Location']);
   });
 
   it('offers both element classification axes — the relationship categories group no element', () => {
     expect(palette.axes?.map((a) => a.label)).toEqual([
-      'Element by Domain',
-      'Element by Aspect',
+      'Domain',
+      'Aspect',
     ]);
-    expect(palette.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#ElementByDomain');
+    expect(palette.activeAxisIri).toBe('https://meta.linked.archi/archimate4/tax#Domain');
   });
 
   it('styles am4:BusinessActor from the real notation set with a bundled icon', () => {
@@ -808,8 +932,29 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
     expect(withoutBundledIcon.map((e) => e.iri)).toEqual([]);
   });
 
+  it('groups the relationship types by category, in the order of am4tax:RelationshipOrder, each strongest first, a kind after its superclass', () => {
+    const byCategory: Array<[string, string[]]> = [];
+    for (const r of palette.relationshipTypes.filter((type) => !type.core)) {
+      const last = byCategory.at(-1);
+      if (last && last[0] === r.category) last[1].push(r.label);
+      else byCategory.push([r.category!, [r.label]]);
+    }
+    // Within a category, the order of the array under it — strongest first, as the specification lists them
+    // (am4tax:StructuralRelationshipOrder, :DependencyRelationshipOrder, :DynamicRelationshipOrder) — a kind just
+    // after the relationship it is a kind of; a category with no such array, by name.
+    expect(byCategory).toEqual([
+      ['Structural Relationship', ['Composition', 'Aggregation', 'Assignment', 'Realization']],
+      [
+        'Dependency Relationship',
+        ['Serving', 'Access', 'Read Access', 'Read-Write Access', 'Write Access', 'Influence', 'Association', 'Directed Association'],
+      ],
+      ['Dynamic Relationship', ['Triggering', 'Flow']],
+      ['Other Relationship', ['Specialization']],
+    ]);
+  });
+
   it('finds the eleven relationship types, and the kinds of access and association, with their line styles', () => {
-    expect(palette.relationshipTypes.map((r) => r.label)).toEqual([
+    expect(palette.relationshipTypes.filter((r) => !r.core).map((r) => r.label).sort()).toEqual([
       'Access',
       'Aggregation',
       'Assignment',
@@ -850,44 +995,46 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
   });
 
   it('regroups by the aspect axis with every element in a real group', () => {
-    const aspectIri = 'https://meta.linked.archi/archimate4/tax#ElementByAspect';
+    const aspectIri = 'https://meta.linked.archi/archimate4/tax#Aspect';
     const byAspect = generator.generatePalette(loaded.metamodelIri, { axisIri: aspectIri });
     expect(byAspect.activeAxisIri).toBe(aspectIri);
 
     // The published aspect axis nests its groups (Structure → Active Structure → Internal
     // Active Structure → members), so every level that actually lists members becomes a
-    // section. Nothing falls through to "Other".
+    // section, in the order of the top-level group it is under, then by name. Nothing falls
+    // through to "Other": the junctions, in no aspect, are in Junction's section.
     expect(byAspect.elementGroups.map((g) => ({ category: g.category, count: g.elements.length }))).toEqual([
       { category: 'Active Structure', count: 3 },
-      { category: 'Behavior', count: 4 },
-      { category: 'Composite', count: 4 },
-      { category: 'Event', count: 1 },
       { category: 'External Active Structure', count: 3 },
-      { category: 'External Behavior', count: 1 },
       { category: 'Internal Active Structure', count: 9 },
-      { category: 'Internal Behavior', count: 2 },
-      { category: 'Motivation', count: 9 },
       { category: 'Passive Structure', count: 5 },
       { category: 'Structure', count: 1 },
+      { category: 'Behavior', count: 4 },
+      { category: 'Event', count: 1 },
+      { category: 'External Behavior', count: 1 },
+      { category: 'Internal Behavior', count: 2 },
+      { category: 'Composite', count: 4 },
+      { category: 'Motivation', count: 9 },
+      { category: 'Junction', count: 2 },
     ]);
-    // Same 42 classes, only regrouped.
-    expect(byAspect.elementGroups.flatMap((g) => g.elements)).toHaveLength(42);
+    // Same 44 classes, only regrouped.
+    expect(byAspect.elementGroups.flatMap((g) => g.elements)).toHaveLength(44);
   });
 
   it('lists the aspect axis groups on the axis descriptor', () => {
-    const aspect = palette.axes?.find((a) => a.label === 'Element by Aspect');
+    const aspect = palette.axes?.find((a) => a.label === 'Aspect');
     expect(aspect?.groups).toEqual([
       'Active Structure',
-      'Behavior',
-      'Composite',
-      'Event',
       'External Active Structure',
-      'External Behavior',
       'Internal Active Structure',
-      'Internal Behavior',
-      'Motivation',
       'Passive Structure',
       'Structure',
+      'Behavior',
+      'Event',
+      'External Behavior',
+      'Internal Behavior',
+      'Composite',
+      'Motivation',
     ]);
   });
 
@@ -909,5 +1056,125 @@ describe('palette from the bundled ArchiMate 4.0 metamodel', () => {
       'Role',
     ]));
     expect(labels).not.toContain('Process');
+  });
+});
+
+describe("the core notation: the core's own relationship types, after every language's (VC-DD-5)", () => {
+  const ARCH = NAMESPACES.arch;
+  const CORE_SET = 'https://meta.linked.archi/core-notation#CoreNotation';
+
+  /** The core assets, as the app loads them, and a bundled metamodel. */
+  const paletteWith = async (metamodelIri?: string): Promise<PaletteDefinition> => {
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store);
+    await loader.loadCoreAssets();
+    const loaded = await loader.loadBundledMetamodel(metamodelIri);
+    // In load order, as mount-ui passes them.
+    const defaultNotationSetIris = loaded.notationSetIri ? [loaded.notationSetIri] : [];
+    return new SparqlPaletteGenerator(store).generatePalette(loaded.metamodelIri, { defaultNotationSetIris });
+  };
+
+  it('draws each — Association plain, Has Part and Refines solid and Depends On dashed with an open arrowhead at the target — and lets nesting draw Has Part, the part inside, and Refines, the refining concept inside', async () => {
+    const palette = await paletteWith();
+    const refines = relationship(palette, `${ARCH}Refines`);
+    expect(refines?.core).toBe(true);
+    expect(refines?.relationshipStyle).toMatchObject({
+      lineStyle: 'SolidLine',
+      sourceDecor: 'NoDecoration',
+      targetDecor: 'OpenArrowhead',
+      nestedEnds: ['source'],
+    });
+    expect(refines?.relationshipStyle?.lineColor).toBeUndefined();
+    expect(relationship(palette, `${ARCH}HasPart`)?.relationshipStyle).toMatchObject({
+      lineStyle: 'SolidLine',
+      sourceDecor: 'NoDecoration',
+      targetDecor: 'OpenArrowhead',
+      nestedEnds: ['target'],
+    });
+    // Association has no direction: nothing at either end, and nesting does not draw it.
+    const association = relationship(palette, `${ARCH}Association`)?.relationshipStyle;
+    expect(association).toMatchObject({ lineStyle: 'SolidLine', sourceDecor: 'NoDecoration', targetDecor: 'NoDecoration' });
+    expect(association?.nestedEnds).toBeUndefined();
+    // Depends On: from the dependent to what it needs, dashed so it is not read as a part or a refinement.
+    const dependsOn = relationship(palette, `${ARCH}DependsOn`);
+    expect(dependsOn?.core).toBe(true);
+    expect(dependsOn?.unqualifiedPredicateIri).toBe(`${ARCH}dependsOn`);
+    expect(dependsOn?.relationshipStyle).toMatchObject({ lineStyle: 'DashedLine', sourceDecor: 'NoDecoration', targetDecor: 'OpenArrowhead' });
+    expect(dependsOn?.relationshipStyle?.nestedEnds).toBeUndefined();
+    // The canvas's copy of the lookup answers for each class and its predicate alike.
+    const nesting = [
+      ['Association', 'associatedWith', undefined],
+      ['DependsOn', 'dependsOn', undefined],
+      ['HasPart', 'hasPart', ['target']],
+      ['Refines', 'refines', ['source']],
+    ] as const;
+    for (const [cls, predicate, nestedEnds] of nesting) {
+      expect(palette.notationIndex?.[`${ARCH}${cls}`], cls).toMatchObject({ source: 'fallback', notationSetIri: CORE_SET });
+      expect(palette.notationIndex?.[`${ARCH}${predicate}`]?.relationshipStyle?.nestedEnds, predicate).toEqual(nestedEnds);
+    }
+  }, 60_000);
+
+  it("is never the set the palette is styled by: the language's is, and a language with none has none", async () => {
+    expect((await paletteWith()).notationSetIri).toBe('https://meta.linked.archi/archimate4/notation#ArchiMate40StandardNotation');
+    const decisions = await paletteWith('https://meta.linked.archi/arch-decision/metamodel#ArchitectureDecisions');
+    expect(decisions.notationSetIri).toBeUndefined();
+    // Has Part and Refines keep their nesting all the same.
+    expect(relationship(decisions, `${ARCH}HasPart`)?.relationshipStyle?.nestedEnds).toEqual(['target']);
+    expect(relationship(decisions, `${ARCH}Refines`)?.relationshipStyle?.nestedEnds).toEqual(['source']);
+  }, 60_000);
+});
+
+describe('relationship categories come from the dimension that names the most relationship types', () => {
+  it('not from a dimension of element types that lists one beside them (UML: Transition in the state machine diagram)', async () => {
+    const store = new OxigraphRdfStore();
+    await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(`
+      @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+      @prefix arch: <https://meta.linked.archi/core#> . @prefix ex: <https://example.org/mm#> .
+      <https://example.org/mm> rdf:type owl:Ontology .
+      ex:Scheme rdf:type skos:ConceptScheme ; skos:hasTopConcept ex:ByDiagram, ex:ByCategory .
+      ex:ByDiagram rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Diagram"@en .
+      ex:ByCategory rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Category"@en .
+      ex:StateMachine rdf:type skos:Concept ; skos:prefLabel "State Machine Diagram"@en ; skos:broader ex:ByDiagram ; skos:narrower ex:State, ex:Transition .
+      ex:Relationships rdf:type skos:Concept ; skos:prefLabel "Relationships"@en ; skos:broader ex:ByCategory ; skos:narrower ex:Transition, ex:Association .
+      ex:State rdf:type owl:Class ; rdfs:subClassOf arch:Element ; skos:prefLabel "State"@en .
+      ex:Transition rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Transition"@en .
+      ex:Association rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Association"@en .
+    `);
+    const palette = new SparqlPaletteGenerator(store).generatePalette('https://example.org/mm');
+    expect(palette.relationshipTypes.map((r) => [r.label, r.category])).toEqual([
+      ['Association', 'Relationships'],
+      ['Transition', 'Relationships'],
+    ]);
+    expect(palette.elementGroups.map((g) => g.category)).toEqual(['State Machine Diagram']);
+  });
+
+  it('each metamodel\'s types by its own dimension; a group under none, listed by concepts, beside one that is', async () => {
+    const PREFIXES = `
+      @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+      @prefix owl: <http://www.w3.org/2002/07/owl#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+      @prefix arch: <https://meta.linked.archi/core#> . @prefix ex: <https://example.org/mm#> .
+      <https://example.org/mm> rdf:type owl:Ontology .`;
+    // A language whose relationship types are under a dimension…
+    const LANGUAGE = `
+      ex:Scheme rdf:type skos:ConceptScheme ; skos:hasTopConcept ex:ByCategory .
+      ex:ByCategory rdf:type skos:Concept ; skos:inScheme ex:Scheme ; skos:prefLabel "Category"@en .
+      ex:Structural rdf:type skos:Concept ; skos:prefLabel "Structural"@en ; skos:broader ex:ByCategory ; skos:narrower ex:Composition .
+      ex:Composition rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Composition"@en .`;
+    // …and one that lists its own by a concept each, in a group under no dimension (LeanIX's Relationship Type).
+    const OTHER = `
+      ex:Other rdf:type skos:ConceptScheme ; skos:hasTopConcept ex:RelationshipType .
+      ex:RelationshipType rdf:type skos:Concept ; skos:inScheme ex:Other ; skos:prefLabel "Relationship Type"@en .
+      ex:UsageConcept rdf:type skos:Concept ; skos:prefLabel "Usage"@en ; skos:broader ex:RelationshipType ; rdfs:seeAlso ex:Usage .
+      ex:Usage rdf:type owl:Class ; rdfs:subClassOf arch:QualifiedRelationship ; skos:prefLabel "Usage"@en .`;
+    const categories = async (ttl: string) => {
+      const store = new OxigraphRdfStore();
+      await new N3MetamodelLoader(new N3TtlParser(), store).loadMetamodel(PREFIXES + ttl);
+      return new SparqlPaletteGenerator(store).generatePalette('https://example.org/mm').relationshipTypes.map((r) => [r.label, r.category]);
+    };
+    expect(await categories(LANGUAGE + OTHER)).toEqual([
+      ['Composition', 'Structural'],
+      ['Usage', 'Relationship Type'],
+    ]);
   });
 });

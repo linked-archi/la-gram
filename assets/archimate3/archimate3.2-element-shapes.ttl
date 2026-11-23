@@ -215,7 +215,7 @@ are exempt — they are connectors and are conventionally unnamed.'''@en ;
     sh:severity sh:Warning ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate3/element-shapes#> ;
-        sh:message "Serving relationships should flow upward from lower to higher layers (Physical → Technology → Application → Business)."@en ;
+        sh:message "Serving relationships should flow upward from lower to higher layers (Technology, its physical elements included → Application → Business)."@en ;
         sh:select """
             SELECT $this ?target WHERE {
                 $this am:serves ?target .

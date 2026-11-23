@@ -321,7 +321,7 @@ describe('bundled ArchiMate 4.0 → connect → RDF', () => {
     // with the class, naming both ends, in the model — the IRI the connection
     // carries.
     const relIri = relationships[0].relationshipIri!;
-    expect(relIri).toMatch(/^https:\/\/example\.org\/model\/test\/relationship-/);
+    expect(relIri).toMatch(/^https:\/\/example\.org\/model\/test\/relationship\//);
     expect(qualifiedFacts(f, relIri)).toEqual(
       [
         `rdf:type|${chosen.iri}`,
@@ -484,7 +484,7 @@ describe('bundled ArchiMate 4.0 → append → RDF', () => {
     expect(appended).toBeDefined();
     const iri = appended.businessObject!.iri;
     // A real IRI minted by the real element manager, and the type triple with it.
-    expect(iri).toMatch(/^https:\/\/example\.org\/model\/test\/element-[0-9a-f-]{36}$/);
+    expect(iri).toMatch(/^https:\/\/example\.org\/model\/test\/element\/[0-9a-f-]{36}$/);
     expect(f.modelTriples()).toContain(
       `${iri}|http://www.w3.org/1999/02/22-rdf-syntax-ns#type|${target.type.iri}`,
     );
@@ -526,18 +526,18 @@ describe('bundled ArchiMate 4.0 → two selected → "Connect these two…" → 
       'connect-pair',
     ]);
 
-    // Both directions, each ranked: direct, then only by derivation (marked) — Serving, whose hints
-    // describe two actors, before Flow and Triggering — then the associations.
+    // Both directions, each ranked: direct, strongest first, then only by derivation (marked) — Serving,
+    // whose hints describe two actors, before Triggering and Flow — then the associations.
     const entries = Object.values(f.canvas.pairConnectMenuProvider.getPopupMenuEntries(pair));
     expect([...new Set(entries.map((e) => e.group.id))]).toEqual(['forward', 'backward']);
     const forward = entries.filter((e) => e.group.id === 'forward');
     expect(forward.map((e) => e.label)).toEqual([
-      'Aggregation',
       'Composition',
+      'Aggregation',
       'Specialization',
       'Serving',
-      'Flow',
       'Triggering',
+      'Flow',
       'Association',
       'Directed Association',
     ]);

@@ -47,10 +47,14 @@ reference is the `la-modeller-excalidraw` spec, adapted in `.agents/specs/la-gra
 - Model data lives in the store's **default graph**; each metamodel document in a
   named graph keyed by its ontology IRI. Never write model data to a named graph
   at runtime; never read "all quads" when you mean the model (`modelQuads`).
-- IRIs are minted with `rdf-engine/iri.ts` — flat names in the model's namespace
-  (`{ns}element-{uuid}`, so Turtle writes them as `m:…`), never counters, never
-  with a `/` in the local part. Mint through the managers, which look the
-  namespace up (`model-manager/model-namespace.ts`); never hard-code a base.
+- IRIs are minted with `rdf-engine/iri.ts` in the layout every Linked.Archi tool
+  shares (DD-41): `{ns}{kind}/{uuid}`, a node or a line in its view's IRI
+  (`{view}#node-{uuid}`), a part under its owner (`partIri`: `{node}-style` after
+  a `#`, `{element}/name/{hash}` elsewhere); never counters. Names minted before
+  keep theirs (`{ns}element-{uuid}`, `{ns}node-{uuid}-style`) and are read either
+  way (`isPartNamed`); never rename a part. Mint through the
+  managers, which look the namespace up (`model-manager/model-namespace.ts`);
+  never hard-code a base.
 - Labels and other human text are language-tagged (`@en` by default) — the
   Linked.Archi shapes reject plain strings.
 - RDF terms for the model layer come from `model-manager/vocabulary.ts` (`IRI`,
@@ -97,8 +101,9 @@ docs/                     broader tool specification
 
 - Specs are living documents, not gates: a change and the documents that describe
   it go in together.
-- Keep the bundled assets byte-identical to `linked-archi-meta`; refresh them by
-  copying (`npm run sync-assets -- --meta <checkout>`), never by editing here.
+- Keep the bundled assets byte-identical to their meta source; refresh them with
+  `npm run sync-assets` from the published site by default, or explicitly use a
+  local checkout (`npm run sync-assets -- --meta <checkout>`). Never edit the copies here.
 - A piece of work another person or agent may have to continue gets a folder,
   `.agents/tasks/<name>/`, written before the work: its README (goal, what was
   decided), `requirements.md`, `design.md` and `tasks.md` (a checklist, ticked as
@@ -125,8 +130,8 @@ A change is finished when each of these says what la-gram does now:
    *Writing the documentation* says (`docs-site/developing/documentation.md`): UI
    labels exactly as la-gram shows them, each option with its values, its default
    in bold and an example. A new page goes into `mkdocs.yml`'s `nav`.
-7. **Bundled assets**, when the change needs meta's: refreshed from a checkout of
-   `linked-archi-meta` (`docs-site/developing/assets.md`).
+7. **Bundled assets**, when the change needs meta's: refreshed from the published site by default,
+   or explicitly from a `linked-archi-meta` checkout (`docs-site/developing/assets.md`).
 8. **Build.** `npm run build`, then `npm run docs:build` — strict, a warning fails
    it — after the app's build, which empties `dist/web/`, where the site is built.
 

@@ -40,15 +40,16 @@ export const NOTATION_ROOTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Whether a relationship type's hints let it relate any elements: its domain
- * and range are declared, and name only core classes (`arch:Element`,
- * `arch:ModelConcept`). A type with no domain or range declared does not: the
- * absence of a hint means the metamodel did not say, not "anything".
+ * Whether a relationship type's hints let it relate any elements of its
+ * metamodel: its domain and range are declared, and name only core classes
+ * (`arch:Element`, `arch:ModelConcept`). A type with no domain or range declared
+ * does not: the absence of a hint means the metamodel did not say, not
+ * "anything". The relationship manager offers such a type only between elements
+ * of its own metamodel: between two languages, the core's types (DD-40).
  *
- * Generic only when no relationship table governs the type as well — ArchiMate
- * names `arch:Element` on Specialization and Composition and restricts them in
- * its tables — so the relationship manager, which knows the tables, decides
- * (Basic's Connection is generic).
+ * Generic only when no relationship table governs the type as well: a table
+ * restricts a type whatever its hints name, so the relationship manager, which
+ * knows the tables, decides.
  */
 export function isGenericRelationshipType(domainTypes: readonly string[], rangeTypes: readonly string[]): boolean {
   const core = (iri: string) => iri.startsWith(NAMESPACES.arch);

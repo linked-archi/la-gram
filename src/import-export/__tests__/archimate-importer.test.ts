@@ -182,23 +182,23 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       figureCount: 2, // the container and the label: a group and a note
     });
 
-    const web = `${ns}element-id-web`;
+    const web = `${ns}element/id-web`;
     const q = (s: string, p: string) => store.getQuads(nn(s), nn(p)).map((x) => x.object.value);
     expect(q(web, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'ApplicationComponent']);
     expect(q(web, NAMESPACES.skos + 'prefLabel')).toEqual(['Web Shop']);
     expect(q(web, NAMESPACES.skos + 'definition')).toEqual(['Customer-facing web front end.']);
     expect(q(web, `${ns}property-owner`)).toEqual(['Team A']);
-    expect(q(`${ns}element-id-j`, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Junction_And']);
+    expect(q(`${ns}element/id-j`, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Junction_And']);
 
     // Qualified relationship + unqualified triple.
-    const r1 = `${ns}relationship-id-r1`;
+    const r1 = `${ns}relationship/id-r1`;
     expect(q(r1, NAMESPACES.rdf + 'type')).toEqual([AM3 + 'Serving']);
-    expect(store.getQuads(nn(`${ns}element-id-api`), nn(AM3 + 'serves'), nn(web))).toHaveLength(1);
+    expect(store.getQuads(nn(`${ns}element/id-api`), nn(AM3 + 'serves'), nn(web))).toHaveLength(1);
     // A relationship to a relationship resolves too.
-    expect(q(`${ns}relationship-id-r3`, NAMESPACES.arch + 'target')).toEqual([`${ns}relationship-id-r2`]);
+    expect(q(`${ns}relationship/id-r3`, NAMESPACES.arch + 'target')).toEqual([`${ns}relationship/id-r2`]);
 
     // Geometry: absolute bounds, and a route docked on the shapes' edges.
-    const viewIri = `${ns}view-id-v1`;
+    const viewIri = `${ns}view/id-v1`;
     expect(views.getNode(viewIri, web)?.bounds).toEqual({ x: 40, y: 40, width: 120, height: 55 });
     // The container is a group holding the element; the label a note.
     const figures = views.getNodes(viewIri).filter((n) => n.figure);
@@ -211,14 +211,24 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     // The note's line to the API stands for no relationship: drawn between the note and the placement it names.
     const note = figures.find((n) => n.figure?.kind === 'note')!;
     const line = views.getLinks(viewIri).find((l) => l.connector)!;
-    expect(line).toMatchObject({ sourceNodeIri: note.nodeIri, targetElementIri: `${ns}element-id-api` });
+    expect(line).toMatchObject({ sourceNodeIri: note.nodeIri, targetElementIri: `${ns}element/id-api` });
     expect(views.getNodes(viewIri).find((n) => n.nodeIri === line.targetNodeIri)?.bounds.y).toBe(40);
     // id-api is placed twice; the connection joins the placement the file names (n-api, at 300,40).
-    const apiNodes = views.getNodes(viewIri).filter((n) => n.elementIri === `${ns}element-id-api`);
+    const apiNodes = views.getNodes(viewIri).filter((n) => n.elementIri === `${ns}element/id-api`);
     expect(apiNodes.map((n) => n.bounds.y).sort((a, b) => a - b)).toEqual([40, 200]);
     expect(apiNodes.find((n) => n.nodeIri === link.sourceNodeIri)?.bounds.y).toBe(40);
     expect(link.waypoints).toHaveLength(3);
     expect(link.waypoints[1]).toEqual({ x: 230, y: 150 });
+
+    // Named as the ArchiMate converter names them (DD-41): every node and line in its view's IRI, by its id.
+    expect(views.getNodes(viewIri).map((n) => n.nodeIri).sort()).toEqual(
+      ['n-api', 'n-api2', 'n-group', 'n-note', 'n-web'].map((id) => `${viewIri}#node-${id}`),
+    );
+    expect(link.linkIri).toBe(`${viewIri}#link-c1`);
+    expect(line.linkIri).toBe(`${viewIri}#link-c2`);
+    expect(store.getQuads(nn(link.linkIri), nn(NAMESPACES['arch-vis'] + 'points')).map((x) => x.object.value)).toEqual([
+      `${viewIri}#link-c1-points-0`,
+    ]);
 
     // No retired vocabulary.
     for (const old of ['relSource', 'relTarget', 'relPredicate']) {
@@ -260,8 +270,8 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       modelIri: `${ns}model`,
       knownClass: () => true,
     });
-    const viewIri = `${ns}view-v`;
-    expect(views.getNode(viewIri, `${ns}element-e-a`)?.appearance).toEqual({
+    const viewIri = `${ns}view/v`;
+    expect(views.getNode(viewIri, `${ns}element/e-a`)?.appearance).toEqual({
       fillColor: '#ffd6e080',
       lineColor: '#7a0019',
       lineWidth: 2,
@@ -270,7 +280,7 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       fontStyle: 'bold italic',
       fontColor: '#1a73e8',
     });
-    expect(views.getNode(viewIri, `${ns}element-e-b`)?.appearance).toBeUndefined();
+    expect(views.getNode(viewIri, `${ns}element/e-b`)?.appearance).toBeUndefined();
     expect(views.getNodes(viewIri).find((n) => n.figure)?.figure).toMatchObject({ kind: 'note', fillColor: '#fff7b3' });
     expect(views.getLinks(viewIri)[0]?.appearance).toEqual({ lineColor: '#1a73e8', lineWidth: 3 });
   });
@@ -305,12 +315,67 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     const viewIri = views.getViews().find((v) => v.label === 'Deployment')!.iri;
     // The visual group between them is drawn: the software inside it, it inside the node.
     const group = views.getNodes(viewIri).find((n) => n.figure?.kind === 'group')!;
-    expect(group.parentElementIri).toBe(`${ns}element-id-node`);
-    expect(views.getNode(viewIri, `${ns}element-id-os`)).toMatchObject({
+    expect(group.parentElementIri).toBe(`${ns}element/id-node`);
+    expect(views.getNode(viewIri, `${ns}element/id-os`)).toMatchObject({
       parentElementIri: group.elementIri,
       bounds: { x: 40, y: 80, width: 120, height: 55 },
     });
-    expect(views.getNode(viewIri, `${ns}element-id-node`)?.parentElementIri).toBeUndefined();
+    expect(views.getNode(viewIri, `${ns}element/id-node`)?.parentElementIri).toBeUndefined();
+  });
+  it('draws a Label opening a view of the file as a reference to that view, on the view or in a box; one opening none as a note', () => {
+    // The view it opens comes later in the file, as an index view's do.
+    const REFERENCES = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="id-m">
+  <name xml:lang="en">References</name>
+  <elements>
+    <element identifier="id-pay" xsi:type="ApplicationComponent"><name xml:lang="en">Payments</name></element>
+  </elements>
+  <views><diagrams>
+    <view identifier="id-index" xsi:type="Diagram"><name xml:lang="en">Index</name>
+      <node identifier="n-top" xsi:type="Label" x="10" y="10" w="120" h="55">
+        <label xml:lang="en">Payments in detail</label>
+        <viewRef ref="id-detail"/>
+      </node>
+      <node identifier="n-pay" elementRef="id-pay" xsi:type="Element" x="200" y="10" w="240" h="160">
+        <node identifier="n-in" xsi:type="Label" x="220" y="80" w="120" h="55">
+          <label xml:lang="en">Payments in detail</label>
+          <viewRef ref="id-detail"/>
+        </node>
+      </node>
+      <node identifier="n-gone" xsi:type="Label" x="10" y="300" w="120" h="55">
+        <label xml:lang="en">Retired</label>
+        <viewRef ref="id-gone"/>
+      </node>
+    </view>
+    <view identifier="id-detail" xsi:type="Diagram"><name xml:lang="en">Payments in detail</name></view>
+  </diagrams></views>
+</model>`;
+    const views = new OxigraphViewManager(store);
+    const ns = 'https://example.org/archimate/references/';
+    const report = applyExchangeModel(parseArchiMateExchange(REFERENCES), {
+      elements: new OxigraphElementManager(store),
+      relationships: new OxigraphRelationshipManager(store),
+      views,
+      modelIri: `${ns}model`,
+      knownClass: () => true,
+    });
+    expect(report.figureCount).toBe(3);
+    const index = `${ns}view/id-index`;
+    const detail = `${ns}view/id-detail`;
+    const figures = views
+      .getNodes(index)
+      .filter((n) => n.figure)
+      .map((n) => ({ kind: n.figure!.kind, view: n.figure!.view, text: n.figure!.text, in: n.parentElementIri }));
+    expect(figures).toHaveLength(3);
+    expect(figures).toEqual(
+      expect.arrayContaining([
+        { kind: 'reference', view: detail, text: 'Payments in detail', in: undefined },
+        { kind: 'reference', view: detail, text: 'Payments in detail', in: `${ns}element/id-pay` },
+        { kind: 'note', view: undefined, text: 'Retired', in: undefined },
+      ]),
+    );
+    // The view it opens is presented in the index, once however many references open it.
+    expect(store.getQuads(nn(detail), nn(NAMESPACES.arch + 'inView'), nn(index))).toHaveLength(1);
   });
 
   it('draws a relationship twice when the view does, each between the placements it joins', () => {
@@ -387,10 +452,10 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     expect(report.connectionCount).toBe(2);
     const viewIri = views.getViews().find((v) => v.label === 'Flows')!.iri;
     const [flow, carried] = views.getLinks(viewIri);
-    expect(flow.relationshipIri).toBe(`${ns}relationship-id-flow`);
+    expect(flow.relationshipIri).toBe(`${ns}relationship/id-flow`);
     expect(carried).toMatchObject({
-      relationshipIri: `${ns}relationship-id-carried`,
-      targetElementIri: `${ns}relationship-id-flow`,
+      relationshipIri: `${ns}relationship/id-carried`,
+      targetElementIri: `${ns}relationship/id-flow`,
       targetNodeIri: flow.linkIri,
     });
     // Clipped at the node it starts at; at the line, the route stops at its bend.
@@ -410,7 +475,7 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
       knownClass,
     });
     const typeOf = (id: string) =>
-      store.getQuads(nn(`${ns}relationship-${id}`), nn(NAMESPACES.rdf + 'type')).map((x) => x.object.value.replace(AM3, ''));
+      store.getQuads(nn(`${ns}relationship/${id}`), nn(NAMESPACES.rdf + 'type')).map((x) => x.object.value.replace(AM3, ''));
     expect(typeOf('id-read')).toEqual(['ReadAccess']);
     expect(typeOf('id-write')).toEqual(['WriteAccess']);
     expect(typeOf('id-rw')).toEqual(['ReadWriteAccess']);
@@ -418,7 +483,7 @@ describe('applyExchangeModel against the bundled ArchiMate 3.2 metamodel', () =>
     expect(typeOf('id-dir')).toEqual(['DirectedAssociation']);
     expect(typeOf('id-undir')).toEqual(['Association']);
     // The unqualified triples are the type's: am:accesses and am:associatedWith.
-    expect(store.getQuads(nn(`${ns}element-id-p`), nn(AM3 + 'accesses'), nn(`${ns}element-id-o`))).toHaveLength(1);
-    expect(store.getQuads(nn(`${ns}element-id-p`), nn(AM3 + 'associatedWith'), nn(`${ns}element-id-o`))).toHaveLength(1);
+    expect(store.getQuads(nn(`${ns}element/id-p`), nn(AM3 + 'accesses'), nn(`${ns}element/id-o`))).toHaveLength(1);
+    expect(store.getQuads(nn(`${ns}element/id-p`), nn(AM3 + 'associatedWith'), nn(`${ns}element/id-o`))).toHaveLength(1);
   });
 });

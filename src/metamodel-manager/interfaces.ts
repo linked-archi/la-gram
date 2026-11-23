@@ -145,7 +145,7 @@ export interface ResolvedUri {
 
 /** A classification axis a palette can be grouped by. */
 export interface PaletteAxis {
-  /** IRI of the axis concept (e.g. "Element by Domain"). */
+  /** IRI of the axis concept (e.g. "Domain"). */
   iri: string;
   /** Human-readable axis label. */
   label: string;
@@ -219,6 +219,13 @@ export interface RelationshipTypeInfo {
    * colour only when the descriptor states one; renderers draw black otherwise.
    */
   relationshipStyle?: RelationshipVisualStyle;
+  /**
+   * Its category: its group under the taxonomy axis that classifies relationship types (ArchiMate's
+   * Structural Relationship, Dependency Relationship…), through its nearest superclass for a kind of
+   * relationship the taxonomy does not list. Absent when no axis classifies relationship types; the palette
+   * then lists them in one section.
+   */
+  category?: string;
   /** IRIs of valid source element types (arch:domainIncludes). */
   domainTypes: string[];
   /** IRIs of valid target element types (arch:rangeIncludes). */
@@ -253,35 +260,51 @@ export interface RelationshipTypeInfo {
    */
   direct?: boolean;
   /**
-   * For the queried pair: a generic relationship — one that relates any
-   * elements, which no relationship table restricts (Basic's Connection).
-   * Ranked after every language's own relationships. Undefined outside a
-   * pair-specific query.
+   * For the queried pair: a generic relationship — one whose hints name only
+   * core classes, so that it relates any two elements of its metamodel, and
+   * which no relationship table restricts. Ranked after the metamodel's other
+   * relationships. Undefined outside a pair-specific query.
    */
   generic?: boolean;
   /**
-   * For the queried pair: why the candidate ranks where it does, best first —
-   * see {@link RelationshipPreference}. Undefined outside a pair-specific query.
+   * One of the core's own relationship types (Association, Depends On, Has Part, Refines): offered where the loaded
+   * metamodels permit nothing between two elements (Req 4.21), and not listed in the palette.
    */
-  preference?: RelationshipPreference;
+  core?: boolean;
+  /**
+   * For the queried pair: the language's metamodel figures draw this relationship
+   * between the two element types (the relationship tables' `draws…`). Said, not
+   * ranked by. Undefined when they do not, or outside a pair-specific query.
+   */
+  drawn?: boolean;
+  /**
+   * For the queried pair: Association, a kind of it, or a generic relationship —
+   * always permitted, saying least. Undefined otherwise, or outside a
+   * pair-specific query.
+   */
+  fallback?: boolean;
 }
 
-/**
- * The groups `RelationshipManager.getValidRelationships` ranks a pair's
- * candidates in, best first:
- *
- * - `first` — a proposal order scoped to these elements puts it first
- *   (`arch:RelationshipProposalOrder` with `arch:domainIncludes`);
- * - `drawn` — the language's metamodel figures draw it for the pair;
- * - `direct` — the relationship tables permit it to be drawn directly, or say
- *   nothing either way;
- * - `derived` — the tables permit it only as the conclusion of a derivation;
- * - `fallback` — Association, or a generic relationship: always permitted, saying least.
- */
-export type RelationshipPreference = 'first' | 'drawn' | 'direct' | 'derived' | 'fallback';
-
 /** Complete palette definition generated from a metamodel. */
+/** One thing a loaded metamodel leaves out, or leaves the palette to guess. */
+export interface MetamodelFinding {
+  kind: 'nothing-to-draw' | 'no-classification' | 'unclassified-elements' | 'unclassified-relationships';
+  /** What is missing and what la-gram does about it, to follow "‹metamodel› is incomplete: " — "it names no classification…". */
+  message: string;
+  /** The labels of the types concerned. */
+  types?: string[];
+}
+
+/** What is incomplete about one loaded metamodel. */
+export interface MetamodelCompleteness {
+  metamodelIri: string;
+  label: string;
+  findings: MetamodelFinding[];
+}
+
 export interface PaletteDefinition {
+  /** The loaded metamodels that are incomplete, each with what is missing; none when all are complete. */
+  completeness?: MetamodelCompleteness[];
   elementGroups: ElementGroup[];
   relationshipTypes: RelationshipTypeInfo[];
   /** Every classification axis the taxonomy offers — drives a "Group by" UI. */
@@ -355,6 +378,13 @@ export interface PaletteOptions {
    * label after the structural/aspect rule.
    */
   metamodelIris?: readonly string[];
+  /**
+   * The loaded metamodels with the graphs of the documents each loaded, and which of them its manifest names as
+   * its concepts: what each is checked for ({@link PaletteDefinition.completeness}), and whose classes are offered —
+   * not those of a document only a shapes or mappings document imports. Without it, nothing is checked and every
+   * class in the store is offered.
+   */
+  metamodels?: ReadonlyArray<{ iri: string; label: string; documents: readonly string[]; conceptDocuments?: readonly string[] }>;
 }
 
 /** Generates UI palettes from metamodel definitions. */

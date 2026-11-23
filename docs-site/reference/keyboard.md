@@ -15,6 +15,28 @@ there too.
 The examples use the example model:
 [open it](https://app.linked.archi/la-gram/?model=docs/examples/shop.ttl) in a second tab.
 
+## Files {#files}
+
+These work anywhere in la-gram, except under a dialog, in place of the browser's own *Open* and *Save
+page*. A field you are typing in is left first, so what it holds is saved.
+
+=== "Windows and Linux"
+
+    | Keys | Does |
+    |---|---|
+    | ++ctrl+o++ | *File › Open…*: open a model file |
+    | ++ctrl+s++ | *File › Save*: save the model as TriG |
+
+=== "macOS"
+
+    | Keys | Does |
+    |---|---|
+    | ++cmd+o++ | *File › Open…*: open a model file |
+    | ++cmd+s++ | *File › Save*: save the model as TriG |
+
+1. Change the model: the ● after its name says it has unsaved changes.
+2. Press ++ctrl+s++ (++cmd+s++ on a Mac): `Acme-online-shop.trig` is saved, and the ● goes.
+
 ## On the canvas {#canvas}
 
 The canvas takes these keys when it has the focus: click an empty part of it first.
@@ -26,7 +48,13 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++ctrl+z++ | undo the last change on the canvas or in the property panel |
     | ++ctrl+y++ or ++ctrl+shift+z++ | redo |
     | ++delete++ or ++backspace++ | delete the selection from the view; the model keeps it |
-    | ++f2++ | rename the one selected element or relationship |
+    | ++ctrl+c++ | copy the selection |
+    | ++ctrl+x++ | cut the selection: copy it, and delete it from the view |
+    | ++ctrl+v++ | paste: the same elements into another view of the model; copies into this view or another model |
+    | ++ctrl+shift+v++ | paste as copies |
+    | ++ctrl+alt+v++ | paste as references: the same elements, placed again |
+    | ++ctrl+d++ | duplicate the selection, as copies |
+    | ++f2++ | rename the one selected element, relationship or figure — on a view reference, its view |
     | ++ctrl+plus++ / ++ctrl+minus++ | zoom in / out one step |
     | ++ctrl+0++ | zoom to 100 % |
     | ++esc++ | put the format painter down; cancel a connection, lasso or move in progress |
@@ -39,7 +67,13 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
     | ++cmd+z++ (or ++ctrl+z++) | undo the last change on the canvas or in the property panel |
     | ++cmd+y++ or ++shift+cmd+z++ (or the Ctrl forms) | redo |
     | ++delete++ or ++backspace++ | delete the selection from the view; the model keeps it |
-    | ++f2++ | rename the one selected element or relationship |
+    | ++cmd+c++ | copy the selection |
+    | ++cmd+x++ | cut the selection: copy it, and delete it from the view |
+    | ++cmd+v++ | paste: the same elements into another view of the model; copies into this view or another model |
+    | ++shift+cmd+v++ | paste as copies |
+    | ++alt+cmd+v++ | paste as references: the same elements, placed again |
+    | ++cmd+d++ | duplicate the selection, as copies |
+    | ++f2++ | rename the one selected element, relationship or figure — on a view reference, its view |
     | ++cmd+plus++ / ++cmd+minus++ (or the Ctrl forms) | zoom in / out one step |
     | ++cmd+0++ (or ++ctrl+0++) | zoom to 100 % |
     | ++esc++ | put the format painter down; cancel a connection, lasso or move in progress |
@@ -49,11 +83,14 @@ The canvas takes these keys when it has the focus: click an empty part of it fir
   view, and property edits. Its history belongs to the open view and starts again when another view
   opens. Changes that come from elsewhere (a collaborator, an import, a deletion from the model tree of a
   concept not on the canvas) are not undone from here; see [Undo](../troubleshooting.md#undo).
-- **++f2++** acts on one selected element or relationship only, and not while the focus is in a text
-  field. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
+- **++f2++** acts on one selected element, relationship or figure only, and not while the focus is in a
+  text field. On a [view reference](../guide/canvas.md#view-references) it renames the view, every
+  reference to it with it; the reference's own text is its *Text* in the Properties tab. Clicking elsewhere while renaming keeps the new name, as ++enter++ does.
 - **Delete** never deletes from the model: *Delete from model (all views)* on the context pad or the
   right-click menu does, after asking.
-- **Copy and paste** do nothing on the canvas: see [Copy and paste](../troubleshooting.md#copy-and-paste).
+- **Copy and paste** — what each pastes, and where: [Copy and paste](../guide/canvas.md#copy-and-paste). The
+  keys copy the diagram's selection unless a text field has the focus or text is selected on the page,
+  which they copy as usual.
 
 With the example model:
 
@@ -110,6 +147,7 @@ In the *Questions* menu, ++up++ and ++down++ move between the questions and ++es
     |---|---|
     | ++ctrl++ + click | add a row to the selection, or take it out |
     | ++shift++ + click | select every row from the last one clicked to this one |
+    | ++ctrl+c++ | copy the selected elements and relationships, to paste into a diagram |
     | ++esc++ while dragging rows | cancel the drag |
 
 === "macOS"
@@ -118,6 +156,7 @@ In the *Questions* menu, ++up++ and ++down++ move between the questions and ++es
     |---|---|
     | ++cmd++ + click | add a row to the selection, or take it out |
     | ++shift++ + click | select every row from the last one clicked to this one |
+    | ++cmd+c++ | copy the selected elements and relationships, to paste into a diagram |
     | ++esc++ while dragging rows | cancel the drag |
 
 Several rows are selected to move them to a folder together, with *Move … to folder…* or by dragging.
@@ -175,7 +214,7 @@ undoes your typing there, and ++backspace++ deletes a character, not the selecte
     | ++shift++ + click | add to the selection, or take from it |
     | ++shift++ + drag on the canvas | select with a lasso |
     | drag on an empty part of the canvas | move around the diagram |
-    | double-click | rename what is under the pointer |
+    | double-click | rename what is under the pointer; a view reference: open the view it references |
     | right-click | the right-click menu of what is under the pointer, or of the canvas |
     | scroll | scroll up and down |
     | ++shift++ + scroll | scroll sideways |
@@ -189,7 +228,7 @@ undoes your typing there, and ++backspace++ deletes a character, not the selecte
     | ++shift++ + click | add to the selection, or take from it |
     | ++shift++ + drag on the canvas | select with a lasso |
     | drag on an empty part of the canvas | move around the diagram |
-    | double-click | rename what is under the pointer |
+    | double-click | rename what is under the pointer; a view reference: open the view it references |
     | right-click, or ++ctrl++ + click | the right-click menu of what is under the pointer, or of the canvas |
     | scroll | scroll up and down |
     | ++shift++ + scroll | scroll sideways |
@@ -213,7 +252,7 @@ The same on every platform:
 | scroll, or a trackpad's pinch | zoom in or out |
 
 Once you have clicked, dragged or scrolled in the drawing, the view stays where you put it until you
-choose another element, depth, filter or layout, or *Fit*. More on each gesture in
+choose another element, depth, filter or layout, change the *Forces*, or choose *Fit*. More on each gesture in
 [Relationship graph › Navigate](../guide/graph.md#navigate).
 
 1. Select *Web shop* and open the *Graph* tab.

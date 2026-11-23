@@ -87,6 +87,7 @@ export const IRI = {
   rdfRest: NAMESPACES.rdf + 'rest',
   rdfNil: NAMESPACES.rdf + 'nil',
   subClassOf: NAMESPACES.rdfs + 'subClassOf',
+  inverseOf: NAMESPACES.owl + 'inverseOf',
   rdfsLabel: NAMESPACES.rdfs + 'label',
   prefLabel: NAMESPACES.skos + 'prefLabel',
   definition: NAMESPACES.skos + 'definition',
@@ -113,6 +114,9 @@ export const IRI = {
   target: ARCH + 'target',
   unqualifiedForm: ARCH + 'unqualifiedForm',
   hasQualifiedRelationship: ARCH + 'hasQualifiedRelationship',
+  /** A more concrete representation of a concept — a view detailing an element — and its inverse. */
+  refines: ARCH + 'refines',
+  refinedInto: ARCH + 'refinedInto',
 
   ArchNode: VIS + 'ArchNode',
   Link: VIS + 'Link',
@@ -120,6 +124,8 @@ export const IRI = {
   LabelNode: VIS + 'LabelNode',
   /** A node standing for no model element: a group, or a figure of a core-vis shape type. */
   ContainerNode: VIS + 'ContainerNode',
+  /** The appearance of another view on a diagram, which it opens (core-vis 0.9). */
+  ViewReferenceNode: VIS + 'ViewReferenceNode',
   visStyle: VIS + 'style',
   Style: VIS + 'Style',
   /** What a label says (core-vis 0.7): an `arch-vis:LabelExpression`, its text, the notation set it is for. */
@@ -158,6 +164,8 @@ export const IRI = {
   /** A diagram element's `arch-vis:LabelNode`: where its text is drawn. */
   visLabel: VIS + 'label',
   archElement: VIS + 'archElement',
+  /** The view an `arch-vis:ViewReferenceNode` stands for and opens, as `archElement` names an ArchNode's element. */
+  referencesView: VIS + 'referencesView',
   inNode: VIS + 'inNode',
   archRelationship: VIS + 'archRelationship',
   visSource: VIS + 'source',
@@ -220,14 +228,26 @@ export function sentenceCase(words: string): string {
   return lowered.charAt(0).toUpperCase() + lowered.slice(1);
 }
 
+/** A quad as a string, equal for equal quads: its terms, an object's language and datatype, its graph. */
+export function quadKey(q: Quad): string {
+  return `${q.subject.value}\u0000${q.predicate.value}\u0000${q.object.termType}:${q.object.value}\u0000${
+    (q.object as { language?: string }).language ?? ''
+  }\u0000${(q.object as { datatype?: { value: string } }).datatype?.value ?? ''}\u0000${q.graph.value}`;
+}
+
+/** A change with what it would remove and add again left out of both: only what differs. */
+export function netChange(change: { remove: Quad[]; add: Quad[] }): { remove: Quad[]; add: Quad[] } {
+  const added = new Set(change.add.map(quadKey));
+  const removed = new Set(change.remove.map(quadKey));
+  return { remove: change.remove.filter((q) => !added.has(quadKey(q))), add: change.add.filter((q) => !removed.has(quadKey(q))) };
+}
+
 /** Drop duplicate quads (a quad reachable along two paths is removed once). */
 export function dedupe(quads: Quad[]): Quad[] {
   const seen = new Set<string>();
   const out: Quad[] = [];
   for (const q of quads) {
-    const key = `${q.subject.value}\u0000${q.predicate.value}\u0000${q.object.termType}:${q.object.value}\u0000${
-      (q.object as { language?: string }).language ?? ''
-    }\u0000${(q.object as { datatype?: { value: string } }).datatype?.value ?? ''}\u0000${q.graph.value}`;
+    const key = quadKey(q);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(q);

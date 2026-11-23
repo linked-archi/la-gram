@@ -104,13 +104,13 @@ describe('la-gram-git check', () => {
     // deleting it and another keeping the relationship to it would leave the file.
     const lines = versions['base']!.split('\n');
     const local = portal.split('/').pop()!;
-    const start = lines.findIndex((l) => l.startsWith(`m:${local} `));
+    const start = lines.findIndex((l) => l.startsWith(`me:${local} `));
     const end = lines.findIndex((l, i) => i >= start && l.trimEnd().endsWith('.'));
     expect(start).toBeGreaterThan(0);
     write('models/shop.ttl', [...lines.slice(0, start), ...lines.slice(end + 1)].join('\n'));
     const { code, out } = await run('check', 'models/shop.ttl');
     expect(code).toBe(1);
-    expect(out).toMatch(/Its target is not in the model: .*element-/);
+    expect(out).toMatch(/Its target is not in the model: .*element\//);
     write('models/shop.ttl', versions['base']!);
   }, 60_000);
 
@@ -160,6 +160,29 @@ describe('la-gram-git check', () => {
     expect(code).toBe(0);
     expect(out).toMatch(/from the shapes' SPARQL-based rules \(advisory\)/);
     expect(out).toMatch(/\(https:\/\/meta\.linked\.archi\/archimate4\/[a-z-]+shapes#\w+\)/);
+  }, 60_000);
+
+  it('IRIs outside the layout (DD-41) are reported, not failed; names given before it as legacy; a model la-gram makes has none', async () => {
+    expect((await run('check', 'models/shop.ttl')).out).not.toContain('IRI layout');
+    const app = await createApp({ assetMode: 'offline', validationDelayMs: 1e9, validation: 'inline' });
+    await app.openModel(versions['base']!, 'shop.ttl');
+    const ns = app.session.namespace()!.namespace;
+    app.components.elementManager.createElement(AM4 + 'ApplicationComponent', app.session.modelIri!, { label: 'Old', iri: `${ns}element-0d8f2c64` });
+    app.components.elementManager.createElement(AM4 + 'ApplicationComponent', app.session.modelIri!, { label: 'By hand', iri: `${ns}crm` });
+    write('models/named.ttl', app.saveModel('turtle').text);
+    try {
+      const { code, out } = await run('check', 'models/named.ttl');
+      expect(code).toBe(0);
+      expect(out).toContain(
+        [
+          '  · IRI layout (DD-41), advisory:',
+          '  ·   1 outside it, not model, graph/… or {kind}/{id}: crm',
+          '  ·   1 named before it (legacy): element-0d8f2c64',
+        ].join('\n'),
+      );
+    } finally {
+      rmSync(join(repo, 'models/named.ttl'));
+    }
   }, 60_000);
 });
 
@@ -229,6 +252,38 @@ describe('la-gram-git merge', () => {
     expect(outcome.text).toContain('"Billing"@en');
     expect(outcome.text).not.toMatch(/<<<<<<<|>>>>>>>/);
   }, 60_000);
+
+  it('a model moved to another namespace on one side: the other side’s change is moved after it (DD-41, S7); moved apart, not merged', async () => {
+    const movedTo = async (namespace: string) => {
+      const app = await createApp({ assetMode: 'offline', validationDelayMs: 1e9, validation: 'inline' });
+      await app.openModel(versions['base']!, 'shop.ttl');
+      app.setModelNamespace(namespace);
+      return app.saveModel('turtle').text;
+    };
+    const before = /^@prefix m: <([^>]+)>/m.exec(versions['base']!)![1]!;
+    const moved = await movedTo('https://acme.com/ea/shop/');
+    const dir = mkdtempSync(join(tmpdir(), 'la-gram-git-moved-'));
+    const at = (name: string, body: string) => (writeFileSync(join(dir, name), body), join(dir, name));
+
+    for (const [ours, theirs, by] of [[moved, versions['renamed']!, 'ours'], [versions['renamed']!, moved, 'theirs']] as const) {
+      const merged = await run('merge', at('base', versions['base']!), at('ours', ours), at('theirs', theirs), 'models/shop.ttl');
+      expect(merged.code).toBe(0);
+      expect(merged.err).toContain(`la-gram-git: models/shop.ttl: ${by} moved the model to https://acme.com/ea/shop/;`);
+      const text = readFileSync(join(dir, 'ours'), 'utf8');
+      expect(text).toContain('"Invoicing"@en');
+      expect(text).toContain('@prefix m: <https://acme.com/ea/shop/>.');
+      expect(text).not.toContain(before);
+    }
+
+    const elsewhere = await movedTo('https://acme.com/ea/store/');
+    const refused = await run('merge', at('base', versions['base']!), at('ours', moved), at('theirs', elsewhere), 'models/shop.ttl');
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain(
+      'models/shop.ttl was not merged: Both sides moved the model, ours to https://acme.com/ea/shop/ and theirs to https://acme.com/ea/store/',
+    );
+    expect(readFileSync(join(dir, 'ours'), 'utf8')).toBe(moved);
+    rmSync(dir, { recursive: true, force: true });
+  }, 120_000);
 
   it('a file that is not a model — an ontology, a shapes file — is merged as Git merges text', async () => {
     const lines = ['A', 'B', 'C', 'D', 'E'].map((x) => `ex:${x} a ex:Class .`);

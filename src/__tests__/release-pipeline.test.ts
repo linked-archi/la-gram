@@ -46,7 +46,9 @@ describe("la-gram's release pipeline", () => {
     // The web app with its documentation: both artifacts, or rsync --delete would take one away.
     const final = new RegExp(/- if: \$CI_COMMIT_TAG =~ \/(.+)\/\n {2}needs:\n {4}- job: web/.exec(job('web-deploy'))![1]!);
     expect(job('web-deploy')).toMatch(/- job: web # the app, and VERSION\n {6}artifacts: true\n {4}- job: docs\n {6}artifacts: true\n {4}- job: desktop/);
-    expect([final.test(`la-gram-v${version}`), final.test('la-gram-v0.2.0-rc.1')]).toEqual([true, false]);
+    // The release package.json's version leads to: itself, or the release a pre-release (0.3.0-alpha) comes before.
+    const release = version.replace(/-.*$/, '');
+    expect([final.test(`la-gram-v${release}`), final.test('la-gram-v0.2.0-rc.1')]).toEqual([true, false]);
     expect(job('la-gram-release')).toMatch(/- job: web-deploy # not on a pre-release\n {6}artifacts: false\n {6}optional: true/);
     // The desktop apps: on la-gram's tag; by hand otherwise, never failing a request.
     expect(job('desktop')).toMatch(/- if: \$CI_COMMIT_TAG =~ \/\^la-gram-v\/\n {4}- if: \$CI_COMMIT_TAG\n {6}when: never\n {4}- when: manual\n {6}allow_failure: true/);
@@ -107,6 +109,37 @@ describe("la-gram's release pipeline", () => {
     const readme = read('README.md');
     expect(readme).toContain(`| \`LA_GRAM_DEPLOY_PATH\` | Variable | Visible | \`${folder}\` |`);
     expect(readme).toContain(`sudo mkdir -p ${folder}`);
-    expect(job('web-deploy')).toContain('rsync -az --delete --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"');
+    expect(job('web-deploy')).toContain(
+      `rsync -az --delete --filter='P /v[0-9]*/' --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/"`,
+    );
+  });
+
+  it('builds this version’s page, and keeps every earlier version’s on the server (Req 9.16)', () => {
+    // The web build writes v{version}/index.html, and the job checks it is there.
+    expect(job('web')).toContain('test -f "dist/web/v$VERSION/index.html"');
+    // --delete takes away what the build no longer has, but for the pages of the versions released before.
+    expect(job('web-deploy')).toMatch(/rsync -az --delete --filter='P \/v\[0-9\]\*\/'/);
+    // The releasing page quotes the job as it is.
+    expect(read('docs-site/developing/releasing.md')).toContain(`--filter='P /v[0-9]*/'`);
+  });
+
+  it('the alpha: the default branch built for its channel, deployed beside the release while package.json says a pre-release (Req 15.10)', () => {
+    expect(job('web')).toMatch(/- if: \$CI_COMMIT_BRANCH == \$CI_DEFAULT_BRANCH\n {6}variables:\n {8}LA_GRAM_CHANNEL: alpha/);
+    const alpha = job('alpha-deploy');
+    expect(alpha).toMatch(/rules:\n {4}- if: \$CI_COMMIT_BRANCH == \$CI_DEFAULT_BRANCH\n/);
+    expect(alpha).toMatch(/- job: web # the alpha's build, and VERSION\n {6}artifacts: true\n {4}- job: docs\n {6}artifacts: true/);
+    expect(alpha).toContain('resource_group: app-linked-archi');
+    expect(alpha).toContain('url: https://app.linked.archi/la-gram-alpha/');
+    // A release's version deploys no alpha: before the key or the server is touched.
+    expect(alpha.indexOf('*-*) ;;')).toBeLessThan(alpha.indexOf('DEPLOY_SSH_KEY'));
+    expect(alpha).toContain(
+      `rsync -az --delete --exclude='/v[0-9]*/' --chmod=D755,F644 dist/web/ "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH-alpha/"`,
+    );
+    // Its version's page beside the released versions', which web-deploy keeps (P /v[0-9]*/).
+    expect(alpha).toContain(`rsync -az --chmod=D755,F644 "dist/web/v$VERSION/" "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/v$VERSION/"`);
+    // The server serves it: the operating page's nginx rules have its location.
+    expect(read('docs-site/operating/web-app.md')).toContain('location ^~ /la-gram-alpha/ {');
+    // Between releases, package.json says the next release's alpha.
+    expect(version).toMatch(/^\d+\.\d+\.\d+(-alpha)?$/);
   });
 });

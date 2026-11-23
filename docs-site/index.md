@@ -10,7 +10,7 @@ description: la-gram, the semantic modeller for enterprise and IT architecture, 
 The model lives in an RDF store; the diagram, the model tree, the files and the collaboration document
 are views of it. la-gram works with any metamodel that follows the Linked.Archi principles, loaded while
 it runs, so the palette, the relationship rules, the notation and the validation all come from data:
-ArchiMate 4.0, ArchiMate 3.2 and Basic are bundled, every other language, framework and extension
+ArchiMate 4.0, ArchiMate 3.2, Basic and the Architecture Decisions and Architecture Processes extensions are bundled, every other language, framework and extension
 published on [meta.linked.archi](https://meta.linked.archi/) is a menu entry away, and your own loads from
 an address or a file.
 
@@ -43,4 +43,5 @@ request in [la-gram-git in CI](operating/ci.md).
 - [Troubleshooting and FAQ](troubleshooting.md): when something does not do what you expect.
 
 la-gram is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). The
-metamodels it bundles are Linked.Archi's, each under the licence it states.
+metamodels it bundles are Linked.Archi's, each under the licence it states. The open-source packages built
+into it are each under their own licence: *About la-gram › Third-party licences* lists them, with their texts.

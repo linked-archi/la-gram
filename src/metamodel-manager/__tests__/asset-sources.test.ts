@@ -196,6 +196,36 @@ describe('N3MetamodelLoader with sources', () => {
     expect(again.assets.find((a) => a.role === 'ontology')?.outcome).toBe('loaded');
   });
 
+  it('unloads the documents a metamodel\'s ontology imported too, not only those its manifest names', async () => {
+    // An ontology importing another — an extension, another version's ontology — loads it with no role; it went
+    // unlisted among the metamodel's graphs, and its types stayed on the palette after the unload.
+    const uploads = new UploadedAssetSource();
+    uploads.add('https://example.org/v3/metamodel#', `
+      @prefix arch: <https://meta.linked.archi/core#> . @prefix owl: <http://www.w3.org/2002/07/owl#> .
+      <https://example.org/v3/metamodel#> a owl:Ontology .
+      <https://example.org/v3/metamodel#V3> a arch:Metamodel ; arch:modelConcepts <https://example.org/v3/onto#> .`);
+    uploads.add('https://example.org/v3/onto#', `
+      @prefix owl: <http://www.w3.org/2002/07/owl#> .
+      <https://example.org/v3/onto#> a owl:Ontology ; owl:imports <https://example.org/v4/onto#> .
+      <https://example.org/v3/onto#A> a owl:Class .`);
+    uploads.add('https://example.org/v4/onto#', `
+      @prefix owl: <http://www.w3.org/2002/07/owl#> .
+      <https://example.org/v4/onto#> a owl:Ontology .
+      <https://example.org/v4/onto#B> a owl:Class .`);
+    const store = new OxigraphRdfStore();
+    const loader = new N3MetamodelLoader(new N3TtlParser(), store, new ChainedAssetSource([uploads, new BundledAssetSource()]));
+    const am4 = await loader.loadBundledMetamodel('archimate4');
+    const v3 = await loader.loadMetamodelByIri('https://example.org/v3/metamodel#V3');
+    expect(store.getQuads(null, null, null, namedNode('https://example.org/v4/onto#')).length).toBeGreaterThan(0);
+
+    const dropped = loader.unloadMetamodel(v3, [am4]);
+
+    expect(dropped).toEqual(expect.arrayContaining(['https://example.org/v3/onto#', 'https://example.org/v4/onto#']));
+    expect(store.getQuads(null, null, null, namedNode('https://example.org/v4/onto#'))).toHaveLength(0);
+    expect(store.getQuads(null, null, null, namedNode('https://meta.linked.archi/core#')).length).toBeGreaterThan(0);
+    expect(store.getQuads(null, null, null, namedNode('https://meta.linked.archi/archimate4/onto#')).length).toBeGreaterThan(0);
+  });
+
   it('loads the core shapes on request', async () => {
     const loader = new N3MetamodelLoader(new N3TtlParser(), new OxigraphRdfStore());
     const graphs = await loader.loadCoreAssets();

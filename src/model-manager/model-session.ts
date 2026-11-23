@@ -25,7 +25,7 @@
 import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, modelIriIn, notationSlug } from '../rdf-engine/iri.js';
-import type { Bounds, ElementManager, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
+import type { Bounds, ElementManager, Point, RelationshipManager, ViewKind, ViewManager } from './interfaces.js';
 import { migrateLegacyModel, type MigrationReport } from './legacy-migration.js';
 import { addRelationshipsToView } from './view-manager.js';
 import { classify, findModelIri, labelOf, modelQuads, typeClosure } from './model-queries.js';
@@ -44,6 +44,8 @@ import type { NamedNode } from '@rdfjs/types';
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 import { isQualifiedPredicate, qualifiedFormOf, relationshipClassOf, unqualifiedFormOf } from './cascade.js';
 import { certaintyNamed, isCertaintyPredicate, isLedTo } from './derivations.js';
+import { AUTO_LAYOUT } from './grid.js';
+import { keyDigest } from './short-hash.js';
 
 /** The slice of the event bus the session needs; structural so it stays UI-free. */
 export interface SessionEvents {
@@ -53,8 +55,6 @@ export interface SessionEvents {
 /** Name given to the view every new model starts with. */
 export const DEFAULT_VIEW_LABEL = 'Default View';
 
-/** Grid used when laying out a model that arrived with no geometry at all. */
-const AUTO_LAYOUT = { columns: 6, dx: 170, dy: 100, x0: 40, y0: 40, width: 140, height: 60 };
 
 /** Result of {@link ModelSession.adopt}. */
 export interface AdoptResult {
@@ -63,6 +63,8 @@ export interface AdoptResult {
   migration: MigrationReport;
   /** Elements placed by the automatic layout (0 when the model had geometry). */
   autoPlaced: number;
+  /** Relationships the model stated only as a direct triple, now each a resource (see `ensureRelationshipResources`). */
+  qualified: number;
 }
 
 export class ModelSession {
@@ -202,6 +204,7 @@ export class ModelSession {
     const unstated = this.unstated();
     this.ensureMembership(modelIri, unstated);
     this.ensureReifies();
+    const qualified = this.ensureRelationshipResources(modelIri);
     this.ensureQualifiedPointers(unstated);
 
     // A view to open: the first diagram, else a new one.
@@ -213,7 +216,7 @@ export class ModelSession {
       this.events?.emit('model-loaded', { modelIri, viewIri });
       this.events?.emit('view-opened', { viewIri });
     }
-    return { modelIri, viewIri, migration, autoPlaced };
+    return { modelIri, viewIri, migration, autoPlaced, qualified };
   }
 
   /** Rename the model. */
@@ -265,22 +268,34 @@ export class ModelSession {
     if (nextView) this.currentView = nextView;
 
     if (plan.mapping.size > 0) {
-      // Every IRI on the canvas may have changed: re-open the view.
-      this.events?.emit('model-loaded', { modelIri: nextModel, viewIri: this.currentView, renamed: true });
+      // Every IRI on the canvas may have changed: re-open the view. The model's old IRI goes
+      // with it, for what is kept by it (the Git module's binding to a file).
+      this.events?.emit('model-loaded', {
+        modelIri: nextModel,
+        viewIri: this.currentView,
+        renamed: true,
+        ...(nextModel !== modelIri ? { previousModelIri: modelIri } : {}),
+      });
     }
     this.events?.emit('model-changed', { namespace: target });
     return plan.mapping;
   }
 
   /**
-   * Follow a change made elsewhere (a collaborator) that replaced the model
-   * resource — a namespace change, or a new model. Re-points the session at the
-   * model now in the store and at the same view under its new IRI when there is
-   * one, then emits `model-loaded`.
+   * Follow a change that replaced the model resource in the store — a namespace
+   * change, or a new model — made elsewhere: by a collaborator, or (`moved`) by
+   * a merge or a version from Git that has the model under another IRI.
+   * Re-points the session at the model now in the store and at the same view
+   * under its new IRI when there is one, then emits `model-loaded`.
+   *
+   * The event carries the IRI the model had, `previousModelIri`, when it is the
+   * same model moved: for a collaborator's change when its view is there under
+   * the same local part, and always for a `moved` one — the merge or the
+   * version is of the same file, which the model stays bound to (DD-41).
    *
    * @returns Whether anything was re-pointed.
    */
-  resync(): boolean {
+  resync(options: { moved?: boolean } = {}): boolean {
     const modelIri = this.currentModel;
     if (!modelIri) return false;
     const stillThere = this.store
@@ -294,13 +309,20 @@ export class ModelSession {
     const previous = this.currentNamespace;
     let view: string | undefined;
     if (this.currentView && previous && this.currentView.startsWith(previous)) {
-      const local = this.currentView.slice(previous.length);
-      view = [`${namespace}${local.replace(/\//g, '-')}`, `${namespace}${local}`].find((iri) => this.views.getView(iri));
+      // A move keeps the local part (DD-41).
+      const moved = `${namespace}${this.currentView.slice(previous.length)}`;
+      if (this.views.getView(moved)) view = moved;
     }
     this.currentModel = next;
     this.currentNamespace = namespace;
     this.currentView = view ?? this.views.getViews().find((v) => v.type === 'Diagram')?.iri ?? this.views.getViews()[0]?.iri;
-    this.events?.emit('model-loaded', { modelIri: next, viewIri: this.currentView, remote: true });
+    this.events?.emit('model-loaded', {
+      modelIri: next,
+      viewIri: this.currentView,
+      ...(options.moved ? { renamed: true } : { remote: true }),
+      // The same model moved, its view there under the same local part — not another model started in the room.
+      ...(view || options.moved ? { previousModelIri: modelIri } : {}),
+    });
     return true;
   }
 
@@ -367,7 +389,7 @@ export class ModelSession {
     label: string,
     nodes: ReadonlyArray<{ iri: string; bounds: Bounds }>,
     relationships: readonly string[],
-    options: { open?: boolean; viewpointIri?: string } = {},
+    options: { open?: boolean; viewpointIri?: string; routes?: ReadonlyMap<string, Point[]> } = {},
   ): string {
     let viewIri = '';
     this.batch(() => {
@@ -377,6 +399,8 @@ export class ModelSession {
       }).value;
       for (const node of nodes) this.views.addElementToView(viewIri, node.iri, node.bounds);
       addRelationshipsToView(this.views, viewIri, relationships);
+      // Routed by the layout (ELK task, R10): by relationship, its line in this view.
+      for (const [relationshipIri, route] of options.routes ?? []) this.views.updateLinkWaypoints(viewIri, relationshipIri, route);
       this.touch();
     });
     this.events?.emit('views-changed', { viewIri });
@@ -539,6 +563,111 @@ export class ModelSession {
     }
     if (remove.length > 0) this.store.removeQuads(remove);
     if (add.length > 0) this.store.addQuads(add);
+  }
+
+  /**
+   * Make a relationship resource for every relationship the model states only as a direct triple — a file
+   * written by a tool or by hand, `?option ad:modifiesConcept ?component`, or an ArchiMate file of bare
+   * `am4:serves` — so that it is listed, drawn and given properties as any other is (decision D6 of
+   * linked-archi-meta's `decision-modelling-layer` task).
+   *
+   * A triple qualifies when a loaded relationship class names its predicate as its `arch:unqualifiedForm`,
+   * both ends are concepts of the model, and no resource reifies it. The resource is what meta's rules make of
+   * it (the ArchiMate derivation rules' `:QualifyRelationships`): the most general class of that form (a bare
+   * triple says no more than that), `arch:source` and `arch:target`, `rdf:reifies` the triple, and the IRI
+   * `{ns}relationship/{digest}` of "s p o" in the model's namespace (DD-41; {@link keyDigest}). So two windows
+   * opening the same file in one collaboration room, or a run of the rules, make the same resource, not two. It
+   * gets `arch:inModel`, and {@link ensureQualifiedPointers}, after it, the qualified predicate from its source.
+   * One made before, named `relationship-{sha1}`, keeps its name: a tool never renames.
+   *
+   * A triple of a predicate declared the `owl:inverseOf` of a drawn one (`?task ap:taskOfActivity ?activity`,
+   * of `ap:hasTask`) is the same link read the other way: the resource is made for the drawn direction, and
+   * that direction's triple is stated beside the one the file has, as a drawn link states it.
+   *
+   * A predicate two unrelated classes name as their form is left as a triple: which of them it is, the
+   * triple does not say.
+   *
+   * @returns How many resources were made.
+   */
+  private ensureRelationshipResources(modelIri: string): number {
+    const closure = typeClosure(this.store);
+    const candidates = new Map<string, Set<string>>();
+    for (const q of this.store.getQuads(null, T.unqualifiedForm, null)) {
+      if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+      if (!closure(q.subject.value).includes(IRI.QualifiedRelationship)) continue;
+      const set = candidates.get(q.object.value) ?? new Set<string>();
+      set.add(q.subject.value);
+      candidates.set(q.object.value, set);
+    }
+    const classOf = new Map<string, string>();
+    for (const [predicate, classes] of candidates) {
+      const general = [...classes].filter((c) => !closure(c).some((parent) => parent !== c && classes.has(parent)));
+      if (general.length === 1) classOf.set(predicate, general[0]!);
+    }
+    if (classOf.size === 0) return 0;
+    // A predicate read the other way: its inverse is drawn.
+    const reversedOf = new Map<string, string>();
+    for (const q of this.store.getQuads(null, T.inverseOf, null)) {
+      if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+      const [x, y] = [q.subject.value, q.object.value];
+      if (classOf.has(y) && !classOf.has(x)) reversedOf.set(x, y);
+      if (classOf.has(x) && !classOf.has(y)) reversedOf.set(y, x);
+    }
+
+    const model = MODEL_GRAPH;
+    const reified = new Set<string>();
+    for (const q of this.store.getQuads(null, T.reifies, null, model)) {
+      if (q.object.termType !== 'Quad') continue;
+      const term = q.object as unknown as Quad;
+      reified.add(`${term.subject.value} ${term.predicate.value} ${term.object.value}`);
+    }
+    const typesOf = new Map<string, string[]>();
+    for (const q of this.store.getQuads(null, T.rdfType, null, model)) {
+      if (q.subject.termType !== 'NamedNode') continue;
+      const list = typesOf.get(q.subject.value) ?? [];
+      list.push(q.object.value);
+      typesOf.set(q.subject.value, list);
+    }
+    const isConcept = (iri: string): boolean => {
+      const types = typesOf.get(iri);
+      if (!types) return false;
+      const kind = classify(types, closure, true);
+      return kind === 'element' || kind === 'relationship' || kind === 'unclassified';
+    };
+
+    const namespace = ensureNamespace(this.currentNamespace ?? readModelNamespace(this.store, modelIri).namespace);
+    const add: Quad[] = [];
+    let made = 0;
+    const qualify = (source: string, predicate: string, target: string, stated: boolean): void => {
+      const key = `${source} ${predicate} ${target}`;
+      if (reified.has(key) || !isConcept(source) || !isConcept(target)) return;
+      reified.add(key);
+      made += 1;
+      const rel = nn(`${namespace}relationship/${keyDigest(key)}`);
+      add.push(
+        triple(rel, T.rdfType, nn(classOf.get(predicate)!)),
+        triple(rel, T.source, nn(source)),
+        triple(rel, T.target, nn(target)),
+        triple(rel, T.reifies, tripleTerm(nn(source), nn(predicate), nn(target))),
+        triple(rel, T.inModel, nn(modelIri)),
+      );
+      if (!stated) add.push(triple(nn(source), nn(predicate), nn(target)));
+    };
+    for (const predicate of classOf.keys()) {
+      for (const q of this.store.getQuads(null, nn(predicate), null, model)) {
+        if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+        qualify(q.subject.value, predicate, q.object.value, true);
+      }
+    }
+    for (const [inverse, predicate] of reversedOf) {
+      for (const q of this.store.getQuads(null, nn(inverse), null, model)) {
+        if (q.subject.termType !== 'NamedNode' || q.object.termType !== 'NamedNode') continue;
+        const stated = this.store.getQuads(nn(q.object.value), nn(predicate), nn(q.subject.value), model).length > 0;
+        qualify(q.object.value, predicate, q.subject.value, stated);
+      }
+    }
+    if (add.length > 0) this.store.addQuads(add);
+    return made;
   }
 
   /**

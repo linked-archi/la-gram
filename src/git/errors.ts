@@ -25,6 +25,8 @@ export class GitError extends Error {
     readonly kind: GitErrorKind,
     message: string,
     readonly status?: number,
+    /** Earliest retry time supplied by the host, in epoch milliseconds. */
+    readonly retryAt?: number,
   ) {
     super(message);
     this.name = 'GitError';
@@ -57,11 +59,11 @@ export function networkError(host: string): GitError {
  * @param hint Words the host sent that say which failure it is (GitLab answers
  *   400 for several); only matched, never shown.
  */
-export function responseError(status: number, what: string, options: { rateLimited?: boolean; hint?: string } = {}): GitError {
+export function responseError(status: number, what: string, options: { rateLimited?: boolean; hint?: string; retryAt?: number } = {}): GitError {
   const hint = (options.hint ?? '').toLowerCase();
   if (status === 401) return new GitError('auth', 'The token was refused: it is wrong, or it has expired.', status);
   if (status === 429 || (status === 403 && options.rateLimited)) {
-    return new GitError('rate-limit', 'The host’s rate limit is reached. Try again in a few minutes.', status);
+    return new GitError('rate-limit', 'The host’s rate limit is reached. Try again later.', status, options.retryAt);
   }
   if (status === 403) {
     return new GitError(
@@ -78,7 +80,7 @@ export function responseError(status: number, what: string, options: { rateLimit
     return new GitError('conflict', `${capitalize(what)} changed in the repository since it was opened or last saved.`, status);
   }
   if (status === 413 || /too large|too big/.test(hint)) return new GitError('too-large', `${capitalize(what)} is too large for the host.`, status);
-  if (status >= 500) return new GitError('server', `The host had a problem (${status}). Try again.`, status);
+  if (status >= 500) return new GitError('server', `The host had a problem (${status}). Try again.`, status, options.retryAt);
   return new GitError('invalid', `The host refused the request for ${what} (${status}).`, status);
 }
 

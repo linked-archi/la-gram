@@ -432,8 +432,16 @@ export function resolveNotationSetForContext(store: Store, presentationContextIr
 }
 
 /**
+ * The namespace of the core's own notation (`core/core-notation.ttl`): the notation of the core's relationship
+ * types, which no manifest names — loaded with the core, consulted last, never the set a palette is styled by
+ * (VC-DD-5, `coreNotationSetIris`).
+ */
+export const CORE_NOTATION_NS = 'https://meta.linked.archi/core-notation#';
+
+/**
  * Default notation set: `arch:notationSet` on an `arch:Metamodel`, then any
- * `arch:notationSet` statement, then any declared `arch-vis:NotationSet`.
+ * `arch:notationSet` statement, then any declared `arch-vis:NotationSet` — the
+ * core notation's aside, which no language is drawn with.
  */
 function resolveDefaultNotationSet(store: Store): string | null {
   for (const metamodel of store.getSubjects(namedNode(RDF_TYPE), namedNode(T.metamodel), null)) {
@@ -445,7 +453,7 @@ function resolveDefaultNotationSet(store: Store): string | null {
     if (quad.object.termType === 'NamedNode') return quad.object.value;
   }
   for (const subject of store.getSubjects(namedNode(RDF_TYPE), namedNode(T.notationSetClass), null)) {
-    if (subject.termType === 'NamedNode') return subject.value;
+    if (subject.termType === 'NamedNode' && !subject.value.startsWith(CORE_NOTATION_NS)) return subject.value;
   }
   return null;
 }

@@ -1,6 +1,6 @@
 ---
 title: Bundled metamodels and icons
-description: How la-gram's bundled snapshot of meta.linked.archi is refreshed from a linked-archi-meta checkout, and how its icons are rendered.
+description: Refresh la-gram's bundled semantic assets from meta.linked.archi or a local checkout, and render its application icons.
 ---
 # Bundled metamodels and icons
 
@@ -11,64 +11,79 @@ la-gram-git use it alone ([`assets`](../reference/url-parameters.md#assets)), an
 as it is ([Building](building.md#bundled-assets)). Everything in it is meta.linked.archi's: do not edit
 it by hand.
 
+LeanIX and other languages outside this snapshot load from meta.linked.archi when selected. Their
+documents are fetched with HTTP revalidation and kept in memory for that session. After publishing
+new resources, reopen la-gram to load them again. Listing a language in the bundled catalogue does
+not mean its semantic documents are bundled for offline use.
+
 ## `npm run sync-assets` {#npm-run-sync-assets}
 
-Refreshes `assets/` from a checkout of `linked-archi-meta`, the repository meta.linked.archi is published
-from. It keeps no map of its own: it runs that checkout's own publishing scripts
-(`.scripts/copy-ttl-sources.sh` and `.scripts/copy-icon-assets.sh`) into a temporary folder, a local
-stand-in for the published site, then refreshes each bundled file from its published path:
+Refreshes `assets/` from **https://meta.linked.archi/** by default. No local meta checkout is required.
+The published files are copied byte for byte into the snapshot:
 
-- a `.ttl` file from `<its namespace's path>/ontology.ttl`, the namespace read from the bundled copy as
-  the publishing script reads it (`vann:preferredNamespaceUri`, else `@prefix :`, else `@base`);
-- anything else (icons, glyphs, markers) from the same relative path; new files in a bundled icon folder
-  are added too;
-- the catalogue from the checkout's last generated site, `.onto-docs/catalog.ttl`, because generating it
-  takes minutes. Run `.scripts/docgen/generate-docs.sh` there first for a current one. Without it, the
-  bundled catalogue stays, and the run says so.
+- Turtle documents from `<their namespace's path>/ontology.ttl`, using the namespace in the bundled
+  copy (`vann:preferredNamespaceUri`, else `@prefix :`, else `@base`);
+- icons, glyphs and markers from their paths relative to the published site;
+- the catalogue from `https://meta.linked.archi/catalog.ttl`.
+
+The online sync also downloads newly referenced icons within folders already bundled, discovered
+from the notation documents it downloads. It refreshes the bundled languages; it does not add every
+language listed in the catalogue or discover new Turtle dependencies.
+
+```sh
+npm run sync-assets -- --check
+npm run sync-assets
+npm run build
+```
+
+`--check` compares with the selected source without changing files. An online request that fails
+fails the sync: there is no fallback to a local checkout or a successful result based on the old
+snapshot. Every required download is staged before the snapshot is changed, so a network failure
+leaves `assets/` intact.
+
+### Choosing a source {#sync-source}
 
 | Option | Values | Default |
 |---|---|---|
-| `--check` | only report what differs; change nothing | off: update `assets/` |
-| `--meta <path>` | the `linked-archi-meta` checkout | **`../../../linked-archi-meta`**, from la-gram's folder |
-| `LINKED_ARCHI_META=<path>` | the same, from the environment; `--meta` wins over it | — |
+| `--check` | compare only; change nothing | **off**: update `assets/` |
+| `--meta <path>` | explicitly use a `linked-archi-meta` checkout | **unset**: use the published site |
+| `LINKED_ARCHI_META=<path>` | select a local checkout from the environment; `--meta` takes precedence | **unset**: use the published site |
+| `--online` | use the published site even when `LINKED_ARCHI_META` is set | **off**: honour an explicit local source |
+| `--help`, `-h` | show usage without syncing | **off** |
+
+`--online` and `--meta` are alternative source choices; passing both is a usage error.
+
+To work with an unpublished meta checkout:
+
+```sh
+npm run sync-assets -- --meta ../../../linked-archi-meta
+```
+
+Local mode runs that checkout's publishing scripts (`.scripts/copy-ttl-sources.sh` and
+`.scripts/copy-icon-assets.sh`) into a temporary folder, then copies the bundled files from their
+published paths. New files in a bundled icon folder are included. The catalogue comes from the
+checkout's last generated site, `.onto-docs/catalog.ttl`; run `.scripts/docgen/generate-docs.sh` in
+that checkout first for a current full catalogue. When the generated catalogue is missing, the
+bundled catalogue is kept and the run reports it. A successful local `--check` compares with the
+checkout's generated files; it does not establish that its catalogue reflects the current sources.
+
+To select the published site despite an environment override:
+
+```sh
+LINKED_ARCHI_META=../../../linked-archi-meta npm run sync-assets -- --online --check
+```
 
 | Exit code | Means |
 |---|---|
-| **0** | done; with `--check`, nothing differs |
-| **1** | with `--check`: something differs or is missing |
-| **2** | no checkout at the path: *No linked-archi-meta checkout at … (pass --meta <path> or set LINKED_ARCHI_META).* |
+| **0** | updated successfully; with `--check`, nothing differs |
+| **1** | `--check` found differences or missing files, or an online request failed |
+| **2** | invalid arguments or an unavailable local checkout |
 
-After an update, rebuild (`npm run build`) to ship it: each build's `?v=` digest of `assets/` changes
-with it, so browsers load the new files ([Building](building.md#assets-version)).
-`LINKED_ARCHI_META` and exit code 2 are not in the README; they are in the script.
+### Building the snapshot {#building-the-snapshot}
 
-What a check says today (the checkout's path shortened):
-
-```console
-$ npm run sync-assets -- --check
-
-> la-gram@0.1.0 sync-assets
-> node scripts/sync-assets.mjs --check
-
-linked-archi-meta: …/linked-archi-meta
-262 unchanged, 1 differ, 0 missing, 0 la-gram's own (not published by linked-archi-meta)
-  differs  catalog.ttl  ←  .onto-docs/catalog.ttl
-```
-
-It exits 1: the checkout's generated catalogue differs from the bundled one. `npm run sync-assets` would
-copy it into `assets/`, then a rebuild ships it.
-
-The checkout named by the environment gives the same; a path with no checkout exits 2:
-
-```console
-$ LINKED_ARCHI_META=../../../linked-archi-meta npm run sync-assets -- --check
-…
-262 unchanged, 1 differ, 0 missing, 0 la-gram's own (not published by linked-archi-meta)
-  differs  catalog.ttl  ←  .onto-docs/catalog.ttl
-$ npm run sync-assets -- --check --meta /tmp/la-gram-docs-nowhere
-…
-No linked-archi-meta checkout at /tmp/la-gram-docs-nowhere (pass --meta <path> or set LINKED_ARCHI_META).
-```
+After an update, rebuild (`npm run build`) to ship it. Each build's `?v=` digest of `assets/` changes
+with the snapshot, so browsers load the new files ([Building](building.md#assets-version)). Builds
+copy the snapshot as it stands and do not run the sync command automatically.
 
 ## `npm run icons` {#npm-run-icons}
 

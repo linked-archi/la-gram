@@ -20,6 +20,7 @@ import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js
 import type { RelationshipManager } from '../../model-manager/interfaces.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import { labelFitsInside } from './notation-shapes.js';
+import { isDrawingOnly } from './view-reference.js';
 
 /**
  * What a permitted connection *is*, not merely that it is permitted.
@@ -282,9 +283,10 @@ export class RdfRules extends RuleProvider {
    * unknown, which is the state during a drag before the target is hovered.
    */
   private checkConnect(context: ConnectContext): RdfConnectionAttrs | false | undefined {
-    // A figure — a group, a shape, a note — is drawing: no relationship has it
-    // as an end, but a line may join it to an element or another figure.
-    if (isFigure(context.source) || isFigure(context.target)) return this.checkConnector(context);
+    // A group, a shape, a note is drawing: no relationship has it as an end, but a line may join it to an element
+    // or another figure. A reference to another view is its view's placement: a relationship may end on the view,
+    // its class the reference's type (VC-DD-2).
+    if (isDrawingOnly(context.source) || isDrawingOnly(context.target)) return this.checkConnector(context);
     const sourceType = context.source?.businessObject?.typeIri;
     const targetType = context.target?.businessObject?.typeIri;
     if (!sourceType || !targetType) return undefined;
@@ -303,9 +305,10 @@ export class RdfRules extends RuleProvider {
    * dropped, while the model still had it on its element.
    */
   private checkReconnect(context: ConnectContext): RdfConnectionAttrs | false {
-    // A line drawn from a figure keeps a figure at an end; a relationship's keeps none.
+    // A line drawn from a figure keeps drawing at an end; a relationship's keeps none — its ends are concepts, a
+    // reference's view among them.
     const connector = context.connection?.businessObject?.kind === 'connector';
-    const figureEnd = isFigure(context.source) || isFigure(context.target);
+    const figureEnd = isDrawingOnly(context.source) || isDrawingOnly(context.target);
     if (connector !== figureEnd) return false;
     return this.checkConnect(context) || false;
   }
@@ -371,7 +374,7 @@ function isElementShape(target: RuleTarget | undefined): boolean {
   return Boolean(target && !target.waypoints && target.businessObject?.typeIri && target.parent);
 }
 
-/** A figure: a group, a shape or a note, standing for no model element. */
+/** A figure: a group, a shape or a note, standing for no model element — or a reference to a view, drawn as one. */
 function isFigure(target: RuleTarget | undefined): boolean {
   return target?.businessObject?.kind === 'figure';
 }
@@ -379,14 +382,16 @@ function isFigure(target: RuleTarget | undefined): boolean {
 /**
  * Whether shapes may be dropped into `target`: the diagram, or an element or a
  * figure big enough to hold them — not a relationship, not a junction, not a
- * note, and not one of the shapes moved or anything inside them.
+ * note, not a reference to another view, and not one of the shapes moved or
+ * anything inside them.
  */
 function canContain(target: RuleTarget | undefined, moved: readonly RuleTarget[] = []): boolean {
   if (!target) return true;
   if (target.waypoints) return false;
   const figure = isFigure(target);
   if (!figure && !isElementShape(target)) return true;
-  if (figure && target.businessObject?.figure?.kind === 'note') return false;
+  const kind = figure ? target.businessObject?.figure?.kind : undefined;
+  if (kind === 'note' || kind === 'reference') return false;
   if (!labelFitsInside(target.width ?? 0, target.height ?? 0)) return false;
   for (let at: RuleTarget | undefined = target; at; at = at.parent) {
     if (moved.includes(at)) return false;

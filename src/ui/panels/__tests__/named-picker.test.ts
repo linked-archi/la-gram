@@ -133,4 +133,49 @@ describe('<named-picker>', () => {
     expect(submitted).toEqual(['Element 2']);
     expect(picker.choice?.text).toBe(true);
   });
+
+  it('filters by kind beside the name: a switch per group, all on at first', async () => {
+    const CONCEPTS: NamedOption[] = [
+      { iri: 'urn:e:gateway', label: 'Payments Gateway', detail: 'Application Component', groupLabel: 'Elements' },
+      { iri: 'urn:e:ledger', label: 'Ledger', detail: 'Application Component', groupLabel: 'Elements' },
+      { iri: 'urn:r:serves', label: 'Gateway serves Ledger', detail: 'Serving', groupLabel: 'Relationships' },
+      { iri: 'urn:v:main', label: 'Main', detail: 'View', groupLabel: 'Views' },
+    ];
+    const { root, open, type, settle } = await mount((p) => {
+      p.options = () => CONCEPTS;
+      p.groupFilter = true;
+    });
+    await open();
+    const names = () => [...root.querySelectorAll('.option .name')].map((n) => n.textContent);
+    const kinds = () => [...root.querySelectorAll<HTMLButtonElement>('.kinds .kind')];
+    expect(kinds().map((k) => [k.textContent?.trim(), k.getAttribute('aria-pressed')])).toEqual([
+      ['Elements', 'true'],
+      ['Relationships', 'true'],
+      ['Views', 'true'],
+    ]);
+    expect(names()).toHaveLength(4);
+
+    kinds()[0]!.click();
+    await settle();
+    expect(names()).toEqual(['Gateway serves Ledger', 'Main']);
+    // With the name filter too.
+    await type('gateway');
+    expect(names()).toEqual(['Gateway serves Ledger']);
+    kinds()[0]!.click();
+    kinds()[1]!.click();
+    await settle();
+    expect(names()).toEqual(['Payments Gateway']);
+  });
+
+  it('has no kind switches unless asked, nor with one group', async () => {
+    const plain = await mount();
+    await plain.open();
+    expect(plain.root.querySelector('.kinds')).toBeNull();
+    const single = await mount((p) => {
+      p.groupFilter = true;
+      p.options = () => TYPES.slice(0, 2);
+    });
+    await single.open();
+    expect(single.root.querySelector('.kinds')).toBeNull();
+  });
 });

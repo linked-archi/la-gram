@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { aboutBlocks, BUILD, downloadBlocks, isMacPlatform, keyCombo, runtimeOf, shortcutBlocks, systemOf, versionText, type AboutContext } from '../help.js';
-import { DESKTOP_DOWNLOADS, docsHref, HELP_LINKS, helpHref, LA_GRAM_DOCS } from '../../help-links.js';
+import { DESKTOP_DOWNLOADS, docsHref, HELP_LINKS, helpHref, LA_GRAM_DOCS, licencesHref } from '../../help-links.js';
 
 const ELECTRON =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) la-gram/0.1.0 Chrome/142.0.7444.59 Electron/44.9.0 Safari/537.36';
@@ -39,12 +39,16 @@ describe('the keyboard shortcuts', () => {
   it('by where they work, each a key and what it does', () => {
     const blocks = shortcutBlocks(false);
     const headings = blocks.filter((b) => b.kind === 'heading').map((b) => (b as { text: string }).text);
-    expect(headings).toEqual(['On the canvas', 'Views', 'Model tree', 'SPARQL', 'Dialogs and lists']);
+    expect(headings).toEqual(['Files', 'On the canvas', 'Views', 'Model tree', 'SPARQL', 'Dialogs and lists']);
     const rows = blocks.flatMap((b) => (b.kind === 'rows' ? b.rows : []));
+    expect(rows).toContainEqual(['Ctrl+O', 'Open a model file (File › Open…)']);
+    expect(rows).toContainEqual(['Ctrl+S', 'Save the model as TriG (File › Save)']);
     expect(rows).toContainEqual(['Ctrl+Y / Ctrl+Shift+Z', 'Redo']);
     expect(rows).toContainEqual(['F2 / Double-click', 'Rename the selected element or relationship']);
     expect(rows).toContainEqual(['Alt+← / Alt+→', 'The view before, the view after']);
     expect(rows).toContainEqual(['Ctrl+Enter', 'Run the query']);
+    expect(rows).toContainEqual(['Ctrl+Alt+V', 'Paste as references: the same elements, placed again']);
+    expect(rows).toContainEqual(['Ctrl+D', 'Duplicate the selection, as copies']);
     expect(blocks.every((b) => b.kind !== 'rows' || b.keys)).toBe(true);
     const mac = shortcutBlocks(true).flatMap((b) => (b.kind === 'rows' ? b.rows : []));
     expect(mac).toContainEqual(['⌘Y / ⇧⌘Z', 'Redo']);
@@ -143,6 +147,17 @@ describe('About la-gram', () => {
     // About too, beside the web app where it runs in one.
     const about = aboutBlocks({ ...context, appBase: 'https://models.acme.example/tools/la-gram/' });
     expect(about.flatMap((b) => (b.kind === 'links' ? b.links.map((l) => l.href) : []))[0]).toBe('https://models.acme.example/tools/la-gram/docs/');
+  });
+
+  it('links the licences of every bundled package: beside the web app it runs from; from the desktop app, the published web app\'s (Req 15.5, 15.9)', () => {
+    const licences = (appBase?: string) =>
+      aboutBlocks({ ...context, ...(appBase ? { appBase } : {}) })
+        .flatMap((b) => (b.kind === 'links' ? b.links : []))
+        .find((l) => l.label === 'Third-party licences')?.href;
+    expect(licences('https://models.acme.example/tools/la-gram/index.html')).toBe('https://models.acme.example/tools/la-gram/third-party-licences.txt');
+    expect(licences('http://localhost:8080/')).toBe('http://localhost:8080/third-party-licences.txt');
+    expect(licences()).toBe('https://app.linked.archi/la-gram/third-party-licences.txt');
+    expect(licencesHref()).toBe(licences());
   });
 
   it("la-gram's documentation is the copy beside the web app, wherever it is deployed; from the desktop app, the published one", () => {

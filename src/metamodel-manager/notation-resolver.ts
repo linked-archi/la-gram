@@ -10,9 +10,10 @@
  * For a class C, the active set A is the set that the active presentation
  * context names with `arch:usesNotationSet`, or else the primary metamodel's
  * `arch:notationSet`. The fallback layers F are the default sets
- * (`arch:notationSet`) of all loaded metamodels except A itself, in load order.
- * F includes the default set of A's own metamodel when a presentation context
- * picked an alternative set.
+ * (`arch:notationSet`) of all loaded metamodels except A itself, in load order,
+ * then the core notation's ({@link coreNotationSetIris}), which no manifest
+ * names: it draws the core's own relationship types. F includes the default set
+ * of A's own metamodel when a presentation context picked an alternative set.
  *
  * 1. A descriptor in A for C.
  * 2. A descriptor for C in F, the first match in load order.
@@ -49,6 +50,7 @@ import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { compareIris, superClassesNearestFirst } from './class-hierarchy.js';
 import {
   buildVisualNotations,
+  CORE_NOTATION_NS,
   type NotationSet,
   type RelationshipVisualStyle,
   type RenderingMode,
@@ -62,6 +64,7 @@ const RDF_TYPE = `${NAMESPACES.rdf}type`;
 const ARCH_METAMODEL = `${NAMESPACES.arch}Metamodel`;
 const ARCH_NOTATION_SET = `${NAMESPACES.arch}notationSet`;
 const ARCH_PREF_VIS_NOTATION = `${NAMESPACES.arch}prefVisNotation`;
+const ARCH_VIS_NOTATION_SET = `${NAMESPACES['arch-vis']}NotationSet`;
 
 /** Which step of the lookup produced an answer, in lookup order. */
 export type NotationSource =
@@ -225,6 +228,22 @@ export function storeDefaultNotationSetIris(graph: Store): string[] {
   }
   pairs.sort(([m1, s1], [m2, s2]) => compareIris(m1, m2) || compareIris(s1, s2));
   return [...new Set(pairs.map(([, set]) => set))];
+}
+
+/**
+ * The core notation's sets (`core/core-notation.ttl`), in IRI order: the last
+ * fallback layers, after every loaded metamodel's default set (VC-DD-5). No
+ * manifest names them — they draw the core's own relationship types, whatever
+ * the language: Association, Depends On, and Has Part and Refines, which
+ * nesting may draw with the part or the refining concept inside — so a
+ * language's own descriptor for a core class comes first.
+ */
+export function coreNotationSetIris(graph: Store): string[] {
+  const sets = graph
+    .getSubjects(namedNode(RDF_TYPE), namedNode(ARCH_VIS_NOTATION_SET), null)
+    .filter((set) => set.termType === 'NamedNode' && set.value.startsWith(CORE_NOTATION_NS))
+    .map((set) => set.value);
+  return [...new Set(sets)].sort(compareIris);
 }
 
 function exactMatch(

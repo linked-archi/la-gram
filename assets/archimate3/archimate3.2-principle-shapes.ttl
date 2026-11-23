@@ -358,7 +358,9 @@ notation's elements and, with ArchiMate 4.0 loaded too, does not report an eleme
     skos:definition
         '''Business processes should not directly depend on technology
         layer elements. An application layer should mediate between
-        business and technology.'''@en ;
+        business and technology. The physical elements, part of the
+        Technology Layer, are left out: equipment may serve a process
+        directly.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate3/principle-shapes#> ;
         sh:message  "Business process {$this} has a direct serving/realization dependency on technology element {?tech}. Introduce an application layer mediator."@en ;
@@ -372,6 +374,7 @@ notation's elements and, with ArchiMate 4.0 loaded too, does not report an eleme
                     ?tech am:realizes $this .
                 }
                 ?tech rdf:type/rdfs:subClassOf* am:TechnologyLayerElement .
+                FILTER NOT EXISTS { ?tech rdf:type/rdfs:subClassOf* am:PhysicalLayerElement }
             }
         """ ;
     ] ;
@@ -477,7 +480,8 @@ notation's elements and, with ArchiMate 4.0 loaded too, does not report an eleme
     skos:definition
         '''Application services realized by components deployed on
         many different technology nodes may indicate excessive
-        technology diversity.'''@en ;
+        technology diversity. The physical elements, part of the
+        Technology Layer, are not counted.'''@en ;
     sh:sparql [
         sh:prefixes <https://meta.linked.archi/archimate3/principle-shapes#> ;
         sh:message  "Application service {$this} depends on {?nodeCount} distinct technology nodes. Consider standardizing."@en ;
@@ -492,6 +496,7 @@ notation's elements and, with ArchiMate 4.0 loaded too, does not report an eleme
                 ?node (am:serves|am:realizes|am:assignedTo/am:realizes) ?app .
                 ?node rdf:type/rdfs:subClassOf* am:TechnologyLayerElement ,
                                                 am:ActiveStructureElement .
+                FILTER NOT EXISTS { ?node rdf:type/rdfs:subClassOf* am:PhysicalLayerElement }
             }
             GROUP BY $this
             HAVING (COUNT(DISTINCT ?node) > 3)

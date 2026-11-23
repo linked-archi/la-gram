@@ -262,6 +262,26 @@ describe('actionsFor', () => {
     );
   });
 
+  it('offers to reference a view in the open diagram — another view, with a diagram open (VR-2)', () => {
+    const view = (iri: string): TreeNode => ({ id: iri, iri, kind: 'view', label: iri, children: [] });
+    expect(actionsFor(view('v'), { openDiagram: 'd' }).slice(0, 2)).toEqual([
+      { action: 'open-view', label: 'Open' },
+      { action: 'reference-in-view', label: 'Reference in the open view' },
+    ]);
+    // Its own row, or with no diagram open — a catalog or a matrix, or nothing — no.
+    expect(actionsFor(view('d'), { openDiagram: 'd' }).map((a) => a.action)).not.toContain('reference-in-view');
+    expect(actionsFor(view('v')).map((a) => a.action)).not.toContain('reference-in-view');
+  });
+
+  it('marks a view referenced in the open diagram as placed there, and selects its references on the canvas (VC-1)', () => {
+    const tree = buildModelTree(contents(), `${M}/view/1`, new Set([`${M}/view/2`]));
+    expect(find(tree, (n) => n.iri === `${M}/view/2`)?.placed).toBe(true);
+    expect(find(tree, (n) => n.iri === `${M}/view/1`)?.placed).toBeUndefined();
+    const placed: TreeNode = { id: 'v', iri: 'v', kind: 'view', label: 'v', placed: true, children: [] };
+    expect(actionsFor(placed, { openDiagram: 'd' }).slice(0, 3).map((a) => a.action)).toEqual(['open-view', 'reveal', 'reference-in-view']);
+    expect(actionsFor({ ...placed, placed: undefined }).map((a) => a.action)).not.toContain('reveal');
+  });
+
   it('makes a folder in a group and in a folder of the model; moves a concept only when there are folders', () => {
     const actions = (n: TreeNode, folders = false) => actionsFor(n, { folders }).map((a) => a.action);
     expect(actions({ id: 'm', iri: 'm', kind: 'model', label: 'M', children: [] })).not.toContain('new-folder');
@@ -310,8 +330,17 @@ describe('actionsFor', () => {
     expect(actions({ id: 'r', iri: 'r', kind: 'relationship', label: 'R', children: [] }, true)).toContain('move-to-folder');
     // A derivation is not the model's: nothing to file.
     expect(actions({ id: 'd', iri: 'd', kind: 'relationship', label: 'D', derivation: 'potential', children: [] }, true)).not.toContain('move-to-folder');
-    // Several selected: moving them is all there is.
-    expect(actionsFor(element, { folders: true, many: 3 })).toEqual([{ action: 'move-to-folder', label: 'Move 3 elements to folder…' }]);
+    // Copied to paste into a diagram — an element or a relationship, not a view, nor a derivation the model does not state.
+    expect(actions(element)).toContain('copy');
+    expect(actions({ id: 'r', iri: 'r', kind: 'relationship', label: 'R', children: [] })).toContain('copy');
+    expect(actions({ id: 'v', iri: 'v', kind: 'view', label: 'V', children: [] }, true)).not.toContain('copy');
+    expect(actions({ id: 'd', iri: 'd', kind: 'relationship', label: 'D', derivation: 'potential', children: [] }, true)).not.toContain('copy');
+    // Several selected: copying them and moving them is all there is.
+    expect(actionsFor(element, { folders: true, many: 3 })).toEqual([
+      { action: 'copy', label: 'Copy 3 elements' },
+      { action: 'move-to-folder', label: 'Move 3 elements to folder…' },
+    ]);
+    expect(actionsFor(element, { many: 3 })).toEqual([{ action: 'copy', label: 'Copy 3 elements' }]);
   });
 });
 
@@ -383,6 +412,40 @@ describe('<model-explorer>', () => {
     expect(drags).toHaveLength(0);
     document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
     expect(drags.map((d) => d.iri)).toEqual([`${M}/element/c`]);
+  });
+
+  it('drags a view’s row onto the canvas too, saying it is a view’s: a reference to it is made there (VR-1)', async () => {
+    const el = await mount();
+    const drags: ExplorerDragDetail[] = [];
+    el.addEventListener('explorer-drag-start', (e) => drags.push((e as CustomEvent<ExplorerDragDetail>).detail));
+    row(el, `${M}/view/2`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 10, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: 30, clientY: 10 }));
+    row(el, `${M}/element/c`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: 10, clientY: 10 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 10 }));
+    expect(drags.map((d) => [d.iri, d.kind])).toEqual([
+      [`${M}/view/2`, 'view'],
+      [`${M}/element/c`, 'element'],
+    ]);
+  });
+
+  it('offers Reference in the open view on another view’s row while a diagram is open, and reports it', async () => {
+    const el = await mount();
+    const actions: ExplorerActionDetail[] = [];
+    el.addEventListener('explorer-action', (e) => actions.push((e as CustomEvent<ExplorerActionDetail>).detail));
+    const menuOf = async (iri: string) => {
+      row(el, iri).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
+      await el.updateComplete;
+      return el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="reference-in-view"]');
+    };
+    // The open view, Main, is a diagram: its own row has no such entry; the catalog's has.
+    expect(await menuOf(`${M}/view/1`)).toBeNull();
+    (await menuOf(`${M}/view/2`))!.click();
+    expect(actions).toEqual([{ action: 'reference-in-view', iri: `${M}/view/2`, kind: 'view' }]);
+    // With the catalog open, nothing is referenced in it.
+    el.activeViewIri = `${M}/view/2`;
+    await el.updateComplete;
+    expect(await menuOf(`${M}/view/1`)).toBeNull();
   });
 
   it('refreshes when the model changes — once for the events of one task', async () => {
@@ -501,11 +564,11 @@ describe('<model-explorer>', () => {
       await click(`${M}/element/a`, { shiftKey: true });
       expect(selected()).toEqual([`${M}/view/1`, `${M}/view/2`, `${M}/element/b`, `${M}/element/a`]);
 
-      // Right-clicked among them: the menu moves those of its group, and they stay selected.
+      // Right-clicked among them: the menu copies and moves those of its group, and they stay selected.
       row(el, `${M}/element/a`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 }));
       await el.updateComplete;
       const entries = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('.menu button')].map((b) => b.textContent?.trim());
-      expect(entries).toEqual(['Move 2 elements to folder…']);
+      expect(entries).toEqual(['Copy 2 elements', 'Move 2 elements to folder…']);
       expect(selected()).toHaveLength(4);
       el.shadowRoot!.querySelector<HTMLButtonElement>('.menu [data-action="move-to-folder"]')!.click();
       expect(actions).toEqual([

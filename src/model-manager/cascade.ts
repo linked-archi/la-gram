@@ -53,14 +53,28 @@ export function unqualifiedFormOf(store: RdfStore, classIri: string): string | u
  * A relationship class's qualified predicate — the property from a source to
  * its relationship resource, which a metamodel declares with the class as its
  * `rdfs:range` and an `arch:unqualifiedForm` (`am4:qualifiedRealization` for
- * `am4:Realization`) — else core's fallback, `arch:hasQualifiedRelationship`.
+ * `am4:Realization`) — or its nearest superclass's — else core's fallback, `arch:hasQualifiedRelationship`.
  */
 export function qualifiedFormOf(store: RdfStore, classIri: string): string {
-  const declared = store
-    .getQuads(null, RDFS_RANGE, nn(classIri))
-    .map((q) => q.subject)
-    .find((p) => p.termType === 'NamedNode' && store.getQuads(p as NamedNode, T.unqualifiedForm).length > 0);
-  return declared?.value ?? IRI.hasQualifiedRelationship;
+  // The class's own, else the nearest superclass's: a kind of relationship with no qualified property of its own
+  // (the decision extension's Supporting Influence, a kind of Force Influence) is reached by its parent's.
+  const RDFS_SUBCLASS = nn(NAMESPACES.rdfs + 'subClassOf');
+  const seen = new Set<string>();
+  for (let level = [classIri]; level.length > 0; ) {
+    for (const cls of level) {
+      seen.add(cls);
+      const declared = store
+        .getQuads(null, RDFS_RANGE, nn(cls))
+        .map((q) => q.subject)
+        .find((p) => p.termType === 'NamedNode' && store.getQuads(p as NamedNode, T.unqualifiedForm).length > 0);
+      if (declared) return declared.value;
+    }
+    level = level
+      .flatMap((cls) => store.getQuads(nn(cls), RDFS_SUBCLASS).map((q) => q.object))
+      .filter((o) => o.termType === 'NamedNode' && !seen.has(o.value))
+      .map((o) => o.value);
+  }
+  return IRI.hasQualifiedRelationship;
 }
 
 /**

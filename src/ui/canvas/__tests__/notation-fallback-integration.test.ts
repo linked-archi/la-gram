@@ -87,9 +87,8 @@ describe('Basic notation through the superclass walk → canvas', () => {
     expect(shape.querySelector(`.${RENDER_CLASSES.badge}`)).toBeNull();
   });
 
-  it('draws a class no taxonomy names the same way, through the notation index', () => {
-    const listed = palette.elementGroups.flatMap((g) => g.elements).map((e) => e.iri);
-    expect(listed).not.toContain(`${EXTRA}Unlisted`);
+  it('draws a class no taxonomy names the same way, through the notation index; the palette lists it under "Other"', () => {
+    expect(palette.elementGroups.find((g) => g.category === 'Other')?.elements.map((e) => e.iri)).toContain(`${EXTRA}Unlisted`);
     expect(palette.notationIndex?.[`${EXTRA}Unlisted`]?.source).toBe('active-superclass');
 
     const shape = draw().drawShape({ iri: 'urn:test:unlisted-1', typeIri: `${EXTRA}Unlisted`, label: 'Unlisted' });

@@ -28,7 +28,7 @@ host's API and needs no CORS from you.
 
 ## Git storage is off {#git-storage-is-off}
 
-The *File* menu has no *Open from Git…* or *Save to Git…*. One of these switched Git storage off; the
+The *File* menu has no *Git ▸* submenu, with *Open from Git…* and *Save to Git…*. One of these switched Git storage off; the
 first that applies wins ([which source wins](reference/configuration.md#precedence)):
 
 1. **The build** left it out (`LA_GRAM_GIT=off`). Nothing turns it on but another build.
@@ -86,10 +86,11 @@ forgets it, and the next Git action asks again. That is on purpose.
 1. Choose *Save to Git…* and give your token, with *Remember on this browser* ticked.
 2. Reload: the next *Save to Git…* does not ask for it.
 
-## Changes were lost: there is no autosave {#no-autosave}
+## Changes were lost: no automatic local recovery copy {#no-autosave}
 
-la-gram does not save on its own, and keeps no copy of the model you are working on. An unsaved model is
-lost when the tab reloads or closes; la-gram asks first, with the browser's *Leave site?* question, or
+la-gram keeps no automatic local recovery copy of the model you are working on. Optional
+[auto-commit](guide/git.md#auto-commit) saves to Git only when enabled for that destination, and may be
+paused or still waiting. Unsaved edits are lost when the tab reloads or closes; la-gram asks first, with the browser's *Leave site?* question, or
 the desktop app's *Close without saving* / *Cancel*.
 
 - **Save** to a file (*File › Save*) or to Git (*Save to Git…*).
@@ -149,8 +150,6 @@ la-gram 0.1.0 · Web — Chrome 156 · metamodels: ArchiMate 4.0 Metamodel · bu
 
 These are not available in la-gram today. Some are planned; none is promised for a given release.
 
-- **Copy and paste** on the canvas ([below](#copy-and-paste)).
-- **Automatic layout** of a diagram. A model that arrives without geometry is placed in a simple grid.
 - **Running derivation rules.** la-gram shows the derived relationships a file brings, and confirms one
   into the model on request; it does not derive them itself.
 - **Decision modelling.**
@@ -161,10 +160,19 @@ These are not available in la-gram today. Some are planned; none is promised for
 - **Shared checkpoints.** History checkpoints are on your machine only.
 - **A file with several models.** A file holds one model.
 - **A collaboration room bound to a Git branch.**
+- **Automatic Git commits.** Regular checks and optional automatic pull are available; use
+  *Save to Git* to commit local changes.
 
-### Copy and paste {#copy-and-paste}
+### Pasting does nothing {#copy-and-paste}
 
-Copy and paste are not available on the canvas: ++ctrl+c++ and ++ctrl+v++ (++cmd+c++ and ++cmd+v++ on a
-Mac) do nothing there. To show an element in another view, drag it from the model tree onto that view:
-it is the same element, shown twice. To make a new one like it, add one from the palette and set it up
-with the [format painter](guide/appearance.md#format-painter).
+- **The focus is in a field or a panel:** ++ctrl+v++ (++cmd+v++) pastes there, not on the diagram. Click an
+  empty part of the diagram first.
+- **What is on the clipboard is not la-gram's:** ++ctrl+v++ pastes on the diagram only what la-gram
+  copied — here or in another la-gram window. Copy on a diagram or in the model tree first.
+- ***Paste as copies*, *Paste as references*, *Duplicate* and the right-click menu's *Paste*** paste what
+  this window copied last, or last pasted: a page cannot read the clipboard without asking. After copying
+  in another window, press ++ctrl+v++ (++cmd+v++) once here first.
+- **In the desktop app**, the Edit menu has *Cut*, *Copy* and *Paste*; the other pastes and *Duplicate* are
+  on the keys and the right-click menu.
+
+See [Copy and paste](guide/canvas.md#copy-and-paste).

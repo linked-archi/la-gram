@@ -58,16 +58,17 @@ derives only what these permit from the one element type to the other, so load t
 model to run them: without it, the potential rules derive nothing.
 
 Each relationship the specification's metamodel figures draw is given too: :drawsRealization, a
-subproperty of :permitsRealization (am:realizes :drawnBy :drawsRealization), lists the types the
-figures draw a realization to from this type — expanded from the abstract types a figure names to the
-concrete pairs beneath them that the tables permit directly. They are the relationships a modelling tool
-proposes first for a pair. Each such triple's reifier cites, with dcterms:source, every figure that draws
-it. The generic figures hold within a layer: across layers the tables give their triggering, flow, access
-and assignment only as derived (a business process accessing a data object), and the figures of Chapter
-12 draw what holds between layers. They leave the implementation and migration elements out too, which
-3.2 classifies as internal behaviour, event and passive structure elements: their own figures draw their
-relationships. A pair a figure names itself is given as the figure draws it: figure 113 draws a work
-package realizing and influencing a requirement, which the tables give only as derived.
+subproperty of :permitsRealization (am:realizes :drawnBy :drawsRealization), lists the types the figures
+draw a realization to from this type — expanded from the abstract types a figure names to the concrete
+pairs beneath them that the tables permit directly. They say what the specification illustrates, which a
+modelling tool may show; the order in which it proposes relationships is the taxonomy's. Each such
+triple's reifier cites, with dcterms:source, every figure that draws it. The generic figures hold within
+a layer: across layers the tables give their triggering, flow, access and assignment only as derived (a
+business process accessing a data object), and the figures of Chapter 12 draw what holds between layers.
+They leave the implementation and migration elements out too, which 3.2 classifies as internal
+behaviour, event and passive structure elements: their own figures draw their relationships. A pair a
+figure names itself is given as the figure draws it: figure 113 draws a work package realizing and
+influencing a requirement, which the tables give only as derived.
 
 This is not an official Open Group document.'''@en ;
     dcterms:created               "2026-10-16"^^xsd:date ;
@@ -101,7 +102,7 @@ This is not an official Open Group document.'''@en ;
 :drawnBy
     a               owl:AnnotationProperty ;
     skos:prefLabel  "drawn by"@en ;
-    skos:definition "The annotation that gives, for each element type, the types the specification's metamodel figures draw this relationship to: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition "The annotation that gives, for each element type, the types the specification's metamodel figures draw this relationship to."@en ;
     rdfs:domain     owl:ObjectProperty ;
     dcterms:source  <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -129,7 +130,7 @@ am:accesses :permittedDirectlyBy :permitsDirectAccess .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAccess ;
     skos:prefLabel     "draws access"@en ;
-    skos:definition    "The specification's metamodel figures draw an access relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an access relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -159,7 +160,7 @@ am:aggregates :permittedDirectlyBy :permitsDirectAggregation .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAggregation ;
     skos:prefLabel     "draws aggregation"@en ;
-    skos:definition    "The specification's metamodel figures draw an aggregation relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an aggregation relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -189,7 +190,7 @@ am:assignedTo :permittedDirectlyBy :permitsDirectAssignment .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAssignment ;
     skos:prefLabel     "draws assignment"@en ;
-    skos:definition    "The specification's metamodel figures draw an assignment relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an assignment relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -219,7 +220,7 @@ am:associatedWith :permittedDirectlyBy :permitsDirectAssociation .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsAssociation ;
     skos:prefLabel     "draws association"@en ;
-    skos:definition    "The specification's metamodel figures draw an association relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an association relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -249,7 +250,7 @@ am:composedOf :permittedDirectlyBy :permitsDirectComposition .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsComposition ;
     skos:prefLabel     "draws composition"@en ;
-    skos:definition    "The specification's metamodel figures draw a composition relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a composition relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -279,7 +280,7 @@ am:flowsTo :permittedDirectlyBy :permitsDirectFlow .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsFlow ;
     skos:prefLabel     "draws flow"@en ;
-    skos:definition    "The specification's metamodel figures draw a flow relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a flow relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -309,7 +310,7 @@ am:influences :permittedDirectlyBy :permitsDirectInfluence .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsInfluence ;
     skos:prefLabel     "draws influence"@en ;
-    skos:definition    "The specification's metamodel figures draw an influence relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw an influence relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -339,7 +340,7 @@ am:realizes :permittedDirectlyBy :permitsDirectRealization .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsRealization ;
     skos:prefLabel     "draws realization"@en ;
-    skos:definition    "The specification's metamodel figures draw a realization relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a realization relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -369,7 +370,7 @@ am:serves :permittedDirectlyBy :permitsDirectServing .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsServing ;
     skos:prefLabel     "draws serving"@en ;
-    skos:definition    "The specification's metamodel figures draw a serving relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a serving relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -399,7 +400,7 @@ am:specializes :permittedDirectlyBy :permitsDirectSpecialization .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsSpecialization ;
     skos:prefLabel     "draws specialization"@en ;
-    skos:definition    "The specification's metamodel figures draw a specialization relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a specialization relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -429,7 +430,7 @@ am:triggers :permittedDirectlyBy :permitsDirectTriggering .
     a                  owl:AnnotationProperty ;
     rdfs:subPropertyOf :permitsTriggering ;
     skos:prefLabel     "draws triggering"@en ;
-    skos:definition    "The specification's metamodel figures draw a triggering relationship from an element of this type to an element of the given type: the relationship a modelling tool proposes first for the pair."@en ;
+    skos:definition    "The specification's metamodel figures draw a triggering relationship from an element of this type to an element of the given type."@en ;
     rdfs:domain        owl:Class ;
     dcterms:source     <https://pubs.opengroup.org/architecture/archimate3-doc/> ;
 .
@@ -1549,10 +1550,10 @@ am:Device
     :permitsDirectInfluence       am:Constraint , am:Requirement ;
     :permitsDirectRealization     am:Constraint , am:Requirement , am:Resource ;
     :permitsDirectSpecialization  am:Device ;
-    :drawsAggregation             am:Device , am:SystemSoftware ;
+    :drawsAggregation             am:SystemSoftware ;
     :drawsAssignment              am:Artifact , am:SystemSoftware , am:TechnologyEvent , am:TechnologyFunction , am:TechnologyInteraction , am:TechnologyProcess ;
-    :drawsAssociation             am:CommunicationNetwork , am:Gap , am:Meaning , am:Path , am:Value ;
-    :drawsComposition             am:Device , am:SystemSoftware , am:TechnologyInterface ;
+    :drawsAssociation             am:CommunicationNetwork , am:Gap , am:Meaning , am:Value ;
+    :drawsComposition             am:SystemSoftware , am:TechnologyInterface ;
     :drawsInfluence               am:Constraint , am:Requirement ;
     :drawsRealization             am:Constraint , am:Requirement , am:Resource .
 
@@ -1666,10 +1667,10 @@ am:Equipment
     :permitsDirectInfluence       am:Constraint , am:Requirement ;
     :permitsDirectRealization     am:Constraint , am:Requirement , am:Resource ;
     :permitsDirectSpecialization  am:Equipment ;
-    :drawsAggregation             am:Device , am:Equipment ;
+    :drawsAggregation             am:Device ;
     :drawsAssignment              am:Material , am:TechnologyEvent , am:TechnologyFunction , am:TechnologyInteraction , am:TechnologyProcess ;
-    :drawsAssociation             am:Gap , am:Meaning , am:Path , am:Value ;
-    :drawsComposition             am:Device , am:Equipment , am:TechnologyInterface ;
+    :drawsAssociation             am:Gap , am:Meaning , am:Value ;
+    :drawsComposition             am:Device , am:TechnologyInterface ;
     :drawsInfluence               am:Constraint , am:Requirement ;
     :drawsRealization             am:Constraint , am:Requirement , am:Resource .
 
@@ -1721,11 +1722,11 @@ am:Facility
     :permitsDirectInfluence       am:Constraint , am:Requirement ;
     :permitsDirectRealization     am:Constraint , am:Requirement , am:Resource ;
     :permitsDirectSpecialization  am:Facility ;
-    :drawsAggregation             am:Equipment , am:Facility , am:Node ;
+    :drawsAggregation             am:Equipment , am:Node ;
     :drawsAssignment              am:BusinessActor , am:BusinessCollaboration , am:BusinessRole , am:Node , am:TechnologyEvent , am:TechnologyFunction ,
                                  am:TechnologyInteraction , am:TechnologyProcess ;
-    :drawsAssociation             am:DistributionNetwork , am:Gap , am:Meaning , am:Path , am:Value ;
-    :drawsComposition             am:Equipment , am:Facility , am:Node , am:TechnologyInterface ;
+    :drawsAssociation             am:DistributionNetwork , am:Gap , am:Meaning , am:Value ;
+    :drawsComposition             am:Equipment , am:Node , am:TechnologyInterface ;
     :drawsInfluence               am:Constraint , am:Requirement ;
     :drawsRealization             am:Constraint , am:Requirement , am:Resource .
 
@@ -2062,9 +2063,8 @@ am:Path
     :permitsDirectInfluence       am:Constraint , am:Requirement ;
     :permitsDirectRealization     am:Constraint , am:Requirement , am:Resource ;
     :permitsDirectSpecialization  am:Path ;
-    :drawsAggregation             am:Device , am:Equipment , am:Facility , am:Node , am:SystemSoftware , am:TechnologyCollaboration ;
-    :drawsAssociation             am:Device , am:Equipment , am:Facility , am:Gap , am:Meaning , am:Node ,
-                                 am:SystemSoftware , am:TechnologyCollaboration , am:Value ;
+    :drawsAggregation             am:Node , am:TechnologyCollaboration ;
+    :drawsAssociation             am:Gap , am:Meaning , am:Node , am:TechnologyCollaboration , am:Value ;
     :drawsInfluence               am:Constraint , am:Requirement ;
     :drawsRealization             am:Constraint , am:Requirement , am:Resource .
 
@@ -2356,10 +2356,9 @@ am:SystemSoftware
     :permitsDirectInfluence       am:Constraint , am:Requirement ;
     :permitsDirectRealization     am:Constraint , am:Requirement , am:Resource ;
     :permitsDirectSpecialization  am:SystemSoftware ;
-    :drawsAggregation             am:SystemSoftware ;
     :drawsAssignment              am:Artifact , am:SystemSoftware , am:TechnologyEvent , am:TechnologyFunction , am:TechnologyInteraction , am:TechnologyProcess ;
-    :drawsAssociation             am:CommunicationNetwork , am:Gap , am:Meaning , am:Path , am:Value ;
-    :drawsComposition             am:SystemSoftware , am:TechnologyInterface ;
+    :drawsAssociation             am:CommunicationNetwork , am:Gap , am:Meaning , am:Value ;
+    :drawsComposition             am:TechnologyInterface ;
     :drawsInfluence               am:Constraint , am:Requirement ;
     :drawsRealization             am:Constraint , am:Requirement , am:Resource .
 
@@ -3107,20 +3106,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:ApplicationInterface :drawsServing am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationInterface :drawsServing am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationInterface :drawsServing am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationInterface :drawsServing am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:ApplicationInterface :drawsServing am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationInterface :drawsServing am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
@@ -3263,20 +3258,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:ApplicationService :drawsServing am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationService :drawsServing am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationService :drawsServing am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationService :drawsServing am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:ApplicationService :drawsServing am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:ApplicationService :drawsServing am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Application-Layer-and-Technology-Layer-Elements> .
@@ -3668,20 +3659,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Business-Layer.html#fig-Business-Layer-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessInterface :drawsServing am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessInterface :drawsServing am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessInterface :drawsServing am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessInterface :drawsServing am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:BusinessInterface :drawsServing am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessInterface :drawsServing am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
@@ -3884,20 +3871,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Business-Layer.html#fig-Business-Layer-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessService :drawsServing am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessService :drawsServing am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessService :drawsServing am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessService :drawsServing am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:BusinessService :drawsServing am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:BusinessService :drawsServing am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
@@ -4175,32 +4158,25 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Motivation-Elements> .
 [] rdf:reifies <<( am:Deliverable :drawsInfluence am:Requirement )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Motivation-Elements> .
-[] rdf:reifies <<( am:Device :drawsComposition am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Device :drawsComposition am:SystemSoftware )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Device :drawsComposition am:TechnologyInterface )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:Device :drawsAssignment am:Artifact )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Passive-Structure-Elements> .
 [] rdf:reifies <<( am:Device :drawsAssignment am:SystemSoftware )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Device :drawsAssignment am:TechnologyEvent )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:Device :drawsAssignment am:TechnologyFunction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:Device :drawsAssignment am:TechnologyInteraction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:Device :drawsAssignment am:TechnologyProcess )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:Device :drawsInfluence am:Constraint )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Device :drawsInfluence am:Requirement )>> ;
@@ -4217,12 +4193,8 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
 [] rdf:reifies <<( am:Device :drawsAssociation am:Meaning )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:Device :drawsAssociation am:Path )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Device :drawsAssociation am:Value )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:Device :drawsAggregation am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Device :drawsAggregation am:SystemSoftware )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:DistributionNetwork :drawsInfluence am:Constraint )>> ;
@@ -4276,33 +4248,25 @@ arch:QualifiedRelationship
 [] rdf:reifies <<( am:Driver :drawsAssociation am:Stakeholder )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Motivation-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsComposition am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Equipment :drawsComposition am:Equipment )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsComposition am:TechnologyInterface )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsAssignment am:Material )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsAssignment am:TechnologyEvent )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsAssignment am:TechnologyFunction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsAssignment am:TechnologyInteraction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsAssignment am:TechnologyProcess )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Equipment :drawsInfluence am:Constraint )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Equipment :drawsInfluence am:Requirement )>> ;
@@ -4317,24 +4281,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
 [] rdf:reifies <<( am:Equipment :drawsAssociation am:Meaning )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:Equipment :drawsAssociation am:Path )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Equipment :drawsAssociation am:Value )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Equipment :drawsAggregation am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Equipment :drawsAggregation am:Equipment )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsComposition am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
-[] rdf:reifies <<( am:Facility :drawsComposition am:Facility )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsComposition am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsComposition am:TechnologyInterface )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsAssignment am:BusinessActor )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsAssignment am:BusinessCollaboration )>> ;
@@ -4344,20 +4300,16 @@ arch:QualifiedRelationship
 [] rdf:reifies <<( am:Facility :drawsAssignment am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsAssignment am:TechnologyEvent )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsAssignment am:TechnologyFunction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:Facility :drawsAssignment am:TechnologyInteraction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:Facility :drawsAssignment am:TechnologyProcess )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:Facility :drawsInfluence am:Constraint )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Facility :drawsInfluence am:Requirement )>> ;
@@ -4374,13 +4326,9 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
 [] rdf:reifies <<( am:Facility :drawsAssociation am:Meaning )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:Facility :drawsAssociation am:Path )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Facility :drawsAssociation am:Value )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Facility :drawsAggregation am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
-[] rdf:reifies <<( am:Facility :drawsAggregation am:Facility )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
 [] rdf:reifies <<( am:Facility :drawsAggregation am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Physical-Elements-Metamodel> .
@@ -4770,33 +4718,17 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Path :drawsRealization am:Resource )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Strategy-Layer.html#fig-Relationships-Between-Strategy-Elements-and-Motivation-and-Core-Elements> .
-[] rdf:reifies <<( am:Path :drawsAssociation am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Path :drawsAssociation am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Path :drawsAssociation am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Path :drawsAssociation am:Gap )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
 [] rdf:reifies <<( am:Path :drawsAssociation am:Meaning )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:Path :drawsAssociation am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Path :drawsAssociation am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Path :drawsAssociation am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Path :drawsAssociation am:Value )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:Path :drawsAggregation am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Path :drawsAggregation am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Path :drawsAggregation am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Path :drawsAggregation am:Node )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
-[] rdf:reifies <<( am:Path :drawsAggregation am:SystemSoftware )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:Path :drawsAggregation am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
@@ -5270,30 +5202,23 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Motivation-Elements-Metamodel> .
 [] rdf:reifies <<( am:Stakeholder :drawsAssociation am:Value )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Motivation-Elements-Metamodel> .
-[] rdf:reifies <<( am:SystemSoftware :drawsComposition am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsComposition am:TechnologyInterface )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssignment am:Artifact )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Passive-Structure-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssignment am:SystemSoftware )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssignment am:TechnologyEvent )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssignment am:TechnologyFunction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssignment am:TechnologyInteraction )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssignment am:TechnologyProcess )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsInfluence am:Constraint )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsInfluence am:Requirement )>> ;
@@ -5310,12 +5235,8 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Implementation-and-Migration-Layer.html#fig-Relationships-of-Implementation-and-Migration-Elements-with-Core-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssociation am:Meaning )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:SystemSoftware :drawsAssociation am:Path )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:SystemSoftware :drawsAssociation am:Value )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Motivation-Elements.html#fig-Relationships-Between-Motivation-Elements-and-Core-Elements> .
-[] rdf:reifies <<( am:SystemSoftware :drawsAggregation am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsComposition am:TechnologyInterface )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
@@ -5335,20 +5256,16 @@ arch:QualifiedRelationship
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsAggregation am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsAggregation am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsAggregation am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsAggregation am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsAggregation am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> .
 [] rdf:reifies <<( am:TechnologyCollaboration :drawsAggregation am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Specializations-of-Core-Elements> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Active-Structure-Elements> .
@@ -5607,20 +5524,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:TechnologyInterface :drawsServing am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyInterface :drawsServing am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyInterface :drawsServing am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyInterface :drawsServing am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
 [] rdf:reifies <<( am:TechnologyInterface :drawsServing am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyInterface :drawsServing am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
@@ -5778,20 +5691,16 @@ arch:QualifiedRelationship
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Relationships-Between-Core-Layers.html#fig-Relationships-Between-Business-Layer-and-Application-and-Technology-Layer-Elements> .
 [] rdf:reifies <<( am:TechnologyService :drawsServing am:Device )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyService :drawsServing am:Equipment )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyService :drawsServing am:Facility )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyService :drawsServing am:Node )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
 [] rdf:reifies <<( am:TechnologyService :drawsServing am:SystemSoftware )>> ;
-   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
-                  <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .
+   dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> .
 [] rdf:reifies <<( am:TechnologyService :drawsServing am:TechnologyCollaboration )>> ;
    dcterms:source <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Generic-Metamodel.html#fig-Behavior-and-Structure-Elements-Metamodel> ,
                   <https://pubs.opengroup.org/architecture/archimate3-doc/ch-Technology-Layer.html#fig-Technology-Layer-Metamodel> .

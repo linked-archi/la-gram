@@ -89,6 +89,11 @@ Picking a question puts its query in the editor, with the model, view, viewpoint
 does not prove (*Does not prove:*); a finding with no rows says *None found.* Right-click an element ›
 *Ask about this element…* opens the menu with the questions about it.
 
+Under *Analysis*, *What depends on this element?* and *What does this element depend on?* follow the
+dependencies every loaded language states, each the way it runs: the core's *Depends On*, ArchiMate's
+serving read from what is served to what serves it, TOGAF's, UML's, Backstage's and LeanIX's own. Each
+row is a concept one or two steps away, with the concept between and the predicates followed.
+
 <figure markdown="span">
   ![The SPARQL Query tab with the Questions menu open for the example's diagram: the view and its viewpoint, Service Realization, named under the title; under Fits this view, Which services does nothing realise?, marked finding; then Orientation and Resolution, where What is recorded about this element? is greyed with Select an element.](../assets/screenshots/guide/sparql/questions-menu.png)
   <figcaption>The Questions menu, the questions that fit the view first.</figcaption>
@@ -110,7 +115,8 @@ m:gift-wrapping  Gift wrapping
 ## Render as new view {#render-as-new-view}
 
 *Render as new view*, over a `SELECT` or `CONSTRUCT` result, makes a diagram of the elements and
-relationships the result mentions: the elements laid out as a tree, with the relationships among them.
+relationships the result mentions, laid out as [*Arrange view*](canvas.md#arrange-view) lays a diagram
+out, with the choices last made there: in rows, the relationships among them routed at right angles.
 It asks for the view's name, *New view*, with what it will hold in the field's label (*Name — 4
 elements, 2 relationships*); the name proposed is the question asked, or *Query results*. A view of a
 question's answer follows the question's viewpoint. A result that mentions no element of the model says

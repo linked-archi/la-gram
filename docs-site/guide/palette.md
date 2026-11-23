@@ -22,21 +22,61 @@ types are never offered.
 ## Group by {#group-by}
 
 When the metamodel classifies its types in more than one way, *Group by* picks the one the palette is
-grouped by: ArchiMate 4.0 has **Element by Domain** (the first, and the default) and
-**Element by Aspect**. With one way, there is no *Group by*. The choice lasts while la-gram is open.
+grouped by: ArchiMate 4.0 has **Domain** and **Aspect**, ArchiMate 3.2 **Layer** and **Aspect**.
+The default is the one the metamodel names first for its
+palette, by domain or by layer; a metamodel that names none groups by the first by name. With one way,
+there is no *Group by*. The choice lasts while la-gram is open.
 
-1. In *Group by*, choose **Element by Aspect**.
-2. The element types are grouped as active structure, behaviour, passive structure and so on.
+1. In *Group by*, choose **Aspect**.
+2. The element types are grouped by aspect: structure first — its active and passive structure sections among
+   them — then behaviour, and so on.
 
 ## Sections {#sections}
 
 The palette's sections, each with its count:
 
-1. *Relationships*, first: every relationship type.
-2. The element groups, in the metamodel's order: for ArchiMate 4.0 by domain, **Application Domain**,
-   **Business Domain**, **Common Domain** and the others.
+1. *Relationships*, first, and **folded** — click its header to open it; a search opens it too. Every
+   relationship type, grouped by category where the metamodel classifies them — for ArchiMate,
+   **Structural Relationship**, **Dependency Relationship**, **Dynamic Relationship** and **Other
+   Relationship**, in that order, each folding by its header. Within a
+   category the types come strongest first, as the metamodel orders them — **Composition**,
+   **Aggregation**, **Assignment**, **Realization** — where it gives an order, else by name. A kind of
+   relationship, such as **Read Access**, comes just after the relationship it is a kind of.
+2. The element groups, in the order the metamodel gives them: for ArchiMate 4.0 by domain, **Common
+   Domain**, **Business Domain**, **Application Domain**, **Technology Domain**, **Strategy Domain**,
+   **Motivation Domain** and **Implementation and Migration Domain**; for ArchiMate 3.2 by layer, the
+   layers, then **Motivation** and **Composite**, whose elements are in no layer. A metamodel that gives
+   no order has its groups by name.
+3. **Junction**, last: the junctions, which are in no domain, layer or aspect — the metamodel classifies
+   them on their own, so they keep this section whatever *Group by* says. A type the metamodel
+   classifies nowhere is in *Other*.
+
+Within a section, the types follow the order the metamodel gives the section's group, where it gives
+one — ArchiMate 4.0's **Common Domain**: Process, Function, Service, Event, Role, Collaboration, Path,
+Grouping, Location. Elsewhere they follow the metamodel's other way of grouping, where it names one: in
+an ArchiMate 3.2 layer or an ArchiMate 4.0 domain, structure (active and passive), then behaviour, then
+composite — each by name.
+
+| Section | Begins with |
+|---|---|
+| **Common Domain** (4.0) | Process, Function, Service, Event, then Role, Collaboration, Path |
+| **Business Domain** (4.0) | Business Actor, Business Interface, Business Object, Product |
+| **Business Layer** (3.2) | Business Actor, Business Collaboration, Business Interface, Business Object, Business Role, Contract, Representation, then the behaviour |
 
 Each section folds by its header. A search opens every section, so that nothing found is hidden.
+
+## Icons {#icons}
+
+Each type in the palette shows the icon its metamodel's notation publishes: ArchiMate's element symbols,
+Basic's relationship lines. A type whose notation publishes none, or whose icon does not load, shows what
+the canvas draws for it instead:
+
+- **An element type**: its figure — the shape, in the fill and line colours an element of that type gets
+  on the canvas. A LeanIX **Application** shows a green rounded rectangle.
+- **A relationship type**: its line — the line style and colour, with the ends it is drawn with. ArchiMate's
+  **Serving** shows a solid line with an open arrowhead.
+
+The menus that offer types — the "+" menu, *Change type* and *Connect these two…* — show the same icons.
 
 ## Viewpoint filter {#viewpoint-filter}
 
@@ -63,6 +103,38 @@ name, and says so:
     classification, or it did not load.
 
 [Show loaded assets…](metamodels.md#loaded-assets) says which of the two it is.
+
+## An incomplete metamodel {#incomplete}
+
+Every element type a loaded ontology defines is offered. One that no classification names is listed in
+a section **Other**, after the others: the types of a metamodel that names no classification, loaded
+beside one that does, and the types a metamodel's own classification leaves out. Relationship types in
+no category are under *Other* in *Relationships* in the same way.
+
+A notice at the top of the palette says, for each loaded metamodel, what it leaves out:
+
+| The notice says | Means |
+|---|---|
+| *it defines no element or relationship types: its documents hold 10 concepts and no classes, so nothing of it can be drawn* | the metamodel is a classification or a set of viewpoints: it adds nothing to the palette |
+| *it defines no element or relationship types: none of its 24 classes is a subclass of arch:Element or arch:QualifiedRelationship, so nothing of it can be drawn* | its ontology has classes, but none la-gram can place on a diagram |
+| *it names no classification (arch:conceptClassification): its 8 element types are listed under “Other”* | its manifest names no taxonomy; with no other metamodel loaded the types are *grouped by a guess from their names* instead |
+| *its classification names 36 of its 53 element types: the other 17 are listed under “Other”* | its taxonomy leaves some of its element types out |
+| *its classification names none of its 1 element type: it is grouped by a guess from its name* | its taxonomy is loaded, and lists none of its types |
+| *18 of its 19 relationship types are in no category, and listed under “Other”* | its taxonomy puts some relationship types in categories and not these |
+
+A metamodel's types are those of the documents its manifest names as its concepts
+(`arch:modelConcepts`) and of what they import. A document that only its shapes or mappings import —
+another version's ontology — is loaded for validation, and its types are not offered.
+
+!!! example "The notice, with ATAM loaded beside ArchiMate 4.0"
+
+    **ATAM** is incomplete: it names no classification (arch:conceptClassification): its 8 element types
+    are listed under “Other”. *Details…*
+
+Pointing at the notice names the types; *Details…* opens
+[Show loaded assets…](metamodels.md#loaded-assets), which lists them under the metamodel. **✕** closes
+the notice. It stays closed in this browser for as long as it would say the same, and comes back when
+what the metamodel leaves out changes; *Show loaded assets…* goes on saying it.
 
 ## About ‹type› {#about-type}
 

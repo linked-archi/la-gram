@@ -65,7 +65,11 @@ out/
 
 # Collaboration server working state (see server/collab-server.mjs)
 data/
-# Docs build venv, and agents' task folders — tracked only where added by hand. The specs and
-# conventions under .agents/ are tracked (.kiro/ links to them, for Kiro).
+# Docs build venv, and agents' task folders — ignored except for shared plans explicitly included.
+# The specs and conventions under .agents/ are tracked (.kiro/ links to them, for Kiro).
 .venv-docs/
-.agents/tasks/
+.agents/tasks/*
+!.agents/tasks/git-sync/
+!.agents/tasks/kernel-migration/
+!.agents/tasks/view-references/
+!.agents/tasks/views-as-concepts/

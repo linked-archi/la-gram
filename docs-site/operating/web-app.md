@@ -14,7 +14,7 @@ configuration with placeholders.
 
 | Need | Why |
 |---|---|
-| serve the folder's files, with `index.html` for the folder itself | the app is `index.html`, its scripts, its WebAssembly and its bundled metamodels |
+| serve the folder's files, with `index.html` for the folder itself | the app is `index.html`, its scripts, its WebAssembly and its bundled metamodels; `third-party-licences.txt`, which *About la-gram* links to, holds the licences of the packages built into it |
 | `.wasm` as `application/wasm` | the browser compiles the RDF store, Oxigraph, only from that type |
 | `.ttl` as `text/turtle` | the bundled metamodels and the example model are Turtle; most servers do not know the extension |
 | HTTPS | the app sends Git access tokens to Git hosts and models to collaborators: serve it over HTTPS, and collaboration over `wss:` ([below](#behind-tls)) |
@@ -26,6 +26,12 @@ headers below. The app works at any path; app.linked.archi serves it under `/la-
 **The deployment configuration** goes beside `index.html`: `<web-root>/la-gram/la-gram.config.json` on
 the layout below ([Deployment configuration file](../reference/configuration.md#location)). A server
 that answers a missing file with 404, or with its own HTML page, is fine either way.
+
+**This version's page** is built into the app's folder too, as `v{version}/index.html`
+(`v0.3.0/index.html`): what `https://app.linked.archi/la-gram/v0.3.0`, the address a model names the la-gram
+version it was edited with by, resolves to ([Properties](../guide/properties.md#last-changed)). Keep the
+pages of earlier versions when a new release replaces the app: app.linked.archi's deploy protects them from
+`rsync --delete`.
 
 **The documentation** is built into the app's folder, as `docs/` (`npm run docs:build` writes
 `dist/web/docs/`), and is served from it: `/la-gram/docs/`. Link to it with the trailing slash. Its pages
@@ -56,10 +62,13 @@ Its rules:
   `SHA256SUMS.txt` `text/plain`, and a `.tar.gz`, which nginx's type list does not name, the server's
   default type (`application/octet-stream` as nginx ships), so it downloads. Each is revalidated on
   every load, as everything not named by its content is, so a release's replace the last ones at once;
+- `/la-gram-alpha/` is the alpha — the next release as it is being made, deployed from each merge to the
+  default branch ([alpha-deploy](../developing/releasing.md#alpha)) — from the folder beside `la-gram/`,
+  `la-gram-alpha/`, with the same rules as `/la-gram/`;
 - anything else on the host is a 404.
 
 As configuration, with placeholders: `<host>` for the server's name and `<web-root>` for the folder that
-holds `la-gram/`. The TLS settings are your server's own, and are left out:
+holds `la-gram/` and `la-gram-alpha/`. The TLS settings are your server's own, and are left out:
 
 ```nginx
 server {
@@ -78,6 +87,20 @@ server {
         return 301 /la-gram/;
     }
     location ^~ /la-gram/ {
+        try_files $uri $uri/ =404;
+        location ~ \.ttl$ {
+            types {
+                text/turtle ttl;
+            }
+            default_type text/plain;
+            try_files $uri =404;
+        }
+    }
+    location = /la-gram-alpha {
+        absolute_redirect off;
+        return 301 /la-gram-alpha/;
+    }
+    location ^~ /la-gram-alpha/ {
         try_files $uri $uri/ =404;
         location ~ \.ttl$ {
             types {

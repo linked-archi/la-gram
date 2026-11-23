@@ -19,6 +19,8 @@
  * | `base`       | Base new models' namespaces are minted under, `https://example.org/` by default |
  * | `git`        | a repository file's link to open from Git at startup; `off` switches Git storage off for the session (see `modules.ts`) |
  */
+// First: a channel's build keeps its browser storage apart (storage-scope.ts), before anything reads it.
+import './storage-scope-install.js';
 import { createApp } from './app.js';
 import { mountUi } from './ui/mount-ui.js';
 import { startCollaboration } from './collab/start.js';
@@ -44,6 +46,8 @@ async function bootstrap(): Promise<void> {
     ...(assetMode ? { assetMode } : {}),
     ...(params.get('base') ? { base: params.get('base') as string } : {}),
     validationDelayMs: 300,
+    // Who changed a concept, when and with which la-gram, recorded as it is edited (Req 9.16).
+    recordEdits: true,
   });
   const root = document.getElementById('app') ?? document.body;
   const ui = mountUi(app, root, { rdfOpen: params.get('rdf') === '1' });

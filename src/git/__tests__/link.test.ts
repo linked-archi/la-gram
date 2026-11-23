@@ -1,8 +1,8 @@
 /**
- * Repository links as people paste them (Req 18.2).
+ * Repository links as people paste them (Req 18.2), and a bound file's, as Model settings shows it (Req 18.30).
  */
 import { describe, it, expect } from 'vitest';
-import { parseRepositoryLink, repositoryLinkProblem } from '../link.js';
+import { fileLink, parseRepositoryLink, repositoryLinkProblem } from '../link.js';
 
 describe('GitHub links', () => {
   it('a repository, with or without .git', () => {
@@ -89,6 +89,21 @@ describe('GitLab links', () => {
       host: 'gitlab.example.org',
       repository: 'acme/arch',
     });
+  });
+});
+
+describe('a file’s link, as Model settings shows it (Req 18.30)', () => {
+  it('the host’s page for the file on its branch, read back as the same file', () => {
+    const cases = [
+      ['https://github.com/acme/arch', 'main', 'models/shop floor.ttl', 'https://github.com/acme/arch/blob/main/models/shop%20floor.ttl'],
+      ['https://gitlab.com/acme/ea/arch', 'model-update', 'models/a.trig', 'https://gitlab.com/acme/ea/arch/-/blob/model-update/models/a.trig'],
+      ['https://git.acme.internal:8443/ea/arch', 'main', 'a.ttl', 'https://git.acme.internal:8443/ea/arch/-/blob/main/a.ttl'],
+    ] as const;
+    for (const [repository, branch, path, expected] of cases) {
+      const link = parseRepositoryLink(repository);
+      expect(fileLink(link, branch, path)).toBe(expected);
+      expect(parseRepositoryLink(expected)).toMatchObject({ host: link.host, provider: link.provider, repository: link.repository, branch, path });
+    }
   });
 });
 

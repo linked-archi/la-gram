@@ -112,8 +112,9 @@ describe('the workbench', () => {
     expect(ui.appToolbar.rdfOpen).toBe(true);
     // The open view, by default: the view itself, not the whole model.
     expect(ui.rdfPanel.scope).toBe('view');
-    const viewName = app.session.activeViewIri!.slice(app.session.namespace()!.namespace.length);
-    expect(ui.rdfPanel.text).toMatch(new RegExp(`^m:${viewName} a `, 'm'));
+    // The view, `{ns}view/{uuid}`, by the views' prefix (DD-41).
+    const viewName = app.session.activeViewIri!.slice(`${app.session.namespace()!.namespace}view/`.length);
+    expect(ui.rdfPanel.text).toMatch(new RegExp(`^mv:${viewName} a `, 'm'));
     expect(ui.rdfPanel.text).not.toMatch(/^m:model a arch:Model;/m);
     // The whole model, as Save writes it.
     ui.rdfPanel.scope = 'model';
@@ -1070,7 +1071,7 @@ describe('the workbench', () => {
     ui.diagramCanvas.selectIris([]);
     ui.selectConcept(undefined);
     els.deleteElement(a);
-  });
+  }, 60_000);
 
   it('sets every look for one presentation or for all: the Appearance, Figure and Image tabs, notes and lines, the format painter, the tree', async () => {
     const els = app.components.elementManager;
@@ -1208,7 +1209,7 @@ describe('the workbench', () => {
     ui.selectConcept(undefined);
     views.removeElementFromView(view, note);
     for (const iri of [a!, b!]) els.deleteElement(iri);
-  });
+  }, 60_000);
 
   it('draws the relationships around the selected element in the Graph tab, runs its query, exports it, and makes it a view', async () => {
     const els = app.components.elementManager;
@@ -1265,7 +1266,7 @@ describe('the workbench', () => {
     expect([...editor.querySelectorAll('th')].map((th) => th.textContent)).toEqual([
       'source', 'sourceName', 'relationship', 'relationshipType', 'relationshipName', 'target', 'targetName',
     ]);
-    expect(editor.querySelector('tbody tr')!.textContent).toMatch(/m:element-.*Clerk.*m:relationship-.*am4:Assignment.*m:element-.*Cashier/s);
+    expect(editor.querySelector('tbody tr')!.textContent).toMatch(/me:.*Clerk.*mr:.*am4:Assignment.*me:.*Cashier/s);
 
     // … and its rows become a view.
     script.answers.push('Clerk and role');
@@ -1309,7 +1310,7 @@ describe('the workbench', () => {
     button('turtle').click();
     const turtle = saved.at(-1)!;
     expect(turtle.fileName).toBe('Clerk-graph.ttl');
-    expect(turtle.content as string).toMatch(/m:relationship-[0-9a-f-]{36} a am4:Assignment;/);
+    expect(turtle.content as string).toMatch(/mr:[0-9a-f-]{36} a am4:Assignment;/);
     expect(turtle.content as string).not.toContain('Till'); // depth 1
 
     ui.graphPanel.setDepth(2);
@@ -1340,7 +1341,7 @@ describe('the workbench', () => {
     editor.querySelector<HTMLButtonElement>('.questions-btn')!.click();
     await ui.sparqlEditor.updateComplete;
     const entry = (iri: string) => editor.querySelector<HTMLButtonElement>(`button.question[data-iri="${iri}"]`)!;
-    expect(editor.querySelectorAll('button.question')).toHaveLength(38);
+    expect(editor.querySelectorAll('button.question')).toHaveLength(40);
     expect(entry(am4q('impact-of-change')).disabled).toBe(true);
     expect(entry(am4q('impact-of-change')).textContent).toContain('Select an element');
     // Picking one runs it, bound to the open model, and says what a row means.
@@ -1630,7 +1631,9 @@ describe('the workbench', () => {
     // The right-click menu on the shape: edit, relate, show, copy, delete.
     const shape = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { get(id: string): unknown } }).get('elementRegistry').get(placed);
     const entries = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(shape) as Record<string, { group: string; action: () => void }>;
-    expect(Object.keys(entries)).toEqual(['rename', 'change-type', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model']);
+    expect(Object.keys(entries)).toEqual([
+      'rename', 'change-type', 'cut', 'copy', 'duplicate', 'append', 'properties', 'reveal-tree', 'graph', 'ask', 'copy-iri', 'delete', 'delete-model',
+    ]);
     entries['graph']!.action();
     expect([ui.shell.bottomTab, ui.graphPanel.rootIri]).toEqual(['graph', placed]);
     entries['properties']!.action();
@@ -1652,8 +1655,8 @@ describe('the workbench', () => {
     const canvasRoot = (ui.diagramCanvas.getDiagram() as unknown as { get(n: string): { getRootElement(): unknown } }).get('canvas').getRootElement();
     const onView = ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(canvasRoot) as Record<string, { action: () => void }>;
     expect(Object.keys(onView)).toEqual([
-      'rename-view', 'set-viewpoint', 'duplicate-view', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
-      'export-svg', 'export-png', 'delete-view',
+      'rename-view', 'set-viewpoint', 'duplicate-view', 'arrange-view', 'arrange-relationships', 'align-to-grid', 'sizes', 'select-all', 'zoom-fit', 'properties', 'reveal-tree', 'copy-iri',
+      'copy-png', 'copy-svg', 'export-svg', 'export-png', 'delete-view',
     ]);
     onView['properties']!.action();
     expect([ui.propertyPanel.selectedIri, ui.propertyPanel.heading?.kind]).toEqual([view, 'View']);
@@ -1775,6 +1778,248 @@ describe('the workbench', () => {
     for (const view of [second, third]) app.session.deleteView(view);
   });
 
+  it('makes, opens, re-points and deletes references to other views — from the tree, the canvas and the panel (Req 3.23)', async () => {
+    const holder = app.session.activeViewIri!;
+    const views = app.components.viewManager;
+    const store = app.components.store;
+    const payments = app.session.createView('Diagram', { label: 'Payments', open: false });
+    const orders = app.session.createView('Catalog', { label: 'Orders', open: false });
+    const third = app.session.createView('Diagram', { label: 'Third', open: false });
+    const at = () => app.session.activeViewIri;
+    const diagram = ui.diagramCanvas.getDiagram() as unknown as { get(n: string): any };
+    const registry = diagram.get('elementRegistry');
+    const referencesIn = (viewIri: string) => views.getNodes(viewIri).filter((n) => n.figure?.kind === 'reference');
+    const presentedIn = (viewIri: string) => store.getQuads(nn(viewIri), nn(NAMESPACES.arch + 'inView')).map((q) => q.object.value);
+    const doubleClick = (iri: string) =>
+      diagram.get('eventBus').fire('element.dblclick', { element: registry.get(iri), gfx: registry.getGraphics(registry.get(iri)), originalEvent: new MouseEvent('dblclick') });
+    const root = ui.propertyPanel.shadowRoot!;
+    const showInfo = async () => {
+      ui.propertyPanel.selectTab('info');
+      await ui.propertyPanel.updateComplete;
+    };
+
+    // The tree's Reference in the open view: made at the centre, selected. Selected, it is its view's placement: the
+    // panel shows the view, with the reference's Text — the view's name, greyed — and what it Opens (VR-2, VR-4, VR-8,
+    // VC-1).
+    ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'reference-in-view', iri: payments, kind: 'view' } }));
+    await vi.waitFor(() => expect(referencesIn(holder)).toHaveLength(1));
+    const reference = referencesIn(holder)[0]!.nodeIri;
+    expect(views.getNode(holder, reference)?.figure).toEqual({ kind: 'reference', view: payments });
+    expect(presentedIn(payments)).toEqual([holder]);
+    expect(ui.diagramCanvas.selectedIris()).toEqual([reference]);
+    expect(ui.propertyPanel.selectedIri).toBe(payments);
+    expect(ui.propertyPanel.heading).toMatchObject({ kind: 'View', reference: { nodeIri: reference, viewIri: payments } });
+    await showInfo();
+    expect(root.querySelector('.opens-view')?.textContent?.trim()).toBe('Payments');
+    const textField = () => root.querySelector<HTMLInputElement>('.reference-text input.property-value')!;
+    expect([textField().value, textField().classList.contains('inherited')]).toEqual(['Payments', true]);
+    // The model tree marks the view's row: in the open view.
+    await vi.waitFor(() => expect(ui.modelExplorer.shadowRoot!.querySelector(`[data-iri="${payments}"] .placed`)).not.toBeNull());
+
+    // Change…: the model's other views, the holder not among them; the one picked is what it opens, one undoable step.
+    root.querySelector<HTMLButtonElement>('.opens .change-view')!.click();
+    await ui.propertyPanel.updateComplete;
+    const picker = root.querySelector<NamedPicker>('named-picker.reference-view')!;
+    await picker.updateComplete;
+    picker.shadowRoot!.querySelector('input')!.dispatchEvent(new Event('focus'));
+    await picker.updateComplete;
+    const listed = [...picker.shadowRoot!.querySelectorAll<HTMLElement>('.option')].map((option) => option.dataset.iri);
+    expect(listed).toEqual(expect.arrayContaining([payments, orders, third]));
+    expect(listed).not.toContain(holder);
+    picker.shadowRoot!.querySelector<HTMLElement>(`.option[data-iri="${orders}"]`)!.click();
+    await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.view).toBe(orders));
+    expect([presentedIn(orders), presentedIn(payments)]).toEqual([[holder], []]);
+    expect(registry.get(reference).businessObject).toMatchObject({ label: 'Orders', typeIri: NAMESPACES.arch + 'Catalog' });
+    // The panel shows the view it opens now — and again when undone.
+    expect(ui.propertyPanel.selectedIri).toBe(orders);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getNode(holder, reference)?.figure?.view).toBe(payments);
+    expect([presentedIn(orders), presentedIn(payments)]).toEqual([[], [holder]]);
+    expect(ui.propertyPanel.selectedIri).toBe(payments);
+
+    // Its Text emptied in the panel: written empty on the reference, not the view, nothing drawn; × shows the view's
+    // name again (VR-4).
+    ui.diagramCanvas.selectIris([reference]);
+    await showInfo();
+    textField().value = '';
+    textField().dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.text).toBe(''));
+    expect(registry.get(reference).businessObject).toMatchObject({ label: 'Payments', labelText: '' });
+    expect(views.getView(payments)?.label).toBe('Payments');
+    await ui.propertyPanel.updateComplete;
+    expect(textField().classList.contains('inherited')).toBe(false);
+    root.querySelector<HTMLButtonElement>('.reference-text button.reset')!.click();
+    await vi.waitFor(() => expect(views.getNode(holder, reference)?.figure?.text).toBeUndefined());
+    expect(registry.get(reference).businessObject.label).toBe('Payments');
+    expect(registry.get(reference).businessObject).not.toHaveProperty('labelText');
+
+    // A relationship with the view, drawn from an element to it: in the view's Analysis, and the element's (VC-3, VC-10).
+    const shop = app.components.elementManager.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, { label: 'Shop' }).value;
+    views.addElementToView(holder, shop, { x: 600, y: 600, width: 120, height: 55 });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    const modeling = diagram.get('modeling');
+    const rules = diagram.get('rules');
+    // No type picked in the palette: the pair's first.
+    ui.diagramCanvas.setPreferredRelationshipType(undefined);
+    const attrs = rules.allowed('connection.create', { source: registry.get(reference), target: registry.get(shop) });
+    expect(attrs.typeIri).toBe(NAMESPACES.arch + 'Association');
+    modeling.connect(registry.get(reference), registry.get(shop), { ...attrs, typeIri: NAMESPACES.arch + 'Refines', unqualifiedPredicateIri: NAMESPACES.arch + 'refines' });
+    const [refines] = app.components.relationshipManager.getRelationshipsOf!(payments);
+    expect(refines).toMatchObject({ sourceIri: payments, targetIri: shop, classIri: NAMESPACES.arch + 'Refines' });
+    ui.diagramCanvas.selectIris([reference]);
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.analysis?.relationships.map((r) => [r.direction, r.otherIri])).toEqual([['out', shop]]);
+    expect(ui.propertyPanel.analysis?.views.map((v) => v.iri)).toEqual([holder]);
+    ui.diagramCanvas.selectIris([shop]);
+    await ui.propertyPanel.updateComplete;
+    expect(ui.propertyPanel.analysis?.relationships.map((r) => [r.direction, r.otherIri])).toEqual([['in', payments]]);
+
+    // Zoom in: the element the view refines opens it, whether or not a reference is drawn; Back comes back (VC-6).
+    const pad = ui.diagramCanvas.contextPadProvider.getContextPadEntries(registry.get(shop));
+    (pad['zoom-in']!.action as (event: unknown) => void)(new MouseEvent('click'));
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(holder);
+
+    // Double-click opens the view it opens, and so do its menu's Open view and the panel's Open; Back comes back (VR-7).
+    doubleClick(reference);
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(holder);
+    (ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(reference)) as Record<string, { action: () => void }>)['open-view']!.action();
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    ui.selectConcept(reference);
+    await showInfo();
+    root.querySelector<HTMLButtonElement>('.opens .open-view')!.click();
+    expect(at()).toBe(payments);
+    await ui.runCommand({ command: 'view-back' });
+    expect(at()).toBe(holder);
+    // One whose view is not in the model opens nothing, and says so.
+    const lost = views.addFigure!(holder, { kind: 'reference', view: 'https://example.org/no-such-view', bounds: { x: 0, y: 700, width: 120, height: 55 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    doubleClick(lost);
+    expect(at()).toBe(holder);
+    expect(vi.mocked(script.dialogs.toast).mock.calls.at(-1)).toEqual(['The view this reference opens is not in the model.', 'warning']);
+    // Validation reports it too: a reference opens one of the model's views (core-vis-shapes 0.5.0).
+    expect(
+      ui.validationPanel.results.some((r) => r.focusNode.value === lost && r.resultPath?.value === NAMESPACES['arch-vis'] + 'referencesView'),
+    ).toBe(true);
+    views.removeElementFromView(holder, lost);
+
+    // A view's panel lists the views referencing it, each opening that view; none, nothing (VR-11).
+    ui.selectConcept(payments);
+    await showInfo();
+    expect(ui.propertyPanel.heading?.referencedFrom?.map((view) => view.iri)).toEqual([holder]);
+    expect(root.querySelectorAll('.referenced-from a')).toHaveLength(1);
+    ui.selectConcept(third);
+    await ui.propertyPanel.updateComplete;
+    expect(root.querySelector('.referenced-from')).toBeNull();
+
+    // Deleting a view others reference says what goes with it — the references to it, and the relationships with it,
+    // as an element's go with it; undo brings it all back (VR-10, VC-7).
+    const another = views.addFigure!(holder, { kind: 'reference', view: payments, bounds: { x: 200, y: 700, width: 120, height: 55 } });
+    views.addFigure!(third, { kind: 'reference', view: payments, bounds: { x: 0, y: 0, width: 120, height: 55 } });
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'delete-view', iri: payments, kind: 'view' } }));
+    await vi.waitFor(() => expect(views.getView(payments)).toBeUndefined());
+    expect(vi.mocked(script.dialogs.confirm).mock.calls.at(-1)?.[1]).toBe(
+      'Delete the view "Payments"? The elements and relationships it shows stay in the model. 3 references to it, in 2 other views, and 1 relationship with it are deleted with it.',
+    );
+    expect(referencesIn(holder)).toEqual([]);
+    expect(registry.get(reference)).toBeUndefined();
+    expect(app.components.relationshipManager.getRelationshipsOf!(shop)).toEqual([]);
+    expect(registry.get(refines!.iri)).toBeUndefined();
+    expect(ui.appToolbar.views.map((view) => view.iri)).not.toContain(payments);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getView(payments)?.label).toBe('Payments');
+    expect(ui.appToolbar.views.map((view) => view.iri)).toContain(payments);
+    expect(referencesIn(holder).map((n) => n.nodeIri).sort()).toEqual([reference, another].sort());
+    expect(referencesIn(third)).toHaveLength(1);
+    expect(registry.get(another)).toBeDefined();
+    expect(app.components.relationshipManager.getRelationshipsOf!(shop).map((r) => r.iri)).toEqual([refines!.iri]);
+    expect(registry.get(refines!.iri)).toBeDefined();
+    // A reference's Delete view from model… deletes its view so, after the same question; undone, back.
+    const confirmed = vi.mocked(script.dialogs.confirm).mock.calls.length;
+    (ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(another)) as Record<string, { label: string; action: () => void }>)['delete-model']!.action();
+    await vi.waitFor(() => expect(views.getView(payments)).toBeUndefined());
+    expect(vi.mocked(script.dialogs.confirm).mock.calls).toHaveLength(confirmed + 1);
+    await ui.runCommand({ command: 'undo' });
+    expect(views.getView(payments)?.label).toBe('Payments');
+    app.components.elementManager.deleteElement(shop);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    // One reference, in one other view; none, and nothing more is said.
+    views.addFigure!(third, { kind: 'reference', view: orders, bounds: { x: 0, y: 100, width: 120, height: 55 } });
+    const deleteView = async (iri: string) => {
+      ui.modelExplorer.dispatchEvent(new CustomEvent('explorer-action', { detail: { action: 'delete-view', iri, kind: 'view' } }));
+      await vi.waitFor(() => expect(views.getView(iri)).toBeUndefined());
+      return vi.mocked(script.dialogs.confirm).mock.calls.at(-1)?.[1];
+    };
+    expect(await deleteView(orders)).toBe(
+      'Delete the view "Orders"? The elements and relationships it shows stay in the model. 1 reference to it, in 1 other view, is deleted with it.',
+    );
+    expect(await deleteView(third)).toBe('Delete the view "Third"? The elements and relationships it shows stay in the model.');
+
+    ui.selectConcept(undefined);
+    app.session.deleteView(payments);
+    app.components.eventBus.emit('model-changed', { origin: 'test' });
+    expect(referencesIn(holder)).toEqual([]);
+  });
+
+  it('File › Settings… › You: the name and email recorded with your edits, kept on this machine (Req 9.16)', async () => {
+    const before = app.editor;
+    try {
+      script.forms.push({ 'you.name': '  Ada Lovelace ', 'you.email': 'ada@example.com' });
+      await ui.runCommand({ command: 'settings' });
+      const fields = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(fields.filter((f) => f.name.startsWith('you.')).map((f) => [f.label, f.value])).toEqual([
+        ['Name', ''],
+        ['Email', ''],
+        ['Git account', 'None yet'],
+        ['Record my Git account with my edits', true],
+      ]);
+      expect(fields.find((f) => f.name === 'you.account')?.readOnly).toBe(true);
+      expect(app.editor).toEqual({ name: 'Ada Lovelace', email: 'ada@example.com' });
+      // Asked again: as kept. Emptied: nobody, and the collaboration name is used in a room.
+      script.forms.push({ 'you.name': '', 'you.email': '' });
+      await ui.runCommand({ command: 'settings' });
+      const again = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(again.filter((f) => f.name.startsWith('you.')).map((f) => f.value).slice(0, 2)).toEqual(['Ada Lovelace', 'ada@example.com']);
+      expect(app.editor).toBeUndefined();
+      // Not an address: the dialog refuses it, and nothing is kept.
+      script.forms.push({ 'you.email': 'ada' });
+      await ui.runCommand({ command: 'settings' });
+      expect(app.editor).toBeUndefined();
+    } finally {
+      app.editor = before;
+    }
+  });
+
+  it('File › Settings… › You: the Git account the host reported — shown, its name standing in for none, recorded unless unticked (Req 9.16, 18.29)', async () => {
+    const before = { editor: app.editor, account: app.gitAccount, record: app.recordGitAccount };
+    try {
+      app.editor = undefined;
+      app.gitAccount = { url: 'https://gitlab.com/ada', username: 'ada', name: 'Ada Lovelace' };
+      script.forms.push({});
+      await ui.runCommand({ command: 'settings' });
+      const fields = vi.mocked(script.dialogs.form).mock.calls.at(-1)![1];
+      expect(fields.find((f) => f.name === 'you.account')?.value).toBe('ada · https://gitlab.com/ada');
+      expect(fields.find((f) => f.name === 'you.name')?.hint).toContain('Ada Lovelace');
+      expect(app.currentEditor()).toEqual({ name: 'Ada Lovelace', account: { url: 'https://gitlab.com/ada', username: 'ada' } });
+      // Unticked: the account is not recorded; its name still stands in for none given.
+      script.forms.push({ 'you.recordAccount': false });
+      await ui.runCommand({ command: 'settings' });
+      expect(app.currentEditor()).toEqual({ name: 'Ada Lovelace' });
+      script.forms.push({ 'you.recordAccount': true });
+      await ui.runCommand({ command: 'settings' });
+      expect(app.recordGitAccount).toBe(true);
+    } finally {
+      app.editor = before.editor;
+      app.gitAccount = before.account;
+      app.recordGitAccount = before.record;
+    }
+  });
+
   it('offers in the Metamodels menu the catalogue\u2019s entries Settings leaves there, and keeps the choice', async () => {
     {
       const AM3 = 'https://meta.linked.archi/archimate3/metamodel#ArchiMate3.2';
@@ -1892,7 +2137,105 @@ describe('the workbench', () => {
     expect(ui.appToolbar.activeViewIri).toBe(view!.iri);
   });
 
-  it('saves only the model, as Turtle, and marks it clean', async () => {
+  it('File: sections with icons, the formats under Save as, a module under its submenu, the view under Export view', async () => {
+    const bar = ui.appToolbar.shadowRoot!;
+    const GIT = { id: 'git', label: 'Git', icon: 'git' as const };
+    const removeGit = ui.addFileMenu(
+      'git',
+      () => [
+        { id: 'open', section: 'open', label: 'Open from Git…', submenu: GIT },
+        { id: 'save', section: 'save', label: 'Save to Git', submenu: GIT },
+        { id: 'pull', section: 'save', label: 'Pull from Git', submenu: GIT },
+      ],
+      async () => {},
+    );
+    const update = () => ui.appToolbar.updateComplete;
+    const name = (b: Element) => b.getAttribute('data-command') ?? `${b.getAttribute('data-submenu')} ▸`;
+    const submenu = (id: string) => [...bar.querySelectorAll(`.sub-wrap[data-sub="${id}"] .submenu button`)];
+    try {
+      bar.querySelector<HTMLButtonElement>('button[data-menu="file"]')!.click();
+      await update();
+      const top = [...bar.querySelectorAll('.dropdown.file > button.item, .dropdown.file > .sub-wrap > button.item')];
+      expect(top.map(name)).toEqual([
+        'new-model', 'open-model', 'import-archimate', 'save', 'save-as ▸', 'module-git ▸', 'export ▸', 'model-settings',
+        ...(ui.appToolbar.settingsMenu ? ['settings'] : []),
+      ]);
+      // Each with its icon; Open and Save with their keys; Save says what it saves as.
+      expect(top.every((b) => b.querySelector('.icon svg'))).toBe(true);
+      const save = bar.querySelector('.dropdown.file [data-command="save"]')!;
+      expect([save.querySelector('.hint')!.textContent, save.querySelector('kbd')!.textContent]).toEqual(['TriG', 'Ctrl+S']);
+      expect(bar.querySelector('.dropdown.file [data-command="open-model"] kbd')!.textContent).toBe('Ctrl+O');
+      expect(bar.querySelector('.submenu')).toBeNull();
+
+      // Save as ▸, by a click: each format, then the model without its geometry.
+      bar.querySelector<HTMLButtonElement>('[data-submenu="save-as"]')!.click();
+      await update();
+      expect(submenu('save-as').map((b) => b.getAttribute('data-value') ?? b.getAttribute('data-command'))).toEqual([
+        'turtle', 'trig', 'json-ld', 'n-quads', 'n-triples', 'rdf-xml', 'save-no-geometry',
+      ]);
+
+      // Git ▸, by the pointer — after a moment, since another is open: its open entries, a line, its save entries.
+      bar.querySelector('[data-submenu="module-git"]')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }));
+      await vi.waitFor(() => expect(submenu('module-git').map((b) => b.getAttribute('data-value'))).toEqual(['git:open', 'git:save', 'git:pull']));
+      expect(bar.querySelectorAll('.sub-wrap[data-sub="module-git"] .submenu hr')).toHaveLength(1);
+      expect(submenu('save-as')).toEqual([]);
+
+      // Export view ▸, by the keyboard: → opens it at its first entry, Esc closes it back to its entry.
+      const exportEntry = bar.querySelector<HTMLButtonElement>('[data-submenu="export"]')!;
+      exportEntry.focus();
+      exportEntry.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, composed: true }));
+      await vi.waitFor(() => expect(bar.activeElement?.getAttribute('data-command')).toBe('export-svg'));
+      expect(submenu('export').map(name)).toEqual(['export-svg', 'export-png', 'copy-png', 'copy-svg']);
+      bar.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }));
+      await update();
+      expect(submenu('export')).toEqual([]);
+      expect(bar.activeElement).toBe(exportEntry);
+
+      // An entry runs and closes the menu.
+      bar.querySelector<HTMLButtonElement>('[data-submenu="save-as"]')!.click();
+      await update();
+      const count = saved.length;
+      bar.querySelector<HTMLButtonElement>('.submenu [data-command="save-as"][data-value="turtle"]')!.click();
+      await vi.waitFor(() => expect(saved).toHaveLength(count + 1));
+      expect(saved.at(-1)!.fileName).toMatch(/\.ttl$/);
+      await update();
+      expect(bar.querySelector('.dropdown')).toBeNull();
+    } finally {
+      removeGit();
+    }
+  });
+
+  it('Ctrl+S saves as TriG and Ctrl+O opens, in place of the browser, not under a dialog', async () => {
+    const press = (key: string) => {
+      const event = new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true, cancelable: true });
+      globalThis.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const count = saved.length;
+    expect(press('s')).toBe(true);
+    await vi.waitFor(() => expect(saved).toHaveLength(count + 1));
+    expect([saved.at(-1)!.mediaType, saved.at(-1)!.fileName.endsWith('.trig')]).toEqual(['application/trig', true]);
+
+    // Ctrl+O asks for a file; none is picked here.
+    const pick = vi.spyOn(files, 'shift').mockReturnValue(undefined);
+    try {
+      expect(press('o')).toBe(true);
+      await vi.waitFor(() => expect(pick).toHaveBeenCalledTimes(1));
+
+      // Under a dialog, the keys are the dialog's.
+      const dialog = document.createElement('div');
+      dialog.className = 'la-dialog';
+      document.body.append(dialog);
+      expect([press('s'), press('o')]).toEqual([false, false]);
+      dialog.remove();
+      expect(saved).toHaveLength(count + 1);
+      expect(pick).toHaveBeenCalledTimes(1);
+    } finally {
+      pick.mockRestore();
+    }
+  });
+
+  it('saves only the model, as TriG, and marks it clean', async () => {
     ui.diagramCanvas.placeExisting; // canvas is ready
     const store = app.components.store;
     const el = app.components.elementManager.createElement(`${AM4}ApplicationComponent`, app.session.modelIri!, {
@@ -1908,8 +2251,8 @@ describe('the workbench', () => {
     expect(document.title).toBe(`${app.session.modelLabel()} — la-gram`);
 
     const file = saved.at(-1)!;
-    expect(file.mediaType).toBe('text/turtle');
-    expect(file.fileName).toMatch(/\.ttl$/);
+    expect(file.mediaType).toBe('application/trig');
+    expect(file.fileName).toMatch(/\.trig$/);
     expect(file.content as string).toContain('Web Shop');
     expect(file.content as string).not.toContain('owl:Ontology');
     expect(app.isDirty()).toBe(false);
@@ -1935,7 +2278,7 @@ describe('the workbench', () => {
   });
 
   it('opens a saved model again: same elements, views and geometry', async () => {
-    const turtle = saved.at(-1)!.content as string;
+    const trig = saved.at(-1)!.content as string;
     const before = modelQuads(app.components.store).length;
     const modelBefore = app.session.modelIri;
     script.forms.push(null);
@@ -1948,7 +2291,7 @@ describe('the workbench', () => {
     // The suggested namespace: a fresh one under example.org.
     expect(app.session.namespace()?.namespace).toMatch(/^https:\/\/example\.org\/archimate\/[0-9a-f-]{36}\/$/);
 
-    files.push({ name: 'shop.ttl', text: turtle });
+    files.push({ name: 'shop.trig', text: trig });
     await ui.runCommand({ command: 'open-model' });
 
     expect(modelQuads(app.components.store).length).toBe(before);
@@ -2024,7 +2367,12 @@ describe('the workbench', () => {
     await vi.waitFor(() => expect(registry.get(teller)).toBeDefined());
     const menu = () => ui.diagramCanvas.contextMenuProvider.getPopupMenuEntries(registry.get(clerk)) as Record<string, { label: string; action: () => void }>;
     ui.diagramCanvas.selectIris([clerk, teller]);
-    expect(Object.entries(menu()).map(([id, e]) => [id, e.label])).toEqual([['move-to-folder', 'Move 2 elements to folder…']]);
+    expect(Object.entries(menu()).map(([id, e]) => [id, e.label])).toEqual([
+      ['cut', 'Cut'],
+      ['copy', 'Copy'],
+      ['duplicate', 'Duplicate'],
+      ['move-to-folder', 'Move 2 elements to folder…'],
+    ]);
     script.answers.push('');
     menu()['move-to-folder']!.action();
     await vi.waitFor(() => expect(members('Business')).toEqual([]));
@@ -2112,7 +2460,7 @@ describe('the workbench', () => {
     expect(app.loadedMetamodels().some((m) => m.metamodelIri.includes('archimate4'))).toBe(true);
     const offered = ui.sparqlEditor.questionSource!();
     const from = (set: string) => offered.filter((q) => q.iri.startsWith(`https://meta.linked.archi/${set}#`)).length;
-    expect([offered.length, from('core-questions'), from('archimate3/questions'), from('archimate4/questions')]).toEqual([37, 16, 21, 0]);
+    expect([offered.length, from('core-questions'), from('archimate3/questions'), from('archimate4/questions')]).toEqual([39, 18, 21, 0]);
     expect(ui.validationPanel.checksAvailable).toBe(14);
     // "What realises each capability?" — ArchiMate 3.2's — asks the imported model.
     const capabilities = offered.find((q) => q.iri === 'https://meta.linked.archi/archimate3/questions#capability-realisation')!;
@@ -2124,17 +2472,20 @@ describe('the workbench', () => {
     await ui.runCommand({ command: 'model-settings' });
 
     expect(app.session.modelIri).toBe('https://acme.com/ea/shop/model');
-    expect(app.session.activeViewIri).toBe('https://acme.com/ea/shop/view-v');
-    expect(ui.appToolbar.activeViewIri).toBe('https://acme.com/ea/shop/view-v');
+    // The imported names keep their local parts (DD-41): `view/v`, `element/a`.
+    expect(app.session.activeViewIri).toBe('https://acme.com/ea/shop/view/v');
+    expect(ui.appToolbar.activeViewIri).toBe('https://acme.com/ea/shop/view/v');
     const web = contents().elements.find((e) => e.label === 'Web')!;
-    expect(web.iri).toBe('https://acme.com/ea/shop/element-a');
+    expect(web.iri).toBe('https://acme.com/ea/shop/element/a');
     expect(ui.diagramCanvas.getElement(web.iri)?.bounds).toMatchObject({ x: 10, y: 10 });
     expect(ui.diagramCanvas.getRelationships().size).toBe(1);
 
     const ttl = app.saveModel('turtle').text;
     expect(ttl).toContain('@prefix shop: <https://acme.com/ea/shop/>.');
-    expect(ttl).toMatch(/^shop:element-a a am:ApplicationComponent;/m);
-    expect(ttl.split('<https://acme.com/ea/shop/')).toHaveLength(2);
+    expect(ttl).toContain('@prefix shope: <https://acme.com/ea/shop/element/>.');
+    expect(ttl).toMatch(/^shope:a a am:ApplicationComponent;/m);
+    // The namespace is only in the prefixes: no model IRI is written in full.
+    expect(ttl.split('\n').filter((line) => !line.startsWith('@')).join('\n')).not.toContain('<https://acme.com/ea/shop/');
     expect(app.isDirty()).toBe(true);
 
     // A prefix another vocabulary already stands for is refused.

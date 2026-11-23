@@ -13,6 +13,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Parse the manifest; follow `arch:*` asset properties and `owl:imports` — *metamodel-loader.test*
 - [x] Load a level of references in parallel, `Accept: text/turtle` only — *asset-sources.test*
 - [x] Asset source chain: uploaded → bundled → remote; `?assets=` modes — *asset-sources.test*
+- [x] Snapshot sync defaults to the published site; explicit local checkout and forced online modes, read-only check and staging before writes (Req 1.9) — *sync-assets.test*
 - [x] Native bulk load into Oxigraph (13× faster on the relationship shapes)
 - [x] Per-document status (loaded / already-loaded / skipped / unavailable / error, origin, triples); "Show loaded assets"
 - [x] Skip documents the editor cannot use (derivation rules, templates, reference models); load reference data
@@ -21,14 +22,20 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Load by IRI; upload a manifest or an individual asset (role inferred) — *asset-sources.test*
 - [x] Several metamodels at once; palette, rules and validation use the union
 - [x] Bundle ArchiMate 4.0 and 3.2 with core, core-vis and their shapes; icons for both offline
+- [x] Bundle the Architecture Processes extension beside Architecture Decisions (Req 1.14) — *bundled-assets.test*
 - [x] Remote metamodel verified live in the browser (C4, 9 documents) — *workbench.spec*
 - [x] Publish a machine-readable catalogue on meta.linked.archi and read it instead of the built-in list — done (2026-10-18), see the change log. In meta: the documentation generator moved into the repository and compiled from the checkout; the catalogue built as RDF, checked by shapes, negotiated at `/catalog`. In la-gram: the Metamodels menu reads it, bundled and published — *catalogue.test, core-metamodel.test, workbench.spec*
 
 ### Task 2: Palette (Req 2)
 - [x] Dual classification (SKOS for grouping, OWL for instantiation); abstract classes excluded
+- [x] An element type is an ontology class, listed itself or by a concept that stands for it; a concept with nothing under it and no class behind it is none, and leaves its parent an axis (Req 2.5) — *taxonomy.test, palette-generator.test*
+- [x] A group under no axis (Junction) classifies its members on its own: a section of its name, no *Group by* choice (Req 2.23) — *taxonomy.test, palette-generator.test, notation-integration.test*
+- [x] Relationship types grouped by category, in the taxonomy's category order, each strongest first; a kind after its superclass (Req 2.22) — *palette-generator.test, palette-panel.test, taxonomy.test*
+- [x] Proposals strongest first: the general proposal order meta publishes (Req 4.2) — *relationship-ranking.test*
 - [x] Labels and definitions with fallbacks; several axes with a "Group by" selector
 - [x] Relationship types in the palette; picking one arms connect with that type
 - [x] Visual notation from `arch-vis:NotationSet`; three rendering modes; icons in the palette
+- [x] An element type with no icon, or one that does not load, shown with its figure drawn from its notation, in the palette and the menus (Req 2.26) — *notation-shapes.test, palette-panel.test, mount-ui.test*
 - [x] Filter by the open view's viewpoint — *workbench.test*
 - [x] A viewpoint naming element types only (every ArchiMate 4.0 viewpoint) keeps every relationship type; a relationship class it names is a relationship type (Req 2.8) — *viewpoint-manager.test, palette-panel.test*
 - [x] Outside-viewpoint shapes greyed, not hidden — *view-canvas.test*
@@ -37,21 +44,28 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] OWL-only fallback when there is no taxonomy
 - [x] Show a notice when the OWL-only fallback is in use — *palette-generator.test, palette-panel.test*
 - [x] Relationship types first, above the element groups, in a section that folds like a group; a search opens it (Req 2.22) — *palette-panel.test*
+- [x] An axis's groups in the order of its thesaurus array (`iso-thes:superOrdinate`); an axis the palette grouping names taken as one whatever its shape; the default axis from the manifest's palette grouping, none from a label (Req 2.5, 2.6, 2.23) — *taxonomy.test*
+- [x] Sections in the axis's order, a type of no group there under the next axis named, types within a section in the other axes' order (Req 2.23) — *palette-generator.test*
 
 ### Task 3: Elements (Req 3)
 - [x] Drag or click-to-place from the palette; element minted inside the create command
 - [x] UUID IRIs; `rdf:type`, `skos:prefLabel`@en, `arch:inModel`; node in the open view — *element-manager.test*
 - [x] Undo/redo restores the same IRI — *view-canvas.test*
 - [x] Property panel: kind, type, IRI, SHACL-derived fields, add/remove values
+- [x] IRI button beside the editable direct Type reveals its current IRI without opening the picker or retyping; mouse and keyboard, including after a type change (Req 3.11) — *workbench.spec*
 - [x] Field order: ID, type, `inModel`, `prefLabel`, `definition` (name and definition always listed), then the rest (added properties); no `inView` rows
 - [x] Vertical tabs: information, properties (+ add field), analysis, appears in views; counts; Up/Down; open tab remembered — *property-panel.test, workbench.test, workbench.spec*
 - [x] Property picker: grouped by applicability (domain / shapes), used in model, documentation, More (folded); no geometry / styling / authoring terms; name first, CURIE second; custom names in the model namespace — *property-catalog.test, property-picker.test, workbench.test, workbench.spec*
 - [x] Delete from view (default) vs. delete from model (confirmation lists views) — *view-canvas.test, workbench.spec*
 - [x] Delete from model cascades to relationships and every view, undoable in one step — *view-canvas.test*
 - [x] Inline label editing on the canvas (double-click, F2) — see Phase 5, Rename on the canvas
+- [x] The property picker offers a type's links by domain, none a relationship class draws (Req 3.6) — *property-catalog.test*
+- [x] A reference to another view (core-vis 0.9 `arch-vis:ViewReferenceNode`) is a figure: drawn with a small view, named *View reference* with the view it opens; its view's `arch:inView` follows its first and last reference; deleting the view deletes it; copied and pasted, a note where the target model lacks its view; imported from an Exchange `Label` with a `<viewRef>` (Req 3.23, 13.4) — *view-manager.test, archimate-importer.test, appearance-render.test*
+- [x] A view reference made, nested, linked, opened and changed: a view's row dragged from the tree onto the diagram or into an element, a group or a shape, or *Reference in the open view*; the open view's own row refused, said why; its view's name drawn until it has text of its own (F2, the panel's *Text*), emptied back to it; double-click, pad and menu *Open view*, a missing view said; *Opens* with *Open* and *Change…*; lines from and to it; deleting a view counts the references going with it, undoably; a view's *Referenced from*; the canvas's right-click menu on figures (Req 3.23, 11.9, 10.5) — *view-manager.test, view-canvas.test, model-explorer.test, property-panel.test, rdf-label-editing.test, rdf-rule-provider.test, workbench.test, workbench.spec*
 
 ### Task 4: Relationships (Req 4)
 - [x] Connect from the context pad or the toolbar; rules from domain/range (closure-aware)
+- [x] Blue connect preview follows the pointer over empty canvas before and after hovering a target; completing or cancelling removes it (Req 4.1) — *connect-interaction.test, smoke.spec*
 - [x] Permitted relationships from the metamodel's relationship shapes (the matrix), superclass shapes applied; hints only where no shape covers — also in the pad's and the append menu's prefilters — *relationship-table.test, relationship-resolution.test*
 - [x] Append: element + relationship in one command
 - [x] Append menu: type icons; asks which relationship when several specific ones are permitted (Association last), else creates it directly — *rdf-append-menu-provider.test, append-interaction.test, workbench.spec*
@@ -66,6 +80,13 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] An end dropped beside its element, or in its box's empty corner, docks on the outline; one let go on empty canvas stays where it was (Req 4.6, 4.10) — *connection-docking.test*
 - [x] A relationship ending on a relationship: drawn to its line and kept there through moves, bends and undo; stored as a link on a link (core-vis 0.6), drawn after it and removed with it; deleted from the model with it; drawn when placing, copying, importing (Req 4.16) — *connection-docking.test, view-manager.test, view-canvas.test, archimate-importer.test*
 - [x] Suggestion popup when exactly two elements are selected: "Connect these two…" on the pad — *connect-integration.test, workbench.spec*
+- [x] A connect with no type chosen opens the relationship-type menu on the new line when several specific types fit; the general order (strongest first) ranks every group (Req 4.2) — *connect-interaction.test, relationship-ranking.test, connect-integration.test, relationship-table.test*
+- [x] A new line between two elements runs centre to centre, cropped at the outlines (Req 4.6) — *connection-docking.test*
+- [x] A right-angled line keeps its right angles when an element moves or is resized; routed again at right angles where a bend would fall inside an element (Req 4.6) — *connection-docking.test*
+- [x] A section's types in the order of the array under their group, where it has one (Req 2.23) — *palette-generator.test*
+- [x] The order of proposal is the metamodel's: the orders its manifest names (`arch:relationshipProposalOrder`), by the kinds of the two elements, in three groups — direct, derived, fallback; the figures said, not ranked by (Req 4.2; key design decision 22) — *relationship-ranking.test, rdf-replace-menu.test, connect-interaction.test*
+- [x] A link a file states only as a triple, either way round where the vocabulary declares the inverse, opens as a relationship resource named as meta's rules name it (Req 4.22) — *model-session.test, short-hash.test, drawn-extensions.test*
+- [x] A language's relationship types between its own elements only, an abstract one never; between two languages the core's, in change type too (Req 4.2, 4.21; meta's DD-40) — *cross-language-relationships.test, relationship-manager.test, basic-metamodel.test*
 
 ### Task 5: RDF export (Req 5)
 - [x] Six formats: Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML — *model-io.test* (round-trip each)
@@ -75,8 +96,14 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] "Without diagram geometry" profile
 - [x] SVG / PNG of the open view (Req 14)
 - [x] RDF panel (Req 5.7): hidden by default, toolbar toggle / `?rdf=1`, six formats, geometry toggle, counts, copy, download, highlighting, selection ⇄ statements, no work while hidden, resizable — *rdf-panel.test, workbench.test, workbench.spec*
-- [x] HTTP URIs in a per-model namespace (Req 9.7a): `{base}{notation}/{uuid}/`, base `https://example.org/` or `?base=`; flat local names so Turtle writes `m:…` throughout; namespace + prefix stated with `vann:` on the model; DD-15 graphs under the namespace — *model-namespace.test, model-io.test*
-- [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (legacy `…/element/…` flattened) or only new ones; prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
+- [x] HTTP URIs in a per-model namespace (Req 9.7a): `{base}{notation}/{uuid}/`, base `https://example.org/` or `?base=`; namespace + prefix stated with `vann:` on the model; DD-15 graphs under the namespace — *model-namespace.test, model-io.test*
+- [x] Model settings (Req 9.7b): name, namespace, prefix; move existing IRIs (every local part kept) or only new ones; an `https:` or `http:` namespace with no `#` or `?` (DD-41); prefix clashes refused; one store change, collaborators follow; New model shows the namespace — *model-namespace.test, workbench.test, workbench.spec*
+- [x] The Linked.Archi IRI layout minted (Req 9.7c; DD-41; design decision 33): `{ns}{kind}/{uuid}`, shapes in their view's IRI (`{view}#node-{uuid}`), parts joined with `-` after a `#` and with `/` elsewhere; names minted before and a converter's kept and edited in place — own styles, routes (only what differs written), moved names, label expressions, names and pictures for a presentation context; relationships in the model's namespace; the Exchange import named as the converter names it, a shape whose id would name another's part given a UUID — *iri-layout.test, model-namespace.test, archimate-importer.test, view-manager.test, element-manager.test, clipboard.test, workbench.spec*
+- [x] IRIs of the Linked.Archi layout written short in Turtle and TriG (Req 5.13; DD-41): a prefix per kind, a prefix per view (escaping what a local name cannot hold, which a shape and its parts never need), then relative to `@base`; prefix clashes left to the vocabularies and to the first view; the copy as Turtle too; n3 pinned for the override (design decision 32) — *turtle-writer.test, model-io.test, short-hash.test*
+- [x] The IRI layout checked by `la-gram-git check` (Req 20.2; DD-41; design decision 35): the namespace, then characters, `#`s, shapes, parts and other names outside the layout, and legacy names, counted and named, never failed; from the file's own triples — *iri-conformance.test, cli.test*
+- [x] A move made on the other side of a merge followed (Req 18.27–18.28; DD-41; design decision 34): *Pull from Git*, *Merge with the newer version* and *Update from main…* move the open model to the IRI the other version has it under, its binding with it (`movedFrom` until committed), the canvas on the same view; *Open this version* after *Open and move*; automatic checks and auto-commit stop; another model in the file is not merged — *git-pull.test, git-merge.test, git-history.test, model-namespace.test, git-merge.spec*
+- [x] A stakeholder is a kind of its own, `{ns}stakeholder/{id}`, as DD-41's kinds table now has it: in the layout for `la-gram-git check` (Req 20.2), and written with the prefix `{p}s:` (Req 5.13) — *iri-conformance.test, turtle-writer.test*
+- [x] A model moved to another namespace, in Git and in a merge (Req 18.27–18.28, 20.5; design decision 34): see Task 19 — *model-merge.test, git-merge.test, git-module.test*
 
 ### Task 6: Validation (Req 6)
 - [x] Shapes: every loaded metamodel's `shapes` graphs + core + core-vis shapes (previously the app validated against an empty graph)
@@ -107,6 +134,7 @@ side by side; ticks reflect la-gram as it is. `(Req n.m)` points at
 - [x] Layout: model tree left (full height), hideable ("☰ Model") and resizable by its right edge; palette right, hideable ("▦ Palette") and resizable; bottom tabs Properties / Validation (violation count) / SPARQL Query / Graph, resizable by the top edge, folding to the tabs, maximizing over the workspace (⤢; Esc restores); sizes, tab and folding remembered — *app-shell.test, mount-ui.test, workbench.test, workbench.spec, smoke.spec*
 - [x] Hideable / resizable model tree
 - [x] Right-click canvas menu — see Phase 5 (Req 11.9)
+- [x] The File menu in sections with icons; *Save as ▸*, a module's submenu (*Git ▸*), *Export view ▸*; a submenu by pointer, click or keyboard (Req 11.12; 2026-11-20) — *workbench.test, git-merge.spec*
 
 ---
 
@@ -124,6 +152,9 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ### Task 14: Working-state persistence
 - [x] Collaboration server persists rooms continuously (debounced, atomic writes)
 - [x] Files: open/save in six formats; unsaved-changes indicator and guard
+- [x] Save writes TriG; Ctrl/⌘+O and Ctrl/⌘+S (Req 9.8, 11.10; 2026-11-20) — *workbench.test, help.test, workbench.spec*
+- [x] The provenance of edits (Req 9.16; key design decision 39; 2026-11-20): stamped inside each edit, one activity a session, la-gram at its version and the person (*File › Settings… › You*); `{ns}graph/provenance`; *Last changed* read-only; the RDF panel's *provenance*; left out of the diff by element, the later kept in a merge; each version's page built and kept — *provenance.test, model-diff.test, property-panel.test, rdf-panel.test, workbench.test, git-module.test, release-pipeline.test, workbench.spec*
+- [x] The user and their Git account in the provenance, `{ns}provenance/edit-…` and `{ns}provenance/user-…`; who made each change and when in the diff by element and a merge request's description; a checkpoint by *You*'s name (Req 9.10, 9.14, 9.16, 18.29; key design decisions 39, 41; 2026-11-20) — *provenance.test, model-diff.test, workbench.test, git-module.test*
 
 ### Task 15: Checkpoints & version history — done
 - [x] An explicit checkpoint of the working state (called a commit until 2026-10-23); history list; diff (added/removed triples); restore — *version-history.test, workbench.test, workbench.spec*
@@ -132,6 +163,7 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 ### Task 16: Model tree — done
 - [x] Model → Views / Elements by type / Relationships by type / Unclassified; placed markers — *model-explorer.test*
 - [x] Context menus per kind; filter; reveal on canvas selection; drag to place — *workbench.spec*
+- [x] A view deleted with everything it drew, its placements' and lines' own styles and label expressions included; its concepts stay (Req 10.8) — *view-manager.test, iri-layout.test*
 - [x] A model's own folders (`arch:Folder`, made here or brought over by the converters) in the three groups, each kind its own: a group's folders first — nested, folded, by name, with their counts — then what none holds, by type; a top *Elements*/*Relationships*/*Views* folder is its group, any other folder under the groups of what it holds (no tool's folder names known); a converter's folder for the model itself left out; filter and reveal reach into folded folders (Req 10.10, 10.12) — *model-explorer.test, converter-models.test*
 - [x] Folders kept in step by `ModelContentsIndex`, read again only after a change that touches one (Req 10.10) — *model-contents-index.test*
 - [x] Folders | Types switch in the tree's header, remembered per browser; on a model without folders, *Folders* greyed out and the tree by type (Req 10.11) — *model-explorer.test*
@@ -147,7 +179,13 @@ contexts, metamodel selection/switching/upload, several metamodels at once (Task
 - [x] One resource, many placements; drop from the tree; draws relationships to placed elements — *view-canvas.test*
 
 ### Task 19: Git storage (Req 18) — an optional module
+- [x] **A model moved to another namespace, in Git** (2026-11-18; DD-41): Model settings asks first for a model saved to Git, naming its file, and the binding follows the model (`movedFrom` until the move is committed) (Req 18.27) — *git-module.test, git-merge.test, git-pull.test, model-namespace.test, git-merge.spec*; a merge moves the other versions after the side that moved it, and la-gram refuses a merge or *Open this version* that would move the open model (Req 18.28, 20.5) — *model-merge.test, git-merge.test, git-pull.test, git-history.test, cli.test*.
+- [x] **Optional automatic commits** (2026-11-18): destination settings, idle/interval scheduler, pause/resume, remote reconciliation, immutable snapshots and durable uncertain-response recovery (Req 18.26) — *git-auto-commit.test, settings-section.test, git-merge.spec*.
+- [x] **Regular remote checks and optional clean-only automatic pull** (2026-11-18): manual Check and the Git status tab, personal settings, one active owner per destination, separate operation locks, pause/backoff and obsolete-result guards (Req 18.25) — *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
 In three parts, each reviewed before the next.
+- [x] **Where the model is kept, in Model settings** (2026-11-21; Req 18.30): the *Git* part — the bound file's address, to copy, and the Git account; a module's read-only fields (`MountedUi.addModelSettingsInfo`, `FormField.readOnly`) — *git-model-settings.test, link.test, git-module.test, dialogs.test, git-merge.spec*.
+- [x] **Who commits, and whose account** (2026-11-20; Req 18.29; key design decision 41): commits written by the user from *Settings › You*, the token's owner the committer; the account the token acts for read once a session per host, kept with the personal settings, shown in *You* — *providers.test, git-accounts.test, git-module.test, workbench.test*
+- [x] **Manual Pull from Git** (2026-11-17): incorporate the bound branch without committing, preserve local edits and expose conflicts; undo/no-op, in-flight edits, binding/lifecycle checks and manual-operation coordination (Req 18.24) — *git-pull.test, git-module.test, git-merge.test, git-merge.spec*. Automatic commits are specified in Req 18.26.
 - [x] **1. Document** (2026-10-19): Req 18; design — *Git storage (optional module)*
 - [x] **2. Save to Git** (2026-10-19)
   - [x] The switch: `LA_GRAM_GIT` in the build (the module's own chunk, not emitted when off); a setting on this machine, on by default (*File › Modules…*); `?git=off` — `src/modules.ts` — *modules.test, module-boundary.test, workbench.spec*
@@ -244,6 +282,7 @@ In parts, each reviewed before the next.
 - [x] Viewpoint greying
 - [x] Change an element's type (Req 3.11), from the property panel and the right-click menu — *rdf-element-retype.test, workbench.test, workbench.spec*
 - [x] Right-click menu on the canvas (Req 11.9) — *rdf-element-retype.test, workbench.test, workbench.spec*
+- [x] The open view copied to the clipboard as PNG or SVG, from *File › Export view ▸* and the empty canvas's right-click menu (Req 14.4; 2026-11-20) — *image-clipboard.test, workbench.test, workbench.spec*
 - [x] Rename on the canvas (Req 3.3): in-place editing of an element's name, undoable — *rdf-label-editing.test, workbench.spec*
 - [x] Relationship names on the canvas (Req 4.17, 11.2, 11.9) (2026-11-05): a relationship's name at the middle of its line, behind the canvas toolbar's *Relationship names* switch (off by default, remembered per browser); named on its line as an element in its box — double-click, F2, the right-click menu's Rename — emptied, removed; undoable; the line follows a rename made elsewhere; the export's crop takes the names in — *rdf-renderer.test, rdf-label-editing.test, view-canvas.test, canvas-toolbar.test, workbench.spec*
 - [x] Moving a relationship's name (Req 4.18) (2026-11-05): dragged off the middle of its line — the name, not the line; kept in the view as an `arch-vis:LabelNode` on the link (removed, restored and copied with it); following the line as it moves, in the same undoable step; *Move name back to the middle* — *view-manager.test, rdf-renderer.test, view-canvas.test, workbench.spec*
@@ -254,11 +293,14 @@ In parts, each reviewed before the next.
 - [x] Relationship graph, live force layout (Req 17.2, 17.7–17.12) (2026-11-10): Force the default, d3-force stepped by la-gram's own loop (`graph-force.ts`); animated up to 100 elements, laid out at once up to 800, rings above with a note on the stats line; seeding beside the parent, turned clear of what is drawn; the middle element pinned; drags live, held or alone, released on drop; the camera moved only at rest; paused while hidden; a refresh that changes nothing moves nothing; the limits measured and checked by `npm run bench -- --graph` — *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
 - [x] Relationship graph, force controls (Req 17.13) (2026-11-10): *Forces* under *Layout* with Force, folded — *Link distance* 40–400 px (**180**), *Charge strength* 0–1 500 (**350**, d3's −350), *Collision radius* 0.5×–2× (**1.0×**), native sliders with their values and units, `aria-valuetext`, a focus ring; *Reset*; followed live while the run animates (at most one update a frame), laid out again on release otherwise; framed at rest; `la-gram:graph-forces`, brought into range on read; disabled where Force draws rings; the defaults give the layout unchanged — *graph-force.test, graph-force.property.test, graph-panel.test, workbench.test, workbench.spec*
 - [x] Performance: cold start ≈ 1.2 s; 500 elements — create 140 ms, draw 56 ms, validate 140 ms, save 20 ms (Chrome, bundled ArchiMate 4.0)
+- [x] Automatic layout (Req 21; key design decision 21) (2026-11-15): ELK's layered layout in a worker (`src/layout/`), right-angled routes, nesting, bands from the manifest's `arch:diagramGroupOrder`, deterministic; *Arrange view…* on the canvas toolbar and the empty canvas's right-click menu — scope, *Direction*, *Spacing*, *Group by band*, remembered, one undoable step; a model opened with no geometry and *Render as new view* laid out the same; the grid above 2 000 elements, on failure or after 10 s, said; ELK's effort by the diagram's size; `npm run bench -- --layout` — *layout.test, bands.test, canvas-toolbar.test, connection-docking.test, workbench.test, workbench.spec*
+- [x] Arrange options (Req 22; key design decision 23) (2026-11-15): *Arrange relationships…* — lines routed again around the placements, which stay (`layout/orthogonal-router.ts`); align ×6, distribute ×2, *Align to grid…* (10, **20**, 40 px; both, x, y), *Sizes…* (match to the **largest**, smallest, median; width, height, **both**; or the default size) (`layout/arrange-geometry.ts`); each one step to undo, as one command (`canvas-arrange.ts`); a menu beside *Arrange view* and the empty canvas's right-click menu for the dialogs, quick actions in the toolbar with the dialogs' last choices — *arrange-geometry.test, orthogonal-router.test, canvas-arrange.test, canvas-toolbar.test, workbench.test*
 - [ ] Accessibility audit (keyboard navigation of palette and tree, WCAG AA contrast, focus management in dialogs)
 - [x] Catalog/matrix views driven by the view's own membership (`arch:inView`); the matrix's axes kept per view in the browser — *view-membership.test, workbench.spec*
 - [x] Render SPARQL results (SELECT or CONSTRUCT) as a new view: the elements and relationships they mention, laid out as a tree — *view-from-results.test, model-session.test, graph-layout.test, workbench.test*
 - [x] Electron packaging and a smoke test of the desktop build — `npm run package`; *electron.spec* launches the desktop build (skipped without the Electron binary); the packaged app checked by hand (macOS arm64)
 - [x] Electron: a current major (28 is past end of life), a Content-Security-Policy, and the renderer without Node integration — done (2026-10-17), see the change log
+- [x] The alpha at app.linked.archi/la-gram-alpha/, deployed from each merge to the default branch while `package.json` says a pre-release; its browser storage its own; its version's page naming the commit (Req 15.10; key design decision 40; 2026-11-20) — *release-pipeline.test, storage-scope.test, version-page.test*
 
 ## Beyond the reference spec (tool spec phases 3–4)
 - [ ] Freehand sketch layer and progressive typing (tool spec §5.8–5.9)
@@ -266,10 +308,44 @@ In parts, each reviewed before the next.
 
 ---
 
+## Milestones (2026-11-16)
+
+Decision confirmed on 2026-11-16: the order below. Each is a group of features to plan in a task folder of its own
+when it starts; what is already recorded elsewhere is named, not repeated.
+
+1. **Interchange.** A model comes in from, and goes out to, other tools whole.
+   - [ ] ArchiMate Exchange import checked end to end — elements, relationships, views with their geometry, styles and nesting, properties, and the file's folders (known limitation 6: skipped today) — against files written by several tools.
+   - [ ] ArchiMate Exchange export.
+   - [ ] XMI import and export. To decide when it starts: which XMI (UML 2.5.1 with diagram interchange; the dialects tools write), and which metamodels it maps to.
+   - [ ] Catalogues in and out as CSV or a spreadsheet.
+   - [ ] *A file with several models* (Queued next).
+2. **Analysis.** What the model answers beyond the questions and SPARQL it has.
+   - [ ] *Derivation in la-gram, and derived relationships in the matrix* (Queued next).
+   - [ ] A diagram coloured by a property or by a query's answer (a heat map; impact of a change shown on the view).
+   - [ ] Queries kept with the model and shared with it; a page of charts and tables from their results.
+   - [ ] *Catalog and matrix settings in the model* (Queued next).
+3. **Output for readers.** What someone who does not model receives.
+   - [ ] A model published to read, not to edit: its views, catalogues and elements behind a link.
+   - [ ] A document or report generated from a model (HTML, PDF), from a deliverable template where the metamodel has one.
+   - [ ] Every view exported at once (SVG, PNG).
+4. **Integration.** Models fed and read by other systems.
+   - [ ] A command-line tool and an API beyond `la-gram-git check`: convert, validate, query, export.
+   - [ ] Connectors that keep a model in step with a source of record (a CMDB, a cloud inventory, Backstage, LeanIX).
+   - [ ] Notifications of a model's changes to other systems (webhooks).
+5. **Access.** *Authentication / room access control on the server* (Phase 4): sign-in, roles (read, edit, administer), a record of who changed what.
+6. **A place models live.** A list of models with search, permissions and backups, for those who do not keep them in Git.
+7. **Releases.** Signed and notarised desktop apps, updating themselves; a version with a statement of what stays compatible.
+8. **Scale and polish.** *The router in the layout worker*, *Arrange view: write and redraw only what moved*, *The Graph tab's force layout in a worker* (Queued next); a pass over keyboard use and accessibility.
+
+---
+
 ## Queued next (2026-10-10)
 
 Agreed order; relationship visuals come first.
 
+- [ ] **la-gram on `@linked-archi/kernel` (L01)** — recorded (2026-11-20), not started: the model logic (`rdf-engine`, `metamodel-manager`, `model-manager`, `model-io.ts`) and `assets/` moved to the kernel repository (`tools/platform/linked-archi-kernel`, platform decision PD-14); la-gram builds on the package and deletes its copies, with no change in behaviour. Until then, a fix to these modules is made in the kernel first and copied here. `.agents/tasks/kernel-migration/`.
+- [x] **The Linked.Archi IRI layout, part 4** (DD-41) — done (2026-11-18): a merge follows a namespace move, la-gram asks before moving a model saved to Git and keeps it bound, `la-gram-git check` reports the layout. Parts 1–4 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
+- [x] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), done (2026-11-19): *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* (after a second question) move the open model to the IRI the other version has it under, its session, binding and History tab with it; automatic checks and auto-commit stop and say that Pull follows (Req 18.28; key design decision 34). See the change log.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
 - [x] **Nesting / containers** — done (2026-10-11), see the change log. Visual groups (`arch-vis:ContainerNode`, an Exchange file's `Container`) are still not drawn.
 - [x] **EDGY artwork — licence** — done (2026-10-17), see the change log.
@@ -306,28 +382,71 @@ Agreed order; relationship visuals come first.
 - [x] **Converter relationships grouped as "ModelConcept"** — recorded (2026-11-04), done (2026-11-06): see the change log.
 - [ ] **A file with several models** — recorded (2026-11-04), not started: opening a file that holds more than one `arch:Model` — the BPMN converter's ArchiSurance example has three processes, the PlantUML one five diagrams — merges them into one: the tree's root holds every model's concepts and is named after one of them, not always the one la-gram opened as the model. Pick one model, or show each.
 - [ ] **Derivation in la-gram, and derived relationships in the matrix** — recorded (2026-11-05), not started. la-gram would run meta's valid ArchiMate derivation rules (DR1–DR8) itself, so that a matrix of applications can show the relationships that run through their functions, services and parts. **Derivation runs only when the modeller asks for it, never on its own.** A probe ran the rules in la-gram's Oxigraph with the same results and, with two rewrites in a working copy, 9,099 relationships in 14 s. The brief, the findings and the decisions to take are in `.agents/tasks/derivation-in-la-gram/tasks.md`.
-- [ ] **Automatic layout with ELK** — recorded (2026-11-07), not started. The three ways la-gram places elements today — the 6-column grid when a model has no geometry (`autoLayoutIfNoGeometry`), *Render as new view*'s Cytoscape tree spread by `placeNodes`, the Graph tab's positions — become one layout service: `elkjs` in a worker, layered with orthogonal routes, at each element's notation size, ArchiMate layers as ordered bands (from the metamodel's classification), nested placements inside their parent; plus an *Arrange view…* command. Written as geometry in one batch: one undoable step (`rdf.view.arrange`), one change for collaborators; deterministic for clean diffs; the grid as fallback (failure, timeout, > 2 000 elements). Settled: nesting is `arch-vis:inNode` with absolute bounds (ELK's relative child coordinates are converted back), routes keep their ends (ELK's start + bends + end, re-cropped by docking), bands from *Element by Layer* (3.2) / *Element by Domain* (4.0), none for Basic. Open: EPL-2.0 sign-off for elkjs. Estimate ~8–11 days. The draft spec is in `.agents/tasks/elk-auto-layout/spec.md`.
-- [ ] **Copy and paste on the canvas** — recorded (2026-11-07), not started. Today the clipboard copies only IRIs and RDF text. Ctrl/Cmd+C/X/V and Duplicate (Ctrl/Cmd+D) on a selection, carried as a self-contained RDF fragment (the elements' triples, their `arch-vis` geometry and appearance, a relationship only when both its ends are selected; Turtle as `text/plain` too). Pasting into another view of the same model places the same elements; into the same view, new copies with new IRIs and every reference rewritten; Shift forces copies, Alt forces references; into another model always copies, checked against its metamodels (types it lacks and relationships its shapes refuse are listed). Cut only removes from the view. Built on diagram-js's copyPaste/clipboard modules, reading from and writing to the store; one undoable step (`rdf.view.paste`), one change for collaborators. Settled: plain paste follows the context rule; a copy keeps only type, name and documentation; copying from the model tree into a view is in v1. Copies go to the original's folder (same model). Estimate ~5.5–7 days. The draft spec is in `.agents/tasks/copy-paste/spec.md`.
+- [x] **Automatic layout with ELK** — done (2026-11-15): *Arrange view…*, a model opened with no geometry and *Render as new view* laid out by ELK in a worker, with bands from the metamodel (Req 21, key design decision 21; `.agents/tasks/elk-auto-layout/`). See the change log.
+- [x] **The order of proposal: one rule, by the kinds of the two elements, named by the manifest** — done (2026-11-15): the ArchiMate orders are by kind of element and the manifest names them; core's `arch:relationshipProposalOrder` gives the rule, la-gram ranks by it (Req 4.2; key design decision 22; meta's `.agents/tasks/relationship-proposal-order/`, with the before-and-after comparison of every pair). See the change log.
+- [ ] **Arrange view: write and redraw only what moved** — recorded (2026-11-15), not started. ELK runs in its worker, but writing its result and redrawing the diagram run on the main thread: the canvas pauses 0.5 s after arranging 500 elements and 2.1 s after 2 000 (4× CPU: 2.9 s and 11.3 s; `npm run bench -- --layout`). Updating the moved shapes and routes in place, rather than the view drawn again from the store, would shorten it.
+- [ ] **Metamodels that offer nothing to draw, less than they define, or are not in the menu** — recorded (2026-11-16); la-gram's part done the same day (Req 2.24: *Other*, the notices, the unload); the data is meta's, measured and planned in `linked-archi-meta/.agents/tasks/metamodel-completeness/README.md`: abstract classes to mark, palette groupings to name, taxonomies to complete or add (UML, UAF, TOGAF, DoDAF, BPMN, LeanIX v3, ATAM…), manifests for the asset sets that have none (Architecture Decisions first, `decision-modelling-layer`). Done in meta the same day — Reference Architecture with Tactics has its manifest too — but for what its README lists as left: element types for EA-as-a-Service's other classes, the four sets that define nothing to draw, and Processes, whose process classes are to become element types with a manifest, a taxonomy and relationship types (`linked-archi-meta/.agents/tasks/processes-as-elements/`; la-gram's part there: G1–G4).
+- [ ] **A benchmark row for *Arrange relationships*** — recorded (2026-11-16), not started: `npm run bench -- --layout` times *Arrange view* only; a row routing the lines of 500 and 2 000 placements would catch a slow router (one change took routing 2 000 elements from seconds to 52 s before it was measured) and give the figures the worker move is judged by.
+- [ ] **The router in the layout worker** — recorded (2026-11-16), not started: *Arrange relationships* and the routing after *Arrange view* run on the main thread (known limitation 14: up to 1.8 s for 1 000 lines, about 4.5 s for 4 000); in the worker the canvas stays responsive, and *Arrange view* could route above 500 placements (`ROUTE_AFTER_LAYOUT_MAX`).
+- [ ] **Docking a line whose first turn is a short step** — recorded (2026-11-16), not started: a line that steps a few pixels one way and then turns the other is placed by the step, and may cross a line it could have docked beside (1 case in 242 of one tall element's lines to four others; known limitation 14). Placing it by its first turn longer than the spacing would do.
+- [x] **Copy and paste on the canvas** — done (2026-11-12): copy, cut, paste by the context, *Paste as copies*, *Paste as references* and *Duplicate* on a diagram, and *Copy* in the model tree (Req 3.22, 10.17; key design decision 19; `.agents/tasks/copy-paste/`). See the change log.
 - [x] **Pictures and looks per presentation context** — done (2026-11-08); follow-ups in the task's checklist. The Image tab per presentation context (a placement's style per context: `arch-vis:style` several, each for one context or for all) and an element's pictures per audience (`arch:prefVisNotation`, `arch:altVisNotation` → `schema:ImageObject` with `arch:inPresentationContext`), drawn as the icon where the element is drawn as its icon. Requirements, design and the checklist — to continue from — are in `.agents/tasks/pictures-per-presentation/`.
-- [ ] **Git collaboration: merge, review, CI** — recorded (2026-11-05); Phase 1 done (2026-11-05): the merge, *Merge with the newer version*, the Conflicts tab, *Update from main…*; Phase 2 done (2026-11-05): the diff by element, the History tab's Git history (Task 21), *Open merge request…*; Phase 3 part 1 done (2026-11-06): the shapes' SPARQL-based rules and missing references in validation, and la-gram-git — check, fix, diff, merge, init — see the change log. Phase 3 part 2 done (2026-11-06): the release pipeline (the npm package and the image), the Dockerfile, the package's, templates' and Gitaly docs — not yet released. On GitHub, GitLab.com and self-managed GitLab:
+- [ ] **Git collaboration: merge, review, CI** — recorded (2026-11-05); Phase 1 done (2026-11-05): the merge, *Merge with the newer version*, the Conflicts tab, *Update from main…*; Phase 2 done (2026-11-05): the diff by element, the History tab's Git history (Task 21), *Open merge request…*; Phase 3 part 1 done (2026-11-06): the shapes' SPARQL-based rules and missing references in validation, and la-gram-git — check, fix, diff, merge, init — see the change log. Phase 3 part 2 done (2026-11-06): the release pipeline (the npm package and the image), the Dockerfile, the package's, templates' and Gitaly docs. la-gram-git is not yet released: it is released by a tag of its own, `la-gram-git-v<version>` (`packages/la-gram-git/package.json`, 0.1.0), and la-gram's `la-gram-v0.2.0` tag does not release it. Phase 4, shared rooms and branches, is not started. On GitHub, GitLab.com and self-managed GitLab:
   - la-gram merges a conflicting save with the newer version, triple by triple (*Merge with the newer version*, *Update from main*), and shows the conflicts that need a choice;
   - an element-level diff for review, and *Open merge request*;
   - a CI tool built from la-gram's engine, for parsing, the canonical form, SHACL including `sh:sparql`, and dangling references;
   - a shared room committed to Git by the person who shares it.
 
   Planned from `docs/git-collaboration-spec.md`, with its corrections; the plan is in `.agents/tasks/git-collaboration/tasks.md`.
+- [x] **Git synchronization Stage 1: manual Pull from Git** — implemented (2026-11-17), Req 18.24: current-branch pull without committing, preserving local edits with the existing merge/conflict flow. [Plan and remaining stages](../../tasks/git-sync/README.md); *git-pull.test, git-module.test, git-merge.test, git-merge.spec*.
+- [x] **Git synchronization Stage 2: regular checks and clean-only automatic pull** — complete (2026-11-18), (Req 18.25): Git status tab, manual Check, Off/1/2/5/10-minute settings and auto-pull Off by default; per-destination ownership, operation locks, lifecycle guards, pause/backoff and snapshot caching. *git-sync.test, git-module.test, settings-section.test, providers.test, git-merge.spec*.
+- [x] **Git synchronization Stage 3: optional auto-commit** — complete (2026-11-18), (Req 18.26): destination opt-in, idle/interval, reconciliation, persistent pause/resume, immutable writes and uncertain-response recovery. Shared-room Phase 4 stays pending. [Checklist](../../tasks/git-sync/tasks.md).
 - [x] **The History tab shows the Git history too** (Task 21) — done (2026-11-05), with Phase 2 of the Git collaboration plan: for a model bound to a file in Git, the file's commits beside the local checkpoints, with their changes by element and *Open this version*.
 - [x] **Configuration** (Task 20, Req 19) — done (2026-10-19): the deployment's `la-gram.config.json` (allowed Git hosts and their kinds, token policy, module defaults, Git defaults) and personal settings (*File › Settings…*). See the change log.
 - [ ] *Possible improvement:* **Catalog and matrix settings in the model** — a matrix's row and column types are kept per view in the browser (`localStorage`), so they are neither shared with collaborators nor saved with the model. Keeping them in the model would need vocabulary meta's core does not have (a view's settings, for a catalog its columns too); left as it is (2026-10-17).
 - [ ] **Pin a dropped element in the Graph tab** — recorded (2026-11-10), not started: with a modifier key, a dropped element would stay where it is dropped, with a way to see and clear the pins (key design decision 17 releases every element but the middle one).
 - [ ] **The Graph tab's force layout in a worker** — recorded (2026-11-10), not started: off the main thread a step's length no longer bounds a frame, so Force could lay out graphs above 800 elements instead of drawing rings, and drags above 100 elements could be live (`worker-src 'self' blob:` allows it).
-- [ ] **Every bundled package's licence notice shipped with the app** — recorded (2026-11-10), not started: the bundle's extracted licences hold the `/*!` and `@license` comments only, so Cytoscape.js's, diagram-js's and D3's notices are not among them; ship each bundled package's licence file, for every package at once (a change to the whole build).
+- [x] **Every bundled package's licence notice shipped with the app** — done (2026-11-12): `third-party-licences.txt` beside the web app and in the desktop renderer, linked from *About la-gram* (Req 15.5, 15.9; key design decision 18). See the change log.
 - [ ] **The Chrome specs under the web policy** — recorded (2026-11-10), not started: `tests/browser/static-server.ts` sending the web deployment's `Content-Security-Policy` and `harness.ts` failing on CSP console errors, so every Chrome spec runs under it; today only the Electron spec checks the policy at run time.
-- [ ] **The camera sentence of *Keyboard and mouse › Graph tab*** — recorded (2026-11-10), not started: `docs-site/reference/keyboard.md` says the view stays where it was put until another element, depth, filter or layout, or *Fit*; since the force controls (Req 17.13) a change of forces frames the graph at rest too (Req 17.11). Left as it was with them, which add no keys of their own; *Relationship graph › Layout* says it.
+- [x] **The camera sentence of *Keyboard and mouse › Graph tab*** — done (2026-11-15): `docs-site/reference/keyboard.md` names the *Forces* among what frames the graph again (Req 17.11).
+- [x] **The glyphs the notations name, published** — done in meta (2026-11-17), published with its next deploy: the 58 badge glyphs LeanIX's, BPMN's, BPMN Lite's, UML's and Backstage's notations name are drawn beside each notation (`modelingLanguages/<language>/icons/glyphs/`) and copied to the site by `.scripts/copy-icon-assets.sh`. Nothing changes in la-gram: once they load, the palette shows them in place of the drawn figure and the canvas draws the badge. None of the five languages is bundled.
 
+- [x] **Incoming links in the property panel** — not to be done: decided on 2026-11-17 that a concept's relationships, to and from it, are the Analysis tab's, and its Properties tab every other property (key design decision 26).
+- [x] **View references: make, nest, link, open and change them** (Req 3.23) — done (2026-11-21): see the change log.
+  `.agents/tasks/view-references/` (VR-1–12, VR-DD-1–8).
+- [x] **Views as model concepts on a diagram** (Req 3.23, 2.16, 4.21, 11.9) — done (2026-11-21): see the change log.
+  `.agents/tasks/views-as-concepts/` (VC-1–11, VC-DD-1–8).
+- [x] **The core notation draws the core's three types; nesting may stand for Has Part** (Req 2.25, 3.12, 3.23, 4.21)
+  — done (2026-11-22): see the change log. *palette-generator.test, view-canvas.test, workbench.spec*
+- [x] **Depends On, the core's dependency type** (Req 2.25, 3.23, 4.21) — done (2026-11-22): see the change log.
+  *palette-generator.test, relationship-ranking.test, model-session.test, view-canvas.test*
+- [x] **Questions about dependencies, across languages** (Req 16.4) — done (2026-11-22): see the change log.
+  *questions.test, questions-bench.test, workbench.test, workbench.spec*
+- [ ] **Inferred dependencies kept out of a model on open** — recorded (2026-11-22), not started: a bare
+  `arch:dependsOn` triple that a stated triple of one of its subproperties implies (`A am4:serves B` beside
+  `B arch:dependsOn A`) is opened as a Depends On today (Req 4.22). Skipping it needs `rdfs:subPropertyOf` read
+  where relationships are made from triples. Meta's DD-44 keeps such triples out of models instead.
 ---
 
 ## Known limitations
+- View references (Req 3.23): deleting a view is undone, with the references and the relationships that went with
+  it, only while another diagram stays open. Deleting the open view opens another, whose undo history starts afresh
+  (known limitation 3): the view and what went with it come back by restoring a checkpoint or a Git version (the
+  History tab).
+- The core notation (Req 2.16, 4.21, 3.23) is bundled from a linked-archi-meta checkout and not yet published on
+  meta.linked.archi: la-gram loads the bundled copy in every asset mode (`remote-first` falls back to it), but
+  `npm run sync-assets` from the published site fails on it until it is published. A reference whose view refines
+  an element is not drawn inside the element's box on its own: nesting is the modeller's gesture, as for elements.
+
+- A namespace move (Req 18.27–18.28): automatic checks and auto-commit do not follow a move made on the
+  other side — *Pull from Git* does. Undo does not take a move back, made here or followed. Auto-commit is
+  off for a moved model until turned on again: its setting is kept by model IRI. The local checkpoints of
+  the History tab stay with the model's former IRI.
+- Git synchronization is available outside shared rooms; unresolved conflicts and pending branch
+  merges pause it. Regular checks need browser tab coordination and run while visible/online.
+  Auto-commit is destination opt-in, requires durable local storage, and stays paused after uncertain
+  writes until remote confirmation and an explicit Resume or manual Save. Recovery reads at most one
+  file-history page; older or unprovable writes require manual reconciliation.
 
 1. ~~**One placement per element per view.**~~ An element may be placed more than once since 2026-11-06 (Req 3.14), and a relationship drawn more than once; Exchange imports draw them so.
 2. ~~**Visual groups and free-standing labels** are not drawn~~ — drawn since 2026-11-06 as figures (Req 3.13): groups, notes, and the core-vis shapes from the toolbar; an Exchange file's `Container` and `Label` import as a group and a note, and lines from them (since 2026-11-06) as lines standing for no relationship; `archimate2linkedarchi` writes them so since 2026-11-07 (core-vis 0.7).
@@ -338,13 +457,649 @@ Agreed order; relationship visuals come first.
 7. **A relationship's name on its line** (Req 4.17–4.18). Its box is fitted to the name as drawn, measured with the browser's text metrics since 2026-11-06 (in jsdom, the wrapping estimate). A moved name's kept bounds are the box when it was last placed: renamed, the name stays centred where it was, its width and height in the view not written again until it or its line moves. A tool that moves the line without writing the label node again leaves the name at its bounds. Emptying a name removes it in the language shown; a name in another language, or an `rdfs:label`, stays, and is drawn once the view is next reconciled with the store.
 8. **Appearance** (Req 3.15–3.18): a placement in a font of its own is wrapped by that font's measured widths in a browser; in jsdom, and for la-gram's own font everywhere, by the 0.55em-a-character estimate. A relationship's name is laid out in its size but la-gram's font. The Figure tab offers what a notation declares — its own figure and its `arch-vis:alternativeStyle`s — and the generic icon and shape-only figures; ArchiMate's other figures for which meta declares no shape (a process's arrow, a node's 3D box beside its box) are not among them. The exchange format carries no gradient, icon colour or text placement (Archi keeps them in its own files), so an imported or converted diagram has none. A model converted before the converter's 1.3.0 has its colours as `rgba(r,g,b,100)` (`255` when the file gave no alpha); la-gram reads them as meant, and reconverting writes them as CSS colours. A picture linked by its address is not in a PNG export: the browser draws the exported SVG without fetching what it links to; one kept in the model as a `data:` URI is. The desktop app draws https and `data:` pictures only (its content security policy). A label expression is an element's placement's only: a relationship's line shows its name (for the presentation chosen) and a figure its text, as before, and the exchange format carries none, so an imported or converted model has none. A label shows as many lines as its box holds (three for an element's).
 9. **The Graph tab's force layout** (Req 17.9–17.12). Collisions are circles round the boxes, so boxes side by side keep more room than they need. Laid out at once, a layout gets at most 1.5 s of steps, and a step runs whole: under the benchmark's 4× throttling a step outgrows a 12 ms slice from about 550 elements, and at the force limit the budget ends the layout early, with boxes that may touch — at 800 elements 129 steps, alpha 0.012; the longest task after the call 765 ms, one task (the frames' p95 was 17 ms; a slice is at most 12 ms plus a step). Above 800 elements Force draws rings, and depth 5 on a large model can get there: on the benchmark's largest model (500 000 triples) depth 5 is 239 elements, laid out at once, its longest task 112 ms; the graph model's largest tree, 3 000 elements, is drawn in rings, its longest task 5.1 s (the walk, `cy.add` and the rings layout in one task). Animation stops at 100 elements on that CPU, with little margin: the 100-element tree came to rest 2.7–3.5 s after its call, against the 3 s the limit allows. Where elements are dragged is not kept: a reload, or another middle element, lays the graph out again. The forces (Req 17.13) are a circle's: below a *Collision radius* of 1.0× boxes may come closer than at the default, and overlap (at 0.5× the circle, 33 px, is narrower than half a box, 60 px); and a *Link distance* below the collision diameter (133 px at 1.0×) brings linked boxes no closer than that (at 40 px, the example model's lines round "Web shop" are 133 px). The panel's shape is read when the graph changes; a drawing made in the same moment as the tab is shown (*Show relationship graph* from the right-click menu) is laid out for an even shape, before the pane has its size. Cytoscape.js's render loop keeps one frame callback a frame while the drawing exists, hidden tab included, as before.
+10. **Packages that ship no licence file** (Req 15.9) — `oxigraph`, `clownface` and a few of the RDF/JS packages — are listed in `third-party-licences.txt` with the licence their `package.json` declares, their author and their source repository, not a licence text: there is none in the package to copy.
+11. **Copy and paste** (Req 3.22): *Paste as copies*, *Paste as references*, *Duplicate* and the right-click menu's pastes paste what this window copied or pasted last — a page may not read the clipboard without asking; only Ctrl/⌘+V (and the desktop app's Edit › Paste) reads what another window copied. The desktop app's Edit menu has *Cut*, *Copy* and *Paste* only. A potential derivation the model does not state is not copied from the tree.
+12. **Automatic layout** (Req 21). The layout runs in a worker, but its result is written and the diagram redrawn on the main thread: arranging 500 elements pauses the canvas 0.5 s, 2 000 elements 2.1 s (Apple M4 Pro, Chrome; four times that with the CPU throttled 4×). Above 2 000 elements, or after 10 s, the grid is used. A model opened with no geometry is laid out on its first diagram only, where every element is placed. Above 150 elements a layer no longer keeps the elements in their type and name order, and above 500 ELK spends less effort on crossings (Req 21.13), so a diagram of 151 elements is arranged differently from one of 150 with the same relationships. The bands are the manifest's: a language whose manifest names no `arch:diagramGroupOrder` (Basic) has none.
+13. **What is proposed first** (Req 4.2): an order cannot lift a relationship the tables permit only by derivation above one they permit directly. So between two ArchiMate 4.0 events Composition comes first — 4.0 gives Triggering there only as derived — and between a path or a network and the elements it connects a derived Serving comes before the Association the figures draw. Where the closure sizes of two orders' classes decide and neither's classes are subclasses of the other's, the result is la-gram's, not core's rule.
+14. **Arranging relationships** (Req 22.2) runs on the main thread, and above 500 elements *Arrange view* keeps ELK's routes (Req 21.1) — *Arrange relationships* routes them afterwards: 1 000 lines among 500 elements pause the canvas up to 1.8 s, 4 000 among 2 000 about 4.5 s, before the routes are written. In a narrow gap shared by several lines, the outer ones bend closer than 24 px to the elements beside it. A line between elements that overlap, or one of which holds the other, keeps its route; so does a line from a figure to a line. Lines sharing a channel are spread only as far as the elements beside it leave room, so a crowded channel's lines may still run together. The lines on one side of an element are docked by their first turn: a line that first steps a few pixels one way, then turns the other, is placed by the step and may cross a line it could have docked beside.
 
 ---
 
 ## Change log
 
+### 2026-11-23 — unit tests: 20 s a test
+
+- `vitest.config.ts` sets `testTimeout: 20_000`. The CI `test` job failed three tests at Vitest's 5 s
+  (*workbench.test*: importing an ArchiMate exchange file, switching metamodel; *relationship-ranking.test*:
+  after a 3.2 business process): 2–3 s on a developer's machine, past 5 s on the shared runner, which ran
+  the suite in 514 s. A test that hangs still fails.
+
+### 2026-11-23 — ArchiMate's relationship hints name ArchiMate's classes
+
+- **The bundled ArchiMate ontologies, refreshed from meta** (linked-archi-meta's DD-40): the domain and range hints
+  of 4.0's Composition, Aggregation, Association and Specialization, and of every one of 3.2's relationships, name
+  ArchiMate's own classes, where they named `arch:Element`. What la-gram offers is unchanged: the relationship tables
+  decide for both versions (Req 4.2), and ArchiMate's order of proposal lists every relationship, so no hint orders
+  one. No ArchiMate relationship names a core class now, so the comments in `class-hierarchy.ts` and
+  `relationship-manager.ts`, and the design, no longer give one as the example of a type a table governs whatever
+  its hints name.
+- The assets (`archimate4-onto.ttl`, `archimate3.2-onto.ttl`) and both comments are the kernel's too, file for file.
+  No test changed; the suite passes as it was.
+
+### 2026-11-22 — A language's relationship types for its own elements
+
+- **Between two languages, the core's types** (Req 4.2, 4.21; linked-archi-meta's DD-40): connect, change type and
+  the "+" menu no longer offer a language's relationship type between one of its elements and another language's.
+  With C4 and EDGY loaded beside ArchiMate, C4's *Uses* and EDGY's *Enterprise Relationship* were offered between an
+  ArchiMate component and an EDGY capability, and because a language's type was permitted the core's were not, so a
+  line drawn so could not be changed to one of them. Now the core's are offered there, in change type too.
+- **Why they were offered.** EDGY's *Enterprise Relationship* is abstract, the superclass of its Link, Flow and Tree,
+  and was read as a type with no hints, which admitted every pair. C4's `uses` named `arch:Element`, which matches
+  any element. Now an abstract relationship class (`arch:isAbstractClass`) is never offered, as the palette never
+  listed one, and a type no shape covers whose hints name only core classes, or none, relates only its own
+  metamodel's elements (`model-manager/own-metamodel.ts`): the documents a loaded manifest names as its concepts,
+  and what they import; else the document that declares it; else its namespace. An extension's type that names its
+  own class at one end and `arch:ModelConcept` at the other, a decision's *Modifies*, still relates any concept there.
+- **In meta** the languages name their own classes: C4's `uses` (the Structurizr extension adds its nodes),
+  Basic's `connection`, Backstage's ownership, TechDocs delegation and scaffolding, and BPMN Lite's sequence flow and
+  data association. C4's and Backstage's relationship shapes list their pairs as ArchiMate's do, the qualified
+  relationship and the direct triple alike, so validation rejects such a line too, and la-gram reads them as
+  relationship tables (`relationship-table.ts`). Backstage's Dependency is then offered from a Component or a
+  Resource to an entity of any kind, as its shapes permit; validation warns where the target is not a Component
+  or a Resource.
+- **Basic's Connection** relates Basic's three element types, no longer any element, and is no longer generic.
+  Basic now publishes an order of proposal, Aggregation, Connection, Association: from a group node to a node
+  Aggregation is drawn first and the menu asks, and between two nodes Connection comes before Association.
+- The assets (`basic-onto.ttl`, `basic-tax.ttl`, `basic-metamodel.ttl`; `core-onto.ttl` and `core-notation.ttl`,
+  whose notes now cite DD-40, into which meta folded DD-43), `relationship-manager.ts`, `own-metamodel.ts`, the
+  comments in `relationship-table.ts`, `class-hierarchy.ts`, `interfaces.ts`, `catalogue.ts` and `bundled-assets.ts`,
+  `cross-language-relationships.test.ts` and `relationship-manager.test.ts` are the kernel's too, file for file.
+  *cross-language-relationships.test, relationship-manager.test, basic-metamodel.test*
+
+### 2026-11-22 — Questions about dependencies, across languages
+
+- **Two core questions** (Req 16.4; linked-archi-meta's DD-44): *What depends on this element?* and *What does this
+  element depend on?*, under *Analysis* in the SPARQL tab's *Questions* menu. Each follows, one or two steps out,
+  every predicate a loaded language declares a subproperty of the core's `arch:dependsOn`, and of
+  `arch:dependencyOf` read the other way — ArchiMate's serving, TOGAF's used by — reading the alignment from the
+  metamodel, as no reasoner runs here. A row is the concept, how many steps away, the concept between and the
+  predicates followed.
+- **The bundled languages aligned**: ArchiMate 4.0's and 3.2's `serves` are subproperties of `arch:dependencyOf`,
+  the decision extension's `dependsOn` of `arch:dependsOn` (also TOGAF, UML, Backstage and LeanIX in meta, which
+  la-gram loads from there). Nothing on the canvas reads `rdfs:subPropertyOf`, so drawing and the offered
+  relationships do not change. A model must not be saved with a reasoner's inferred `arch:dependsOn` triples:
+  la-gram opens each as a Depends On (Req 4.22), as DD-44 says.
+- Each answers 350 000 triples within the 1 s limit of the timing test. The assets (`archimate4-onto.ttl`,
+  `archimate3.2-onto.ttl`, `arch-decision-onto.ttl`, `core-questions.ttl`) and `questions-bench.test.ts` are the
+  kernel's too, byte for byte.
+  *questions.test, questions-bench.test, workbench.test, workbench.spec*
+
+### 2026-11-22 — Depends On: the core's dependency between concepts no language relates
+
+- **A fourth core relationship type** (Req 4.21, 3.23; linked-archi-meta's DD-40, core 0.7.0): `arch:DependsOn`,
+  its predicate `arch:dependsOn` and the inverse `arch:dependencyOf`, from a concept to one it needs. Between two
+  elements no loaded language relates, or an element and a view, connect, change type and the "+" menu offer
+  *Association*, then *Depends On*, then *Has Part* and *Refines* (`CORE_ORDER` in `relationship-manager.ts`). Until
+  now a model could relate concepts of different languages only by an association with no direction, or by a part
+  or a refinement; an impact question follows a dependency's direction.
+- **Drawn dashed** (Req 2.25): the core notation draws it as a dashed line with an open arrowhead at the concept
+  depended on, so it is not taken for Has Part or Refines, drawn solid. Nesting does not draw it.
+- **Written the other way round**: a file's bare `arch:dependencyOf` triple opens as a Depends On from the dependent
+  to what it needs, its `arch:dependsOn` stated, as any declared inverse is read (Req 4.22).
+- The assets (`core-onto.ttl`, `core-notation.ttl`), `relationship-manager.ts` and the comments naming the core's
+  types in `bundled-assets.ts`, `notation-resolver.ts` and `interfaces.ts` are the kernel's too, file for file, with
+  the palette and session tests. la-gram's `catalog.ttl` still says core 0.6.0 until meta's catalogue is generated
+  again.
+  *palette-generator.test, relationship-ranking.test, model-session.test, view-canvas.test*
+
+### 2026-11-22 — The core notation draws the core's three relationship types; nesting may stand for Has Part
+
+- **A descriptor for each core type** (Req 2.25, 4.21; linked-archi-meta's DD-42): the core notation,
+  `core/core-notation.ttl`, described Refines only. It now describes the three: Association a solid line with
+  nothing at either end, Has Part and Refines a solid line with an open arrowhead at the target. They are the lines
+  Req 2.25 gave them, so nothing is drawn differently; stated as data, every tool that reads the notation draws them
+  alike.
+- **Nesting may stand for Has Part** (Req 3.12, 3.23): its descriptor has `arch-vis:nestedEnd arch-vis:TargetEnd`,
+  the part inside the whole. A view's reference dropped into an element's box offers *Has Part* (the element having
+  the view as a part), then *Refines*, then *None*; an element dropped into one no loaded language relates it to is
+  offered the same two, Has Part first. Where a language relates the two, its own relationships are offered, as
+  before. A Has Part the model already has between a container and what is nested in it is shown by the nesting,
+  with no line, and the drop asks nothing.
+- `arch:Element` and `arch:QualifiedRelationship` get no core descriptor: one would reach every class that nothing
+  nearer describes, and replace the built-in look of every language that publishes no notation.
+- The asset is the kernel's too, byte for byte, and so are the comments in `bundled-assets.ts`,
+  `notation-resolver.ts` and `palette-generator.ts` and the palette test.
+  *palette-generator.test, view-canvas.test, workbench.spec*
+
+### 2026-11-21 — A view is a model concept on a diagram: its references its placements
+
+- **A reference is its view's placement** (Req 3.23; `.agents/tasks/views-as-concepts/`, VC-1–11, VC-DD-1–8), as an
+  element's box is the element's: a view is a model concept, and a reference had been drawing that pointed at one —
+  no relationship ended on it, nesting it meant nothing, the panel showed a figure. It is still drawn as a figure,
+  and wherever a concept is asked for it now answers with its view.
+- **Selected, the view** (VC-1, VC-10): the panel shows the view — its information, *Properties*, *Analysis* (its
+  relationships) and *Appears in views* — with the reference's own *Text*, *Opens*, *Appearance* and *Image*; the
+  tree reveals the view's row, which carries the *In the open view* dot and *Select on canvas* while the open
+  diagram references it. Selecting the view elsewhere selects its references. Pointed at another view, the panel
+  follows. F2 and *Rename* rename the view, every reference to it with it (VC-2); its own text is the panel's.
+- **Relationships with a view** (VC-3, VC-4, VC-9): *Connect* on its pad, or a line drawn to or from it, draws a
+  relationship whose end is the view — the view's class its type for the rules, so where no language relates the
+  two, the core's Association, Has Part and Refines (Req 4.21). Made, a reference draws its view's relationships
+  to what the diagram shows. Pointed at another view, it loses the old view's lines. A note's line to it stands
+  for no relationship, as before.
+- **Nesting** (VC-5): dropped into an element's box, it asks what that stands for — *Refines*, the view refining
+  the element, shown by the nesting. The answer is the notation's: linked-archi-meta has a **core notation** now,
+  `core/core-notation.ttl`, bundled with the core (`coreNotation`), consulted after every language's default set
+  and never the active one (Req 2.16). Its Refines draws as before, solid with an open arrowhead.
+- **Zoom in** (VC-6): an element or a relationship a view refines (`arch:refines`, or `arch:refinedInto` from a
+  file) offers *Zoom in* on its pad — the view opens, or a menu lists several — and *Zoom in: …* in its menu,
+  whether or not a reference is drawn; Back comes back (`ViewManager.viewsRefining`, `open-view`).
+- **Deleting** (VC-7, VC-8): deleting a view deletes the relationships with it, everywhere, and the confirmation
+  counts them beside the references; a reference's *Delete view from model…* deletes its view so. Taken off the
+  view, the view and its relationships stay.
+- **Copy and paste** (VC-11): a relationship with a view, copied with both placements, ends on that view when pasted
+  in the same model; into another model it is left out, the reference a note.
+- The model-manager and metamodel-manager parts and the asset are the kernel's too, file for file (VC-DD-8).
+  *view-manager.test, palette-generator.test, bundled-assets.test, clipboard.test, view-canvas.test,
+  rdf-rule-provider.test, rdf-label-editing.test, property-panel.test, model-explorer.test, workbench.test,
+  workbench.spec*
+
+### 2026-11-21 — A figure's text can be emptied
+
+- **Emptied text** (Req 3.13, 3.23): neither the property panel's *Text* nor the canvas (F2) took an empty text —
+  the panel put the name back, and a view reference emptied showed its view's name — so a figure, once given text,
+  could not be made blank. Now a note's, a group's or a shape's text emptied goes, and a view reference's is
+  written empty (`""@en`): each draws nothing, one undoable step. A reference with none of its own still shows its
+  view's name, held greyed in the panel's *Text*; × beside a text of its own takes it away to show that name again.
+  `addFigure` writes an empty text given it, so copying the view keeps a blank reference blank; an edit of a
+  property replaces an empty value as any other (`editProperty`). The model-manager change is the kernel's too.
+  *view-manager.test, view-canvas.test, rdf-label-editing.test, property-panel.test, workbench.test*
+
+### 2026-11-21 — View references: made from the tree, opened, re-pointed, named after their view
+
+- **Making one** (Req 3.23; `.agents/tasks/view-references/`, VR-1–3): a view's row dragged from the model tree
+  onto the open diagram makes a reference to that view where it is let go — on the diagram, or inside the element's
+  box, the group or the shape under the pointer — one undoable step, selected; the tree's *Reference in the open
+  view* makes one at the centre. It is made as any figure is (`addFigure`, in the figure-create command), 120 × 55
+  with no text of its own, so undo, collaboration and nesting come as for a note. Only a diagram takes one; the open
+  view's own row makes nothing on its own diagram and, let go there, a toast says why. `explorer-drag-start`
+  carries the row's kind; `DiagramCanvas.startCreateReference`, `placeReference`.
+- **Its text** (VR-4): with none of its own it shows the name of the view it opens, as that name is now — a name
+  written on a view redraws the references to it in the open diagram (`ViewManager.referencesTo`, from the store's
+  changes), so a rename in the tree, the panel or by a collaborator shows at once. F2 or the panel's *Text* gives it
+  text of its own; emptied, the view's name again; the panel shows the view's name greyed while it has none.
+- **Opening and changing its view** (VR-7, VR-8): double-click, *Open view* on its pad and in its right-click menu,
+  and the panel's *Open* open the view it opens (`open-referenced-view`); a double-click no longer edits its text,
+  F2 does. One whose view is not in the model says so. The panel's *Opens* — the view's name, *Open* and *Change…*,
+  the model's other views by kind — points it at another view in one undoable step, `ViewManager.setReferenceView`,
+  its quads read first (`setReferenceViewQuads`): the view it opened leaves the holder with its last reference there.
+- **Deleting a view others reference** (VR-10): the confirmation says what goes with it — "3 references to it, in 2
+  other views, are deleted with it." With another diagram open, the deletion is now a step on its undo stack, and
+  undo brings the view back with its references; the open diagram drops the references to it at once, where it
+  kept drawing them until it was next redrawn, and the toolbar's *View* list follows an undone or redone deletion.
+- **Referenced from** (VR-11): a view's information tab lists the views holding a reference to it, from its
+  `arch:inView`, each opening that view.
+- **Nesting and lines** (VR-5, VR-6): the figure rules, unchanged, now held to a reference by tests — it goes inside
+  an element, a group or a shape and holds nothing; lines from and to it stand for no relationship.
+- **The right-click menu on figures**: right-clicking a group, a note, a shape or a reference opens la-gram's menu, as
+  the guide said it did; it had opened the browser's. A reference's starts with *Open view*; drawing gets none of the
+  model's entries — *Move to folder…*, *Show in model tree*, *Delete from model…*.
+- The model-manager part (`interfaces.ts`, `view-manager.ts`, its test) is the kernel's too, file for file (VR-DD-6).
+  *view-manager.test, view-canvas.test, model-explorer.test, property-panel.test, rdf-label-editing.test,
+  rdf-rule-provider.test, workbench.test, workbench.spec*
+
+### 2026-11-21 — A reference to another view: drawn, imported, kept with its view
+
+- **References to other views** (Req 3.23, 13.4; DD-42): a reference to another view, which the ArchiMate
+  converter writes as an `arch-vis:ViewReferenceNode` since core-vis 0.9 (it wrote a note before), was not
+  drawn at all once typed so: la-gram drew a node standing for no element only as a group, a shape or a
+  note. It is now a fourth figure, a *view reference* (`FigureKind` `reference`, its view `FigureInfo.view`),
+  drawn as a blue-grey box with a small view in its top left; selected, the panel says *View
+  reference* and which view it opens. It holds nothing, and is edited as a note is. Its view is presented in
+  the view holding it (`arch:inView`), written with the first reference and taken with the last; deleting a
+  view deletes the references to it, undoably; *Duplicate view* and paste copy one, and one pasted into a
+  model without its view is a note. An Exchange file's `Label` with a `<viewRef>` naming one of its views
+  imports as a reference, wherever it is drawn; one naming none is a note. The bundled core-vis and its
+  shapes are 0.9 and 0.5.0, from a local linked-archi-meta checkout. The model-manager change is the
+  kernel's too (`linked-archi-kernel`, L01's rule). *view-manager.test, archimate-importer.test, appearance-render.test*
+
+### 2026-11-21 — Model settings shows where the model is kept in Git, and the Git account
+
+- **Model settings' *Git* part** (Req 18.30): with Git storage on, *Model settings* ends with *Address* — the
+  bound file on its branch as the host's page addresses it, `…/blob/main/models/shop.ttl` on GitHub,
+  `…/-/blob/main/…` on GitLab, which *Open from Git…* reads back as the same file (`fileLink`, beside
+  `parseRepositoryLink`) — and *Your Git account*, as *Settings › You* shows it, its hint saying whether it is
+  recorded with the edits. A model not in Git shows *Not in Git*. The Git module gives the part
+  (`MountedUi.addModelSettingsInfo`, `git-model-settings.ts`), so a build without Git has none, and stopping
+  the module takes it away; mount-ui shows what a module gives read-only and applies none of it.
+- **Read-only fields** (`FormField.readOnly`): shown to select and copy, unlike a `disabled` one, and never the
+  field focused first. *You*'s *Git account* is one now.
+- Tests: *git-model-settings.test* (bound, not in Git, no account, not recorded), *link.test* (the file's
+  link, read back), *git-module.test* (the part on a bound model; gone when stopped), *dialogs.test* (a
+  read-only field), *workbench.test*, *git-merge.spec* (the address in the dialog, read-only). Docs: *Models
+  and views* (*Model settings › Git*), *Git* (*Save to Git*, *Who commits*), *Settings* (*You tab*).
+
+### 2026-11-20 — who made a change: the user and their Git account; the alpha beside the release
+
+- **The provenance names the user** (Req 9.16; key design decision 39): the IRIs read as what they are,
+  `{ns}provenance/edit-{uuid}` and `{ns}provenance/user-{digest}` (`mp:edit-…`, `mp:user-…`); the id stays
+  opaque. A user is a `prov:Person` with `schema:name`, `schema:email`, and their Git account —
+  `schema:sameAs` its page, `schema:alternateName` its username; the digest is of the account's page, else
+  the address, else the name, so one user is one resource on every machine and the IRI carries nothing
+  personal. What is known of the user when an activity starts replaces what the model had. Meta's *IRI
+  Minting*, *Provenance of edits*, and DD-27 say the same. Decision confirmed on 2026-11-20.
+- **The Git account** (Req 18.29; key design decision 41): with a token for a host, la-gram reads the account
+  it acts for (`GET /user`, GitLab and GitHub), once a session, in the background, and keeps it with the
+  personal settings. *File › Settings… › You* shows it (*Git account*), uses its name when none is given, and
+  records it with the edits unless *Record my Git account with my edits* is unticked.
+- **Who commits**: *Save to Git* and the other Git writes set the commit's author from *You* — GitLab's
+  `author_name` and `author_email`, GitHub's `author` (only with both) — the token's owner the committer, so
+  the History tab names who wrote a change. A checkpoint's author is *You*'s name, else the Git account's,
+  else the collaboration name (Req 9.10).
+- **Who made each change** (Req 9.14): the diff by element gives each change the edit its later version
+  records — who, when, with which la-gram — where that record is new, so a change made in a text editor names
+  nobody. The History tab shows it beside the concept (*by Ada Lovelace, 20/11/2026, 16:40:31*), with the
+  account and the tool on hover; a merge request's description adds *— changed by Ada Lovelace, 2026-11-20
+  16:40 UTC*.
+- **The alpha** (Req 15.10; key design decision 40): `package.json` says `0.3.0-alpha` — `alpha` because
+  pre-release labels sort as text, and `0.3.0-snapshot` would sort after `0.3.0-rc.1`. On the default branch,
+  `web` builds for the channel `alpha` (`LA_GRAM_CHANNEL`), and `alpha-deploy` copies the app and its
+  documentation to `/la-gram-alpha/` (`LA_GRAM_DEPLOY_PATH-alpha`) and its version's page to
+  `/la-gram/v0.3.0-alpha/`, which names the commit it was built from; while `package.json` says a release it
+  deploys nothing. The alpha keeps its `localStorage` under `alpha:` and its checkpoints in
+  `la-gram-history-alpha` (`storage-scope.ts`): one origin with the release, it would otherwise share and
+  overwrite the release's settings, tokens, bindings and checkpoints. The server's nginx site has the
+  `/la-gram-alpha/` location; the environment `alpha` and the deploy variables scoped to it are set up once
+  (*Releasing*, *Before the first release*). Decision confirmed on 2026-11-20 (the path
+  `/la-gram-alpha/`).
+- Tests: *provenance.test* (the IRIs, a user by their account, details replaced), *model-diff.test* (who made
+  a change; none where the record is old; the Markdown), *providers.test* (the author on GitLab and GitHub,
+  the account), *git-accounts.test*, *git-module.test* (the account read once, the author),
+  *workbench.test* (*You*: the account, its name, the switch), *storage-scope.test*, *version-page.test*,
+  *release-pipeline.test* (the alpha jobs, the version). Docs: *Settings* (*You tab*), *Properties*,
+  *History*, *Git*, *File formats and vocabulary*, *Hosting the web app*, *Releasing*.
+- Not tried: the pipeline's alpha jobs on GitLab, and the nginx location on the server.
+
+### 2026-11-20 — who changed what, and when: the provenance of edits
+
+- la-gram records who changed a concept, when and with which la-gram, as it is edited, inside each edit: the
+  store hands what a local edit changed to `EditProvenance` (`model-manager/provenance.ts`) at the end of its
+  outermost write, so the stamps are part of its undo step and its notification (Req 9.16; key design
+  decision 39; meta's DD-27, *What a modeller records of its edits*, and *IRI Minting*, *Provenance of edits*).
+  - On the concept — the model, an element, a relationship, a view: `dcterms:created` and `dcterms:modified`,
+    shown on the Properties tab as any property; a value set by hand stays.
+  - In the provenance graph: the editing activity that last changed it (`prov:wasGeneratedBy`) and when
+    (`prov:generatedAtTime`); the activity — one person's edits in one la-gram, from opening or saving to the
+    next save, `{ns}provenance/{uuid}` — with its times, la-gram at its version
+    (`https://app.linked.archi/la-gram/v{version}`) and the person (`{ns}provenance/{digest}`).
+  - Minimal: an activity no concept names any more is removed in the same edit, with a person or a la-gram
+    version nothing names.
+  - Not recorded: opening, importing, a new model, undo and redo, merging, pulling, restoring a version, a
+    namespace move, a collaborator's changes (`ObservableRdfStore.withoutStamps`, origins).
+- *File › Settings… › You*: the name and email recorded with your edits; without them, the collaboration name
+  in a room, else nobody.
+- The save puts every `prov:` statement, and what a PROV class types, in `{ns}graph/provenance` — a converted
+  model's run, which went into the semantic graph, too; Turtle writes `{ns}provenance/` as `{p}p:` (`mp:`), and
+  `la-gram-git check` counts `provenance` among the kinds.
+- The property panel shows it read-only, *Last changed* (*20 Nov 2026, 16:40 · by Ada · with la-gram 0.3.0*),
+  and offers no `prov:` property (`prov:wasDerivedFrom` was offered). The RDF panel's *provenance* switch
+  leaves it out of the panel and its download. The diff by element — History, merge request descriptions —
+  leaves the stamps and the provenance out of what changed (they had read as an activity added and every
+  concept changed). A merge takes the later `prov:generatedAtTime` and `prov:endedAtTime` and the activity
+  that ended later, never a conflict (`settleEditProvenance`).
+- `schema:` is bound to `https://schema.org/`, the form la-gram and the converters write: a folder's name and
+  entries, a picture, la-gram and a person are written `schema:name`, `schema:SoftwareApplication`. A model with
+  folders saved before is written once differently (`la-gram-git fix` rewrites it); it reads the same. Decision
+  confirmed on 2026-11-20.
+- The web build writes this version's page, `v{version}/index.html` (`scripts/version-page.mjs`), with its
+  JSON-LD; `web` checks it, and `web-deploy` keeps every earlier version's (`--filter='P /v[0-9]*/'`).
+- Tests: *provenance.test* (stamps on the concept and in the provenance, a shape's change to its view, undo and
+  redo, one activity a session and the unnamed removed, not an edit, a value set by hand, a deletion, opening,
+  the TriG graphs, the merge), *model-diff.test*, *property-panel.test*, *rdf-panel.test*, *workbench.test*
+  (*Settings › You*), *git-module.test*, *release-pipeline.test*, *workbench.spec* (a save with its
+  provenance, *Last changed*, the Properties tab's *Created* and *Modified*, *You* among the tabs). Docs:
+  *Properties* (*Last changed*), *Settings* (*You tab*), *The RDF panel* (*Provenance*), *Files*, *File formats
+  and vocabulary*, *History*, *Hosting the web app*, *Releasing*. Verified: type checking, all 2,758 unit tests
+  and all 94 browser tests pass; `npm run build` (with `v0.2.0/index.html`), `npm run docs:build`.
+
+### 2026-11-20 — Save writes TriG; Ctrl/⌘+O and +S; the File menu in sections and submenus; a view copied to the clipboard
+
+- *File › Save* writes **TriG**, the model in its graphs (`{ns}graph/model`, `semantic`, `views`), which Turtle
+  flattens, at about the same size; Turtle is an entry of *Save as ▸* (Req 9.8; design decision 37).
+- **Ctrl+O** and **Ctrl+S** (⌘O, ⌘S on a Mac) are *File › Open…* and *File › Save*, anywhere but under a dialog,
+  in place of the browser's own; a field being typed in is left first, so what it holds is saved (Req 11.10).
+  *Keyboard shortcuts* lists them under *Files*.
+- **The File menu** is in sections, each entry with an icon drawn for la-gram (`ui/panels/menu-icons.ts`):
+  opening; saving — *Save* with its keys and format, *Save as ▸* with the six formats and *Turtle without
+  diagram geometry*, a module's entries in a submenu of its own; the open view, *Export view ▸*; the settings.
+  Git storage's seven entries, which were split between *Open…* and the formats, are under *Git ▸*, opening
+  first (`ModuleMenuItem.submenu`). A submenu opens on the pointer — replacing an open one after 250 ms, so a
+  diagonal move to it does not close it — on a click, or with → / Enter at its first entry; ← / Esc closes it
+  (Req 11.12; design decision 37).
+- **A view to the clipboard**: *File › Export view › Copy as PNG* and *Copy as SVG*, and *Copy view as PNG* and
+  *Copy view as SVG* on the empty canvas, draw the view as the export does and put it on the clipboard, to paste
+  straight into a document, a slide, a chat or a drawing — a PNG as a picture, an SVG as vector where the
+  browser writes it and as its markup. The clipboard item is made in the click's own handler, with the picture
+  still being drawn, so the click counts as the permission (Req 14.4; design decision 38;
+  `import-export/image-clipboard.ts`).
+- Tests: *image-clipboard.test* (the item made before the picture, each type, the fall-backs, why it cannot);
+  *workbench.test* (the menu's sections, icons and keys, each submenu by click, pointer and keyboard; Ctrl+S
+  and Ctrl+O, not under a dialog; Save as TriG and opened again; the canvas menu's entries); *help.test*;
+  *workbench.spec* (TriG saved; both copies read back from Chrome's clipboard, the PNG at the exported size,
+  the SVG with its pictures in it); *git-merge.spec* (Pull and the check from *Git ▸*). Docs: *Files, import
+  and export* (*The File menu*, *Save*, *Save as*, *Copy view to the clipboard*), *File formats and
+  vocabulary*, *Keyboard and mouse* (*Files*), *Git storage*, *The canvas*, *The RDF panel*,
+  *Troubleshooting*. Verified: type checking, all 2,743 unit tests and all 94 browser tests pass; `npm run
+  build`, `npm run docs:build`.
+
+### 2026-11-20 — a deleted view takes its placements' own styles with it; the converter fixture in the layout
+
+- Deleting a view removes the placements' and lines' own styles — for every presentation context and for each
+  — with the label expressions they give, and a converter's blank-node style one placement alone uses, as
+  removing a placement already did (Req 10.8; `collectViewQuads`). They were left behind, unreachable from
+  anything (`converted-styles-and-routes`, Open 1); this was the IRI layout's known limitation.
+- `src/__tests__/fixtures/converters/archimate-payment-platform.trig` is the converters' output at `1e3e315`
+  (1.3.0-SNAPSHOT), in the DD-41 layout: the model `{ns}model` in the namespace it states, its former IRI an
+  alias in the provenance graph, named folder entries, no blank node. It opens as before, and its IRIs are all
+  in the layout `la-gram-git check` reads. `archimate-figures.trig` stays as output from before DD-41.
+- Tests: *view-manager.test* (a view deleted with its placements' and line's styles, a context's, a label
+  expression and a converter's blank-node style), *iri-layout.test* (a view deleted from a model saved before
+  DD-41 and from a converted one), *converter-models.test* (the model IRI, the namespace, the layout report);
+  the first two fail without the change. Docs: *Models and views* (*Delete a view*). Verified: type checking,
+  all 2,737 unit tests and all 94 browser tests pass; `npm run build`, `npm run docs:build`.
+
+### 2026-11-19 — after a view's `#`, names joined with `-` (DD-41)
+
+- A node or a line is minted `{view}#node-{uuid}` or `{view}#link-{uuid}`, and its parts are joined to it
+  with `-`: `{node}-style`, `{node}-style-{hash}`, `{link}-points-{i}`, `{link}-point-{i}`, `{link}-label`,
+  `{node}-label-expression[-{hash}]` (Req 9.7c; design decision 33). Turtle writes a `/` in a prefixed name
+  only escaped, so a saved model's shapes now read `mv3ef7da72:node-{id}-style` where they read
+  `mv3ef7da72:node\/{id}\/style` (Req 5.13). A part of anything else is still joined with `/`
+  (`{element}/name/{hash}`, `{element}/picture`). `partIri` joins with `-` to an owner whose IRI holds a
+  `#`, so a part made for a shape minted flat in a `#` namespace is named as la-gram named one before DD-41
+  (`{ns}node-{uuid}-style`).
+- What a part belongs to is read from the triples, as before; the name decides nothing. A `-` lets a part
+  take the name of a shape beside its owner (`{link}-point-0` of line `c1` is line `c1-point-0`'s IRI):
+  la-gram's own shapes are UUIDs, and an Exchange import gives a UUID to a node or a connection whose id is
+  another's of its kind in the view followed by a part's name, where the ArchiMate converter refuses the
+  file. An Exchange import otherwise names shapes as the converter does, `{view}#node-{id}` and
+  `{view}#link-{id}`.
+- `la-gram-git check` reads a shape as in the layout when it is named `{view}#node-{id}` or
+  `{view}#link-{id}`, and a part when it is joined to its owner with `-` after a `#`, `/` elsewhere; a part
+  joined the other way is counted as legacy (Req 20.2; design decision 35).
+- Tests whose expected names changed: *iri-layout.test*, *model-namespace.test*, *iri-conformance.test*,
+  *archimate-importer.test*, *model-io.test*, *turtle-writer.test*, *view-manager.test*,
+  *element-manager.test*, *model-merge.test*, *view-canvas.test*. The import's UUID for a shape whose id
+  would name another's part has no test of its own. Docs: *Models and views*, *File formats*,
+  *la-gram-git*; README; `docs/linked-archi-tool-spec.md`. Verified: type checking, all 2,734 unit tests
+  and all 94 browser tests pass; `npm run build`, `npm run docs:build`.
+
+### 2026-11-19 — a move made on the other side of a merge followed (DD-41)
+
+- When the other version of a merge has the model in another namespace, *Pull from Git*, *Merge with the
+  newer version* and *Update from main…* move the open model there, where they stopped before and said to
+  merge from the moved branch (Req 18.28; design decision 34). The merged model replaces the open one as
+  one change, and `MergeSupport.replace` has the session follow it: `ModelSession.resync({ moved: true })`
+  re-points the session and its view and emits `model-loaded` with `previousModelIri`, so the Git module
+  moves the binding as for a move made here. The flows re-read the model's IRI after applying —
+  `mergeHere`'s `followed`, and `keptAs` for the binding, which notes the IRI the bound file still has the
+  model under until a commit from here (*Update from main…* on a branch the move is not on). A message
+  says so. Undo does not take the move back: the view opened under its new IRI starts a fresh history.
+- *Open this version* of a commit that has the model under another IRI asks a second time, *Open and move*,
+  and then moves the open model there with it, where it did not open it before.
+- Automatic checks and auto-commit do not move the model: they stop at such a version and say that *Pull
+  from Git* follows it. A version with another model — the same namespace, or an IRI not named
+  `{namespace}model` — is not merged into the open one, and says so.
+- Tests: *git-pull.test* (followed with a local change, the binding under the new IRI; an automatic pull
+  refused; another model refused), *git-merge.test* (*Merge with the newer version* followed and committed;
+  *Update from main…* followed and committed, and with a conflict, `movedFrom` kept; another model refused),
+  *git-history.test* (*Open and move*, declined and accepted), *model-namespace.test* (`resync` with
+  `moved`), *git-merge.spec* (a colleague's move pulled in the browser, the view under its new IRI, the
+  change committed). Docs: *Git* (*Moving the model to another namespace*), *History*.
+
+### 2026-11-19 — a stakeholder has a kind of its own (DD-41)
+
+- `stakeholder` is in DD-41's kinds table: a stakeholder a source identifies by an email address, such as a
+  LeanIX subscriber the converter names `{ns}stakeholder/{key}`. Like a decision, it is an `arch:Element`
+  with a kind of its own, so that its id, an address, does not share `element/` with ids from another id
+  space. `la-gram-git check` counts `{ns}stakeholder/…` as in the layout, where it listed it as outside it
+  (Req 20.2), and la-gram writes it with the kind's prefix, `{p}s:`, where it wrote it relative to `@base`
+  (Req 5.13). A stakeholder made in la-gram is still `{ns}element/{uuid}`: its id is la-gram's, not an
+  address.
+- Tests: *iri-conformance.test* (a stakeholder in the layout), *turtle-writer.test* (`ms:` bound and used, and
+  the file read back as written). Docs: *File formats*.
+
+### 2026-11-19 — relationships made for bare triples named in the layout (DD-41)
+
+- The relationship la-gram makes for a link a file states only as a triple is `{ns}relationship/{digest}`:
+  the first 20 hex characters of the SHA-256 of "subject predicate object", the digest DD-41 and the
+  converters use, and the name meta's ArchiMate derivation rules now give the same triple (Req 4.22; design
+  decision 36). Before, it was `relationship-` and the SHA-1, which `la-gram-git check` counted as legacy.
+  One made before keeps its name, and opening the file again makes no second one. `keyDigest` replaces
+  `sha1Hex` in `short-hash.ts`.
+- `la-gram-git check` counts the derivation rules' former names as legacy too — `derivation-{sha1}`,
+  `derivation-activity-{sha1}` and its `-association` — where it listed them as outside the layout (Req 20.2).
+- Tests: *model-session.test* (the name, which RDF4J gives the same triple in meta's rules), *short-hash.test*
+  (`keyDigest`), *iri-conformance.test* (a derivation and its parts in the layout; the rules' former names
+  legacy). Verified: type checking and all 2,724 unit tests pass.
+- Documentation brought up to date with the layout: *File formats* › *RDF from other tools* shows what saving
+  an adopted file writes — the view and its shapes in the layout, and the link the file states as a triple a
+  relationship, drawn — taken from opening and saving the example in la-gram; the tool specification's §8.1
+  (`docs/linked-archi-tool-spec.md`) names what la-gram mints as DD-41 does.
+
+### 2026-11-18 — a namespace move in Git, and the IRI layout checked (DD-41, part 4)
+
+- A merge in which one side moved the model to another namespace moves the common version and the other
+  side after it first, each IRI keeping its local part, then merges (Req 18.28; design decision 34): a
+  rename made before the move lands on the moved element instead of meeting a deletion of everything. It
+  is in the merge itself, so `la-gram-git merge`, *Pull from Git*, *Merge with the newer version* and
+  *Update from main…* all follow a move. Moved alike on both sides: merged as one; to two namespaces: not
+  merged. The merge driver says what it moved (Req 20.5).
+- Model settings asks before it moves the IRIs of a model saved to Git (*Model saved to Git*, naming the
+  file), and the model stays bound to its file, so *Save to Git* commits the move there instead of asking
+  where and replacing the file; Pull and the checks read the file under the model's former IRI until then
+  (Req 18.27). Before, a move left the model unbound. A collaborator's move carries the binding too.
+- la-gram does not follow a move made on the other side: a merge whose result would rename the open model,
+  and *Open this version* of a commit from before a move, stop and say what to do (Req 18.28).
+- `la-gram-git check` lists, never failing, the IRIs outside the layout every Linked.Archi tool mints, and
+  a namespace the model does not state or that breaks the rule; names given before the layout are counted
+  as legacy (Req 20.2; design decision 35). A model la-gram makes has none.
+- Model settings' *Prefix* hint names the prefixes Turtle writes now (`m:model`, `me:`, `mv:`); following a
+  collaborator's move looks for the view under the same local part only, as a move keeps it.
+- Tests: *model-merge.test* (a move against a rename, additions with a triple term, a deletion, a value both
+  changed, a deletion after the move, moved alike, moved apart, a vocabulary term, a namespace without a
+  move), *iri-conformance.test*, *cli.test* (the driver both ways and moved apart; the check's notes),
+  *git-merge.test*, *git-pull.test*, *git-history.test*, *git-module.test*, *model-namespace.test*,
+  *git-merge.spec* (a move asked for, then a refused save merged into the new namespace). Verified: type
+  checking, all 2,723 unit tests and all 93 browser tests pass; `npm run build`, `npm run docs:build`.
+
+### 2026-11-18 — the Linked.Archi IRI layout minted and read (DD-41, parts 2–3)
+
+- What la-gram mints follows the layout every Linked.Archi tool shares (Req 9.7c; design decision 33):
+  `{ns}element/{uuid}` and the other kinds, a node or a line in its view's IRI (`{view}#node/{uuid}`), its
+  parts under it with `/` (`{node}/style`, `{link}/points/{i}`, `{link}/point/{i}`, `{link}/label`, …).
+  Relationships are minted in their model's namespace. A new model's namespace, or a changed one, is an
+  `https:` or `http:` IRI with no `#` or `?` (Req 9.7b).
+- Nothing is renamed. A model saved before keeps its names and is edited in place, as a converted model is:
+  a placement's own style written on (`{node}-style`, a converter's `{node}/style`), a moved bend only its
+  point's coordinates, in the route's own names; removed and copied with the placement. A converter's style
+  is no longer copied into a new one, nor left behind when its placement goes, and a converted line pasted
+  keeps its bends. A moved name, a label expression, a name or a picture for a presentation context keep
+  their names when they change. A namespace change keeps every local part.
+- An Exchange import is named as the ArchiMate converter names it: `element/{id}`, `view/{id}`,
+  `{view}#node/{id}`, `{view}#link/{id}`. In a view whose IRI already holds a `#`, a new shape is minted flat.
+- Tests: *iri-layout.test* (a model saved before and a converted one, edited: look, removal, bends moved,
+  added and removed, moved name, copy and paste; names and pictures kept; what is minted; the `#` view; a
+  blank route), *model-namespace.test*, *archimate-importer.test*, *model-io.test*, *view-manager.test*,
+  *workbench.test*, *workbench.spec* and the others whose expected names changed. Verified: type checking,
+  all 2,686 unit tests and all 92 browser tests pass.
+
+### 2026-11-18 — the Linked.Archi IRI layout written short (DD-41, part 1)
+
+- Turtle and TriG write an IRI of the model in the layout every Linked.Archi tool shares with the first
+  of: a prefix per kind (`me:{id}`, `mg:views`), a prefix per view for a shape and its parts with the
+  fragment escaped (`mv3ef7da72:node\/{id}`), a reference relative to `@base <{ns}>`, the full IRI
+  (Req 5.13; design decision 32). A converted model's nested names and Backstage's compound ids come out
+  relative rather than in full. The copy as Turtle is written the same way.
+- Through `rdf-engine/turtle-writer.ts`, N3's writer with its own `_encodeIriOrBlank`; n3 pinned to
+  2.13.12 in la-gram's and la-gram-git's `package.json`, and a test fails on another version. SHA-256
+  for the view prefixes, beside SHA-1 in `short-hash.ts`.
+- A Turtle file of a model la-gram made is written as before. A TriG file, whose graphs are now
+  `mg:model {` rather than written in full, and a converted model saved in la-gram are written
+  differently: `la-gram-git check` fails them until `la-gram-git fix` rewrites them.
+- Parts 2–4 — minting the layout, reading both forms, Git — are in `.agents/tasks/iri-layout/`.
+- Tests: *turtle-writer.test* (the order, clashes, `@base`, escaping, round trips with N3.js and
+  Oxigraph, the n3 version, the override reached for every position), *model-io.test* (a model with the
+  layout saved as Turtle and TriG and read back), *short-hash.test* (SHA-256 vectors, the guide's view
+  prefixes). Verified: type checking and all 2,666 unit tests pass; a 1,443-triple model written in both
+  formats reads back the same with rdflib 7.6.
+
+### 2026-11-18 — optional automatic Git commits
+
+- Explicit per-model/destination settings offer Off, After idle and At interval. The Git tab exposes
+  Pause/Resume, next attempt and last commit without taking focus (Req 18.26; design decision 31).
+- Reuses the providers' immutable-text commit primitive after remote reconciliation; skips identical
+  content, bounds version-conflict retries and preserves edits made during requests. Conflicts pause
+  persistently and choosing values alone does not publish. Checks and writes share owner/operation
+  locks, including with checks Off; internal merges do not reset the idle deadline.
+- A durable fingerprint journal prevents blind retries after uncertain responses. Confirmation uses
+  pinned content and bounded history; editor epochs keep late writes from rebinding reloaded models.
+- Tests: *git-auto-commit.test*, *git-sync.test*, *settings-section.test*, *git-module.test*,
+  *git-merge.spec*: both providers, no-ops, conflict/resume, remote races, edits during writes,
+  lost acknowledgements, reloads, timers, ownership, storage/credential restrictions and browser controls.
+- Verified: type checking, all 2,642 unit tests, all 92 browser tests, web/desktop/CLI build, strict docs
+  build and `git diff --check` pass. The Git status screenshot was inspected. Storage-full and
+  denied-storage cases pause automation without breaking manual saves; lifecycle roundtrips cannot
+  revive sent writes. Shared-room Phase 4 remains pending; no real repository writes.
+
+### 2026-11-18 — regular Git checks with optional clean-only pull
+
+- File’s *Check for remote changes* observes without applying; the Git tab shows the destination,
+  local/incoming changes, last/next check and pause/error reasons (Req 18.25; key design decision 30).
+  Personal settings offer Off/1/2/5/10-minute checks and optional clean-only auto-pull, both Off by default.
+- Immutable base/remote snapshots are cached separately from the incorporated binding. Local edits,
+  including local-file saves and edits during reads, prevent automatic pull. The final check and apply
+  are synchronous; accepted changes use the existing undo command. No commits or history polling.
+- A queued owner lock elects one visible/online editor per destination; a separate operation lock lets
+  other tabs act manually without overlapping work. Lifecycle/settings/environment changes invalidate
+  pending reads; transient failures back off with exposed retry headers, while access/invalid-file
+  failures pause for manual attention. Missing/denied lock support pauses automation, preserving manual
+  actions. The Git tab never opens itself for a background update.
+- Tests: *git-sync.test* (fake time, both providers, cached reads, in-flight edits, stale results,
+  ownership/handover, lock fallback, pause/resume and backoff); *git-module.test* (File/status wiring);
+  *settings-section.test*, *providers.test*; *git-merge.spec* (settings, keyboard Check, automatic pull,
+  local-file saves and two real browser tabs).
+- Verified: type checking, 2,595 unit tests, 90 browser tests, web/desktop/CLI build, strict docs build
+  and `git diff --check` pass. The Git status screenshot was inspected.
+- Stage 3 auto-commit and shared-room Phase 4 remain pending. No real repository writes in tests.
+
+### 2026-11-17 — pull the bound branch without committing
+
+- *File › Pull from Git* incorporates the bound file at a pinned branch head, preserving local edits
+  through the existing three-way merge and Conflicts tab (Req 18.24; key design decision 29).
+  Reconciliation is shared with Save’s merge-with-newer path; Pull never commits or creates a branch.
+- The latest snapshot is captured after all reads, so in-flight edits and local-file saves cannot lose
+  changes. A changed pull is undoable; a no-op adds no step, and undo leaves the incorporated Git base
+  in place. Bindings remain independent in open editors. Lifecycle/binding checks discard obsolete
+  replies, and a busy guard prevents overlapping manual Git menu actions.
+- Tests: *git-pull.test* covers both providers, clean/dirty/no-op pulls, conflicts and a later save,
+  undo semantics, pinned heads, edits in flight, invalid/missing versions and authentication;
+  *git-module.test* covers the menu, rooms, concurrent actions, reload and stop;
+  *git-merge.spec* covers keyboard invocation, real undo/redo, history, and pull conflicts in Chrome.
+  Existing save/branch-merge coverage is retained in *git-merge.test*.
+- Verified: type checking, 2,559 unit tests, 86 browser tests, web/desktop/CLI build, strict docs build
+  and `git diff --check` pass. The existing review browser test waits for the first response before
+  starting its next Git action.
+- Limits: no new pull in shared rooms, unresolved conflicts or pending branch merges; unmatched blank
+  nodes stop a pull. Periodic checks and automatic commits remain queued in git-sync Stages 2–3.
+
+
+### 2026-11-17 — plan Git synchronization before implementation
+
+- Recorded manual pull, periodic remote checks with optional clean-only pull, and opt-in idle/interval
+  commits beside the existing pending Git collaboration work. The task folder has planned requirements
+  GS-1–GS-24, design and a staged checklist, including preservation of edits made during requests and
+  conflict pause/resume. Shared-room Phase 4 stays pending. This is a planning change; no synchronization
+  behaviour is implemented. [Plan](../../tasks/git-sync/README.md).
+
+### 2026-11-17 — inspect the direct type beside its picker
+
+- An **IRI** button beside the direct Type reveals the current type's full IRI
+  in the same disclosure as read-only types. The control works by mouse and
+  keyboard without opening the type chooser or changing the element; after a
+  type change it reveals the new type (Req 3.11; key design decision 28)
+  — *workbench.spec*.
+
+### 2026-11-17 — restore the connect preview over empty canvas
+
+- The centering of new connections treated the hovered diagram root as a shape,
+  replacing the pointer with an invalid centre. Only shapes with finite bounds
+  now replace the gesture's hints; docking leaves an end without bounds at the
+  pointer. The blue preview stays visible before and after hovering a target,
+  and completed connections keep their outline docking (Req 4.1, 4.6; key design
+  decision 27) — *connect-interaction.test, connection-docking.test, smoke.spec*.
+
+### 2026-11-17 — sync published assets by default
+
+- `npm run sync-assets` refreshes the bundled snapshot from `https://meta.linked.archi/` by default,
+  including its published `catalog.ttl`. `--meta <path>` or `LINKED_ARCHI_META` selects a local
+  checkout, and `--online` selects the site over the environment override. Local mode retains the
+  checkout's publishing scripts and generated catalogue as inputs. Online requests are staged before
+  writing; a required download failure leaves the snapshot intact and fails without local fallback.
+  `--check` is read-only. Builds continue to copy the prepared snapshot explicitly. README, the
+  development guide and requirements describe both source modes and the exit codes. (Req 1.9;
+  key design decision 25) — *sync-assets.test*.
+
+### 2026-11-17 — semantic snapshot audit and refresh
+
+- Refreshed the bundled ArchiMate 4 ontology and catalogue from current meta sources. The catalogue
+  is generated with meta's official full documentation pipeline in an isolated directory, preserving
+  the upload output. Confirmed that LeanIX is resolved remotely and its current local resources load
+  as 43 element types and 21 relationship types, with the new endpoint pairs available and deprecated
+  types omitted from the palette. All 267 bundled files and all three rebuilt copies match exactly,
+  with snapshot digest `ffc89179257d`. Fixed the CLI package retaining an obsolete semantic file:
+  webpack now cleans its generated `dist/`, `assets/`, `ci/` and licence together, preserving package
+  sources and other siblings. An isolated real webpack regression checks initial and repeat builds.
+  Documented that sync checks existing bundled files, depends on a current generated
+  catalogue, and is explicit before building; publishing does not refresh documents already loaded
+  in an app session. The local meta checkout's old `.onto-docs/catalog.ttl` is untouched; regenerate
+  it before a future default sync, which would otherwise copy the old catalogue back. (Req 1.8–1.9)
+  — *bundled-assets.test, asset-sources.test, catalogue.test, cli-build-assets.test*.
+
 ### Not yet committed (2026-09-27) — graph performance, SPARQL tab, views from results
 
+- **Vitest 4, and no known vulnerability in the dependencies** (`npm audit`: 21 → 0): `npm audit fix` updated the build tools' dependencies within their ranges and Electron to 44.11.3; Vitest went from 1.6 to 4.1.12 (with `@vitest/coverage-v8`), which carried the test runner's own advisories (tinypool, vite, esbuild). The browser config keeps its one shared process with `maxWorkers: 1` and `isolate: false`, the options Vitest 4 has for 1.6's `singleFork`. Vitest 4 holds a test to its time limit even when it blocks the event loop throughout, as two workbench tests do (7 and 12 s): they now state 60 s, as the file's other long test does. The benchmarks run after every other file, alone (a *timing* project, `sequence.groupOrder`), where *questions-bench* no longer measures the other tests' load. *platform-factory.test* took the test runner's `process` away for good, which Vitest 4's own messaging needs: it stubs it now, and puts it back. *workbench.test, platform-factory.test*
+- **The decision and process links between elements, drawn** (Req 1.13, 1.14; meta's arch-decision 0.0.9, arch-processes 0.4.0, bundled): the links between two element types the two extensions declared but published no relationship type for — a decision related to, depending on, conflicting with, caused by or superseded by another; opposing, complementary and influencing forces; an issue's owner, reporter and cause; who supports a force or requested a requirement; the issues about a concept, the tactics an option applies, the requirements an element realizes; who is responsible for a process, a related process, what triggers one — could only be typed as properties. Each is now a relationship type in meta, offered in the palette and the menus, in three new decision categories and the existing ones. The symmetric ones are plain lines; `ap:producedBy` and `ap:consumedBy`, declared the inverses of *Output* and *Input*, open as those links. *bundled-assets.test, drawn-extensions.test, property-catalog.test*
+- **A drawn relationship is not a property; a link's value filtered by kind** (Req 11.4, 3.6; key design decision 26): the Properties tab listed a concept's relationships' direct statements, folded under *Relationships*, beside its properties — the same relationships the Analysis tab lists. They are left out now: the Properties tab lists every other property, a link to another concept included, and the Analysis tab the relationships. The value of a link added is picked from the model's elements, relationships and views by name and, now, by kind: a switch for each — *Elements*, *Relationships*, *Views* — beside the search. *property-panel.test, named-picker.test, property-catalog.test*
+- **Links stated as triples open as relationships; processes bundled; links in the property picker** (Req 4.22, 1.14, 3.6; meta's `processes-as-elements` G2–G4 and `decision-modelling-layer` L1, L2, L4, L6): a file that states its links only as triples — `decisions-example.ttl`'s `ad:hasSelectedOption`, the processes example's `ap:hasTask`, an ArchiMate file of bare `am4:serves` — opened with no relationship for any of them: nothing under Relationships, no line between elements placed together. Opening it now makes each one a relationship resource, named as meta's rules name it (`relationship-` + SHA-1 of the triple, so a second window or a collaboration room makes no second one), and a triple stated the undrawn way round — `ap:taskOfActivity`, the declared inverse of `ap:hasTask` — is read as its drawn direction. The Architecture Processes extension is bundled beside Architecture Decisions, so it works offline, and LeanIX and EA on a Page load its vocabulary from the bundle. The property picker offers a type's links (`rdfs:domain`, `arch:domainIncludes`) — `ad:hasDecisionGoal` for a decision — and none a relationship class draws. A drawn governance process and a drawn decision link pass the shapes; with no notation of their own, both extensions draw as the default figure, their links with an arrowhead. *model-session.test, short-hash.test, property-catalog.test, bundled-assets.test, drawn-extensions.test*
+- **Element icons drawn where none loads** (Req 2.26): with LeanIX loaded, almost no element type had an icon in the palette, though each was drawn on the canvas: its notation names a badge glyph for each type under `meta.linked.archi/leanix/icons/glyphs/`, and none is published (404) — nor BPMN's, BPMN Lite's, UML's or Backstage's. The palette showed a broken or empty image for each, and a type with no notation a colour swatch at best. An element type with no icon, or one that does not load, is now shown with its figure as the canvas draws it — shape, inner lines, fill and line colour (`elementIconDataUri`, `withElementIcons`) — in the palette and the append, nest and change-type menus. *notation-shapes.test, palette-panel.test, mount-ui.test*
+- **Each metamodel's relationship types in their own categories** (Req 2.22, 2.24): after meta deployed, LeanIX v4 said "16 of its 16 relationship types are in no category". la-gram took the relationship categories from one dimension only — the one listing the most types — so with the processes extension's relationship types loaded beside LeanIX's, LeanIX's lost theirs; and LeanIX lists its types by a concept each (`rdfs:seeAlso`), which was not read. Now every dimension that lists relationship types gives its own their categories, by class or by the concept that stands for one, the dimension that lists the most first, and the notice counts a type as categorised by the category it was given. With meta's relationship groups added the same day (ML-Enabled Systems, UAF, BPMN's six), no catalogue metamodel, alone or beside ArchiMate 4.0, has a relationship type in no category. *palette-generator.test, metamodel-completeness.test, bundled-assets.test*
+- **Elements of different metamodels can be connected; unstyled relationships have a direction** (Req 4.21, 2.25; meta's DD-40, core 0.6.0 bundled): between an ArchiMate application component and an ATAM risk — or two ATAM elements — nothing was offered: a language's relationship tables admit its own elements, and the core had no relationship types. The core now has three (Association over a new symmetric `arch:associatedWith`, Has Part over `arch:hasPart`, Refines over `arch:refines`), and la-gram offers them where the loaded metamodels permit nothing between the two, Association first, and not where one does; they are not listed in the palette (`RelationshipTypeInfo.core`). And the links of the extensions with no notation — decisions, processes, ATAM, whose relationship types meta added the same day — were plain lines: a relationship type no notation describes is now drawn with an open arrowhead at its target, one whose predicate is symmetric plain. *relationship-ranking.test, palette-generator.test, palette-panel.test, basic-metamodel.test*
+- **A class named like a relationship is an element type where its superclasses say so** (Req 2.5): EA on a Page's *Realization* — a phase of a process — was left out of the palette: a class with a well-known relationship name (Realization, Serving, Flow…) was taken for a relationship type whatever its superclasses. The name now decides only where the superclasses do not: a subclass of `arch:Element` is an element type. Found with meta's process classes becoming element types (`linked-archi-meta/.agents/tasks/processes-as-elements/`). *taxonomy.test*
+- **The notice about an incomplete metamodel closes** (Req 2.24): it stayed at the top of the palette for as long as the metamodel was loaded. **✕** now closes it; it stays closed in this browser while it would say the same, and comes back when what the metamodel leaves out changes. *Show loaded assets…* still says it. *palette-panel.test*
+- **Architecture Decisions in the Metamodels menu, bundled; a second metamodel keeps its own groups** (Req 1.13, 2.11; meta's `.agents/tasks/decision-modelling-layer/`, its M1–M6 done the same day): the decision extension had no manifest, so the menu did not offer it and its links could not be drawn. Meta now has its manifest, a taxonomy and a relationship type for each drawable link, each naming the existing `ad:` predicate as its unqualified form; la-gram bundles them (`assets/arch-decision/`, the catalogue regenerated from a scratch copy of meta) so it loads offline and before meta deploys. Two things in la-gram with it: a kind of relationship with no qualified property of its own (Supporting Influence) uses its nearest superclass's, where it fell back to `arch:hasQualifiedRelationship`; and the types of a metamodel loaded beside another keep their own classification's groups, as sections after the first one's — they were all under *Other*, Basic's too. Not done of that task: relationship resources for the bare `ad:` triples a file already has (L1), object properties suggested in the properties panel (L2), incoming links (L3). *bundled-assets.test, basic-metamodel.test*
+- **Taxonomies read as they are written, and types from a metamodel's own concepts** (Req 2.5, 2.24; with meta's taxonomies completed the same day, `linked-archi-meta/.agents/tasks/metamodel-completeness/`): loaded alone, DoDAF offered 7 of its 25 element types in a group, UAF 10 of 60, the ML extension 4 of 10, and TOGAF 10 and each LeanIX version offered the other version's types as their own. Three causes in la-gram. (1) A taxonomy may name a group's classes with `rdfs:seeAlso` on the group — "Capability Viewpoint" names Capability, Capability Increment and Desired Effect — and la-gram took the first for the class the concept stands for: several classes named so are now the concept's members, and each sibling written so is a group too. (2) Every class in the store was offered, so an ontology loaded only because a shapes document imports it gave its types: now a metamodel's types are those of the documents its manifest names as its concepts and of what they import. (3) Relationship categories came from the first dimension naming any relationship type — UML's state machine diagram, which lists Transition: now from the one naming the most. And a kind of view (BPMN's diagram) is no element type. With meta's abstract classes marked, palette groupings named (BPMN, BPMN Lite, UML) and taxonomies completed, and taxonomies added for ATAM and LeanIX v3, the 26 catalogue metamodels load with every type in a named group but LeanIX v4's Process Role (the processes extension's), and the four that define nothing to draw. *taxonomy.test, metamodel-completeness.test, palette-generator.test*
+- **Every element type offered, and an incomplete metamodel said** (Req 2.24, Req 1.2): with ArchiMate loaded, a metamodel added beside it that names no classification (ATAM, LeanIX v3) added nothing to the palette, and the types a metamodel's own classification leaves out (17 of BPMN's 53, 68 of UML's 96) were never offered: only what a taxonomy names was listed. Now every non-abstract element class of a loaded ontology is listed, those no classification names in a section *Other*; and the palette says of each loaded metamodel what it leaves out — that it defines nothing to draw (concepts and no classes, or classes that are no element types), names no classification, classifies so many of its element types, or leaves so many relationship types in no category — with *Details…* opening *Show loaded assets…*, which lists the types (`metamodel-completeness.ts`). And unloading a metamodel left behind the documents its ontology imports: LeanIX v3 unloaded, v4's 22 element types and 16 relationship types stayed on the palette — the unload dropped the graphs the manifest names by role only. It now drops every document the metamodel loaded, but the core's and what another loaded metamodel uses. *metamodel-completeness.test, taxonomy.test, asset-sources.test, palette-panel.test, mount-ui.test, notation-fallback-integration.test*
+- **A metamodel with no classification of its own shows its element types** (Req 2.5): ATAM and LeanIX v3 loaded with an empty palette. Neither names a classification, so la-gram took every concept scheme in the store for one — and the only one was core's question stages, which classify no class: the palette waited for a taxonomy that named nothing. Schemes that classify no class are now no taxonomy, and the palette lists the ontology's element classes grouped by name, saying so, as with no scheme at all (ATAM: 8 types). *taxonomy.test*
+- **What the "+" menu offers first** (Req 4.4): after a process the menu led with the Technology Domain — an artifact first: its types were ordered by whether a metamodel figure draws a relationship to them, and the twelve a 4.0 process has tied, broken by name. Now: the source's own type, then the rest of its palette section, then the other sections in the palette's order; within a section the types most like the source — the most superclasses in common — first. After a 4.0 process: process, function, service, event, the rest of the Common Domain, then the Business, Application and Technology Domains; after a 3.2 business process: business process, function, interaction, event, service, then the business actor. *relationship-ranking.test*
+- **Tidying a diagram without laying it out again** (Req 22; key design decision 23; `.agents/tasks/arrange-options/`): *Arrange view* lays a whole diagram out afresh; a diagram arranged by hand had no way to be tidied short of that. Now four more, each on the selection — or the whole view where that makes sense — and each one step to undo: ***Arrange relationships*** routes the lines again at right angles around the elements in their way, the elements staying — as few bends as the elements allow, ends at the middle of a side or, between elements facing each other, straight, bends clear of the elements in the middle of their gap, fewer crossings — lines leaving one side spread along it and lines sharing a gap side by side (la-gram's own router: ELK cannot route without placing); ***align*** left, centre, right, top, middle, bottom and ***distribute*** horizontally or vertically; ***Align to grid*** — 10, 20 or 40 px, across, down or both; ***Sizes*** — match width, height or both to the largest, the smallest or the median, or each to its default size, keeping centres, a container never smaller than what it holds. The dialogs open from a menu beside *Arrange view* and from the empty canvas's right-click menu; the toolbar's quick actions act at once with the dialogs' last choices, disabled until enough is selected. All run as one diagram-js command of moves, resizes and routes, so they are written to the view and undone as a drag is. Measured: 200 lines among 100 elements routed in 40 ms, 1 000 among 500 in up to 1.8 s, 4 000 among 2 000 in 4.4 s, none through an element; against routing with no thought of the others, 21% fewer crossings for 5–15% more bends — some of them two clear bends in place of one cramped against an element; a small element beside a large one keeps its line at its middle; a line never loops out and back where it could run on — a U only comes nearer its ends, and one returning to its level is flattened; the lines on one side of an element dock so that none crosses another as it leaves — one that turns where its turn crosses no straight line running further, beside one that ends sooner, the one turning soonest outermost — before as near the middle as that allows, and none on top of another: over 150 random diagrams 3% fewer crossings and none docked on one point (38 before), on lines from one tall element to four others 1 case in 242 with a crossing (15 before), no more bends. *Arrange view* — and a model opened with no geometry, and *Render as new view* — routes its lines the same way up to 500 elements (ELK's routes, which dock at corners and bend against the elements, above): arranging 500 elements takes 3.1 s, 2 000 7.1 s (`layout/reroute.ts`; *reroute.test*). *arrange-geometry.test, orthogonal-router.test, canvas-arrange.test, canvas-toolbar.test, workbench.test*
+- **What is proposed first: the metamodel's order, by the kinds of the two elements** (Req 4.2; key design decision 22; meta's DD-38): between two processes the connect drew an Aggregation in 4.0 and a Composition in 3.2 — one order for every pair, strongest first, with eight exceptions for concrete pairs (seven in 3.2), split by what the metamodel figures draw: a relationship they do not draw fell below every one they do, so in 4.0 composition came after flow, and expanded from abstract types they put assignment first between two roles. Meta's ArchiMate taxonomies now give orders for kinds of element — between behaviour elements Triggering and Flow first, then Composition and Aggregation; from a process to a service Realization; between strategy behaviour Realization, then Serving; between motivation elements Realization, then Influence; to a Meaning or a Value Association; from a grouping, location, product or plateau Aggregation; and between capabilities Composition, from a collaboration Aggregation — each kept only where taking it out changes a pair, and the manifest names them (`arch:relationshipProposalOrder`) in place of the class la-gram searched every graph for, so a model file cannot change them. la-gram ranks in three groups — what may be drawn directly, what only a derivation gives, Association — and within each by the most specific order that lists a relationship (`proposal-order.ts`: the ends it names, then how specific its classes are). The figures are said ("drawn in the metamodel"), not ranked by; the "proposed first" note is gone, as every type is in the order now. Over the 5 364 pairs of 4.0 and 3.2 the set offered is the same and 291 first proposals change; letting a derived relationship keep its order's place was tried and dropped — 42 pairs worse for 4 better. *relationship-ranking.test, rdf-replace-menu.test, connect-interaction.test*
+- **ArchiMate 3.2: devices, system software, equipment and facilities are no nodes** (Req 4.2, Req 2.23; meta): the bundled 3.2 ontology made the four kinds of node, which 3.2 undid (Appendix E.3: "device, system software, facility, and equipment no longer subtypes of node but of technology internal active structure element") — their own change notes said so. Through the wrong superclass a device was offered what the tables permit a node (composition of a node), the Technology and Technology Usage viewpoints took in equipment and facilities, which Appendix C leaves out, and the Physical viewpoint system software; the layer questions counted equipment and facilities in two layers. Meta's 3.2 ontology now makes the four technology internal active structure elements, and the physical elements a kind of technology layer element, part of the Technology Layer; its taxonomy lists equipment and facilities under *Internal Active Structure*, where they were under no aspect; the two proposal orders that named a node — composition first from a facility, assignment first to an artifact — name all five, so what is proposed first is as it was; the layer questions count the physical elements in Technology; two principles about IT technology keep them out, as before. Bundled 3.2 ontology, taxonomy, element shapes, principle shapes and questions refreshed. *relationship-ranking.test*
+
+- **Automatic layout with ELK** (Req 21; key design decision 21; `.agents/tasks/elk-auto-layout/`): la-gram placed elements three ways, none of them a layout of the diagram — a model with no geometry in a grid of six columns, *Render as new view* as the Graph tab's tree, spread out, with straight lines, and a drawn diagram only by hand. Now one layout does all three: ELK's layered layout (`elkjs` 0.12.1, pinned exactly, EPL-2.0, in the licences file), in a worker, so the app responds while it runs. Elements go in rows the way their relationships lead — **Down**, Right, Up or Left — at their own sizes, nested ones inside their parents, routes at right angles; with *Group by band*, in the bands the manifest lists (`arch:diagramGroupOrder`: ArchiMate 4.0's Motivation, Strategy, Business, Application, Technology, Implementation and Migration), an element of no band — a Common Domain element, a grouping — in the band of what it holds or is related to; an Association does not decide which end comes first. The same diagram arranged twice is placed the same. *Arrange view…*, an icon on the canvas toolbar and an entry of the empty canvas's right-click menu, arranges the open diagram, or what is selected with what is nested in it, kept at its top-left, as one step to undo and one change for collaborators, and says what it did (*Arranged 8 elements and 8 relationships.*); *Direction*, *Spacing* (Compact, **Normal**, Roomy) and *Group by band* are remembered (`la-gram:arrange-view`). A model opened with no geometry is laid out so on its first diagram, as part of opening it; *Render as new view* with its routes. Above 2 000 elements, on failure, or after 10 s, the grid, and the message says why. The benchmark (`npm run bench -- --layout`) arranges diagrams of 100, 500 and 2 000 elements, each with twice as many relationships; its first run showed 500 elements hitting the 10 s limit — keeping the given order inside each layer cost 14.5 s of ELK's time with bands — so ELK's effort now follows the diagram's size: that order kept up to 150 elements, banded layers by longest path above, less crossing effort above 500. Arranged in the app at CPU rate 1: 100 elements in 0.43 s, 500 in 1.9 s, 2 000 in 6.6 s, nothing over anything; the run fails when one is not laid out by ELK. Writing the result and redrawing still pause the canvas (known limitation 12). Docs: *Drawing on the canvas › Arrange view*, and *Files*, *SPARQL*, *Stored data* and *Not yet in la-gram* as it works now. *layout.test, bands.test, canvas-toolbar.test, connection-docking.test, workbench.test, workbench.spec*
+- **A line and the type picked for it, one undo step** (Req 4.2): a line drawn with no type chosen opens the relationship-type menu on it, and a type picked there was a step of its own, so undoing the line took two undos — the first put back the type la-gram had drawn. The type picked from that menu now joins the drawing's step: one undo takes the line away, one redo draws it with the type picked. diagram-js groups its undo stack's actions by an id and has no public way to join two executions, so `undo-steps.ts` gives the retype's actions the drawing's id when the drawing is the step right before it, and changes nothing otherwise. A type changed once the menu is closed — Escape, a click elsewhere, the pad later — is still a step of its own. *connect-interaction.test*
+- **The Graph tab's camera, in the keyboard reference** (Req 17.11): *Keyboard and mouse › Graph tab* said the view stays where it was put until another element, depth, filter or layout, or *Fit*; a change of the *Forces* frames the graph at rest too, and the sentence says so now.
+
+- **The Common Domain in its own order** (Req 2.23): ArchiMate 4.0's Common Domain section ran by aspect and name — Collaboration, Path, Role, then Event, Function, Process, Service — while the domain exists for its behaviour. Meta's 4.0 taxonomy now gives the domain an order of its own, `:CommonDomainOrder`, a thesaurus array under it: Process, Function, Service, Event, Role, Collaboration, Path, Grouping, Location. la-gram orders a section first by the array under its group, where there is one (the axis's `memberRanks`, now kept per class as `memberRanksByAxis`), then by aspect and name as before; the other domains are unchanged. *palette-generator.test*
+- **Lines keep their right angles when elements move** (Req 4.6): after *Arrange view*, moving an element kept every bend where it was and moved only the end, so the segment into the moved element ran askew. The layouter now keeps a right-angled route right-angled (`squared` in `connection-docking.ts`): the bend next to the moved end follows it along the axis their segment ran on, the bends beyond stay — and so does where the route leaves the other element; where that would put a bend inside an element, or fold two points into one, the line is routed again at right angles between the centres (diagram-js's Manhattan `connectRectangles`, as bpmn-js repairs its lines), leaving the way the old one left the source. A resize and a reattach repair it the same way. An arranged straight line — along an axis, its ends on the outlines, not aimed at the centres as a drawn one's are — stays straight while its elements stay in line and turns right-angled when one leaves the axis, out of and into them where it was (`squaredStraight`). Drawn straight lines are as they were: aimed at the centres. *connection-docking.test*
+- **The palette's Relationships folded at first** (Req 2.22): the section opened with the palette, fifteen types and their four categories above the element types. It is folded now, its count beside its header; a click opens it, and a search opens it as before. The element groups open as they did. *palette-panel.test*
+- **A new line runs centre to centre; Arrange view is an icon** (Req 4.6): a line drawn with Connect ran from where the gesture pressed to where it let go, cropped at the outlines, so its angle was wherever the pointer happened to be — a first line looked unlike an arranged one. The cropping layouter now aims a new line between two elements at their centres, the hints aside (`CroppingLayouter`), and docking crops it as before; an end on a relationship keeps its point, where on the line it was dropped being the choice, and so does a line from an element to itself. On the toolbar, *Arrange view…* was a word in a button the width of an icon, running over the format painter; it is an icon now — three boxes in two layers joined by right-angled lines — with its name in the tooltip. *connection-docking.test, canvas-toolbar.test*
+- **Connecting: every permitted type, strongest first** (Req 4.2): between two application components the connect drew an Aggregation — the figures draw nothing between them, so all three structural types were "direct" and ranked by name, the general proposal order applying only to what the figures draw. The general order (ArchiMate's strongest first, Association last) now ranks every group after the hints: Composition, Aggregation, Specialization there; Triggering before Flow among the derived. And a line drawn with no type chosen — the connect tool, the pad's *Connect* — opens *Change relationship type* on itself when the pair permits more than one specific type: every permitted type, best first, as when changing it later; a pick retypes it (its own undo step), Escape keeps the best-ranked; a type picked in the palette opens no menu, and nor does a pair with one specific type and Association. *connect-interaction.test, relationship-ranking.test, connect-integration.test, relationship-table.test, workbench.spec*
+- **Relationships by category** (Req 2.22; meta's DD-36): the palette's Relationships section was one list by name. Meta's ArchiMate 4.0 and 3.2 taxonomies now give the order of their relationship categories, `:RelationshipOrder` under `:Relationship` (the specification's: structural, dependency, dynamic, other), and the section holds a group per category in that order — **Structural Relationship**, **Dependency Relationship**, **Dynamic Relationship**, **Other Relationship** — each folding by its header with its count, opened by a search. Within a category the types come strongest first, as the specification lists them — meta's `:StructuralRelationshipOrder`, `:DependencyRelationshipOrder` and `:DynamicRelationshipOrder`, thesaurus arrays under their categories, read like any other (the axis's `memberRanks`) — and a kind of relationship the taxonomy does not list (Read Access, Directed Association) comes just after the relationship it is a kind of. **Proposals strongest first too**: meta's general proposal order is now composition, aggregation, assignment, realization, serving, access, influence, triggering, flow, specialization, association, so connecting two elements proposes the strongest relationship the figures draw first — two processes aggregation before triggering (4.0), composition first (3.2); the scoped exceptions are unchanged. A metamodel whose taxonomy classifies no relationship type keeps one list. *palette-generator.test, palette-panel.test, taxonomy.test, relationship-ranking.test*
+- **The palette's axes named as what they classify by** (Req 2.5, Req 3 — *About ‹type›*; meta's DD-37): meta's ArchiMate 4.0 and 3.2 taxonomies name their classification dimensions as the concepts they are — Domain (Layer in 3.2) and Aspect, with "Element by Domain" and the like as alternative labels; 4.0's relationship categories are under Relationship, 3.2's under ArchiMate Relationship — and write each hierarchical link's ISO 25964 type (kind-of, part-of) next to the SKOS one. la-gram reads the SKOS links, so its code is unchanged: *Group by* offers **Domain** and **Aspect** (4.0), **Layer** and **Aspect** (3.2), and *About ‹type›* shows the path as "Domain › Business Domain". The bundled taxonomies and core are refreshed from meta. **Fixed** with it: a SKOS concept with nothing under it was taken for an element type — ArchiMate 3.2's ArchiMate Element, once Layer and Aspect stood on their own, made ArchiMate Concept a group rather than an axis, and the junctions under ArchiMate Connector left the palette. An element type is now an ontology class, listed itself or by a concept that stands for it (`rdfs:seeAlso`, or the same local name); an empty concept is neither one nor a reason its parent is no axis (meta also removed the empty concept). Meta's 3.2 taxonomy now follows the specification, so the 3.2 palette does too: the physical elements are in the **Technology Layer** section — no Physical Layer — and in its band; Strategy is a layer only, so *Group by* **Aspect** has no Strategy section; and a Structure aspect holds active and passive structure, with the resource under it, so within a layer the types run structure (active and passive), behaviour, composite, as in a 4.0 domain. ArchiMate 4.0's palette starts with the **Common Domain**, and **the junctions are in it at last**: the 4.0 taxonomy had not classified them, and the 3.2 one did only under ArchiMate Concept, now gone (both versions' top concepts are Domain or Layer, Aspect, Relationship and Junction). A group under no axis and no other group — Junction — now classifies its members on its own: they are palette types, in a **Junction** section after the others whatever *Group by* says, and it is no *Group by* choice. *notation-integration.test, taxonomy.test, palette-generator.test, type-guide.test, basic-metamodel.test, palette-panel.test, type-guide-panel.test, bands.test*
+- **The palette's order and a diagram's bands from the metamodel** (Req 2.5, 2.6, 2.23; key design decision 20; the ELK task; meta's DD-36): the palette's sections came in alphabetical order — Application Domain before Business Domain — its default axis was chosen by "aspect" in an axis's label, and the bands of *Arrange view* needed an order no metamodel published. Meta's ArchiMate taxonomies keep each axis a concept and now give the order of its groups in an ISO 25964 thesaurus array under it (`:DomainOrder` or `:LayerOrder`, `:AspectOrder`, each naming its axis with `iso-thes:superOrdinate`), and the manifests point to the palette's axes (`arch:paletteGrouping`) and the groups a diagram keeps in bands (`arch:diagramGroupOrder`). The palette orders each axis's groups by its array and groups by the palette grouping's first axis: ArchiMate 4.0's sections are Business, Application, Technology, Common, Strategy, Motivation, and Implementation and Migration, each in the order of the aspects; 3.2's are its layers, then Motivation and Composite for the elements of no layer. An axis the palette grouping names is taken as one whatever its shape. *Arrange view* bands follow the diagram's order — motivation and strategy on top, 4.0's Common Domain by its neighbours. Bundled core and ArchiMate 3.2 and 4.0 manifests and taxonomies refreshed — *taxonomy.test, palette-generator.test, bands.test*
+- **Copy and paste** (Req 3.22, 10.17; key design decision 19; the copy-paste task): a diagram's selection could not be copied — only an IRI or the RDF panel's text. Ctrl/⌘+C, X and V copy, cut and paste what is selected — with what is nested in it and the lines between its elements — as RDF on the clipboard (la-gram's type and Turtle text, through the browser's copy and paste events, so another la-gram window pastes it); into another view of the same model it places the same concepts again, into the same view or another model it makes copies with their names and definitions only, in the original's folder. *Paste as copies* (Ctrl/⌘+Shift+V), *Paste as references* (Ctrl/⌘+Alt+V) and *Duplicate* (Ctrl/⌘+D), in the right-click menu too; across models, unknown types are asked about and relationships not permitted left out; at the pointer, selected, said, one undoable step. *Copy* in the model tree, and Ctrl/⌘+C there, copies concepts to place in a diagram. *Duplicate view* now places a view's nodes and links with the same code (`placement-copy.ts`), and the view manager writes a connector's text (`setConnectorText`) — *clipboard.test, canvas-clipboard.test, view-manager.test, model-explorer.test, workbench.test, help.test, workbench.spec*
+- **Every bundled package's licence, shipped with the app** (Req 15.5, 15.9; key design decision 18): minification keeps only the comments marked `/*!` or `@license`, and many packages mark none — Cytoscape.js, diagram-js and D3 among them — so their notices were not shipped. A build plugin of la-gram's own (`scripts/third-party-licences.mjs`) now writes `third-party-licences.txt` beside the web app's and the desktop renderer's `index.html`: each of the 66 npm packages the bundle's emitted modules come from, with its version, its declared licence and the text of each licence and notice file it ships (a package shipping none with its author and source). *About la-gram* links to it as *Third-party licences*: beside the web app it runs from; from the desktop app, the published web app's. The desktop app's main and preload bundles emit no npm code, and la-gram-git keeps its packages as imports, so neither carries the file — *third-party-licences.test, help.test*
 - **Fixed: a model written with its prefixes in another order on another machine** (Req 9.12): the metamodels' prefixes were written in the order the store returned their `vann:` declarations — the order the metamodels were loaded in, which is the order their files happened to arrive in. The same model was written `am4vp:`, `am4:`, `am4mm:` on one machine and otherwise on GitLab's runner, where `la-gram-git check docs-site/examples` (the `package` job) failed the example written here; the web app could reorder a model's prefixes between two saves with no change. They are now written in order of their names (`am4:`, `am4mm:`, `am4vp:`) after the standard ones; a model saved before is rewritten once (`la-gram-git fix` does it), and the documentation's example has been. *model-io.test*
 - **The Graph tab's forces** (Req 17.13, 17.11; key design decision 17): the live Force layout's link distance, charge and collision radius were fixed, so a graph too tight to read, or too loose to see whole, could only be dragged apart by hand. With Force, *Forces* under *Layout* (folded, so the column stays short in a short panel) has three native sliders, each labelled and showing its value with its unit: *Link distance* 40–400 px (**180 px**), *Charge strength* 0–1 500 (**350**: the push, shown positive so that further right is stronger; d3 and storage keep −350) and *Collision radius* 0.5×–2× (**1.0×**: a factor on the radius from the box's size, so it means the same for any box); and *Reset*. Up to 100 elements without reduced motion the graph follows a slider as it moves, reheated to at least 0.3 and updated at most once a frame (`LiveForce.setParams`, applied at the next frame); otherwise it is laid out again when the slider is let go or a key moves it. A change of forces is one asked for: the graph is framed at rest. The middle element stays pinned; drags, clicks and double-clicks are untouched. Remembered as `la-gram:graph-forces` (one JSON object, brought into range on read, removed by *Reset*); disabled where Force draws rings. The keys are the native slider's, with `aria-valuetext` (*390 pixels*, *repulsion 350*, *1.0 times*) and a focus ring. At the defaults every value d3 gets is the one it got, so the layout, its tests, the limits and the bench rules are unchanged. Also: key design decision 17 says the remembered layout is not migrated; code comments cite key design decision 17, not the git-ignored task folder; the README's benchmark section has the Graph tab sweep and `npm run bench -- --graph`. *graph-force.test, graph-force.property.test, graph-panel.test, workbench.test, workbench.spec*
 - **The Graph tab, live** (Req 17.2, 17.7–17.12; key design decision 17): the graph was laid out once and stood still — Rings by default, Force a `cose` layout that ended — and every refresh, 300 ms after any model change, laid it out again and re-fitted it. Force is now the default and live: d3-force's simulation, stepped by la-gram's own frame loop (`graph-force.ts`), drawn by Cytoscape.js. The graph moves into place and comes to rest: animated up to 100 elements; up to 800 laid out without movement (before the first paint, or a slice a frame, within 1.5 s of computing) and shown at rest; above 800 drawn in rings, the stats line saying *drawn in rings: Force lays out up to 800 elements*. Drawn elements start where they are, new ones beside the element they were reached from, turned clear of what is drawn; the element in the middle is pinned; a dragged element pulls those linked to it and is released on drop. The camera moves by itself only at rest, and not once the user has pressed, scrolled or pinched until they ask for another graph or *Fit*; a refresh that changes nothing drawn moves nothing; hiding the tab pauses the layout; under reduced motion it is shown at rest; *＋ New view* takes the positions on screen. A remembered layout keeps its meaning; only the default changed. Tuned so a relationship's type name reads on its line (link distance 180). New dependency, pinned exactly: `d3-force` 3.0.1 (ISC) and `@types/d3-force` 3.0.10; the web bundle +29 KB (+1.3 %), +10 KB gzipped (d3-force and its dependencies about 14 KB of it). The limits measured with `npm run bench -- --graph` under 4× CPU throttling (Apple M4 Pro, Chrome) on a graph model of trees up to 3 000 elements, and checked by every run; `npm run bench` also measures the Graph tab at depths 1–5 on every model. *graph-force.test, graph-force.property.test, graph-layout.test, graph-panel.test, workbench.test, workbench.spec, electron.spec*
@@ -452,7 +1207,7 @@ Agreed order; relationship visuals come first.
 - **Save to Git, and switchable modules** (Req 18, Task 19 part 2): *File › Save to Git…* commits the model as one file to a GitHub or GitLab repository through the host's REST API — github.com, gitlab.com, GitHub Enterprise, self-managed GitLab — given the repository's address and an access token; to a branch or a new one, at a path whose extension picks the format; the model is bound to the file (`localStorage`), so the next save asks only for the message and names the version it replaces — a moved-on file is refused, and the user chooses a new branch from where the model was, or to overwrite. Tokens per host, sent to it only, in the header: the desktop keeps them encrypted with the system keychain (`safeStorage` in the main process, through new bridge calls; `src/platform/secret-file.ts`), the browser for the session or, if asked, in `localStorage`. The module is la-gram's first switchable one (`src/modules.ts`): `LA_GRAM_GIT=off` leaves its chunk out of the build, `?git=off` and *File › Modules…* switch it off. `MountedUi` gains `dialogs`, `report`, `addFileMenu` and `setModuleSwitches`; the form dialog gains password and select fields, and a checkbox's long label wraps beside it. *link.test, providers.test, credentials.test, secret-file.test, git-save.test, git-module.test, modules.test, module-boundary.test, workbench.spec, electron.spec* (the bridge's calls)
 - **ArchiMate 3.2 proposes as 4.0 does** (Req 4.2): the 3.2 relationship tables now give what 22 of the specification's metamodel figures draw (`amrt:draws…`, 1,652 relationships), and the 3.2 taxonomy the same order of proposal and exceptions as 4.0 (from a work package, to an implementation event) — read by the code that reads 4.0's, unchanged. New exceptions: triggering between events (4.0, whose single event type has no layers; 3.2 needs none — in a layer the figures draw triggering, across layers realization upwards), composition from a facility to a device (4.0; in 3.2 a device is a node, which the facility-to-node exception already covers) and from a device to system software (3.2; 4.0's tables do not permit it). In both versions an edge between abstract types draws only the pairs the tables permit directly, so 3.2's generic figures hold within a layer (a business process accessing a data object stays derived) and 4.0 no longer draws an event triggering an event (Table B.5 gives it only as derived) — the exception between events proposes it first. The first proposal changes for 325 of 3.2's 3,600 element pairs — a business process triggers another before it flows to it, a node is assigned to an artifact, an element realizes a requirement before it influences it; an application component still accesses a data object, as 3.2 modellers are used to — and for 2 of 4.0's (Node → Artifact; Facility → Device, now composition). Bundle refreshed (the 3.2 ontology, taxonomy and relationship tables; the 4.0 relationship tables). *relationship-ranking.test*
 - **What is proposed first when two elements are connected** (Req 4.2): the ranking had five-way ties settled alphabetically — 719 of ArchiMate 4.0's 1,764 element pairs. Now candidates come in five groups (`RelationshipPreference`): a relationship a scoped proposal order names for the elements (`first`); what the specification's metamodel figures draw for the pair (`drawn`), in the language's general order of proposal; then direct, only by derivation, and the fallbacks as before, with a relationship whose hints describe the pair first within each. In linked-archi-meta: the 4.0 relationship tables give what 15 metamodel figures draw (`am4rt:draws…`, 757 relationships, each reifier citing its figures), core gains `arch:RelationshipProposalOrder`, and the 4.0 taxonomy gives the order — realization, serving, access, influence, triggering, flow, aggregation, composition, assignment, specialization, association — with six exceptions (aggregation from a grouping or a plateau; composition between capabilities and from a facility to a node; assignment from a node to an artifact, the artifact deployed on it — both derived, Access was proposed first; triggering from a work package to an event). `model-manager/proposal-order.ts` reads the orders; `direct-permissions.ts` reads `drawnBy` beside `permittedDirectlyBy` (`TablePermissions`). The change-type and "Connect these two…" menus say why in words instead of "rank 10". The first proposal changes for 409 pairs: an application component is assigned to a data object (system of record, 4.0's Application Structure metamodel), access second; processes trigger before they flow; a process realizes a service. Bundle refreshed (core, the 4.0 taxonomy and relationship tables). *relationship-ranking.test, direct-permissions.test, relationship-table.test, connect-integration.test, rdf-replace-menu.test, workbench.spec* (append: Serving, Flow, Triggering for an actor to a component)
-- **Relationship categories are not a palette axis** (Req 2.5): the ArchiMate 4.0 taxonomy now classifies its relationship types by category, with the order of strength the derivation rules apply (linked-archi-meta: `Relationship by Category`, `:StructuralStrength`, `:DependencyStrength`; the 3.2 taxonomy, which had the categories, gains the order, and Association moves to the dependency relationships, as the specification has it). A third top concept became a third "Group by" axis that groups no element type. The palette offers only an axis under which some element type has a group. Bundle refreshed (`archimate4-tax.ttl`, `archimate3.2-tax.ttl`; `archimate4-onto.ttl`, which gains the abstract `StrategyBehaviorElement` over Capability, Value Stream and Course of Action; and `catalog.ttl`). *palette-generator.test, taxonomy.test*
+- **Relationship categories are not a palette axis** (Req 2.5): the ArchiMate 4.0 taxonomy now classifies its relationship types by category, with the order of strength the derivation rules apply (linked-archi-meta: the categories under `:Relationship`, `:StructuralStrength`, `:DependencyStrength`; the 3.2 taxonomy, which had the categories, gains the order, and Association moves to the dependency relationships, as the specification has it). A third top concept became a third "Group by" axis that groups no element type. The palette offers only an axis under which some element type has a group. Bundle refreshed (`archimate4-tax.ttl`, `archimate3.2-tax.ttl`; `archimate4-onto.ttl`, which gains the abstract `StrategyBehaviorElement` over Capability, Value Stream and Course of Action; and `catalog.ttl`). *palette-generator.test, taxonomy.test*
 - **Models from the Linked.Archi converters open as models** (checked 2026-10-18 against all six converters' test inputs — ArchiMate, BPMN, PlantUML/UML, Structurizr/C4, LeanIX, Backstage — 24 outputs): every one opens, its declared metamodels load, its views come through. One fix: the conversion's provenance (PROV-O and schema.org: the run, agent, source file and named graphs) became model members on adoption and filled the tree's "Unclassified"; those vocabularies are now non-model, like geometry. What still shows as unclassified is what meta declares but does not make a model concept: BPMN's `Definitions` and extension elements, LeanIX lifecycle phases. *converter-models.test* (the ArchiMate converter's payment-platform output as fixture)
 - **Basic replaces la-gram's own core metamodel** (Req 1.12): la-gram offers only meta.linked.archi's metamodels. Its own core manifest and taxonomy (`core-metamodel.ttl`, `core-tax.ttl`), which offered `arch:Element` and `arch:QualifiedRelationship` as "Element" and "Relationship", are gone; Basic, meta's generic language, is bundled in their place (six documents and its two notations' icons). meta gave Basic a **Connection**, whose domain and range are `arch:Element`, so it relates any two elements across languages — Association and Aggregation keep Basic's restrictions. A relationship is generic (`RelationshipTypeInfo.generic`) when its domain and range name only core classes and no relationship table governs it — ArchiMate names `arch:Element` on Specialization and Composition but restricts them in its tables — rather than by being `arch:QualifiedRelationship`; it ranks with the fallbacks and never makes an append ask. The palette's axes now follow the loaded metamodels' order (`PaletteOptions.metamodelIris`), so the first language's grouping stays the default when another is added; the special cases that kept the core's "Generic" group are gone, and another language's types are in "Other" under the first's axis. A core class is never a palette type. The Metamodels menu hides a section with nothing to offer (Core, now). *basic-metamodel.test, bundled-assets.test, catalogue.test, mount-ui.test, workbench.spec*
 - **The Metamodels menu reads meta.linked.archi's catalogue** (Req 1.2): the built-in list kept by hand is gone. meta.linked.archi publishes a DCAT catalogue (`https://meta.linked.archi/catalog`) in which a metamodel manifest's dataset names its `arch:Metamodel` with its label (`foaf:primaryTopic`) and its section of the site's index (`dcat:theme`); the menu lists the `languages`, `frameworks`, `extensions` and `core` sections, by label ("ArchiMate 4.0 Metamodel" → "ArchiMate 4.0"), with la-gram's own core metamodel first. A copy ships in `assets/catalog.ttl` (`npm run sync-assets` takes it from the meta checkout's last generated site), read through the bundled source by the catalogue IRI, so the list is complete offline; unless offline, `App.loadCatalogue` then reads the published one — whatever the asset mode, since `bundled-first` would always answer from the bundle — and it replaces the bundled list, so a newly published metamodel is offered without a new la-gram. A published catalogue that is missing (until meta's nginx negotiates `/catalog`) or unreadable leaves the bundled list. The menu offers what the built-in list did, from the catalogue; four extensions and the 4+1 framework, which meta had not registered in its index, were registered so the catalogue gives their sections. *catalogue.test, core-metamodel.test, workbench.spec*

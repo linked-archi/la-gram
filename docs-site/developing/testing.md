@@ -43,7 +43,10 @@ those. Two variants:
 | `npm run test:coverage` | Vitest once, with V8 coverage of `src/**/*.ts`: a table in the terminal and an HTML report in `coverage/` |
 
 The suite includes benchmark tests (`*-bench.test.ts`, `bench-*.test.ts`), which time the machine they
-run on; CI leaves them out with `--exclude`.
+run on. `npm test` runs them last and on their own — Vitest's *timing* project, after the *unit* project's
+files, which run side by side — so they time the code and not the other tests; CI leaves them out with
+`--exclude`. `npm test -- --project unit` runs the rest alone, `npm test -- --project timing` only the
+benchmarks.
 
 ```console
 $ npm test -- src/__tests__/config.test.ts
@@ -130,7 +133,8 @@ On macOS, the system's Chrome is
 What a modeller waits for on a large model: the built web app opens each model in Chrome, then its
 largest view, renames an element in it, and opens the model again over itself, and the memory it holds
 is measured; then the Graph tab, round the model's most connected element, at each depth from 1 to 5.
-Last comes the Graph tab's sweep, on a graph model made for it ([below](#bench-graph)). Build first with
+Then comes the Graph tab's sweep, on a graph model made for it ([below](#bench-graph)), and last
+*Arrange view* on three diagrams made for it ([below](#bench-layout)). Build first with
 `npm run build:web`. Each model gets a browser of its own, and tables are printed.
 
 | Option | Values | Default |
@@ -138,11 +142,12 @@ Last comes the Graph tab's sweep, on a graph model made for it ([below](#bench-g
 | `--sizes <n,n…>` | the sizes of generated models, in triples | **10 000, 50 000, 100 000, 250 000, 500 000**, when no model file is given |
 | `--view-size <n>` | the nodes of each generated model's largest view | **40** |
 | `--graph` | the Graph tab's sweep alone, without the other models | **off**: the sweep follows the models |
+| `--layout` | *Arrange view* alone, without the other models; with `--graph`, the two without the models | **off**: it follows the Graph tab's sweep |
 | `--out <file>` | where the results go, as JSON | **`test-results/bench/results-<date and time>.json`** |
 | model files | your own models, instead of generated ones: `npm run bench -- path/to/model.ttl …` | — |
 
-Generated models are kept in `test-results/bench/`, as `model-<n>.ttl` (or `model-<n>-view<m>.ttl`) and
-`graph.ttl`, and reused when they are there. `--out` names a file, not a folder. All of `test-results/` is
+Generated models are kept in `test-results/bench/`, as `model-<n>.ttl` (or `model-<n>-view<m>.ttl`),
+`graph.ttl` and `layout-<n>.ttl`, and reused when they are there. `--out` names a file, not a folder. All of `test-results/` is
 git-ignored.
 
 A small generated model, its largest view ten nodes, the results to a scratch file:
@@ -249,6 +254,45 @@ The Graph tab's limits do not hold:
 - liveDragMaxNodes is 5000: above 3000, the sweep's largest size
 - forceMaxNodes is 5000: above 3000, the sweep's largest size
 ```
+
+### Arrange view {#bench-layout}
+
+Three generated models, `test-results/bench/layout-100.ttl`, `layout-500.ttl` and `layout-2000.ttl`, each
+one diagram of that many elements with every relationship between them drawn — two from each element, to
+elements of the types ArchiMate 4.0 permits, so twice as many relationships, between every band. Each is
+opened, validation is let finish, and *Arrange view…* is run from the canvas toolbar with the dialog's
+defaults, at the processor's own speed and at *4× CPU*. The table gives, for each: whether ELK laid it out
+or the grid, the time from *Arrange* to la-gram's message, the UI blocked in that time (the long tasks
+summed), the longest task, and how many pairs of elements are over one another.
+
+The run fails with exit code 1, after writing its results, when a diagram at the processor's own speed was
+placed in the grid, was not arranged, or has an element over another. ELK's effort by the diagram's size
+(Req 21.13) was set from these runs.
+
+```console
+$ npm run bench -- --layout
+…
+layout-100.ttl, Arrange view …
+  100 elements, CPU 1×: elk, 0.43 s, longest task 101 ms
+  100 elements, CPU 4×: elk, 0.82 s, longest task 594 ms
+layout-500.ttl, Arrange view …
+  500 elements, CPU 1×: elk, 1.92 s, longest task 525 ms
+…
+Arrange view
+
+| Elements | Relationships | Pass | Laid out by | Arranged in (s) | UI blocked (ms) | Longest task (ms) | Overlapping pairs |
+|--:|--:|---|---|--:|--:|--:|--:|
+| 100 | 200 | CPU 1× | ELK | 0.43 | 101 | 101 | 0 |
+| 100 | 200 | CPU 4× | ELK | 0.82 | 594 | 594 | 0 |
+| 500 | 1000 | CPU 1× | ELK | 1.92 | 525 | 525 | 0 |
+| 500 | 1000 | CPU 4× | ELK | 4.24 | 2929 | 2929 | 0 |
+| 2000 | 4000 | CPU 1× | ELK | 6.62 | 2141 | 2078 | 0 |
+| 2000 | 4000 | CPU 4× | ELK | 16.0 | 11540 | 11301 | 0 |
+
+test-results/bench/results-2026-11-15T11-15-07-873Z.json
+```
+
+The layout itself runs in a worker; the long tasks are writing its result and drawing the diagram again.
 
 ## `npm run bench:model` {#npm-run-bench-model}
 

@@ -85,12 +85,14 @@ import Modeling from 'diagram-js/lib/features/modeling/Modeling.js';
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
 
 import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
+import { ARRANGE_APPLY_COMMAND, ArrangeApplyHandler } from './canvas-arrange.js';
 import { AttachedConnectionBehavior, CroppingLayouter } from './connection-docking.js';
 import { FastCroppingConnectionDocking } from './straight-docking.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js';
 import { relationshipKey } from './relationship-resolution.js';
 import type { RdfReuseCheck } from './reuse-relationship.js';
+import { conceptIriOf } from './view-reference.js';
 import type { ObservableRdfStore, RdfDiff } from '../../rdf-engine/observable-store.js';
 
 /**
@@ -771,6 +773,8 @@ export class RdfModeling extends ModelingBase {
       [RDF_CHANGE_COMMAND]: RdfChangeHandler,
       [RDF_STORE_EDIT_COMMAND]: RdfChangeHandler,
       [RDF_MODEL_DELETE_COMMAND]: ModelDeleteHandler,
+      // The arrange options' moves, resizes and routes, one step (canvas-arrange.ts).
+      [ARRANGE_APPLY_COMMAND]: ArrangeApplyHandler,
     };
   }
 
@@ -796,8 +800,10 @@ export class RdfModeling extends ModelingBase {
     attrs?: RdfConnectAttrs | null,
     hints?: Record<string, unknown>,
   ): DjsElement | undefined {
-    const sourceIri = source.businessObject?.iri;
-    const targetIri = target.businessObject?.iri;
+    // The concepts at its ends: an element's, a relationship's — a reference's view (VC-DD-1). The link joins the
+    // placements, which `RdfRelationshipBehavior` reads off the shapes.
+    const sourceIri = conceptIriOf(source);
+    const targetIri = conceptIriOf(target);
 
     const resolved =
       attrs ??

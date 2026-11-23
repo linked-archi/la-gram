@@ -28,6 +28,12 @@
  * slices shorter than a frame, its terms checked at once as the inner store
  * would; until it is there, a read of every graph is the copy's model and the
  * inner store's named graphs, and SPARQL over the model waits for it.
+ *
+ * And it lets a local edit be stamped inside itself (`setStamper`, the provenance of edits): once at the end of
+ * each outermost write — a {@link record}, a {@link batch}, or a write outside both — what the local edit
+ * changed is given to the stamper, whose own writes join the edit, its undo step and its notification. Undo,
+ * redo ({@link applyDiff}), a collaborator's changes (another origin) and what runs {@link withoutStamps} are
+ * not stamped.
  */
 
 import { DataFactory, Store as N3Store } from 'n3';
@@ -84,6 +90,15 @@ export class ObservableRdfStore implements RdfStore {
   private backlog: Quad[] = [];
   private given = 0;
   private backlogTimer: ReturnType<typeof setTimeout> | null = null;
+  /** What stamps a local edit; none, nothing is stamped. */
+  private stamper: ((diff: RdfDiff) => void) | null = null;
+  /** The local edit not yet stamped. */
+  private unstamped: RdfDiff = { added: [], removed: [] };
+  /** Open {@link record} and {@link batch} scopes. */
+  private depth = 0;
+  private stamping = false;
+  /** Open {@link withoutStamps} scopes. */
+  private stampsOff = 0;
 
   constructor(readonly inner: RdfStore & { has?(q: Quad): boolean }) {
     this.model.addQuads(this.defaultGraph() as never);
@@ -115,10 +130,57 @@ export class ObservableRdfStore implements RdfStore {
     const diff: RdfDiff = { added: [], removed: [] };
     this.recording.push(diff);
     try {
-      const result = fn();
+      const result = this.scope(fn);
       return { result, ...diff };
     } finally {
       this.recording.splice(this.recording.indexOf(diff), 1);
+    }
+  }
+
+  /**
+   * What stamps a local edit (`model-manager/provenance.ts`): given what the edit changed, once at its end,
+   * while it is still being recorded and batched.
+   */
+  setStamper(stamper: ((diff: RdfDiff) => void) | null): void {
+    this.stamper = stamper;
+    this.unstamped = { added: [], removed: [] };
+  }
+
+  /** Run `fn` without stamping what it changes: opening, merging, restoring — no edit of the user's. */
+  withoutStamps<T>(fn: () => T): T {
+    this.stampsOff++;
+    try {
+      return fn();
+    } finally {
+      this.stampsOff--;
+    }
+  }
+
+  /** A write scope: the outermost stamps the local edit before it closes. */
+  private scope<T>(fn: () => T): T {
+    this.depth++;
+    try {
+      const result = fn();
+      if (this.depth === 1) this.stamp();
+      return result;
+    } finally {
+      this.depth--;
+    }
+  }
+
+  /** Give the stamper the local edit not yet stamped; its writes are not stamped again. */
+  private stamp(): void {
+    if (!this.stamper || this.stamping) return;
+    const diff = this.unstamped;
+    if (diff.added.length === 0 && diff.removed.length === 0) return;
+    this.unstamped = { added: [], removed: [] };
+    this.stamping = true;
+    try {
+      this.stamper(diff);
+    } catch (err) {
+      console.warn('[la-gram] Recording the provenance of an edit failed', err);
+    } finally {
+      this.stamping = false;
     }
   }
 
@@ -138,10 +200,10 @@ export class ObservableRdfStore implements RdfStore {
    * once per `addQuads`/`removeQuads` call. Nested batches fold into the outer.
    */
   batch<T>(fn: () => T): T {
-    if (this.pending) return fn();
+    if (this.pending) return this.scope(fn);
     this.pending = { added: [], removed: [] };
     try {
-      return fn();
+      return this.scope(fn);
     } finally {
       const change = this.pending;
       this.pending = null;
@@ -151,11 +213,12 @@ export class ObservableRdfStore implements RdfStore {
 
   /** Apply a recorded diff, or its inverse. */
   applyDiff(diff: RdfDiff, inverse = false): void {
-    this.batch(() => {
+    // A diff replayed — undo, redo — is no new edit: its stamps, if it had any, are in it.
+    this.withoutStamps(() => this.batch(() => {
       const [remove, add] = inverse ? [diff.added, diff.removed] : [diff.removed, diff.added];
       if (remove.length > 0) this.removeQuads(remove);
       if (add.length > 0) this.addQuads(add);
-    });
+    }));
   }
 
   // ── RdfStore ───────────────────────────────────────────────────────────
@@ -461,6 +524,11 @@ export class ObservableRdfStore implements RdfStore {
 
   private track(added: Quad[], removed: Quad[]): void {
     if (added.length === 0 && removed.length === 0) return;
+    const stamped = this.stamper !== null && !this.stamping && this.stampsOff === 0 && this.origin === 'local';
+    if (stamped) {
+      this.unstamped.added.push(...added);
+      this.unstamped.removed.push(...removed);
+    }
     for (const listener of this.writeListeners) listener({ added, removed });
     for (const diff of this.recording) {
       diff.added.push(...added);
@@ -472,6 +540,8 @@ export class ObservableRdfStore implements RdfStore {
       return;
     }
     this.notify({ added, removed });
+    // A write outside any scope is an edit of its own: stamped now, as one more change.
+    if (stamped && this.depth === 0) this.batch(() => undefined);
   }
 
   private notify(diff: RdfDiff): void {

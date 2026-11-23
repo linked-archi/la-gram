@@ -1,6 +1,6 @@
 ---
 title: Settings
-description: la-gram's personal settings, under File › Settings…, with which metamodels the menu offers, which modules are on, and Git storage's defaults and tokens.
+description: la-gram's personal settings, under File › Settings…, with which metamodels the menu offers, the name recorded with your edits, which modules are on, and Git storage's defaults and tokens.
 ---
 # Settings
 
@@ -16,6 +16,7 @@ What the deployment sets is shown, not offered for change.* It has a tab for eac
 | Tab | Shown |
 |---|---|
 | *Metamodels* | always |
+| *You* | always |
 | *Git storage* | while Git storage is on |
 | *Modules* | when there is a module to switch |
 
@@ -39,6 +40,27 @@ entries hidden, so a metamodel the catalogue gains later is offered.
 2. Under *Extensions*, choose *None*, and *Apply*. The menu has no *Extensions* section, and
    *Choose which to show…* says how many are hidden.
 
+## You tab {#you-tab}
+
+*Recorded with your edits, in the model you save — who changed a concept, and when — and as the author of
+your commits and checkpoints. Kept on this machine. Without a name, your Git account's is recorded, else
+your collaboration name in a shared room.* What la-gram records is in
+[Last changed](properties.md#last-changed).
+
+| Field | Value | Default |
+|---|---|---|
+| *Name* | as others should see it, written into the model as the user's `schema:name`, and the author of your commits and checkpoints: `Ada Lovelace` | **empty**: your Git account's name, else your collaboration name in a shared room, else nobody but la-gram |
+| *Email* | optional, written into the model with the name (`schema:email`) and the author's address of your commits; one address is one user, whatever its case | **empty** |
+| *Git account* | read-only, to copy: the account your token acts for on the open model's Git host, its username and page, `ada · https://gitlab.com/ada`; la-gram reads it from GitLab or GitHub when you open or save a model there with a token ([Git storage](git.md#who-commits)). [*Model settings*](models-and-views.md#model-settings-git) shows it too, beside the model's address in Git | **None yet** |
+| *Record my Git account with my edits* | the account's page and username written into the model with your name: one person is then one user in every model, on every machine | **ticked** |
+
+A change applies to the next edit after the model is opened or saved. An email that is not an address is
+refused: *The email address is not one.*
+
+1. Choose *File › Settings…*, and *You*.
+2. Type `Ada Lovelace` in *Name*, and choose *Apply*.
+3. Rename an element: its *Last changed* says *by Ada Lovelace*.
+
 ## Modules tab {#modules-tab}
 
 *Parts of la-gram that can be switched off. Off, a module shows nothing, loads nothing and talks to no
@@ -61,8 +83,8 @@ https://app.linked.archi/la-gram/?git=off
 
 ## Git storage tab {#git-storage-tab}
 
-*Where Save to Git and Open from Git start, for a model not bound to a file. Empty: the default the hint
-names.* Each field's hint says what an empty one means.
+*Defaults for new files, regular remote checks and tokens. Empty: the default the hint names.* Each
+field's hint says what an empty one means.
 
 | Field | Values | Empty means |
 |---|---|---|
@@ -72,6 +94,12 @@ names.* Each field's hint says what an empty one means.
 | *Folder for new files* | a folder in the repository, `models` or `arch/models`; `.` for its top | the deployment's, else **`models`** |
 | *Commit message* | a template: `{action}` (Add, Update), `{model}`, `{path}`, `{branch}` | **`{action} {model}`** |
 | *New branch names start with* | text | **`la-gram/`** |
+| *Check for remote changes* | **Off**, Every 1 minute, Every 2 minutes, Every 5 minutes, Every 10 minutes | **Off**; for example, Every 2 minutes checks the bound file while the app is visible and online |
+| *Pull automatically when unchanged locally* | **Off**, On | **Off**; with regular checks enabled, incorporates incoming versions only while there are no local Git changes |
+| *Destination* | read only: the model IRI, host, repository, branch and file for auto-commit | open or save a model from Git first |
+| *Auto-commit* | **Off**, After idle, At interval | **Off** for each model and destination; for example, After idle saves after you stop editing |
+| *Idle time* | 1 minute, **2 minutes**, 5 minutes, 10 minutes | **2 minutes**; applies to After idle |
+| *Commit interval* | 5 minutes, **10 minutes**, 15 minutes, 30 minutes | **10 minutes**; applies to At interval, and skips unchanged content |
 | *Remember tokens* | read only, when the deployment says `never`: *Never: a token is kept for the session only* | — |
 | *Offer to remember a new token, ticked* | a checkbox: whether the access token dialog's *Remember* starts ticked | **off** in the web app, **on** in the desktop app |
 | *Forget the token for* a host | a checkbox for each host with a token kept: ticked, *Apply* forgets it, in memory and remembered | — |
@@ -87,6 +115,12 @@ host the deployment does not allow), a branch name Git would refuse, a folder th
    *Commit message*, `{action} {model} on {branch}`.
 3. Choose *Apply*. The next *Save to Git…* proposes `architecture/models/acme-online-shop.ttl`, and the
    message "Add Acme online shop on main".
+
+The synchronization options apply to the open bound model, outside shared rooms. Checks and automatic
+pull never commit; *Auto-commit* needs a separate opt-in for the named destination.
+The *Git* tab shows results and pause reasons; its *Git settings…* button opens this settings tab.
+See [Git status and regular checks](git.md#regular-checks) for timing, multiple tabs and private access,
+and [Optional auto-commit](git.md#auto-commit) for examples and persistent pause/resume behaviour.
 
 What a deployment sets shows here as it is. With this deployment configuration, *Git hosts allowed*
 lists the two hosts, *Remember tokens* says *Never*, and *Folder for new files* is `architecture/models`

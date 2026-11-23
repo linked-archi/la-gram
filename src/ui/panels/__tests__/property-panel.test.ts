@@ -324,9 +324,14 @@ describe('PropertyPanel', () => {
         '_renderDerivation',
         '_renderContextNames',
         '_renderContextPictures',
+        '_renderProvenance',
         '_takesLinks',
         '_renderRelationshipGroup',
         '_toggleRelationships',
+        '_renderReferencedFrom',
+        '_renderFigureText',
+        '_renderReference',
+        '_renderOpens',
       ]) {
         if (typeof (PropertyPanel.prototype as any)[m] === 'function') {
           ctx[m] = (PropertyPanel.prototype as any)[m].bind(ctx);
@@ -414,6 +419,103 @@ describe('PropertyPanel', () => {
     ];
     const ANALYSIS = { relationships: [], views: [{ iri: 'https://example.org/v1', label: 'Main' }] };
 
+    it('shows a view reference’s Text — its view’s name greyed with none of its own — and what it Opens, with Open and Change… (VR-4, VR-8)', () => {
+      const node = 'https://example.org/view/1#node-1';
+      const views = [{ iri: 'https://example.org/view/2', label: 'Payments', kind: 'Diagram' as const }];
+      const heading = (reference: Record<string, unknown>) => ({ kind: 'View reference', figure: { kind: 'reference' }, reference: { nodeIri: node, views, ...reference } });
+      const none = renderPanel({ selectedIri: node, heading: heading({ viewIri: views[0]!.iri, viewLabel: 'Payments' }) });
+      // The view's name as the field's value, greyed: no text of its own, no ×.
+      expect(none).toContain('class="property-value inherited"');
+      expect(none).not.toContain("Show the view's name");
+      expect(none).toContain('Opens');
+      expect(none).toMatch(/class="opens-view [^"]*"[^>]*>Payments</);
+      expect(none).toContain('>Open</button>');
+      expect(none).toContain('>Change…</button>');
+      // Text of its own — an empty one too: not greyed, and × shows the view's name again.
+      const own = (value: string) =>
+        renderPanel({
+          selectedIri: node,
+          heading: heading({ nodeIri: node, viewIri: views[0]!.iri, viewLabel: 'Payments', text: value, textLanguage: 'en' }),
+        });
+      for (const value of ['See also', '']) {
+        expect(own(value)).not.toContain('class="property-value inherited"');
+        expect(own(value)).toContain(`title=Show the view's name`);
+      }
+      expect(own('')).toContain('placeholder=No text');
+      // A view not in the model: said.
+      expect(renderPanel({ selectedIri: node, heading: heading({ viewIri: 'https://example.org/view/9' }) })).toContain('A view not in the model');
+      // Another figure has neither.
+      const note = renderPanel({ selectedIri: node, heading: { kind: 'Note', figure: { kind: 'note' } } });
+      expect(note).not.toContain('Opens');
+      expect(note).toContain('placeholder=Add a name…');
+    });
+
+    it('empties a figure’s text — a note’s goes, a view reference’s is written empty — where a name is not emptied', () => {
+      const changed = (entry: Partial<PropertyEntry>, value = '  ') => {
+        const ctx = makeCtx({ selectedIri: 'https://example.org/view/1#node-1', requestUpdate: vi.fn() });
+        ctx._onPropertyChange({ predicate: SKOS_PREF_LABEL, label: 'Text', value: 'See also', readonly: false, language: 'en', ...entry }, value);
+        return ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.value, call[0].detail.previous]);
+      };
+      // A note's, a group's or a shape's text: taken away — nothing drawn.
+      expect(changed({ emptied: 'removed' })).toEqual([['property-remove', 'See also', undefined]]);
+      // A view reference's own text: written empty, in place of the one it had — an empty one too.
+      expect(changed({ emptied: 'blank' })).toEqual([['property-edit', '', 'See also']]);
+      expect(changed({ emptied: 'blank', value: '' }, 'Read next')).toEqual([['property-edit', 'Read next', '']]);
+      // Its view's name, shown greyed with none of its own: unchanged, no edit; emptied or typed over, its own.
+      const inherited = { emptied: 'blank' as const, value: 'Payments', inherited: true, language: undefined };
+      expect(changed(inherited, 'Payments')).toEqual([]);
+      expect(changed(inherited)).toEqual([['property-edit', '', undefined]]);
+      expect(changed(inherited, 'Pay')).toEqual([['property-edit', 'Pay', undefined]]);
+      // A name is not emptied.
+      expect(changed({})).toEqual([]);
+    });
+
+    it('shows the view a selected reference stands for — its information, tabs and properties — with the reference’s Text and Opens (VC-1)', () => {
+      const view = 'https://example.org/view/2';
+      const node = 'https://example.org/view/1#node-1';
+      const views = [{ iri: view, label: 'Payments', kind: 'Diagram' as const }];
+      const viewHeading = (reference: Record<string, unknown>) => ({ kind: 'View', typeLabel: 'Diagram', reference: { nodeIri: node, viewIri: view, viewLabel: 'Payments', views, ...reference } });
+      const entries = [{ predicate: SKOS_PREF_LABEL, label: 'Name', value: 'Payments', readonly: false, language: 'en' }];
+      const shown = renderPanel({ selectedIri: view, _entries: entries, heading: viewHeading({}), analysis: ANALYSIS });
+      expect(shown).toContain('View information');
+      expect(shown).toContain('Analysis');
+      expect(shown).toContain('Appears in views');
+      expect(shown).toContain('Opens');
+      // Its Text: the view's name, greyed, with none of its own.
+      expect(shown).toContain('class="property-value inherited"');
+      // Typed in its Text, the reference's own — not the view's name, edited above it.
+      const ctx = makeCtx({ selectedIri: view, _entries: entries, heading: viewHeading({ text: 'See also', textLanguage: 'en' }), requestUpdate: vi.fn() });
+      const edits = (entry: Partial<PropertyEntry>, value: string) => {
+        ctx.dispatchEvent.mockClear();
+        ctx._onPropertyChange({ predicate: SKOS_PREF_LABEL, label: 'Text', readonly: false, emptied: 'blank', ...entry }, value);
+        return ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.elementIri, call[0].detail.value, call[0].detail.previous]);
+      };
+      expect(edits({ subject: node, value: 'See also', language: 'en' }, 'Read next')).toEqual([['property-edit', node, 'Read next', 'See also']]);
+      expect(edits({ subject: node, value: 'See also', language: 'en' }, '')).toEqual([['property-edit', node, '', 'See also']]);
+      expect(edits({ subject: node, value: '', language: 'en' }, 'Back')).toEqual([['property-edit', node, 'Back', '']]);
+      // Its view's name with none of its own: unchanged, no edit.
+      expect(edits({ subject: node, value: 'Payments', inherited: true }, 'Payments')).toEqual([]);
+      // × takes its own away, from the reference.
+      ctx.dispatchEvent.mockClear();
+      ctx._remove({ predicate: SKOS_PREF_LABEL, label: 'Text', value: 'See also', readonly: false, subject: node });
+      expect(ctx.dispatchEvent.mock.calls.map((call: [CustomEvent]) => [call[0].type, call[0].detail.elementIri])).toEqual([['property-remove', node]]);
+      // A view selected otherwise — in the tree — shows no reference's rows.
+      expect(renderPanel({ selectedIri: view, _entries: entries, heading: { kind: 'View' }, analysis: ANALYSIS })).not.toContain('Opens');
+    });
+
+    it('lists the views referencing a view — Referenced from, each opening it — and nothing with none (VR-11)', () => {
+      const view = 'https://example.org/view/2';
+      const ctx = makeCtx({
+        selectedIri: view,
+        heading: { kind: 'View', referencedFrom: [{ iri: 'https://example.org/view/1', label: 'Index' }] },
+      });
+      const shown = flat((PropertyPanel.prototype as any).render.call(ctx));
+      expect(shown).toContain('Referenced from');
+      expect(shown).toContain('>Index</a');
+      expect(renderPanel({ selectedIri: view, heading: { kind: 'View' } })).not.toContain('Referenced from');
+      expect(renderPanel({ selectedIri: view, heading: { kind: 'View', referencedFrom: [] } })).not.toContain('Referenced from');
+    });
+
     it('lists the vertical tabs — information, properties, analysis, views — with counts', () => {
       const o = renderPanel({
         selectedIri: 'https://example.org/elem1',
@@ -449,25 +551,27 @@ describe('PropertyPanel', () => {
       expect(views).not.toContain('>Cost<');
     });
 
-    it('folds the relationships\u2019 direct statements under a count of their own, opened on a click', () => {
+    it('leaves a drawn relationship\u2019s direct statement to the Analysis tab, and lists any other link as a property', () => {
       const AM4 = 'https://meta.linked.archi/archimate4/onto#';
+      const AD = 'https://meta.linked.archi/arch-decision#';
       const entries: PropertyEntry[] = [
         ...TABBED,
-        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, relationship: true },
-        { predicate: AM4 + 'flowsTo', label: 'Flows to', value: 'urn:e3', valueLabel: 'Till', readonly: true, isIri: true, custom: true, relationship: true },
+        { predicate: AM4 + 'serves', label: 'Serves', value: 'urn:e2', valueLabel: 'Clerk', readonly: true, isIri: true, custom: true, drawn: true },
+        // To another concept, but drawn by no relationship class: a property.
+        { predicate: AD + 'relatedDecision', label: 'Related decision', value: 'urn:d2', valueLabel: 'Hosting', isIri: true, custom: true },
       ];
-      const ctx = makeCtx({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis: ANALYSIS });
-      const render = () => flat((PropertyPanel.prototype as any).render.call(ctx));
-      const folded = render();
-      // The tab counts the other properties; the group, the relationships.
-      expect(folded).toMatch(/Properties<\/span>\s*<span class="count">2</);
-      expect(folded).toMatch(/Relationships <span class="count">2</);
-      expect(folded).toContain('>Cost<');
-      expect(folded).not.toContain('>Clerk</button>');
-      ctx._relationshipsOpen = true;
-      const open = render();
-      expect(open).toContain('>Clerk</button>');
-      expect(open).toContain('>Till</button>');
+      const analysis = {
+        relationships: [{ iri: 'urn:r1', direction: 'out' as const, typeLabel: 'Serving', otherIri: 'urn:e2', otherLabel: 'Clerk' }],
+        views: [],
+      };
+      const properties = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'properties', analysis });
+      expect(properties).toMatch(/Properties<\/span>\s*<span class="count">3</);
+      expect(properties).toContain('>Related decision<');
+      expect(properties).not.toContain('>Clerk</button>');
+      expect(properties).not.toContain('Relationships <span');
+      const listed = renderPanel({ selectedIri: 'https://example.org/elem1', _entries: entries, _tab: 'analysis', analysis });
+      expect(listed).toMatch(/Analysis<\/span>\s*<span class="count">1</);
+      expect(listed).toContain('>Serving</a>');
     });
 
     it('falls back to the information tab when the remembered one does not apply', () => {
@@ -648,8 +752,58 @@ describe('PropertyPanel', () => {
       (PropertyPanel.prototype as any)._loadProperties.call(ctx);
       const byPredicate = new Map<string, PropertyEntry>(ctx._entries.map((e: PropertyEntry) => [e.predicate, e]));
       expect(byPredicate.has(AM3 + 'qualifiedAggregates')).toBe(false);
-      expect(byPredicate.get(AM3 + 'serves')?.relationship).toBe(true);
-      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.relationship).toBeUndefined();
+      expect(byPredicate.get(AM3 + 'serves')?.drawn).toBe(true);
+      expect(byPredicate.get(NAMESPACES.rdfs + 'seeAlso')?.drawn).toBeUndefined();
+    });
+
+    it('keeps provenance out of the properties, and shows it read-only: when, by whom, with which la-gram (Req 9.16)', () => {
+      const iri = 'https://example.org/elem1';
+      const PROV = NAMESPACES.prov;
+      const activity = 'https://example.org/provenance/a1';
+      const ada = 'https://example.org/provenance/ada';
+      const laGram = 'https://app.linked.archi/la-gram/v0.3.0';
+      const iriQuad = (s: string, p: string, o: string): Quad =>
+        ({ ...makeQuad(s, p, o), object: { value: o, termType: 'NamedNode' } }) as unknown as Quad;
+      const quads = [
+        ...sampleQuads(iri),
+        iriQuad(iri, PROV + 'wasGeneratedBy', activity),
+        makeQuad(iri, PROV + 'generatedAtTime', '2026-11-20T16:40:31Z'),
+        iriQuad(iri, PROV + 'wasDerivedFrom', 'https://example.org/source/shop.xml'),
+        iriQuad(activity, PROV + 'wasAssociatedWith', laGram),
+        iriQuad(activity, PROV + 'wasAssociatedWith', ada),
+        iriQuad(laGram, NAMESPACES.rdf + 'type', PROV + 'SoftwareAgent'),
+        makeQuad(laGram, 'https://schema.org/name', 'la-gram'),
+        makeQuad(laGram, 'https://schema.org/softwareVersion', '0.3.0'),
+        iriQuad(ada, NAMESPACES.rdf + 'type', PROV + 'Person'),
+        makeQuad(ada, 'https://schema.org/name', 'Ada'),
+      ];
+      const store = {
+        ...mockRdfStore(quads),
+        getQuads: vi.fn((s?: NamedNode | null, p?: NamedNode | null, o?: NamedNode | null) =>
+          quads.filter((q) => (!s || q.subject.value === s.value) && (!p || q.predicate.value === p.value) && (!o || q.object.value === o.value)),
+        ),
+      } as unknown as RdfStore;
+      const ctx: any = { selectedIri: iri, rdfStore: store, shapesGraph: undefined, _entries: [] };
+      (PropertyPanel.prototype as any)._loadProperties.call(ctx);
+      expect(ctx._entries.some((e: PropertyEntry) => e.predicate.startsWith(PROV))).toBe(false);
+      expect(ctx._provenance).toEqual({
+        changed: { at: '2026-11-20T16:40:31Z', by: 'Ada', tool: 'la-gram 0.3.0' },
+        other: [{ predicate: PROV + 'wasDerivedFrom', value: 'https://example.org/source/shop.xml' }],
+      });
+      // Shown as text, never as a field to edit.
+      // The template's text, its values in place (this file runs without a DOM).
+      const textOf = (r: any): string =>
+        r == null || typeof r === 'symbol'
+          ? ''
+          : Array.isArray(r)
+            ? r.map(textOf).join('')
+            : r.strings
+              ? r.strings.map((s: string, i: number) => s + (i < r.values.length ? textOf(r.values[i]) : '')).join('')
+              : String(r);
+      const text = textOf((PropertyPanel.prototype as any)._renderProvenance.call(ctx));
+      expect(text).toMatch(/data-provenance="changed"\s*>20 Nov 2026, \d\d:\d\d · by Ada · with la-gram 0\.3\.0</);
+      expect(text).not.toMatch(/<input|<textarea|<select/);
+      expect(text).toContain('https://example.org/source/shop.xml');
     });
 
     it('clears entries when no selectedIri', () => {

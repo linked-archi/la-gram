@@ -72,17 +72,16 @@ export const ENTRY_CLASS = 'la-relationship-type';
 export const ENTRY_CLASS_CURRENT = 'la-relationship-type-current';
 
 /**
- * Why a candidate ranks where it does, as a menu says it (`RelationshipPreference`):
- * "proposed first" for a language's scoped proposal order, "drawn in the metamodel"
- * for what its metamodel figures draw, "always permitted" for the fallbacks, and
- * "only by derivation" where the tables permit it no other way. A relationship the
- * tables simply permit needs no note.
+ * What a menu says about a candidate: "drawn in the metamodel" for what the
+ * language's metamodel figures draw, "always permitted" for the fallbacks, and
+ * "only by derivation" where the tables permit it no other way. A relationship
+ * the tables simply permit needs no note; where it ranks is the language's
+ * order of proposal, which needs none either.
  */
 export function preferenceNotes(candidate: RelationshipTypeInfo): string[] {
   const notes: string[] = [];
-  if (candidate.preference === 'first') notes.push('proposed first');
-  else if (candidate.preference === 'drawn') notes.push('drawn in the metamodel');
-  else if (candidate.preference === 'fallback') notes.push('always permitted');
+  if (candidate.drawn) notes.push('drawn in the metamodel');
+  else if (candidate.fallback) notes.push('always permitted');
   if (candidate.direct === false) notes.push('only by derivation');
   return notes;
 }

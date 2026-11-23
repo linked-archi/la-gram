@@ -38,14 +38,14 @@ describe('readTypeGuide on the ArchiMate 4.0 metamodel', () => {
 
   it('and where the taxonomy classifies it, with the group and its other members', () => {
     const g = readTypeGuide(store, AM4 + 'BusinessActor')!;
-    const byDomain = g.classifications.find((c) => c.axis.iri === TAX + 'ElementByDomain')!;
+    const byDomain = g.classifications.find((c) => c.axis.iri === TAX + 'Domain')!;
     expect(byDomain.path.map((p) => p.label)).toEqual(['Business Domain']);
-    expect(byDomain.group.definition).toMatch(/^Elements specific to the business domain/);
+    expect(byDomain.group.definition).toMatch(/^The business domain: the elements specific to the business/);
     expect(byDomain.group.notes.join(' ')).toMatch(/actors \(who performs\)/);
     expect(byDomain.group.changes[0]).toMatch(/^4\.0: BusinessRole, BusinessCollaboration moved/);
     expect(byDomain.members.map((m) => m.label)).toEqual(['Business Interface', 'Business Object', 'Product']);
     // The aspect axis nests: the whole path from under the axis down to the group.
-    const byAspect = g.classifications.find((c) => c.axis.iri === TAX + 'ElementByAspect')!;
+    const byAspect = g.classifications.find((c) => c.axis.iri === TAX + 'Aspect')!;
     expect(byAspect.path.length).toBeGreaterThan(1);
     expect(byAspect.path.at(-1)!.iri).toBe(byAspect.group.iri);
   });

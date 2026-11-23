@@ -202,7 +202,9 @@ Do not "fix" it. The screenshot script waits for that warning, and stops if it i
 2. Or edit it in la-gram, and save it over the file with *File › Save*.
 3. Then `npm run build:cli`, `node packages/la-gram-git/dist/la-gram-git.js fix docs-site/examples` and
    `node packages/la-gram-git/dist/la-gram-git.js check docs-site/examples`. The check must pass, with the
-   *Gift wrapping* warning as its one `warning:` line.
+   *Gift wrapping* warning as its one `warning:` line. Its names are readable ones written by hand, such
+   as `m:card-payment`, not the IRI layout la-gram mints, so the *IRI layout* lines list them: advisory,
+   never failed, and on purpose, as the pages quote those names.
 4. Regenerate the screenshots, and read the pages that quote the model.
 
 ```console
@@ -212,6 +214,10 @@ $ node packages/la-gram-git/dist/la-gram-git.js check docs-site/examples
   ·   warning: Gift wrapping (Service) · Service Gift wrapping is not realized by anything. (https://meta.linked.archi/archimate4/principle-shapes#ServiceWithoutRealizationShape)
   ·   info: Online ordering (Service) · Service Online ordering is realized by only one application component (Web shop). Consider redundancy for critical services. (https://meta.linked.archi/archimate4/principle-shapes#SinglePointOfFailureShape)
   ·   info: Card payment (Service) · Service Card payment is realized by only one application component (Payments). Consider redundancy for critical services. (https://meta.linked.archi/archimate4/principle-shapes#SinglePointOfFailureShape)
+  · IRI layout (DD-41), advisory:
+  ·   the model does not state its namespace (vann:preferredNamespaceUri), read as https://example.org/acme/shop/
+  ·   16 outside it, not model, graph/… or {kind}/{id}: card-payment, card-payment-serves-web-shop, customer, … and 13 more
+  ·   18 named before it (legacy): link-card-payment-serves-web-shop, link-customer-assigned-to-place-order, link-gift-wrapping-serves-customer, … and 15 more
 
 1 model file checked: all well.
 ```

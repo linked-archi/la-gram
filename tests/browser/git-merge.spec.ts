@@ -27,6 +27,8 @@ class FakeGitHub {
   readonly pulls: Array<{ number: number; title: string; body: string; head: string; base: string }> = [];
   refusals = 0;
   branchesMade = 0;
+  readonly reads = { heads: 0, files: 0, history: 0 };
+  readonly headReaders = new Map<Page, number>();
   private n = 0;
 
   /** main's head. */
@@ -38,6 +40,14 @@ class FakeGitHub {
     let h = 7;
     for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return `blob${text.length}x${h}`;
+  }
+
+  /** A colleague pushes on main while an editor is open. */
+  push(text: string): string {
+    const commit = `remote${++this.n}`.padEnd(40, '0');
+    this.commits.set(commit, { text, parent: this.head, message: 'Colleague update', date: new Date(Date.UTC(2026, 10, 17, 9, this.n)).toISOString() });
+    this.branches.set('main', commit);
+    return commit;
   }
 
   /** The file on a branch (main when none is named), or at a commit. */
@@ -68,10 +78,14 @@ class FakeGitHub {
     const body = () => JSON.parse(request.postData() ?? '{}') as Record<string, unknown>;
     if (method === 'GET' && at === '') return reply(200, { default_branch: 'main' });
     if (method === 'GET' && at.startsWith('/branches/')) {
+      this.reads.heads++;
+      const page = request.frame().page();
+      this.headReaders.set(page, (this.headReaders.get(page) ?? 0) + 1);
       const head = this.branches.get(at.slice('/branches/'.length));
       return head ? reply(200, { commit: { sha: head } }) : reply(404, { message: 'Branch not found' });
     }
     if (at === `/contents/${PATH}` && method === 'GET') {
+      this.reads.files++;
       const ref = url.searchParams.get('ref') ?? 'main';
       const text = this.commits.get(this.branches.get(ref) ?? ref)?.text;
       if (text === undefined) return reply(404, { message: 'Not Found' });
@@ -98,6 +112,7 @@ class FakeGitHub {
       return reply(201, { ref, object: { sha } });
     }
     if (at === '/commits' && method === 'GET') {
+      this.reads.history++;
       const changed = this.ancestors(url.searchParams.get('sha') ?? 'main').filter((c) => {
         const { text, parent } = this.commits.get(c)!;
         return !parent || this.commits.get(parent)!.text !== text;
@@ -207,6 +222,7 @@ afterAll(async () => {
 describe('two clients saving the same bound file (Phase 1 of the Git collaboration plan)', () => {
   let a: Page;
   let b: Page;
+  let c: Page;
   let billing: string;
   let portal: string;
 
@@ -311,6 +327,8 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     await answer(a);
     await until(async () => github.pulls.length === 1, 'the pull request');
     expect(github.pulls[0]).toMatchObject({ number: 1, title: 'Rename Portal', head: 'la-gram/review', base: 'main', body: description });
+    // The fake host has written it; wait for the editor to receive that reply too.
+    await a.locator('.la-toast', { hasText: 'Opened pull request #1 from la-gram/review into main' }).waitFor({ state: 'visible' });
 
     // Asked again: the one open is named, none opened.
     await run(a, 'review');
@@ -327,7 +345,320 @@ describe('two clients saving the same bound file (Phase 1 of the Git collaborati
     await branch.click();
     const row = history.locator('model-diff-view li.change');
     await row.first().waitFor({ state: 'visible' });
-    expect((await row.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim())).toEqual(['~ Portal (A3) Application Component Name (en): “Portal (B)” → “Portal (A3)”']);
+    // Who and when, as the branch's version records the edit: a time only, as nobody is named in You here.
+    const edit = (await row.first().locator('.edit').innerText()).replace(/\s+/g, ' ').trim();
+    expect(edit).toMatch(/\d{4}/);
+    expect((await row.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim())).toEqual([`~ Portal (A3) Application Component ${edit} Name (en): “Portal (B)” → “Portal (A3)”`]);
     await sessions[0]!.screenshot('git-history-branch');
   }, 60_000);
+
+  it('Pull from Git works from the keyboard, creates no commit, and is one undoable change; a no-op adds no undo step', async () => {
+    c = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(c, billing)).includes('Billing (A2)'), 'C to open main');
+    const head = github.push(github.file().replace('Billing (A2)', 'Billing (pulled)'));
+    const commits = github.commits.size;
+    await c.locator('app-toolbar button[data-menu="file"]').click();
+    await c.locator('app-toolbar button[data-submenu="module-git"]').click();
+    const pull = c.locator('app-toolbar button[data-value="git:pull"]');
+    expect(await pull.innerText()).toContain('Pull from Git');
+    await pull.focus();
+    await pull.press('Enter');
+    await until(async () => (await nameOf(c, billing)).includes('Billing (pulled)'), 'the pulled label');
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(github.head).toBe(head);
+    expect(github.commits.size).toBe(commits);
+    // Await the complete command here, so undo runs after the no-op has settled.
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'undo' }));
+    expect(await nameOf(c, billing)).toEqual(['Billing (A2)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(true);
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'redo' }));
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled)']);
+    expect(await c.locator('.la-dialog').count()).toBe(0); // public pull needed no token
+  }, 60_000);
+
+  it('pull preserves disjoint local changes, even after saving to disk, and refreshes the Git history source', async () => {
+    await rename(c, portal, 'Portal (local pull)');
+    await c.evaluate(() => (window as any).__LA_GRAM_APP__.components.eventBus.emit('model-saved', { fileName: 'local.ttl' }));
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    await c.locator('app-shell .tab[data-tab="history"]').click();
+    const head = github.push(github.file().replace('Billing (pulled)', 'Billing (pulled again)'));
+    const commits = github.commits.size;
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled again)']);
+    expect(await nameOf(c, portal)).toEqual(['Portal (local pull)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(true);
+    expect(github.head).toBe(head);
+    expect(github.commits.size).toBe(commits);
+    await c.locator(`history-panel li[data-git="${head}"]`).waitFor({ state: 'visible' });
+  }, 60_000);
+
+  it('pull conflicts can be chosen without committing; a later Save to Git commits those choices on the same branch', async () => {
+    const head = github.push(github.file().replace('Portal (B)', 'Portal (remote pull)'));
+    const commits = github.commits.size;
+    const branches = github.branchesMade;
+    await c.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    const panel = c.locator('git-conflicts');
+    await panel.waitFor({ state: 'visible' });
+    expect(await nameOf(c, portal)).toEqual(['Portal (B)']);
+    expect(await panel.locator('.conflict .value').allInnerTexts()).toEqual(['“Portal (local pull)” (en)', '“Portal (remote pull)” (en)']);
+    await sessions.at(-1)!.screenshot('git-pull-conflicts');
+    await panel.locator('.conflict button[data-side="ours"]').click();
+    expect(await nameOf(c, portal)).toEqual(['Portal (local pull)']);
+    expect(github.head).toBe(head);
+    expect(github.commits.size).toBe(commits);
+    await run(c, 'save');
+    await answer(c);
+    await answer(c, { token: TOKEN });
+    await until(async () => github.head !== head, 'explicit save after pull');
+    expect(github.file()).toContain('Portal (local pull)');
+    expect(github.branchesMade).toBe(branches);
+    await panel.waitFor({ state: 'detached' });
+  }, 60_000);
+
+  it('Check for remote changes is keyboard-accessible and reports incoming changes without pulling or reading history', async () => {
+    github.push(github.file().replace('Billing (pulled again)', 'Billing (checked)'));
+    const commits = github.commits.size;
+    const historyReads = github.reads.history;
+    await c.locator('app-toolbar button[data-menu="file"]').click();
+    await c.locator('app-toolbar button[data-submenu="module-git"]').click();
+    const check = c.locator('app-toolbar button[data-value="git:check"]');
+    await check.focus();
+    await check.press('Enter');
+    const status = c.locator('git-sync-status');
+    await status.locator('.status[data-phase="incoming"]').waitFor({ state: 'visible' });
+    expect(await status.locator('.destination').innerText()).toContain('acme/arch · main · models/shop.ttl');
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled again)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(github.reads.history).toBe(historyReads);
+    expect(github.commits.size).toBe(commits);
+    expect(await c.locator('app-shell .tab[data-tab="git-sync"]').innerText()).toContain('New');
+  }, 60_000);
+
+  it('settings keep checks and auto-pull off by default; scheduled check-only mode reports without applying', async () => {
+    await c.clock.install({ time: new Date('2026-11-18T12:00:00Z') });
+    await c.locator('git-sync-status button', { hasText: 'Git settings…' }).click();
+    const dialog = c.locator('.la-dialog[aria-label="Settings"]');
+    expect(await dialog.locator('[name="git.checkIntervalMinutes"]').inputValue()).toBe('0');
+    expect(await dialog.locator('[name="git.autoPull"]').isChecked()).toBe(false);
+    await dialog.locator('[name="git.checkIntervalMinutes"]').selectOption('1');
+    await dialog.locator('.la-button.primary').click();
+    await until(() => c.evaluate(() => (document.querySelector('git-sync-status') as any).status.nextCheck !== undefined), 'scheduled check');
+    const reads = github.reads.heads;
+    const commits = github.commits.size;
+    await c.clock.fastForward(60_000);
+    await until(async () => github.reads.heads > reads && await c.evaluate(() => (document.querySelector('git-sync-status') as any).status.phase === 'incoming'), 'scheduled observation');
+    expect(await nameOf(c, billing)).toEqual(['Billing (pulled again)']);
+    expect(github.commits.size).toBe(commits);
+    await sessions.at(-1)!.screenshot('git-sync-incoming');
+  }, 60_000);
+
+  it('opt-in automatic pull updates a clean model without changing tabs, but preserves edits saved only to disk', async () => {
+    await c.locator('git-sync-status button', { hasText: 'Git settings…' }).click();
+    const dialog = c.locator('.la-dialog[aria-label="Settings"]');
+    await dialog.locator('[name="git.autoPull"]').check();
+    await dialog.locator('.la-button.primary').click();
+    await c.locator('app-shell .tab[data-tab="properties"]').click();
+    const commits = github.commits.size;
+    await c.clock.fastForward(60_000);
+    await until(async () => (await nameOf(c, billing)).includes('Billing (checked)'), 'automatic pull');
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_UI__.shell.bottomTab)).toBe('properties');
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(github.commits.size).toBe(commits);
+    await rename(c, portal, 'Portal (local automatic)');
+    await c.evaluate(() => (window as any).__LA_GRAM_APP__.components.eventBus.emit('model-saved', { fileName: 'local.ttl' }));
+    github.push(github.file().replace('Billing (checked)', 'Billing (next remote)'));
+    const reads = github.reads.heads;
+    await c.clock.fastForward(60_000);
+    await until(async () => github.reads.heads > reads && await c.evaluate(() => (document.querySelector('git-sync-status') as any).status.incoming), 'incoming changes while locally edited');
+    expect(await nameOf(c, billing)).toEqual(['Billing (checked)']);
+    expect(await nameOf(c, portal)).toEqual(['Portal (local automatic)']);
+    expect(await c.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(await c.locator('.la-dialog').count()).toBe(0);
+    await c.locator('app-shell .tab[data-tab="git-sync"]').click();
+    expect(await c.locator('git-sync-status .status').innerText()).toContain('local changes are kept for manual pull');
+    await sessions.at(-1)!.screenshot('git-sync-local-changes');
+  }, 60_000);
+
+  it('two tabs share one automatic owner, manual checks still work, and closing the owner hands over', async () => {
+    const d = await c.context().newPage();
+    await d.clock.install({ time: new Date('2026-11-18T12:03:00Z') });
+    await d.goto(`${server.baseUrl}/index.html?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`, { waitUntil: 'load' });
+    await waitForAppReady(d);
+    await until(async () => (await nameOf(d, billing)).includes('Billing (next remote)'), 'another tab to open main');
+    await d.locator('app-shell .tab[data-tab="git-sync"]').click();
+    await d.locator('git-sync-status .status', { hasText: 'Another tab is checking this file' }).waitFor({ state: 'visible' });
+    const heads = github.reads.heads;
+    const waitingHeads = github.headReaders.get(d) ?? 0;
+    await d.clock.fastForward(60_000);
+    // Playwright's clock advances the whole context: C checks, D must remain waiting.
+    await until(async () => github.reads.heads > heads && await c.evaluate(() => (document.querySelector('git-sync-status') as any).status.canCheck), 'only the owner to check');
+    expect(github.headReaders.get(d) ?? 0).toBe(waitingHeads);
+    await d.locator('git-sync-status button', { hasText: 'Check for remote changes' }).click();
+    await until(() => d.evaluate(() => (document.querySelector('git-sync-status') as any).status.lastChecked !== undefined), 'manual check in waiting tab');
+    expect(github.headReaders.get(d)).toBe(waitingHeads + 1);
+    await c.close();
+    await until(() => d.evaluate(() => (document.querySelector('git-sync-status') as any).status.nextCheck !== undefined), 'ownership transfer');
+    await d.clock.fastForward(60_000);
+    await until(async () => github.headReaders.get(d) === waitingHeads + 2, 'new owner to check');
+    await d.close();
+  }, 60_000);
+
+  let e: Page;
+  it('auto-commit opts in for the named destination, merges before writing, and supports keyboard Pause/Resume', async () => {
+    e = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(e, billing)).includes('Billing (next remote)'), 'auto-commit editor to open');
+    const manualHead = github.head;
+    await run(e, 'save');
+    await answer(e);
+    await answer(e, { token: TOKEN });
+    await until(async () => github.head !== manualHead, 'manual save for auto-commit credentials');
+    await until(() => e.evaluate(() => (document.querySelector('git-sync-status') as any).status.canCheck), 'manual save to finish');
+    await e.clock.install({ time: new Date('2026-11-18T13:00:00Z') });
+    await e.locator('app-shell .tab[data-tab="git-sync"]').click();
+    await e.locator('git-sync-status button', { hasText: 'Git settings…' }).click();
+    const dialog = e.locator('.la-dialog[aria-label="Settings"]');
+    expect(await dialog.locator('[name="git.autoCommitMode"]').inputValue()).toBe('off');
+    expect(await dialog.locator('[name="git.autoCommitDestination"]').inputValue()).toContain('github.com · acme/arch · main · models/shop.ttl');
+    expect(await dialog.locator('[name="git.autoCommitIdle"]').inputValue()).toBe('2');
+    expect(await dialog.locator('[name="git.autoCommitInterval"]').inputValue()).toBe('10');
+    expect(await dialog.locator('[name="git.checkIntervalMinutes"]').inputValue()).toBe('0');
+    await dialog.locator('[name="git.autoCommitMode"]').selectOption('idle');
+    await dialog.locator('[name="git.autoCommitIdle"]').selectOption('1');
+    await dialog.locator('.la-button.primary').click();
+    await until(() => e.evaluate(() => (document.querySelector('git-sync-status') as any).status.nextCommit !== undefined), 'auto-commit owner');
+    await rename(e, portal, 'Portal (automatic)');
+    github.push(github.file().replace('Billing (next remote)', 'Billing (before auto-commit)'));
+    await e.locator('app-shell .tab[data-tab="properties"]').click();
+    const before = github.commits.size;
+    await e.clock.fastForward(60_000);
+    await until(async () => github.file().includes('Portal (automatic)'), 'automatic commit');
+    await until(() => e.evaluate(() => (document.querySelector('git-sync-status') as any).status.canCheck), 'automatic commit to settle');
+    expect(github.commits.size).toBe(before + 1);
+    expect(github.file()).toContain('Billing (before auto-commit)');
+    expect(await nameOf(e, billing)).toEqual(['Billing (before auto-commit)']);
+    expect(await e.evaluate(() => (window as any).__LA_GRAM_APP__.isDirty())).toBe(false);
+    expect(await e.evaluate(() => (window as any).__LA_GRAM_UI__.shell.bottomTab)).toBe('properties');
+    expect(await e.locator('.la-dialog').count()).toBe(0);
+    await e.locator('app-shell .tab[data-tab="git-sync"]').click();
+    const pause = e.locator('git-sync-status button', { hasText: 'Pause auto-commit' });
+    await pause.focus(); await e.keyboard.press('Enter');
+    await rename(e, portal, 'Portal (after resume)');
+    await e.clock.fastForward(120_000);
+    expect(github.commits.size).toBe(before + 1);
+    const resume = e.locator('git-sync-status button', { hasText: 'Resume auto-commit' });
+    await resume.focus(); await e.keyboard.press('Enter');
+    await e.clock.fastForward(60_000);
+    await until(async () => github.file().includes('Portal (after resume)'), 'resumed commit');
+    await until(() => e.evaluate(() => (document.querySelector('git-sync-status') as any).status.canCheck), 'resumed commit to settle');
+    await sessions.at(-1)!.screenshot('git-auto-commit');
+  }, 120_000);
+
+  it('automatic conflicts leave the active tab alone and choosing them does not publish until Resume', async () => {
+    await rename(e, portal, 'Portal (chosen automatic)');
+    github.push(github.file().replace('Portal (after resume)', 'Portal (conflicting remote)'));
+    const before = github.commits.size;
+    await e.locator('app-shell .tab[data-tab="properties"]').click();
+    await e.clock.fastForward(60_000);
+    await until(() => e.evaluate(() => (document.querySelector('git-sync-status') as any).status.phase === 'conflicts'), 'automatic conflict pause');
+    expect(await e.evaluate(() => (window as any).__LA_GRAM_UI__.shell.bottomTab)).toBe('properties');
+    expect(github.commits.size).toBe(before);
+    await e.locator('app-shell .tab[data-tab="conflicts"]').click();
+    await e.locator('git-conflicts .conflict button[data-side="ours"]').click();
+    await e.clock.fastForward(300_000);
+    expect(github.commits.size).toBe(before);
+    await e.locator('app-shell .tab[data-tab="git-sync"]').click();
+    await e.locator('git-sync-status button', { hasText: 'Resume auto-commit' }).click();
+    await e.clock.fastForward(60_000);
+    await until(async () => github.file().includes('Portal (chosen automatic)'), 'chosen conflict to commit after resume');
+    expect(github.commits.size).toBe(before + 1);
+    expect(await e.locator('.la-dialog').count()).toBe(0);
+    await e.close();
+  }, 90_000);
+
+  it('moving the model to another namespace asks first; the refused save merges a colleague’s change into it (DD-41, S7)', async () => {
+    const f = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(f, billing)).length === 1, 'F to open main');
+    const NEW = 'https://acme.com/ea/shop/';
+    const old = billing.slice(0, billing.indexOf('element/'));
+    const movedBilling = `${NEW}${billing.slice(old.length)}`;
+
+    // Model settings: where the model is kept in Git, to copy (Req 18.30); the new namespace; then the Git
+    // module's question, naming the file.
+    await f.evaluate(() => { void (window as any).__LA_GRAM_UI__.runCommand({ command: 'model-settings' }); });
+    const settings = f.locator('.la-dialog[aria-label="Model settings"]');
+    await settings.waitFor({ state: 'visible' });
+    expect(await settings.locator('.la-form-section-title').allInnerTexts()).toEqual(['Git']);
+    const address = settings.locator('input[name="git.address"]');
+    expect(await address.inputValue()).toBe(`https://github.com/acme/arch/blob/main/${PATH}`);
+    expect([await address.getAttribute('readonly'), await address.isDisabled()]).toEqual(['', false]);
+    expect(await settings.locator('input[name="git.account"]').getAttribute('readonly')).toBe('');
+    await answer(f, { namespace: NEW });
+    const warning = f.locator('.la-dialog[aria-label="Model saved to Git"]');
+    await warning.waitFor({ state: 'visible' });
+    expect((await warning.innerText()).replace(/\s+/g, ' ')).toContain(`This model is saved to Git: acme/arch · main · ${PATH}. Moving it to ${NEW} renames every IRI in it`);
+    await warning.locator('.la-button.primary').click();
+    await warning.waitFor({ state: 'detached' });
+    await until(async () => (await nameOf(f, movedBilling)).length === 1, 'the move');
+    // Still bound to its file.
+    const entries = await f.evaluate(() => (window as any).__LA_GRAM_UI__.appToolbar.fileMenuItems().map((i: any) => `${i.label} [${i.hint ?? ''}]`));
+    expect(entries).toContain('Save to Git [acme/arch · main]');
+
+    // A colleague renames Billing on main, in the old namespace; F's save is refused, and merged.
+    const [label] = await nameOf(f, movedBilling);
+    const branches = github.branchesMade;
+    github.push(github.file().replace(`"${label}"@en`, '"Billing (colleague)"@en'));
+    await run(f, 'save');
+    await answer(f); // the commit message
+    await answer(f, { token: TOKEN });
+    const chooser = f.locator('.la-dialog .la-choice-list');
+    await chooser.waitFor({ state: 'visible' });
+    await chooser.locator('.la-choice[data-value="merge"]').click();
+    await f.locator('.la-dialog .la-button.primary').click();
+
+    await until(async () => github.file().includes(`<${NEW}>`), 'the merged commit');
+    expect(github.file()).toContain('"Billing (colleague)"@en');
+    expect(github.file()).not.toContain(old);
+    expect(github.branchesMade).toBe(branches);
+    expect(await nameOf(f, movedBilling)).toEqual(['Billing (colleague)']);
+    await f.close();
+  }, 90_000);
+
+  it('a colleague moves the model to another namespace on main; Pull from Git follows it here, with the change made here and the binding (DD-41)', async () => {
+    const NEW = 'https://acme.com/ea/shop/';
+    const NEWER = 'https://acme.com/ea/store/';
+    const old = billing.slice(0, billing.indexOf('element/'));
+    const at = (ns: string, iri: string) => `${ns}${iri.slice(old.length)}`;
+    const g = await client(`?git=${encodeURIComponent(`https://github.com/acme/arch/blob/main/${PATH}`)}`);
+    await until(async () => (await nameOf(g, at(NEW, portal))).length === 1, 'G to open main');
+
+    // G changes Portal; meanwhile a colleague moves the model on main.
+    await rename(g, at(NEW, portal), 'Portal (G)');
+    github.push(github.file().split(NEW).join(NEWER));
+    const commits = github.commits.size;
+
+    await g.evaluate(() => (window as any).__LA_GRAM_UI__.runCommand({ command: 'module', value: 'git:pull' }));
+    await until(async () => (await nameOf(g, at(NEWER, portal))).length === 1, 'the open model to follow the move');
+    expect(await nameOf(g, at(NEWER, portal))).toEqual(['Portal (G)']);
+    expect(await nameOf(g, at(NEW, portal))).toEqual([]);
+    const { modelIri, viewIri } = await g.evaluate(() => {
+      const { session } = (window as any).__LA_GRAM_APP__;
+      return { modelIri: session.modelIri, viewIri: session.activeViewIri };
+    });
+    expect(modelIri).toBe(`${NEWER}model`);
+    // The canvas on the same view, under its new IRI; still bound to the file; nothing committed.
+    expect(viewIri.startsWith(NEWER)).toBe(true);
+    const entries = await g.evaluate(() => (window as any).__LA_GRAM_UI__.appToolbar.fileMenuItems().map((i: any) => `${i.label} [${i.hint ?? ''}]`));
+    expect(entries).toContain('Save to Git [acme/arch · main]');
+    expect(github.commits.size).toBe(commits);
+
+    // Save to Git commits the change made here into the moved file.
+    await run(g, 'save');
+    await answer(g); // the commit message
+    await answer(g, { token: TOKEN });
+    await until(async () => github.file().includes('Portal (G)'), 'G’s commit');
+    expect(github.file()).toContain(`<${NEWER}>`);
+    expect(github.file()).not.toContain(NEW);
+    await g.close();
+  }, 90_000);
 });

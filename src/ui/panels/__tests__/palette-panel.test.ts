@@ -14,7 +14,7 @@
  * produces.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { PaletteDefinition, ViewpointInfo } from '../../../metamodel-manager/interfaces.js';
 import { PalettePanel, type PaletteDragDetail } from '../palette-panel.js';
 
@@ -120,6 +120,72 @@ afterEach(() => {
 });
 
 describe('PalettePanel', () => {
+  it('says what a loaded metamodel leaves out, and opens the loaded assets for the details', async () => {
+    await mount({
+      ...testPalette(),
+      completeness: [
+        {
+          metamodelIri: 'https://example.org/ext#Ext',
+          label: 'Ext',
+          findings: [{ kind: 'no-classification', message: 'it names no classification (arch:conceptClassification): its 1 element type is listed under “Other”', types: ['Decision'] }],
+        },
+      ],
+    });
+    const notice = root().querySelector('.palette-incomplete') as HTMLElement;
+    expect(notice.textContent?.replace(/\s+/g, ' ')).toContain('Ext is incomplete: it names no classification (arch:conceptClassification): its 1 element type is listed under “Other”.');
+    expect(notice.title).toBe('Decision.');
+    let asked = 0;
+    panel.addEventListener('palette-show-assets', () => asked++);
+    (notice.querySelector('.notice-link') as HTMLButtonElement).click();
+    expect(asked).toBe(1);
+
+    await mount(testPalette());
+    expect(root().querySelector('.palette-incomplete')).toBeNull();
+  });
+
+  it('does not list the core\'s own relationship types: they are offered when two elements are connected', async () => {
+    const palette = testPalette();
+    await mount({
+      ...palette,
+      relationshipTypes: [
+        ...palette.relationshipTypes,
+        { iri: 'https://meta.linked.archi/core#HasPart', label: 'Has Part', domainTypes: [], rangeTypes: [], core: true },
+      ],
+    });
+    expect(labels()).not.toContain('Has Part');
+    await type('has part');
+    expect(labels()).not.toContain('Has Part');
+  });
+
+  it('closes a notice, and keeps it closed in this browser while it reads the same', async () => {
+    // Node's own localStorage stub shadows jsdom's: what is remembered goes here.
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => void stored.set(key, value),
+      removeItem: (key: string) => void stored.delete(key),
+    });
+    const incomplete = (message: string) => ({
+      ...testPalette(),
+      completeness: [{ metamodelIri: 'https://example.org/ext#Ext', label: 'Ext', findings: [{ kind: 'no-classification' as const, message }] }],
+    });
+    await mount(incomplete('it names no classification'));
+    (root().querySelector('.palette-incomplete .notice-close') as HTMLButtonElement).click();
+    await panel.updateComplete;
+    expect(root().querySelector('.palette-incomplete')).toBeNull();
+
+    // Loaded again — a new panel, as after a reload — it stays closed…
+    panel.remove();
+    await mount(incomplete('it names no classification'));
+    expect(root().querySelector('.palette-incomplete')).toBeNull();
+    // …and shows again when the metamodel leaves out something else.
+    panel.remove();
+    await mount(incomplete('its classification names 2 of its 3 element types'));
+    expect(root().querySelector('.palette-incomplete')?.textContent).toContain('2 of its 3');
+    expect(JSON.parse(stored.get('la-gram:palette-notices-closed') ?? '[]')).toEqual(['https://example.org/ext#Ext it names no classification']);
+    vi.unstubAllGlobals();
+  });
+
   it('says when the types are grouped by the OWL-only fallback, and not otherwise', async () => {
     await mount({ ...testPalette(), grouping: 'owl' });
     expect(root().querySelector('.palette-notice')?.textContent).toContain('No classification loaded');
@@ -163,7 +229,7 @@ describe('PalettePanel', () => {
       expect(entry('Business Actor').dataset.kind).toBe('element');
     });
 
-    it('shows the published glyph, and a notation swatch when there is none', async () => {
+    it('shows the published glyph, and the figure its notation draws when there is none', async () => {
       await mount({
         elementGroups: [
           {
@@ -183,9 +249,38 @@ describe('PalettePanel', () => {
       });
 
       expect(entry('With Icon').querySelector('img')?.getAttribute('src')).toContain('bp.svg');
-      const swatch = entry('No Icon').querySelector('.palette-swatch');
-      expect(swatch).not.toBeNull();
-      expect(swatch!.classList.contains('ellipse')).toBe(true);
+      const drawn = entry('No Icon').querySelector('img');
+      expect(drawn?.dataset.figure).toBe('drawn');
+      const svg = decodeURIComponent(drawn!.getAttribute('src')!.replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
+      expect(svg).toContain('<ellipse');
+      expect(svg).toContain('fill="#FFFFB5"');
+    });
+
+    it('draws the figure in place of a published icon that does not load', async () => {
+      await mount({
+        elementGroups: [
+          {
+            category: 'Business',
+            elements: [
+              {
+                iri: 'arch:AP',
+                label: 'Broken Icon',
+                iconUrl: 'https://example.org/missing.svg',
+                isAbstract: false,
+                style: { shapeType: 'RoundedRectangle', fillColor: '#E8F5E9', lineColor: '#2E7D32' },
+              },
+            ],
+          },
+        ],
+        relationshipTypes: [],
+      });
+
+      const img = entry('Broken Icon').querySelector('img')!;
+      expect(img.getAttribute('src')).toBe('https://example.org/missing.svg');
+      img.dispatchEvent(new Event('error'));
+      const svg = decodeURIComponent(img.getAttribute('src')!.replace(/^data:image\/svg\+xml;charset=utf-8,/, ''));
+      expect(svg).toContain('stroke="#2E7D32"');
+      expect(svg).toContain('fill="#E8F5E9"');
     });
 
     it('omits the relationships section when the metamodel publishes none', async () => {
@@ -236,22 +331,24 @@ describe('PalettePanel', () => {
     const relationshipList = (): HTMLElement => root().querySelector('.relationships .group-items') as HTMLElement;
     const relationshipHeader = (): HTMLElement => root().querySelector('.relationships .section-divider') as HTMLElement;
 
-    it('hides them on a click of their header and shows them again on the next', async () => {
+    it('is folded at first, its count shown; opens on a click of its header and folds again on the next', async () => {
       await mount();
-      relationshipHeader().click();
-      await panel.updateComplete;
       expect(relationshipList().classList.contains('hidden')).toBe(true);
       expect(relationshipHeader().querySelector('.group-toggle')!.classList.contains('collapsed')).toBe(true);
+      expect(relationshipHeader().querySelector('.group-count')?.textContent?.trim()).toBe('2');
 
       relationshipHeader().click();
       await panel.updateComplete;
       expect(relationshipList().classList.contains('hidden')).toBe(false);
+
+      relationshipHeader().click();
+      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(true);
     });
 
     it('leaves the element groups as they are, and they leave it', async () => {
       await mount();
-      relationshipHeader().click();
-      await panel.updateComplete;
+      // Folded at first, the element groups open all the same.
       expect((root().querySelector('.group .group-items') as HTMLElement).classList.contains('hidden')).toBe(false);
 
       relationshipHeader().click();
@@ -260,13 +357,65 @@ describe('PalettePanel', () => {
       expect(relationshipList().classList.contains('hidden')).toBe(false);
     });
 
-    it('opens for a search, so a hit is never hidden', async () => {
+    it('opens for a search, folded as it is at first, so a hit is never hidden', async () => {
       await mount();
-      relationshipHeader().click();
-      await panel.updateComplete;
+      expect(relationshipList().classList.contains('hidden')).toBe(true);
       await type('serv');
       expect(labels()).toEqual(['Serves']);
       expect(relationshipList().classList.contains('hidden')).toBe(false);
+    });
+  });
+
+  describe('relationship categories', () => {
+    /** The test palette with its two relationship types in categories, in the generator's order. */
+    const categorised = (): PaletteDefinition => {
+      const palette = testPalette();
+      const [serves, accesses] = palette.relationshipTypes;
+      return {
+        ...palette,
+        relationshipTypes: [
+          { ...serves!, category: 'Structural Relationship' },
+          { ...accesses!, category: 'Dependency Relationship' },
+          { iri: 'arch:influences', label: 'Influences', category: 'Dependency Relationship', domainTypes: [], rangeTypes: [] },
+        ],
+      };
+    };
+    const categoryHeaders = (): HTMLElement[] =>
+      Array.from(root().querySelectorAll('.relationships .relationship-group > .group-header'));
+    const categoryItems = (category: string): HTMLElement =>
+      root().querySelector(`.relationship-group[data-category="${category}"] .group-items`) as HTMLElement;
+
+    it('groups the relationships by category, in the order given, each with its count', async () => {
+      await mount(categorised());
+      expect(categoryHeaders().map((h) => h.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+        '▾ Structural Relationship 1',
+        '▾ Dependency Relationship 2',
+      ]);
+      expect(root().querySelector('.relationships .section-divider .group-count')?.textContent?.trim()).toBe('3');
+      expect(labels().slice(0, 3)).toEqual(['Serves', 'Accesses', 'Influences']);
+    });
+
+    it('folds a category by its header, leaving the others open', async () => {
+      await mount(categorised());
+      categoryHeaders()[1]!.click();
+      await panel.updateComplete;
+      expect(categoryItems('Dependency Relationship').classList.contains('hidden')).toBe(true);
+      expect(categoryItems('Structural Relationship').classList.contains('hidden')).toBe(false);
+    });
+
+    it('opens a folded category for a search, so a hit is never hidden', async () => {
+      await mount(categorised());
+      categoryHeaders()[1]!.click();
+      await panel.updateComplete;
+      await type('influ');
+      expect(labels()).toEqual(['Influences']);
+      expect(categoryItems('Dependency Relationship').classList.contains('hidden')).toBe(false);
+    });
+
+    it('lists the relationships in one section when none has a category', async () => {
+      await mount();
+      expect(categoryHeaders()).toEqual([]);
+      expect(labels().slice(0, 2)).toEqual(['Serves', 'Accesses']);
     });
   });
 
@@ -416,8 +565,8 @@ describe('PalettePanel', () => {
 
   describe('the "Group by" axis selector', () => {
     const axes = [
-      { iri: 'ax:domain', label: 'Element by Domain' },
-      { iri: 'ax:aspect', label: 'Element by Aspect' },
+      { iri: 'ax:domain', label: 'Domain' },
+      { iri: 'ax:aspect', label: 'Aspect' },
     ];
 
     it('is hidden unless the metamodel publishes more than one axis', async () => {

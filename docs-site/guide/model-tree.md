@@ -65,8 +65,11 @@ folded folders too. *Nothing matches.* says when nothing does.
 
 ## Placed marker {#placed-marker}
 
-A dot after a row marks a concept the open diagram draws (*In the open view*, it says on hover). Rows with
-no dot are in the model, but not drawn in this view, and can be dragged onto it. A catalog or a matrix
+A dot after a row marks a concept the open diagram draws (*In the open view*, it says on hover): an
+element, a relationship, or a view the diagram holds a [view reference](canvas.md#view-references) to.
+Rows with no dot are in the model, but not drawn in this view, and can be dragged onto it. A view's row
+dragged onto the diagram makes a view reference to that view where you let go; clicked, it selects the
+references to it there. A catalog or a matrix
 draws nothing, so with one open no row has the dot.
 
 1. Open the example's diagram: every element and relationship has the dot.
@@ -85,12 +88,17 @@ Right-click a row for its menu.
 | the *Relationships* group | *New folder…* |
 | a folder | of views: *New diagram view*, *New catalog view*, *New matrix view*; of elements: *New element…*; then *New folder…*, *Rename…*, *Move to folder…*, *Delete folder (keeps its contents)* |
 | an element type, under *Elements* | *New ‹type›…*: *New Business Actor…* on **Business Actor** |
-| a view | *Open*, *Rename…*, *Set viewpoint…*, *Duplicate*, *Move to folder…*, *Delete view (keeps its elements)* |
-| an element | *Select on canvas* (when the open view shows it) or *Add to current view*, *Rename…*, *Move to folder…*, *Delete from model…* |
-| a relationship | *Select on canvas* or *Add to current view*, *Confirm — state it in the model* (a potential derivation), *Show source*, *Show target*, *Rename…*, *Move to folder…*, *Delete from model…* |
+| a view | *Open*, *Select on canvas* (when the open diagram references it), *Reference in the open view* (while another view, a diagram, is open), *Rename…*, *Set viewpoint…*, *Duplicate*, *Move to folder…*, *Delete view (keeps its elements)* |
+| an element | *Select on canvas* (when the open view shows it) or *Add to current view*, *Rename…*, *Copy*, *Move to folder…*, *Delete from model…* |
+| a relationship | *Select on canvas* or *Add to current view*, *Confirm — state it in the model* (a potential derivation), *Show source*, *Show target*, *Rename…*, *Copy*, *Move to folder…*, *Delete from model…* |
+| one of several selected | *Copy 2 elements* (or relationships), and *Move 2 elements to folder…* when the model has folders |
 
-*Move to folder…* is offered once the model has a folder. *Add to current view* places the element on the
-open diagram; a relationship, when both its ends are there.
+*Copy* copies elements and relationships to paste into a diagram — with, from several elements, the
+relationships between them — and la-gram says *Copied 2 elements: paste into a diagram to place them.*;
+++ctrl+c++ (++cmd+c++) does the same for the rows selected. A derived relationship the model does not state
+is not copied. See [Copy and paste](canvas.md#copy-and-paste). *Move to folder…* is offered once the model has a folder. *Add to current view* places the element on the
+open diagram; a relationship, when both its ends are there. *Reference in the open view* makes a [view
+reference](canvas.md#view-references) to the view in the middle of the open diagram.
 
 1. Open "Who is who", then right-click "Gift wrapping" under *Elements*.
 2. Choose *Add to current view*: la-gram says *Open a diagram view to place it in.*, as a catalog is not

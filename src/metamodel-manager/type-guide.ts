@@ -13,7 +13,7 @@
  *
  * From the **taxonomy**: where the type is classified — for each SKOS concept
  * that holds it (`skos:narrower`, or the type's `skos:broader`), the path from
- * the top concept (the axis: "Element by Domain", "Element by Aspect") down to
+ * the top concept (the axis: "Domain", "Aspect") down to
  * that group, the group's own definition, guidance and changes, and the other
  * types in the group.
  *
@@ -36,7 +36,7 @@ export interface GuideRef {
 
 /** Where a taxonomy classifies the type. */
 export interface GuideClassification {
-  /** The top concept: the axis ("Element by Domain"). */
+  /** The top concept: the axis ("Domain"). */
   axis: GuideRef;
   /** The concepts from under the axis down to the group, the group last. */
   path: GuideRef[];

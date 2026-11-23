@@ -17,7 +17,7 @@ fields:
 | Field | Default | What it is |
 |---|---|---|
 | *Name* | **Untitled model** | the model's name, its `skos:prefLabel` |
-| *Namespace* | **`{base}{notation}/{uuid}/`**, for example `https://example.org/archimate/e6d8f280-…/` | where every IRI of the model is minted; an absolute IRI, with no spaces or `<>"{}|\^` characters |
+| *Namespace* | **`{base}{notation}/{uuid}/`**, for example `https://example.org/archimate/e6d8f280-…/` | where every IRI of the model is minted; an `https:` or `http:` IRI with no `#` or `?`, spaces or `<>"{}|\^` characters |
 
 `{base}` is `https://example.org/` unless [`?base=`](../reference/url-parameters.md) says otherwise,
 `{notation}` comes from the first metamodel loaded (`archimate` for ArchiMate 3.2 and 4.0), and the
@@ -28,7 +28,9 @@ one diagram view, *Default View*, with no viewpoint.
 2. In *Name*, type "Acme online shop".
 3. Choose *Create*.
 
-The model's elements are minted in the namespace, as `m:element-…`, its views as `m:view-…`.
+The model's elements are minted in the namespace as `element/…`, its views as `view/…`, and a diagram's
+nodes and lines in their view: `view/…#node-…`, `view/…#link-…`. A saved model writes them `me:…`, `mv:…`
+and `mv3ef7da72:node-…` ([File formats and vocabulary](../reference/file-formats.md#formats)).
 
 ## Model settings {#model-settings}
 
@@ -39,11 +41,13 @@ settings*; so do *File › Model settings…* and *Model settings…* on the mod
 |---|---|---|
 | *Name* | the model's name | the model's name |
 | *Namespace* | the model's namespace | where new IRIs are minted |
-| *Prefix* | **`m`** | the prefix that stands for the namespace in Turtle (`m:element-…`): starts with a letter, then letters, digits, `-` and `_`; not one that already stands for another namespace, such as `am4` or `skos` |
-| *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one, those in the triple a relationship reifies (`rdf:reifies`) too; off, only IRIs minted from now on use it |
+| *Prefix* | **`m`** | the prefix that stands for the namespace in Turtle (`m:model`), and begins the prefix of each kind (`me:` for elements, `mv:` for views): starts with a letter, then letters, digits, `-` and `_`; not one that already stands for another namespace, such as `am4` or `skos` |
+| *Move the model's existing IRIs into the new namespace* | **on** | on, every IRI in the old namespace moves to the new one, keeping the rest of its name, those in the triple a relationship reifies (`rdf:reifies`) too; off, only IRIs minted from now on use it |
 
 *Apply* makes the change, as one step that undo takes back, and a message says how many IRIs moved. In a
-collaboration room, moving the namespace asks first: it renames the IRIs for everyone in the room.
+collaboration room, moving the namespace asks first: it renames the IRIs for everyone in the room. For a
+model saved to Git, it asks too, in *Model saved to Git*: the model stays bound to its file, and *Save to
+Git* commits the move there ([Moving the model to another namespace](git.md#namespace)).
 
 1. Click the model's name in the toolbar.
 2. In *Namespace*, type `https://example.org/acme/models/shop/`; in *Prefix*, `shop`.
@@ -52,11 +56,29 @@ collaboration room, moving the namespace asks first: it renames the IRIs for eve
 Every IRI of the model now starts with `https://example.org/acme/models/shop/`, written `shop:…` in
 Turtle.
 
+### Git {#model-settings-git}
+
+With [Git storage](git.md) on, *Model settings* ends with a *Git* part: where the model is kept, and the
+account your edits are recorded under. Its fields can be selected and copied, not changed; *Apply* leaves
+them as they are.
+
+| Field | What it shows | Without it |
+|---|---|---|
+| *Address* | the file the model is bound to, on its branch, as the host's page has it: `https://gitlab.com/acme/architecture/-/blob/main/models/shop.ttl`. Its hint names the file and the commit it was last read or written at; [*Open from Git…*](git.md#open-from-git) opens the model from this address | **Not in Git**, until [*Save to Git…*](git.md#save-to-git) binds the model to a file |
+| *Your Git account* | the account your token acts for on the model's Git host, its username and page, `ada · https://gitlab.com/ada`: the one recorded with your edits, unless *Record my Git account with my edits* is unticked in [*File › Settings… › You*](settings.md#you-tab) | **None yet**, until you open or save a model there with a token ([Who commits](git.md#who-commits)) |
+
+1. Open a model from Git, or save one there.
+2. Click the model's name in the toolbar.
+3. Under *Git*, select the *Address*, copy it, and send it to a colleague: *Open from Git…* opens the same
+   file from it.
+
 ## Open a view {#open-a-view}
 
 The *View* selector in the toolbar lists the model's views by name, a catalog or matrix with its kind
 after it: *Who is who (catalog)*. Choosing one opens it. A view also opens from the model tree (a
-double-click, or *Open* in its menu) and from *Appears in views* in the Properties tab.
+double-click, or *Open* in its menu), from *Appears in views* and *Referenced from* in the Properties tab,
+from a [view reference](canvas.md#view-references) on a diagram (a double-click, or *Open view*), and from
+an element or a relationship the view refines ([Zoom in](canvas.md#zoom-in)).
 
 1. Open the example model.
 2. In the toolbar's *View*, choose "Who is who (catalog)". The catalog takes the canvas's place.
@@ -65,13 +87,24 @@ double-click, or *Open* in its menu) and from *Appears in views* in the Properti
 
 ← and → in the toolbar, or ++alt+left++ and ++alt+right++ (++option+left++ and ++option+right++ on a
 Mac), go back to the views you came from, however you got there: the selector, the model tree, *Appears
-in views*, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
+in views*, a view reference, *Zoom in*, a revealed concept. Each view comes back as you left it, with its zoom, scroll and selection.
 Pointing at ← says where it goes, *Back to How the shop serves its customers (Alt+←)*; with nowhere to
 go, it is greyed out (*Back (no earlier view)*).
 
 1. In the example, open "Who is who (catalog)" from the *View* selector.
 2. Click ←: the diagram comes back, as it was.
 3. Click →: the catalog again.
+
+## Referenced from {#referenced-from}
+
+A view's Properties tab lists, under *Referenced from*, the views that hold a
+[reference](canvas.md#view-references) to it, each a link that opens that view. A view no other view
+references has no such list.
+
+1. In the example, right-click "Who is who" in the model tree, and choose *Reference in the open view*.
+2. Double-click the reference on the diagram: the catalog opens.
+3. Click "Who is who" in the model tree: its Properties tab lists "How the shop serves its customers"
+   under *Referenced from*. Click it: the diagram opens again.
 
 ## New view {#new-view}
 
@@ -155,12 +188,18 @@ Every rename is undoable.
 ## Delete a view {#delete-a-view}
 
 Deleting a view keeps what it shows: its elements and relationships stay in the model, and in every other
-view. *Delete view (keeps its elements)* in the model tree, or *Delete view…* in the canvas's right-click
+view. What the view drew goes with it: its boxes and lines, their routes, and the looks given to them in it
+(colours, fonts, pictures, label expressions), for every presentation and for each. *Delete view (keeps its elements)* in the model tree, or *Delete view…* in the canvas's right-click
 menu, asks first: *Delete the view "Who is who"? The elements and relationships it shows stay in the
-model.*
+model.* The [references to it](canvas.md#view-references) in other views go with it, and so do the
+relationships with it, as an element's relationships go with the element; the question counts them: *3
+references to it, in 2 other views, and 2 relationships with it are deleted with it.* A view reference's
+*Delete view from model…* deletes its view the same way. Deleted while another diagram is open, the view
+is one step to undo there, which brings it back with its references and its relationships.
 
 1. Right-click "Who is who" in the model tree, and choose *Delete view (keeps its elements)*.
 2. Choose *Delete view* to confirm. "Customer" and "Shop team" are still under *Elements*.
+3. Press ++ctrl+z++ (++cmd+z++ on a Mac): "Who is who" is back, as the diagram is still open.
 
 *Duplicate view* (*Duplicate* in the model tree) makes a copy of a view, with the same elements placed
 the same way, and opens it.

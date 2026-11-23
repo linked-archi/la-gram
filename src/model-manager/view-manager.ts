@@ -8,29 +8,35 @@
  * concept. The RDF follows the published vocabulary exactly:
  *
  * ```turtle
- * m:view-…  a arch:View, arch:Diagram ;
+ * mv:{v}  a arch:View, arch:Diagram ;
  *         arch:inModel m:model ;
  *         skos:prefLabel "Application Cooperation"@en ;
  *         arch:viewConformsToViewpoint am4vp:ApplicationCooperationViewpoint .
  *
- * m:element-…  arch:inView m:view-… .                 # membership, survives geometry loss
+ * me:{e}  arch:inView mv:{v} .                        # membership, survives geometry loss
  *
- * m:node-…  a arch-vis:ArchNode ;                     # geometry
- *         arch-vis:view m:view-… ;
- *         arch-vis:archElement m:element-… ;
+ * mv{hash}:node-{n}  a arch-vis:ArchNode ;            # geometry: {view}#node-{n}
+ *         arch-vis:view mv:{v} ;
+ *         arch-vis:archElement me:{e} ;
  *         arch-vis:bounds-x 40.0 ; … bounds-y, bounds-w, bounds-h .
  *
- * m:link-…  a arch-vis:Link ;
- *         arch-vis:view m:view-… ;
- *         arch-vis:archRelationship m:relationship-… ;
- *         arch-vis:source m:node-… ; arch-vis:target m:node-… ;
- *         arch-vis:points m:link-…-points-0 ;         # optional route: m:link-…-p0, -p1 …
- *         arch-vis:label m:link-…-label .             # optional: where its name was moved to
+ * mv{hash}:link-{l}  a arch-vis:Link ;                # {view}#link-{l}
+ *         arch-vis:view mv:{v} ;
+ *         arch-vis:archRelationship mr:{r} ;
+ *         arch-vis:source mv{hash}:node-{n} ; arch-vis:target … ;
+ *         arch-vis:points mv{hash}:link-{l}-points-0 ;  # optional route: …-point-0, …-point-1 …
+ *         arch-vis:label mv{hash}:link-{l}-label .       # optional: where its name was moved to
  *
- * m:link-…-label  a arch-vis:LabelNode ;
- *         arch-vis:view m:view-… ;
+ * mv{hash}:link-{l}-label  a arch-vis:LabelNode ;
+ *         arch-vis:view mv:{v} ;
  *         arch-vis:bounds-x 210.0 ; … bounds-y, bounds-w, bounds-h .
  * ```
+ *
+ * A node or a link is named in its view's IRI, and its parts under it with `-`,
+ * as everything after a `#` is (DD-41). A model la-gram saved before keeps its
+ * names — `m:node-…`, `m:link-…-points-0`, `m:link-…-p0`, `m:node-…-style` — and
+ * they are read, and written on in place, as the placement's own: a tool never
+ * renames a part.
  *
  * A link's `arch-vis:LabelNode` keeps where the relationship's name was moved
  * to, in the diagram's coordinates, as core-vis gives a node's bounds; without
@@ -41,8 +47,8 @@
  * that relationship's link: the end is the link, not a node (core-vis 0.6). A
  * link therefore needs the links it ends on drawn first, and goes with them.
  *
- * Nodes and links are minted in the view's model's namespace, like everything
- * else in the model (`rdf-engine/iri.ts`).
+ * Nodes and links are minted in their view's IRI, `{view}#node-{uuid}`
+ * (`rdf-engine/iri.ts`, `mintShapeIri`).
  *
  * `arch:inView` is written with the node and removed with the last node of that
  * concept in the view, so the coarse membership fact and the geometry never
@@ -66,11 +72,13 @@
 import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
-import { mintIri } from '../rdf-engine/iri.js';
+import { isPartNamed, mintIri, mintShapeIri, partIri, type ShapeKind } from '../rdf-engine/iri.js';
 import { NAMESPACES } from '../rdf-engine/namespaces.js';
 import { modelNamespace, viewNamespace } from './model-namespace.js';
 import { shortHash } from './short-hash.js';
 import { picturesOf } from './element-pictures.js';
+import { copyPlacements } from './placement-copy.js';
+import { collectRelationshipQuads, relationshipsTouching } from './cascade.js';
 import {
   APPEARANCE_KEYS,
   APPEARANCE_PREDICATES,
@@ -91,6 +99,7 @@ import type {
   ViewInfo,
   ViewKind,
   ViewManager,
+  ViewReferenceInfo,
 } from './interfaces.js';
 import {
   BOUNDS_PREDICATES,
@@ -101,16 +110,32 @@ import {
   langLiteral,
   nn,
   numberOf,
+  quadKey,
   triple,
 } from './vocabulary.js';
 
 /** The default graph: the model. */
 const MODEL_GRAPH = { termType: 'DefaultGraph', value: '' } as unknown as NamedNode;
 
+/** A presentation context's key in a part's name: `shortHash`'s 8 hex digits. */
+const CONTEXT_KEY = /[0-9a-f]{8}/;
+
+/**
+ * How a route's cells and points are named: from DD-41 on, as the converters name them, `{link}-points-{i}`
+ * and `{link}-point-{i}` ({@link partIri}: with `/` under a link not named in a view's fragment); before it,
+ * `{link}-points-{i}` and `{link}-p{i}`. A new route is named the first way; a route named either way keeps
+ * its names when it changes.
+ */
+const ROUTE_NAMES = [
+  { cell: (link: string, i: number) => partIri(link, 'points', String(i)), point: (link: string, i: number) => partIri(link, 'point', String(i)) },
+  { cell: (link: string, i: number) => `${link}-points-${i}`, point: (link: string, i: number) => `${link}-p${i}` },
+] as const;
+type RouteNames = (typeof ROUTE_NAMES)[number];
+
 /** Whether a quad is one what a view shows is read from: which view a node or link is in, what it draws. */
 function placesInAView(q: Quad): boolean {
   const p = q.predicate.value;
-  return p === IRI.visView || p === IRI.archElement || p === IRI.archRelationship;
+  return p === IRI.visView || p === IRI.archElement || p === IRI.archRelationship || p === IRI.referencesView;
 }
 
 /**
@@ -147,7 +172,9 @@ export class OxigraphViewManager implements ViewManager {
       // told by the node's type, so an element renamed does not read a view again.
       const figureText = (q: Quad) =>
         q.predicate.value === IRI.prefLabel &&
-        this.objects(q.subject, T.rdfType).some((t) => t === IRI.ContainerNode || t === IRI.LabelNode || t === IRI.Link);
+        this.objects(q.subject, T.rdfType).some(
+          (t) => t === IRI.ContainerNode || t === IRI.LabelNode || t === IRI.ViewReferenceNode || t === IRI.Link,
+        );
       const shapes = (q: Quad) => shapesAView(q) || figureText(q);
       observed.onEveryWrite((diff) => {
         if (this.cache?.size && (diff.added.some(shapes) || diff.removed.some(shapes))) this.cache.clear();
@@ -178,6 +205,9 @@ export class OxigraphViewManager implements ViewManager {
     for (const q of this.read(null, T.visView, nn(viewIri))) {
       for (const element of this.objects(q.subject, T.archElement)) placed.add(element);
       for (const relationship of this.objects(q.subject, T.archRelationship)) placed.add(relationship);
+      // A reference places the view it opens, as a box its element (VC-DD-1).
+      const view = this.viewOf(q.subject);
+      if (view) placed.add(view);
     }
     if (this.cache) this.members.set(viewIri, placed);
     return placed;
@@ -263,9 +293,24 @@ export class OxigraphViewManager implements ViewManager {
       quads.push(...this.pointListQuads(node.subject));
       // A label node another tool wrote without a view of its own goes with what it labels.
       quads.push(...this.labelNodeQuads(node.subject));
+      // …and its own styles, with the label expressions they give, as when it is removed alone.
+      quads.push(...this.ownStylesQuads(node.subject));
+      quads.push(...this.blankStyleQuads(node.subject));
     }
     // …and every membership statement naming it. The concepts themselves stay.
     quads.push(...this.read(null, T.inView, view));
+    // …and every reference to it from another view, which would open nothing once it is gone: removed as when it is
+    // removed alone (core-vis-shapes 0.5.0 asks a reference for the view it opens).
+    for (const reference of this.read(null, T.referencesView, view)) {
+      const holder = this.objects(reference.subject, T.visView)[0];
+      if (holder && holder !== viewIri) quads.push(...this.collectNodeQuads(holder, reference.subject.value));
+    }
+    // …and the relationships it is an end of, which cannot outlive it, as an element's cannot (VC-DD-7) — with a
+    // concept's `arch:refinedInto` it, which another tool may write without one (its `arch:refines` is its own).
+    for (const relationship of relationshipsTouching(this.store, viewIri)) {
+      quads.push(...collectRelationshipQuads(this.store, relationship));
+    }
+    quads.push(...this.read(null, T.refinedInto, view));
     return dedupe(quads);
   }
 
@@ -276,63 +321,8 @@ export class OxigraphViewManager implements ViewManager {
       label: label ?? `${source.label || 'View'} (copy)`,
       ...(source.modelIri ? { modelIri: source.modelIri } : {}),
     });
-    const nodes = this.getNodes(viewIri);
-    // Node by node — an element placed twice is placed twice in the copy, a
-    // figure is a figure — what was inside one inside its copy.
-    const copies = new Map<string, string>();
-    for (const node of nodes) {
-      const copied = node.figure
-        ? this.addFigure(copy.value, { ...node.figure, bounds: node.bounds })
-        : this.addElementToView(copy.value, node.elementIri, node.bounds, { another: true });
-      copies.set(node.nodeIri, copied);
-      // Looking as it did: a figure's appearance is copied with it; its label saying what it said.
-      if (node.appearance) this.setAppearance(copy.value, copied, node.appearance);
-      for (const [context, look] of Object.entries(node.contextAppearances ?? {})) this.setAppearance(copy.value, copied, look, context);
-      for (const label of node.labelExpressions ?? []) this.setLabelExpression(copy.value, copied, label.context, label.expression);
-    }
-    for (const node of nodes) {
-      const parent = node.parentNodeIri ? copies.get(node.parentNodeIri) : undefined;
-      if (parent) this.setNodeParent(copy.value, copies.get(node.nodeIri)!, parent);
-    }
-    // Link by link — a relationship drawn twice is drawn twice in the copy — in
-    // passes: a link ending on another link waits for that one's copy.
-    const links = this.getLinks(viewIri);
-    const linkCopies = new Map<string, string>();
-    let pending = links;
-    for (;;) {
-      const waiting = pending.filter((link) => {
-        const end = (iri: string) => copies.get(iri) ?? linkCopies.get(iri);
-        const sourceNodeIri = end(link.sourceNodeIri);
-        const targetNodeIri = end(link.targetNodeIri);
-        // A connector joins nodes, copied already.
-        if (link.connector) {
-          const copied =
-            sourceNodeIri && targetNodeIri ? this.addConnector(copy.value, { sourceNodeIri, targetNodeIri }, link.waypoints) : undefined;
-          if (copied) linkCopies.set(link.linkIri, copied);
-          if (copied && link.appearance) this.setAppearance(copy.value, copied, link.appearance);
-          for (const [context, look] of Object.entries(link.contextAppearances ?? {})) if (copied) this.setAppearance(copy.value, copied, look, context);
-          if (copied && link.text) this.store.addQuads([triple(nn(copied), T.prefLabel, langLiteral(link.text))]);
-          if (copied && link.label) this.setLinkLabel(copy.value, copied, link.label);
-          return false;
-        }
-        const copied = this.addRelationshipToView(
-          copy.value,
-          link.relationshipIri,
-          link.waypoints,
-          { ...(sourceNodeIri ? { sourceNodeIri } : {}), ...(targetNodeIri ? { targetNodeIri } : {}) },
-          { another: true },
-        );
-        if (!copied) return true;
-        linkCopies.set(link.linkIri, copied);
-        if (link.appearance) this.setAppearance(copy.value, copied, link.appearance);
-        for (const [context, look] of Object.entries(link.contextAppearances ?? {})) this.setAppearance(copy.value, copied, look, context);
-        // A name moved off the middle of its line stays where it was put.
-        if (link.label) this.setLinkLabel(copy.value, copied, link.label);
-        return false;
-      });
-      if (waiting.length === 0 || waiting.length === pending.length) break;
-      pending = waiting;
-    }
+    // Every node and link placed again, as paste places a copy's (`placement-copy.ts`).
+    copyPlacements(this, viewIri, this, copy.value);
     // A catalog or matrix lists concepts without geometry: copy the membership.
     for (const q of this.read(null, T.inView, nn(viewIri))) {
       this.store.addQuads([triple(q.subject, T.inView, copy)]);
@@ -342,13 +332,18 @@ export class OxigraphViewManager implements ViewManager {
 
   // ── Nodes ──────────────────────────────────────────────────────────────
 
-  addElementToView(viewIri: string, elementIri: string, bounds: Bounds = DEFAULT_BOUNDS, options: { another?: boolean } = {}): string {
+  addElementToView(
+    viewIri: string,
+    elementIri: string,
+    bounds: Bounds = DEFAULT_BOUNDS,
+    options: { another?: boolean; iri?: string } = {},
+  ): string {
     const existing = options.another ? undefined : this.getNode(viewIri, elementIri);
     if (existing) return existing.nodeIri;
 
     const view = nn(viewIri);
     const element = nn(elementIri);
-    const nodeIri = mintIri(viewNamespace(this.store, viewIri), 'node');
+    const nodeIri = options.iri ?? this.mintShape(viewIri, 'node');
     const node = nn(nodeIri);
     this.store.addQuads([
       triple(node, T.rdfType, T.ArchNode),
@@ -362,18 +357,24 @@ export class OxigraphViewManager implements ViewManager {
 
   addFigure(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string {
     const view = nn(viewIri);
-    const nodeIri = iri ?? mintIri(viewNamespace(this.store, viewIri), 'node');
+    const nodeIri = iri ?? this.mintShape(viewIri, 'node');
     const node = nn(nodeIri);
-    const quads: Quad[] = [
-      triple(node, T.rdfType, figure.kind === 'note' ? T.LabelNode : T.ContainerNode),
-      triple(node, T.visView, view),
-      ...boundsQuads(node, figure.bounds),
-    ];
+    // A reference opening no view is a note: text, standing for nothing (core-vis-shapes 0.5.0).
+    const opens = figure.kind === 'reference' ? figure.view : undefined;
+    const type = opens ? T.ViewReferenceNode : figure.kind === 'note' || figure.kind === 'reference' ? T.LabelNode : T.ContainerNode;
+    const quads: Quad[] = [triple(node, T.rdfType, type), triple(node, T.visView, view), ...boundsQuads(node, figure.bounds)];
+    if (opens) {
+      // It stands for the view it opens, which is presented in this one, as an element's placement presents the
+      // element (`arch:inView`, DD-30) — unless it opens the view it is drawn in.
+      quads.push(triple(node, T.referencesView, nn(opens)));
+      if (opens !== viewIri) quads.push(triple(nn(opens), T.inView, view));
+    }
     if (figure.kind === 'shape' && figure.shapeType) {
       const style = nn(this.styleIriOf(nodeIri));
       quads.push(triple(node, T.visStyle, style), triple(style, T.rdfType, T.Style), triple(style, T.shapeType, nn(figure.shapeType)));
     }
-    if (figure.text) quads.push(triple(node, T.prefLabel, langLiteral(figure.text)));
+    // Its text as given — an empty one too: a reference's drawn as nothing, where none of its own shows its view's name.
+    if (figure.text !== undefined) quads.push(triple(node, T.prefLabel, langLiteral(figure.text)));
     const [parentNode] = figure.parentIri ? this.nodeIrisFor(viewIri, figure.parentIri) : [];
     if (parentNode && parentNode !== nodeIri) quads.push(triple(node, T.inNode, nn(parentNode)));
     this.store.addQuads(quads);
@@ -383,11 +384,82 @@ export class OxigraphViewManager implements ViewManager {
     return nodeIri;
   }
 
+  /** A connector's text, on a connector of this view; none removes it. */
+  setConnectorText(viewIri: string, linkIri: string, text: string | undefined): void {
+    const link = nn(linkIri);
+    if (!this.objects(link, T.visView).includes(viewIri) || !this.objects(link, T.rdfType).includes(IRI.Link)) return;
+    this.remove(this.read(link, T.prefLabel));
+    if (text) this.store.addQuads([triple(link, T.prefLabel, langLiteral(text))]);
+  }
+
   setFigureText(viewIri: string, nodeIri: string, text: string | undefined): void {
     if (!this.nodeIrisFor(viewIri, nodeIri).includes(nodeIri)) return;
     const node = nn(nodeIri);
     this.remove(this.read(node, T.prefLabel));
     if (text) this.store.addQuads([triple(node, T.prefLabel, langLiteral(text))]);
+  }
+
+  // ── References to other views (core-vis 0.9, Req 3.23) ─────────────────
+
+  referencesTo(viewIri: string): ViewReferenceInfo[] {
+    const references: ViewReferenceInfo[] = [];
+    for (const q of this.read(null, T.referencesView, nn(viewIri))) {
+      if (!this.objects(q.subject, T.rdfType).includes(IRI.ViewReferenceNode)) continue;
+      for (const holderIri of this.objects(q.subject, T.visView)) references.push({ nodeIri: q.subject.value, holderIri });
+    }
+    return references.sort((a, b) => a.holderIri.localeCompare(b.holderIri) || a.nodeIri.localeCompare(b.nodeIri));
+  }
+
+  setReferenceView(holderIri: string, nodeIri: string, viewIri: string): void {
+    const { removed, added } = this.setReferenceViewQuads(holderIri, nodeIri, viewIri);
+    this.remove(removed);
+    if (added.length > 0) this.store.addQuads(added);
+  }
+
+  setReferenceViewQuads(holderIri: string, nodeIri: string, viewIri: string): { removed: Quad[]; added: Quad[] } {
+    const node = nn(nodeIri);
+    const holder = nn(holderIri);
+    const unchanged = { removed: [], added: [] };
+    if (!this.objects(node, T.visView).includes(holderIri) || !this.objects(node, T.rdfType).includes(IRI.ViewReferenceNode)) return unchanged;
+    // A reference opens exactly one view, one of the model's (core-vis-shapes 0.5.0).
+    if (!this.getView(viewIri)) return unchanged;
+    const current = this.read(node, T.referencesView);
+    if (current.length === 1 && current[0]!.object.value === viewIri) return unchanged;
+    const removed: Quad[] = [...current];
+    const added: Quad[] = [triple(node, T.referencesView, nn(viewIri))];
+    // The view it opened leaves the holder with its last reference there, as when the reference is removed…
+    for (const opened of new Set(current.map((q) => q.object.value))) {
+      if (opened === viewIri) continue;
+      const others = this.read(null, T.referencesView, nn(opened)).filter(
+        (q) => q.subject.value !== nodeIri && this.objects(q.subject, T.visView).includes(holderIri),
+      );
+      if (others.length === 0) removed.push(...this.read(nn(opened), T.inView, holder));
+    }
+    // …and the one it opens now is presented there, as when one is drawn — unless it is the holder (DD-42).
+    if (viewIri !== holderIri && this.read(nn(viewIri), T.inView, holder).length === 0) {
+      added.push(triple(nn(viewIri), T.inView, holder));
+    }
+    // The lines at it drew relationships of the view it opened: they go, as a line whose end is no longer placed
+    // does (`refreshLinksOf`); a line standing for no relationship stays (VC-9).
+    for (const end of [T.visSource, T.visTarget]) {
+      for (const link of this.read(null, end, node)) {
+        if (this.objects(link.subject, T.archRelationship).length > 0) removed.push(...this.linkQuads(link.subject, holder));
+      }
+    }
+    return { removed: dedupe(removed), added };
+  }
+
+  viewsRefining(conceptIri: string): ViewInfo[] {
+    // `V arch:refines X`, as la-gram writes it, or `X arch:refinedInto V`, as another tool may (VC-DD-6).
+    const iris = new Set<string>();
+    for (const q of this.read(null, T.refines, nn(conceptIri))) iris.add(q.subject.value);
+    for (const q of this.read(nn(conceptIri), T.refinedInto, null)) iris.add(q.object.value);
+    return [...iris]
+      .flatMap((iri) => {
+        const view = iri === conceptIri ? undefined : this.getView(iri);
+        return view ? [view] : [];
+      })
+      .sort((a, b) => a.label.localeCompare(b.label) || a.iri.localeCompare(b.iri));
   }
 
   removeElementFromView(viewIri: string, elementIri: string): void {
@@ -409,6 +481,15 @@ export class OxigraphViewManager implements ViewManager {
     quads.push(...this.placementQuads(view, nodeIris));
     if (nodeIris.length > 0) {
       quads.push(...this.read(nn(elementIri), T.inView, view));
+    }
+    // A referenced view leaves the view with its last reference there, as an element with its last placement.
+    for (const nodeIri of nodeIris) {
+      for (const opened of this.objects(nn(nodeIri), T.referencesView)) {
+        const others = this.read(null, T.referencesView, nn(opened)).filter(
+          (q) => !nodeIris.includes(q.subject.value) && this.objects(q.subject, T.visView).includes(viewIri),
+        );
+        if (others.length === 0) quads.push(...this.read(nn(opened), T.inView, view));
+      }
     }
     return dedupe(quads);
   }
@@ -487,7 +568,7 @@ export class OxigraphViewManager implements ViewManager {
     relationshipIri: string,
     waypoints?: Point[],
     ends: { sourceNodeIri?: string; targetNodeIri?: string } = {},
-    options: { another?: boolean } = {},
+    options: { another?: boolean; iri?: string } = {},
   ): string | undefined {
     const existing = options.another ? undefined : this.linkIrisFor(viewIri, relationshipIri)[0];
     if (existing) {
@@ -508,7 +589,7 @@ export class OxigraphViewManager implements ViewManager {
     if (!sourceNode || !targetNode) return undefined;
 
     const view = nn(viewIri);
-    const linkIri = mintIri(viewNamespace(this.store, viewIri), 'link');
+    const linkIri = options.iri ?? this.mintShape(viewIri, 'link');
     const link = nn(linkIri);
     this.store.addQuads([
       triple(link, T.rdfType, T.Link),
@@ -536,7 +617,7 @@ export class OxigraphViewManager implements ViewManager {
     const sourceNodeIri = this.nodeIrisFor(viewIri, ends.sourceNodeIri)[0];
     const targetNodeIri = this.nodeIrisFor(viewIri, ends.targetNodeIri)[0];
     if (!sourceNodeIri || !targetNodeIri || sourceNodeIri === targetNodeIri) return undefined;
-    const linkIri = iri ?? mintIri(viewNamespace(this.store, viewIri), 'link');
+    const linkIri = iri ?? this.mintShape(viewIri, 'link');
     const link = nn(linkIri);
     // A link with no arch-vis:archRelationship: drawing, no relationship in the model, no arch:inView.
     this.store.addQuads([
@@ -588,19 +669,18 @@ export class OxigraphViewManager implements ViewManager {
   updateLinkWaypoints(viewIri: string, relationshipIri: string, waypoints: Point[]): void {
     const [linkIri] = this.linkIrisFor(viewIri, relationshipIri);
     if (!linkIri) return;
-    const link = nn(linkIri);
-    this.remove([...this.read(link, T.points), ...this.pointListQuads(link)]);
-    if (waypoints.length > 0) this.writePoints(link, waypoints);
+    this.rewritePoints(nn(linkIri), waypoints);
   }
 
   setLinkLabel(viewIri: string, relationshipIri: string, bounds: Bounds | undefined): void {
     const [linkIri] = this.linkIrisFor(viewIri, relationshipIri);
     if (!linkIri) return;
     const link = nn(linkIri);
+    // Its own label keeps its name — `{link}-label`, or `{link}/label` under a link not named in a fragment.
+    const own = this.objectTerms(link, T.visLabel).find((l) => l.termType === 'NamedNode' && isPartNamed(linkIri, l.value, 'label'));
     this.remove(this.labelNodeQuads(link));
     if (!bounds) return;
-    // Named after the link, flat like its route's cells: `m:link-…-label`.
-    const label = nn(`${linkIri}-label`);
+    const label = own ? (own as NamedNode) : nn(partIri(linkIri, 'label'));
     this.store.addQuads([
       triple(link, T.visLabel, label),
       triple(label, T.rdfType, T.LabelNode),
@@ -665,6 +745,11 @@ export class OxigraphViewManager implements ViewManager {
       for (const v of this.objects(q.subject, T.visView)) views.add(v);
     }
     for (const q of this.read(null, T.archRelationship, nn(conceptIri))) {
+      for (const v of this.objects(q.subject, T.visView)) views.add(v);
+    }
+    // A view, by the references drawing it (VC-DD-1).
+    for (const q of this.read(null, T.referencesView, nn(conceptIri))) {
+      if (!this.objects(q.subject, T.rdfType).includes(IRI.ViewReferenceNode)) continue;
       for (const v of this.objects(q.subject, T.visView)) views.add(v);
     }
     return [...views].sort();
@@ -792,9 +877,14 @@ export class OxigraphViewManager implements ViewManager {
     return this.nodeIrisFor(viewIri, conceptIri)[0] ?? this.linkIrisFor(viewIri, conceptIri)[0];
   }
 
-  /** The concept a link's end stands for: a node's element, or a link's relationship. */
+  /** The concept a link's end stands for: a node's element — a reference's view — or a link's relationship. */
   private conceptOf(end: Term): string | undefined {
-    return this.objects(end, T.archElement)[0] ?? this.objects(end, T.archRelationship)[0];
+    return this.objects(end, T.archElement)[0] ?? this.objects(end, T.archRelationship)[0] ?? this.viewOf(end);
+  }
+
+  /** The view a reference node opens: the concept it stands for, as an ArchNode's element (VC-DD-1). */
+  private viewOf(node: Term): string | undefined {
+    return this.objects(node, T.rdfType).includes(IRI.ViewReferenceNode) ? this.objects(node, T.referencesView)[0] : undefined;
   }
 
   /** What a connector's end, a node, is keyed by: its element — or, a figure, the node itself. */
@@ -820,13 +910,19 @@ export class OxigraphViewManager implements ViewManager {
     if (nodes.length > 0) return nodes;
     // A figure stands for no element: its node is its own key.
     const node = nn(elementIri);
-    return this.objects(node, T.visView).includes(view) && this.figureOf(node) ? [elementIri] : [];
+    if (this.objects(node, T.visView).includes(view) && this.figureOf(node)) return [elementIri];
+    // A view's placements are the references to it there (VC-DD-1).
+    return this.read(null, T.referencesView, node)
+      .map((q) => q.subject)
+      .filter((reference) => this.objects(reference, T.visView).includes(view) && this.viewOf(reference) === elementIri)
+      .map((reference) => reference.value);
   }
 
   /**
    * What a node is when it stands for no model element: a group or a shape (an
-   * `arch-vis:ContainerNode`, with a shape type or without), or a note (an
-   * `arch-vis:LabelNode` that is no diagram element's `arch-vis:label`).
+   * `arch-vis:ContainerNode`, with a shape type or without), a note (an
+   * `arch-vis:LabelNode` that is no diagram element's `arch-vis:label`), or a
+   * reference to another view (an `arch-vis:ViewReferenceNode`, core-vis 0.9).
    */
   private figureOf(node: Term): FigureInfo | undefined {
     const types = this.objects(node, T.rdfType);
@@ -837,6 +933,11 @@ export class OxigraphViewManager implements ViewManager {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
       const shapeType = style ? this.objects(style, T.shapeType)[0] : undefined;
       return { kind: shapeType ? 'shape' : 'group', ...(shapeType ? { shapeType } : {}), ...(text !== undefined ? { text } : {}), ...colours };
+    }
+    if (types.includes(IRI.ViewReferenceNode)) {
+      const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
+      const view = this.objects(node, T.referencesView)[0];
+      return { kind: 'reference', ...(view ? { view } : {}), ...(text !== undefined ? { text } : {}), ...colours };
     }
     if (types.includes(IRI.LabelNode) && this.read(null, T.visLabel, node as NamedNode).length === 0) {
       const text = this.read(node as NamedNode, T.prefLabel)[0]?.object.value;
@@ -901,11 +1002,11 @@ export class OxigraphViewManager implements ViewManager {
       .find((style) => this.objects(style, T.inPresentationContext)[0] === context);
   }
 
-  /** Its style for `context`, to write on: made when it has none, named after it and the context. */
+  /** Its style for `context`, to write on: made when it has none, named after it and the context, `{subject}/style/{hash}`. */
   private contextStyle(subject: NamedNode, context: string): NamedNode {
     const found = this.styleOf(subject, context);
     if (found && found.termType === 'NamedNode') return found as NamedNode;
-    const style = nn(`${this.styleIriOf(subject.value)}-${shortHash(context)}`);
+    const style = nn(partIri(this.styleIriOf(subject.value), shortHash(context)));
     this.store.addQuads([
       triple(subject, T.visStyle, style),
       triple(style, T.rdfType, T.Style),
@@ -948,6 +1049,8 @@ export class OxigraphViewManager implements ViewManager {
     if (!this.objects(subject, T.visView).includes(viewIri) || !this.readNode(subject) || this.figureOf(subject)) return;
     const text = expression?.replace(/\r\n?/g, '\n') ?? '';
     // The one it has for that context goes — a blank node another tool wrote too, when nothing else points at it.
+    // One named as the node's own keeps its name for what replaces it.
+    let kept: NamedNode | undefined;
     const style = this.styleOf(subject);
     if (style) {
       for (const q of this.read(style as NamedNode, T.labelExpression)) {
@@ -955,11 +1058,14 @@ export class OxigraphViewManager implements ViewManager {
         if (scope !== context) continue;
         const shared = this.read(null, T.labelExpression, q.object as NamedNode).length > 1;
         this.remove([q, ...(shared ? [] : this.read(q.object as NamedNode))]);
+        if (!shared && q.object.termType === 'NamedNode' && isPartNamed(nodeIri, q.object.value, 'label-expression', CONTEXT_KEY)) {
+          kept = q.object as NamedNode;
+        }
       }
     }
     if (text.trim() !== '') {
       const own = this.ownStyle(subject);
-      const label = nn(this.labelExpressionIriOf(nodeIri, context));
+      const label = kept ?? nn(this.labelExpressionIriOf(nodeIri, context));
       this.store.addQuads([
         triple(own, T.labelExpression, label),
         triple(label, T.rdfType, T.LabelExpression),
@@ -981,16 +1087,29 @@ export class OxigraphViewManager implements ViewManager {
   private ownStylesQuads(subject: Term): Quad[] {
     const quads: Quad[] = [];
     for (const q of this.read(subject as NamedNode, T.visStyle)) {
-      if (q.object.termType !== 'NamedNode' || !q.object.value.startsWith(this.styleIriOf(subject.value))) continue;
+      if (!this.isOwnStyle(subject.value, q.object)) continue;
       quads.push(...this.read(q.object as NamedNode));
       for (const label of this.read(q.object as NamedNode, T.labelExpression)) quads.push(...this.read(label.object as NamedNode));
     }
     return quads;
   }
 
-  /** A placement's own label expression, named after it — and the context it is for, when it is for one — so it goes with it. */
+  /**
+   * Whether `style` is `owner`'s own by its name, matched exactly: `{owner}-style` — la-gram's and the
+   * converters' for a shape named in its view — or `{owner}-style-{hash}` for a presentation context; or the
+   * same joined with `/`, as under a shape not named in a fragment. Not a prefix: `{owner}-style-x` of another
+   * node is not.
+   */
+  private isOwnStyle(owner: string, style: Term): boolean {
+    return style.termType === 'NamedNode' && isPartNamed(owner, style.value, 'style', CONTEXT_KEY);
+  }
+
+  /**
+   * A placement's own label expression, named after it — and the context it is for, when it is for one — so it
+   * goes with it: `{node}-label-expression`, `{node}-label-expression-{hash}`.
+   */
   private labelExpressionIriOf(nodeIri: string, context: string | undefined): string {
-    return context ? `${nodeIri}-label-expression-${shortHash(context)}` : `${nodeIri}-label-expression`;
+    return context ? partIri(nodeIri, 'label-expression', shortHash(context)) : partIri(nodeIri, 'label-expression');
   }
 
   /** The label expressions a node's own style points at. */
@@ -1029,29 +1148,34 @@ export class OxigraphViewManager implements ViewManager {
     return appearance as Appearance;
   }
 
-  /** A node's or a link's own style — a figure's shape type, a placement's colours — named after it, so it goes with it. */
+  /** A node's or a link's own style — a figure's shape type, a placement's colours — named after it, so it goes with it: `{iri}-style`. */
   private styleIriOf(iri: string): string {
-    return `${iri}-style`;
+    return partIri(iri, 'style');
   }
 
   /**
-   * A node's or a link's own style, to write on: made when it has none. One
-   * another tool wrote — a converter's blank node, or a style others share —
-   * is copied to its own first, so a change is to this one alone and keeps
-   * what the style said (its shape type, its font).
+   * A node's or a link's own style, to write on: made when it has none. Its own
+   * by name — `{subject}/style`, or `{subject}-style` as la-gram named it before —
+   * is written on in place. One another tool wrote — a blank node, or a style
+   * others share — is copied to its own first, so a change is to this one alone
+   * and keeps what the style said (its shape type, its font).
    */
   private ownStyle(subject: NamedNode): NamedNode {
-    const own = nn(this.styleIriOf(subject.value));
     // Its styles for every presentation context — not one for a context, which stays as it is.
     const current = this.read(subject, T.visStyle).filter((q) => this.objects(q.object, T.inPresentationContext).length === 0);
-    if (current.length === 1 && current[0]!.object.value === own.value) return own;
+    if (current.length === 1 && this.isOwnStyle(subject.value, current[0]!.object)) return current[0]!.object as NamedNode;
+    const own = nn(this.styleIriOf(subject.value));
     const quads: Quad[] = [triple(subject, T.visStyle, own), triple(own, T.rdfType, T.Style)];
     for (const q of current) {
       for (const said of this.read(q.object)) {
         if (said.predicate.value !== IRI.rdfType) quads.push(triple(own, said.predicate as NamedNode, said.object));
       }
     }
-    this.remove([...current, ...current.flatMap((q) => this.ownedBlankStyle(q.object))]);
+    // What it replaces goes: a blank style only it used, and one named as its own — not a style others share.
+    const replaced = current.flatMap((q) =>
+      this.isOwnStyle(subject.value, q.object) && q.object.value !== own.value ? this.read(q.object as NamedNode) : this.ownedBlankStyle(q.object),
+    );
+    this.remove([...current, ...replaced]);
     this.store.addQuads(dedupe(quads));
     return own;
   }
@@ -1082,13 +1206,22 @@ export class OxigraphViewManager implements ViewManager {
       .map((link) => link.value);
   }
 
-  /** Write `waypoints` as an IRI-celled `rdf:List` of `arch-vis:Point`s. */
+  /** A new node's or link's IRI, in its view's: `{view}#node-{uuid}` (`mintShapeIri`). */
+  private mintShape(viewIri: string, kind: ShapeKind): string {
+    return mintShapeIri(viewIri, kind, () => viewNamespace(this.store, viewIri));
+  }
+
+  /** Write `waypoints` as an IRI-celled `rdf:List` of `arch-vis:Point`s, named `{link}-points-{i}` and `{link}-point-{i}`. */
   private writePoints(link: NamedNode, waypoints: Point[]): void {
-    const quads: Quad[] = [];
-    // Named after the link, flat like every minted IRI: `m:link-…-points-0`, `m:link-…-p0`.
-    const cell = (i: number) => nn(`${link.value}-points-${i}`);
-    const point = (i: number) => nn(`${link.value}-p${i}`);
-    quads.push(triple(link, T.points, cell(0)));
+    this.store.addQuads(this.routeQuads(link, waypoints, ROUTE_NAMES[0]));
+  }
+
+  /** The quads of a route through `waypoints` with its cells and points named by `names`. */
+  private routeQuads(link: NamedNode, waypoints: Point[], names: RouteNames): Quad[] {
+    if (waypoints.length === 0) return [];
+    const cell = (i: number) => nn(names.cell(link.value, i));
+    const point = (i: number) => nn(names.point(link.value, i));
+    const quads: Quad[] = [triple(link, T.points, cell(0))];
     waypoints.forEach((wp, i) => {
       quads.push(
         triple(cell(i), T.rdfFirst, point(i)),
@@ -1098,7 +1231,44 @@ export class OxigraphViewManager implements ViewManager {
         triple(point(i), T.pointY, doubleLiteral(Math.round(wp.y))),
       );
     });
-    this.store.addQuads(quads);
+    return quads;
+  }
+
+  /**
+   * How a link's route is named, when every cell and point is named under the link in one of
+   * {@link ROUTE_NAMES}' patterns, counting from 0; `undefined` for no route, or one named otherwise.
+   */
+  private routeNamesOf(link: NamedNode): RouteNames | undefined {
+    const cells = this.listCells(link);
+    if (cells.length === 0) return undefined;
+    return ROUTE_NAMES.find((names) =>
+      cells.every((cell, i) => {
+        if (cell.termType !== 'NamedNode' || cell.value !== names.cell(link.value, i)) return false;
+        const points = this.objectTerms(cell, T.rdfFirst);
+        return points.length === 1 && points[0]!.termType === 'NamedNode' && points[0]!.value === names.point(link.value, i);
+      }),
+    );
+  }
+
+  /**
+   * A link's route changed to `waypoints`. A route named under its link keeps its names, la-gram's and the
+   * converters' alike, and only what differs is written: a moved bend is its point's coordinates. A route
+   * named otherwise — blank nodes, another tool's names — is written anew under la-gram's.
+   */
+  private rewritePoints(link: NamedNode, waypoints: Point[]): void {
+    const old = [...this.read(link, T.points), ...this.pointListQuads(link)];
+    const names = this.routeNamesOf(link);
+    if (!names) {
+      this.remove(old);
+      if (waypoints.length > 0) this.writePoints(link, waypoints);
+      return;
+    }
+    const next = this.routeQuads(link, waypoints, names);
+    const wanted = new Set(next.map(quadKey));
+    const had = new Set(old.map(quadKey));
+    this.remove(old.filter((q) => !wanted.has(quadKey(q))));
+    const added = next.filter((q) => !had.has(quadKey(q)));
+    if (added.length > 0) this.store.addQuads(added);
   }
 
   private readPoints(link: Term): Point[] {

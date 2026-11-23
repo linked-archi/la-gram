@@ -6,7 +6,7 @@ Status: draft, 2026-11-07 (open questions settled) · Target: la-gram 0.2
 
 There is no copy/paste of diagram content. The clipboard is used only to copy IRIs and RDF text (`type-guide-panel.ts`, `rdf-panel.ts`). The closest existing feature is `ViewManager.duplicateView`, which re-places the same elements in a copy of a view (`addElementToView(..., { another: true })`).
 
-Copy/paste in an RDF modeller has to answer one question that a drawing tool doesn't: **does pasting make new concepts or new placements of the same concepts?** Archi answers it by context (same model → new copies by default, with "Paste Special" to reference). la-gram should make it explicit.
+Copy/paste in an RDF modeller has to answer one question that a drawing tool doesn't: **does pasting make new concepts or new placements of the same concepts?** It is answered by context (same model → new copies by default, with "Paste Special" to reference). la-gram should make it explicit.
 
 ## 2. Behaviour
 
@@ -40,7 +40,7 @@ Written to the system clipboard as two flavours: `web application/x-la-gram+n-tr
 
 **As copies**
 - Mint a new IRI for every element, relationship, node and link (`mintIri(namespace, kind)`), with a consistent old→new IRI map so internal references (relationship ends, link ends, nesting) are rewritten.
-- Labels unchanged (no "Copy of …"; Archi adds that and users remove it). Configurable later.
+- Labels unchanged (no "Copy of …", which users would only remove). Configurable later.
 - **Only type, name (`skos:prefLabel`) and documentation are copied.** Every other property is dropped, so a copy never carries over an external ID, an owner or a status that belongs to the original. The toast says how many properties were left out. (References keep everything, because they are the same element.)
 
 **As references**

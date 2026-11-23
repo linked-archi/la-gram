@@ -1,6 +1,6 @@
 # Pictures and looks per presentation context
 
-Status: in progress, started 2026-11-08 · Repos: `linked-archi-meta` (vocabulary, shapes, docs) and
+Status: done 2026-11-08 (phases A–F, follow-ups included), released in la-gram 0.2.0 · Repos: `linked-archi-meta` (vocabulary, shapes, docs) and
 `tools/modellers/la-gram` (modeller) · Files here: `requirements.md`, `design.md`, `tasks.md` (the checklist —
 start there).
 

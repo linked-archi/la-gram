@@ -12,6 +12,7 @@ import { readModelContents, modelQuads } from '../model-queries.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
 import { tripleTerm } from '../vocabulary.js';
 import { confirmationQuads, derivationDetails, derivationStatus } from '../derivations.js';
+import { createHash } from 'node:crypto';
 
 const { namedNode, literal, quad } = DataFactory;
 const ARCH = NAMESPACES.arch;
@@ -271,6 +272,81 @@ describe('ModelSession', () => {
     expect(into('urn:z:r2')).toEqual([['urn:z:a', ARCH + 'hasQualifiedRelationship']]);
     session.adopt();
     expect(into('urn:z:r1')).toHaveLength(1);
+  });
+
+  it('makes a relationship resource on adopt for each bare triple a loaded class names, as meta\u2019s rules make it', () => {
+    const a = namedNode('urn:bare:a');
+    const b = namedNode('urn:bare:b');
+    const data = namedNode('urn:bare:data');
+    const stray = namedNode('urn:bare:not-in-the-model');
+    store.addQuads([
+      quad(a, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(b, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(data, namedNode(RDF_TYPE), namedNode(AM4 + 'DataObject')),
+      quad(a, namedNode(AM4 + 'serves'), b),
+      // A kind's form is its superclass's: a bare triple says no more than the most general class.
+      quad(a, namedNode(AM4 + 'accesses'), data),
+      // An end that is no concept of the model: left a triple.
+      quad(a, namedNode(AM4 + 'serves'), stray),
+    ] as never);
+
+    const { qualified } = session.adopt({ fallbackLabel: 'Bare' });
+    expect(qualified).toBe(2);
+
+    const namespace = session.namespace()!.namespace;
+    // DD-41's digest of "s p o": what meta's :QualifyRelationships names the same triple, run with RDF4J (2026-11-19).
+    expect(createHash('sha256').update(`urn:bare:a ${AM4}serves urn:bare:b`).digest('hex').slice(0, 20)).toBe('2fcfd79e430870899c4e');
+    const serving = `${namespace}relationship/2fcfd79e430870899c4e`;
+    const of = (rel: string, p: string) => store.getQuads(nn(rel), nn(p)).map((q) => q.object.value);
+    expect(of(serving, RDF_TYPE)).toEqual([AM4 + 'Serving']);
+    expect([of(serving, ARCH + 'source'), of(serving, ARCH + 'target')]).toEqual([['urn:bare:a'], ['urn:bare:b']]);
+    expect(of(serving, ARCH + 'inModel')).toEqual([session.modelIri]);
+    const term = store.getQuads(nn(serving), nn(RDF_REIFIES))[0]!.object as unknown as { subject: Term; predicate: Term; object: Term };
+    expect([term.subject.value, term.predicate.value, term.object.value]).toEqual(['urn:bare:a', AM4 + 'serves', 'urn:bare:b']);
+    expect(store.getQuads(nn('urn:bare:a'), nn(AM4 + 'qualifiedServing')).map((q) => q.object.value)).toEqual([serving]);
+
+    const accessClasses = store
+      .getQuads(null, nn(ARCH + 'target'), nn('urn:bare:data'))
+      .flatMap((q) => store.getQuads(q.subject as NamedNode, nn(RDF_TYPE)).map((t) => t.object.value));
+    expect(accessClasses).toEqual([AM4 + 'Access']);
+    expect(store.getQuads(null, nn(ARCH + 'target'), nn('urn:bare:not-in-the-model'))).toHaveLength(0);
+
+    // Opening again — or a second window in the same room — makes nothing more.
+    expect(session.adopt().qualified).toBe(0);
+    expect(store.getQuads(null, nn(ARCH + 'target'), nn('urn:bare:b'))).toHaveLength(1);
+  });
+
+  it('makes a Depends On on adopt from a bare arch:dependencyOf: from the dependent to what it needs, its arch:dependsOn stated', () => {
+    const api = namedNode('urn:dep:api');
+    const billing = namedNode('urn:dep:billing');
+    store.addQuads([
+      quad(api, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationInterface')),
+      quad(billing, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      // Written the other way round, as another tool may: the API is a dependency of Billing (core 0.7.0).
+      quad(api, namedNode(ARCH + 'dependencyOf'), billing),
+    ] as never);
+    expect(session.adopt({ fallbackLabel: 'Dependencies' }).qualified).toBe(1);
+    const [relationship] = store.getQuads(null, nn(RDF_TYPE), nn(ARCH + 'DependsOn')).map((q) => q.subject.value);
+    const of = (p: string) => store.getQuads(nn(relationship!), nn(p)).map((q) => q.object.value);
+    expect([of(ARCH + 'source'), of(ARCH + 'target')]).toEqual([['urn:dep:billing'], ['urn:dep:api']]);
+    expect(store.getQuads(nn('urn:dep:billing'), nn(ARCH + 'dependsOn')).map((q) => q.object.value)).toEqual(['urn:dep:api']);
+    expect(store.getQuads(nn('urn:dep:billing'), nn(ARCH + 'qualifiedDependsOn')).map((q) => q.object.value)).toEqual([relationship]);
+  });
+
+  it('leaves a bare triple alone on adopt when a relationship already stands for it', () => {
+    const a = namedNode('urn:kept:a');
+    const b = namedNode('urn:kept:b');
+    const rel = namedNode('urn:kept:r');
+    store.addQuads([
+      quad(a, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(b, namedNode(RDF_TYPE), namedNode(AM4 + 'ApplicationComponent')),
+      quad(a, namedNode(AM4 + 'serves'), b),
+      quad(rel, namedNode(RDF_TYPE), namedNode(AM4 + 'Serving')),
+      quad(rel, namedNode(ARCH + 'source'), a),
+      quad(rel, namedNode(ARCH + 'target'), b),
+    ] as never);
+    expect(session.adopt().qualified).toBe(0);
+    expect(store.getQuads(null, nn(ARCH + 'target'), nn('urn:kept:b'))).toHaveLength(1);
   });
 
   it('leaves a proposition as it is on adopt, until its triple and qualified predicate confirm it', () => {

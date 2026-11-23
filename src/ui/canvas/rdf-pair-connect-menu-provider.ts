@@ -4,8 +4,8 @@
  *
  * Both directions, each under a header naming it ("Order Desk → Order
  * Handling"), each ranked as `RelationshipManager.getValidRelationships` ranks a
- * pair, each saying why in a few words (`preferenceNotes`: "proposed first",
- * "drawn in the metamodel", "only by derivation", "always permitted"). Picking
+ * pair, each with a note where one applies (`preferenceNotes`: "drawn in the
+ * metamodel", "only by derivation", "always permitted"). Picking
  * one creates the relationship and draws it — one undoable step, through the
  * same `modeling.connect` a connect drag ends in.
  *

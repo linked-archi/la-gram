@@ -99,6 +99,16 @@ export function parseRepositoryLink(text: string, provider?: GitProviderKind, ho
   return listed ? { ...link, apiBase: listed.api } : link;
 }
 
+/**
+ * A file on a branch as the host's page addresses it — what {@link parseRepositoryLink} reads back, and *Open
+ * from Git…* opens: `https://github.com/org/repo/blob/main/models/a.ttl`,
+ * `https://gitlab.com/group/repo/-/blob/main/a.ttl`. Each segment escaped, the slashes kept.
+ */
+export function fileLink(link: Pick<RepositoryLink, 'provider' | 'webUrl'>, branch: string, path: string): string {
+  const escaped = (text: string): string => text.split('/').map(encodeURIComponent).join('/');
+  return `${link.webUrl}${link.provider === 'gitlab' ? '/-' : ''}/blob/${escaped(branch)}/${escaped(path)}`;
+}
+
 /** The refusal of a host the deployment does not list. */
 export function hostNotAllowed(host: string, hosts: readonly GitHostConfig[]): string {
   return hosts.length === 0

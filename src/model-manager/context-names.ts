@@ -7,15 +7,18 @@
  * element as `skosxl:altLabel`, never `skosxl:prefLabel` (that would be a
  * second canonical name). Its literal form is also written as the element's
  * plain `skos:altLabel`, so that tools reading plain SKOS find it. The label is
- * named after the element and the context (`{element}-name-{hash}`), so that
- * a merge can match it; an element has one name per context and language.
+ * named after the element and the context (`{element}/name/{hash}`, DD-41), so
+ * that a merge can match it; an element has one name per context and language.
+ * A label named as la-gram named it before (`{element}-name-{hash}`) keeps its
+ * name when its text changes.
  */
 
 import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
+import { isPartNamed, partIri } from '../rdf-engine/iri.js';
 import { shortHash } from './short-hash.js';
-import { T } from './vocabulary.js';
+import { T, netChange } from './vocabulary.js';
 
 const { namedNode, literal, quad } = DataFactory;
 
@@ -52,10 +55,13 @@ export function contextNameOf(store: RdfStore, iri: string, context: string | un
   return (names.find((n) => n.language === language) ?? names.find((n) => n.language === '') ?? names[0])?.name;
 }
 
-/** The IRI of `iri`'s name for `context` in `language`. */
+/** The IRI of `iri`'s name for `context` in `language`: `{iri}/name/{hash}`, then `/{language}` when it is not English. */
 export function contextNameIri(iri: string, context: string, language: string): string {
-  return `${iri}-name-${shortHash(context)}${language && language !== 'en' ? `-${language}` : ''}`;
+  return partIri(iri, 'name', shortHash(context), ...(language && language !== 'en' ? [language] : []));
 }
+
+/** A presentation context's key and, after it, a language: what follows `name` in a name's IRI, either form. */
+const NAME_KEY = /[0-9a-f]{8}(?:[-/][A-Za-z0-9-]+)?/;
 
 /**
  * What changes to give `iri` the name `name` for `context` in `language` —
@@ -86,7 +92,9 @@ export function contextNameChange(
   }
   const text = name?.trim() ?? '';
   if (text === '') return { remove, add: [] };
-  const label = namedNode(contextNameIri(iri, context, language));
+  // The label it replaces keeps its name when it is the element's own, either way it was named.
+  const own = replaced.find((n) => isPartNamed(iri, n.label, 'name', NAME_KEY));
+  const label = namedNode(own?.label ?? contextNameIri(iri, context, language));
   const form = literal(text, language || undefined);
   const add: Quad[] = [
     quad(element, T.skosxlAltLabel as NamedNode, label) as Quad,
@@ -95,5 +103,6 @@ export function contextNameChange(
     quad(label, T.inPresentationContext as NamedNode, namedNode(context)) as Quad,
     quad(element, T.altLabel as NamedNode, form) as Quad,
   ];
-  return { remove, add };
+  // A label that keeps its name changes only in what differs.
+  return netChange({ remove, add });
 }

@@ -556,7 +556,7 @@ describe('6. the notation is really applied', () => {
 });
 
 describe('7. connection docking', () => {
-  it('docks a drawn connection to the shape boundaries, not their centres', async () => {
+  it('keeps a blue preview over empty canvas and docks the drawn connection to the shape boundaries', async () => {
     const host = await page.locator('.la-diagram-host').boundingBox();
     expect(host).not.toBeNull();
 
@@ -620,6 +620,33 @@ describe('7. connection docking', () => {
     await page.mouse.down();
     await page.mouse.up();
 
+    const assertFreePreview = async (pointer: { x: number; y: number }) => {
+      await page.mouse.move(pointer.x, pointer.y, { steps: 8 });
+      const preview = page.locator('.djs-dragger > polyline, .djs-dragger > path');
+      await expectCount(preview, 1);
+      const drawn = await preview.evaluate((node) => {
+        const line = node as SVGGeometryElement;
+        const length = line.getTotalLength();
+        const end = line.getPointAtLength(length).matrixTransform(line.getScreenCTM()!);
+        return {
+          geometry: line.getAttribute('points') ?? line.getAttribute('d'),
+          length,
+          stroke: getComputedStyle(line).stroke,
+          end: { x: end.x, y: end.y },
+        };
+      });
+      expect(drawn.geometry).not.toMatch(/NaN|Infinity/);
+      expect(drawn.length).toBeGreaterThan(30);
+      expect(drawn.stroke).toBe('rgb(0, 149, 255)');
+      expect(Math.abs(drawn.end.x - pointer.x)).toBeLessThan(2);
+      expect(Math.abs(drawn.end.y - pointer.y)).toBeLessThan(2);
+    };
+    const empty = { x: host!.x + 600, y: host!.y + 150 };
+    await assertFreePreview(empty);
+    await page.mouse.move(to.x, to.y, { steps: 8 });
+    await assertFreePreview({ x: empty.x + 40, y: empty.y + 30 });
+    await session.screenshot('connection-preview-empty-canvas');
+
     // Enough intermediate moves that the drag passes diagram-js's threshold and
     // the hover lands on the target before the closing click.
     await page.mouse.move(to.x, to.y, { steps: 12 });
@@ -628,6 +655,7 @@ describe('7. connection docking', () => {
 
     const connection = page.locator('.djs-connection .la-connection').first();
     await expectCount(connection, 1);
+    expect(await page.locator('.djs-dragger').count()).toBe(0);
 
     const geometry = await page.evaluate(
       ({ sourceIri, targetIri }) => {

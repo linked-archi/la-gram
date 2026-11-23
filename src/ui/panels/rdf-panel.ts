@@ -50,6 +50,8 @@ export const RDF_SCOPES: ReadonlyArray<{ id: RdfScope; label: string; title: str
 export interface RdfPanelRequest {
   format: ModelFormat;
   profile: SerializationProfile;
+  /** Whether the provenance is shown (Req 9.16): who changed what and when, a converter's run. */
+  provenance: boolean;
   scope: RdfScope;
   /** The selected concepts, for the selection scope; none when nothing is selected. */
   selectedIris: string[];
@@ -66,6 +68,7 @@ export interface RdfPanelContent {
 export interface RdfDownloadDetail {
   format: ModelFormat;
   profile: SerializationProfile;
+  provenance: boolean;
   scope: RdfScope;
   /** The selected concepts, for the selection scope. */
   selectedIris: string[];
@@ -269,6 +272,8 @@ export class RdfPanel extends LitElement {
 
   @state() private _format: ModelFormat = 'turtle';
   @state() private _geometry = true;
+  /** Whether the provenance is shown: ticked, as Save writes it; unticked, the model without it. */
+  @state() private _provenance = true;
   @state() private _scope: RdfScope = storedScope();
   @state() private _text = '';
   @state() private _caption = '';
@@ -316,6 +321,7 @@ export class RdfPanel extends LitElement {
     return {
       format: this._format,
       profile: this._geometry ? 'full' : 'no-geometry',
+      provenance: this._provenance,
       scope: this._scope,
       selectedIris: this._selected(),
     };
@@ -466,12 +472,23 @@ export class RdfPanel extends LitElement {
           />
           geometry
         </label>
+        <label class="geometry provenance" title="Include provenance: who changed what and when (prov:), a converter's run">
+          <input
+            type="checkbox"
+            .checked=${this._provenance}
+            @change=${(e: Event) => {
+              this._provenance = (e.target as HTMLInputElement).checked;
+              this.refresh();
+            }}
+          />
+          provenance
+        </label>
         <button title="Copy to the clipboard" @click=${() => this._copy()}>${this._copied ? 'Copied' : 'Copy'}</button>
         <button
           title="Download this file"
           @click=${() => {
-            const { format, profile, scope, selectedIris } = this._request();
-            this._emit<RdfDownloadDetail>('rdf-download', { format, profile, scope, selectedIris });
+            const { format, profile, provenance, scope, selectedIris } = this._request();
+            this._emit<RdfDownloadDetail>('rdf-download', { format, profile, provenance, scope, selectedIris });
           }}
         >
           Download

@@ -113,13 +113,13 @@ function rankedCandidates(): RelationshipTypeInfo[] {
     {
       ...serving,
       score: 10,
-      preference: 'drawn',
+      drawn: true,
       reason: 'Allowed because Type A matches Active Structure Element.',
     },
     {
       ...association,
       score: 6,
-      preference: 'fallback',
+      fallback: true,
       reason: 'Allowed because the metamodel declares no constraint.',
     },
   ];
@@ -222,8 +222,8 @@ describe('RdfReplaceMenuProvider', () => {
   it('gives a relationship the tables simply permit no note, and marks one only a derivation gives', () => {
     const [serving, association] = rankedCandidates();
     const { provider } = providerOver([
-      { ...serving, preference: 'derived', direct: false },
-      { ...association, preference: 'direct' },
+      { ...serving, drawn: undefined, direct: false },
+      { ...association, fallback: undefined },
     ]);
 
     const entries = provider.getPopupMenuEntries({ id: 'connection-1' });

@@ -175,20 +175,21 @@ describe('OxigraphRelationshipManager', () => {
       expect(manager.getValidRelationships(appComp, busProcess)).toHaveLength(0);
     });
 
-    it('treats a relationship type with no domain or range as valid between anything', () => {
-      // arch:domainIncludes is a modelling hint, not rdfs:domain: absent means unconstrained.
+    it('treats a relationship type with no domain or range as valid between any two elements of its metamodel', () => {
+      // arch:domainIncludes is a modelling hint, not rdfs:domain: absent means unconstrained — within the
+      // metamodel that defines the type, here its namespace, since no named graph declares it (DD-40).
       addRelationshipType(store, composesRel, 'Composed Of', [], []);
 
       const forward = manager.getValidRelationships(appComp, busProcess);
       const reverse = manager.getValidRelationships(busProcess, appComp);
-      const unknownTypes = manager.getValidRelationships(
+      const otherLanguage = manager.getValidRelationships(
         'https://example.org/other#Widget',
         'https://example.org/other#Gadget',
       );
 
       expect(forward.map((r) => r.iri)).toEqual([composesRel]);
       expect(reverse.map((r) => r.iri)).toEqual([composesRel]);
-      expect(unknownTypes.map((r) => r.iri)).toEqual([composesRel]);
+      expect(otherLanguage).toEqual([]);
     });
 
     it('treats a declared domain with an undeclared range as constrained on the source only', () => {

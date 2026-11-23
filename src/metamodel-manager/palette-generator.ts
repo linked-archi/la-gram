@@ -5,8 +5,8 @@
  * publishes, each of which already has a module of its own:
  *
  * - **taxonomy** (`taxonomy.ts`) — which classes are instantiable, and how they
- *   group along each classification axis ("Element by Domain", "Element by
- *   Aspect"). The axis is what a "Group by" selector switches between.
+ *   group along each classification axis ("Domain", "Aspect"). The axis is
+ *   what a "Group by" selector switches between.
  * - **notation** (`notation.ts`) — the `arch-vis:` visual style per concept,
  *   scoped to a notation set.
  * - **ontology** — `rdfs:subClassOf+ arch:QualifiedRelationship` for the
@@ -69,6 +69,7 @@
  * so a caller with network access can still choose it.
  */
 
+import { declaredOutside, documentsWithoutTypes, metamodelCompleteness } from './metamodel-completeness.js';
 import { DataFactory, Store } from 'n3';
 import type { Quad as N3Quad } from 'n3';
 import type { Quad } from '@rdfjs/types';
@@ -78,6 +79,7 @@ import { resolveIconUri } from './bundled-assets.js';
 import {
   buildClasses,
   buildClassificationAxes,
+  paletteGroupingOf,
   type SemanticClass,
   type TaxonomyAxis,
 } from './taxonomy.js';
@@ -91,11 +93,13 @@ import {
   resolveNotationSetForContext,
   type Decoration,
   type NotationSet,
+  type RelationshipVisualStyle,
   type VisualNotation,
   type VisualStyle,
 } from './notation.js';
-import { NOTATION_ROOTS, buildSuperClassMap, closureOf, compareIris } from './class-hierarchy.js';
+import { NOTATION_ROOTS, buildSuperClassMap, closureOf, compareIris, superClassesNearestFirst } from './class-hierarchy.js';
 import {
+  coreNotationSetIris,
   NotationResolver,
   orderedFallbackSets,
   storeDefaultNotationSetIris,
@@ -125,6 +129,8 @@ const SKOS_DEFINITION = `${NAMESPACES.skos}definition`;
 const ARCH_QUALIFIED_RELATIONSHIP = `${NAMESPACES.arch}QualifiedRelationship`;
 const ARCH_RELATIONSHIP_LEGACY = `${NAMESPACES.arch}Relationship`;
 const ARCH_UNQUALIFIED_FORM = `${NAMESPACES.arch}unqualifiedForm`;
+const RDFS_SEE_ALSO = `${NAMESPACES.rdfs}seeAlso`;
+const OWL_SYMMETRIC_PROPERTY = `${NAMESPACES.owl}SymmetricProperty`;
 const ARCH_DOMAIN_INCLUDES = `${NAMESPACES.arch}domainIncludes`;
 const ARCH_RANGE_INCLUDES = `${NAMESPACES.arch}rangeIncludes`;
 const ARCH_IS_ABSTRACT_CLASS = `${NAMESPACES.arch}isAbstractClass`;
@@ -170,29 +176,55 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     const graph = this.snapshot();
 
     const classificationAxes = buildClassificationAxes(graph, options?.metamodelIris);
-    const semanticClasses = buildClasses(graph, classificationAxes);
+    // Not the classes of a document that gives no loaded metamodel its types: another version's ontology, loaded
+    // because the shapes of both import it (LeanIX v3 beside v4, TOGAF 9.2 beside 10).
+    const withoutTypes = options?.metamodels ? documentsWithoutTypes(graph, options.metamodels) : new Set<string>();
+    const semanticClasses = buildClasses(graph, classificationAxes).filter((cls) => declaredOutside(graph, cls.iri, withoutTypes));
     // Only an axis that groups some element type is one to group the palette by. A taxonomy may also
-    // classify relationship types — ArchiMate's Relationship by Category — which are not palette elements.
-    const taxonomyAxes = classificationAxes.filter((axis) =>
-      semanticClasses.some((cls) => cls.groupsByAxis[axis.iri] !== undefined),
+    // classify relationship types — ArchiMate's relationship categories — which are not palette elements.
+    // A standalone group (ArchiMate's Junction, under no axis) is no way of grouping either: its members take
+    // a section of its name when no grouping axis classifies them.
+    const taxonomyAxes = classificationAxes.filter(
+      (axis) => !axis.standalone && semanticClasses.some((cls) => cls.groupsByAxis[axis.iri] !== undefined),
     );
+    const standaloneAxes = classificationAxes.filter((axis) => axis.standalone).map((axis) => axis.iri);
 
     const activeAxis = this.pickAxis(taxonomyAxes, options?.axisIri);
+    // The axes the palette is grouped by, the active one first: under an axis the metamodel's palette
+    // grouping names (arch:paletteGrouping), the others it names follow, in its order — they place a class
+    // the active axis does not classify, and order the classes within a section. Under any other axis, it alone.
+    const grouping = paletteGroupingOf(graph, options?.metamodelIris).filter((iri) =>
+      taxonomyAxes.some((axis) => axis.iri === iri),
+    );
+    const groupingAxes = !activeAxis
+      ? []
+      : grouping.includes(activeAxis.iri)
+        ? [activeAxis.iri, ...grouping.filter((iri) => iri !== activeAxis.iri)]
+        : [activeAxis.iri];
     const notationSet = this.resolveNotationSet(graph, options);
 
     // One hierarchy map and one resolver per palette: relationship discovery,
     // the palette entries and the canvas index all read the same answers.
     const superClassMap = buildSuperClassMap(graph);
-    const fallbackSets = orderedFallbackSets(
-      graph,
-      notationSet?.iri,
-      options?.defaultNotationSetIris ?? storeDefaultNotationSetIris(graph),
-    );
+    const fallbackSets = orderedFallbackSets(graph, notationSet?.iri, [
+      ...(options?.defaultNotationSetIris ?? storeDefaultNotationSetIris(graph)),
+      // The core's own relationship types, after every language's; nesting may draw Has Part and Refines (VC-DD-5).
+      ...coreNotationSetIris(graph),
+    ]);
     const resolver = new NotationResolver(graph, notationSet, fallbackSets, superClassMap);
 
-    const elements = semanticClasses.map((cls) => this.toElementTypeInfo(cls, activeAxis, resolver));
-    const elementGroups = this.groupElements(elements, activeAxis);
-    const relationshipTypes = this.discoverRelationships(graph, resolver, superClassMap);
+    // The dimensions the grouping does not name place what it leaves out, after its own sections: the types of
+    // a metamodel loaded beside the first — the decision extension's records and forces beside ArchiMate's
+    // domains — keep their own groups, not "Other".
+    const otherAxes = groupingAxes.length > 0 ? taxonomyAxes.map((axis) => axis.iri).filter((iri) => !groupingAxes.includes(iri)) : [];
+    const elements = semanticClasses.map((cls) => this.toElementTypeInfo(cls, groupingAxes, standaloneAxes, resolver, otherAxes));
+    const elementGroups = this.groupElements(elements, activeAxis, groupingAxes, semanticClasses, otherAxes);
+    const relationshipTypes = categoriseRelationships(
+      this.discoverRelationships(graph, resolver, superClassMap).filter((rel) => declaredOutside(graph, rel.iri, withoutTypes)),
+      classificationAxes,
+      superClassMap,
+      graph,
+    );
     const notationIndex = buildNotationIndex(graph, resolver, superClassMap, [
       ...(notationSet ? [notationSet] : []),
       ...fallbackSets,
@@ -201,15 +233,21 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     const axes: PaletteAxis[] = taxonomyAxes.map((axis) => ({
       iri: axis.iri,
       label: axis.label,
-      groups: uniqueInOrder([...axis.groups.values()]).sort((a, b) => a.localeCompare(b)),
+      groups: groupsInOrder(axis),
     }));
 
     // `metamodelGraph` is deliberately unused for scoping — see the doc above.
     void metamodelGraph;
 
+    const groupedByName = taxonomyAxes.length === 0;
+    const completeness = options?.metamodels
+      ? metamodelCompleteness(graph, options.metamodels, semanticClasses, relationshipTypes, groupedByName)
+      : [];
+
     return {
       elementGroups,
       relationshipTypes,
+      ...(completeness.length > 0 ? { completeness } : {}),
       axes,
       activeAxisIri: activeAxis?.iri,
       // buildClasses walks the OWL classes when there is no axis to group by.
@@ -334,8 +372,10 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
 
   private toElementTypeInfo(
     cls: SemanticClass,
-    activeAxis: TaxonomyAxis | undefined,
+    groupingAxes: readonly string[],
+    standaloneAxes: readonly string[],
     resolver: NotationResolver,
+    otherAxes: readonly string[] = [],
   ): ElementTypeInfo {
     // The five-step lookup (module doc). Its `prefVisNotation` already applies
     // the guide's fallback to the class's own arch:prefVisNotation.
@@ -345,11 +385,17 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     const iconSymbol = resolveUri(notation?.style?.iconSymbol);
     const style = styleWithResolvedIcon(notation);
 
-    // Under a chosen axis, a class with no group there goes to "Other" rather
-    // than borrowing its label from another axis — mixing axes in one grouping
-    // is exactly the collapse this rewrite exists to avoid. With no axis at all
-    // the taxonomy's own default group (its OWL-only fallback) is used.
-    const group = activeAxis ? cls.groupsByAxis[activeAxis.iri] : cls.group;
+    // A class's section is its group under the active axis; one that axis does not classify takes its
+    // group under the next axis the palette grouping names — never another axis's on a guess — then the
+    // standalone group that lists it (Junction), then its group under a dimension the grouping does not name
+    // (another loaded metamodel's), else "Other". With no axis at all the taxonomy's own default group (its
+    // OWL-only fallback) is used.
+    const group =
+      groupingAxes.length > 0
+        ? (sectionOf(cls, groupingAxes)?.group ??
+          standaloneAxes.map((iri) => cls.groupsByAxis[iri]).find(Boolean) ??
+          sectionOf(cls, otherAxes)?.group)
+        : cls.group;
 
     return {
       iri: cls.iri,
@@ -366,26 +412,75 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
     };
   }
 
-  /** Bucket elements by their group under the active axis, groups sorted by label. */
+  /**
+   * Bucket elements by their section. Sections come in the order of the axis that gave them — the active
+   * axis's first, then the next grouping axis's — each in its axis's order (its thesaurus array's), then
+   * by label; "Other" last. Within a section, elements follow their groups' order under the other grouping
+   * axes, then their labels.
+   */
   private groupElements(
     elements: ElementTypeInfo[],
     activeAxis: TaxonomyAxis | undefined,
+    groupingAxes: readonly string[],
+    classes: readonly SemanticClass[],
+    otherAxes: readonly string[] = [],
   ): ElementGroup[] {
+    const classOf = new Map(classes.map((cls) => [cls.iri, cls]));
     const buckets = new Map<string, ElementTypeInfo[]>();
+    /** A section's place: which grouping axis gave it, and its rank there (the lowest of its classes'). */
+    const place = new Map<string, [number, number]>();
+    const LAST = Number.MAX_SAFE_INTEGER;
     for (const element of elements) {
       const category = element.group || UNCATEGORIZED;
       const bucket = buckets.get(category);
       if (bucket) bucket.push(element);
       else buckets.set(category, [element]);
+      const cls = classOf.get(element.iri);
+      const section = cls && groupingAxes.length > 0 ? sectionOf(cls, groupingAxes) : undefined;
+      // A section from a dimension the grouping does not name comes after the grouping's, in that dimension's order.
+      const other = cls && !section && element.group !== UNCATEGORIZED ? sectionOf(cls, otherAxes) : undefined;
+      const here: [number, number] = section
+        ? [section.axis, section.rank ?? LAST]
+        : other && other.group === element.group
+          ? [groupingAxes.length + other.axis, other.rank ?? LAST]
+          : [LAST, LAST];
+      const before = place.get(category);
+      if (!before || here[0] < before[0] || (here[0] === before[0] && here[1] < before[1])) place.set(category, here);
     }
 
+    // Within a section: first the order its group gives its own members, where it gives one (an array under
+    // the group — ArchiMate 4.0's Common Domain: process, function, service, event…); then the groups' order
+    // under the other grouping axes (the aspects); then, after this, the label.
+    const withinKey = (element: ElementTypeInfo, sectionAxis: number): number[] => {
+      const cls = classOf.get(element.iri);
+      const own = groupingAxes[sectionAxis];
+      return [
+        own !== undefined ? (cls?.memberRanksByAxis?.[own] ?? LAST) : LAST,
+        ...groupingAxes.filter((_, i) => i !== sectionAxis).map((axis) => cls?.ranksByAxis[axis] ?? LAST),
+      ];
+    };
+    const compareKeys = (a: number[], b: number[]): number => {
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return (a[i] ?? LAST) - (b[i] ?? LAST);
+      return 0;
+    };
+
     return [...buckets.entries()]
-      .map(([category, groupElements]) => ({
-        category,
-        axisIri: activeAxis?.iri,
-        elements: groupElements.sort((a, b) => a.label.localeCompare(b.label)),
-      }))
-      .sort((a, b) => a.category.localeCompare(b.category));
+      .map(([category, groupElements]) => {
+        const sectionAxis = place.get(category)?.[0] ?? LAST;
+        return {
+          category,
+          axisIri: activeAxis?.iri,
+          elements: groupElements.sort(
+            (a, b) => compareKeys(withinKey(a, sectionAxis), withinKey(b, sectionAxis)) || a.label.localeCompare(b.label),
+          ),
+        };
+      })
+      .sort((a, b) => {
+        if ((a.category === UNCATEGORIZED) !== (b.category === UNCATEGORIZED)) return a.category === UNCATEGORIZED ? 1 : -1;
+        const [axisA, rankA] = place.get(a.category) ?? [LAST, LAST];
+        const [axisB, rankB] = place.get(b.category) ?? [LAST, LAST];
+        return axisA - axisB || rankA - rankB || a.category.localeCompare(b.category);
+      });
   }
 
   // ── Relationships ────────────────────────────────────────────────────
@@ -447,10 +542,11 @@ export class SparqlPaletteGenerator implements PaletteGenerator {
         definition: definitionFor(graph, iri),
         iconUrl: prefVisNotation?.url,
         prefVisNotation,
-        relationshipStyle: resolved.notation?.relationshipStyle,
+        relationshipStyle: resolved.notation?.relationshipStyle ?? unstyledRelationship(graph, unqualifiedPredicateIri),
         domainTypes,
         rangeTypes,
         unqualifiedPredicateIri,
+        ...(iri.startsWith(NAMESPACES.arch) ? { core: true } : {}),
       });
     }
 
@@ -559,6 +655,19 @@ function styleWithResolvedIcon(notation: VisualNotation | undefined): VisualStyl
   return { ...notation.style, iconSymbol: iconSymbol?.url ?? notation.style.iconSymbol };
 }
 
+/**
+ * How a relationship type no notation describes is drawn (Req 2.25): it leads from its source to its target, so
+ * with an open arrowhead at the target — the links of an extension that publishes no notation (a decision's, a
+ * process's, an evaluation's) read by their direction. One whose direct predicate is symmetric
+ * (`owl:SymmetricProperty`: core's Association) has no direction, and is a plain line.
+ */
+function unstyledRelationship(graph: Store, unqualifiedPredicateIri: string | undefined): RelationshipVisualStyle | undefined {
+  const symmetric =
+    unqualifiedPredicateIri !== undefined &&
+    graph.getQuads(namedNode(unqualifiedPredicateIri), namedNode(RDF_TYPE), namedNode(OWL_SYMMETRIC_PROPERTY), null).length > 0;
+  return symmetric ? undefined : { lineStyle: 'SolidLine', targetDecor: 'OpenArrowhead' };
+}
+
 /** True when the class carries `arch:isAbstractClass true`. */
 function isAbstractClass(graph: Store, iri: string): boolean {
   return graph
@@ -655,4 +764,120 @@ function unionOf(a: Store, b: Store): Store {
     getObjects: (...args: Args<'getObjects'>) => distinct([...a.getObjects(...args), ...b.getObjects(...args)]),
     getSubjects: (...args: Args<'getSubjects'>) => distinct([...a.getSubjects(...args), ...b.getSubjects(...args)]),
   } as unknown as Store;
+}
+
+/**
+ * Each relationship type's category: its group under a dimension that classifies relationship types — ArchiMate's
+ * Relationship, its groups Structural, Dependency, Dynamic and Other; the decision extension's Relationship Kind —
+ * or, for a kind of relationship the taxonomy does not list (ArchiMate 4.0's Read Access), its nearest superclass's.
+ * A dimension lists a type by its class, or by a concept that stands for it (`rdfs:seeAlso`: LeanIX's, BPMN's).
+ *
+ * Several metamodels are loaded, each with its own: a type takes its category from the dimension that lists it —
+ * of several, the one that lists the most relationship types: a dimension of element types may list one too (UML's
+ * state machine diagram lists Transition), and is not their classification. A group under no dimension (LeanIX's
+ * Relationship Type, BPMN's Connecting Objects) gives a category only beside a dimension that does: alone, the list
+ * stays as it is.
+ *
+ * The types come dimension by dimension — the one that lists the most first — in the order of each one's groups
+ * (its thesaurus array, ArchiMate's
+ * `:RelationshipOrder`), then by name; a type of no category after them. Within a category, the order of the array
+ * under it (ArchiMate's order of strength, weakest first), a kind just after the relationship it is a kind of, then
+ * by name. With no dimension classifying a relationship type, the list is as it was.
+ */
+function categoriseRelationships(
+  relationships: RelationshipTypeInfo[],
+  axes: readonly TaxonomyAxis[],
+  superClassMap: ReadonlyMap<string, readonly string[]>,
+  graph: Store,
+): RelationshipTypeInfo[] {
+  const types = new Set(relationships.map((rel) => rel.iri));
+  /** The relationship type a member of a dimension is, or stands for. */
+  const typeOf = (member: string): string | undefined => {
+    if (types.has(member)) return member;
+    const linked = [
+      ...graph.getObjects(namedNode(member), namedNode(RDFS_SEE_ALSO), null),
+      ...graph.getSubjects(namedNode(RDFS_SEE_ALSO), namedNode(member), null),
+    ];
+    return linked.find((term) => types.has(term.value))?.value;
+  };
+  /** Per dimension that lists a relationship type: the member that lists each type. */
+  const listing = axes
+    .map((axis) => {
+      const members = new Map<string, string>();
+      for (const member of axis.groups.keys()) {
+        const type = typeOf(member);
+        if (type !== undefined && !members.has(type)) members.set(type, member);
+      }
+      return { axis, members };
+    })
+    .filter(({ members }) => members.size > 0)
+    // The dimension that lists the most first: a metamodel's own relationship types before those of one it
+    // imports (LeanIX's before the processes extension's).
+    .sort((a, b) => b.members.size - a.members.size);
+  const dimensions = listing.some(({ axis }) => !axis.standalone) ? listing : [];
+  if (dimensions.length === 0) return relationships;
+
+  const LAST = Number.MAX_SAFE_INTEGER;
+  const placed = relationships.map((rel) => {
+    const chain = [rel.iri, ...superClassesNearestFirst(rel.iri, superClassMap)];
+    let best: { at: number; listed: string; member: string; size: number } | undefined;
+    dimensions.forEach(({ members }, at) => {
+      const listed = chain.find((iri) => members.has(iri));
+      if (listed !== undefined && (!best || members.size > best.size)) {
+        best = { at, listed, member: members.get(listed) as string, size: members.size };
+      }
+    });
+    if (!best) return { rel, at: LAST, rank: LAST, memberRank: LAST, isKind: 0 };
+    const { axis } = dimensions[best.at]!;
+    const category = axis.groups.get(best.member);
+    return {
+      rel: category ? { ...rel, category } : rel,
+      at: best.at,
+      rank: axis.ranks.get(best.member) ?? LAST - 1,
+      // Within its category: the category's own array (ArchiMate's order of strength), a kind just after the
+      // relationship it is a kind of, then by name.
+      memberRank: axis.memberRanks?.get(best.member) ?? LAST,
+      isKind: best.listed !== rel.iri ? 1 : 0,
+    };
+  });
+  return placed
+    .sort(
+      (a, b) =>
+        a.at - b.at ||
+        a.rank - b.rank ||
+        (a.rel.category ?? '').localeCompare(b.rel.category ?? '') ||
+        a.memberRank - b.memberRank ||
+        a.isKind - b.isKind ||
+        a.rel.label.localeCompare(b.rel.label),
+    )
+    .map(({ rel }) => rel);
+}
+
+/**
+ * A class's palette section under the grouping axes, the active one first: its group under the first of them
+ * that classifies it, which axis that is (its index) and its rank there; none when none does.
+ */
+function sectionOf(
+  cls: SemanticClass,
+  groupingAxes: readonly string[],
+): { group: string; axis: number; rank?: number } | undefined {
+  for (let axis = 0; axis < groupingAxes.length; axis++) {
+    const iri = groupingAxes[axis]!;
+    const group = cls.groupsByAxis[iri];
+    if (group) return { group, axis, ...(cls.ranksByAxis[iri] !== undefined ? { rank: cls.ranksByAxis[iri] } : {}) };
+  }
+  return undefined;
+}
+
+/** An axis's group labels: in the axis's order where it has one (by the lowest rank of their members), then by label. */
+function groupsInOrder(axis: TaxonomyAxis): string[] {
+  const rank = new Map<string, number>();
+  for (const [member, label] of axis.groups) {
+    const r = axis.ranks.get(member);
+    if (r !== undefined) rank.set(label, Math.min(rank.get(label) ?? r, r));
+  }
+  const LAST = Number.MAX_SAFE_INTEGER;
+  return uniqueInOrder([...axis.groups.values()]).sort(
+    (a, b) => (rank.get(a) ?? LAST) - (rank.get(b) ?? LAST) || a.localeCompare(b),
+  );
 }

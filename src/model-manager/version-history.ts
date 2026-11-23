@@ -26,6 +26,7 @@ import { DataFactory, Parser, Writer } from 'n3';
 import type { Quad } from '@rdfjs/types';
 import type { RdfStore } from '../rdf-engine/interfaces.js';
 import { modelQuads } from './model-queries.js';
+import { scopedName } from '../storage-scope.js';
 
 /** One explicit commit of a model's working state. */
 export interface Commit {
@@ -70,7 +71,8 @@ export class MemoryVersionStore implements VersionStore {
   }
 }
 
-const DB_NAME = 'la-gram-history';
+/** A channel's build keeps its own (`storage-scope.ts`): `la-gram-history-alpha`. */
+const DB_NAME = scopedName('la-gram-history');
 const DB_STORE = 'commits';
 
 /** Commits in IndexedDB, one record per commit, indexed by model. */

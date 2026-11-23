@@ -19,15 +19,21 @@
  * | a file's commits | `GET /repos/{repo}/commits?sha={ref}&path={path}`, a page of 100 at a time |
  * | the open pull request | `GET /repos/{repo}/pulls?state=open&head={owner}:{branch}&base={target}` |
  * | open a pull request | `POST /repos/{repo}/pulls` — `title`, `head`, `base`, `body`; the token needs *Pull requests: read and write* |
+ * | the token's account | `GET /user` → `html_url`, `login`, `name`, `email` (the public one) |
+ *
+ * A commit is written by the user from *Settings › You* (`author`) where both their name and address are
+ * known — GitHub takes an author only with both — and else by the token's owner, its committer either way.
  */
 import { GitError } from '../errors.js';
 import {
   RestProvider,
+  account,
   encodePath,
   fromBase64,
   toBase64,
   type CommitResult,
   type FileChange,
+  type GitAccount,
   type MergeCommitChange,
   type FileList,
   type GitFile,
@@ -115,6 +121,7 @@ export class GitHubProvider extends RestProvider {
           content: toBase64(change.text),
           branch,
           ...(change.expectedVersion ? { sha: change.expectedVersion } : {}),
+          ...this.authorField(change),
         },
       },
     );
@@ -154,11 +161,22 @@ export class GitHubProvider extends RestProvider {
       body: { base_tree: head!.tree.sha, tree: [{ path: change.path, mode: '100644', type: 'blob', sha: blob!.sha }] },
     });
     const commit = await this.request<{ sha: string; html_url: string }>('POST', `${git}/commits`, change.path, {
-      body: { message: change.message, tree: tree!.sha, parents: [change.head, change.mergeOf] },
+      body: { message: change.message, tree: tree!.sha, parents: [change.head, change.mergeOf], ...this.authorField(change) },
     });
     // Without force: refused (422, not a fast-forward) when the branch moved on meanwhile.
     await this.request('PATCH', `${git}/refs/heads/${encodePath(change.branch)}`, change.path, { body: { sha: commit!.sha, force: false } });
     return { version: blob!.sha, commit: commit!.sha, branch: change.branch, webUrl: commit!.html_url };
+  }
+
+  async currentAccount(): Promise<GitAccount> {
+    const user = await this.request<{ html_url: string; login?: string; name?: string | null; email?: string | null }>('GET', '/user', 'your account');
+    return account(user!.html_url, user!.login, user!.name, user!.email);
+  }
+
+  /** The commit's `author`, where both a name and an address are known: GitHub refuses one without either. */
+  private authorField(change: { author?: { name: string; email?: string } }): { author?: { name: string; email: string } } {
+    const author = this.authorOf(change);
+    return author?.email ? { author: { name: author.name, email: author.email } } : {};
   }
 
   async fileCommits(ref: string, path: string, page = 1): Promise<CommitPage> {

@@ -3,6 +3,8 @@
 > **Updated 2026-09-26 (v0.2)** with what building la-gram settled: the core namespace IRI (§0), property editing (§5.4), validation display (§5.5), formats and a live RDF view (§5.13), the model namespace and IRI shape (§8.1), the at-rest graph layout (§8.2), a triple-set Y.Doc (§8.3), and the implementation status (Appendix D).
 >
 > **Updated 2026-10-10:** drawing from the notation data — core shapes natively, a notation's own shapes from their path templates, relationship ends from the published marker symbols (§5.2 notes); allowed values as a choice in property editing (§5.4); the implementation status (Appendix D).
+>
+> **Updated 2026-11-19:** the IRI layout every Linked.Archi tool mints, Linked.Archi DD-41 (§8.1, Appendix D).
 
 # Linked.Archi Modeling Tool — Specification
 
@@ -592,16 +594,19 @@ The engine **MUST** provide SPARQL 1.1, SHACL validation, and SHACL rules. Concr
 
 The table is illustrative, for a multi-workspace server. IRIs **MUST NOT** encode mutable data (labels, positions). Once minted, an element IRI is permanent for the lifetime of the workspace — changed only by an explicit namespace move (below).
 
-**Model namespace.** Each model **MUST** have a namespace, stated on the model resource with `vann:preferredNamespaceUri` and `vann:preferredNamespacePrefix` — the convention the Linked.Archi ontologies use for their own — and every IRI minted for the model **MUST** be in it. The namespace **SHOULD** follow the published layout `{base}{notation}/{modelId}/` (Linked.Archi DD-15/DD-29). The base **MUST** be configurable and **SHOULD** default to a placeholder such as `https://example.org/`, never to a domain the tool does not own. Local names **SHOULD** be valid Turtle prefixed-name locals — letters, digits, `-`, `_`, and no `/` — so the whole model serializes as prefixed names:
+**Model namespace.** Each model **MUST** have a namespace, stated on the model resource with `vann:preferredNamespaceUri` and `vann:preferredNamespacePrefix` — the convention the Linked.Archi ontologies use for their own — and every IRI minted for the model **MUST** be in it. The namespace **SHOULD** follow the published layout `{base}{notation}/{modelId}/` (Linked.Archi DD-15/DD-29). The base **MUST** be configurable and **SHOULD** default to a placeholder such as `https://example.org/`, never to a domain the tool does not own. A new model's namespace **MUST** be an `https:` or `http:` IRI ending in `/`, with no `#` or `?`. IRIs **SHOULD** follow the layout every Linked.Archi tool mints (DD-41): a resource with an identity of its own is `{ns}{kind}/{id}`, a node or a link `{view}#node-{id}` or `{view}#link-{id}` in the view that draws it, and a part `{owner}-{part}` when its owner's IRI holds a `#` (`{node}-style`), else `{owner}/{part}` (`{element}/name/{hash}`). A writer binds a prefix per kind and one per view, so the model still serializes as short names:
 
 | Resource | IRI (la-gram) | Written as |
 |---|---|---|
 | Model | `{ns}model` | `m:model` |
-| Element | `{ns}element-{uuid}` | `m:element-…` |
-| Relationship (qualified form) | `{ns}relationship-{uuid}` | `m:relationship-…` |
-| View | `{ns}view-{uuid}` | `m:view-…` |
-| Diagram node / link | `{ns}node-{uuid}` / `{ns}link-{uuid}` | `m:node-…` / `m:link-…` |
-| Route (list cells, points) | `{link}-points-{i}` / `{link}-p{i}` | `m:link-…-p0` |
+| Element | `{ns}element/{uuid}` | `me:…` |
+| Relationship (qualified form) | `{ns}relationship/{uuid}` | `mr:…` |
+| View | `{ns}view/{uuid}` | `mv:…` |
+| Diagram node / link | `{view}#node-{uuid}` / `{view}#link-{uuid}` | `mv{hash}:node-…` / `mv{hash}:link-…` |
+| Style of a node | `{node}-style` | `mv{hash}:node-…-style` |
+| Route (list cells, points) | `{link}-points-{i}` / `{link}-point-{i}` | `mv{hash}:link-…-point-0` |
+
+`{hash}` is the first 8 hex characters of the SHA-256 of the view's IRI. A relationship made for a link a file states only as a triple is `{ns}relationship/{digest}`, the first 20 hex characters of the SHA-256 of the triple, as the Linked.Archi derivation rules name it. Names minted before the layout keep their form (`{ns}element-{uuid}`, `{ns}node-{uuid}`, `{link}-p{i}`).
 
 Moving a model to another namespace renames every IRI the model owns and **MUST** be applied as one change (one CRDT update), never partially; terms a loaded vocabulary defines are never renamed. A model that states no namespace gets one derived from its IRI.
 
@@ -834,7 +839,7 @@ What la-gram (`tools/modellers/la-gram`) implements of this specification. Detai
 | §5.13 Import / export | ✓ | Turtle, TriG, JSON-LD, N-Quads, N-Triples, RDF/XML; ArchiMate Exchange import; SVG/PNG; no-geometry profile; live RDF panel |
 | (beyond this spec) Relationship graph | ✓ | The relationships around an element to a chosen depth, filterable by type; its query as SELECT (table) or CONSTRUCT, run in the SPARQL tab or exported; the graph as a new view or Turtle; SPARQL results render as a new view |
 | (beyond this spec) Canvas editing | ✓ | Rename in place (double-click or F2), change an element's type (property panel or right-click), a right-click menu on elements and relationships |
-| §8.1 IRI conventions | ✓ | Per-model namespace, flat local names, `vann:` on the model, Model settings to move it |
+| §8.1 IRI conventions | ✓ | Per-model namespace, the DD-41 layout (names minted before it kept), `vann:` on the model, Model settings to move it |
 | §8.2 Named graph layout | ✓ at rest | DD-15 partition in graph formats; at runtime model = default graph, metamodels = named graphs |
 | §8.3 / §8.4 Y.Doc | differs | Triple-set Y.Doc; labels are `skos:prefLabel`@lang (not `rdfs:label`), geometry is `arch-vis:ArchNode`/`Link` (not `:renderedAt`) |
 

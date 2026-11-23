@@ -25,7 +25,7 @@ import { live } from 'lit/directives/live.js';
 import type { Quad, NamedNode, Term } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 import type { RdfStore } from '../../rdf-engine/interfaces.js';
-import type { ElementManager, FigureColours, FigureKind } from '../../model-manager/interfaces.js';
+import type { ElementManager, FigureColours, FigureKind, ViewKind } from '../../model-manager/interfaces.js';
 import {
   colourAlpha,
   fontStyleOf,
@@ -48,6 +48,7 @@ import { contextNamesOf } from '../../model-manager/context-names.js';
 import { picturesOf } from '../../model-manager/element-pictures.js';
 import { fieldName, type NameOf } from '../../model-manager/field-names.js';
 import { isQualifiedPredicate } from '../../model-manager/cascade.js';
+import { provenanceOf, type ConceptProvenance } from '../../model-manager/provenance.js';
 import './named-picker.js';
 import './property-picker.js';
 import type { NamedOption, NamedPicker, TypedOption } from './named-picker.js';
@@ -103,12 +104,38 @@ export interface PropertyEntry {
   custom?: boolean;
   /**
    * A relationship's direct statement (`am4:serves` to the element served): its
-   * predicate is a relationship type's `arch:unqualifiedForm`. Folded together
-   * under the Properties tab's "Relationships" — the Analysis tab lists them.
+   * predicate is a relationship type's `arch:unqualifiedForm`. Not listed on the
+   * Properties tab — the relationship is drawn, and the Analysis tab lists it.
    */
-  relationship?: boolean;
+  drawn?: boolean;
   /** The values the SHACL shape allows (`sh:in`): shown as a choice. */
   choices?: PropertyChoice[];
+  /** Shown greyed in the field while it is empty, in place of its default prompt. */
+  placeholder?: string;
+  /**
+   * What emptying the field does, where a name cannot be emptied: `removed`, the value goes — a figure's text, drawn
+   * as nothing then; `blank`, it is written empty — a view reference's, drawn as nothing where none of its own would
+   * show its view's name.
+   */
+  emptied?: 'removed' | 'blank';
+  /**
+   * The value shown is not its own but what it shows without one, greyed — a view reference's view's name.
+   * Unchanged, no edit; typed over or emptied, one of its own.
+   */
+  inherited?: boolean;
+  /** A × that takes its own value away, titled so: a view reference's text, back to its view's name. */
+  reset?: string;
+  /**
+   * What the value is of, when not the concept selected: a view reference's own text, shown with its view's
+   * information, is the reference's (VC-1).
+   */
+  subject?: string;
+}
+
+/** `reference-view-change`: the view reference `nodeIri`, in the open view, opens `viewIri` now (Req 3.23). */
+export interface ReferenceViewChangeDetail {
+  nodeIri: string;
+  viewIri: string;
 }
 
 /** One allowed value of a property (`sh:in`). */
@@ -170,6 +197,22 @@ export interface PropertyHeading {
   figure?: FigureColours & { kind: FigureKind };
   /** A line drawn from a figure — a note's to what it is about: no relationship, nothing to edit. */
   line?: { from: string; to: string };
+  /**
+   * A reference to another view (Req 3.23): its node, its own text — none, or one, an empty one too — the view it
+   * opens — its name when the model has it — and the model's views it can be pointed at instead, every one but the
+   * view it is drawn in. On a view's heading, the reference selected on the canvas, whose view it is (VC-1): its
+   * text and *Opens* follow the view's information.
+   */
+  reference?: {
+    nodeIri: string;
+    text?: string;
+    textLanguage?: string;
+    viewIri?: string;
+    viewLabel?: string;
+    views: Array<{ iri: string; label: string; kind: ViewKind }>;
+  };
+  /** A view: the views holding a reference to it, by name (*Referenced from*); absent with none. */
+  referencedFrom?: Array<{ iri: string; label: string }>;
   typeLabel?: string;
   typeIri?: string;
   /** For a relationship a rule derived: how surely, by which rule, from what, and whether it is confirmed. */
@@ -601,17 +644,6 @@ export type PanelSection = 'info' | 'properties' | 'analysis' | 'views' | 'appea
 /** localStorage key of the open tab (kept across selections and reloads). */
 const TAB_KEY = 'la-gram:property-panel-tab';
 
-/** localStorage key of whether the Properties tab's "Relationships" group is open (folded by default). */
-const RELATIONSHIPS_OPEN_KEY = 'la-gram:property-panel-relationships-open';
-
-function storedRelationshipsOpen(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(RELATIONSHIPS_OPEN_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
 const PANEL_SECTIONS: PanelSection[] = ['info', 'properties', 'analysis', 'views', 'appearance', 'label', 'figure', 'image'];
 
 /** The tab the user last opened, per browser; the information tab otherwise. */
@@ -756,6 +788,10 @@ export class PropertyPanel extends LitElement {
       margin-left: 2px;
     }
 
+    .property-value.provenance {
+      color: #5f6368;
+      white-space: normal;
+    }
     .property-value {
       width: 100%;
       box-sizing: border-box;
@@ -782,6 +818,34 @@ export class PropertyPanel extends LitElement {
     select.type-select {
       background: #fff;
       cursor: pointer;
+    }
+
+    .type-field {
+      display: flex;
+      gap: 4px;
+    }
+
+    .type-field named-picker {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .type-iri {
+      border: 1px solid #dadce0;
+      border-radius: 3px;
+      padding: 0 6px;
+      background: #fff;
+      color: #5f6368;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .type-iri:hover,
+    .type-iri[aria-expanded='true'] {
+      border-color: #aecbfa;
+      color: #1a73e8;
+      background: #e8f0fe;
     }
 
     textarea.property-value {
@@ -950,6 +1014,33 @@ export class PropertyPanel extends LitElement {
       margin: 8px 0;
       font-size: 12px;
       color: var(--la-text-muted, #5f6368);
+    }
+
+    /* A view reference's *Opens*: the view's name, then Open and Change…; the list of views under them. */
+    .opens {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .opens-view {
+      flex: 1 1 auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .opens-view.muted {
+      padding: 0;
+    }
+    .opens-row named-picker {
+      margin-top: 4px;
+    }
+    /* What it shows without a value of its own — a view reference's view's name — greyed until one is typed. */
+    .property-value.inherited {
+      color: #80868b;
+    }
+    .referenced-from .analysis-list {
+      padding: 0;
     }
 
     /* The Appearance tab: two columns of fields; one when narrow. */
@@ -1417,32 +1508,6 @@ export class PropertyPanel extends LitElement {
       font-style: italic;
     }
 
-    /* The relationships' direct statements, folded under a header. */
-    .relationship-group {
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .group-toggle {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-      padding: 6px 12px;
-      border: 0;
-      background: none;
-      font: inherit;
-      font-size: 12px;
-      font-weight: 500;
-      color: #3c4043;
-      text-align: left;
-      cursor: pointer;
-    }
-    .group-toggle:hover {
-      background: #f8f9fa;
-    }
-    .group-toggle .chevron {
-      color: #5f6368;
-      width: 10px;
-    }
   `;
 
   /** IRI of the currently selected element or relationship. */
@@ -1524,11 +1589,12 @@ export class PropertyPanel extends LitElement {
   /** The property chosen in the add row, so its value field can follow its shape. */
   @state() private _pickedPredicate = '';
 
-  /** Whether the Properties tab's "Relationships" group is open; remembered per browser. */
-  @state() private _relationshipsOpen = storedRelationshipsOpen();
 
   /** The rows whose IRIs are showing ({@link rowKey}); none, for another selection. */
   @state() private _shownIris: ReadonlySet<string> = new Set();
+
+  /** Whether a view reference's *Change…* lists the views it can open; closed for another selection. */
+  @state() private _changingReference = false;
 
   /** The selected concept's SHACL property shapes, by path. */
   private _shapes = new Map<string, ShaclPropertyShape>();
@@ -1541,8 +1607,15 @@ export class PropertyPanel extends LitElement {
   @state()
   private _entries: PropertyEntry[] = [];
 
+  /** Its provenance, shown read-only on the information tab (Req 9.16). */
+  @state()
+  private _provenance: ConceptProvenance = { other: [] };
+
   override willUpdate(changedProperties: Map<string, unknown>): void {
-    if (changedProperties.has('selectedIri')) this._shownIris = new Set();
+    if (changedProperties.has('selectedIri')) {
+      this._shownIris = new Set();
+      this._changingReference = false;
+    }
     // Another selection, or another presentation: the Label and Image tabs edit what is in force for it, not the last
     // one's choice.
     if (changedProperties.has('appearance')) {
@@ -1571,6 +1644,7 @@ export class PropertyPanel extends LitElement {
   private _loadProperties(): void {
     if (!this.selectedIri || !this.rdfStore) {
       this._entries = [];
+      this._provenance = { other: [] };
       return;
     }
 
@@ -1591,7 +1665,9 @@ export class PropertyPanel extends LitElement {
       if (!qualified.has(predicate)) qualified.set(predicate, isQualifiedPredicate(store, predicate));
       return qualified.get(predicate)! || store.getQuads(q.object as NamedNode, sourceOf, subjectNode).length > 0;
     };
-    const quads = store.getQuads(subjectNode).filter((q) => !isPointer(q));
+    // Provenance is recorded, not edited: shown apart, read-only (Req 9.16).
+    const quads = store.getQuads(subjectNode).filter((q) => !isPointer(q) && !q.predicate.value.startsWith(NAMESPACES.prov));
+    this._provenance = provenanceOf(store, this.selectedIri);
 
     // Determine the element's rdf:type for SHACL shape lookup
     const typeQuad = quads.find((q) => q.predicate.value === RDF_TYPE);
@@ -1614,21 +1690,30 @@ export class PropertyPanel extends LitElement {
       return relationshipPredicates.get(predicate)!;
     };
     this._entries = buildPropertyEntries(quads, shaclShapes, this.nameOf).map((entry) =>
-      entry.custom && entry.isIri && isRelationship(entry.predicate) ? { ...entry, relationship: true } : entry,
+      entry.custom && entry.isIri && isRelationship(entry.predicate) ? { ...entry, drawn: true } : entry,
     );
   }
 
   /** Handle input change and propagate to ElementManager. */
   private _onPropertyChange(entry: PropertyEntry, newValue: string): void {
     if (entry.readonly || !this.selectedIri) return;
+    // A value of another than the concept selected — a view reference's own text (VC-1).
+    const subject = entry.subject ?? this.selectedIri;
 
-    if (newValue.trim() === '' && DEFAULT_FIELDS.includes(entry.predicate)) {
-      // Emptying the definition removes it; a name cannot be emptied, and the
-      // field shows the name again (the value bindings are `live`).
-      if (entry.predicate === SKOS_DEFINITION && entry.value !== '') this._remove(entry);
+    // What it shows without a value of its own — a view reference's view's name — unchanged: no edit.
+    if (entry.inherited && newValue === entry.value) return;
+    const emptied = newValue.trim() === '';
+    if (emptied && DEFAULT_FIELDS.includes(entry.predicate) && entry.emptied !== 'blank') {
+      // Emptying the definition removes it, and a figure's text, which then draws nothing; a name cannot be emptied,
+      // and the field shows the name again (the value bindings are `live`).
+      if ((entry.predicate === SKOS_DEFINITION || entry.emptied === 'removed') && entry.value !== '') this._remove(entry);
       else this.requestUpdate();
       return;
     }
+    // A view reference's text emptied is written empty: drawn as nothing.
+    if (emptied && entry.emptied === 'blank') newValue = '';
+    // What is replaced: its own value — an empty one too, as a reference's is — not what it shows without one.
+    const own = !entry.inherited && (entry.value !== '' || entry.language !== undefined);
 
     // Keep the value's language; text without one gets `en`, which is what the
     // Linked.Archi shapes expect of labels and definitions.
@@ -1646,20 +1731,20 @@ export class PropertyPanel extends LitElement {
               ? DataFactory.literal(newValue, DataFactory.namedNode(entry.datatype))
               : DataFactory.literal(newValue)
       ) as unknown as Term;
-      this.elementManager.updateProperty(this.selectedIri, entry.predicate, valueTerm);
+      this.elementManager.updateProperty(subject, entry.predicate, valueTerm);
     }
 
     // Dispatch a custom event for external listeners
     this.dispatchEvent(
       new CustomEvent<PropertyEditDetail>('property-edit', {
         detail: {
-          elementIri: this.selectedIri,
+          elementIri: subject,
           predicate: entry.predicate,
           value: newValue,
           ...(language ? { language } : {}),
           ...(chosen?.isIri ? { isIri: true } : !language && entry.datatype ? { datatype: entry.datatype } : {}),
-          ...(entry.value !== '' ? { previous: entry.value } : {}),
-          ...(entry.language ? { previousLanguage: entry.language } : {}),
+          ...(own ? { previous: entry.value } : {}),
+          ...(own && entry.language ? { previousLanguage: entry.language } : {}),
         },
         bubbles: true,
         composed: true,
@@ -1695,7 +1780,7 @@ export class PropertyPanel extends LitElement {
   private _remove(entry: PropertyEntry): void {
     if (!this.selectedIri) return;
     this._emit<PropertyChangeDetail>('property-remove', {
-      elementIri: this.selectedIri,
+      elementIri: entry.subject ?? this.selectedIri,
       predicate: entry.predicate,
       value: entry.value,
     });
@@ -1740,6 +1825,10 @@ export class PropertyPanel extends LitElement {
   }
 
   private _renderRemove(entry: PropertyEntry) {
+    // A value that falls back to another when taken away says to what: a view reference's text, to its view's name.
+    if (entry.reset && !entry.readonly) {
+      return html`<button class="remove reset" title=${entry.reset} @click=${() => this._remove(entry)}>×</button>`;
+    }
     // The type and the name are what make the concept what it is; the rest can
     // go — the definition by emptying it, as it stays listed anyway.
     if (entry.readonly || DEFAULT_FIELDS.includes(entry.predicate)) return nothing;
@@ -1803,6 +1892,7 @@ export class PropertyPanel extends LitElement {
       return html`<named-picker
         class="new-value link-value"
         label="Value"
+        group-filter
         placeholder="Search the model, or type an address or text"
         iris="toggle"
         limit="100"
@@ -1845,36 +1935,6 @@ export class PropertyPanel extends LitElement {
     this.updateComplete.then(() =>
       (this.renderRoot.querySelector(`.vtab[data-tab="${next}"]`) as HTMLElement | null)?.focus(),
     );
-  }
-
-  /** Open or fold the Properties tab's "Relationships" group; remembered per browser. */
-  private _toggleRelationships(): void {
-    this._relationshipsOpen = !this._relationshipsOpen;
-    try {
-      globalThis.localStorage?.setItem(RELATIONSHIPS_OPEN_KEY, String(this._relationshipsOpen));
-    } catch {
-      /* not remembered: fine */
-    }
-  }
-
-  /**
-   * The relationships' direct statements, folded together — by default — under
-   * a header with their count, so the concept's other properties stand out.
-   */
-  private _renderRelationshipGroup(related: PropertyEntry[]) {
-    if (related.length === 0) return nothing;
-    const open = this._relationshipsOpen === true;
-    return html`<div class="relationship-group">
-      <button
-        class="group-toggle"
-        aria-expanded=${open ? 'true' : 'false'}
-        title="The direct statements of this concept's relationships — the Analysis tab lists the relationships"
-        @click=${() => this._toggleRelationships()}
-      >
-        <span class="chevron">${open ? '▾' : '▸'}</span> Relationships <span class="count">${related.length}</span>
-      </button>
-      ${open ? html`<ul class="property-list">${related.map((entry) => this._renderEntry(entry))}</ul>` : nothing}
-    </div>`;
   }
 
   /** The relationships (or, for a relationship, its ends). */
@@ -1956,14 +2016,24 @@ export class PropertyPanel extends LitElement {
     return html`
       <li class="property-row">
         ${this._renderLabel(entry)}
-        <named-picker
-          class="type-picker"
-          label="Type"
-          iris="toggle"
-          .options=${() => options}
-          .selected=${current}
-          @named-picked=${onPicked}
-        ></named-picker>
+        <div class="type-field">
+          <named-picker
+            class="type-picker"
+            label="Type"
+            iris="toggle"
+            .options=${() => options}
+            .selected=${current}
+            @named-picked=${onPicked}
+          ></named-picker>
+          <button
+            type="button"
+            class="type-iri"
+            title="Show the type IRI"
+            aria-label="Show the type IRI"
+            aria-expanded=${this._irisShown(rowKey(entry)) ? 'true' : 'false'}
+            @click=${() => this._toggleIris(rowKey(entry))}
+          >IRI</button>
+        </div>
         ${this._renderIris(entry)}
       </li>
     `;
@@ -2072,15 +2142,109 @@ export class PropertyPanel extends LitElement {
    * element.
    */
   private _renderFigureText() {
+    const reference = this.heading?.reference;
+    if (reference) return html`<ul class="property-list">${this._renderReference(reference)}</ul>`;
+    // Its own text: one read from the store — an empty one too — not the empty field every concept is given.
+    const own = this._entries.find((e) => e.predicate === SKOS_PREF_LABEL && (e.value !== '' || e.language !== undefined));
+    // Emptied, a figure's text goes: drawn as nothing.
     const text: PropertyEntry = {
-      ...(this._entries.find((e) => e.predicate === SKOS_PREF_LABEL) ?? {
-        predicate: SKOS_PREF_LABEL,
-        value: '',
-        readonly: false,
-      }),
+      ...(own ?? { predicate: SKOS_PREF_LABEL, value: '', readonly: false }),
       label: 'Text',
+      emptied: 'removed' as const,
     } as PropertyEntry;
     return html`<ul class="property-list">${this._renderEntry(text)}</ul>`;
+  }
+
+  /**
+   * A view reference's own rows: its *Text* — written on the reference, not the view, an empty one drawing nothing;
+   * with none of its own, its view's name greyed, and × takes its own away to show that name again — and *Opens*
+   * (Req 3.23). Under its view's information when it is selected on the canvas (VC-1).
+   */
+  private _renderReference(reference: NonNullable<PropertyHeading['reference']>) {
+    const own = reference.text !== undefined;
+    const text: PropertyEntry = {
+      predicate: SKOS_PREF_LABEL,
+      label: 'Text',
+      readonly: false,
+      subject: reference.nodeIri,
+      emptied: 'blank',
+      ...(own
+        ? { value: reference.text!, language: reference.textLanguage ?? '', placeholder: 'No text', reset: "Show the view's name" }
+        : { value: reference.viewLabel ?? '', inherited: true }),
+    };
+    return html`${this._renderEntry(text)}${this._renderOpens(reference)}`;
+  }
+
+  /**
+   * A view reference's *Opens* (Req 3.23): the view's name, *Open* — which says
+   * so when the view is not in the model — and *Change…*, a filterable list of
+   * the model's other views; the one picked is the view it opens.
+   */
+  private _renderOpens(reference: NonNullable<PropertyHeading['reference']>) {
+    const groups: Record<ViewKind, string> = { Diagram: 'Diagrams', Catalog: 'Catalogs', Matrix: 'Matrices' };
+    const options: NamedOption[] = reference.views.map((view) => ({ iri: view.iri, label: view.label, groupLabel: groups[view.kind] }));
+    const onPicked = (e: CustomEvent<NamedOption>) => {
+      this._changingReference = false;
+      const viewIri = e.detail.iri;
+      if (viewIri === reference.viewIri) return;
+      this._emit<ReferenceViewChangeDetail>('reference-view-change', { nodeIri: reference.nodeIri, viewIri });
+    };
+    return html`
+      <li class="property-row opens-row">
+        <div class="property-label"><span class="field-name">Opens</span></div>
+        <div class="opens">
+          <span class="opens-view ${reference.viewLabel === undefined ? 'muted' : ''}" title=${reference.viewIri ?? ''}
+            >${reference.viewLabel ?? 'A view not in the model'}</span
+          >
+          <button type="button" class="open-view" @click=${() => this._emit('reference-open', { viewIri: reference.viewIri })}>Open</button>
+          <button
+            type="button"
+            class="change-view"
+            aria-expanded=${this._changingReference ? 'true' : 'false'}
+            @click=${() => {
+              this._changingReference = !this._changingReference;
+              if (this._changingReference) void this.updateComplete.then(() => this.renderRoot.querySelector<NamedPicker>('named-picker.reference-view')?.focus());
+            }}
+          >Change…</button>
+        </div>
+        ${this._changingReference
+          ? html`<named-picker
+              class="reference-view"
+              label="The view it opens"
+              placeholder="Search the model's views…"
+              group-filter
+              .options=${() => options}
+              @named-picked=${onPicked}
+            ></named-picker>`
+          : nothing}
+      </li>
+    `;
+  }
+
+  /** A view's *Referenced from* (Req 3.23): the views holding a reference to it, each opening that view; none, nothing. */
+  private _renderReferencedFrom() {
+    const holders = this.heading?.referencedFrom;
+    if (!holders || holders.length === 0) return nothing;
+    return html`
+      <li class="property-row wide referenced-from">
+        <div class="property-label"><span class="field-name">Referenced from</span></div>
+        <ul class="analysis-list">
+          ${holders.map(
+            (view) => html`<li>
+              <a
+                href="#"
+                title=${view.iri}
+                @click=${(e: Event) => {
+                  e.preventDefault();
+                  this._emit('panel-open-view', { viewIri: view.iri });
+                }}
+                >${view.label}</a
+              >
+            </li>`,
+          )}
+        </ul>
+      </li>
+    `;
   }
 
   /**
@@ -2889,8 +3053,38 @@ export class PropertyPanel extends LitElement {
     `;
   }
 
+  /**
+   * The provenance, read-only: when the concept was last changed, by whom and with which tool; and its other
+   * PROV statements, as a converter's source. Recorded by la-gram and the converters, never edited here.
+   */
+  private _renderProvenance() {
+    const { changed, other } = this._provenance ?? { other: [] };
+    if (!changed && other.length === 0) return nothing;
+    const when = (at: string) => {
+      const date = new Date(at);
+      return Number.isNaN(date.getTime()) ? at : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+    };
+    return html`${changed
+      ? html`<li class="property-row provenance-row">
+          <div class="property-label"><span class="field-name" title="Recorded by la-gram as it is edited">Last changed</span></div>
+          <span class="property-value provenance" data-provenance="changed"
+            >${[when(changed.at), changed.by ? `by ${changed.by}` : '', changed.tool ? `with ${changed.tool}` : '']
+              .filter(Boolean)
+              .join(' · ')}</span
+          >
+        </li>`
+      : nothing}
+    ${other.map(
+      (o) => html`<li class="property-row provenance-row">
+        <div class="property-label"><span class="field-name">${fieldName(o.predicate)}</span></div>
+        <span class="property-value provenance" data-provenance=${o.predicate}>${this.nameOf?.(o.value) ?? o.value}</span>
+      </li>`,
+    )}`;
+  }
+
   private _renderEntry(entry: PropertyEntry) {
-    const rowClass = 'property-row';
+    // A view reference's own text, among its view's rows, says whose it is.
+    const rowClass = entry.subject ? 'property-row reference-text' : 'property-row';
 
     // An element's own type: a choice of the loaded types.
     if (entry.predicate === RDF_TYPE && this.typeChoices && this.typeChoices.length > 0 && entry.value === this.heading?.typeIri) {
@@ -2949,7 +3143,7 @@ export class PropertyPanel extends LitElement {
           <textarea
             class="property-value"
             .value=${live(entry.value)}
-            placeholder=${entry.value ? '' : (DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
+            placeholder=${entry.value ? '' : (entry.placeholder ?? DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
             ?readonly=${entry.readonly}
             @change=${(e: Event) =>
               this._onPropertyChange(entry, (e.target as HTMLTextAreaElement).value)}
@@ -2963,10 +3157,10 @@ export class PropertyPanel extends LitElement {
       <li class=${rowClass}>
         ${this._renderLabel(entry, true)}
         <input
-          class="property-value"
+          class="property-value ${entry.inherited ? 'inherited' : ''}"
           type=${this._inputType(entry)}
           .value=${live(entry.value)}
-          placeholder=${entry.value ? '' : (DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
+          placeholder=${entry.value ? '' : (entry.placeholder ?? DEFAULT_FIELD_PLACEHOLDER[entry.predicate] ?? '')}
           ?readonly=${entry.readonly}
           @change=${(e: Event) =>
             this._onPropertyChange(entry, (e.target as HTMLInputElement).value)}
@@ -2982,8 +3176,7 @@ export class PropertyPanel extends LitElement {
     }
     const entries = this._entries ?? [];
     const leading = entries.filter((e) => !e.custom);
-    const added = entries.filter((e) => e.custom && !e.relationship);
-    const related = entries.filter((e) => e.relationship);
+    const added = entries.filter((e) => e.custom && !e.drawn);
     const a = this.analysis;
     const kind = this.heading?.kind ?? 'Element';
     // A figure, or a line from one, is drawing: its information and its look — nothing of the model's.
@@ -3052,15 +3245,14 @@ export class PropertyPanel extends LitElement {
                 : active === 'info'
             ? html`<ul class="property-list">
                 ${this._renderDerivation()} ${this._renderId()} ${leading.map((entry) => this._renderEntry(entry))}
-                ${this._renderContextNames()} ${this._renderContextPictures()}
+                ${this._renderReferencedFrom()} ${this.heading?.reference ? this._renderReference(this.heading.reference) : nothing}
+                ${this._renderContextNames()} ${this._renderContextPictures()} ${this._renderProvenance()}
               </ul>`
             : active === 'properties'
               ? html`${added.length > 0
                   ? html`<ul class="property-list">${added.map((entry) => this._renderEntry(entry))}</ul>`
-                  : related.length === 0
-                    ? html`<div class="muted">No properties yet — add one below.</div>`
-                    : nothing}
-                ${this._renderRelationshipGroup(related)} ${this._renderAdd()}`
+                  : html`<div class="muted">No properties yet — add one below.</div>`}
+                ${this._renderAdd()}`
               : active === 'analysis'
                 ? this._renderRelationships()
                 : this._renderViews()}

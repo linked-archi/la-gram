@@ -74,23 +74,36 @@ export interface NodeInfo {
 }
 
 /**
- * What a figure is: drawing only, no model element behind it.
+ * What a figure is: no model element behind it.
  *
  * - `group` — a box holding others, its name at the top (`arch-vis:ContainerNode`);
  * - `shape` — a core-vis shape type (`arch-vis:ContainerNode` whose `arch-vis:style`
  *   gives `arch-vis:shapeType`), which may hold others too;
  * - `note` — a sticky note: free-standing text (`arch-vis:LabelNode` no element's
- *   `arch-vis:label` points at).
+ *   `arch-vis:label` points at);
+ * - `reference` — another view, which it opens (`arch-vis:ViewReferenceNode`, core-vis
+ *   0.9). It stands for that view, its {@link FigureInfo.view},
+ *   which is presented in this one (`arch:inView`), and holds nothing.
  *
  * Its text is its `skos:prefLabel`.
  */
-export type FigureKind = 'group' | 'shape' | 'note';
+export type FigureKind = 'group' | 'shape' | 'note' | 'reference';
 
 export interface FigureInfo extends Appearance {
   kind: FigureKind;
   /** The core-vis shape type of a `shape`. */
   shapeType?: string;
+  /** The view a `reference` opens (`arch-vis:referencesView`). */
+  view?: string;
   text?: string;
+}
+
+/** A reference to a view (an `arch-vis:ViewReferenceNode` naming it by `arch-vis:referencesView`), and its holder. */
+export interface ViewReferenceInfo {
+  /** The reference's node. */
+  nodeIri: string;
+  /** The view it is drawn in (`arch-vis:view`): its holder. */
+  holderIri: string;
 }
 
 /** A figure's colours (`#rrggbb`), on its own core-vis style; absent, the figure's default. */
@@ -252,7 +265,7 @@ export interface ViewManager {
   getView(viewIri: string): ViewInfo | undefined;
   renameView(viewIri: string, label: string): void;
   setViewpoint(viewIri: string, viewpointIri: string | undefined): void;
-  /** Delete the view and its geometry; the concepts it showed stay in the model. */
+  /** Delete the view, its geometry and its placements' and lines' own styles; the concepts it showed stay in the model. */
   deleteView(viewIri: string): void;
   collectViewQuads(viewIri: string): Quad[];
   duplicateView(viewIri: string, label?: string): NamedNode;
@@ -265,7 +278,11 @@ export interface ViewManager {
    * `setNodeParent`, `removeElementFromView`, `collectNodeQuads`), a node's IRI
    * does too, and names that one placement.
    */
-  addElementToView(viewIri: string, elementIri: string, bounds?: Bounds, options?: { another?: boolean }): string;
+  /**
+   * Place an element in a view. `another` places it again beside a placement it has; `iri` names the node,
+   * where an import keeps its source's names — otherwise it is minted in the view's IRI, `{view}#node-{uuid}`.
+   */
+  addElementToView(viewIri: string, elementIri: string, bounds?: Bounds, options?: { another?: boolean; iri?: string }): string;
   /**
    * Remove the element's nodes, their links, and its `arch:inView` for this
    * view — or, given a node, that placement alone (`arch:inView` with its last).
@@ -286,6 +303,28 @@ export interface ViewManager {
   addFigure?(viewIri: string, figure: FigureInfo & { bounds: Bounds; parentIri?: string }, iri?: string): string;
   /** A figure's text (`skos:prefLabel`), or none. */
   setFigureText?(viewIri: string, nodeIri: string, text: string | undefined): void;
+  /**
+   * The references to a view — the nodes that open it (`arch-vis:referencesView`) — in every view, each with the
+   * view it is drawn in; by holder, then by node. A reference is its view's placement: wherever a concept's IRI keys
+   * its nodes (`getNode`, `removeElementFromView`, a link's ends), a view's IRI keys its references in that view.
+   */
+  referencesTo?(viewIri: string): ViewReferenceInfo[];
+  /**
+   * Point a reference drawn in `holderIri` at another view (`arch-vis:referencesView`). The view it opened leaves
+   * the holder (`arch:inView`) with its last reference there, and `viewIri` is presented there unless it is the
+   * holder — the rule {@link addFigure} and {@link collectNodeQuads} follow. Its text of its own stays. Nothing
+   * changes for a node that is not a reference of the holder, or a `viewIri` that is not a view.
+   */
+  setReferenceView?(holderIri: string, nodeIri: string, viewIri: string): void;
+  /** The quads {@link setReferenceView} removes and adds, read before anything changes. */
+  setReferenceViewQuads?(holderIri: string, nodeIri: string, viewIri: string): { removed: Quad[]; added: Quad[] };
+  /**
+   * The views that refine a concept — `V arch:refines X`, or `X arch:refinedInto V` — by name: what zooming in
+   * from it opens.
+   */
+  viewsRefining?(conceptIri: string): ViewInfo[];
+  /** A connector's text (its `skos:prefLabel`); none removes it. */
+  setConnectorText?(viewIri: string, linkIri: string, text: string | undefined): void;
   /** Set a figure's colours on its own style — `null` takes one back to the default. */
   setFigureColours?(viewIri: string, nodeIri: string, colours: { [K in keyof FigureColours]?: string | null }): void;
   /**
@@ -342,7 +381,7 @@ export interface ViewManager {
     relationshipIri: string,
     waypoints?: Point[],
     ends?: { sourceNodeIri?: string; targetNodeIri?: string },
-    options?: { another?: boolean },
+    options?: { another?: boolean; iri?: string },
   ): string | undefined;
   removeRelationshipFromView(viewIri: string, relationshipIri: string): void;
   collectLinkQuads(viewIri: string, relationshipIri: string): Quad[];

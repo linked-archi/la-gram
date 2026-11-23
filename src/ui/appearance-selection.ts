@@ -34,6 +34,7 @@ export const APPEARANCE_FIELDS: Record<AppearanceKind, readonly AppearanceKey[]>
   element: LOOK_KEYS,
   shape: FIGURE_KEYS,
   note: FIGURE_KEYS,
+  reference: FIGURE_KEYS,
   group: FIGURE_KEYS.filter((key) => key !== 'textAlignment' && key !== 'textPosition'),
   relationship: ['lineColor', 'lineWidth', 'labelAnchor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
   connector: ['lineColor', 'lineWidth', 'lineStyle', 'sourceDecor', 'targetDecor', 'labelAnchor', 'fontName', 'fontSize', 'fontStyle', 'fontColor'],
@@ -60,7 +61,7 @@ export interface LabelChoices {
 }
 
 /** What may have a picture drawn in it: an element's placement and the figures — not a line. */
-export const IMAGE_KINDS: readonly AppearanceKind[] = ['element', 'shape', 'note', 'group'];
+export const IMAGE_KINDS: readonly AppearanceKind[] = ['element', 'shape', 'note', 'group', 'reference'];
 
 /** What one of a placement's styles says of its picture: the picture, where it is drawn, and how. */
 export interface ImageScope {

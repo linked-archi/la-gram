@@ -24,6 +24,7 @@ import { DataFactory } from 'n3';
 import type { RdfStore, ShaclValidator, TtlParser, TtlSerializer, ValidationReport } from './rdf-engine/interfaces.js';
 import { OxigraphRdfStore } from './rdf-engine/rdf-store.js';
 import { ObservableRdfStore } from './rdf-engine/observable-store.js';
+import { EditProvenance, type Editor, type GitAccount } from './model-manager/provenance.js';
 import { N3TtlParser } from './rdf-engine/ttl-parser.js';
 import { N3TtlSerializer } from './rdf-engine/ttl-serializer.js';
 import { RdfShaclValidator } from './rdf-engine/shacl-validator.js';
@@ -137,6 +138,8 @@ export interface AppExtras {
   additionalMetamodels?: LoadedMetamodel[];
   /** Base new models' namespaces are minted under; `https://example.org/` by default. */
   base?: string;
+  /** Record the provenance of edits as they are made (`model-manager/provenance.ts`); the app does, tools and tests ask. */
+  recordEdits?: boolean;
   /**
    * Where the published catalogue of metamodels is read from, after the bundled
    * copy (`loadCatalogue`); none offline.
@@ -176,6 +179,14 @@ export class App {
   collaborationRoom: string | undefined;
   /** The name this user goes by in the room — the author of the commits they make. */
   collaborationUser: string | undefined;
+  /** Who is editing, as File › Settings… › You says ({@link currentEditor} is who is recorded). */
+  editor: Editor | undefined;
+  /** The user's account on the Git host the open model is kept on, as the host reports it (`git/git-accounts.ts`). */
+  gitAccount: GitAccount | undefined;
+  /** Whether {@link gitAccount} is recorded with the edits (*Settings › You*); its name stands in for a missing one either way. */
+  recordGitAccount = true;
+  /** The provenance of edits, when the app records it (`recordEdits`). */
+  provenance: EditProvenance | undefined;
 
   private metamodels: LoadedMetamodel[] = [];
   private coreGraphs: Partial<Record<BundledAssetRole, string[]>>;
@@ -211,6 +222,16 @@ export class App {
       { relationships: components.relationshipManager, base: extras.base ?? DEFAULT_MODEL_BASE },
     );
     this.modelIO = new ModelIO(components.store);
+    const stamping = components.store as Partial<ObservableRdfStore>;
+    if (extras.recordEdits && typeof stamping.setStamper === 'function') {
+      const provenance = new EditProvenance(components.store, {
+        modelIri: () => this.session.modelIri,
+        namespace: () => this.session.namespace()?.namespace,
+        editor: () => this.currentEditor(),
+      });
+      stamping.setStamper((diff) => provenance.stamp(diff));
+      this.provenance = provenance;
+    }
     this.validation = extras.validation ?? createValidationService({ inline: true });
     this.followModelForValidation();
     this.wireEvents();
@@ -411,12 +432,13 @@ export class App {
    *   configured base ({@link suggestNamespace}) when omitted.
    */
   newModel(label?: string, options: { namespace?: string; prefix?: string } = {}): { modelIri: string; viewIri: string } {
-    const result = this.session.newModel({
+    // A new model is no edit: it says when it was created itself (`dcterms:created`); its first edit is stamped.
+    const result = this.withoutStamps(() => this.session.newModel({
       ...(label ? { label } : {}),
       ...(options.namespace ? { namespace: options.namespace } : {}),
       ...(options.prefix ? { prefix: options.prefix } : {}),
       metamodelIris: this.metamodels.map((m) => m.metamodelIri),
-    });
+    }));
     this.scheduleValidation();
     return result;
   }
@@ -450,7 +472,8 @@ export class App {
   setModelNamespace(namespace: string, options: { prefix?: string; rename?: boolean } = {}): number {
     const problem = this.namespaceProblem(namespace, options.prefix ?? this.session.namespace()?.prefix ?? 'm');
     if (problem) throw new Error(problem);
-    const changed = this.session.setNamespace(namespace, options);
+    // A move renames the model's IRIs and changes none of its concepts: no edit to stamp.
+    const changed = this.withoutStamps(() => this.session.setNamespace(namespace, options));
     this.scheduleValidation();
     return changed.size;
   }
@@ -463,7 +486,8 @@ export class App {
    * and drawn with the right notation.
    */
   async openModel(text: string, fileName: string): Promise<OpenedModel> {
-    const { quadCount } = this.modelIO.load(text, fileName);
+    // Opening is no edit: what the file says, and what the repairs on opening add, are not stamped.
+    const { quadCount } = this.withoutStamps(() => this.modelIO.load(text, fileName));
     const declared = new Set(
       modelQuads(this.components.store)
         .filter((q) => q.predicate.value === NAMESPACES.arch + 'modelConformsToMetamodel' || q.predicate.value === NAMESPACES.arch + 'conformsToMetamodel')
@@ -478,18 +502,52 @@ export class App {
         missingMetamodels.push(iri);
       }
     }
-    const adopted = this.session.adopt({
-      fallbackLabel: fileName.replace(/\.[^.]+$/, ''),
-      metamodelIris: this.metamodels.map((m) => m.metamodelIri),
-    });
+    const adopted = this.withoutStamps(() =>
+      this.session.adopt({
+        fallbackLabel: fileName.replace(/\.[^.]+$/, ''),
+        metamodelIris: this.metamodels.map((m) => m.metamodelIri),
+      }),
+    );
     this.scheduleValidation();
     return { ...adopted, quadCount, missingMetamodels };
   }
 
+  /**
+   * Run `fn` without recording its changes as edits (`ObservableRdfStore.withoutStamps`): opening, importing,
+   * merging, restoring a version — changes that are not the user's edits.
+   */
+  withoutStamps<T>(fn: () => T): T {
+    const store = this.components.store as Partial<ObservableRdfStore>;
+    return typeof store.withoutStamps === 'function' ? store.withoutStamps(fn) : fn();
+  }
+
+  /**
+   * Who is editing, as recorded with the edits and as the author of commits and checkpoints (Req 9.16, 18.29):
+   * the name from *Settings › You*, else the Git account's, else the collaboration name; the address from
+   * *You*; the Git account. `undefined` when nothing is known.
+   */
+  currentEditor(): Editor | undefined {
+    const you = this.editor;
+    const account = this.gitAccount;
+    const name = you?.name?.trim() || account?.name || this.collaborationUser?.trim();
+    const email = you?.email?.trim();
+    const recorded = this.recordGitAccount ? account : undefined;
+    const editor: Editor = {
+      ...(name ? { name } : {}),
+      ...(email ? { email } : {}),
+      ...(recorded ? { account: { url: recorded.url, ...(recorded.username ? { username: recorded.username } : {}) } } : {}),
+    };
+    return Object.keys(editor).length > 0 ? editor : undefined;
+  }
+
   /** Serialize the model for saving. */
-  saveModel(format: ModelFormat = 'turtle', profile: SerializationProfile = 'full'): SavedModel {
+  saveModel(format: ModelFormat = 'turtle', profile: SerializationProfile = 'full', options: { provenance?: boolean } = {}): SavedModel {
     const info = formatInfo(format);
-    const text = this.modelIO.serialize(this.session.modelIri, { format, profile });
+    const text = this.modelIO.serialize(this.session.modelIri, {
+      format,
+      profile,
+      ...(options.provenance === false ? { provenance: false } : {}),
+    });
     const base = (this.session.modelLabel() || 'model').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'model';
     return {
       text,
@@ -502,31 +560,34 @@ export class App {
    * Import an ArchiMate exchange file as a new model. Loads the ArchiMate 3.2
    * metamodel (bundled) first, because the exchange format is 3.x.
    */
-  async importArchiMate(xml: string, fileName = 'model.xml'): Promise<ImportReport & { modelIri: string; viewIri: string }> {
+  async importArchiMate(xml: string, fileName = 'model.xml'): Promise<ImportReport & { modelIri: string; viewIri: string; autoPlaced: number }> {
     const parsed = parseArchiMateExchange(xml);
     await this.loadMetamodel(ARCHIMATE3_METAMODEL);
     const store = this.components.store;
-    const { modelIri } = this.session.newModel({
-      label: parsed.name ?? fileName.replace(/\.[^.]+$/, ''),
-      metamodelIris: [ARCHIMATE3_METAMODEL],
+    // An import is no edit: what the file says is not stamped (a layout made after it is).
+    return this.withoutStamps(() => {
+      const { modelIri } = this.session.newModel({
+        label: parsed.name ?? fileName.replace(/\.[^.]+$/, ''),
+        metamodelIris: [ARCHIMATE3_METAMODEL],
+      });
+      // The fresh model's empty default view is not wanted: the file brings views.
+      const emptyDefault = this.session.activeViewIri;
+      const RDF_TYPE = namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode;
+      const OWL_CLASS = namedNode(NAMESPACES.owl + 'Class') as unknown as NamedNode;
+      const report = applyExchangeModel(parsed, {
+        elements: this.components.elementManager,
+        relationships: this.components.relationshipManager,
+        views: this.components.viewManager,
+        modelIri,
+        ...(this.session.namespace() ? { modelNamespace: this.session.namespace()!.namespace } : {}),
+        knownClass: (iri) => store.getQuads(namedNode(iri) as unknown as NamedNode, RDF_TYPE, OWL_CLASS).length > 0,
+        viewpointFor: (name) => this.findViewpointByName(name),
+      });
+      if (report.viewCount > 0 && emptyDefault) this.components.viewManager.deleteView(emptyDefault);
+      const adopted = this.session.adopt({ metamodelIris: [ARCHIMATE3_METAMODEL] });
+      this.scheduleValidation();
+      return { ...report, modelIri: adopted.modelIri, viewIri: adopted.viewIri, autoPlaced: adopted.autoPlaced };
     });
-    // The fresh model's empty default view is not wanted: the file brings views.
-    const emptyDefault = this.session.activeViewIri;
-    const RDF_TYPE = namedNode(NAMESPACES.rdf + 'type') as unknown as NamedNode;
-    const OWL_CLASS = namedNode(NAMESPACES.owl + 'Class') as unknown as NamedNode;
-    const report = applyExchangeModel(parsed, {
-      elements: this.components.elementManager,
-      relationships: this.components.relationshipManager,
-      views: this.components.viewManager,
-      modelIri,
-      ...(this.session.namespace() ? { modelNamespace: this.session.namespace()!.namespace } : {}),
-      knownClass: (iri) => store.getQuads(namedNode(iri) as unknown as NamedNode, RDF_TYPE, OWL_CLASS).length > 0,
-      viewpointFor: (name) => this.findViewpointByName(name),
-    });
-    if (report.viewCount > 0 && emptyDefault) this.components.viewManager.deleteView(emptyDefault);
-    const adopted = this.session.adopt({ metamodelIris: [ARCHIMATE3_METAMODEL] });
-    this.scheduleValidation();
-    return { ...report, modelIri: adopted.modelIri, viewIri: adopted.viewIri };
   }
 
   // ── Validation ─────────────────────────────────────────────────────────
@@ -701,9 +762,12 @@ export class App {
     }
     eventBus.on('model-loaded', () => {
       this.dirty = false;
+      this.provenance?.endActivity();
     });
     eventBus.on('model-saved', () => {
       this.dirty = false;
+      // The next edit is another editing activity.
+      this.provenance?.endActivity();
     });
 
     // ── Property edits → RDF store. Text gets a language tag: the Linked.Archi
@@ -812,6 +876,8 @@ export interface CreateAppOptions {
   validation?: 'auto' | 'inline';
   /** Start a new, empty model (default true). */
   newModel?: boolean;
+  /** Record the provenance of edits as they are made; the app does (`index.ts`), tools and tests do not unless asked. */
+  recordEdits?: boolean;
   /**
    * Base new models' namespaces are minted under (`{base}{notation}/{uuid}/`);
    * `https://example.org/` by default. Each model records its own namespace,
@@ -892,6 +958,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
       coreGraphs,
       uploaded,
       validationDelayMs: options.validationDelayMs ?? 0,
+      ...(options.recordEdits ? { recordEdits: true } : {}),
       validation: createValidationService({
         inline: options.validation === 'inline',
         onTiming: (t) => {

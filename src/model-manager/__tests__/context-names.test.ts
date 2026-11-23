@@ -27,7 +27,7 @@ describe('names for a presentation context (SKOS-XL)', () => {
     store.addQuads([DataFactory.quad(namedNode(GATEWAY), namedNode(SKOS + 'prefLabel'), literal('Payment gateway', 'en')) as unknown as Quad]);
     setName(store, DEVELOPER, 'pgw-svc');
     const label = contextNameIri(GATEWAY, DEVELOPER, 'en');
-    expect(label).toMatch(/^https:\/\/example\.org\/model\/gateway-name-[0-9a-f]{8}$/);
+    expect(label).toMatch(/^https:\/\/example\.org\/model\/gateway\/name\/[0-9a-f]{8}$/);
     expect(values(store, GATEWAY, SKOSXL + 'altLabel')).toEqual([label]);
     expect(values(store, label, SKOSXL + 'literalForm')).toEqual(['pgw-svc@en']);
     expect(values(store, label, ARCH + 'inPresentationContext')).toEqual([DEVELOPER]);
@@ -64,6 +64,6 @@ describe('names for a presentation context (SKOS-XL)', () => {
     expect(contextNameOf(store, GATEWAY, DEVELOPER)).toBe('pgw-svc');
     expect(contextNameOf(store, GATEWAY, DEVELOPER, 'de')).toBe('Zahlungen');
     expect(contextNameOf(store, GATEWAY, undefined)).toBeUndefined();
-    expect(contextNameIri(GATEWAY, DEVELOPER, 'de')).toBe(`${contextNameIri(GATEWAY, DEVELOPER, 'en')}-de`);
+    expect(contextNameIri(GATEWAY, DEVELOPER, 'de')).toBe(`${contextNameIri(GATEWAY, DEVELOPER, 'en')}/de`);
   });
 });

@@ -37,13 +37,9 @@ import { matchesClass } from '../../metamodel-manager/taxonomy.js';
 import type {
   ElementTypeInfo,
   PaletteDefinition,
-  RelationshipPreference,
   RelationshipTypeInfo,
 } from '../../metamodel-manager/interfaces.js';
 import { NAMESPACES } from '../../rdf-engine/namespaces.js';
-
-/** The groups a pair's relationships rank in, best first (`RelationshipPreference`). */
-const PREFERENCE_RANK: Record<RelationshipPreference, number> = { first: 0, drawn: 1, direct: 2, derived: 3, fallback: 4 };
 
 /** Resolves a type IRI to its `rdfs:subClassOf*` closure, the type included. */
 export type ClassClosure = (typeIri: string) => string[];
@@ -223,9 +219,15 @@ export type ValidRelationshipLookup = (
  * `DiagramCanvas.appendTargets` — so the manager calls happen once per source
  * type per palette, not once per context pad render.
  *
- * Order is by the best relationship score the target admits, then by label, so
- * the menu leads with the most meaningful append rather than with whatever the
- * palette happened to list first.
+ * Order is what a modeller reaches for next: the source's own type first — after
+ * a process, another process — then the rest of the source's palette section
+ * (ArchiMate 4.0's Common Domain), then the other sections in the palette's order
+ * (business, application, then technology, …). Within a section, the types most
+ * like the source first — the most superclasses in common: after a process a
+ * function, then a service or an event, then an actor — then the palette's
+ * order; a type only Association reaches last in its section. The palette's
+ * order is the metamodel's (`arch:paletteGrouping` and its thesaurus arrays),
+ * the likeness its ontology's: no domain or aspect is named here.
  */
 export function appendableTargetTypes(
   palette: PaletteDefinition,
@@ -241,9 +243,14 @@ export function appendableTargetTypes(
   if (outgoing.length === 0) return [];
 
   const targets: AppendTarget[] = [];
+  /** Where each target is in the palette: its section and its place, for the order. */
+  const place = new Map<AppendTarget, { section: number; at: number }>();
+  const sourceSection = palette.elementGroups.findIndex((g) => g.elements.some((e) => e.iri === sourceTypeIri));
+  let at = 0;
 
-  for (const group of palette.elementGroups) {
+  for (const [section, group] of palette.elementGroups.entries()) {
     for (const element of group.elements) {
+      at++;
       if (element.isAbstract) continue;
 
       // (1) free prefilter — can any outgoing type's range admit this element?
@@ -254,17 +261,28 @@ export function appendableTargetTypes(
       const relationships = getValidRelationships(sourceTypeIri, element.iri);
       if (relationships.length === 0) continue;
 
-      targets.push({ type: element, category: group.category, relationships });
+      const target: AppendTarget = { type: element, category: group.category, relationships };
+      targets.push(target);
+      place.set(target, { section, at });
     }
   }
 
-  // By the group of the best relationship that reaches the target — one proposed first or drawn in
-  // the metamodel before one only permitted, before one reached only by derivation — then by score.
-  const group = (t: AppendTarget) => PREFERENCE_RANK[t.relationships[0]?.preference ?? 'direct'];
+  // The source's own type, then its section, then the other sections, each in the palette's order; a type only
+  // Association (or a generic relationship) reaches last in its section.
+  const onlyFallback = (t: AppendTarget) => t.relationships.every((r) => r.fallback);
+  const sourceKinds = new Set(sourceClosure);
+  const likeness = new Map(targets.map((t) => [t, closure(t.type.iri).filter((c) => sourceKinds.has(c)).length]));
   targets.sort((a, b) => {
-    const byGroup = group(a) - group(b);
-    const byScore = (b.relationships[0]?.score ?? 0) - (a.relationships[0]?.score ?? 0);
-    return byGroup || byScore || a.type.label.localeCompare(b.type.label);
+    const [pa, pb] = [place.get(a)!, place.get(b)!];
+    const own = Number(b.type.iri === sourceTypeIri) - Number(a.type.iri === sourceTypeIri);
+    const sectionRank = (p: { section: number }) => (p.section === sourceSection ? -1 : p.section);
+    return (
+      own ||
+      sectionRank(pa) - sectionRank(pb) ||
+      Number(onlyFallback(a)) - Number(onlyFallback(b)) ||
+      likeness.get(b)! - likeness.get(a)! ||
+      pa.at - pb.at
+    );
   });
 
   return targets;

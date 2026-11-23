@@ -254,7 +254,9 @@ export class FastCroppingConnectionDocking extends CroppingBase {
       return { point: on, actual: on, idx };
     }
 
-    if (element.width === undefined || element.height === undefined) return super.getDockingPoint(connection, shape, dockStart);
+    // Empty canvas is the root during a connect preview, with no outline to
+    // crop against. Its free end stays at the pointer (Req 4.1).
+    if (element.width === undefined || element.height === undefined) return { point, actual: point, idx };
     const centre = { x: (element.x ?? 0) + element.width / 2, y: (element.y ?? 0) + element.height / 2 };
     const reference = insideOutline(this._getShapePath(shape), point, centre);
     if (reference === point) return super.getDockingPoint(connection, shape, dockStart);
