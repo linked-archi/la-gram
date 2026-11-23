@@ -467,6 +467,15 @@ Agreed order; relationship visuals come first.
 
 ## Change log
 
+### 2026-11-23 — la-gram's documentation links are absolute
+
+- *la-gram documentation* in la-gram's menu and About, and the documentation links of *Keyboard shortcuts*
+  and *Download the desktop app…*, open the published documentation wherever la-gram runs:
+  https://app.linked.archi/la-gram/docs/, and from an alpha build https://app.linked.archi/la-gram-alpha/docs/
+  (`laGramDocs`, by `BUILD.channel`). They followed the app's address before, so an installation on another
+  host had to serve the site itself (Req 15.5). *Third-party licences* stays the file beside the web app.
+- Tests: *help.test*, *workbench.spec*. Docs: *User guide* (la-gram’s menu), *Hosting the web app*.
+
 ### 2026-11-23 — unit tests: 20 s a test
 
 - `vitest.config.ts` sets `testTimeout: 20_000`. The CI `test` job failed three tests at Vitest's 5 s

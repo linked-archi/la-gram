@@ -97,7 +97,8 @@ The warning `NO_MKDOCS_2_WARNING` keeps out, as Material prints it without the v
 leaves that folder alone), so the order of the two builds does not matter. `npm run dev` or
 `npm run serve` then serve the documentation at http://localhost:8080/docs/ beside the app. Links from
 the documentation to the app are absolute, `https://app.linked.archi/la-gram/…`, so a local preview opens
-production for them.
+production for them. So are the app's links to its documentation: *la-gram documentation* in la-gram's
+menu opens https://app.linked.archi/la-gram/docs/, so open the local copy by its address.
 
 ## Writing rules {#writing-rules}
 

@@ -495,9 +495,10 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
   // ── Top: app toolbar ─────────────────────────────────────────────────
   const appToolbar = document.createElement('app-toolbar');
   appToolbar.slot = 'toolbar';
-  // la-gram's documentation: the web app's own, served beside it; the desktop app has no site, so the published one.
+  // la-gram's documentation: the published one, the release's or the alpha's, wherever la-gram runs. The
+  // licences file is the build's own, beside the web app; the desktop app has no site, so the published one.
+  appToolbar.channel = BUILD.channel ?? '';
   const appBase = isElectronEnvironment() ? undefined : document.baseURI;
-  appToolbar.appBase = appBase ?? '';
   // The bundled catalogue, then the published one (App.loadCatalogue).
   appToolbar.catalogue = [];
   void app.loadCatalogue((entries) => {
@@ -3209,11 +3210,11 @@ export function mountUi(app: App, root: HTMLElement, options: MountOptions = {})
           return;
         }
         case 'shortcuts':
-          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), appBase));
+          await showDetails('Keyboard shortcuts', shortcutBlocks(isMacPlatform(), BUILD.channel));
           return;
         case 'download': {
           const system = systemOf(globalThis.navigator?.userAgent ?? '');
-          await showDetails('Download the desktop app', downloadBlocks({ ...(system ? { system } : {}), ...(appBase ? { appBase } : {}) }));
+          await showDetails('Download the desktop app', downloadBlocks({ ...(system ? { system } : {}), ...(BUILD.channel ? { channel: BUILD.channel } : {}) }));
           return;
         }
         case 'open-view':

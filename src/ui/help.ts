@@ -16,6 +16,8 @@ export interface BuildComponent {
 /** What the build knows: la-gram's version and what it is built with. */
 export interface BuildInfo {
   version: string;
+  /** The channel it is built for (`alpha`); none, or `''`, for a release: its documentation is the channel's. */
+  channel?: string;
   components: BuildComponent[];
 }
 
@@ -53,7 +55,7 @@ export interface AboutContext {
   metamodels: string[];
   /** The bundled assets' snapshot (their digest), when the build says. */
   assetsVersion?: string;
-  /** The web app's address, its documentation beside it ({@link docsHref}); none in the desktop app. */
+  /** The web app's address, its licences file beside it ({@link licencesHref}); none in the desktop app. */
   appBase?: string;
 }
 
@@ -63,7 +65,7 @@ const versionLabel = (build: BuildInfo) => (build.version ? `Version ${build.ver
 export function aboutBlocks(context: AboutContext): DetailBlock[] {
   const { build } = context;
   const links = (ids: string[]) =>
-    HELP_LINKS.filter((link) => ids.includes(link.id)).map((link) => ({ label: link.label, href: helpHref(link, context.appBase) }));
+    HELP_LINKS.filter((link) => ids.includes(link.id)).map((link) => ({ label: link.label, href: helpHref(link, build.channel) }));
   return [
     { kind: 'header', image: 'favicon.svg', title: 'la-gram', subtitle: TAGLINE, note: versionLabel(build) },
     {
@@ -129,10 +131,10 @@ export function systemOf(userAgent: string): 'darwin' | 'win32' | 'linux' | unde
 
 /**
  * Download the desktop app: the latest release's, a link for each platform — the system it is asked from
- * first — how to open one, the checksums, and every release. `appBase` is the web app's address, for the
- * documentation ({@link docsHref}).
+ * first — how to open one, the checksums, and every release. `channel` is the build's, for the documentation
+ * ({@link docsHref}).
  */
-export function downloadBlocks(options: { system?: 'darwin' | 'win32' | 'linux'; appBase?: string } = {}): DetailBlock[] {
+export function downloadBlocks(options: { system?: 'darwin' | 'win32' | 'linux'; channel?: string } = {}): DetailBlock[] {
   const ours = DESKTOP_DOWNLOADS.filter((d) => options.system && d.id.startsWith(`${options.system}-`));
   const others = DESKTOP_DOWNLOADS.filter((d) => !ours.includes(d));
   const link = (d: (typeof DESKTOP_DOWNLOADS)[number]) => ({ label: d.label, href: DOWNLOADS + d.file });
@@ -161,7 +163,7 @@ export function downloadBlocks(options: { system?: 'darwin' | 'win32' | 'linux';
     {
       kind: 'links',
       links: [
-        { label: 'Opening it, in the documentation', href: docsHref('getting-started/desktop/', options.appBase) },
+        { label: 'Opening it, in the documentation', href: docsHref('getting-started/desktop/', options.channel) },
         { label: 'SHA-256 checksums', href: DOWNLOAD_SUMS },
         { label: 'Every release, on GitLab', href: RELEASES },
       ],
@@ -190,10 +192,10 @@ export function keyCombo(combo: string, mac: boolean): string {
 }
 
 /**
- * The keyboard and mouse shortcuts, by where they work, then the documentation's page of them — `appBase` the
- * web app's address ({@link docsHref}).
+ * The keyboard and mouse shortcuts, by where they work, then the documentation's page of them — `channel` the
+ * build's ({@link docsHref}).
  */
-export function shortcutBlocks(mac: boolean, appBase?: string): DetailBlock[] {
+export function shortcutBlocks(mac: boolean, channel?: string): DetailBlock[] {
   const keys = (...combos: string[]) => combos.map((c) => keyCombo(c, mac)).join(' / ');
   const section = (text: string, rows: Array<[string, string]>): DetailBlock[] => [
     { kind: 'heading', text },
@@ -231,6 +233,6 @@ export function shortcutBlocks(mac: boolean, appBase?: string): DetailBlock[] {
       [keys('Esc'), 'Cancel'],
       [keys('↑', '↓'), "Move through a list, or the property panel's tabs"],
     ]),
-    { kind: 'links', links: [{ label: 'Keyboard and mouse, in the documentation', href: docsHref('reference/keyboard/', appBase) }] },
+    { kind: 'links', links: [{ label: 'Keyboard and mouse, in the documentation', href: docsHref('reference/keyboard/', channel) }] },
   ];
 }

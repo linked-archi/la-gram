@@ -619,12 +619,12 @@ the toolbar's `_appMenu` under the name, `installMenu` in `electron-main.ts`).
 The pages the menu opens are one list, `HELP_LINKS`, with no DOM, so the toolbar and the
 desktop app's menu bar read the same. A page of la-gram's own documentation (`docsPage`:
 *la-gram documentation*, and the shortcuts' page) is resolved by `helpHref`/`docsHref`
-against the web app's address — `docs/` beside it, where the build puts the site
-(`docs-site/`, `npm run docs:build`) and the release deploys it with the app — so a
-deployment elsewhere opens its own copy, of its own version. The desktop app's files
-are no site: `mount-ui` gives the toolbar, About and the shortcuts no address there
-(`isElectronEnvironment`), and they open the published copy, `LA_GRAM_DOCS`, as the
-menu bar does from the list's `href`. *Download the desktop app…* is a dialog of
+to the published copy for the build's channel (`laGramDocs`: `LA_GRAM_DOCS`, or the
+alpha's, `/la-gram-alpha/docs/`), never against the app's address: an installation
+elsewhere — another host, the desktop app, a developer's machine — need not serve the
+site, and still opens the documentation online (2026-11-23). `mount-ui` gives the
+toolbar, the shortcuts and *Download the desktop app…* the channel (`BUILD.channel`);
+About's *Third-party licences* stays the file beside the web app it runs from. *Download the desktop app…* is a dialog of
 blocks too (`downloadBlocks`): a link for each of `DESKTOP_DOWNLOADS` at
 app.linked.archi — absolute, unlike the documentation: the apps are the project's
 release, which a deployment elsewhere does not build — those of the system the user

@@ -272,14 +272,15 @@ describe("the name, the icon and la-gram's menu", () => {
     const links = bar.locator('.dropdown a[data-link]');
     expect(await links.count()).toBeGreaterThan(5);
     expect(await links.evaluateAll((as) => as.every((a) => (a as HTMLAnchorElement).target === '_blank'))).toBe(true);
-    // la-gram's documentation first, the copy beside the app.
+    // la-gram's documentation first: the published one, wherever la-gram runs — the alpha's from an alpha build.
+    const published = /^https:\/\/app\.linked\.archi\/la-gram(-alpha)?\/docs\//;
     expect(await links.first().getAttribute('data-link')).toBe('la-gram-docs');
-    expect(await links.first().evaluate((a) => (a as HTMLAnchorElement).href)).toBe(`${server.baseUrl}/docs/`);
+    expect(await links.first().evaluate((a) => (a as HTMLAnchorElement).href)).toMatch(new RegExp(`${published.source}$`));
     await bar.locator('.dropdown [data-command="shortcuts"]').click();
     await dialog.waitFor({ state: 'visible' });
     expect(await dialog.locator('.la-dialog-title').innerText()).toBe('Keyboard shortcuts');
     expect(await dialog.locator('kbd').count()).toBeGreaterThan(10);
-    expect(await dialog.locator('.la-details-links a').getAttribute('href')).toBe(`${server.baseUrl}/docs/reference/keyboard/`);
+    expect(await dialog.locator('.la-details-links a').getAttribute('href')).toMatch(new RegExp(`${published.source}reference/keyboard/$`));
     await session.screenshot('help-shortcuts');
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });

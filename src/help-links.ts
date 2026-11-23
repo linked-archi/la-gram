@@ -18,6 +18,14 @@ export interface HelpLink {
 const DOCS = 'https://meta.linked.archi/docs/';
 /** la-gram's own documentation (`docs-site/`), as the release publishes it, in the web app's `docs/`. */
 export const LA_GRAM_DOCS = 'https://app.linked.archi/la-gram/docs/';
+
+/**
+ * la-gram's documentation as published for a build's channel (`__LA_GRAM_BUILD__.channel`): the release's,
+ * {@link LA_GRAM_DOCS}, or a channel's beside its app — the alpha's at `https://app.linked.archi/la-gram-alpha/docs/`.
+ */
+export function laGramDocs(channel = ''): string {
+  return channel ? `https://app.linked.archi/la-gram-${channel}/docs/` : LA_GRAM_DOCS;
+}
 const REPOSITORY = 'https://gitlab.com/linked-archi/linked-archi-tools/modellers/la-gram';
 
 export const HELP_LINKS: readonly HelpLink[] = [
@@ -45,17 +53,18 @@ export const HELP_LINKS: readonly HelpLink[] = [
 ];
 
 /**
- * A page of la-gram's documentation. The web app's own copy, served beside it in `docs/` — `appBase` is
- * the app's address, so the link follows wherever the app is deployed, and its documentation is of the
- * same version. With no `appBase` — the desktop app, whose files are no site — the published one.
+ * A page of la-gram's documentation, always the published one, at app.linked.archi: the release's, or the
+ * alpha's from an alpha build ({@link laGramDocs}). Absolute, so that an installation elsewhere — on another
+ * host, in the desktop app, on a developer's machine — opens the documentation online, which it need not
+ * serve itself.
  */
-export function docsHref(page: string, appBase?: string): string {
-  return appBase ? new URL(`docs/${page}`, appBase).href : LA_GRAM_DOCS + page;
+export function docsHref(page: string, channel = ''): string {
+  return laGramDocs(channel) + page;
 }
 
 /** Where a link of la-gram's menu opens: a page of its documentation by {@link docsHref}, any other at its address. */
-export function helpHref(link: Pick<HelpLink, 'href' | 'docsPage'>, appBase?: string): string {
-  return link.docsPage === undefined ? link.href : docsHref(link.docsPage, appBase);
+export function helpHref(link: Pick<HelpLink, 'href' | 'docsPage'>, channel = ''): string {
+  return link.docsPage === undefined ? link.href : docsHref(link.docsPage, channel);
 }
 
 /** Every release: its desktop apps, under their versions, pre-releases too. */

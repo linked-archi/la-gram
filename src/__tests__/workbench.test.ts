@@ -1516,10 +1516,10 @@ describe('the workbench', () => {
       ]);
       const links = entries.filter((e): e is HTMLAnchorElement => e instanceof HTMLAnchorElement);
       expect(links.every((a) => a.target === '_blank' && a.rel === 'noopener noreferrer')).toBe(true);
-      // la-gram's documentation: the copy served beside the web app; every other page, on its site.
+      // la-gram's documentation: the published one, not beside the app (here on localhost); every other page, on its site.
       const [docs, ...others] = links;
       expect(docs!.dataset.link).toBe('la-gram-docs');
-      expect(docs!.href).toBe(new URL('docs/', document.baseURI).href);
+      expect(docs!.href).toBe('https://app.linked.archi/la-gram/docs/');
       expect(others.every((a) => a.href.startsWith('https://'))).toBe(true);
 
       // About, in parts, where the dialogs show parts.

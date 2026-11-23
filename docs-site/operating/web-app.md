@@ -35,7 +35,9 @@ pages of earlier versions when a new release replaces the app: app.linked.archi'
 
 **The documentation** is built into the app's folder, as `docs/` (`npm run docs:build` writes
 `dist/web/docs/`), and is served from it: `/la-gram/docs/`. Link to it with the trailing slash. Its pages
-need no rule of their own, and run under the policy [below](#content-security-policy).
+need no rule of their own, and run under the policy [below](#content-security-policy). la-gram's own menu
+links the published documentation, https://app.linked.archi/la-gram/docs/, wherever the app is installed:
+an installation elsewhere may serve its copy, but need not.
 
 To try a build locally, any static server does, for example Python's:
 

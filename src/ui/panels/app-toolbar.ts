@@ -475,8 +475,8 @@ export class AppToolbar extends LitElement {
   @property({ attribute: false }) fileMenuItems: () => FileMenuItem[] = () => [];
   /** Whether File › Settings… is offered: there is a module to switch, or a part with settings. */
   @property({ type: Boolean }) settingsMenu = false;
-  /** The web app's address, which serves la-gram's documentation beside it; empty in the desktop app: the published one. */
-  @property({ type: String }) appBase = '';
+  /** The channel la-gram is built for (`alpha`), whose documentation its menu opens; empty for a release. */
+  @property({ type: String }) channel = '';
 
   @state() private _open: 'file' | 'metamodels' | 'new-view' | 'app' | null = null;
   /** The File menu's open submenu, by id. */
@@ -772,7 +772,7 @@ export class AppToolbar extends LitElement {
   /** la-gram's menu, under its icon and name: About, the keyboard shortcuts, the guides, la-gram's own pages. */
   private _appMenu() {
     const link = (l: HelpLink) =>
-      html`<a href=${helpHref(l, this.appBase || undefined)} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
+      html`<a href=${helpHref(l, this.channel)} target="_blank" rel="noopener noreferrer" data-link=${l.id} role="menuitem" @click=${() => (this._open = null)}
         >${l.label}<span class="hint">↗</span></a
       >`;
     return html`<div class="dropdown" role="menu">
