@@ -72,3 +72,16 @@ Every path changed in this step:
 - `.agents/tasks/kernel-migration/tasks.md` and this document: measured completion and reasons.
 
 Validation: strict documentation build passed. No runtime behavior changed in this step.
+
+## Owner step 4: neutral kernel boundary
+
+- `src/__tests__/workspace-interoperability.test.ts` is replaced by `src/__tests__/kernel-interoperability.test.ts`:
+  la-gram verifies the canonical shared fixture through its real App, without importing the workspace's application
+  session from the kernel. The full two-application browser handoff remains in the workspace suite.
+- `package.json`, `package-lock.json`, and `vendor/`: take the same 0.1.1 archive as the workspace. It removes the
+  application-specific exports and retains neutral SHACL descriptors and RDF mutation helpers. Existing modeller
+  call signatures are unchanged; the asset-source factory only gains an optional per-instance bundled URL setting.
+- This task's API inventory and results are refreshed after validation. No canvas or UI behavior is changed.
+
+- `docs-site/developing/assets.md`: updates the package command to the qualified 0.1.1 filename; this is the
+  consumer update procedure, not a local asset synchronization command.

@@ -82,3 +82,13 @@ source work was already checkpointed by the owner; the implementation commits ar
 in la-gram because app/CLI tests consume them; their ownership will be reconciled in the next package cleanup.
 Historical byte-for-byte fixture-save comparison, the optional Electron packaged artifact, and platform roadmap
 closure are left unchecked where no new evidence was collected. L01 consumption is implemented; E1/A is open.
+
+## Owner step 4 — neutral package boundary, 2026-11-24
+
+- [x] Package 0.1.1 removes the workspace application facade; same archive installed in both consumers.
+- [x] Consumer interoperability test now exercises the real App against neutral shared RDF fixtures.
+- [x] Typecheck and **119 files / 2,042 tests**; full web/Electron/CLI build; CLI documentation and smoke checks pass.
+- [x] Browser suite: **4 files / 95 tests**; two-application browser handoff, isolated installed CLI smoke check
+  and strict docs build all pass.
+
+Every changed la-gram file and its reason is in `workspace-integration-changes.md`. No production canvas code changed.
