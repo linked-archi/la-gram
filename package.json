@@ -1,6 +1,6 @@
 {
   "name": "la-gram",
-  "version": "0.3.0",
+  "version": "0.4.0-alpha",
   "description": "Semantic modeller for enterprise and IT architecture, built on Linked.Archi metamodels",
   "productName": "la-gram",
   "main": "dist/electron/main.cjs",
