@@ -343,7 +343,7 @@ when it starts; what is already recorded elsewhere is named, not repeated.
 
 Agreed order; relationship visuals come first.
 
-- [ ] **la-gram on `@linked-archi/kernel` (L01)** — recorded (2026-11-20), not started: the model logic (`rdf-engine`, `metamodel-manager`, `model-manager`, `model-io.ts`) and `assets/` moved to the kernel repository (`tools/platform/linked-archi-kernel`, platform decision PD-14); la-gram builds on the package and deletes its copies, with no change in behaviour. Until then, a fix to these modules is made in the kernel first and copied here. `.agents/tasks/kernel-migration/`.
+- [x] **la-gram consumes `@linked-archi/kernel` (L01 implementation)** — 2026-11-24: shared modules/assets come from the installed archive, with app-specific tests retained. Web/Electron/CLI builds and browser conformance pass. Full closure criteria and remaining packaging/history checks are recorded in `.agents/tasks/kernel-migration/tasks.md`; no independent model copies are maintained here.
 - [x] **The Linked.Archi IRI layout, part 4** (DD-41) — done (2026-11-18): a merge follows a namespace move, la-gram asks before moving a model saved to Git and keeps it bound, `la-gram-git check` reports the layout. Parts 1–4 done 2026-11-18, see the change log. `.agents/tasks/iri-layout/`.
 - [x] **la-gram follows a namespace move made on the other side of a merge** — recorded (2026-11-18), done (2026-11-19): *Pull from Git*, *Merge with the newer version*, *Update from main…* and *Open this version* (after a second question) move the open model to the IRI the other version has it under, its session, binding and History tab with it; automatic checks and auto-commit stop and say that Pull follows (Req 18.28; key design decision 34). See the change log.
 - [x] **Access and directed-association ends** — done (2026-10-10): the kinds of access and the directed association are subclasses with their own ends; see the change log.
@@ -466,6 +466,14 @@ Agreed order; relationship visuals come first.
 ---
 
 ## Change log
+
+- **2026-11-24 — shared kernel migration (KM-1–15; Req 1.9).** Model and asset imports now use the pinned kernel
+  package. Web/Electron compile its TypeScript, the CLI bundles it, and all targets copy its assets. App-dependent
+  tests remain here; shared tests live in the kernel. The migration manifest names every removed copy and its
+  destination, and `api-usage.md` inventories the exported names used by the app. *kernel-package.test*, the
+  existing unit/browser suites, CLI checks and workspace *verify-interoperability.mjs* verify the transition.
+  Documentation now describes package ownership, not a second asset synchronizer.
+
 
 ### 2026-11-23 — la-gram's documentation links are absolute
 

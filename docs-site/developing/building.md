@@ -254,7 +254,7 @@ identical.
 
 ### `__LA_GRAM_ASSETS_VERSION__` {#assets-version}
 
-A digest of every file under `assets/` (names and contents), 12 hex digits, made at build time. la-gram
+A digest of every file under `node_modules/@linked-archi/kernel/assets/` (names and contents), 12 hex digits, made at build time. la-gram
 adds it to every bundled asset's address as `?v=`, so that a browser never draws a cached icon or
 metamodel after the bundle changed, and keeps them while it did not. *About la-gram* shows it as
 *Bundled metamodels snapshot …*, and *Copy version info* includes it.
@@ -338,10 +338,10 @@ kept
 
 ### Bundled assets {#bundled-assets}
 
-`assets/` is copied into the web build, the desktop renderer and la-gram-git as it is, with the same
+The installed kernel’s `assets/` is copied into the web build, the desktop renderer and la-gram-git as it is, with the same
 layout as meta.linked.archi's published tree, files starting with `.` left out. It is what la-gram uses
 offline and first ([`assets`](../reference/url-parameters.md#assets)), and what
-[Bundled metamodels and icons](assets.md) refreshes.
+[Bundled metamodels and icons](assets.md) describes how to update through a new kernel package.
 
 Every build replaces the generated asset copy. In la-gram-git's package, `assets/` is beside `dist/`,
 so the build cleans that generated folder explicitly before copying; a semantic file removed from

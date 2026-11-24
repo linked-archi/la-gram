@@ -42,6 +42,9 @@ those. Two variants:
 | `npm run test:watch` | Vitest in watch mode: again on every change, until ++q++ |
 | `npm run test:coverage` | Vitest once, with V8 coverage of `src/**/*.ts`: a table in the terminal and an HTML report in `coverage/` |
 
+The kernel’s own tests run in the kernel repository; the 14 app-dependent integrations stay in
+`src/__tests__/kernel/`. `kernel-package.test.ts` checks runtime dependency identity and build asset sources.
+
 The suite includes benchmark tests (`*-bench.test.ts`, `bench-*.test.ts`), which time the machine they
 run on. `npm test` runs them last and on their own — Vitest's *timing* project, after the *unit* project's
 files, which run side by side — so they time the code and not the other tests; CI leaves them out with
@@ -322,7 +325,7 @@ $ npm run bench:model -- --triples 1000 --out /tmp/la-gram-docs-bench/model-am4.
 
 ## The merge benchmark {#merge-benchmark}
 
-Two tests time and test la-gram's three-way merge, the one *Save to Git* and `la-gram-git merge` use, and
+In the **linked-archi-kernel checkout**, two tests time and test the shared three-way merge, the one *Save to Git* and `la-gram-git merge` use, and
 take their size from the environment:
 
 | Variable | Test | Default |

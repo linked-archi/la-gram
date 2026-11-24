@@ -53,9 +53,9 @@ graph TB
 
 | Layer | Directory | Responsibility |
 |---|---|---|
-| RDF engine | `src/rdf-engine` | Oxigraph store (native bulk load), observable wrapper (change feed, recording), IRI minting, parser/serializer, SHACL validator |
-| Metamodel manager | `src/metamodel-manager` | Asset sources, manifest-driven loader, catalogue, palette generation (dual classification, axes, notation), viewpoints |
-| Model manager | `src/model-manager` | Session, model namespace (minting, moving), element/relationship/view managers, cascade rules, queries, property catalog (what to offer when adding a property), legacy migration, shared vocabulary |
+| RDF engine | `@linked-archi/kernel/rdf-engine` | Oxigraph store (native bulk load), observable wrapper (change feed, recording), IRI minting, parser/serializer, SHACL validator |
+| Metamodel manager | `@linked-archi/kernel/metamodel-manager` | Asset sources, manifest-driven loader, catalogue, palette generation (dual classification, axes, notation), viewpoints |
+| Model manager | `@linked-archi/kernel/model-manager` | Session, model namespace (minting, moving), element/relationship/view managers, cascade rules, queries, property catalog (what to offer when adding a property), legacy migration, shared vocabulary |
 | Import/export | `src/import-export` | Model I/O (six formats, DD-15 partition, profiles), ArchiMate exchange import, SVG/PNG |
 | UI | `src/ui` | Shell (layout, side panels, bottom tabs), panels, canvas, dialogs, mounting |
 | Collaboration | `src/collab`, `server/` | Y.Doc binding, presence and locks, Hocuspocus server |
@@ -239,9 +239,8 @@ pictures are loaded by the browser as images, which no fetch option reaches:
 the files' names and contents), so a build with other assets gives them other
 addresses and the same ones keep theirs; the servers, and the desktop app's
 `app://` handler, read the path alone. `assets/` is
-refreshed from the published meta.linked.archi site by default with `npm run sync-assets`.
-A local `linked-archi-meta` checkout can be selected explicitly (`--meta` or `LINKED_ARCHI_META`),
-using that repository's own publishing scripts for the mapping. Every discovered document gets a status (loaded,
+copied from the installed kernel package. Asset refresh and qualification belong in that repository;
+la-gram installs its new archive/version with the lockfile. Every discovered document gets a status (loaded,
 already-loaded, skipped, unavailable, error) and an origin. Documents are bulk
 loaded natively into Oxigraph — 110 ms for the 72 740-quad ArchiMate 3.2
 relationship shapes, against 1.4 s quad by quad. Derivation rules, deliverable
@@ -473,8 +472,7 @@ then — unless offline — the published one, read from meta.linked.archi
 whatever the asset mode: under `bundled-first` the chain would always answer
 from the bundle, and a newly published metamodel would wait for a new la-gram.
 A published catalogue that is missing or unreadable leaves the bundled list.
-`npm run sync-assets` takes the published `catalog.ttl` by default. Explicit local mode uses
-the meta checkout's last generated site (`.onto-docs/catalog.ttl`).
+The installed kernel provides the bundled catalogue; updates arrive with a qualified kernel package.
 
 Snapshot freshness is a release preparation step (key design decision 25). The sync command compares
 the files already bundled with the selected source. Online mode fetches Turtle by namespace path,
@@ -3451,14 +3449,12 @@ dialog; the modules' section).
     all draw the same thing without knowing why. Not done by loading Basic silently: that would add a metamodel
     to the model the modeller did not choose.
 
-25. **Sync published assets by default; local checkout as an explicit source** (Req 1.9;
-    `scripts/sync-assets.mjs`). The default build preparation must reflect what meta.linked.archi
-    publishes, including its catalogue, without requiring a developer's local checkout or generated
-    documentation tree. `--meta` or `LINKED_ARCHI_META` opts into unpublished local resources;
-    `--online` selects the published site over the environment. Required online downloads are staged
-    before writing and failures do not fall back to another source, so a failed sync cannot report
-    an older or partially updated snapshot as current. Builds remain explicit consumers of the
-    snapshot, keeping builds from adding an implicit network operation.
+25. **One qualified asset snapshot, owned by the kernel** (Req 1.9; L01, updated 2026-11-24).
+    The kernel owns the synchronizer and bundled assets. la-gram copies and digests the installed package's
+    snapshot for web, Electron and CLI; it performs no implicit refresh during builds. Both editing tools
+    install the same qualified archive. This removes independently refreshable snapshots and duplicate model
+    implementations. TypeScript in the installed package is compiled by webpack; the CLI bundles it while
+    leaving its RDF runtime dependencies external. The migration task inventories imports for K02.
 
 ---
 

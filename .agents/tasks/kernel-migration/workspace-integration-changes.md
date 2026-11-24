@@ -53,3 +53,22 @@ in `docs-site/operating/web-app.md` are excluded from the migration commit.
 Verification: kernel 844 tests; la-gram 2041 tests plus the new App interoperability test; all 95 browser tests;
 web/Electron/CLI builds; direct and packed CLI smoke checks; complete two-way browser handoff. Documentation and
 API inventory are the owner's next requested step and are not marked complete yet.
+
+## Documentation follow-up — owner step 3
+
+Every path changed in this step:
+
+- `README.md`: package ownership, supported metamodel selection and asset upgrade workflow.
+- `.agents/conventions.md`: actual file tree and package-based shared-code/asset maintenance.
+- `.agents/specs/la-gram/requirements.md`: Req 1.9 describes the installed snapshot and one runtime implementation.
+- `.agents/specs/la-gram/design.md`: module locations, package build contract and asset ownership.
+- `.agents/specs/la-gram/tasks.md`: implementation evidence and current ownership; gates stay evidence-based.
+- `docs-site/developing/assets.md`: removes local synchronization instructions; documents kernel package upgrades.
+- `docs-site/developing/building.md`: asset copying and digest source are the installed kernel.
+- `docs-site/developing/index.md`: source layers and complete-model I/O location; four RDF partitions.
+- `docs-site/developing/testing.md`: separates kernel-owned tests from retained application integrations.
+- `.agents/tasks/kernel-migration/inventory-api.mjs` and `api-usage.md`: reproducible list of the 59 module paths,
+  exported names and application callers needed by K02 (KM-12).
+- `.agents/tasks/kernel-migration/tasks.md` and this document: measured completion and reasons.
+
+Validation: strict documentation build passed. No runtime behavior changed in this step.

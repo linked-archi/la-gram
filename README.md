@@ -144,33 +144,19 @@ An optional `la-gram.config.json` beside `index.html` sets, for everyone using t
 It is read once at startup, from the app's own address only. A file that fails the check — not JSON, an unknown value, anything that looks like a token or password (tokens are never configured) — is reported, and Git storage stays off until it is fixed. Keys la-gram does not know are reported and ignored.
 
 
-### Bundled metamodels, and refreshing them
+### Bundled metamodels and the shared kernel
 
-ArchiMate 4.0 and 3.2, Basic, the core vocabularies and their icons and markers ship in `assets/`, a
-snapshot of what meta.linked.archi serves, used first (`?assets=bundled-first`), with
-meta.linked.archi's catalogue (`assets/catalog.ttl`) — the metamodels the Metamodels menu offers,
-complete offline; unless offline, the published catalogue replaces it when it arrives.
-`sync-assets` refreshes this snapshot from **https://meta.linked.archi/ by default**:
+la-gram and the workspace consume the same installed `@linked-archi/kernel` package for model operations,
+validation and canonical RDF I/O. It contains ArchiMate 4.0 and 3.2, Basic, the core vocabularies, icons,
+markers and the catalogue. Builds copy `node_modules/@linked-archi/kernel/assets/` into their output `assets/`.
 
-```bash
-npm run sync-assets -- --check   # compare with the published site; exit 1 if anything differs
-npm run sync-assets              # update assets/ from the published site
-npm run build                    # build from that snapshot
-npm run sync-assets -- --meta ../../../linked-archi-meta  # use a local checkout explicitly
-```
+ArchiMate 4.0 is the bundled default. A model's selected metamodel controls its palette, fields, relationships,
+notation and questions; other published or organisation-authored metamodels load by IRI. Their catalogue
+entries do not imply offline bundling. Reopen the application to refresh already-loaded documents.
 
-`LINKED_ARCHI_META=<path>` also selects a local checkout; `--meta` takes precedence over it.
-`--online` selects the published site even when that environment variable is set. The online sync
-fetches the catalogue, bundled Turtle documents and icons, and stages the downloads before writing:
-a failed request fails the sync and keeps the existing snapshot. It does not fall back to a local
-checkout. Local mode runs that checkout's publishing scripts and takes its last generated catalogue
-from `.onto-docs/catalog.ttl`; generate that catalogue from the same revision before a local sync.
-
-The sync refreshes the languages already bundled. Other catalogue entries, including LeanIX, load
-from meta.linked.archi when selected. Reopen la-gram after a publication to refresh documents already
-loaded in the session. Builds copy `assets/` as it stands and do not sync automatically. Each build
-replaces its generated asset copy, including the CLI package's, so removed semantic files disappear
-from the output too.
+Asset updates are qualified in the kernel repository. Put its new packed archive in `vendor/`, install it,
+and commit the manifest, lockfile and archive together. There is no local asset synchronizer or editable source
+asset directory in la-gram. See [Bundled metamodels and icons](docs-site/developing/assets.md).
 
 ### Icons
 

@@ -16,7 +16,7 @@ are in [design.md](design.md).
 4. [x] la-gram unit suite **118 files / 2041 tests**, plus the added real-App interoperability test, passed.
 5. [x] Kernel verification commit: `fa73c6ef49b6b4b63fd62a1c531502dade8c5257` (source checkpoint `0cee219`).
    The copies removed by this migration match that kernel's source; the manifest records each destination and hash.
-6. [ ] Step 3: complete KM-12–14 docs/API inventory and remove the kernel's copy-transition instructions.
+6. [x] Step 3: complete KM-12–14 docs/API inventory and remove the kernel's copy-transition instructions.
 7. [ ] Step 4: remove the workspace-specific facade from the kernel; adjust this task's consumer tests/package only.
 
 E1/A is **open**, pending ArchiMate 3.2 and a Studio-generated extension, fixed-screen implementation, and the
@@ -31,39 +31,54 @@ remaining local acceptance criteria. Browser file handoff does not close shared 
 
 ## Stage 0: one code base
 
-- [ ] The kernel's K01 tests pass in the kernel repository.
-- [ ] Commit la-gram's work in progress on these modules.
-- [ ] Compare: `diff -r` of `src/rdf-engine`, `src/metamodel-manager`, `src/model-manager`, `model-io.ts`, the
+- [x] The kernel's K01 tests pass in the kernel repository.
+- [x] Commit la-gram's work in progress on these modules.
+- [x] Compare: `diff -r` of `src/rdf-engine`, `src/metamodel-manager`, `src/model-manager`, `model-io.ts`, the
       fixtures and `assets/` against the kernel. Port every difference to the kernel, with its test (KM-1).
-- [ ] `npm pack` in the kernel.
+- [x] `npm pack` in the kernel.
 
 ## Stage 1: the package beside la-gram's copies
 
-- [ ] Install the tarball (KM-2); `npm ls n3 oxigraph rdf-validate-shacl` shows one copy each (KM-3).
-- [ ] `ts-loader` rules, la-gram-git `externals`, Vitest `server.deps.inline` (KM-DD-3).
-- [ ] `KERNEL_ASSETS` in `bundledAssetsPlugin`, la-gram-git's copy and `assetsVersion()` (KM-DD-4, KM-7).
-- [ ] Remove the three aliases (KM-8).
-- [ ] `npm run typecheck`, `npm test`, `npm run build` pass.
+- [x] Install the tarball (KM-2); `npm ls n3 oxigraph rdf-validate-shacl` shows one copy each (KM-3).
+- [x] `ts-loader` rules, la-gram-git `externals`, Vitest `server.deps.inline` (KM-DD-3).
+- [x] `KERNEL_ASSETS` in `bundledAssetsPlugin`, la-gram-git's copy and `assetsVersion()` (KM-DD-4, KM-7).
+- [x] Remove the three aliases (KM-8).
+- [x] `npm run typecheck`, `npm test`, `npm run build` pass.
 
 ## Stage 2: imports
 
-- [ ] `rewrite-imports.mjs`; run it; review: only import lines changed (KM-DD-1).
-- [ ] `npm run typecheck`, `npm test`, `npm run build`, `npm run test:browser:build` pass.
+- [x] `rewrite-imports.mjs`; run it; review: only import lines changed (KM-DD-1).
+- [x] `npm run typecheck`, `npm test`, `npm run build`, `npm run test:browser:build` pass.
 
 ## Stage 3: delete the copies
 
 - [ ] Delete the three modules, `model-io.ts` and its test, `assets/`, the moved tests and fixtures, `sync-assets`
       and its test and npm script (KM-9, KM-13).
-- [ ] Move the 14 to `src/__tests__/kernel/`; add *kernel-deps.test* and *kernel-assets.test* (KM-10, KM-3, KM-4, KM-7).
+- [x] Move the 14 to `src/__tests__/kernel/`; add *kernel-deps.test* and *kernel-assets.test* (KM-10, KM-3, KM-4, KM-7).
 - [ ] Every check in KM-11, including la-gram-git's check of `docs-site/examples` and the smoke model, and
       byte-identical saves of the example models.
 - [ ] `npm run package` once (design, *Open questions*).
-- [ ] The commit names the kernel commit the deleted files match (KM-15).
+- [x] The commit names the kernel commit the deleted files match (KM-15).
 
 ## Stage 4: documentation
 
-- [ ] `api-usage.md`: the kernel files and names la-gram imports (KM-12).
-- [ ] la-gram: `README.md`, `.agents/conventions.md`, the design's module paths, Req 1.9, `docs-site/developing/`,
+- [x] `api-usage.md`: the kernel files and names la-gram imports (KM-12).
+- [x] la-gram: `README.md`, `.agents/conventions.md`, the design's module paths, Req 1.9, `docs-site/developing/`,
       the change log (KM-14). `npm run docs:build` passes.
-- [ ] Kernel: remove *While la-gram still holds a copy* from its conventions; tick L01 in its plan.
+- [x] Kernel: remove *While la-gram still holds a copy* from its conventions; tick L01 in its plan.
 - [ ] Platform: L01 done in `linked-archi-platform/docs/plan.md`.
+
+## Documentation result — owner step 3, 2026-11-24
+
+KM-12: `api-usage.md` inventories **59 module paths**, exported names and callers from the application TypeScript;
+`inventory-api.mjs` reproduces it. KM-13/14: README, conventions/file tree, requirements, design, task log and
+four developing pages now describe the installed kernel. Obsolete local synchronization instructions are removed.
+The kernel's copy-transition section is removed, and its README/design/plan describe package delivery.
+`npm run docs:build` passed with strict MkDocs: no warnings. No runtime code changed in this documentation step.
+
+Checkboxes above record the final checked implementation, not separate green intermediate commits. The initial
+source work was already checkpointed by the owner; the implementation commits are kernel `fa73c6e`, la-gram
+`5bc9123`, workspace `65e6cd7`. The retained ModelIO consumer regression test and shared merge/diff fixtures remain
+in la-gram because app/CLI tests consume them; their ownership will be reconciled in the next package cleanup.
+Historical byte-for-byte fixture-save comparison, the optional Electron packaged artifact, and platform roadmap
+closure are left unchecked where no new evidence was collected. L01 consumption is implemented; E1/A is open.
