@@ -171,10 +171,10 @@ export class WorkerValidationService implements ValidationService {
  * The service for this environment: a worker where there are workers (and
  * `inline` is not asked for), the calling thread otherwise.
  */
-export function createValidationService(options: { inline?: boolean; onTiming?: (timing: PlainReport['timing']) => void } = {}): ValidationService {
-  if (!options.inline && typeof Worker !== 'undefined' && typeof window !== 'undefined') {
+export function createValidationService(options: { inline?: boolean; createWorker?: () => WorkerLike; onTiming?: (timing: PlainReport['timing']) => void } = {}): ValidationService {
+  if (!options.inline && (options.createWorker || (typeof Worker !== 'undefined' && typeof window !== 'undefined'))) {
     try {
-      const worker = new Worker(new URL('./validation.worker.ts', import.meta.url));
+      const worker = options.createWorker?.() ?? new Worker(new URL('./validation.worker.ts', import.meta.url), { type: 'module' });
       return new WorkerValidationService(worker as unknown as WorkerLike, options.onTiming);
     } catch (err: unknown) {
       console.warn('[la-gram] No validation worker; validating on the UI thread', err);

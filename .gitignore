@@ -71,5 +71,6 @@ data/
 .agents/tasks/*
 !.agents/tasks/git-sync/
 !.agents/tasks/kernel-migration/
+!.agents/tasks/pull-deploy/
 !.agents/tasks/view-references/
 !.agents/tasks/views-as-concepts/

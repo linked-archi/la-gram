@@ -1,0 +1,46 @@
+# la-gram-pull@production.service, la-gram-pull@alpha.service: one check for a new build, started by
+# la-gram-pull@.timer. Installed as /etc/systemd/system/la-gram-pull@.service (ops/pull-deploy/README.md).
+#
+# As its own user, with no shell, no sudo and no capabilities. It writes only the web root and its own
+# state, and reaches only the network: GitHub, Sigstore's public trust root, and the site, to check it.
+[Unit]
+Description=la-gram: install the %i web app from GitHub Releases, if new
+Documentation=file:///usr/local/share/doc/la-gram-pull/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=la-gram-pull
+Group=la-gram-pull
+ExecStart=/usr/local/bin/la-gram-pull %i
+Environment=LA_GRAM_PULL_CONF=/etc/la-gram-pull.conf
+# gh keeps its configuration and Sigstore's trust root under the home: the state folder.
+Environment=HOME=/var/lib/la-gram-pull
+StateDirectory=la-gram-pull
+StateDirectoryMode=0750
+UMask=0022
+# The desktop apps are 0.7 GB.
+TimeoutStartSec=30min
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/var/www/linked-archi-app
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

@@ -1,0 +1,384 @@
+# la-gram on GitHub Actions: the counterpart of .gitlab-ci.yml's la-gram jobs, for the move to GitHub
+# (.agents/tasks/pull-deploy/). Until the switch-over, .gitlab-ci.yml still releases la-gram, and it
+# releases la-gram-git (npm, container image) after it too: nothing of la-gram-git's is published here.
+#
+#   pull request, main        the tests, la-gram-git's package, the web app and its documentation
+#   main                      and, while package.json says a pre-release (0.3.0-alpha), the alpha: the
+#                             rolling pre-release la-gram-alpha, replaced on each push
+#   tag la-gram-v0.2.0        the desktop apps, and the GitHub Release "la-gram 0.2.0" with them, the web
+#                             app as one file (la-gram-web-0.2.0.tar.gz) and their SHA-256 sums
+#   tag la-gram-v0.3.0-rc.1   the same, as a pre-release, which app.linked.archi never installs
+#   Run workflow (by hand)    as a pull request; with "desktop" ticked, the five desktop apps too, kept
+#                             three days as the run's artifacts, to try
+#
+# Nothing here reaches app.linked.archi, and no secret is stored. The server fetches the releases and
+# installs a file only when its build record says this workflow built it, in this repository, on a
+# GitHub-hosted runner, from a la-gram-v tag or from main (ops/pull-deploy/la-gram-pull). The record is
+# the attestation each publishing job makes with GitHub's short-lived OIDC token. The one token is the
+# run's own GITHUB_TOKEN: read-only, but in the two jobs that publish.
+#
+# Every action is pinned to a commit, its version beside it; Dependabot proposes the updates
+# (.github/dependabot.yml).
+name: la-gram
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['la-gram-v*']
+  workflow_dispatch:
+    inputs:
+      desktop:
+        description: Package the five desktop apps too, to try (kept three days)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request cancels what is still running; main and tags run to the end.
+concurrency:
+  group: la-gram-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # No job runs Electron: the desktop jobs' packager downloads each target's own.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+  npm_config_audit: "false"
+  npm_config_fund: "false"
+
+jobs:
+  # What this run is. On a tag, the tag's version must be package.json's; on a push to main, a
+  # pre-release version (0.3.0-alpha) makes it the alpha. Everything else publishes nothing.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      kind: ${{ steps.v.outputs.kind }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          KIND=none
+          case "$REF" in
+            refs/tags/*)
+              if ! [[ "$REF_NAME" =~ ^la-gram-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+                echo "::error::$REF_NAME is not la-gram-v<version>."
+                exit 1
+              fi
+              if [ "${REF_NAME#la-gram-v}" != "$VERSION" ]; then
+                echo "::error::The tag $REF_NAME says ${REF_NAME#la-gram-v}; package.json says $VERSION."
+                exit 1
+              fi
+              case "$VERSION" in *-*) KIND=prerelease ;; *) KIND=release ;; esac
+              ;;
+            refs/heads/main)
+              if [ "$EVENT" = push ]; then
+                case "$VERSION" in *-*) KIND=alpha ;; esac
+              fi
+              ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+          echo "la-gram $VERSION: $KIND"
+
+  # Type check, and la-gram's unit and integration tests. The benchmarks are left out: they time the
+  # machine they run on.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline
+      - run: npm run typecheck
+      - run: npx vitest run --exclude '**/{*-bench,bench-*}.test.ts'
+
+  # la-gram-git's package, as npm will have it: built, packed, installed and run. Not published here.
+  package:
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline
+      - run: npm run build:cli
+      - run: |
+          PACKAGE_VERSION="$(node -p 'require("./packages/la-gram-git/package.json").version')"
+          (cd packages/la-gram-git && npm pack)
+          npm install --global "./packages/la-gram-git/linked-archi-la-gram-git-$PACKAGE_VERSION.tgz"
+          test "$(la-gram-git --version)" = "$PACKAGE_VERSION"
+          la-gram-git check packages/la-gram-git/smoke
+          # The model the documentation opens in la-gram still checks clean (.gitlab-ci.yml, package).
+          la-gram-git check docs-site/examples
+
+  # The web app, as app.linked.archi/la-gram/ serves it. On a push to main, built for the alpha's
+  # channel, which keeps its browser storage apart from the release's (src/storage-scope.ts).
+  # webpack.config.js names the commit on the version's page from GitLab's variables; they are set here
+  # from GitHub's: the commit on a branch, none on a tag.
+  web:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      LA_GRAM_CHANNEL: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'alpha' || '' }}
+      CI_COMMIT_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      CI_COMMIT_SHA: ${{ github.sha }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline
+      - run: npm run build:web
+      - run: |
+          test -f dist/web/index.html && test -f dist/web/favicon.svg && ls dist/web/*.wasm
+          # This version's page: the IRI the edits it records name as their agent (scripts/version-page.mjs).
+          test -f "dist/web/v$VERSION/index.html"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web
+          path: dist/web/
+          retention-days: 7
+          if-no-files-found: error
+
+  # The documentation, into dist/web/docs/, strictly: a broken link or anchor, a page left out of the
+  # navigation, or a script the server's Content-Security-Policy would block fails here. In the image
+  # .gitlab-ci.yml uses, with the versions requirements-docs.txt pins.
+  docs:
+    runs-on: ubuntu-latest
+    container: python:3.14.10-slim-trixie
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      NO_MKDOCS_2_WARNING: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python -m venv /tmp/venv
+      # Exactly the list, and nothing it leaves out: --no-deps installs only what it names, and pip check
+      # fails the job if a package needs one it does not.
+      - run: /tmp/venv/bin/pip install --quiet --no-deps --requirement requirements-docs.txt
+      - run: /tmp/venv/bin/python -m pip check
+      - run: /tmp/venv/bin/mkdocs build --strict
+      - run: test -f dist/web/docs/index.html && test -f dist/web/docs/search/search_index.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs
+          path: dist/web/docs/
+          retention-days: 7
+          if-no-files-found: error
+
+  # The desktop apps, each packaged on the Linux runner with its target's Electron, as .gitlab-ci.yml's
+  # desktop jobs do: not signed by a developer (the macOS app ad hoc), zipped, Linux as a tarball, which
+  # keeps the files' modes. On a la-gram-v tag for the Release; by hand, to try.
+  desktop:
+    needs: version
+    if: >-
+      needs.version.outputs.kind == 'release' || needs.version.outputs.kind == 'prerelease' ||
+      (github.event_name == 'workflow_dispatch' && inputs.desktop)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin, arch: arm64 }
+          - { platform: darwin, arch: x64 }
+          - { platform: win32, arch: x64 }
+          - { platform: linux, arch: x64 }
+          - { platform: linux, arch: arm64 }
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      ARCH: ${{ matrix.arch }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline
+      # Each target's Electron comes from GitHub, which now and then answers with errors for minutes on
+      # end: tried three times, waiting longer each time.
+      - run: |
+          for TRY in 1 2 3; do
+            npm run package -- --platform "$PLATFORM" --arch "$ARCH" && break
+            if [ "$TRY" = 3 ]; then exit 1; fi
+            echo "Packaging failed (try $TRY of 3); again in $((TRY * 60)) s."
+            sleep $((TRY * 60))
+          done
+      # macOS: the app's signature made whole, ad hoc, by a pinned rcodesign whose checksum is checked
+      # (.gitlab-ci.yml, desktop, says why).
+      - if: matrix.platform == 'darwin'
+        run: |
+          RCODESIGN=apple-codesign-0.29.0-x86_64-unknown-linux-musl
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --output rcodesign.tar.gz \
+            "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/$RCODESIGN.tar.gz"
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  rcodesign.tar.gz" | sha256sum --check -
+          tar -xzf rcodesign.tar.gz
+          "$RCODESIGN/rcodesign" sign "dist/packages/la-gram-$PLATFORM-$ARCH/la-gram.app"
+      - run: |
+          mkdir -p release
+          NAME="la-gram-$VERSION-$PLATFORM-$ARCH"
+          cd dist/packages
+          if [ "$PLATFORM" = linux ]; then
+            tar -czf "../../release/$NAME.tar.gz" "la-gram-$PLATFORM-$ARCH"
+          else
+            zip -qry "../../release/$NAME.zip" "la-gram-$PLATFORM-$ARCH"
+          fi
+          ls -l ../../release
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release/
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && 3 || 7 }}
+          if-no-files-found: error
+
+  # The GitHub Release, on a la-gram-v tag: the five desktop apps, the web app with its documentation as
+  # one file, their sums, and the build record of each. In the environment production, whose deployment
+  # rule admits la-gram-v* tags only and whose required reviewer approves the release before it is
+  # published: publishing is deploying, as app.linked.archi installs the latest release by itself.
+  # A pre-release (-rc.1) is published as one, which the server never installs.
+  release:
+    needs: [version, test, web, docs, desktop]
+    if: needs.version.outputs.kind == 'release' || needs.version.outputs.kind == 'prerelease'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+    concurrency:
+      group: la-gram-release
+      cancel-in-progress: false
+    permissions:
+      contents: write # the Release
+      id-token: write # the OIDC token the build record is signed with
+      attestations: write # the build record
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web
+          path: dist/web
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs
+          path: dist/web/docs
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: desktop-*
+          path: release
+          merge-multiple: true
+      # Both or neither, and the version's page: the server installs the folder as it is.
+      - run: |
+          test -f dist/web/index.html && test -f dist/web/docs/index.html && test -f "dist/web/v$VERSION/index.html"
+          tar -czf "release/la-gram-web-$VERSION.tar.gz" -C dist/web .
+          (cd release && sha256sum la-gram-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'release/la-gram-*'
+      # The build record beside the files, so the server can check them with it, offline.
+      - env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" "release/la-gram-$VERSION.attestation.${BUNDLE##*.}"
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [[ "$VERSION" == *-* ]]; then FLAGS=(--prerelease --latest=false); else FLAGS=(--latest); fi
+          gh release create "$TAG" release/* --verify-tag --title "la-gram $VERSION" "${FLAGS[@]}" --notes-file - <<'NOTES'
+          la-gram, the semantic modeller for enterprise and IT architecture.
+
+          **In the browser** (the latest release): https://app.linked.archi/la-gram/ — its documentation at https://app.linked.archi/la-gram/docs/
+
+          **Desktop apps**: unzip and open; nothing else to install. They are not signed: the first time, macOS asks you to allow it in *System Settings › Privacy & Security › Open Anyway*, and Windows in *More info › Run anyway*.
+
+          Each file's build record: `gh attestation verify <file> --repo linked-archi/la-gram`.
+          NOTES
+
+  # The alpha, on a push to main while package.json says a pre-release: the web app with its
+  # documentation as the rolling pre-release la-gram-alpha, made again on each push, which
+  # app.linked.archi installs at /la-gram-alpha/. In the environment alpha, whose deployment rule admits
+  # main only. Named after the version and the commit (la-gram-web-0.3.0-alpha-1a2b3c4d5e6f.tar.gz): the
+  # server keeps each in a folder of that name.
+  alpha:
+    needs: [version, test, web, docs]
+    if: needs.version.outputs.kind == 'alpha'
+    runs-on: ubuntu-latest
+    environment:
+      name: alpha
+      url: https://app.linked.archi/la-gram-alpha/
+    concurrency:
+      group: la-gram-alpha
+      cancel-in-progress: false
+    permissions:
+      contents: write # the pre-release, and its tag
+      id-token: write # the OIDC token the build record is signed with
+      attestations: write # the build record
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      ALPHA_TAG: la-gram-alpha
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web
+          path: dist/web
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs
+          path: dist/web/docs
+      - run: |
+          test -f dist/web/index.html && test -f dist/web/docs/index.html && test -f "dist/web/v$VERSION/index.html"
+          mkdir -p release
+          ID="$VERSION-${GITHUB_SHA::12}"
+          tar -czf "release/la-gram-web-$ID.tar.gz" -C dist/web .
+          (cd release && sha256sum la-gram-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          echo "ID=$ID" >> "$GITHUB_ENV"
+      - id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'release/la-gram-*'
+      - env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" "release/la-gram-$ID.attestation.${BUNDLE##*.}"
+      # The last alpha and its tag away, then this one at this commit. GitHub may take a moment to forget
+      # the deleted tag: tried three times.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete "$ALPHA_TAG" --cleanup-tag --yes || true
+          for TRY in 1 2 3; do
+            gh release create "$ALPHA_TAG" release/* --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "la-gram $VERSION (alpha, ${GITHUB_SHA::12})" \
+              --notes "The next release as it is being made, from main at ${GITHUB_SHA}: https://app.linked.archi/la-gram-alpha/" && exit 0
+            sleep $((TRY * 10))
+          done
+          exit 1

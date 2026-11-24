@@ -1,3 +1,4 @@
+import type { BundledAssetOptions } from './bundled-assets.js';
 /**
  * Where metamodel documents come from.
  *
@@ -128,14 +129,16 @@ export function parseRdf(text: string, format: AssetFormat, baseIri?: string): Q
 export class BundledAssetSource implements AssetSource {
   readonly kind = 'bundled' as const;
 
+  constructor(private readonly options: BundledAssetOptions = {}) {}
+
   async fetch(documentIri: string): Promise<AssetDocument | null> {
     if (documentIri === CATALOGUE_IRI) {
-      const text = await fetchAssetText(BUNDLED_CATALOGUE_PATH);
+      const text = await fetchAssetText(BUNDLED_CATALOGUE_PATH, this.options);
       return { documentIri, text, format: 'text/turtle', origin: 'bundled', location: BUNDLED_CATALOGUE_PATH };
     }
     const asset = getAssetByIri(documentIri);
     if (!asset) return null;
-    const text = await fetchAssetText(asset);
+    const text = await fetchAssetText(asset, this.options);
     return {
       documentIri,
       text,

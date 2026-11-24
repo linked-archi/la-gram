@@ -104,6 +104,13 @@ export class ObservableRdfStore implements RdfStore {
     this.model.addQuads(this.defaultGraph() as never);
   }
 
+  /** End a host-owned session, including pending WASM writes (workspace Req 1.5). */
+  dispose(): void {
+    this.dropBacklog(); this.listeners.clear(); this.writeListeners.clear(); this.stamper = null;
+    this.model = new N3Store();
+    (this.inner as RdfStore & { dispose?(): void }).dispose?.();
+  }
+
   // ── Observation ────────────────────────────────────────────────────────
 
   /** Be told about every effective change to the model. Returns an unsubscribe. */

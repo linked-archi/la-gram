@@ -116,6 +116,8 @@ export function editorKey(editor: Editor | undefined): string | undefined {
 }
 
 export interface EditProvenanceOptions {
+  /** Actual calling application (KReq 8.3); absent retains the legacy la-gram identity. */
+  software?: { iri: string; name: string; version?: string };
   /** The open model's IRI. */
   modelIri(): string | undefined;
   /** The open model's namespace, which activities and users are named in. */
@@ -155,14 +157,14 @@ export class EditProvenance {
     private readonly store: RdfStore,
     private readonly options: EditProvenanceOptions,
   ) {
-    this.version = options.version ?? buildVersion();
+    this.version = options.software?.version ?? options.version ?? buildVersion();
     this.now = options.now ?? (() => new Date());
     this.uuid = options.uuid ?? uuid;
   }
 
   /** la-gram's IRI as this build records it. */
   get agent(): string {
-    return modellerIri(this.version);
+    return this.options.software?.iri ?? modellerIri(this.version);
   }
 
   /** The editing activity edits go into now, if one has started. */
@@ -246,7 +248,7 @@ export class EditProvenance {
       add.push(
         t(this.agent, IRI.rdfType, nn(P.softwareAgent)),
         t(this.agent, IRI.rdfType, nn(P.softwareApplication)),
-        t(this.agent, P.name, literal('la-gram') as unknown as Term),
+        t(this.agent, P.name, literal(this.options.software?.name ?? 'la-gram') as unknown as Term),
         ...(this.version ? [t(this.agent, P.softwareVersion, literal(this.version) as unknown as Term)] : []),
       );
     }
@@ -275,7 +277,7 @@ export class EditProvenance {
    * the la-gram versions no activity names. A converter's run and agent are not la-gram's to remove.
    */
   private dropUnnamed(activities: Set<string>, namespace: string): void {
-    const own = (iri: string) => iri.startsWith(`${namespace}provenance/`) || iri.startsWith(LA_GRAM_HOME);
+    const own = (iri: string) => iri.startsWith(`${namespace}provenance/`) || (this.options.software ? iri === this.agent : iri.startsWith(LA_GRAM_HOME));
     const agents = new Set<string>();
     const remove: Quad[] = [];
     for (const activity of activities) {

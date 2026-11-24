@@ -538,9 +538,16 @@ export const ASSETS_VERSION = typeof __LA_GRAM_ASSETS_VERSION__ === 'string' ? _
  * and a browser would otherwise draw a glyph from its copy of the old file
  * after the assets were synced again. The servers read the path alone.
  */
-export function assetUrl(assetPath: string): string {
-  const relative = `${ASSET_ROOT}/${assetPath}${ASSETS_VERSION ? `?v=${ASSETS_VERSION}` : ''}`;
-  const baseUri = typeof document !== 'undefined' ? document.baseURI : undefined;
+export interface BundledAssetOptions {
+  /** Per-consumer URL of the directory containing assets/. Never a module-global override. */
+  baseUrl?: string;
+  version?: string;
+}
+
+export function assetUrl(assetPath: string, options: BundledAssetOptions = {}): string {
+  const version = options.version ?? ASSETS_VERSION;
+  const relative = `${ASSET_ROOT}/${assetPath}${version ? `?v=${encodeURIComponent(version)}` : ''}`;
+  const baseUri = options.baseUrl ?? (typeof document !== 'undefined' ? document.baseURI : undefined);
   return baseUri ? new URL(relative, baseUri).href : relative;
 }
 
@@ -552,10 +559,10 @@ export function assetUrl(assetPath: string): string {
  * @throws If the asset cannot be read — a missing file in Node, or a non-OK
  *   response in the browser.
  */
-export async function fetchAssetText(asset: BundledAsset | string): Promise<string> {
+export async function fetchAssetText(asset: BundledAsset | string, options: BundledAssetOptions = {}): Promise<string> {
   const assetPath = typeof asset === 'string' ? asset : asset.path;
 
-  const readFile = await getFileReader();
+  const readFile = options.baseUrl ? null : await getFileReader();
   if (readFile !== null) {
     const root = await nodeAssetRoot(readFile);
     return readFile(`${root}/${ASSET_ROOT}/${assetPath}`, 'utf-8');
@@ -567,7 +574,7 @@ export async function fetchAssetText(asset: BundledAsset | string): Promise<stri
     );
   }
 
-  const url = assetUrl(assetPath);
+  const url = assetUrl(assetPath, options);
   // Revalidate: the static server sends no Cache-Control, and a re-synced
   // snapshot must not be shadowed by the browser's copy of the old one.
   const response = await fetch(url, { cache: 'no-cache' });

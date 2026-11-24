@@ -123,3 +123,4 @@ One commit per stage: a stage that fails can be reverted on its own.
 | Whether `ts-loader` compiles files from a tarball under `node_modules` with `allowTsInNodeModules`, or the rule needs `onlyCompileBundledFiles` | Stage 1 |
 | If K02 renames the build flags or makes the asset base a setting, la-gram's `DefinePlugin` and `assetUrl` callers change with it | the K02 change, in la-gram at the same time |
 | Electron packaging (`scripts/package-electron.mjs`): it copies from `dist/`, so it should need no change | Stage 3, by running `npm run package` once |
+| `src/storage-scope.ts`, copied to the kernel on 2026-11-23 because `version-history.ts` imports it. la-gram's settings, tokens and Git bindings use it too. If K02 has made the checkpoints' store name the caller's, la-gram keeps its file and the kernel's copy goes; otherwise la-gram imports the kernel's | Stage 2, after K02 |

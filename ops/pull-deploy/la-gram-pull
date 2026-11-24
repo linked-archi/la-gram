@@ -1,0 +1,407 @@
+#!/usr/bin/env bash
+# la-gram-pull: puts la-gram's web app in place on this server, from the GitHub Releases that
+# .github/workflows/la-gram.yml publishes. Nothing pushes to this server and no CI job holds a key
+# to it. This script asks GitHub, and installs a file only when its build record (a Sigstore-signed
+# attestation) says that workflow made it, in REPO, on a GitHub-hosted runner, from a
+# la-gram-v<x.y.z> tag (production) or from main (the alpha). How to install it, and how to switch
+# over from the SSH deploy: ops/pull-deploy/README.md.
+#
+#   la-gram-pull production [--force] [--dry-run]   the newest la-gram-v<x.y.z> release, if new
+#   la-gram-pull alpha [--force] [--dry-run]        the rolling pre-release la-gram-alpha, if new
+#   la-gram-pull rollback production|alpha          back to the folder served before; holds this one
+#   la-gram-pull adopt                              once: the folders the SSH deploy filled become links
+#
+#   --force    again, though GitHub says nothing changed, or the build is served or held already
+#   --dry-run  download, verify and unpack into STATE_DIR/staging/; nothing served changes
+#
+# Under BASE, which nginx serves unchanged (it follows the links):
+#
+#   la-gram        -> releases/<version>          /la-gram/, the release served
+#   la-gram-alpha  -> alpha/<version>-<commit>    /la-gram-alpha/, the alpha served
+#   releases/ alpha/                              the newest KEEP_RELEASES / KEEP_ALPHAS, to roll back to
+#   versions/v<version>/                          every version's page, never removed, copied into the
+#                                                 release served: /la-gram/v<version>/ stays (Req 9.16)
+#
+# The release served has the desktop apps in downloads/, named without the version as la-gram's menu
+# links them (src/help-links.ts, DESKTOP_DOWNLOADS), with their SHA256SUMS.txt.
+set -euo pipefail
+umask 022
+export LC_ALL=C GH_NO_UPDATE_NOTIFIER=1 GH_PROMPT_DISABLED=1 GH_SPINNER_DISABLED=1
+
+CONF=${LA_GRAM_PULL_CONF:-/etc/la-gram-pull.conf}
+if [ -r "$CONF" ]; then
+  # shellcheck source=/dev/null
+  . "$CONF"
+fi
+REPO=${REPO:-linked-archi/la-gram}
+WORKFLOW=${WORKFLOW:-.github/workflows/la-gram.yml}
+BASE=${BASE:-/var/www/linked-archi-app}
+SITE=${SITE:-https://app.linked.archi}
+STATE_DIR=${STATE_DIR:-/var/lib/la-gram-pull}
+KEEP_RELEASES=${KEEP_RELEASES:-2}
+KEEP_ALPHAS=${KEEP_ALPHAS:-2}
+CHECK_RESOLVE=${CHECK_RESOLVE:-}
+API=${API:-https://api.github.com}
+ALPHA_TAG=la-gram-alpha
+# The desktop apps: la-gram-<version>-<target> in the release, downloads/la-gram-<target> here.
+TARGETS="darwin-arm64.zip darwin-x64.zip win32-x64.zip linux-x64.tar.gz linux-arm64.tar.gz"
+if [ -n "${GH_TOKEN:-}" ]; then export GH_TOKEN; fi
+
+FORCE=0
+DRY_RUN=0
+WORK=
+ID=
+CHANNEL=
+UNCHANGED=0
+NEW_ETAG=
+TAG=
+REF=
+BUNDLE=
+BEFORE=
+
+cleanup() { if [ -n "$WORK" ]; then rm -rf "$WORK"; fi; }
+trap cleanup EXIT
+
+log() { printf 'la-gram-pull: %s\n' "$*"; }
+die() { printf 'la-gram-pull: %s\n' "$*" >&2; exit 1; }
+
+# refuse <why>: this build is not installed, and not fetched again until a newer one is published
+# (or --force): a file that fails its checks fails them again, and the desktop apps are 0.7 GB.
+refuse() {
+  if [ -n "$ID" ] && [ "$DRY_RUN" = 0 ]; then printf '%s\n' "$ID" > "$STATE_DIR/$CHANNEL.hold"; fi
+  die "$CHANNEL: refused $ID: $*"
+}
+
+usage() {
+  cat <<'USAGE'
+usage: la-gram-pull production|alpha [--force] [--dry-run]
+       la-gram-pull rollback production|alpha
+       la-gram-pull adopt
+USAGE
+}
+
+need() {
+  local c
+  for c in "$@"; do command -v "$c" > /dev/null || die "needs $c"; done
+}
+
+# channel <production|alpha>: LINK, STORE and KEEP for it.
+channel() {
+  CHANNEL=$1
+  case "$1" in
+    production) LINK=la-gram; STORE=releases; KEEP=$KEEP_RELEASES ;;
+    alpha) LINK=la-gram-alpha; STORE=alpha; KEEP=$KEEP_ALPHAS ;;
+    *) usage >&2; exit 2 ;;
+  esac
+  if [ "$KEEP" -lt 1 ]; then KEEP=1; fi
+}
+
+# github <url> <file> [etag]: the API's answer into the file, its headers beside it; prints the status.
+# An answer of 304 (nothing changed) does not count against GitHub's hourly limit.
+github() {
+  local code args=(--silent --show-error --location --output "$2" --dump-header "$2.headers"
+    --write-out '%{http_code}' --header 'Accept: application/vnd.github+json'
+    --header 'X-GitHub-Api-Version: 2022-11-28')
+  if [ -n "${GH_TOKEN:-}" ]; then args+=(--header "Authorization: Bearer $GH_TOKEN"); fi
+  if [ -n "${3:-}" ]; then args+=(--header "If-None-Match: $3"); fi
+  code=$(curl "${args[@]}" "$1") || true
+  printf '%s' "${code:-000}"
+}
+
+# release: the channel's release into WORK/release.json, with TAG and REF (the git ref the build
+# record must name); UNCHANGED=1 when GitHub says nothing changed since the last answer.
+release() {
+  local url etag="" code
+  if [ "$CHANNEL" = production ]; then
+    url="$API/repos/$REPO/releases?per_page=100"
+  else
+    url="$API/repos/$REPO/releases/tags/$ALPHA_TAG"
+  fi
+  if [ "$FORCE" = 0 ] && [ -r "$STATE_DIR/$CHANNEL.etag" ]; then etag=$(cat "$STATE_DIR/$CHANNEL.etag"); fi
+  code=$(github "$url" "$WORK/answer.json" "$etag")
+  case "$code" in
+    304) UNCHANGED=1; return 0 ;;
+    200) ;;
+    # The alpha is made again on each push to main: between its deletion and its creation, none.
+    404) if [ "$CHANNEL" = alpha ]; then UNCHANGED=1; log "alpha: $ALPHA_TAG is not published (now)"; return 0; fi
+         die "production: $REPO has no releases" ;;
+    *) die "$CHANNEL: GitHub answered $code for $url" ;;
+  esac
+  NEW_ETAG=$(sed -n 's/^[Ee][Tt][Aa][Gg]: *//p' "$WORK/answer.json.headers" | tr -d '\r' | tail -n 1)
+  if [ "$CHANNEL" = production ]; then
+    # The newest la-gram-v<x.y.z>: no draft, no pre-release, nothing of la-gram-git's or the alpha's.
+    jq '[.[] | select(.draft | not) | select(.prerelease | not)
+          | select(.tag_name | test("^la-gram-v[0-9]+\\.[0-9]+\\.[0-9]+$"))]
+        | sort_by(.tag_name | ltrimstr("la-gram-v") | split(".") | map(tonumber)) | last' \
+      "$WORK/answer.json" > "$WORK/release.json"
+    [ "$(jq -r type "$WORK/release.json")" = object ] || die "production: no la-gram-v<x.y.z> release in $REPO yet"
+    TAG=$(jq -r .tag_name "$WORK/release.json")
+    REF="refs/tags/$TAG"
+  else
+    cp "$WORK/answer.json" "$WORK/release.json"
+    [ "$(jq -r .prerelease "$WORK/release.json")" = true ] || die "alpha: $ALPHA_TAG is not a pre-release"
+    TAG=$ALPHA_TAG
+    REF=refs/heads/main
+  fi
+}
+
+save_etag() {
+  if [ -n "$NEW_ETAG" ] && [ "$DRY_RUN" = 0 ]; then printf '%s\n' "$NEW_ETAG" > "$STATE_DIR/$CHANNEL.etag"; fi
+}
+
+asset_url() {
+  jq -r --arg n "$1" '.assets[] | select(.name == $n) | .browser_download_url' "$WORK/release.json"
+}
+
+# fetch <name>: the release's file of that name into WORK.
+fetch() {
+  local url
+  url=$(asset_url "$1")
+  [ -n "$url" ] || refuse "$TAG has no $1"
+  curl --fail --silent --show-error --location --retry 3 --output "$WORK/$1" "$url" || die "$CHANNEL: could not download $1"
+}
+
+# check <name>: the file's SHA-256 is the one SHA256SUMS.txt gives, and its build record says WORKFLOW
+# in REPO built it from REF, on a GitHub-hosted runner.
+check() {
+  local line bundle=()
+  line=$(awk -v n="$1" '$2 == n' "$WORK/SHA256SUMS.txt")
+  [ -n "$line" ] || refuse "SHA256SUMS.txt lists no $1"
+  (cd "$WORK" && printf '%s\n' "$line" | sha256sum --check --quiet --strict -) || refuse "$1 is not the file SHA256SUMS.txt gives"
+  if [ -n "$BUNDLE" ]; then bundle=(--bundle "$WORK/$BUNDLE"); fi
+  if ! gh attestation verify "$WORK/$1" --repo "$REPO" "${bundle[@]}" \
+      --signer-workflow "$REPO/$WORKFLOW" --source-ref "$REF" --deny-self-hosted-runners \
+      > "$WORK/verify.log" 2>&1; then
+    cat "$WORK/verify.log" >&2
+    refuse "$1: its build record does not say $WORKFLOW in $REPO built it from $REF"
+  fi
+}
+
+# replace <from> <to>: the folder <to> becomes a copy of <from>.
+replace() {
+  rm -rf "$2.new"
+  cp -a "$1" "$2.new"
+  rm -rf "$2"
+  mv "$2.new" "$2"
+}
+
+# swap <target, relative to BASE>: BASE/LINK points at it, in one rename. BEFORE: where it pointed.
+swap() {
+  BEFORE=
+  if [ -L "$BASE/$LINK" ]; then BEFORE=$(readlink "$BASE/$LINK"); fi
+  ln -sfn "$1" "$BASE/$LINK.swap"
+  mv -T "$BASE/$LINK.swap" "$BASE/$LINK"
+}
+
+# served <folder>: SITE/LINK/ answers the folder's index.html, so nginx serves it now.
+served() {
+  local want got i resolve=()
+  if [ -n "$CHECK_RESOLVE" ]; then resolve=(--resolve "$CHECK_RESOLVE"); fi
+  want=$(sha256sum < "$1/index.html" | cut -d ' ' -f 1)
+  for i in 1 2 3 4 5; do
+    got=$(curl --fail --silent --show-error "${resolve[@]}" --header 'Cache-Control: no-cache' \
+      "$SITE/$LINK/index.html" | sha256sum | cut -d ' ' -f 1) || got=
+    if [ "$got" = "$want" ]; then return 0; fi
+    sleep "$i"
+  done
+  return 1
+}
+
+# prune: the newest KEEP folders in STORE stay, and the one served.
+prune() {
+  local now d n=0
+  now=$(basename "$(readlink "$BASE/$LINK")")
+  for d in $(ls -1t "$BASE/$STORE"); do
+    n=$((n + 1))
+    if [ "$n" -le "$KEEP" ] || [ "$d" = "$now" ]; then continue; fi
+    rm -rf "${BASE:?}/$STORE/$d"
+    log "$CHANNEL: removed $STORE/$d"
+  done
+}
+
+deploy() {
+  local web stage target name v prod held
+  local pages=()
+  need curl jq gh tar sha256sum awk
+  WORK=$(mktemp -d "$STATE_DIR/work.XXXXXX")
+  release
+  if [ "$UNCHANGED" = 1 ]; then log "$CHANNEL: nothing new"; return 0; fi
+
+  web=$(jq -r '[.assets[].name | select(test("^la-gram-web-[0-9A-Za-z.-]+\\.tar\\.gz$"))]
+               | if length == 1 then .[0] else "" end' "$WORK/release.json")
+  [ -n "$web" ] || die "$CHANNEL: $TAG has not exactly one la-gram-web-<version>.tar.gz"
+  ID=${web#la-gram-web-}
+  ID=${ID%.tar.gz}
+  if [ "$CHANNEL" = production ] && [ "$ID" != "${TAG#la-gram-v}" ]; then refuse "$TAG's web app is $web"; fi
+  BUNDLE=$(jq -r '[.assets[].name | select(test("^la-gram-[0-9A-Za-z.-]+\\.attestation\\.jsonl?$"))] | .[0] // ""' "$WORK/release.json")
+
+  held=$(cat "$STATE_DIR/$CHANNEL.hold" 2> /dev/null || true)
+  if [ "$FORCE" = 0 ] && [ "$held" = "$ID" ]; then
+    log "$CHANNEL: $ID is held (rolled back or refused); --force, or a newer build, installs again"
+    save_etag
+    return 0
+  fi
+  if [ "$FORCE" = 0 ] && [ "$(cat "$STATE_DIR/$CHANNEL.id" 2> /dev/null || true)" = "$ID" ]; then
+    log "$CHANNEL: $ID is served already"
+    save_etag
+    return 0
+  fi
+  log "$CHANNEL: $TAG, $ID"
+
+  fetch SHA256SUMS.txt
+  if [ -n "$BUNDLE" ]; then fetch "$BUNDLE"; fi
+  fetch "$web"
+  check "$web"
+
+  # No path out of the folder, and no link of any kind.
+  tar -tzf "$WORK/$web" > "$WORK/names"
+  tar -tvzf "$WORK/$web" > "$WORK/entries"
+  if grep -Eq '(^/|(^|/)\.\.(/|$))' "$WORK/names"; then refuse "$web has a path outside its folder"; fi
+  if grep -Eq '^[lh]' "$WORK/entries"; then refuse "$web has a link"; fi
+
+  if [ "$DRY_RUN" = 1 ]; then
+    stage="$STATE_DIR/staging/$CHANNEL/$ID"
+  else
+    mkdir -p "$BASE/$STORE" "$BASE/versions"
+    rm -rf "$BASE/$STORE"/.new-*
+    stage="$BASE/$STORE/.new-$ID"
+  fi
+  rm -rf "$stage"
+  mkdir -p "$stage"
+  tar -xzf "$WORK/$web" -C "$stage" --no-same-owner --no-same-permissions
+  [ -f "$stage/index.html" ] && [ -f "$stage/docs/index.html" ] || refuse "$web has no index.html or no docs/index.html"
+  for v in "$stage"/v*/; do
+    [ -d "$v" ] || continue
+    name=$(basename "$v")
+    if [[ "$name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then pages+=("$name"); fi
+  done
+  [ "${#pages[@]}" -gt 0 ] || refuse "$web has no version page, v<version>/"
+
+  if [ "$CHANNEL" = production ]; then
+    mkdir -p "$stage/downloads"
+    for v in $TARGETS; do
+      name="la-gram-$ID-$v"
+      fetch "$name"
+      check "$name"
+      mv "$WORK/$name" "$stage/downloads/la-gram-$v"
+    done
+    (cd "$stage/downloads" && sha256sum la-gram-* > SHA256SUMS.txt)
+  fi
+  chmod -R u=rwX,go=rX "$stage"
+
+  if [ "$DRY_RUN" = 1 ]; then
+    log "$CHANNEL: dry run: $ID checked and unpacked into $stage; nothing served changed"
+    return 0
+  fi
+
+  if [ -e "$BASE/$LINK" ] && [ ! -L "$BASE/$LINK" ]; then
+    die "$BASE/$LINK is a folder, not a link: run la-gram-pull adopt once (ops/pull-deploy/README.md)"
+  fi
+
+  # The version's page among every version's, then where it is served.
+  for name in "${pages[@]}"; do replace "$stage/$name" "$BASE/versions/$name"; done
+  if [ "$CHANNEL" = production ]; then
+    cp -a "$BASE/versions/." "$stage/"
+  else
+    # The alpha's page is served beside the released versions', under /la-gram/, not in its own folder.
+    for name in "${pages[@]}"; do rm -rf "${stage:?}/$name"; done
+    if [ -L "$BASE/la-gram" ]; then
+      prod=$(readlink -f "$BASE/la-gram")
+      for name in "${pages[@]}"; do replace "$BASE/versions/$name" "$prod/$name"; done
+    fi
+  fi
+
+  target="$STORE/$ID"
+  if [ -e "$BASE/$target" ]; then target="$target.$(date -u +%Y%m%dT%H%M%SZ)"; fi
+  mv "$stage" "$BASE/$target"
+  touch "$BASE/$target"
+  swap "$target"
+
+  if ! served "$BASE/$target"; then
+    if [ -n "$BEFORE" ]; then swap "$BEFORE"; fi
+    # Not kept: a rollback would otherwise find it the newest folder.
+    rm -rf "${BASE:?}/$target"
+    refuse "$SITE/$LINK/ does not answer its index.html; ${BEFORE:-nothing} is served again"
+  fi
+  printf '%s\n' "$ID" > "$STATE_DIR/$CHANNEL.id"
+  rm -f "$STATE_DIR/$CHANNEL.hold"
+  save_etag
+  prune
+  log "$CHANNEL: $SITE/$LINK/ is $ID (was ${BEFORE:-nothing})"
+}
+
+rollback() {
+  local now prev d
+  channel "$1"
+  [ -L "$BASE/$LINK" ] || die "$BASE/$LINK is not a link: nothing to roll back"
+  now=$(basename "$(readlink "$BASE/$LINK")")
+  prev=
+  for d in $(ls -1t "$BASE/$STORE"); do
+    if [ "$d" != "$now" ]; then prev=$d; break; fi
+  done
+  [ -n "$prev" ] || die "$CHANNEL: no earlier folder in $BASE/$STORE"
+  # What is served now is held: the next check would otherwise install it again.
+  if [ -s "$STATE_DIR/$CHANNEL.id" ]; then cp "$STATE_DIR/$CHANNEL.id" "$STATE_DIR/$CHANNEL.hold"; fi
+  touch "$BASE/$STORE/$prev"
+  swap "$STORE/$prev"
+  printf '%s\n' "$prev" | sed 's/\.[0-9]\{8\}T[0-9]\{6\}Z$//' > "$STATE_DIR/$CHANNEL.id"
+  if ! served "$BASE/$STORE/$prev"; then log "$CHANNEL: warning: $SITE/$LINK/ does not answer $prev's index.html (yet)"; fi
+  log "$CHANNEL: $SITE/$LINK/ is $prev again (was $now); $now is held until a newer build is published"
+}
+
+# adopt: the folders the SSH deploy filled become the first releases, each moved and linked in two
+# renames, and the version pages in the release's folder are copied into versions/.
+adopt() {
+  local c id v
+  mkdir -p "$BASE/versions"
+  for c in production alpha; do
+    channel "$c"
+    if [ -L "$BASE/$LINK" ]; then log "$c: $BASE/$LINK is a link already"; continue; fi
+    if [ ! -d "$BASE/$LINK" ]; then log "$c: no $BASE/$LINK to adopt"; continue; fi
+    for v in "$BASE/$LINK"/v*/; do
+      if [ -d "$v" ]; then cp -a "$v" "$BASE/versions/"; fi
+    done
+    id="adopted-$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p "$BASE/$STORE"
+    ln -sfn "$STORE/$id" "$BASE/$LINK.swap"
+    mv "$BASE/$LINK" "$BASE/$STORE/$id"
+    mv -T "$BASE/$LINK.swap" "$BASE/$LINK"
+    printf '%s\n' "$id" > "$STATE_DIR/$c.id"
+    log "$c: $BASE/$LINK -> $STORE/$id"
+  done
+}
+
+main() {
+  local cmd=${1:-} a
+  if [ $# -gt 0 ]; then shift; fi
+  need flock curl sha256sum
+  mkdir -p "$STATE_DIR"
+  # One at a time: the alpha writes its version's page into the release served.
+  exec 9> "$STATE_DIR/lock"
+  flock --wait 900 9 || die "another la-gram-pull is still running"
+  case "$cmd" in
+    production | alpha)
+      for a in "$@"; do
+        case "$a" in
+          --force) FORCE=1 ;;
+          --dry-run) DRY_RUN=1 ;;
+          *) usage >&2; exit 2 ;;
+        esac
+      done
+      channel "$cmd"
+      deploy
+      ;;
+    rollback)
+      [ $# -eq 1 ] || { usage >&2; exit 2; }
+      rollback "$1"
+      ;;
+    adopt)
+      [ $# -eq 0 ] || { usage >&2; exit 2; }
+      adopt
+      ;;
+    -h | --help | help) usage ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
+main "$@"
