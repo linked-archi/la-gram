@@ -9,7 +9,7 @@
  */
 import { GitError, networkError, responseError } from '../errors.js';
 import type { RepositoryLink } from '../link.js';
-import type { GitAccount } from '../../model-manager/provenance.js';
+import type { GitAccount } from '@linked-archi/kernel/model-manager/provenance.js';
 
 export type { GitAccount };
 

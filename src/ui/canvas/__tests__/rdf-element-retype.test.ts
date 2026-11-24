@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { Quad } from '@rdfjs/types';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 import { RetypeElementHandler, type RetypeElementContext } from '../rdf-element-retype.js';
 import {
   RdfElementReplaceMenuProvider,
@@ -11,7 +11,7 @@ import {
 } from '../rdf-element-replace-menu-provider.js';
 import { RdfContextPadProvider } from '../rdf-context-pad-provider.js';
 import { RdfContextMenuProvider, CONTEXT_MENU_ENTRY_CLASS } from '../rdf-context-menu-provider.js';
-import type { ElementGroup } from '../../../metamodel-manager/interfaces.js';
+import type { ElementGroup } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 
 const { namedNode, quad } = DataFactory;
 const L = 'https://example.org/lang#';

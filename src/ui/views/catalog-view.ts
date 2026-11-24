@@ -16,10 +16,10 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Quad, NamedNode } from '@rdfjs/types';
-import type { RdfStore } from '../../rdf-engine/interfaces.js';
+import type { RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import { DataFactory } from 'n3';
-import type { ElementManager, ViewManager } from '../../model-manager/interfaces.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import type { ElementManager, ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import { addableTypes, elementsOfType, renderAddPicker, viewMembers, type AddableType, type ViewMember } from './view-members.js';
 
 // ── Well-known predicate IRIs ───────────────────────────────────────────

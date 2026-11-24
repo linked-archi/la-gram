@@ -25,7 +25,7 @@ import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import type { App } from '../app.js';
 import type { MountedUi } from '../ui/mount-ui.js';
-import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 import { RdfYjsBinding, type SeedPolicy } from './rdf-yjs-binding.js';
 import { domDialogs } from '../ui/dialogs.js';
 

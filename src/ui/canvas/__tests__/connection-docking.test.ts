@@ -27,12 +27,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
 import CroppingConnectionDockingClass from 'diagram-js/lib/layout/CroppingConnectionDocking.js';
-import type { ShapeType, VisualStyle } from '../../../metamodel-manager/notation.js';
+import type { ShapeType, VisualStyle } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import type {
   ElementTypeInfo,
   PaletteDefinition,
-} from '../../../metamodel-manager/interfaces.js';
-import type { ElementManager, RelationshipManager } from '../../../model-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { ElementManager, RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { DiagramCanvas } from '../diagram-canvas.js';
 import { CroppingLayouter } from '../connection-docking.js';
 import { SHAPE_TYPES, shapePath } from '../notation-shapes.js';

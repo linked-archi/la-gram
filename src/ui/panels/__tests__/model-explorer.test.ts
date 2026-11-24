@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import type { ModelContents } from '../../../model-manager/model-queries.js';
+import type { ModelContents } from '@linked-archi/kernel/model-manager/model-queries.js';
 import {
   ModelExplorer,
   actionsFor,
@@ -14,7 +14,7 @@ import {
   type TreeNode,
 } from '../model-explorer.js';
 import { EventBus } from '../../event-bus.js';
-import { modelFolderOf } from '../../../model-manager/folders.js';
+import { modelFolderOf } from '@linked-archi/kernel/model-manager/folders.js';
 
 const M = 'urn:m';
 const contents = (): ModelContents => ({

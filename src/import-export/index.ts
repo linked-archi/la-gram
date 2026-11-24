@@ -46,4 +46,4 @@ export {
   type SerializeOptions,
   type ModelPartition,
   type ModelLoadResult,
-} from './model-io.js';
+} from '@linked-archi/kernel/import-export/model-io.js';

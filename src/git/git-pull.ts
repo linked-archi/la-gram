@@ -1,5 +1,5 @@
 /** Manual same-branch synchronization, with no repository writes (Req 18.24). */
-import { snapshotOfText, type MergeConflict } from '../model-manager/model-merge.js';
+import { snapshotOfText, type MergeConflict } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { GitError } from './errors.js';
 import { advanced, followedMove, keptAs, reconcile, sameLines } from './git-merge.js';
 import { formatOfPath, type GitSaveContext } from './git-save.js';

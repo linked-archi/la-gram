@@ -12,7 +12,7 @@
 
 import { RdfChangeHandler, type RdfChangeContext } from './rdf-modeling.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
-import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
+import type { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 
 /** Command id of a type change on the canvas. */
 export const RETYPE_ELEMENT_COMMAND = 'rdf.element.retype';

@@ -5,9 +5,9 @@
  * *Arrange view…*, as part of the load for a model opened without geometry.
  */
 
-import type { RdfStore } from '../rdf-engine/interfaces.js';
-import type { ViewManager } from '../model-manager/interfaces.js';
-import { localName } from '../model-manager/vocabulary.js';
+import type { RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import type { ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { localName } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import { bandsOf, withNeighbourBands } from '../layout/bands.js';
 import { layout } from '../layout/layout-service.js';
 import type { LayoutEngine } from '../layout/elk-engine.js';

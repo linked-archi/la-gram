@@ -26,8 +26,8 @@ import {
   StreamLanguage,
   type StreamParser,
 } from '@codemirror/language';
-import type { RdfStore, SparqlResult } from '../../rdf-engine/interfaces.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import type { RdfStore, SparqlResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import {
   buildQuery,
   stageOf,
@@ -36,7 +36,7 @@ import {
   QUESTION_STAGES,
   type ModelQuestion,
   type QuestionBindings,
-} from '../../model-manager/questions.js';
+} from '@linked-archi/kernel/model-manager/questions.js';
 
 // ── SPARQL syntax highlighting via StreamParser ─────────────────────────
 

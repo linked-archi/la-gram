@@ -4,8 +4,8 @@
  * to hold them. Routes are left straight.
  */
 
-import type { Bounds } from '../model-manager/interfaces.js';
-import { AUTO_LAYOUT } from '../model-manager/grid.js';
+import type { Bounds } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { AUTO_LAYOUT } from '@linked-archi/kernel/model-manager/grid.js';
 import type { LayoutInput, LayoutNode, LayoutOptions, LayoutResult } from './layout-types.js';
 
 const GAP = AUTO_LAYOUT.dx - AUTO_LAYOUT.width;

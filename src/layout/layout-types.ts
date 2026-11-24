@@ -3,7 +3,7 @@
  * DOM-free: the same in the browser, the desktop app and Node.
  */
 
-import type { Bounds, Point } from '../model-manager/interfaces.js';
+import type { Bounds, Point } from '@linked-archi/kernel/model-manager/interfaces.js';
 
 /** Something to place: an element's placement, a figure. */
 export interface LayoutNode {

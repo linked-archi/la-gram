@@ -13,8 +13,8 @@
  * the pad entry away (`PopupMenu.isEmpty`, as for the other pad menus).
  */
 
-import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import type { RelationshipManager } from '../../model-manager/interfaces.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { ENTRY_CLASS, preferenceNotes, relationshipEntryId, relationshipImageUrl, type RelationshipIconLookup } from './rdf-replace-menu-provider.js';
 
 export const PAIR_CONNECT_MENU_ID = 'la-pair-connect';

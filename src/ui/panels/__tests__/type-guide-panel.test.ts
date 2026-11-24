@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { TypeGuide } from '../../../metamodel-manager/type-guide.js';
+import type { TypeGuide } from '@linked-archi/kernel/metamodel-manager/type-guide.js';
 import '../type-guide-panel.js';
 import type { TypeGuidePanel } from '../type-guide-panel.js';
 

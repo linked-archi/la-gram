@@ -19,23 +19,23 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
-import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
-import { SparqlPaletteGenerator } from '../../../metamodel-manager/palette-generator.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
-import { OxigraphElementManager } from '../../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../../model-manager/view-manager.js';
-import { ModelSession } from '../../../model-manager/model-session.js';
-import { labelOf, modelNameOf, modelQuads } from '../../../model-manager/model-queries.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { SparqlPaletteGenerator } from '@linked-archi/kernel/metamodel-manager/palette-generator.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { ModelSession } from '@linked-archi/kernel/model-manager/model-session.js';
+import { labelOf, modelNameOf, modelQuads } from '@linked-archi/kernel/model-manager/model-queries.js';
 import { EventBus } from '../../event-bus.js';
 import { DiagramCanvas, OUTSIDE_VIEWPOINT_MARKER } from '../diagram-canvas.js';
 import { MOVE_LINK_LABEL_COMMAND } from '../rdf-link-label.js';
 import { buildClassClosure } from '../relationship-resolution.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 installJsdomSvgSupport();
 

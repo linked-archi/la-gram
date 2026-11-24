@@ -20,7 +20,7 @@
  * answer 404), the token is asked for and the read tried again.
  */
 import type { Dialogs, ChoiceOption } from '../ui/dialogs.js';
-import { MODEL_FORMATS } from '../import-export/model-io.js';
+import { MODEL_FORMATS } from '@linked-archi/kernel/import-export/model-io.js';
 import type { GitBindings } from './bindings.js';
 import type { TokenStore } from './credentials.js';
 import { GitError } from './errors.js';

@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createApp } from '../app.js';
-import type { ValidationResult } from '../rdf-engine/interfaces.js';
+import type { ValidationResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
 import { generateModel, NOT_PERMITTED_EVERY, UNNAMED_EVERY } from '../../scripts/bench-model.mjs';
 
 describe('the benchmark model', () => {

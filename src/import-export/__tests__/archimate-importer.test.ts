@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
-import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
-import { OxigraphElementManager } from '../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../model-manager/view-manager.js';
-import { modelQuads } from '../../model-manager/model-queries.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { modelQuads } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import {
   ARCHIMATE_NS,
   applyExchangeModel,

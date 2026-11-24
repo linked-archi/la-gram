@@ -12,7 +12,7 @@
  * existing relationship, or connects again, answered.
  */
 
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
 
 /** Popup menu id of the "the model already has it" menu. */

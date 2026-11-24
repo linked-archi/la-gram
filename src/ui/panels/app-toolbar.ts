@@ -21,12 +21,12 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { ViewInfo } from '../../model-manager/interfaces.js';
+import type { ViewInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
 import {
   CATALOGUE_KIND_LABELS,
   type CatalogueEntry,
-} from '../../metamodel-manager/catalogue.js';
-import { MODEL_FORMATS } from '../../import-export/model-io.js';
+} from '@linked-archi/kernel/metamodel-manager/catalogue.js';
+import { MODEL_FORMATS } from '@linked-archi/kernel/import-export/model-io.js';
 import { HELP_LINKS, helpHref, type HelpLink } from '../../help-links.js';
 import { isMacPlatform, keyCombo } from '../help.js';
 import { menuIcon, type MenuIconName } from './menu-icons.js';

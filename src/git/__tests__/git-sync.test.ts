@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IRI } from '../../model-manager/vocabulary.js';
+import { IRI } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import { GitBindings, type GitBinding } from '../bindings.js';
 import { WebTokenStore } from '../credentials.js';
 import { GitError } from '../errors.js';

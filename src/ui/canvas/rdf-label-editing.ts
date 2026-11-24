@@ -42,10 +42,10 @@ import InteractionEventsModule from 'diagram-js/lib/features/interaction-events/
 import { NOTATION_DEFAULTS, labelFitsInside, textWidth, wrapLabel } from './notation-shapes.js';
 import { RdfChangeHandler, type RdfChangeContext } from './rdf-modeling.js';
 import { connectionLabelLayout, fontFamilyOf, type RdfBusinessObject } from './rdf-renderer.js';
-import { hasFontStyle, type Appearance } from '../../model-manager/appearance.js';
+import { hasFontStyle, type Appearance } from '@linked-archi/kernel/model-manager/appearance.js';
 import { isRelationshipKey } from './relationship-resolution.js';
 import { conceptIriOf, isViewReference } from './view-reference.js';
-import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
+import type { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 
 export { isViewReference } from './view-reference.js';
 

@@ -1,5 +1,5 @@
 /** Completion-scheduled remote checks, independent of commit history (Req 18.25). */
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { GitError } from './errors.js';
 import { bindingKey, destinationKey, observeGit, ObsoleteGitRead, type GitObservation } from './git-observation.js';
 import { sameLines } from './git-merge.js';

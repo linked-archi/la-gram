@@ -8,9 +8,9 @@
  */
 
 import type { NamedNode, Term } from '@rdfjs/types';
-import type { RdfStore } from '../rdf-engine/interfaces.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { IRI, nn } from '../model-manager/vocabulary.js';
+import type { RdfStore } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { IRI, nn } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import type { LayoutInput } from './layout-types.js';
 
 /** A metamodel's diagram group order (core): the list of groups its diagrams keep in bands. */

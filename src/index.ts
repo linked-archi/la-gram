@@ -24,7 +24,7 @@ import './storage-scope-install.js';
 import { createApp } from './app.js';
 import { mountUi } from './ui/mount-ui.js';
 import { startCollaboration } from './collab/start.js';
-import type { AssetMode } from './metamodel-manager/asset-sources.js';
+import type { AssetMode } from '@linked-archi/kernel/metamodel-manager/asset-sources.js';
 import { ModuleSwitchboard } from './modules.js';
 import { loadDeploymentConfig } from './config.js';
 

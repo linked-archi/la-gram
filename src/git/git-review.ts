@@ -21,9 +21,9 @@
  * The token needs, on GitHub, *Pull requests: read and write* on the
  * repository besides *Contents*; on GitLab, the `api` scope it has already.
  */
-import { diffByElement } from '../model-manager/model-diff.js';
-import { markdownOfDiff, type DiffWords } from '../model-manager/model-diff-text.js';
-import { snapshotOfText } from '../model-manager/model-merge.js';
+import { diffByElement } from '@linked-archi/kernel/model-manager/model-diff.js';
+import { markdownOfDiff, type DiffWords } from '@linked-archi/kernel/model-manager/model-diff-text.js';
+import { snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { GitError } from './errors.js';
 import { hostNotAllowed, type GitProviderKind } from './link.js';
 import { bindingLink, tokenFor, type GitSaveContext } from './git-save.js';

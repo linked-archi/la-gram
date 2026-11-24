@@ -25,9 +25,9 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { Parser } from 'n3';
 import type { Term } from '@rdfjs/types';
-import { diffSnapshots, type Commit, type SnapshotDiff } from '../../model-manager/version-history.js';
-import { diffByElement, type DiffOptions, type ModelDiff } from '../../model-manager/model-diff.js';
-import type { DiffWords } from '../../model-manager/model-diff-text.js';
+import { diffSnapshots, type Commit, type SnapshotDiff } from '@linked-archi/kernel/model-manager/version-history.js';
+import { diffByElement, type DiffOptions, type ModelDiff } from '@linked-archi/kernel/model-manager/model-diff.js';
+import type { DiffWords } from '@linked-archi/kernel/model-manager/model-diff-text.js';
 import { curieOf } from './sparql-editor.js';
 import './model-diff-view.js';
 

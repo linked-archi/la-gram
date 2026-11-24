@@ -94,7 +94,7 @@ import { lineOutlineIntersections } from './straight-docking.js';
 import { closestPointOnPolyline, pointAlong } from './connection-docking.js';
 import Diagram from 'diagram-js';
 import { DataFactory } from 'n3';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 // diagram-js feature modules. These are plain didi module declarations; the
 // package ships no type declarations for the index files, hence the assertions.
@@ -125,7 +125,7 @@ import type {
   ElementTypeInfo,
   PaletteDefinition,
   RelationshipTypeInfo,
-} from '../../metamodel-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import type {
   ElementManager,
   FigureInfo,
@@ -138,8 +138,8 @@ import type {
   Point,
   ViewInfo,
   ViewManager,
-} from '../../model-manager/interfaces.js';
-import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
+} from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 import type { EventBus } from '../event-bus.js';
 import { NotationStyleRegistry } from './notation-styles.js';
 import { NOTATION_DEFAULTS, labelFitsInside } from './notation-shapes.js';
@@ -157,10 +157,10 @@ import {
 } from './rdf-renderer.js';
 import { MOVE_LINK_LABEL_COMMAND, rdfLinkLabelModule, type LabelledLine, type LinkLabelWriter } from './rdf-link-label.js';
 import { RdfRuleProvider, rdfRulesModule, type RelationshipRefusal, type RdfConnectionAttrs } from './rdf-rule-provider.js';
-import { humanize } from '../../model-manager/vocabulary.js';
-import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '../../model-manager/appearance.js';
-import { labelFromExpression, parseLabelExpression, type LabelSource } from '../../model-manager/label-expression.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import { humanize } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { sameAppearance, type Appearance, type AppearanceKey, type LabelAnchor } from '@linked-archi/kernel/model-manager/appearance.js';
+import { labelFromExpression, parseLabelExpression, type LabelSource } from '@linked-archi/kernel/model-manager/label-expression.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref, shapeGeometry, shapePath } from './notation-shapes.js';
 import {
   APPEARANCE_FIELDS,

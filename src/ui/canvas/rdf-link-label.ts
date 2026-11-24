@@ -32,7 +32,7 @@ import {
   type RdfBusinessObject,
   type RenderOptions,
 } from './rdf-renderer.js';
-import type { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
+import type { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 
 /** Command id of moving a relationship's name. */
 export const MOVE_LINK_LABEL_COMMAND = 'rdf.link.label.move';

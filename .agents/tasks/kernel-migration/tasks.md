@@ -1,7 +1,26 @@
 # la-gram on @linked-archi/kernel — tasks
 
-Recorded 2026-11-20. **Not started.** Criteria refer to [requirements.md](requirements.md); the stages and choices
+Recorded 2026-11-20. **Implementation verified 2026-11-24; documentation follow-up remains.** Criteria refer to [requirements.md](requirements.md); the stages and choices
 are in [design.md](design.md).
+
+## Owner-requested sequence, 2026-11-24
+
+1. [x] Re-read PD-16, PD-17 and WD-15. ArchiMate 4.0 is the bundled default; the chosen metamodel controls content.
+2. [x] Check current integration: workspace typecheck, 34 tests, library/site build, all 11 CSP host checks;
+   la-gram browser **4 files / 95 tests**; Electron main/preload/renderer build; CLI `check` on
+   `docs-site/examples` and `packages/la-gram-git/smoke`; packed CLI installed in a clean temporary consumer and
+   checked the smoke model. All passed. Build size warnings remain.
+3. [x] `scripts/verify-interoperability.mjs` passed in the workspace: canonical download, field edit, exact
+   undo/redo, protected dirty configuration, durable recovery, views/questions, la-gram canvas rename, and
+   complete RDF equality on return. Both browser error lists were empty.
+4. [x] la-gram unit suite **118 files / 2041 tests**, plus the added real-App interoperability test, passed.
+5. [x] Kernel verification commit: `fa73c6ef49b6b4b63fd62a1c531502dade8c5257` (source checkpoint `0cee219`).
+   The copies removed by this migration match that kernel's source; the manifest records each destination and hash.
+6. [ ] Step 3: complete KM-12–14 docs/API inventory and remove the kernel's copy-transition instructions.
+7. [ ] Step 4: remove the workspace-specific facade from the kernel; adjust this task's consumer tests/package only.
+
+E1/A is **open**, pending ArchiMate 3.2 and a Studio-generated extension, fixed-screen implementation, and the
+remaining local acceptance criteria. Browser file handoff does not close shared persistence or live-room gates.
 
 ## Documentation before implementation
 

@@ -18,7 +18,7 @@
 
 import cytoscape from 'cytoscape';
 import type { Core, ElementDefinition, LayoutOptions, NodeSingular, StylesheetJson } from 'cytoscape';
-import type { Decoration, LineStyle } from '../../metamodel-manager/notation.js';
+import type { Decoration, LineStyle } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import {
   LiveForce,
   browserFrames,

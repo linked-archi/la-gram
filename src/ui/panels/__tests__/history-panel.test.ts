@@ -9,7 +9,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import '../history-panel.js';
 import type { HistoryGitCommit, HistoryGitSource, HistoryPanel } from '../history-panel.js';
-import type { Commit } from '../../../model-manager/version-history.js';
+import type { Commit } from '@linked-archi/kernel/model-manager/version-history.js';
 
 const LABEL = 'http://www.w3.org/2004/02/skos/core#prefLabel';
 const TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';

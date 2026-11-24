@@ -33,13 +33,13 @@
 
 import { DataFactory } from 'n3';
 import type { NamedNode, Quad } from '@rdfjs/types';
-import { matchesClass } from '../../metamodel-manager/taxonomy.js';
+import { matchesClass } from '@linked-archi/kernel/metamodel-manager/taxonomy.js';
 import type {
   ElementTypeInfo,
   PaletteDefinition,
   RelationshipTypeInfo,
-} from '../../metamodel-manager/interfaces.js';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 /** Resolves a type IRI to its `rdfs:subClassOf*` closure, the type included. */
 export type ClassClosure = (typeIri: string) => string[];

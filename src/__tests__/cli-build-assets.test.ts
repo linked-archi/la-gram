@@ -57,7 +57,7 @@ describe('the generated CLI package', () => {
       }
       return {
         ...pattern,
-        from: path.join(source, path.relative(process.cwd(), pattern.from)),
+        from: path.join(source, pattern.to === 'assets' ? 'assets' : path.relative(process.cwd(), pattern.from)),
         to: path.isAbsolute(pattern.to) ? path.join(packaged, path.relative(originalPackage, pattern.to)) : pattern.to,
       };
     });

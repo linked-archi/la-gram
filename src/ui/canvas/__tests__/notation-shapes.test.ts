@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Decoration, IconPlacement, ShapeType } from '../../../metamodel-manager/notation.js';
+import type { Decoration, IconPlacement, ShapeType } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import {
   DECORATIONS,
   ICON_PLACEMENTS,

@@ -31,8 +31,8 @@ import type {
   RelationshipVisualStyle,
   ShapeType,
   VisualStyle,
-} from '../../metamodel-manager/notation.js';
-import type { PaletteDefinition } from '../../metamodel-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/notation.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 

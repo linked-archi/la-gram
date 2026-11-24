@@ -29,13 +29,13 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import type { Quad } from '@rdfjs/types';
-import type { Decoration, LineStyle } from '../../metamodel-manager/notation.js';
+import type { Decoration, LineStyle } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import {
   MAX_GRAPH_DEPTH,
   type GraphQueryForm,
   type GraphQueryOptions,
   type RelationshipGraph,
-} from '../../model-manager/relationship-graph.js';
+} from '@linked-archi/kernel/model-manager/relationship-graph.js';
 import { DEFAULT_FORCE_PARAMS, FORCE_CONTROLS, toForceParams, type ForceParams } from './graph-force.js';
 import { createCytoscapeView, type GraphLayout, type GraphLayoutStats, type GraphView, type GraphViewFactory } from './graph-view.js';
 

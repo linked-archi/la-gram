@@ -13,7 +13,7 @@ import type {
   PaletteDefinition,
   ElementTypeInfo,
   RelationshipTypeInfo,
-} from '../../../metamodel-manager/interfaces.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { NotationStyleRegistry } from '../notation-styles.js';
 import { rdfRendererModule, type RdfBusinessObject, type RenderOptions } from '../rdf-renderer.js';
 import { installJsdomSvgSupport } from '../../__tests__/jsdom-svg-support.js';

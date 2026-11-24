@@ -11,12 +11,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
-import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
-import { SparqlPaletteGenerator } from '../../../metamodel-manager/palette-generator.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { SparqlPaletteGenerator } from '@linked-archi/kernel/metamodel-manager/palette-generator.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import {
   BASIC,
   BASIC_METAMODEL,
@@ -24,7 +24,7 @@ import {
   RECTANGLE_SET,
   WORKSHOP_CONTEXT,
   basicAssetSource,
-} from '../../../metamodel-manager/__tests__/basic-fixture.js';
+} from '../../../__tests__/kernel/basic-fixture.js';
 import { RENDER_CLASSES } from '../rdf-renderer.js';
 import { createRenderHarness, type RenderHarness } from './render-harness.js';
 

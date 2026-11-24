@@ -5,7 +5,7 @@
  * menu lists each itself.
  */
 
-import type { ViewInfo } from '../../model-manager/interfaces.js';
+import type { ViewInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
 
 /** Popup menu id of the views a concept zooms into. */
 export const ZOOM_MENU_ID = 'la-zoom-in';

@@ -65,9 +65,9 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { ModelContents, ConceptSummary, FolderSummary, RelationshipSummary } from '../../model-manager/model-queries.js';
-import { FOLDER_KINDS, folderLayout, folderWithin, type FolderKind } from '../../model-manager/folders.js';
-import type { ViewInfo } from '../../model-manager/interfaces.js';
+import type { ModelContents, ConceptSummary, FolderSummary, RelationshipSummary } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { FOLDER_KINDS, folderLayout, folderWithin, type FolderKind } from '@linked-archi/kernel/model-manager/folders.js';
+import type { ViewInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
 import type { EventBus, ModelEventHandler, ModelEventType } from '../event-bus.js';
 
 /** Kinds of row in the tree. */

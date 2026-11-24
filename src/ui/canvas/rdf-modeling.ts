@@ -84,7 +84,7 @@
 import Modeling from 'diagram-js/lib/features/modeling/Modeling.js';
 import ModelingModule from 'diagram-js/lib/features/modeling/index.js';
 
-import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { ARRANGE_APPLY_COMMAND, ArrangeApplyHandler } from './canvas-arrange.js';
 import { AttachedConnectionBehavior, CroppingLayouter } from './connection-docking.js';
 import { FastCroppingConnectionDocking } from './straight-docking.js';
@@ -93,7 +93,7 @@ import type { RdfConnectionAttrs, RdfRuleProvider } from './rdf-rule-provider.js
 import { relationshipKey } from './relationship-resolution.js';
 import type { RdfReuseCheck } from './reuse-relationship.js';
 import { conceptIriOf } from './view-reference.js';
-import type { ObservableRdfStore, RdfDiff } from '../../rdf-engine/observable-store.js';
+import type { ObservableRdfStore, RdfDiff } from '@linked-archi/kernel/rdf-engine/observable-store.js';
 
 /**
  * Hint key carrying the relationship to assert alongside a `connection.create`.

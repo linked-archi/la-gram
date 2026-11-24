@@ -11,9 +11,9 @@
  * not already have — or none at all.
  */
 
-import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import type { RelationshipInfo } from '../../model-manager/interfaces.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { RelationshipInfo } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
 
 /** An element on the canvas: its IRI and its type. */

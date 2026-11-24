@@ -6,8 +6,8 @@
  * fields every one of them has, and a change applies to them all.
  */
 
-import { APPEARANCE_KEYS, lookOf, type Appearance, type AppearanceKey, type FigureMode, type ImagePosition } from '../model-manager/appearance.js';
-import type { FigureKind } from '../model-manager/interfaces.js';
+import { APPEARANCE_KEYS, lookOf, type Appearance, type AppearanceKey, type FigureMode, type ImagePosition } from '@linked-archi/kernel/model-manager/appearance.js';
+import type { FigureKind } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { FIGURE_DEFAULT_COLOURS } from './figure-bar.js';
 import { NOTATION_DEFAULTS } from './canvas/notation-shapes.js';
 

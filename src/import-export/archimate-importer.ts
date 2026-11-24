@@ -47,11 +47,11 @@
 
 import { DataFactory } from 'n3';
 import type { Term } from '@rdfjs/types';
-import type { ElementManager, Point, RelationshipManager, ViewManager } from '../model-manager/interfaces.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { ensureNamespace, pathSegment } from '../rdf-engine/iri.js';
-import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '../model-manager/appearance.js';
-import { derivedNamespace } from '../model-manager/model-namespace.js';
+import type { ElementManager, Point, RelationshipManager, ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { ensureNamespace, pathSegment } from '@linked-archi/kernel/rdf-engine/iri.js';
+import { appearanceOrNone, fontStyleOf, withAlpha, type Appearance } from '@linked-archi/kernel/model-manager/appearance.js';
+import { derivedNamespace } from '@linked-archi/kernel/model-manager/model-namespace.js';
 
 /** The ArchiMate 3.2 ontology namespace exchange types map into. */
 export const ARCHIMATE_NS = 'https://meta.linked.archi/archimate3/onto#';

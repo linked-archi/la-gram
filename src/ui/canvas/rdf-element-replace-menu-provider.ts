@@ -17,8 +17,8 @@
  * undoable step; the provider never touches the model.
  */
 
-import type { ElementGroup, ElementTypeInfo } from '../../metamodel-manager/interfaces.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import type { ElementGroup, ElementTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
 import type { RdfPopupMenuEntries, RdfPopupMenuEntry } from './rdf-replace-menu-provider.js';
 import { rememberShowIris, sharedNames, showIris } from '../show-iris.js';

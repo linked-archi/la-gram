@@ -21,15 +21,15 @@ import type { NamedNode, Quad } from '@rdfjs/types';
 import { DataFactory } from 'n3';
 
 // RDF Engine
-import type { RdfStore, ShaclValidator, TtlParser, TtlSerializer, ValidationReport } from './rdf-engine/interfaces.js';
-import { OxigraphRdfStore } from './rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from './rdf-engine/observable-store.js';
-import { EditProvenance, type Editor, type GitAccount } from './model-manager/provenance.js';
-import { N3TtlParser } from './rdf-engine/ttl-parser.js';
-import { N3TtlSerializer } from './rdf-engine/ttl-serializer.js';
-import { RdfShaclValidator } from './rdf-engine/shacl-validator.js';
-import { NAMESPACES } from './rdf-engine/namespaces.js';
-import { SingleValued } from './rdf-engine/single-valued.js';
+import type { RdfStore, ShaclValidator, TtlParser, TtlSerializer, ValidationReport } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { EditProvenance, type Editor, type GitAccount } from '@linked-archi/kernel/model-manager/provenance.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { N3TtlSerializer } from '@linked-archi/kernel/rdf-engine/ttl-serializer.js';
+import { RdfShaclValidator } from '@linked-archi/kernel/rdf-engine/shacl-validator.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { SingleValued } from '@linked-archi/kernel/rdf-engine/single-valued.js';
 
 // Metamodel Manager
 import type {
@@ -37,11 +37,11 @@ import type {
   MetamodelLoader,
   PaletteGenerator,
   ViewpointManager,
-} from './metamodel-manager/interfaces.js';
-import { N3MetamodelLoader } from './metamodel-manager/metamodel-loader.js';
-import { SparqlPaletteGenerator } from './metamodel-manager/palette-generator.js';
-import { SparqlViewpointManager } from './metamodel-manager/viewpoint-manager.js';
-import { DEFAULT_METAMODEL, type BundledAssetRole } from './metamodel-manager/bundled-assets.js';
+} from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { SparqlPaletteGenerator } from '@linked-archi/kernel/metamodel-manager/palette-generator.js';
+import { SparqlViewpointManager } from '@linked-archi/kernel/metamodel-manager/viewpoint-manager.js';
+import { DEFAULT_METAMODEL, type BundledAssetRole } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import {
   BundledAssetSource,
   RemoteAssetSource,
@@ -51,25 +51,25 @@ import {
   parseRdf,
   type AssetMode,
   type AssetSource,
-} from './metamodel-manager/asset-sources.js';
-import { loadCatalogue, type CatalogueEntry } from './metamodel-manager/catalogue.js';
+} from '@linked-archi/kernel/metamodel-manager/asset-sources.js';
+import { loadCatalogue, type CatalogueEntry } from '@linked-archi/kernel/metamodel-manager/catalogue.js';
 
 // Model Manager
-import type { ElementManager, RelationshipManager, ViewManager } from './model-manager/interfaces.js';
-import { OxigraphElementManager } from './model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from './model-manager/relationship-manager.js';
-import { OxigraphViewManager } from './model-manager/view-manager.js';
-import { ModelOperations } from './model-manager/model-operations.js';
-import { ModelSession, type AdoptResult } from './model-manager/model-session.js';
-import { labelOf, modelQuads, typeClosure, type TypeClosure } from './model-manager/model-queries.js';
-import { readPermittedPermissions, type TablePermissions } from './model-manager/direct-permissions.js';
-import { splitTableShapes, type TableShapes } from './model-manager/relationship-validity.js';
-import { createValidationService, type ValidationService } from './rdf-engine/validation-service.js';
-import type { EngineSetup } from './rdf-engine/validation-engine.js';
-import { encodeQuads } from './rdf-engine/term-codec.js';
-import { predicatesNamedBy, sparqlConstraintsOf } from './rdf-engine/sparql-constraints.js';
-import { isValidPrefix } from './model-manager/model-namespace.js';
-import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from './rdf-engine/iri.js';
+import type { ElementManager, RelationshipManager, ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { ModelOperations } from '@linked-archi/kernel/model-manager/model-operations.js';
+import { ModelSession, type AdoptResult } from '@linked-archi/kernel/model-manager/model-session.js';
+import { labelOf, modelQuads, typeClosure, type TypeClosure } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { readPermittedPermissions, type TablePermissions } from '@linked-archi/kernel/model-manager/direct-permissions.js';
+import { splitTableShapes, type TableShapes } from '@linked-archi/kernel/model-manager/relationship-validity.js';
+import { createValidationService, type ValidationService } from '@linked-archi/kernel/rdf-engine/validation-service.js';
+import type { EngineSetup } from '@linked-archi/kernel/rdf-engine/validation-engine.js';
+import { encodeQuads } from '@linked-archi/kernel/rdf-engine/term-codec.js';
+import { predicatesNamedBy, sparqlConstraintsOf } from '@linked-archi/kernel/rdf-engine/sparql-constraints.js';
+import { isValidPrefix } from '@linked-archi/kernel/model-manager/model-namespace.js';
+import { DEFAULT_MODEL_BASE, ensureNamespace, mintModelNamespace, namespaceProblem, notationSlug } from '@linked-archi/kernel/rdf-engine/iri.js';
 
 // Platform
 import type { PlatformService } from './platform/interfaces.js';
@@ -77,7 +77,7 @@ import { createPlatformService } from './platform/platform-factory.js';
 
 // Import/Export
 import { TtlFileIO } from './import-export/ttl-file-io.js';
-import { ModelIO, formatInfo, type ModelFormat, type SerializationProfile } from './import-export/model-io.js';
+import { ModelIO, formatInfo, type ModelFormat, type SerializationProfile } from '@linked-archi/kernel/import-export/model-io.js';
 import {
   ARCHIMATE3_METAMODEL,
   applyExchangeModel,

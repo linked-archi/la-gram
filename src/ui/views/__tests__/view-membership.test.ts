@@ -4,12 +4,12 @@
  * a catalog lists, and a matrix indexes, the elements the view presents.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { OxigraphViewManager } from '../../../model-manager/view-manager.js';
-import { OxigraphElementManager } from '../../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
-import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
-import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
 import { addableTypes, elementsOfType, viewMembers } from '../view-members.js';
 import '../catalog-view.js';
 import '../matrix-view.js';

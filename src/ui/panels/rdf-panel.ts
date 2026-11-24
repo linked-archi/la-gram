@@ -25,7 +25,7 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '../../import-export/model-io.js';
+import { MODEL_FORMATS, type ModelFormat, type SerializationProfile } from '@linked-archi/kernel/import-export/model-io.js';
 import { HIGHLIGHT_LIMIT, highlightRdf } from './rdf-highlight.js';
 
 /** Counts shown above the text. */

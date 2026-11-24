@@ -32,9 +32,9 @@ import {
   type PasteDeps,
   type PasteMode,
   type PasteResult,
-} from '../../model-manager/clipboard.js';
-import type { Point } from '../../model-manager/interfaces.js';
-import type { PrefixMap } from '../../rdf-engine/interfaces.js';
+} from '@linked-archi/kernel/model-manager/clipboard.js';
+import type { Point } from '@linked-archi/kernel/model-manager/interfaces.js';
+import type { PrefixMap } from '@linked-archi/kernel/rdf-engine/interfaces.js';
 
 /** How far each paste of the same copy, and a duplicate, moves from the original (R10, R11). */
 export const PASTE_STEP = 20;

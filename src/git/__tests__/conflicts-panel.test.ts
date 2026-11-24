@@ -6,7 +6,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import '../conflicts-panel.js';
 import type { ConflictPickDetail, ConflictsPanel } from '../conflicts-panel.js';
-import type { MergeConflict } from '../../model-manager/model-merge.js';
+import type { MergeConflict } from '@linked-archi/kernel/model-manager/model-merge.js';
 
 const M = 'https://example.org/m/';
 const LABEL = 'http://www.w3.org/2004/02/skos/core#prefLabel';

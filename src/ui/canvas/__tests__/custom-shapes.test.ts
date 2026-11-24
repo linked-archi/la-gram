@@ -13,7 +13,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getIntersections } from 'diagram-js/lib/layout/LayoutUtil.js';
-import type { CustomShape } from '../../../metamodel-manager/notation.js';
+import type { CustomShape } from '@linked-archi/kernel/metamodel-manager/notation.js';
 import {
   ShapeTemplateError,
   drawCustomShape,
@@ -90,7 +90,7 @@ function pathNumbers(d: string): number[] {
 
 /** The first attribute `name` of element `tag` in an SVG file, before any nested badge. */
 function pictureAttribute(path: string, tag: string, name: string): string {
-  const text = readFileSync(join(process.cwd(), 'assets', path), 'utf8');
+  const text = readFileSync(join(process.cwd(), 'node_modules/@linked-archi/kernel/assets', path), 'utf8');
   const outer = text.slice(0, text.indexOf('<svg', 5) > 0 ? text.indexOf('<svg', 5) : undefined);
   const element = new RegExp(`<${tag}\\b[^>]*\\b${name}=['"]([^'"]+)['"]`).exec(outer);
   if (!element) throw new Error(`${path}: no <${tag} ${name}>`);

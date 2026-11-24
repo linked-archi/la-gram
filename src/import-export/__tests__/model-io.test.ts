@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 import { DataFactory, Parser as N3Parser } from 'n3';
-import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { N3TtlParser } from '../../rdf-engine/ttl-parser.js';
-import { N3MetamodelLoader } from '../../metamodel-manager/metamodel-loader.js';
-import { OxigraphElementManager } from '../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../model-manager/view-manager.js';
-import { ModelSession } from '../../model-manager/model-session.js';
-import { modelQuads } from '../../model-manager/model-queries.js';
-import { readModelNamespace } from '../../model-manager/model-namespace.js';
-import { ModelIO, MODEL_FORMATS, partitionGraphs, partitionModel } from '../model-io.js';
-import { sha256Hex } from '../../model-manager/short-hash.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { ModelSession } from '@linked-archi/kernel/model-manager/model-session.js';
+import { modelQuads } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { readModelNamespace } from '@linked-archi/kernel/model-manager/model-namespace.js';
+import { ModelIO, MODEL_FORMATS, partitionGraphs, partitionModel } from '@linked-archi/kernel/import-export/model-io.js';
+import { sha256Hex } from '@linked-archi/kernel/model-manager/short-hash.js';
 
 const AM4 = 'https://meta.linked.archi/archimate4/onto#';
 

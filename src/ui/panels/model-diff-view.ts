@@ -12,8 +12,8 @@
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { ModelDiff } from '../../model-manager/model-diff.js';
-import { conceptName, countsText, detailLines, editText, endsText, shownType, type DiffWords } from '../../model-manager/model-diff-text.js';
+import type { ModelDiff } from '@linked-archi/kernel/model-manager/model-diff.js';
+import { conceptName, countsText, detailLines, editText, endsText, shownType, type DiffWords } from '@linked-archi/kernel/model-manager/model-diff-text.js';
 
 /** Concepts shown at most; the rest are counted. */
 export const MAX_DIFF_CONCEPTS = 300;

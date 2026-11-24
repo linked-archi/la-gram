@@ -16,7 +16,7 @@
  */
 
 import { customElement, property } from 'lit/decorators.js';
-import type { PropertySuggestion, ResolvedProperty } from '../../model-manager/property-catalog.js';
+import type { PropertySuggestion, ResolvedProperty } from '@linked-archi/kernel/model-manager/property-catalog.js';
 import { NamedPicker, type NamedOption } from './named-picker.js';
 
 /** Detail of `property-picked`. */

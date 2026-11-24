@@ -1,7 +1,7 @@
 /** Same-branch pulls against both hosts, without any repository writes. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyChoice, snapshotModel, type MergeConflict } from '../../model-manager/model-merge.js';
-import { IRI } from '../../model-manager/vocabulary.js';
+import { applyChoice, snapshotModel, type MergeConflict } from '@linked-archi/kernel/model-manager/model-merge.js';
+import { IRI } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import { GitBindings, type GitBinding } from '../bindings.js';
 import { WebTokenStore } from '../credentials.js';
 import { GitError } from '../errors.js';

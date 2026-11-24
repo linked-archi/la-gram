@@ -27,18 +27,18 @@ import { DataFactory } from 'n3';
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 
 import type { App } from '../app.js';
-import type { PaletteDefinition, ViewpointInfo } from '../metamodel-manager/interfaces.js';
-import type { ValidationResult } from '../rdf-engine/interfaces.js';
-import { ObservableRdfStore } from '../rdf-engine/observable-store.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '../rdf-engine/iri.js';
-import type { ViewKind } from '../model-manager/interfaces.js';
-import { VersionHistory } from '../model-manager/version-history.js';
+import type { PaletteDefinition, ViewpointInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { ValidationResult } from '@linked-archi/kernel/rdf-engine/interfaces.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { DEFAULT_MODEL_BASE, ensureNamespace, modelIriIn } from '@linked-archi/kernel/rdf-engine/iri.js';
+import type { ViewKind } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { VersionHistory } from '@linked-archi/kernel/model-manager/version-history.js';
 import type { HistoryCommitDetail, HistoryGitSource, HistoryPanel, HistoryRestoreDetail } from './panels/history-panel.js';
-import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '../model-manager/model-queries.js';
-import { contextNameChange, contextNameOf } from '../model-manager/context-names.js';
-import { pictureChange, pictureOf } from '../model-manager/element-pictures.js';
-import type { AppearanceChanges } from '../model-manager/appearance.js';
+import { ModelContentsIndex, hasLabel, labelOf, modelNameOf, modelQuads, statementsOf, typeClosure, type TypeClosure } from '@linked-archi/kernel/model-manager/model-queries.js';
+import { contextNameChange, contextNameOf } from '@linked-archi/kernel/model-manager/context-names.js';
+import { pictureChange, pictureOf } from '@linked-archi/kernel/model-manager/element-pictures.js';
+import type { AppearanceChanges } from '@linked-archi/kernel/model-manager/appearance.js';
 import { contextChoices } from './presentation-contexts.js';
 import { relationshipNamesShown, rememberRelationshipNamesShown } from './relationship-names.js';
 import { notationOnly, rememberNotationOnly } from './notation-only.js';
@@ -57,10 +57,10 @@ import {
   renameFolder,
   type FolderChange,
   type FolderKind,
-} from '../model-manager/folders.js';
-import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '../model-manager/derivations.js';
-import { humanize, localName as localNameOf } from '../model-manager/vocabulary.js';
-import { accountText } from '../model-manager/provenance.js';
+} from '@linked-archi/kernel/model-manager/folders.js';
+import { confirmationQuads, derivationDetails, derivationStatus, ruleOf } from '@linked-archi/kernel/model-manager/derivations.js';
+import { humanize, localName as localNameOf } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { accountText } from '@linked-archi/kernel/model-manager/provenance.js';
 import { fromTextField } from './canvas/canvas-clipboard.js';
 import {
   arrangeSettings,
@@ -83,17 +83,17 @@ import { withRouterRoutes, withViewRouterRoutes } from '../layout/reroute.js';
 import { withNeighbourBands } from '../layout/bands.js';
 import { workerEngine } from '../layout/elk-engine.js';
 import { DEFAULT_LAYOUT_OPTIONS, type LayoutDirection, type LayoutInput, type LayoutSpacing } from '../layout/layout-types.js';
-import { relationshipClassOf as relationshipClassIn } from '../model-manager/cascade.js';
+import { relationshipClassOf as relationshipClassIn } from '@linked-archi/kernel/model-manager/cascade.js';
 import {
   listQuestions,
   offeredQuestions,
   runModelChecks,
   type ModelQuestion,
   type QuestionBindings,
-} from '../model-manager/questions.js';
-import { PropertyCatalog, curieOf } from '../model-manager/property-catalog.js';
-import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '../import-export/model-io.js';
-import { conceptStatements, viewMembers, viewStatements } from '../model-manager/rdf-scope.js';
+} from '@linked-archi/kernel/model-manager/questions.js';
+import { PropertyCatalog, curieOf } from '@linked-archi/kernel/model-manager/property-catalog.js';
+import { MODEL_FORMATS, formatInfo, partitionModel, type ModelFormat, type SerializationProfile } from '@linked-archi/kernel/import-export/model-io.js';
+import { conceptStatements, viewMembers, viewStatements } from '@linked-archi/kernel/model-manager/rdf-scope.js';
 import { ViewHistory, type ViewPlace, type ViewVisit } from './view-history.js';
 import { exportPng, exportSvg, inlineImages } from '../import-export/svg-png-exporter.js';
 import { copyPicture } from '../import-export/image-clipboard.js';
@@ -102,7 +102,7 @@ import { isElectronEnvironment } from '../platform/platform-factory.js';
 import type { ModelEventHandler } from './event-bus.js';
 import { detailLines, domDialogs, type DetailBlock, type DetailsOptions, type Dialogs, type FormField, type FormValues } from './dialogs.js';
 import { PersonalSettings } from '../settings.js';
-import { CATALOGUE_KIND_LABELS } from '../metamodel-manager/catalogue.js';
+import { CATALOGUE_KIND_LABELS } from '@linked-archi/kernel/metamodel-manager/catalogue.js';
 
 // Side-effect imports: register the custom elements.
 import './app-shell.js';
@@ -158,10 +158,10 @@ import type { MatrixView } from './views/matrix-view.js';
 import type { RdfPanel, RdfDownloadDetail, RdfPanelContent, RdfPanelRequest, RdfSelectDetail } from './panels/rdf-panel.js';
 import type { GraphPanel, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail, GraphTypeLook, GraphTypeOption } from './panels/graph-panel.js';
 import type { ResultsViewRequestDetail, SparqlSelectDetail } from './panels/sparql-editor.js';
-import { mostSpecificType, relationshipGraph } from '../model-manager/relationship-graph.js';
-import { planView, placeNodes, type ConceptKinds } from '../model-manager/view-from-results.js';
-import { readTypeGuide, type TypeGuide } from '../metamodel-manager/type-guide.js';
-import { ASSETS_VERSION, assetUrl } from '../metamodel-manager/bundled-assets.js';
+import { mostSpecificType, relationshipGraph } from '@linked-archi/kernel/model-manager/relationship-graph.js';
+import { planView, placeNodes, type ConceptKinds } from '@linked-archi/kernel/model-manager/view-from-results.js';
+import { readTypeGuide, type TypeGuide } from '@linked-archi/kernel/metamodel-manager/type-guide.js';
+import { ASSETS_VERSION, assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref, NOTATION_DEFAULTS, withElementIcons, withRelationshipIcons } from './canvas/notation-shapes.js';
 import { NotationStyleRegistry } from './canvas/notation-styles.js';
 

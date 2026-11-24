@@ -12,8 +12,8 @@
  * editing imports the modeling.
  */
 
-import type { ViewKind } from '../../model-manager/interfaces.js';
-import { IRI } from '../../model-manager/vocabulary.js';
+import type { ViewKind } from '@linked-archi/kernel/model-manager/interfaces.js';
+import { IRI } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import type { RdfBusinessObject } from './rdf-renderer.js';
 
 interface WithBusinessObject {

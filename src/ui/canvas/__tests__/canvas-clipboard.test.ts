@@ -5,14 +5,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DataFactory, Parser } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../../rdf-engine/observable-store.js';
-import { NAMESPACES } from '../../../rdf-engine/namespaces.js';
-import { OxigraphElementManager } from '../../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../../model-manager/view-manager.js';
-import { CLIPBOARD_MIME, copyFromView, writeFragment, type PasteResult } from '../../../model-manager/clipboard.js';
-import { T, langLiteral, nn, triple } from '../../../model-manager/vocabulary.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { CLIPBOARD_MIME, copyFromView, writeFragment, type PasteResult } from '@linked-archi/kernel/model-manager/clipboard.js';
+import { T, langLiteral, nn, triple } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import { CanvasClipboard, PASTE_STEP, pasteMessage, type CanvasClipboardHost } from '../canvas-clipboard.js';
 
 const MODEL = 'https://model.example.com/m/model';

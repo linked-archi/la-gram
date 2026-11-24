@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import type { GraphQueryOptions, RelationshipGraph } from '../../../model-manager/relationship-graph.js';
+import type { GraphQueryOptions, RelationshipGraph } from '@linked-archi/kernel/model-manager/relationship-graph.js';
 import '../graph-panel.js';
 import type { GraphPanel, GraphSource, GraphDownloadDetail, GraphNewViewDetail, GraphOpenSparqlDetail } from '../graph-panel.js';
 import type { ForceParams } from '../graph-force.js';

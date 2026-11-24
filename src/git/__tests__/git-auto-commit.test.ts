@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { IRI } from '../../model-manager/vocabulary.js';
-import { snapshotOfText } from '../../model-manager/model-merge.js';
+import { IRI } from '@linked-archi/kernel/model-manager/vocabulary.js';
+import { snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
 import { AutoCommitStore, autoCommitKey } from '../auto-commit-settings.js';
 import { GitBindings, type GitBinding } from '../bindings.js';
 import { WebTokenStore } from '../credentials.js';

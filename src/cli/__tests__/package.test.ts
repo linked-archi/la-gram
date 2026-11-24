@@ -37,7 +37,8 @@ function packagesImported(entry: string): string[] {
     for (const m of text.matchAll(/^\s*(import|export)\s+(type\s+)?[^;]*?from\s+'([^']+)'|import\('([^']+)'\)/gm)) {
       if (m[2]) continue;
       const spec = (m[3] ?? m[4])!;
-      if (spec.startsWith('.')) visit(resolve(dirname(file), spec.replace(/\.js$/, '.ts')));
+      if (spec.startsWith('@linked-archi/kernel/')) visit(join(ROOT, 'node_modules/@linked-archi/kernel/src', spec.slice('@linked-archi/kernel/'.length).replace(/\.js$/, '.ts')));
+      else if (spec.startsWith('.')) visit(resolve(dirname(file), spec.replace(/\.js$/, '.ts')));
       else if (!spec.startsWith('node:') && !['fs', 'path', 'url', 'os', 'child_process', 'util', 'crypto'].includes(spec)) {
         packages.add(spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]!);
       }

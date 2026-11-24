@@ -80,8 +80,8 @@
  * know nothing about metamodels.
  */
 
-import type { RelationshipTypeInfo } from '../../metamodel-manager/interfaces.js';
-import { assetUrl } from '../../metamodel-manager/bundled-assets.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import { assetUrl } from '@linked-archi/kernel/metamodel-manager/bundled-assets.js';
 import { iconHref } from './notation-shapes.js';
 import type { AppendTarget } from './relationship-resolution.js';
 

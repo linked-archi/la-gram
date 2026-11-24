@@ -139,6 +139,10 @@ describe("la-gram's release pipeline", () => {
     expect(alpha).toContain(`rsync -az --chmod=D755,F644 "dist/web/v$VERSION/" "$DEPLOY_USER@$DEPLOY_HOST:$LA_GRAM_DEPLOY_PATH/v$VERSION/"`);
     // The server serves it: the operating page's nginx rules have its location.
     expect(read('docs-site/operating/web-app.md')).toContain('location ^~ /la-gram-alpha/ {');
+    // The downloads folder, which has no page, sends visitors to the documentation's Download section.
+    expect(read('docs-site/operating/web-app.md')).toContain(
+      'location = /la-gram/downloads/ {\n        absolute_redirect off;\n        return 302 /la-gram/docs/getting-started/desktop/#download;',
+    );
     // Between releases, package.json says the next release's alpha.
     expect(version).toMatch(/^\d+\.\d+\.\d+(-alpha)?$/);
   });

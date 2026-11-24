@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { NotationStyleRegistry, emptyPaletteDefinition } from '../notation-styles.js';
 
 const TYPE_A = 'https://example.org/mm#TypeA';

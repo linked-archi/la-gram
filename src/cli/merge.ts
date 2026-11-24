@@ -26,10 +26,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import type { NamedNode } from '@rdfjs/types';
 import { DataFactory } from 'n3';
-import { RdfShaclValidator } from '../rdf-engine/shacl-validator.js';
-import { NAMESPACES } from '../rdf-engine/namespaces.js';
-import { mergeSnapshots, shaclCountCheck, snapshotOfText, type MergeConflict, type NamespaceMove } from '../model-manager/model-merge.js';
-import { literalValue, parseLine } from '../model-manager/snapshot-lines.js';
+import { RdfShaclValidator } from '@linked-archi/kernel/rdf-engine/shacl-validator.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
+import { mergeSnapshots, shaclCountCheck, snapshotOfText, type MergeConflict, type NamespaceMove } from '@linked-archi/kernel/model-manager/model-merge.js';
+import { literalValue, parseLine } from '@linked-archi/kernel/model-manager/snapshot-lines.js';
 import { asLaGramWrites, describe, isModel, openModel, wordsOf, type OpenModel } from './models.js';
 
 /** What the merge did. */

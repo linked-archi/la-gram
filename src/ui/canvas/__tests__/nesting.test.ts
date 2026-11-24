@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { RelationshipTypeInfo } from '../../../metamodel-manager/interfaces.js';
+import type { RelationshipTypeInfo } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
 import { nestingOffers, nestingShownBy } from '../nesting.js';
 
 const AM = 'https://example.org/am#';

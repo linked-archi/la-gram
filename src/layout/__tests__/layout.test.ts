@@ -3,13 +3,13 @@
  * view laid out and written back.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { OxigraphRdfStore } from '../../rdf-engine/rdf-store.js';
-import { ObservableRdfStore } from '../../rdf-engine/observable-store.js';
-import { OxigraphElementManager } from '../../model-manager/element-manager.js';
-import { OxigraphRelationshipManager } from '../../model-manager/relationship-manager.js';
-import { OxigraphViewManager } from '../../model-manager/view-manager.js';
-import { snapshotOf } from '../../model-manager/version-history.js';
-import type { Bounds } from '../../model-manager/interfaces.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { ObservableRdfStore } from '@linked-archi/kernel/rdf-engine/observable-store.js';
+import { OxigraphElementManager } from '@linked-archi/kernel/model-manager/element-manager.js';
+import { OxigraphRelationshipManager } from '@linked-archi/kernel/model-manager/relationship-manager.js';
+import { OxigraphViewManager } from '@linked-archi/kernel/model-manager/view-manager.js';
+import { snapshotOf } from '@linked-archi/kernel/model-manager/version-history.js';
+import type { Bounds } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { toElkGraph, laidOutEdges, MODEL_ORDER_MAX_NODES, THOROUGH_MAX_NODES } from '../elk-graph.js';
 import { fromElkGraph } from '../elk-result.js';
 import { gridLayout } from '../grid-layout.js';

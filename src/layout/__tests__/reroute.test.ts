@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { LayoutResult } from '../layout-types.js';
-import type { LinkInfo, NodeInfo, ViewManager } from '../../model-manager/interfaces.js';
+import type { LinkInfo, NodeInfo, ViewManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { withRouterRoutes, withViewRouterRoutes } from '../reroute.js';
 
 const node = (nodeIri: string, x: number, y: number, parentNodeIri?: string): NodeInfo =>

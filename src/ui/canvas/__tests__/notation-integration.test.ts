@@ -16,12 +16,12 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { DataFactory } from 'n3';
 import type { NamedNode } from '@rdfjs/types';
-import { N3TtlParser } from '../../../rdf-engine/ttl-parser.js';
-import { OxigraphRdfStore } from '../../../rdf-engine/rdf-store.js';
-import { N3MetamodelLoader } from '../../../metamodel-manager/metamodel-loader.js';
-import { SparqlPaletteGenerator } from '../../../metamodel-manager/palette-generator.js';
-import type { PaletteDefinition } from '../../../metamodel-manager/interfaces.js';
-import type { ElementManager, RelationshipManager } from '../../../model-manager/interfaces.js';
+import { N3TtlParser } from '@linked-archi/kernel/rdf-engine/ttl-parser.js';
+import { OxigraphRdfStore } from '@linked-archi/kernel/rdf-engine/rdf-store.js';
+import { N3MetamodelLoader } from '@linked-archi/kernel/metamodel-manager/metamodel-loader.js';
+import { SparqlPaletteGenerator } from '@linked-archi/kernel/metamodel-manager/palette-generator.js';
+import type { PaletteDefinition } from '@linked-archi/kernel/metamodel-manager/interfaces.js';
+import type { ElementManager, RelationshipManager } from '@linked-archi/kernel/model-manager/interfaces.js';
 import { EventBus } from '../../event-bus.js';
 import { DiagramCanvas } from '../diagram-canvas.js';
 import { RENDER_CLASSES } from '../rdf-renderer.js';

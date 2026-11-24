@@ -13,7 +13,7 @@
 
 import { html, nothing, type TemplateResult } from 'lit';
 import type { Quad } from '@rdfjs/types';
-import { NAMESPACES } from '../../rdf-engine/namespaces.js';
+import { NAMESPACES } from '@linked-archi/kernel/rdf-engine/namespaces.js';
 
 const RDF_TYPE = NAMESPACES.rdf + 'type';
 const SKOS_PREF_LABEL = NAMESPACES.skos + 'prefLabel';

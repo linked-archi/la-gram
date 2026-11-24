@@ -1,6 +1,6 @@
 /** Observe immutable versions without advancing the editor's incorporated base. */
-import { quadsOfSnapshot, snapshotOfText } from '../model-manager/model-merge.js';
-import { IRI } from '../model-manager/vocabulary.js';
+import { quadsOfSnapshot, snapshotOfText } from '@linked-archi/kernel/model-manager/model-merge.js';
+import { IRI } from '@linked-archi/kernel/model-manager/vocabulary.js';
 import type { GitBinding } from './bindings.js';
 import { GitError } from './errors.js';
 import { Access } from './git-open.js';
