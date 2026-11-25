@@ -15,32 +15,49 @@
 
 - [x] Work in progress committed: la-gram `b4efe20`, the kernel `5a7cfc2`; trial run again on them, passed
 
-**Stopped here, 2026-11-25:** these notes' last edits and the kernel's `package.json` and `README.md` to
-commit; then the build.
+**Stopped here, 2026-11-25:** both on GitHub, both checkouts following it. The kernel's first run failed on
+a test timeout. The fix, `vitest.config.ts` with la-gram's `testTimeout` and its change-log entry, is in the
+kernel's working tree: to commit and push to `main`. Next: 5.
 
 ## 1. Before the build
 
-- [ ] `git status` clean in both
+- [x] `git status` clean in both: la-gram `93900a5`, the kernel `cbb620b`
 
 ## 2. Build
 
-- [ ] `build-github-history.sh <new folder>`, without `--allow-dirty`: all checks pass
-- [ ] Keep the folder until both pushes are checked: `cited-hashes.txt` is needed after
+- [x] `build-github-history.sh`, without `--allow-dirty`: all checks pass. la-gram 196 commits, 4 branches,
+      3 tags; the kernel 98 + 9 commits
+- [x] `cited-hashes.txt`, the commits cited by hash with their new hashes, kept here for 5. `406a827` is
+      `3ef817d` on GitHub
 
 ## 3. On GitHub
 
-- [ ] Both repositories created, public, empty
-- [ ] la-gram, before its push: *On GitHub, once* in `../pull-deploy/tasks.md` up to the environments (Actions
-      permissions, environments `production` and `alpha`)
-- [ ] Push the kernel, then la-gram: branches and tags only (README.md, *Push*)
-- [ ] The kernel's workflow passes on `main`
-- [ ] Rulesets, `CODEOWNERS`, secret scanning and push protection: the rest of *On GitHub, once*, for both
-- [ ] On GitHub, each repository's commits show one author; the tags are there
+- [x] Both repositories public, empty before the push; descriptions; la-gram's homepage
+      `https://app.linked.archi/la-gram/`
+- [x] Both: workflow permissions *Read repository contents*; Actions may not create or approve pull requests
+- [x] la-gram's environments: `production`, required reviewer `linked-k`, self-review allowed, deployments
+      from tags `la-gram-v*` only; `alpha`, from branch `main` only
+- [x] Pushed, the kernel then la-gram, branches and tags only. GitHub's refs are exactly the build's. One
+      contributor in each. la-gram's push ran no workflow (GH-DD-5)
+- [x] Secret scanning and push protection on, both
+- [ ] The kernel's workflow passes on `main`. First run, 2026-11-25: 850 of 851 unit tests passed;
+      `model-merge.property.test.ts` timed out at Vitest's 5 s (6.9 s on the runner, 0.7 s in a local full run)
+- [x] la-gram's rulesets: `main`, pull requests with no approval needed (one maintainer), the checks `test`,
+      `web` and `docs`, no force-push or deletion, no bypass; `release tags`, `refs/tags/la-gram-v*`
+      created, moved or deleted only by admins and maintainers (`la-gram-alpha` not included)
+- [ ] `.github/CODEOWNERS` in la-gram (`/.github/` and `/ops/`), then *Require review from Code Owners* in
+      the `main` ruleset
+- [x] The kernel's `main`: no ruleset, direct pushes for now. Decision confirmed on 2026-11-25
 
 ## 4. The checkouts follow GitHub
 
-- [ ] la-gram: remotes, branches, tags (README.md, *The checkouts follow GitHub*)
-- [ ] The kernel: its remote and branch
+- [x] Each checkout's history before the move kept in `.git/pre-github-history.bundle` (branches and tags):
+      the kernel's existed nowhere else, la-gram's `pre-release` not on GitLab
+- [x] la-gram: GitLab is the remote `gitlab`, without tags; `origin` is GitHub; the four branches on
+      GitHub's, the tags replaced, the merged branches deleted; one identity on branches and tags
+- [x] The kernel: `origin` GitHub, `main` on GitHub's; one identity
+- [ ] Old commits dropped (`git reflog expire`, `git gc`) in both, with the `gitlab` remote's removal (7),
+      not before: until then the old history is at hand
 
 ## 5. la-gram, GitHub only (a pull request; GH-8, GH-9)
 

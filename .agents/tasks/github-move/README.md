@@ -73,8 +73,10 @@ push runs its workflow on `main`. la-gram's runs nothing (GH-DD-5): its workflow
 
 ## The checkouts follow GitHub
 
-With nothing uncommitted. The working trees keep their ignored files (`node_modules/`, task folders): only
-the branches move (GH-DD-6).
+Done on 2026-11-25, after `git bundle create .git/pre-github-history.bundle --branches --tags` in each, as
+the history before the move. The working trees keep their ignored files (`node_modules/`, task folders):
+only the branches move (GH-DD-6). GitLab's remote fetches no tags (`remote.gitlab.tagOpt --no-tags`), which
+would be the old ones.
 
 la-gram:
 
@@ -100,8 +102,9 @@ git remote add origin git@github.com:linked-archi/kernel.git
 git fetch origin
 git checkout -B main origin/main
 git branch -u origin/main main
-git reflog expire --expire=now --all && git gc --prune=now
 ```
+
+Its old commits are dropped with la-gram's, after GitLab is archived.
 
 The workspace (`tools/platform/linked-archi-workspace`) installs the kernel's archive and needs nothing.
 
