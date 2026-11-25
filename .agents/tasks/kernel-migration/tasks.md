@@ -17,10 +17,10 @@ are in [design.md](design.md).
 5. [x] Kernel verification commit: `fa73c6ef49b6b4b63fd62a1c531502dade8c5257` (source checkpoint `0cee219`).
    The copies removed by this migration match that kernel's source; the manifest records each destination and hash.
 6. [x] Step 3: complete KM-12–14 docs/API inventory and remove the kernel's copy-transition instructions.
-7. [ ] Step 4: remove the workspace-specific facade from the kernel; adjust this task's consumer tests/package only.
+7. [x] Step 4: remove the workspace-specific facade from the kernel. See the neutral package boundary result below.
 
-E1/A is **open**, pending ArchiMate 3.2 and a Studio-generated extension, fixed-screen implementation, and the
-remaining local acceptance criteria. Browser file handoff does not close shared persistence or live-room gates.
+E1/A is **open** for the Studio-generated extension and remaining workspace acceptance criteria. The browser
+handoff covers both ArchiMate 4.0 and 3.2. Shared persistence and live rooms have their own gates.
 
 ## Documentation before implementation
 
@@ -57,7 +57,8 @@ remaining local acceptance criteria. Browser file handoff does not close shared 
 - [x] Move the 14 to `src/__tests__/kernel/`; add *kernel-deps.test* and *kernel-assets.test* (KM-10, KM-3, KM-4, KM-7).
 - [x] Every check in KM-11, including la-gram-git's check of `docs-site/examples` and the smoke model, and
       byte-identical saves of the example models.
-- [ ] `npm run package` once (design, *Open questions*).
+- [x] `npm run package` produced a macOS ARM64 Electron distributable on draft kernel 0.1.4
+  (design, *Open questions*).
 - [x] The commit names the kernel commit the deleted files match (KM-15).
 
 ## Stage 4: documentation
@@ -122,3 +123,8 @@ Every changed la-gram file and its reason is in `workspace-integration-changes.m
   definition's RDF value and language. The final repack trims a trailing blank line.
 - [x] Requalify the installed archive after meta review at `d46b2c1`. Web, Electron and CLI builds,
   95 browser tests and CLI example and smoke checks passed using the workspace's exact archive.
+- [x] Package the macOS ARM64 Electron app at la-gram `8494f1d` on the reviewed 0.1.4 archive.
+  The packager created `dist/packages/la-gram-darwin-arm64`. It reported webpack size warnings and the absence
+  of an optional `.icon` file. The package contains the `.icns` icon and all 272 renderer assets match the
+  installed kernel. The packaged app started and loaded ArchiMate 4.0 with a disposable profile and mock
+  keychain. A normal launch in the test environment waited on macOS Keychain.

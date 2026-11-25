@@ -124,3 +124,6 @@ workspace's field-presence calculator from the shared package.
 
 The migration task log also records the repeat build and application checks on the same archive after meta
 review. This confirms the existing dependency pin for the expanded workspace browser handoff.
+
+The migration task log records the macOS ARM64 packaging check so the Electron distribution step is covered
+alongside the existing build checks.

@@ -70,6 +70,7 @@ data/
 .venv-docs/
 .agents/tasks/*
 !.agents/tasks/git-sync/
+!.agents/tasks/github-move/
 !.agents/tasks/kernel-migration/
 !.agents/tasks/pull-deploy/
 !.agents/tasks/view-references/
