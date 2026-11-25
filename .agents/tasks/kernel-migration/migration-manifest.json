@@ -2769,5 +2769,103 @@
       "destination": "@linked-archi/kernel/src/__tests__/sync-assets.test.ts",
       "sha256": "07120e082d1d625fbe84757aa8e7722c88b4ce11b822bb70a0e488e0c4099f23"
     }
+  ],
+  "ownedByKernelAfterVerification": [
+    {
+      "file": "src/import-export/__tests__/model-io.test.ts",
+      "sha256BeforeRemoval": "5f551fe23f5cb8e1cc0e27f91d68100422b5becaebd79ca3dba102c1258a1498",
+      "kernelFile": "src/import-export/__tests__/model-io.test.ts",
+      "comparison": "identical except package imports"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/bounds.trig",
+      "sha256BeforeRemoval": "e138eac248c3985c0ab2d685a0a8744118ef252fbab5ee204b5da296eac47f1b",
+      "kernelFile": "src/__tests__/fixtures/merge/bounds.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/clean.trig",
+      "sha256BeforeRemoval": "b0e1cea24cc19b74339f8e31faada81c126b6d58e931c2f042574764b87da9c4",
+      "kernelFile": "src/__tests__/fixtures/merge/clean.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/count.trig",
+      "sha256BeforeRemoval": "7f414fedf1583336b1ecb12f94ded0e6a5a453a5ccb9e0c023d121fb65e97516",
+      "kernelFile": "src/__tests__/fixtures/merge/count.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-agreed.trig",
+      "sha256BeforeRemoval": "3f4dafcfa84cbd1de7a30688e2927021c801cdc5a638981c265e973bda6c4a92",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-agreed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-filed.trig",
+      "sha256BeforeRemoval": "00f5af719eac751958b9e51ba718196705b3aca83b8b1940c07c839ae0592389",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-filed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-placed.trig",
+      "sha256BeforeRemoval": "709e16588648339622bdadd146c11fab5f044deef166f402370d4bdf4e40f7bd",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-placed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-related.trig",
+      "sha256BeforeRemoval": "2b3b046da157ad53f9ea47120964c3aca506a6196f50a929dc73224f38b185d5",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-related.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/deleted-renamed.trig",
+      "sha256BeforeRemoval": "4822fc9c36b1f3327ea16d724be72a47c61fea30ee9dd5d59699e29cddb4cf68",
+      "kernelFile": "src/__tests__/fixtures/merge/deleted-renamed.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/ends.trig",
+      "sha256BeforeRemoval": "5942fdedff0eb126cff95924266bb36fd28f4891c23c7b0f4d4adbe81d916f4c",
+      "kernelFile": "src/__tests__/fixtures/merge/ends.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/model.trig",
+      "sha256BeforeRemoval": "14bd314c995b44790f25b86bc28f9ce7a323b8840e0bd280b9ba9ccdfbaded98",
+      "kernelFile": "src/__tests__/fixtures/merge/model.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/modified.trig",
+      "sha256BeforeRemoval": "6fa366aebb359f75075c737a420e470b97442e5d18c585f9553b2e111abe0e06",
+      "kernelFile": "src/__tests__/fixtures/merge/modified.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/placement.trig",
+      "sha256BeforeRemoval": "99a121e63ed757f8e4746b374b0821ef3bdd41c730ce26246a04fbb19c7df2cd",
+      "kernelFile": "src/__tests__/fixtures/merge/placement.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/route.trig",
+      "sha256BeforeRemoval": "179ac21f8aee4ead7a0814383fb58cbece98cd37bf0f07247e81fe486baebc04",
+      "kernelFile": "src/__tests__/fixtures/merge/route.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/merge/value.trig",
+      "sha256BeforeRemoval": "97b5fa82b160d04d9390e629578818cb8000d0fa1024f7d65aefa51017fade63",
+      "kernelFile": "src/__tests__/fixtures/merge/value.trig",
+      "comparison": "byte-identical"
+    },
+    {
+      "file": "src/__tests__/fixtures/diff/changes.trig",
+      "sha256BeforeRemoval": "1dc2209bd591f6f556db053ab2df142acb8f77eb9125b084a887cfb5c56a0b81",
+      "kernelFile": "src/__tests__/fixtures/diff/changes.trig",
+      "comparison": "byte-identical"
+    }
   ]
 }

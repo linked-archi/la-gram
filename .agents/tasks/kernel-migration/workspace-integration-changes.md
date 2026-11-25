@@ -85,3 +85,18 @@ Validation: strict documentation build passed. No runtime behavior changed in th
 
 - `docs-site/developing/assets.md`: updates the package command to the qualified 0.1.1 filename; this is the
   consumer update procedure, not a local asset synchronization command.
+
+## S01 asset refresh and migration closure checks — 2026-11-25
+
+| Files | Reason |
+|---|---|
+| `package.json`, `package-lock.json`, `vendor/linked-archi-kernel-0.1.1.tgz` (removed), `vendor/linked-archi-kernel-0.1.2.tgz` | Keep both applications on the exact same kernel and metamodel bytes. The new archive carries the source S01 annotations and reader. |
+| `src/import-export/__tests__/model-io.test.ts` (removed) | The kernel runs the identical assertions. Removing the duplicate leaves the real App handoff test and CLI integrations here. |
+| `src/__tests__/fixtures/merge/*.trig` and `src/__tests__/fixtures/diff/changes.trig` (removed) | The kernel owns the tests that consume these 15 byte-identical fixtures. The manifest lists each removed path and hash. |
+| `docs-site/developing/assets.md` | Update the example archive filename to the verified revision. |
+| `.agents/specs/la-gram/design.md` | Point the merge and diff test references to the kernel that runs them. |
+| `.agents/tasks/kernel-migration/{tasks.md,migration-manifest.json,workspace-integration-changes.md}` | Record the checks, test ownership and why each file changed. |
+
+KM-11 compared the pre-migration and current App on the documentation and merge base models. The Turtle and
+TriG outputs matched byte for byte. The two-application browser handoff checked saved RDF after real form and
+canvas edits, including the declared metamodel, geometry and provenance in the 3.2 case.

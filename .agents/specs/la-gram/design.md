@@ -2759,7 +2759,7 @@ merging about 0.5 s; under the plan's 1 s for splitting a model into files. The
 suite runs it on 100 000 (`MERGE_BENCH_TRIPLES` for more): the large one, beside
 the other tests, pushed *questions-bench.test* past its limits.
 
-**Tests.** *model-merge.test* — a fixture per kind (`src/__tests__/fixtures/merge/`,
+**Tests.** *model-merge.test* — a fixture per kind (kernel `src/__tests__/fixtures/merge/`,
 each side's additions and removals on one base model): changes that combine;
 a name per language; a retype; a retarget kept whole; a concept deleted against
 a rename, a new relationship, a placement, a folder entry, and deletions that
@@ -2949,7 +2949,7 @@ description; CI's comment (Phase 3) is to use the same. 200 ms on 350 000 triple
 (*model-merge-bench.test*).
 
 **Tests.** *model-diff.test* (a fixture with each kind of change,
-`src/__tests__/fixtures/diff/`: a rename in one language, an element added and
+the kernel’s `src/__tests__/fixtures/diff/`: a rename in one language, an element added and
 placed, one deleted, a retarget, moves and resizes, a value added, a folder
 entry; a retype; a metamodel's single-valued property; the Markdown);
 *model-merge.property.test* (on random edits: every line under one concept, no

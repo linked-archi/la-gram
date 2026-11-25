@@ -52,10 +52,10 @@ remaining local acceptance criteria. Browser file handoff does not close shared 
 
 ## Stage 3: delete the copies
 
-- [ ] Delete the three modules, `model-io.ts` and its test, `assets/`, the moved tests and fixtures, `sync-assets`
+- [x] Delete the three modules, `model-io.ts` and its test, `assets/`, the moved tests and fixtures, `sync-assets`
       and its test and npm script (KM-9, KM-13).
 - [x] Move the 14 to `src/__tests__/kernel/`; add *kernel-deps.test* and *kernel-assets.test* (KM-10, KM-3, KM-4, KM-7).
-- [ ] Every check in KM-11, including la-gram-git's check of `docs-site/examples` and the smoke model, and
+- [x] Every check in KM-11, including la-gram-git's check of `docs-site/examples` and the smoke model, and
       byte-identical saves of the example models.
 - [ ] `npm run package` once (design, *Open questions*).
 - [x] The commit names the kernel commit the deleted files match (KM-15).
@@ -66,7 +66,7 @@ remaining local acceptance criteria. Browser file handoff does not close shared 
 - [x] la-gram: `README.md`, `.agents/conventions.md`, the design's module paths, Req 1.9, `docs-site/developing/`,
       the change log (KM-14). `npm run docs:build` passes.
 - [x] Kernel: remove *While la-gram still holds a copy* from its conventions; tick L01 in its plan.
-- [ ] Platform: L01 done in `linked-archi-platform/docs/plan.md`.
+- [x] Platform plan records the L01 package migration and its verified checks. E1/A has separate exit criteria.
 
 ## Documentation result — owner step 3, 2026-11-24
 
@@ -78,10 +78,8 @@ The kernel's copy-transition section is removed, and its README/design/plan desc
 
 Checkboxes above record the final checked implementation, not separate green intermediate commits. The initial
 source work was already checkpointed by the owner; the implementation commits are kernel `fa73c6e`, la-gram
-`5bc9123`, workspace `65e6cd7`. The retained ModelIO consumer regression test and shared merge/diff fixtures remain
-in la-gram because app/CLI tests consume them; their ownership will be reconciled in the next package cleanup.
-Historical byte-for-byte fixture-save comparison, the optional Electron packaged artifact, and platform roadmap
-closure are left unchecked where no new evidence was collected. L01 consumption is implemented; E1/A is open.
+`5bc9123`, workspace `65e6cd7`. The 2026-11-25 entry below records the later fixture ownership and equivalence checks. E1/A and the optional
+Electron packaging check stay open.
 
 ## Owner step 4 — neutral package boundary, 2026-11-24
 
@@ -92,3 +90,18 @@ closure are left unchecked where no new evidence was collected. L01 consumption 
   and strict docs build all pass.
 
 Every changed la-gram file and its reason is in `workspace-integration-changes.md`. No production canvas code changed.
+
+## S01 asset refresh and migration closure checks — 2026-11-25
+
+- [x] Install the same kernel 0.1.2 archive in the workspace and la-gram. Source commit
+  `8fce481af632591094b04f1e7facb17ceac32b4e` carries S01 metadata, the neutral presentation reader and the
+  shared canonical fixture. Both lockfiles match archive integrity.
+- [x] Compare the real App at the pre-migration commit `61c75aa` and the current App with 0.1.2. Each opened
+  `docs-site/examples/shop.ttl` and `src/__tests__/fixtures/merge/model.trig` in a scratch checkout. Both
+  Turtle and TriG saves matched byte for byte with the same test UUID sequence (KM-11).
+- [x] Delete the duplicate ModelIO test and 15 merge/diff fixtures (KM-9). The test differs from the kernel's
+  copy by imports alone, and every fixture matches byte for byte. Checksums are in the migration manifest.
+  The unique App and CLI checks continue to run in this consumer.
+- [x] Web/desktop/CLI builds, 95 browser tests, CLI examples/smoke checks, installed CLI smoke and strict docs
+  build passed. The actual workspace and modeller exchanged both ArchiMate 4.0 and 3.2 RDF.
+- [x] Typecheck and the remaining 118 unit files / 2,023 tests passed after the duplicate test removal.
