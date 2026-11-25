@@ -105,3 +105,20 @@ Every changed la-gram file and its reason is in `workspace-integration-changes.m
 - [x] Web/desktop/CLI builds, 95 browser tests, CLI examples/smoke checks, installed CLI smoke and strict docs
   build passed. The actual workspace and modeller exchanged both ArchiMate 4.0 and 3.2 RDF.
 - [x] Typecheck and the remaining 118 unit files / 2,023 tests passed after the duplicate test removal.
+
+## RDF labels review on draft 0.1.3
+
+- [x] Use the shared draft kernel 0.1.3 with the revised ontology and taxonomy label handling. The same archive
+  is installed in the workspace. This remains a working-tree change.
+- [x] Typecheck, 2,023 unit tests, web/Electron/CLI builds, 95 browser tests, CLI example and smoke checks and
+  the strict docs build passed. The real two-application RDF handoff passed for ArchiMate 4.0 and 3.2.
+
+## SHACL presentation on draft 0.1.4 — 2026-11-25
+
+- [x] Install the same draft 0.1.4 archive as the workspace. It restores the pre-S01 core and removes the
+  field-presence measure from shared code. The lockfile pins the matching archive integrity.
+- [x] Typecheck, 2,023 unit tests, web/Electron/CLI builds, 95 browser tests, CLI example and smoke checks and
+  the strict docs build passed. The real browser handoff passed for ArchiMate 4.0 and 3.2, including the saved
+  definition's RDF value and language. The final repack trims a trailing blank line.
+- [x] Requalify the installed archive after meta review at `d46b2c1`. Web, Electron and CLI builds,
+  95 browser tests and CLI example and smoke checks passed using the workspace's exact archive.

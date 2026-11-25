@@ -100,3 +100,27 @@ Validation: strict documentation build passed. No runtime behavior changed in th
 KM-11 compared the pre-migration and current App on the documentation and merge base models. The Turtle and
 TriG outputs matched byte for byte. The two-application browser handoff checked saved RDF after real form and
 canvas edits, including the declared metamodel, geometry and provenance in the 3.2 case.
+
+## RDF labels review on draft 0.1.3
+
+- `package.json`, `package-lock.json`, `vendor/linked-archi-kernel-0.1.2.tgz` (removed), and
+  `vendor/linked-archi-kernel-0.1.3.tgz` use the exact archive shared with the workspace. It removes the
+  dedicated terminology annotations and uses a common reader for authored RDF labels. The modeller's
+  default language preference is English.
+- `docs-site/developing/assets.md` gives the updated archive filename.
+- The migration task log and this file record the checks and the reason for the dependency change.
+
+## SHACL presentation on draft 0.1.4
+
+| Files | Reason |
+|---|---|
+| `package.json`, `package-lock.json` | Pin the same tested kernel as the workspace so both tools read the same metamodel and validation assets. |
+| `vendor/linked-archi-kernel-0.1.4.tgz` | Carry the restored core and SHACL display annotations in the installed package. This supersedes the working-tree 0.1.3 archive and replaces the tracked 0.1.2 archive. |
+| `docs-site/developing/assets.md` | Give the install command for the pinned archive. |
+| `.agents/tasks/kernel-migration/tasks.md`, `.agents/tasks/kernel-migration/workspace-integration-changes.md` | Record the executable checks and the dependency update's reasons. |
+
+The modeller's own metamodel asset inventory still reports missing types and documents. The change removes the
+workspace's field-presence calculator from the shared package.
+
+The migration task log also records the repeat build and application checks on the same archive after meta
+review. This confirms the existing dependency pin for the expanded workspace browser handoff.

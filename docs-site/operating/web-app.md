@@ -63,7 +63,10 @@ Its rules:
 - the desktop apps, in `/la-gram/downloads/`, are files like any other: a `.zip` is `application/zip`,
   `SHA256SUMS.txt` `text/plain`, and a `.tar.gz`, which nginx's type list does not name, the server's
   default type (`application/octet-stream` as nginx ships), so it downloads. Each is revalidated on
-  every load, as everything not named by its content is, so a release's replace the last ones at once;
+  every load, as everything not named by its content is, so a release's replace the last ones at once.
+  The folder itself, `/la-gram/downloads/` (or without the slash), has no page and is not listed: it
+  sends visitors to the documentation's [Download](../getting-started/desktop.md#download) section with a
+  **302**, which links each platform's app;
 - `/la-gram-alpha/` is the alpha — the next release as it is being made, deployed from each merge to the
   default branch ([alpha-deploy](../developing/releasing.md#alpha)) — from the folder beside `la-gram/`,
   `la-gram-alpha/`, with the same rules as `/la-gram/`;
@@ -87,6 +90,14 @@ server {
     location = /la-gram {
         absolute_redirect off;
         return 301 /la-gram/;
+    }
+    location = /la-gram/downloads/ {
+        absolute_redirect off;
+        return 302 /la-gram/docs/getting-started/desktop/#download;
+    }
+    location = /la-gram/downloads {
+        absolute_redirect off;
+        return 302 /la-gram/docs/getting-started/desktop/#download;
     }
     location ^~ /la-gram/ {
         try_files $uri $uri/ =404;
