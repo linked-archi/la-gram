@@ -23,6 +23,7 @@ it, no `--mirror` push, no replace refs.
 request and push to `main`, with a read-only token and actions pinned to commits.
 
 **GH-8** From la-gram 0.4.0, la-gram is built, released, published and deployed from GitHub only:
+
 - the web app and the desktop apps, by the GitHub Release (`../pull-deploy/`, DP-n);
 - la-gram-git on npm, by trusted publishing from GitHub Actions, with provenance;
 - la-gram-git's container image on ghcr.io, for `linux/amd64` and `linux/arm64`, with the tags the GitLab
@@ -32,4 +33,5 @@ request and push to `main`, with a read-only token and actions pinned to commits
 **GH-9** From 0.4.0, every link to la-gram's repository, releases, files and image (in the app, its
 documentation, la-gram-git's package and its CI templates) points to GitHub.
 
-**GH-10** la-gram's GitLab project is archived after the switch, its description pointing to GitHub.
+**GH-10** la-gram's GitLab project is archived after the switch, its description pointing to GitHub, and private
+once 0.4.0 is installed on app.linked.archi.

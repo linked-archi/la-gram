@@ -9,13 +9,17 @@
 - [x] The kernel's `.github/workflows/kernel.yml` and `.github/dependabot.yml`; its unused `.gitlab-ci.yml`
       removed. `npx vitest run --project unit`, the workflow's command, passes (51 files, 851 tests) (GH-7)
 
-**Stopped here, 2026-11-25:** the kernel's repository name to decide; the work in progress to commit.
+- [x] Names and GitLab's visibility decided (README.md, decisions 7 and 8)
+- [x] The kernel's `package.json` (`repository`, `homepage`, `bugs`) and `README.md`: GitHub; its link to la-gram,
+      a path into the workspace, now la-gram's repository
+
+- [x] Work in progress committed: la-gram `b4efe20`, the kernel `5a7cfc2`; trial run again on them, passed
+
+**Stopped here, 2026-11-25:** these notes' last edits and the kernel's `package.json` and `README.md` to
+commit; then the build.
 
 ## 1. Before the build
 
-- [ ] To decide: the kernel's repository name (README.md)
-- [ ] Commit the work in progress: la-gram's `kernel-migration` notes; the kernel's S01 changes and
-      nested resources; the files of this task and the kernel's `.github/`
 - [ ] `git status` clean in both
 
 ## 2. Build
@@ -52,7 +56,9 @@
       `ci/README.md` and its templates, `README.md`, and `docs-site/` (`developing/specifications.md`,
       `developing/releasing.md`, `operating/container-image.md`, `operating/ci.md`, `index.md`,
       `getting-started/desktop.md`); `src/ui/__tests__/help.test.ts`, `src/__tests__/version-page.test.ts`
-- [ ] The hashes in `cited-hashes.txt` updated in their files (GH-6)
+- [ ] The hashes in `cited-hashes.txt` updated in their files (GH-6), and in the kernel's. Not in
+      `build-github-history.sh`: its `KERNEL_BASE` is a commit of the old history, which it reads. In this
+      task's README and design, the new hash beside the old
 - [ ] `.agents/specs/la-gram/`: requirements, design, the change-log entry; `CLAUDE.md` and `conventions.md`
       link to the kernel's repository
 - [ ] Tests, build, `npm run docs:build`
@@ -60,7 +66,6 @@
 
 ## 6. The kernel's documents
 
-- [ ] `package.json`: `repository`, `homepage`, `bugs`; `README.md`: the repository
 - [ ] `.agents/specs/kernel/tasks.md`: "the clean GitLab CI run" → GitHub Actions; publication (K02) to npm,
       not GitLab's package registry; the change-log entry
 - [ ] `.agents/tasks/import-from-la-gram/README.md`: history imported (this task, GH-DD-2); its checklist ticked,
@@ -72,10 +77,10 @@
 - [ ] The server's pull deploy: *On the server* and *In the repository, with the switch-over* in
       `../pull-deploy/tasks.md`
 - [ ] GitLab: `DEPLOY_SSH_KEY` and the deploy variables deleted; the description pointing to GitHub; archived
-- [ ] To decide: the archived project's visibility
 - [ ] la-gram checkout: `gitlab` remote removed, old commits dropped (README.md)
 - [ ] `tools/modellers/la-gram-vscode/package.json`: its link to GitLab, with that repository's own change
 
 ## 8. Release 0.4.0
 
 - [ ] Tag `la-gram-v0.4.0` on GitHub: the Release, la-gram-git on npm and ghcr.io, the server installs it
+- [ ] app.linked.archi serves 0.4.0: then the GitLab project private (GH-DD-8)

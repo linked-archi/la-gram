@@ -32,14 +32,14 @@ Decision confirmed on 2026-11-25:
 6. **GitHub only from 0.4.0:** la-gram's release and the server's pull deploy (`../pull-deploy/`);
    la-gram-git's npm releases by trusted publishing from GitHub Actions, its image on ghcr.io;
    `.gitlab-ci.yml` gone. GitLab's project archived after the switch.
-7. **la-gram's repository:** `linked-archi/la-gram`, as `ops/pull-deploy/la-gram-pull.conf.example` has it.
-
-To decide:
-
-- the kernel's repository: `linked-archi/kernel`, as its npm name `@linked-archi/kernel`, or
-  `linked-archi/linked-archi-kernel`, as its folder and `linked-archi-apm`, `linked-archi-mcp`;
-- la-gram-git's image on ghcr.io: `ghcr.io/linked-archi/la-gram-git` is assumed (as `ghcr.io/linked-archi/rdf2docs`);
-- the archived GitLab project's visibility: it keeps the old history, with its own hashes and identities.
+7. **Names:** `linked-archi/la-gram`, as `ops/pull-deploy/la-gram-pull.conf.example` has it;
+   `linked-archi/kernel`, as its npm name `@linked-archi/kernel`; la-gram-git's image
+   `ghcr.io/linked-archi/la-gram-git`, as `ghcr.io/linked-archi/rdf2docs`.
+8. **The archived GitLab project is private** (GH-DD-8): it keeps the old history, with its own hashes and
+   identities. It is made private once 0.4.0 is installed on app.linked.archi. Until then the app's Help
+   menu (`REPOSITORY`, the issue tracker) and la-gram-git 0.1.0's npm page link to it. Desktop installs of 0.3.0
+   keep those links, which then no longer open: accepted. la-gram-git's image at `registry.gitlab.com` stops
+   being pulled without an account: its users move to ghcr.io's.
 
 ## The history
 
@@ -47,13 +47,13 @@ To decide:
 in that folder, and checks them. It pushes nothing and changes neither checkout. It refuses a checkout with
 uncommitted changes (`--allow-dirty` for a trial). It needs `git-filter-repo` on `PATH`.
 
-Trial run, 2026-11-25, on what was committed then:
+Trial run, 2026-11-25, on la-gram's `b4efe20` and the kernel's `5a7cfc2`:
 
 | | Result |
 |---|---|
-| la-gram | 194 commits, as before; 4 branches, 3 tags; one identity; no home path and no other address in any commit, tag or file version; each branch tip with the same files, but for 5 notes under `.agents/tasks/notation-fallback*/`, whose paths are now relative |
-| kernel | 98 commits of la-gram's history of its files, up to `406a827`; its own 7 on top, the tip with the same files but for `.agents/tasks/import-from-la-gram/README.md` (relative paths) |
-| cited hashes | On `pre-release`, 16 places in 7 files cite a commit by hash; in the kernel, 1 in `.agents/specs/kernel/tasks.md`. `cited-hashes.txt` in the folder lists each with its new hash, for every branch: the other branches cite the same commits in older copies, left as they are |
+| la-gram | 195 commits, as before; 4 branches, 3 tags; one identity; no home path and no other address in any commit, tag or file version; each branch tip with the same files, but for 5 notes under `.agents/tasks/notation-fallback*/`, whose paths are now relative |
+| kernel | 98 commits of la-gram's history of its files, up to `406a827`; its own 8 on top, the tip with the same files but for `.agents/tasks/import-from-la-gram/README.md` (relative paths) |
+| cited hashes | On `pre-release`, 20 places in 10 files cite a commit by hash; in the kernel, 3 in 2 files. `cited-hashes.txt` in the folder lists each with its new hash, for every branch: the other branches cite the same commits in older copies, left as they are |
 
 A commit that exists now gets the same new hash in every run (same commits, same rules), so a run after
 more commits changes nothing above but adds to it.
@@ -64,7 +64,7 @@ Both repositories created empty on GitHub: no README, licence or `.gitignore`. T
 build wrote, branches and tags only:
 
 ```sh
-cd <folder>/kernel.git && git push git@github.com:linked-archi/<kernel>.git 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
+cd <folder>/kernel.git && git push git@github.com:linked-archi/kernel.git 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
 cd <folder>/la-gram.git && git push git@github.com:linked-archi/la-gram.git 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
 ```
 
@@ -96,7 +96,7 @@ to drop the old commits.
 The kernel, which has no remote yet:
 
 ```sh
-git remote add origin git@github.com:linked-archi/<kernel>.git
+git remote add origin git@github.com:linked-archi/kernel.git
 git fetch origin
 git checkout -B main origin/main
 git branch -u origin/main main

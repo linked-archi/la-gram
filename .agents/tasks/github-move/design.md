@@ -36,3 +36,8 @@ are reset to GitHub's, and only the files GH-2 changed change on disk.
 
 **GH-DD-7. The kernel's CI leaves out the timing tests.** They time the runner, which a shared runner's
 neighbours slow, as la-gram's workflow leaves out its own. `npm test` runs them locally.
+
+**GH-DD-8. GitLab private after 0.4.0 is live.** The archived project keeps the history as it was before GH-2,
+so it is not left public. It becomes private only once app.linked.archi serves 0.4.0, whose links point to
+GitHub: before that, the app's Help menu and la-gram-git 0.1.0's npm page send people to GitLab. Desktop
+installs of 0.3.0 keep their GitLab links. They stop opening, as does the GitLab image without an account.
