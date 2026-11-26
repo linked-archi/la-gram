@@ -43,6 +43,10 @@ KEEP_ALPHAS=${KEEP_ALPHAS:-2}
 CHECK_RESOLVE=${CHECK_RESOLVE:-}
 API=${API:-https://api.github.com}
 ALPHA_TAG=la-gram-alpha
+# gh keeps its configuration and Sigstore's trust root under the home: the state folder, however the
+# script is started — by the unit, which says the same, or by hand with sudo -u, whose home does not exist
+# (without one, gh cannot set up the verifier, and every build is refused).
+export HOME=$STATE_DIR
 # The desktop apps: la-gram-<version>-<target> in the release, downloads/la-gram-<target> here.
 TARGETS="darwin-arm64.zip darwin-x64.zip win32-x64.zip linux-x64.tar.gz linux-arm64.tar.gz"
 if [ -n "${GH_TOKEN:-}" ]; then export GH_TOKEN; fi
@@ -193,15 +197,22 @@ swap() {
   mv -T "$BASE/$LINK.swap" "$BASE/$LINK"
 }
 
-# served <folder>: SITE/LINK/ answers the folder's index.html, so nginx serves it now.
+# served <folder>: nginx serves the folder now. SITE/LINK/index.html names the build's entry script,
+# bundle.<content hash>.js, which no other build names, and SITE/LINK/ serves that script with the folder's
+# bytes. The page itself is not compared byte for byte: a server may add to its HTML (sub_filter), but
+# passes a script through as it is.
 served() {
-  local want got i resolve=()
+  local entry want page got i resolve=()
   if [ -n "$CHECK_RESOLVE" ]; then resolve=(--resolve "$CHECK_RESOLVE"); fi
-  want=$(sha256sum < "$1/index.html" | cut -d ' ' -f 1)
+  entry=$(grep -o 'src="bundle\.[0-9a-f]*\.js"' "$1/index.html" | head -n 1 | sed 's/^src="//; s/"$//') || entry=
+  [ -n "$entry" ] && [ -f "$1/$entry" ] || return 1
+  want=$(sha256sum < "$1/$entry" | cut -d ' ' -f 1)
   for i in 1 2 3 4 5; do
+    page=$(curl --fail --silent --show-error "${resolve[@]}" --header 'Cache-Control: no-cache' \
+      "$SITE/$LINK/index.html") || page=
     got=$(curl --fail --silent --show-error "${resolve[@]}" --header 'Cache-Control: no-cache' \
-      "$SITE/$LINK/index.html" | sha256sum | cut -d ' ' -f 1) || got=
-    if [ "$got" = "$want" ]; then return 0; fi
+      "$SITE/$LINK/$entry" | sha256sum | cut -d ' ' -f 1) || got=
+    if [[ "$page" == *"src=\"$entry\""* ]] && [ "$got" = "$want" ]; then return 0; fi
     sleep "$i"
   done
   return 1
@@ -220,7 +231,7 @@ prune() {
 }
 
 deploy() {
-  local web stage target name v prod held
+  local web stage target name v prod held before
   local pages=()
   need curl jq gh tar sha256sum awk
   WORK=$(mktemp -d "$STATE_DIR/work.XXXXXX")
@@ -318,10 +329,12 @@ deploy() {
   swap "$target"
 
   if ! served "$BASE/$target"; then
-    if [ -n "$BEFORE" ]; then swap "$BEFORE"; fi
+    # swap says where the link pointed in BEFORE: kept, for what is said, before swapping back.
+    before=$BEFORE
+    if [ -n "$before" ]; then swap "$before"; fi
     # Not kept: a rollback would otherwise find it the newest folder.
     rm -rf "${BASE:?}/$target"
-    refuse "$SITE/$LINK/ does not answer its index.html; ${BEFORE:-nothing} is served again"
+    refuse "$SITE/$LINK/ does not serve the new build; ${before:-nothing} is served again"
   fi
   printf '%s\n' "$ID" > "$STATE_DIR/$CHANNEL.id"
   rm -f "$STATE_DIR/$CHANNEL.hold"
@@ -345,7 +358,7 @@ rollback() {
   touch "$BASE/$STORE/$prev"
   swap "$STORE/$prev"
   printf '%s\n' "$prev" | sed 's/\.[0-9]\{8\}T[0-9]\{6\}Z$//' > "$STATE_DIR/$CHANNEL.id"
-  if ! served "$BASE/$STORE/$prev"; then log "$CHANNEL: warning: $SITE/$LINK/ does not answer $prev's index.html (yet)"; fi
+  if ! served "$BASE/$STORE/$prev"; then log "$CHANNEL: warning: $SITE/$LINK/ does not serve $prev (yet)"; fi
   log "$CHANNEL: $SITE/$LINK/ is $prev again (was $now); $now is held until a newer build is published"
 }
 

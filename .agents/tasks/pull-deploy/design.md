@@ -12,7 +12,7 @@ GitHub: .github/workflows/la-gram.yml                    app.linked.archi: la-gr
       attest-build-provenance (OIDC, Sigstore)               unpack (no ../, no links) into releases/.new-<id>
       gh release create                                      version pages → versions/ → the new folder
   push main, 0.3.0-alpha                                     mv into releases/<id>; swap the link in one rename
-    test, web (channel alpha), docs                          fetch SITE/la-gram/index.html: the new one?
+    test, web (channel alpha), docs                          SITE/la-gram/: the new entry script, its bytes?
     alpha (environment alpha)                                  no → link back, folder away, build held
       rolling pre-release la-gram-alpha                      prune to KEEP
 ```

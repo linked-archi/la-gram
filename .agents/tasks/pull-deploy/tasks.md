@@ -33,10 +33,28 @@ Done 2026-11-25, but the first run.
       approve their own pull request, so with one maintainer it would hold every change there. Recorded
       (2026-11-25), not started: on with a second maintainer
 - [x] Secret scanning and push protection on
-- [ ] First run: a pull request (test, package, web, docs); a merge (the alpha published); *Run workflow*
-      with *desktop* (the five apps as artifacts)
+- [x] First run (2026-11-26): pull request #1 (test, package, web, docs), merged; the alpha published,
+      `la-gram-alpha`, *la-gram 0.4.0-alpha (alpha, 80fe11ebf11e)*, with its build record
+- [ ] *Run workflow* with *desktop* (the five apps as artifacts)
 
 ## On the server (ops/pull-deploy/README.md)
+
+Tried first in an Ubuntu 24.04 container set up as the server (2026-11-26): the `la-gram-pull` user, `gh`
+2.106 from GitHub's apt repository, nginx 1.24 with app.linked.archi's configuration, a certificate the
+container trusts, and the two folders the SSH deploy leaves. Against the real alpha: the dry run; a byte
+changed, and a tag claimed for a build from main, refused; `adopt`; the install; nothing new; `rollback`,
+held; `--force`; the site unreachable, the build refused and the folder served before served again. No
+`GH_TOKEN` was needed: the release carries its build record, so `gh` needs only Sigstore's trust root.
+Fixed on the way:
+
+- [x] A run by hand (`sudo -u la-gram-pull …`) had no home, so `gh` could not set up its verifier and
+      refused every build: the script sets `HOME` to `STATE_DIR` itself, as the unit does
+- [x] The site check compared `index.html` byte for byte, and a server that adds to its HTML
+      (`sub_filter`) failed it every time: it checks the build's entry script now, named in the page
+      and served with the folder's bytes (DP-9)
+- [x] A refusal by the site check named the new folder as the one served again: it names the one before
+- [x] README: `gh` from GitHub's apt repository; a refusal to try against the alpha
+
 
 - [ ] Install: the user, the files, `/etc/la-gram-pull.conf`, `gh` ≥ 2.70
 - [ ] Dry run of both channels against a real release and alpha; a changed byte refused
